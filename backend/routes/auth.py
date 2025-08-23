@@ -6,10 +6,21 @@ bp = Blueprint('auth', __name__)
 
 @bp.route('/register', methods=['POST'])
 def register():
-    data = request.json
-    supabase = get_supabase_client()
-    
     try:
+        data = request.json
+        
+        # Log the incoming data for debugging
+        print(f"Registration attempt for email: {data.get('email')}")
+        
+        # Validate required fields
+        required_fields = ['email', 'password', 'username', 'first_name', 'last_name']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'error': f'Missing required field: {field}'}), 400
+        
+        supabase = get_supabase_client()
+        
+        # Sign up with Supabase Auth
         auth_response = supabase.auth.sign_up({
             'email': data['email'],
             'password': data['password'],
@@ -23,6 +34,7 @@ def register():
         })
         
         if auth_response.user:
+            # Create user profile in our users table
             user_data = {
                 'id': auth_response.user.id,
                 'username': data['username'],
@@ -39,10 +51,13 @@ def register():
                 'session': auth_response.session.model_dump() if auth_response.session else None
             }), 201
         else:
-            return jsonify({'error': 'Registration failed'}), 400
+            return jsonify({'error': 'Registration failed - no user created'}), 400
             
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        print(f"Registration error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 @bp.route('/login', methods=['POST'])
 def login():

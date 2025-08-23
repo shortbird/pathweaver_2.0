@@ -24,6 +24,30 @@ app.register_blueprint(community.bp, url_prefix='/api/community')
 def health_check():
     return jsonify({'status': 'healthy'}), 200
 
+@app.route('/api/test-config')
+def test_config():
+    """Test endpoint to verify configuration"""
+    from config import Config
+    
+    config_status = {
+        'has_supabase_url': bool(Config.SUPABASE_URL),
+        'has_supabase_key': bool(Config.SUPABASE_KEY),
+        'has_supabase_service_key': bool(Config.SUPABASE_SERVICE_KEY),
+        'has_stripe_key': bool(Config.STRIPE_SECRET_KEY),
+        'frontend_url': Config.FRONTEND_URL,
+        'supabase_url': Config.SUPABASE_URL[:30] + '...' if Config.SUPABASE_URL else None
+    }
+    
+    # Try to connect to Supabase
+    try:
+        from database import get_supabase_client
+        client = get_supabase_client()
+        config_status['supabase_connection'] = 'success'
+    except Exception as e:
+        config_status['supabase_connection'] = f'failed: {str(e)}'
+    
+    return jsonify(config_status), 200
+
 @app.before_request
 def handle_preflight():
     if request.method == "OPTIONS":
