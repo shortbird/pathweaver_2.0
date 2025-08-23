@@ -75,11 +75,15 @@ def login():
         if auth_response.user:
             user_data = supabase.table('users').select('*').eq('id', auth_response.user.id).single().execute()
             
-            supabase.table('activity_log').insert({
-                'user_id': auth_response.user.id,
-                'event_type': 'user_login',
-                'event_details': {'ip': request.remote_addr}
-            }).execute()
+            # Try to log activity, but don't fail login if it doesn't work
+            try:
+                supabase.table('activity_log').insert({
+                    'user_id': auth_response.user.id,
+                    'event_type': 'user_login',
+                    'event_details': {'ip': request.remote_addr}
+                }).execute()
+            except Exception as log_error:
+                print(f"Failed to log activity: {log_error}")
             
             return jsonify({
                 'user': user_data.data,
