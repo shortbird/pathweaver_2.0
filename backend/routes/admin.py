@@ -40,7 +40,7 @@ def create_quest(user_id):
 
 @bp.route('/quests/<quest_id>', methods=['PUT'])
 @require_admin
-def update_quest(quest_id, user_id):
+def update_quest(user_id, quest_id):
     data = request.json
     supabase = get_supabase_admin_client()
     
@@ -68,7 +68,7 @@ def update_quest(quest_id, user_id):
 
 @bp.route('/quests/<quest_id>', methods=['DELETE'])
 @require_admin
-def delete_quest(quest_id, user_id):
+def delete_quest(user_id, quest_id):
     supabase = get_supabase_admin_client()
     
     try:
@@ -162,7 +162,7 @@ def get_pending_submissions(user_id):
 
 @bp.route('/submissions/<submission_id>/review', methods=['POST'])
 @require_admin
-def review_submission(submission_id, user_id):
+def review_submission(user_id, submission_id):
     data = request.json
     action = data.get('action')
     feedback = data.get('feedback', '')

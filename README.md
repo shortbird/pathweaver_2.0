@@ -1,4 +1,4 @@
-# PathWeaver™ Application
+# Optio Quests Application
 
 A comprehensive web application for interest-led learning, built with React (frontend) and Flask (backend), powered by Supabase and Stripe.
 
@@ -15,7 +15,7 @@ pw_v2/
 
 - **User Authentication**: Registration, login, and profile management
 - **Quest System**: Browse, start, and complete educational quests
-- **Subscription Tiers**: Explorer (free), Creator ($15/mo), Visionary ($50/mo)
+- **Subscription Tiers**: Explorer (free), Creator ($20/mo), Visionary ($200/mo)
 - **Community Features**: Friend connections and collaborative learning
 - **Progress Tracking**: XP system, dashboards, and transcript generation
 - **Admin Tools**: Quest management and submission review

@@ -49,7 +49,7 @@ def get_quest(quest_id):
 
 @bp.route('/<quest_id>/start', methods=['POST'])
 @require_auth
-def start_quest(quest_id, user_id):
+def start_quest(user_id, quest_id):
     supabase = get_supabase_client()
     
     try:
@@ -80,7 +80,7 @@ def start_quest(quest_id, user_id):
 
 @bp.route('/<quest_id>/submit', methods=['POST'])
 @require_auth
-def submit_quest(quest_id, user_id):
+def submit_quest(user_id, quest_id):
     supabase = get_supabase_client()
     data = request.json
     
@@ -126,16 +126,16 @@ def submit_quest(quest_id, user_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-@bp.route('/user/<user_id>/quests', methods=['GET'])
+@bp.route('/user/<target_user_id>/quests', methods=['GET'])
 @require_auth
-def get_user_quests(user_id, current_user_id):
-    if user_id != current_user_id:
+def get_user_quests(user_id, target_user_id):
+    if target_user_id != user_id:
         return jsonify({'error': 'Unauthorized'}), 403
     
     supabase = get_supabase_client()
     
     try:
-        response = supabase.table('user_quests').select('*, quests(*, quest_xp_awards(*))').eq('user_id', user_id).execute()
+        response = supabase.table('user_quests').select('*, quests(*, quest_xp_awards(*))').eq('user_id', target_user_id).execute()
         return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400

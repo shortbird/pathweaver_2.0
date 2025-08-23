@@ -14,7 +14,7 @@ const HomePage = () => {
               Turn Your Passions Into Learning
             </h1>
             <p className="text-xl mb-8 max-w-2xl mx-auto">
-              PathWeaver™ empowers students to create their own educational journey through 
+              Optio Quests empowers students to create their own educational journey through 
               interest-led learning, gamified quests, and community collaboration.
             </p>
             <div className="bg-white/20 backdrop-blur-sm rounded-lg p-4 max-w-3xl mx-auto mb-8">
@@ -79,7 +79,7 @@ const HomePage = () => {
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">High School Credit Through Quest-Based Learning</h2>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              PathWeaver™ enables students to earn official high school credit toward their diploma. Complete quests aligned with 
+              Optio Quests enables students to earn official high school credit toward their diploma. Complete quests aligned with 
               academic standards to earn credits that count toward graduation requirements.
             </p>
           </div>
