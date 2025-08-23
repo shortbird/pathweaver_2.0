@@ -98,6 +98,20 @@ const AdminQuests = () => {
     }
   }
 
+  const getSubjectName = (subject) => {
+    const subjectNames = {
+      'language_arts': 'Language Arts',
+      'math': 'Math',
+      'science': 'Science',
+      'social_studies': 'Social Studies',
+      'foreign_language': 'Foreign Language',
+      'arts': 'Arts',
+      'technology': 'Technology',
+      'physical_education': 'PE'
+    }
+    return subjectNames[subject] || subject
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -151,13 +165,69 @@ const AdminQuests = () => {
       {loading ? (
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
       ) : (
-        <div className="space-y-4">
-          {quests.map(quest => (
-            <div key={quest.id} className="card">
-              <h3 className="font-semibold">{quest.title}</h3>
-              <p className="text-sm text-gray-600 mt-1">{quest.description}</p>
+        <div className="overflow-x-auto">
+          <table className="min-w-full bg-white border border-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                  Quest Name
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                  Subjects & XP
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                  Evidence Requirements
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-200">
+              {quests.map(quest => (
+                <tr key={quest.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{quest.title}</div>
+                      <div className="text-sm text-gray-500 mt-1">{quest.description}</div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm">
+                      {quest.quest_xp_awards && quest.quest_xp_awards.length > 0 ? (
+                        quest.quest_xp_awards.map((award, idx) => (
+                          <div key={idx} className="mb-1">
+                            <span className="font-medium">{getSubjectName(award.subject)}:</span>
+                            <span className="ml-2 text-primary font-semibold">{award.xp_amount} XP</span>
+                          </div>
+                        ))
+                      ) : (
+                        <span className="text-gray-400">No XP awards set</span>
+                      )}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="text-sm text-gray-600 max-w-xs">
+                      {quest.evidence_requirements}
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    <button className="text-primary hover:text-primary-dark mr-3">
+                      Edit
+                    </button>
+                    <button className="text-red-600 hover:text-red-800">
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {quests.length === 0 && (
+            <div className="text-center py-8 text-gray-500">
+              No quests found. Create your first quest above.
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>

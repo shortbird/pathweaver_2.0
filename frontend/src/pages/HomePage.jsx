@@ -123,24 +123,26 @@ const HomePage = () => {
               <div className="bg-primary text-white text-xs px-2 py-1 rounded-full inline-block mb-2">
                 MOST POPULAR
               </div>
-              <h3 className="text-xl font-semibold mb-2">Creator ($15/month)</h3>
+              <h3 className="text-xl font-semibold mb-2">Creator ($20/month)</h3>
               <p className="text-gray-600 mb-4">For students earning high school credit</p>
               <ul className="space-y-2 text-sm">
                 <li>✓ Everything in Explorer</li>
                 <li>✓ <strong>Official high school credit banking</strong></li>
                 <li>✓ Accredited transcript generation</li>
                 <li>✓ Credits count toward graduation</li>
+                <li>✓ Email educator support (1 business day response)</li>
                 <li>✓ Community XP bonuses</li>
               </ul>
             </div>
             <div className="card">
-              <h3 className="text-xl font-semibold mb-2">Visionary ($50/month)</h3>
-              <p className="text-gray-600 mb-4">Complete educational solution</p>
+              <h3 className="text-xl font-semibold mb-2">Visionary ($200/month)</h3>
+              <p className="text-gray-600 mb-4">Premium educational partnership</p>
               <ul className="space-y-2 text-sm">
                 <li>✓ Everything in Creator</li>
-                <li>✓ Dedicated educator support</li>
-                <li>✓ Personalized learning plan</li>
-                <li>✓ Priority review</li>
+                <li>✓ <strong>One dedicated educator for your family</strong></li>
+                <li>✓ Long-term relationship & personalized guidance</li>
+                <li>✓ Custom learning plan tailored to your goals</li>
+                <li>✓ Priority review & support</li>
               </ul>
             </div>
           </div>
