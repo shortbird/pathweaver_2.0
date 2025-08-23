@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-background text-text;
+    font-family: 'Inter', sans-serif;
+  }
+  
+  h1 {
+    @apply text-4xl font-bold;
+  }
+  
+  h2 {
+    @apply text-2xl font-semibold;
+  }
+  
+  h3 {
+    @apply text-xl font-semibold;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-white px-4 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-shadow duration-200;
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-text px-4 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-shadow duration-200;
+  }
+  
+  .card {
+    @apply bg-white border border-border rounded-xl p-4 shadow-card hover:shadow-card-hover transition-shadow duration-200;
+  }
+  
+  .input-field {
+    @apply w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent;
+  }
+}
