@@ -10,7 +10,8 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
 
-CORS(app, origins=[os.getenv('FRONTEND_URL', 'http://localhost:3000')])
+frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+CORS(app, origins=[frontend_url, 'http://localhost:3000'], supports_credentials=True)
 
 app.register_blueprint(auth.bp, url_prefix='/api/auth')
 app.register_blueprint(quests.bp, url_prefix='/api/quests')
