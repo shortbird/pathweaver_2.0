@@ -67,7 +67,7 @@ const HomePage = () => {
               </div>
               <h3 className="text-xl font-semibold mb-2">Earn Official Credit</h3>
               <p className="text-gray-600">
-                Gain XP, build your transcript with official high school credits, and showcase your unique educational journey.
+                Gain XP, earn official high school credits toward your diploma, and showcase your unique educational journey.
               </p>
             </div>
           </div>
@@ -79,7 +79,7 @@ const HomePage = () => {
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold mb-4">High School Credit Through Quest-Based Learning</h2>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              PathWeaver™ is approved for official high school credit banking. Complete quests aligned with 
+              PathWeaver™ enables students to earn official high school credit toward their diploma. Complete quests aligned with 
               academic standards to earn credits that count toward graduation requirements.
             </p>
           </div>
@@ -127,7 +127,7 @@ const HomePage = () => {
               <p className="text-gray-600 mb-4">For students earning high school credit</p>
               <ul className="space-y-2 text-sm">
                 <li>✓ Everything in Explorer</li>
-                <li>✓ <strong>Official high school credit banking</strong></li>
+                <li>✓ <strong>Earn official high school credits toward your diploma</strong></li>
                 <li>✓ Accredited transcript generation</li>
                 <li>✓ Credits count toward graduation</li>
                 <li>✓ Email educator support (1 business day response)</li>

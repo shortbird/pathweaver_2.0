@@ -2,6 +2,8 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth_utils import require_admin
 from datetime import datetime
+import csv
+import io
 
 bp = Blueprint('admin', __name__)
 
@@ -74,6 +76,73 @@ def delete_quest(quest_id, user_id):
         supabase.table('quests').delete().eq('id', quest_id).execute()
         
         return jsonify({'message': 'Quest deleted successfully'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@bp.route('/quests/bulk-import', methods=['POST'])
+@require_admin
+def bulk_import_quests(user_id):
+    supabase = get_supabase_admin_client()
+    
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not file.filename.endswith('.csv'):
+            return jsonify({'error': 'File must be a CSV'}), 400
+        
+        stream = io.StringIO(file.stream.read().decode("UTF8"), newline=None)
+        csv_reader = csv.DictReader(stream)
+        
+        imported_count = 0
+        errors = []
+        
+        for row_num, row in enumerate(csv_reader, start=2):
+            try:
+                quest_data = {
+                    'title': row['title'].strip(),
+                    'description': row['description'].strip(),
+                    'evidence_requirements': row['evidence_requirements'].strip(),
+                    'created_by': user_id,
+                    'created_at': datetime.utcnow().isoformat()
+                }
+                
+                quest_response = supabase.table('quests').insert(quest_data).execute()
+                quest_id = quest_response.data[0]['id']
+                
+                subjects = [s.strip() for s in row['subjects'].split(',')]
+                xp_amounts = [int(x.strip()) for x in row['xp_amounts'].split(',')]
+                
+                if len(subjects) != len(xp_amounts):
+                    errors.append(f"Row {row_num}: Mismatched subjects and XP amounts")
+                    continue
+                
+                for subject, xp_amount in zip(subjects, xp_amounts):
+                    supabase.table('quest_xp_awards').insert({
+                        'quest_id': quest_id,
+                        'subject': subject,
+                        'xp_amount': xp_amount
+                    }).execute()
+                
+                imported_count += 1
+                
+            except Exception as e:
+                errors.append(f"Row {row_num}: {str(e)}")
+        
+        response_data = {
+            'imported': imported_count,
+            'total': row_num - 1
+        }
+        
+        if errors:
+            response_data['errors'] = errors
+        
+        return jsonify(response_data), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 400
