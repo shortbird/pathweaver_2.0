@@ -10,12 +10,8 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
 
-# More permissive CORS for debugging
-CORS(app, 
-     origins=['https://pathweaver-2-0.vercel.app', 'http://localhost:3000'],
-     allow_headers=['Content-Type', 'Authorization'],
-     methods=['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-     supports_credentials=True)
+# Temporary: Allow all origins for debugging
+CORS(app, resources={r"/api/*": {"origins": "*"}})
 
 app.register_blueprint(auth.bp, url_prefix='/api/auth')
 app.register_blueprint(quests.bp, url_prefix='/api/quests')
@@ -32,10 +28,9 @@ def health_check():
 def handle_preflight():
     if request.method == "OPTIONS":
         response = make_response()
-        response.headers.add("Access-Control-Allow-Origin", "https://pathweaver-2-0.vercel.app")
+        response.headers.add("Access-Control-Allow-Origin", "*")
         response.headers.add('Access-Control-Allow-Headers', "*")
         response.headers.add('Access-Control-Allow-Methods', "*")
-        response.headers.add('Access-Control-Allow-Credentials', 'true')
         return response
 
 @app.errorhandler(404)
