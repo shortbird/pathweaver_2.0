@@ -5,6 +5,7 @@
   "scripts": {
     "install:frontend": "cd frontend && npm install",
     "build:frontend": "cd frontend && npm run build",
+    "build": "ls -la && cd frontend && npm install && npm run build",
     "dev:frontend": "cd frontend && npm run dev",
     "install:backend": "cd backend && pip install -r requirements.txt",
     "dev:backend": "cd backend && python app.py"
