@@ -18,7 +18,9 @@ def register():
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
-        supabase = get_supabase_client()
+        # Use admin client for registration to bypass RLS
+        from database import get_supabase_admin_client
+        supabase = get_supabase_admin_client()
         
         # Sign up with Supabase Auth
         auth_response = supabase.auth.sign_up({
