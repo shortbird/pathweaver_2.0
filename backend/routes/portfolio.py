@@ -52,29 +52,92 @@ def get_public_portfolio(portfolio_slug):
             '''
         ).eq('user_id', user_id).eq('status', 'completed').execute()
         
-        # Get skill XP totals
-        print(f"Fetching skill XP for user_id: {user_id}")
-        skill_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()
-        print(f"Skill XP data: {skill_xp.data}")
+        # Calculate XP by skill category (same approach as dashboard)
+        xp_by_category = {}
+        skill_xp_data = []
+        total_xp = 0
+        
+        # Initialize all skill categories with 0
+        skill_categories = ['reading_writing', 'thinking_skills', 'personal_growth', 
+                          'life_skills', 'making_creating', 'world_understanding']
+        for cat in skill_categories:
+            xp_by_category[cat] = 0
+            
+        # Try to get from user_skill_xp table first
+        try:
+            skill_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()
+            print(f"Skill XP data from table: {skill_xp.data}")
+            
+            if skill_xp.data:
+                for record in skill_xp.data:
+                    xp_by_category[record['skill_category']] = record['total_xp']
+                    total_xp += record['total_xp']
+                    skill_xp_data.append(record)
+        except Exception as e:
+            print(f"Error fetching skill XP: {str(e)}")
+        
+        # If no XP data exists, calculate from completed quests
+        if total_xp == 0 and completed_quests.data:
+            print(f"No XP in user_skill_xp table, calculating from {len(completed_quests.data)} completed quests")
+            for quest_record in completed_quests.data:
+                quest = quest_record.get('quests', {})
+                quest_id = quest.get('id')
+                
+                if quest_id:
+                    try:
+                        # Get skill XP awards for this quest
+                        skill_awards = supabase.table('quest_skill_xp').select('*').eq('quest_id', quest_id).execute()
+                        if skill_awards.data:
+                            print(f"Quest {quest_id} has {len(skill_awards.data)} XP awards")
+                            for award in skill_awards.data:
+                                category = award['skill_category']
+                                amount = award['xp_amount']
+                                xp_by_category[category] = xp_by_category.get(category, 0) + amount
+                                total_xp += amount
+                        else:
+                            print(f"Quest {quest_id} has no XP awards in quest_skill_xp table")
+                    except Exception as e:
+                        print(f"Error fetching XP for quest {quest_id}: {str(e)}")
+            
+            # Convert xp_by_category to skill_xp_data format
+            skill_xp_data = [
+                {'skill_category': cat, 'total_xp': xp}
+                for cat, xp in xp_by_category.items()
+                if xp > 0
+            ]
         
         # Get skill details (times practiced)
         print(f"Fetching skill details for user_id: {user_id}")
         skill_details = supabase.table('user_skill_details').select('*').eq('user_id', user_id).execute()
         print(f"Skill details data: {skill_details.data}")
         
+        # If no skill details exist, create them from completed quests
+        if not skill_details.data and completed_quests.data:
+            skill_details_map = {}
+            for quest_record in completed_quests.data:
+                quest = quest_record.get('quests', {})
+                core_skills = quest.get('core_skills', [])
+                for skill in core_skills:
+                    if skill not in skill_details_map:
+                        skill_details_map[skill] = 0
+                    skill_details_map[skill] += 1
+            
+            skill_details.data = [
+                {'skill_name': skill, 'times_practiced': count}
+                for skill, count in skill_details_map.items()
+            ]
+        
         # Calculate total quests completed
         total_quests = len(completed_quests.data) if completed_quests.data else 0
         print(f"Total quests completed: {total_quests}")
-        
-        # Calculate total XP across all categories
-        total_xp = sum(skill['total_xp'] for skill in skill_xp.data) if skill_xp.data else 0
         print(f"Total XP calculated: {total_xp}")
+        print(f"XP by category: {xp_by_category}")
         
         return jsonify({
             'student': user.data[0],
             'diploma_issued': diploma.data[0]['issued_date'],
             'completed_quests': completed_quests.data,
-            'skill_xp': skill_xp.data,
+            'skill_xp': skill_xp_data,  # Use the calculated data
             'skill_details': skill_details.data,
             'total_quests_completed': total_quests,
             'total_xp': total_xp,
