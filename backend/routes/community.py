@@ -38,28 +38,33 @@ def get_friends(user_id):
 def send_friend_request(user_id):
     data = request.json
     addressee_email = data.get('email')
+    addressee_username = data.get('username')  # Support both for backward compatibility
     
-    if not addressee_email:
-        return jsonify({'error': 'Email required'}), 400
+    if not addressee_email and not addressee_username:
+        return jsonify({'error': 'Email or username required'}), 400
     
     supabase = get_supabase_client()
     
     try:
-        # First get the user ID from auth.users table by email
-        from database import get_supabase_admin_client
-        admin_supabase = get_supabase_admin_client()
-        auth_user = admin_supabase.auth.admin.list_users()
-        
-        addressee_id = None
-        for user in auth_user:
-            if user.email == addressee_email:
-                addressee_id = user.id
-                break
-        
-        if not addressee_id:
-            return jsonify({'error': 'User not found'}), 404
+        if addressee_email:
+            # First get the user ID from auth.users table by email
+            from database import get_supabase_admin_client
+            admin_supabase = get_supabase_admin_client()
+            auth_user = admin_supabase.auth.admin.list_users()
             
-        addressee = supabase.table('users').select('*').eq('id', addressee_id).single().execute()
+            addressee_id = None
+            for user in auth_user:
+                if user.email == addressee_email:
+                    addressee_id = user.id
+                    break
+            
+            if not addressee_id:
+                return jsonify({'error': 'User not found'}), 404
+                
+            addressee = supabase.table('users').select('*').eq('id', addressee_id).single().execute()
+        else:
+            # Fallback to username for backward compatibility
+            addressee = supabase.table('users').select('*').eq('username', addressee_username).single().execute()
         
         if not addressee.data:
             return jsonify({'error': 'User not found'}), 404

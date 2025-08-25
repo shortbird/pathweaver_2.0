@@ -52,7 +52,7 @@ const ProfilePage = () => {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `transcript_${user.first_name}_${user.last_name}_${new Date().toISOString().split('T')[0]}.json`
+      a.download = `transcript_${user?.first_name || 'user'}_${user?.last_name || ''}_${new Date().toISOString().split('T')[0]}.json`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)

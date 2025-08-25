@@ -92,6 +92,14 @@ def register():
                 'created_at': 'now()'
             }
             
+            # Temporarily add username for backward compatibility until migration is run
+            # This will be ignored if the column doesn't exist
+            if 'username' in data:
+                user_data['username'] = data['username']
+            else:
+                # Generate a temporary username from first and last name
+                user_data['username'] = (data['first_name'] + data['last_name']).lower()[:20]
+            
             supabase.table('users').insert(user_data).execute()
             
             # Ensure diploma and skills are initialized (backup to database trigger)

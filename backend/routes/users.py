@@ -69,7 +69,8 @@ def update_profile(user_id):
     data = request.json
     supabase = get_supabase_client()
     
-    allowed_fields = ['first_name', 'last_name']
+    # Temporarily allow username for backward compatibility
+    allowed_fields = ['first_name', 'last_name', 'username']
     update_data = {k: v for k, v in data.items() if k in allowed_fields}
     
     if not update_data:
@@ -196,7 +197,9 @@ def get_transcript(user_id):
         transcript_data = {
             'student': {
                 'name': f"{user.data['first_name']} {user.data['last_name']}",
-                'id': user_id
+                'id': user_id,
+                # Include username if it exists for backward compatibility
+                'username': user.data.get('username', '')
             },
             'generated_at': datetime.utcnow().isoformat(),
             'completed_quests': completed_quests.data,
