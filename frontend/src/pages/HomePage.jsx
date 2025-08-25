@@ -11,11 +11,11 @@ const HomePage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
           <div className="text-center">
             <h1 className="text-5xl font-bold mb-6">
-              Turn Your Passions Into Learning
+              Your Diploma Starts Today
             </h1>
             <p className="text-xl mb-8 max-w-2xl mx-auto">
-              Optio Quest empowers students to create their own educational journey through 
-              interest-led learning, gamified quests, and community collaboration.
+              At Optio Quest, we award you your diploma on day one. Now it's up to you to make it 
+              extraordinary through real-world quests, meaningful projects, and authentic learning.
             </p>
             {!isAuthenticated && (
               <div className="space-x-4">
@@ -39,27 +39,27 @@ const HomePage = () => {
               <div className="bg-primary text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
                 1
               </div>
-              <h3 className="text-xl font-semibold mb-2">Choose Your Quests</h3>
+              <h3 className="text-xl font-semibold mb-2">Get Your Diploma</h3>
               <p className="text-gray-600">
-                Browse our library of engaging quests that match your interests and learning goals.
+                You receive your diploma immediately - now choose quests to make it impressive.
               </p>
             </div>
             <div className="text-center">
               <div className="bg-primary text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
                 2
               </div>
-              <h3 className="text-xl font-semibold mb-2">Complete Challenges</h3>
+              <h3 className="text-xl font-semibold mb-2">Build Your Portfolio</h3>
               <p className="text-gray-600">
-                Share your learning journey through projects, research, and real-world activities.
+                Complete quests and document your achievements to prove your diploma's value.
               </p>
             </div>
             <div className="text-center">
               <div className="bg-primary text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
                 3
               </div>
-              <h3 className="text-xl font-semibold mb-2">Celebrate Your Growth</h3>
+              <h3 className="text-xl font-semibold mb-2">Make It Impressive</h3>
               <p className="text-gray-600">
-                Gain XP, build a portfolio of achievements, and create a diploma that reflects your unique educational journey.
+                Transform your diploma into something remarkable through quality work and real accomplishments.
               </p>
             </div>
           </div>
@@ -69,29 +69,30 @@ const HomePage = () => {
       <div className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Your Diploma, Your Journey</h2>
+            <h2 className="text-3xl font-bold mb-4">Your Diploma, Your Responsibility</h2>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              At Optio Quest, you already have your diploma from day one! Our quests help you build a portfolio of quality learning 
-              experiences that make your diploma meaningful and showcase your unique educational journey.
+              We award you your diploma on day one - but it's just a piece of paper until you make it meaningful. 
+              It's your responsibility to build an impressive portfolio through our quest library that proves your 
+              diploma represents real learning, genuine skills, and authentic growth.
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-6 mb-8">
             <div className="bg-white p-6 rounded-lg shadow-sm">
-              <h3 className="font-semibold text-primary mb-2">Quality Learning</h3>
+              <h3 className="font-semibold text-primary mb-2">Your Responsibility</h3>
               <p className="text-sm text-gray-600">
-                Build a portfolio of meaningful experiences that demonstrate real growth
+                You own your education - make your diploma impressive through quality work
               </p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-sm">
-              <h3 className="font-semibold text-primary mb-2">Flexible Learning</h3>
+              <h3 className="font-semibold text-primary mb-2">Real Achievement</h3>
               <p className="text-sm text-gray-600">
-                Complete coursework at your own pace through engaging, interest-based quests
+                Complete challenging quests that prove your diploma represents genuine learning
               </p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-sm">
-              <h3 className="font-semibold text-primary mb-2">Portfolio & Transcripts</h3>
+              <h3 className="font-semibold text-primary mb-2">Prove Your Worth</h3>
               <p className="text-sm text-gray-600">
-                Create a rich portfolio and transcript that tells your unique learning story
+                Build a portfolio that shows colleges and employers what your diploma really means
               </p>
             </div>
           </div>
@@ -119,7 +120,7 @@ const HomePage = () => {
               <p className="text-gray-600 mb-4">For students seeking a diploma</p>
               <ul className="space-y-2 text-sm">
                 <li>✓ Everything in Explorer</li>
-                <li>✓ Build your quality diploma portfolio</li>
+                <li>✓ Make your day-one diploma impressive</li>
                 <li>✓ Accredited transcript generation</li>
                 <li>✓ Email educator support (1 business day response)</li>
                 <li>✓ Community XP bonuses</li>
