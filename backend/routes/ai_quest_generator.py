@@ -126,8 +126,8 @@ def call_gemini_api(existing_titles, theme):
     api_key = os.getenv('GEMINI_API_KEY')
     genai.configure(api_key=api_key)
     
-    # Use Gemini Pro model
-    model = genai.GenerativeModel('gemini-pro')
+    # Use Gemini 1.5 Flash model (faster and more cost-effective)
+    model = genai.GenerativeModel('gemini-1.5-flash')
     
     prompt = generate_quest_prompt(existing_titles, theme)
     
