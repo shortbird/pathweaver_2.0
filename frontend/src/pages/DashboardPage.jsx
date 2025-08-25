@@ -169,7 +169,7 @@ const DashboardPage = () => {
         <div className="card">
           <h3 className="text-lg font-semibold mb-2">Quests Completed</h3>
           <p className="text-3xl font-bold text-green-600">
-            {portfolioData?.total_quests_completed || 0}
+            {dashboardData?.total_quests_completed || portfolioData?.total_quests_completed || 0}
           </p>
           <p className="text-sm text-gray-600 mt-2">
             Keep building!

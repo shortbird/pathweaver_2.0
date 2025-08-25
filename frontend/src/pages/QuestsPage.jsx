@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react'
+import { useLocation } from 'react-router-dom'
 import api from '../services/api'
 import QuestCard from '../components/QuestCard'
 
 const QuestsPage = () => {
+  const location = useLocation()
+  const searchParams = new URLSearchParams(location.search)
+  const initialSkillCategory = searchParams.get('skill_category') || ''
+  
   const [quests, setQuests] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
-  const [selectedSkillCategory, setSelectedSkillCategory] = useState('')
+  const [selectedSkillCategory, setSelectedSkillCategory] = useState(initialSkillCategory)
   const [selectedDifficulty, setSelectedDifficulty] = useState('')
   const [selectedEffortLevel, setSelectedEffortLevel] = useState('')
   const [selectedCoreSkill, setSelectedCoreSkill] = useState('')
@@ -25,6 +30,14 @@ const QuestsPage = () => {
   useEffect(() => {
     fetchFilterOptions()
   }, [])
+  
+  useEffect(() => {
+    // Update filter when URL parameter changes
+    const newSkillCategory = searchParams.get('skill_category') || ''
+    if (newSkillCategory !== selectedSkillCategory) {
+      setSelectedSkillCategory(newSkillCategory)
+    }
+  }, [location.search])
 
   useEffect(() => {
     fetchQuests()

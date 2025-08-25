@@ -233,6 +233,19 @@ def get_dashboard(user_id):
                 skill_details = details.data
         except:
             pass
+        
+        # Get total completed quests count
+        total_completed = 0
+        try:
+            completed_count = supabase.table('user_quests')\
+                .select('id', count='exact')\
+                .eq('user_id', user_id)\
+                .eq('status', 'completed')\
+                .execute()
+            total_completed = completed_count.count if hasattr(completed_count, 'count') else len(completed_count.data)
+        except:
+            # Fallback to recent completions length if error
+            total_completed = len(recent_completions.data) if recent_completions.data else 0
             
         return jsonify({
             'user': user.data,
@@ -243,7 +256,8 @@ def get_dashboard(user_id):
             'skill_xp': skill_xp_data,
             'total_xp': total_xp,
             'skill_details': skill_details,
-            'friend_count': friend_count
+            'friend_count': friend_count,
+            'total_quests_completed': total_completed
         }), 200
         
     except Exception as e:

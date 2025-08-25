@@ -13,14 +13,15 @@ const Layout = () => {
   }
 
   React.useEffect(() => {
-    if (user?.id) {
+    if (user?.id && isAuthenticated) {
       fetchPortfolioSlug()
     }
-  }, [user?.id])
+  }, [user, isAuthenticated])
 
   const fetchPortfolioSlug = async () => {
     try {
       const response = await api.get(`/portfolio/user/${user.id}`)
+      console.log('Portfolio response:', response.data)
       if (response.data?.diploma?.portfolio_slug) {
         setPortfolioSlug(response.data.diploma.portfolio_slug)
       }
