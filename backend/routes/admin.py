@@ -377,7 +377,7 @@ def get_all_users(user_id):
         query = supabase.table('users').select('*')
         
         if search:
-            query = query.or_(f"username.ilike.%{search}%,first_name.ilike.%{search}%,last_name.ilike.%{search}%")
+            query = query.or_(f"first_name.ilike.%{search}%,last_name.ilike.%{search}%")
         
         start = (page - 1) * per_page
         end = start + per_page - 1

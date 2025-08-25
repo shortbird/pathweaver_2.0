@@ -92,7 +92,6 @@ const PortfolioPage = () => {
               <h1 className="text-3xl font-bold text-gray-800">
                 {portfolio.student.first_name} {portfolio.student.last_name}'s Portfolio
               </h1>
-              <p className="text-gray-600 mt-1">@{portfolio.student.username}</p>
             </div>
             <div className="text-right">
               <p className="text-sm text-gray-500">Diploma Issued</p>

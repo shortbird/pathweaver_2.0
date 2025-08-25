@@ -59,7 +59,7 @@ const Layout = () => {
                     to="/profile"
                     className="text-sm font-medium text-gray-900 hover:text-primary"
                   >
-                    {user?.username}
+                    {user?.first_name} {user?.last_name}
                   </Link>
                   <span className="text-xs bg-secondary text-text px-2 py-1 rounded-full">
                     {user?.subscription_tier?.toUpperCase()}

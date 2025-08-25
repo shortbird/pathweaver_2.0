@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 const FriendsPage = () => {
   const [friends, setFriends] = useState([])
   const [pendingRequests, setPendingRequests] = useState([])
-  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
 
@@ -28,16 +28,16 @@ const FriendsPage = () => {
 
   const sendFriendRequest = async (e) => {
     e.preventDefault()
-    if (!username.trim()) {
-      toast.error('Please enter a username')
+    if (!email.trim()) {
+      toast.error('Please enter an email address')
       return
     }
 
     setSending(true)
     try {
-      await api.post('/community/friends/request', { username })
+      await api.post('/community/friends/request', { email })
       toast.success('Friend request sent!')
-      setUsername('')
+      setEmail('')
       fetchFriends()
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to send friend request')
@@ -84,10 +84,10 @@ const FriendsPage = () => {
             <h2 className="text-xl font-semibold mb-4">Send Friend Request</h2>
             <form onSubmit={sendFriendRequest} className="flex gap-4">
               <input
-                type="text"
-                placeholder="Enter username..."
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                type="email"
+                placeholder="Enter friend's email address..."
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 className="input-field flex-1"
               />
               <button
@@ -110,8 +110,7 @@ const FriendsPage = () => {
                     className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg"
                   >
                     <div>
-                      <p className="font-medium">{request.requester.username}</p>
-                      <p className="text-sm text-gray-600">
+                      <p className="font-medium">
                         {request.requester.first_name} {request.requester.last_name}
                       </p>
                     </div>
@@ -144,8 +143,7 @@ const FriendsPage = () => {
                     key={friend.id}
                     className="p-4 bg-background rounded-lg"
                   >
-                    <p className="font-medium">{friend.username}</p>
-                    <p className="text-sm text-gray-600">
+                    <p className="font-medium">
                       {friend.first_name} {friend.last_name}
                     </p>
                     <p className="text-xs text-gray-500 mt-1">

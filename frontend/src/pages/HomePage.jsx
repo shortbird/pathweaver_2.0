@@ -86,13 +86,13 @@ const HomePage = () => {
             <div className="bg-white p-6 rounded-lg shadow-sm">
               <h3 className="font-semibold text-primary mb-2">Real Achievement</h3>
               <p className="text-sm text-gray-600">
-                Complete challenging quests that prove your diploma represents genuine learning
+                Complete challenging quests to self-validate your learning
               </p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-sm">
               <h3 className="font-semibold text-primary mb-2">Prove Your Worth</h3>
               <p className="text-sm text-gray-600">
-                Build a portfolio that shows colleges and employers what your diploma really means
+                Build a portfolio that shows your diploma is more than just a piece of paper
               </p>
             </div>
           </div>
@@ -117,12 +117,11 @@ const HomePage = () => {
                 MOST POPULAR
               </div>
               <h3 className="text-xl font-semibold mb-2">Creator ($20/month)</h3>
-              <p className="text-gray-600 mb-4">For students seeking a diploma</p>
+              <p className="text-gray-600 mb-4">For individuals seeking a quality education</p>
               <ul className="space-y-2 text-sm">
                 <li>✓ Everything in Explorer</li>
-                <li>✓ Make your day-one diploma impressive</li>
-                <li>✓ Accredited transcript generation</li>
-                <li>✓ Email educator support (1 business day response)</li>
+                <li>✓ Quests are counted toward your diploma</li>
+                <li>✓ Access to our support team of experienced educators</li>
                 <li>✓ Community XP bonuses</li>
               </ul>
             </div>

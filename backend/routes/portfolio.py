@@ -21,7 +21,7 @@ def get_public_portfolio(portfolio_slug):
         user_id = diploma.data[0]['user_id']
         
         # Get user's basic info (not sensitive data)
-        user = supabase.table('users').select('username, first_name, last_name').eq('id', user_id).execute()
+        user = supabase.table('users').select('first_name, last_name').eq('id', user_id).execute()
         
         if not user.data:
             return jsonify({'error': 'User not found'}), 404

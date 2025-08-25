@@ -69,31 +69,6 @@ const RegisterPage = () => {
             </div>
             
             <div>
-              <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-                Username
-              </label>
-              <input
-                {...registerField('username', {
-                  required: 'Username is required',
-                  minLength: {
-                    value: 3,
-                    message: 'Username must be at least 3 characters'
-                  },
-                  pattern: {
-                    value: /^[a-zA-Z0-9_]+$/,
-                    message: 'Username can only contain letters, numbers, and underscores'
-                  }
-                })}
-                type="text"
-                className="input-field mt-1"
-                placeholder="johndoe"
-              />
-              {errors.username && (
-                <p className="mt-1 text-sm text-red-600">{errors.username.message}</p>
-              )}
-            </div>
-            
-            <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Email Address
               </label>

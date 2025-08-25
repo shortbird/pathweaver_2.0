@@ -5,13 +5,13 @@ import re
 
 bp = Blueprint('auth', __name__)
 
-def generate_portfolio_slug(username):
-    """Generate a unique portfolio slug from username"""
+def generate_portfolio_slug(first_name, last_name):
+    """Generate a unique portfolio slug from first and last name"""
     # Remove non-alphanumeric characters and convert to lowercase
-    base_slug = re.sub(r'[^a-zA-Z0-9]', '', username).lower()
+    base_slug = re.sub(r'[^a-zA-Z0-9]', '', first_name + last_name).lower()
     return base_slug
 
-def ensure_user_diploma_and_skills(supabase, user_id, username):
+def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
     """Ensure user has diploma and skill categories initialized"""
     try:
         # Check if diploma exists
@@ -19,7 +19,7 @@ def ensure_user_diploma_and_skills(supabase, user_id, username):
         
         if not diploma_check.data:
             # Generate unique slug
-            slug = generate_portfolio_slug(username)
+            slug = generate_portfolio_slug(first_name, last_name)
             counter = 0
             while True:
                 check_slug = slug if counter == 0 else f"{slug}{counter}"
@@ -61,7 +61,7 @@ def register():
         print(f"Registration attempt for email: {data.get('email')}")
         
         # Validate required fields
-        required_fields = ['email', 'password', 'username', 'first_name', 'last_name']
+        required_fields = ['email', 'password', 'first_name', 'last_name']
         for field in required_fields:
             if field not in data:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
@@ -76,7 +76,6 @@ def register():
             'password': data['password'],
             'options': {
                 'data': {
-                    'username': data['username'],
                     'first_name': data['first_name'],
                     'last_name': data['last_name']
                 }
@@ -87,7 +86,6 @@ def register():
             # Create user profile in our users table
             user_data = {
                 'id': auth_response.user.id,
-                'username': data['username'],
                 'first_name': data['first_name'],
                 'last_name': data['last_name'],
                 'subscription_tier': 'explorer',
@@ -97,7 +95,7 @@ def register():
             supabase.table('users').insert(user_data).execute()
             
             # Ensure diploma and skills are initialized (backup to database trigger)
-            ensure_user_diploma_and_skills(supabase, auth_response.user.id, data['username'])
+            ensure_user_diploma_and_skills(supabase, auth_response.user.id, data['first_name'], data['last_name'])
             
             return jsonify({
                 'user': auth_response.user.model_dump(),

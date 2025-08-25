@@ -69,7 +69,7 @@ def update_profile(user_id):
     data = request.json
     supabase = get_supabase_client()
     
-    allowed_fields = ['first_name', 'last_name', 'username']
+    allowed_fields = ['first_name', 'last_name']
     update_data = {k: v for k, v in data.items() if k in allowed_fields}
     
     if not update_data:
@@ -196,7 +196,6 @@ def get_transcript(user_id):
         transcript_data = {
             'student': {
                 'name': f"{user.data['first_name']} {user.data['last_name']}",
-                'username': user.data['username'],
                 'id': user_id
             },
             'generated_at': datetime.utcnow().isoformat(),

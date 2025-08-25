@@ -21,8 +21,7 @@ const ProfilePage = () => {
       setProfileData(response.data)
       reset({
         first_name: response.data.user.first_name,
-        last_name: response.data.user.last_name,
-        username: response.data.user.username
+        last_name: response.data.user.last_name
       })
     } catch (error) {
       console.error('Failed to fetch profile:', error)
@@ -53,7 +52,7 @@ const ProfilePage = () => {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `transcript_${user.username}_${new Date().toISOString().split('T')[0]}.json`
+      a.download = `transcript_${user.first_name}_${user.last_name}_${new Date().toISOString().split('T')[0]}.json`
       document.body.appendChild(a)
       a.click()
       document.body.removeChild(a)
@@ -94,26 +93,6 @@ const ProfilePage = () => {
 
             {editing ? (
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Username
-                  </label>
-                  <input
-                    {...register('username', {
-                      required: 'Username is required',
-                      minLength: {
-                        value: 3,
-                        message: 'Username must be at least 3 characters'
-                      }
-                    })}
-                    type="text"
-                    className="input-field"
-                  />
-                  {errors.username && (
-                    <p className="mt-1 text-sm text-red-600">{errors.username.message}</p>
-                  )}
-                </div>
-
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -158,8 +137,7 @@ const ProfilePage = () => {
                       setEditing(false)
                       reset({
                         first_name: profileData.user.first_name,
-                        last_name: profileData.user.last_name,
-                        username: profileData.user.username
+                        last_name: profileData.user.last_name
                       })
                     }}
                     className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
@@ -170,10 +148,6 @@ const ProfilePage = () => {
               </form>
             ) : (
               <div className="space-y-3">
-                <div>
-                  <p className="text-sm text-gray-600">Username</p>
-                  <p className="font-medium">{profileData?.user.username}</p>
-                </div>
                 <div>
                   <p className="text-sm text-gray-600">Name</p>
                   <p className="font-medium">
