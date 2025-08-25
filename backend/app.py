@@ -3,7 +3,7 @@ from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 
-from routes import auth, quests, subscriptions, users, admin, community, portfolio, ai_quest_generator
+from routes import auth, quests, subscriptions, users, admin, community, portfolio, ai_quest_generator, test_xp
 
 load_dotenv()
 
@@ -21,6 +21,7 @@ app.register_blueprint(admin.bp, url_prefix='/api/admin')
 app.register_blueprint(community.bp, url_prefix='/api/community')
 app.register_blueprint(portfolio.bp, url_prefix='/api/portfolio')
 app.register_blueprint(ai_quest_generator.bp, url_prefix='/api/ai-quests')
+app.register_blueprint(test_xp.bp, url_prefix='/api/test-xp')
 
 @app.route('/api/health')
 def health_check():

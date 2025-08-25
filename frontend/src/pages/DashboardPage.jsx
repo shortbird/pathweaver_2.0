@@ -20,9 +20,11 @@ const DashboardPage = () => {
   }
 
   useEffect(() => {
-    fetchDashboardData()
-    fetchPortfolioData()
-  }, [])
+    if (user?.id) {
+      fetchDashboardData()
+      fetchPortfolioData()
+    }
+  }, [user?.id])
 
   const fetchDashboardData = async () => {
     try {
@@ -36,11 +38,18 @@ const DashboardPage = () => {
   }
 
   const fetchPortfolioData = async () => {
+    if (!user?.id) {
+      console.log('No user ID available for portfolio fetch')
+      return
+    }
     try {
-      const response = await api.get(`/portfolio/user/${user?.id}`)
+      const response = await api.get(`/portfolio/user/${user.id}`)
+      console.log('Portfolio data received:', response.data)
       setPortfolioData(response.data)
     } catch (error) {
       console.error('Failed to fetch portfolio data:', error)
+      // Don't let portfolio failure affect the dashboard
+      // The dashboard data should have everything we need
     }
   }
 
@@ -57,30 +66,58 @@ const DashboardPage = () => {
   let skillXPData = []
   let totalXP = 0
   
-  if (portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp)) {
-    skillXPData = portfolioData.skill_xp.map(skill => ({
-      category: skillCategoryNames[skill.skill_category] || skill.skill_category,
-      xp: skill.total_xp,
-      fullMark: 1000 // Max for radar chart scaling
-    }))
-    totalXP = skillXPData.reduce((sum, item) => sum + item.xp, 0)
-  } else if (dashboardData?.xp_by_category) {
-    // Use dashboard data if portfolio data is not available
-    skillXPData = Object.entries(dashboardData.xp_by_category).map(([category, xp]) => ({
-      category: skillCategoryNames[category] || category,
-      xp: xp,
-      fullMark: 1000
-    }))
+  console.log('Dashboard data:', dashboardData)
+  console.log('Portfolio data:', portfolioData)
+  
+  // Priority 1: Use dashboard xp_by_category if available
+  if (dashboardData?.xp_by_category && Object.keys(dashboardData.xp_by_category).length > 0) {
+    console.log('Using dashboard xp_by_category:', dashboardData.xp_by_category)
+    skillXPData = Object.entries(dashboardData.xp_by_category)
+      .filter(([_, xp]) => xp > 0) // Only include categories with XP
+      .map(([category, xp]) => ({
+        category: skillCategoryNames[category] || category,
+        xp: xp,
+        fullMark: 1000
+      }))
     totalXP = dashboardData.total_xp || Object.values(dashboardData.xp_by_category).reduce((sum, xp) => sum + xp, 0)
-  } else if (dashboardData?.xp_by_subject && Array.isArray(dashboardData.xp_by_subject)) {
-    // Fallback to old format
-    skillXPData = dashboardData.xp_by_subject.map(([category, xp]) => ({
-      category: skillCategoryNames[category] || category,
-      xp: xp,
-      fullMark: 1000
-    }))
+  }
+  // Priority 2: Use portfolio skill_xp if available
+  else if (portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp)) {
+    console.log('Using portfolio skill_xp:', portfolioData.skill_xp)
+    skillXPData = portfolioData.skill_xp
+      .filter(skill => skill.total_xp > 0) // Only include categories with XP
+      .map(skill => ({
+        category: skillCategoryNames[skill.skill_category] || skill.skill_category,
+        xp: skill.total_xp,
+        fullMark: 1000
+      }))
     totalXP = skillXPData.reduce((sum, item) => sum + item.xp, 0)
   }
+  // Priority 3: Fallback to old format
+  else if (dashboardData?.xp_by_subject && Array.isArray(dashboardData.xp_by_subject)) {
+    console.log('Using fallback xp_by_subject:', dashboardData.xp_by_subject)
+    skillXPData = dashboardData.xp_by_subject
+      .filter(([_, xp]) => xp > 0) // Only include categories with XP
+      .map(([category, xp]) => ({
+        category: skillCategoryNames[category] || category,
+        xp: xp,
+        fullMark: 1000
+      }))
+    totalXP = skillXPData.reduce((sum, item) => sum + item.xp, 0)
+  }
+  
+  // If still no data, initialize with zeros for all categories
+  if (skillXPData.length === 0) {
+    console.log('No XP data found, initializing with zeros')
+    skillXPData = Object.entries(skillCategoryNames).map(([key, name]) => ({
+      category: name,
+      xp: 0,
+      fullMark: 1000
+    }))
+  }
+  
+  console.log('Final skillXPData:', skillXPData)
+  console.log('Total XP:', totalXP)
 
   // Get least developed skills for recommendations
   const leastDevelopedSkills = skillXPData
