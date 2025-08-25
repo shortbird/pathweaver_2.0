@@ -144,34 +144,6 @@ const DashboardPage = () => {
         </p>
       </div>
 
-      {/* Portfolio Link Banner */}
-      {portfolioData?.diploma && (
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg p-4 mb-8">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-semibold">Your Portfolio</h3>
-              <p className="text-sm opacity-90">Share your learning journey with the world</p>
-            </div>
-            <div className="flex gap-3">
-              <Link
-                to={`/portfolio/${portfolioData.diploma.portfolio_slug}`}
-                className="bg-white text-primary px-4 py-2 rounded hover:bg-gray-100"
-              >
-                View Portfolio
-              </Link>
-              <button
-                onClick={() => {
-                  navigator.clipboard.writeText(`${window.location.origin}/portfolio/${portfolioData.diploma.portfolio_slug}`)
-                  alert('Portfolio link copied!')
-                }}
-                className="bg-white/20 text-white px-4 py-2 rounded hover:bg-white/30"
-              >
-                Copy Link
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div className="card">

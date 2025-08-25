@@ -1,13 +1,32 @@
 import React from 'react'
 import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import api from '../services/api'
 
 const Layout = () => {
   const { user, logout, isAuthenticated } = useAuth()
   const navigate = useNavigate()
+  const [portfolioSlug, setPortfolioSlug] = React.useState(null)
 
   const handleLogout = async () => {
     await logout()
+  }
+
+  React.useEffect(() => {
+    if (user?.id) {
+      fetchPortfolioSlug()
+    }
+  }, [user?.id])
+
+  const fetchPortfolioSlug = async () => {
+    try {
+      const response = await api.get(`/portfolio/user/${user.id}`)
+      if (response.data?.diploma?.portfolio_slug) {
+        setPortfolioSlug(response.data.diploma.portfolio_slug)
+      }
+    } catch (error) {
+      console.error('Failed to fetch portfolio slug:', error)
+    }
   }
 
   return (
@@ -40,6 +59,14 @@ const Layout = () => {
                   >
                     Friends
                   </Link>
+                  {portfolioSlug && (
+                    <Link
+                      to={`/portfolio/${portfolioSlug}`}
+                      className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 hover:text-primary"
+                    >
+                      My Diploma
+                    </Link>
+                  )}
                   {user?.role === 'admin' && (
                     <Link
                       to="/admin"

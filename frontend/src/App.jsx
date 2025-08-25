@@ -15,7 +15,7 @@ import ProfilePage from './pages/ProfilePage'
 import FriendsPage from './pages/FriendsPage'
 import SubscriptionPage from './pages/SubscriptionPage'
 import AdminPage from './pages/AdminPage'
-import PortfolioPage from './pages/PortfolioPage'
+import DiplomaPage from './pages/DiplomaPage'
 import PrivateRoute from './components/PrivateRoute'
 
 const queryClient = new QueryClient()
@@ -40,7 +40,7 @@ function App() {
               <Route index element={<HomePage />} />
               <Route path="login" element={<LoginPage />} />
               <Route path="register" element={<RegisterPage />} />
-              <Route path="portfolio/:slug" element={<PortfolioPage />} />
+              <Route path="portfolio/:slug" element={<DiplomaPage />} />
               
               <Route element={<PrivateRoute />}>
                 <Route path="dashboard" element={<DashboardPage />} />
