@@ -72,6 +72,9 @@ const AdminQuests = () => {
     try {
       const response = await api.get('/quests')
       setQuests(response.data.quests)
+      // Set all quests as collapsed by default
+      const allQuestIds = new Set(response.data.quests.map(quest => quest.id))
+      setCollapsedQuests(allQuestIds)
     } catch (error) {
       toast.error('Failed to load quests')
     } finally {
@@ -153,6 +156,21 @@ const AdminQuests = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Manage Quests</h2>
         <div className="flex gap-2">
+          <button
+            onClick={() => {
+              if (collapsedQuests.size === quests.length) {
+                // All collapsed, so expand all
+                setCollapsedQuests(new Set())
+              } else {
+                // Some or all expanded, so collapse all
+                const allQuestIds = new Set(quests.map(quest => quest.id))
+                setCollapsedQuests(allQuestIds)
+              }
+            }}
+            className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
+          >
+            {collapsedQuests.size === quests.length ? 'Expand All' : 'Collapse All'}
+          </button>
           <button
             onClick={() => setShowAIGenerator(true)}
             className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded hover:from-purple-700 hover:to-blue-700 flex items-center gap-2"
