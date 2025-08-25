@@ -180,7 +180,7 @@ const DiplomaPage = () => {
         {/* Individual Skills */}
         {diploma.skill_details && diploma.skill_details.length > 0 && (
           <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
-            <h2 className="text-2xl font-bold mb-6 text-gray-800">Specific Skills Mastered</h2>
+            <h2 className="text-2xl font-bold mb-6 text-gray-800">Specific Skills Developed</h2>
             <div className="flex flex-wrap gap-3">
               {diploma.skill_details.map((skill) => (
                 <div
@@ -281,14 +281,6 @@ const DiplomaPage = () => {
             >
               Copy Diploma Link
             </button>
-            <a
-              href={`https://twitter.com/intent/tweet?text=I earned my Self-Validated Diploma from @OptioQuests! Check out my verified learning achievements:&url=${window.location.href}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="bg-sky-500 text-white px-8 py-3 rounded-lg font-semibold hover:bg-sky-600 transition-colors"
-            >
-              Share on Twitter
-            </a>
           </div>
         </div>
 

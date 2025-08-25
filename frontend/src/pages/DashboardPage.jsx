@@ -217,11 +217,20 @@ const DashboardPage = () => {
         <div className="card">
           <h2 className="text-xl font-semibold mb-4">Skill Balance</h2>
           {skillXPData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <RadarChart data={skillXPData}>
+            <ResponsiveContainer width="100%" height={350}>
+              <RadarChart data={skillXPData} margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
                 <PolarGrid />
-                <PolarAngleAxis dataKey="category" tick={{ fontSize: 11 }} />
-                <PolarRadiusAxis angle={90} domain={[0, 'dataMax']} />
+                <PolarAngleAxis 
+                  dataKey="category" 
+                  tick={{ fontSize: 10 }}
+                  className="text-gray-700"
+                />
+                <PolarRadiusAxis 
+                  angle={90} 
+                  domain={[0, 'dataMax']} 
+                  tick={{ fontSize: 9 }}
+                  tickFormatter={(value) => value.toLocaleString()}
+                />
                 <Radar name="Skills" dataKey="xp" stroke="#6A4C93" fill="#6A4C93" fillOpacity={0.6} />
               </RadarChart>
             </ResponsiveContainer>
@@ -295,7 +304,7 @@ const DashboardPage = () => {
           <h2 className="text-xl font-semibold mb-4">Recent Completions</h2>
           {dashboardData?.recent_completions?.length > 0 ? (
             <div className="space-y-3">
-              {dashboardData.recent_completions.map(quest => (
+              {dashboardData.recent_completions.slice(0, 3).map(quest => (
                 <div
                   key={quest.id}
                   className="p-3 bg-green-50 rounded-lg"
