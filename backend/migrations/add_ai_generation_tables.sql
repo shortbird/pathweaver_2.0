@@ -46,13 +46,13 @@ CREATE TABLE IF NOT EXISTS ai_generated_quests (
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     reviewed_at TIMESTAMP WITH TIME ZONE,
-    published_at TIMESTAMP WITH TIME ZONE,
-    
-    -- quest_data JSONB will contain:
-    -- title, description, skill_category, difficulty_level, 
-    -- estimated_hours, xp_reward, prerequisites, learning_objectives,
-    -- instructions, completion_criteria, resources, tags, subject
+    published_at TIMESTAMP WITH TIME ZONE
 );
+
+-- quest_data JSONB will contain:
+-- title, description, skill_category, difficulty_level, 
+-- estimated_hours, xp_reward, prerequisites, learning_objectives,
+-- instructions, completion_criteria, resources, tags, subject
 
 -- Indexes for efficient querying
 CREATE INDEX idx_ai_generated_quests_job_id ON ai_generated_quests(generation_job_id);
