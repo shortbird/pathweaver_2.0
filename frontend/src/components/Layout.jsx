@@ -13,6 +13,8 @@ const Layout = () => {
   }
 
   React.useEffect(() => {
+    console.log('Layout useEffect - user:', user)
+    console.log('Layout useEffect - isAuthenticated:', isAuthenticated)
     if (user?.id && isAuthenticated) {
       fetchPortfolioSlug()
     }
@@ -20,9 +22,11 @@ const Layout = () => {
 
   const fetchPortfolioSlug = async () => {
     try {
-      console.log('Fetching portfolio for user:', user.id)
+      console.log('Fetching portfolio for user ID:', user.id)
+      console.log('Full user object:', user)
       const response = await api.get(`/portfolio/user/${user.id}`)
-      console.log('Portfolio response:', response.data)
+      console.log('Portfolio API response:', response.data)
+      
       if (response.data?.diploma?.portfolio_slug) {
         setPortfolioSlug(response.data.diploma.portfolio_slug)
         console.log('Portfolio slug set to:', response.data.diploma.portfolio_slug)
@@ -33,9 +37,13 @@ const Layout = () => {
           setPortfolioSlug(match[1])
           console.log('Portfolio slug extracted:', match[1])
         }
+      } else {
+        console.log('No portfolio slug found in response')
       }
     } catch (error) {
       console.error('Failed to fetch portfolio slug:', error)
+      console.error('Error details:', error.response?.data)
+      console.error('Error status:', error.response?.status)
     }
   }
 

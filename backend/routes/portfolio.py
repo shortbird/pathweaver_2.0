@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify
 from database import get_supabase_client
+from utils.auth_utils import require_auth
 
 bp = Blueprint('portfolio', __name__)
 
@@ -82,15 +83,18 @@ def get_public_portfolio(portfolio_slug):
 @bp.route('/user/<user_id>', methods=['GET'])
 def get_user_portfolio(user_id):
     """
-    Get portfolio data for a specific user (requires authentication)
+    Get portfolio data for a specific user
     """
     try:
+        print(f"Getting portfolio for user_id: {user_id}")
         supabase = get_supabase_client()
         
         # Get diploma info
         diploma = supabase.table('diplomas').select('*').eq('user_id', user_id).execute()
+        print(f"Existing diploma data: {diploma.data}")
         
         if not diploma.data:
+            print(f"No diploma found, creating one for user {user_id}")
             # Create diploma if it doesn't exist
             user_data = supabase.table('users').select('first_name, last_name').eq('id', user_id).execute()
             if user_data.data:
