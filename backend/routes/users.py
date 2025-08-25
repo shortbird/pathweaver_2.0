@@ -103,6 +103,26 @@ def update_profile(user_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
+@bp.route('/completed-quests', methods=['GET'])
+@require_auth
+def get_completed_quests(user_id):
+    """Get list of completed quest IDs for the current user"""
+    supabase = get_supabase_client()
+    
+    try:
+        completed = supabase.table('user_quests')\
+            .select('quest_id')\
+            .eq('user_id', user_id)\
+            .eq('status', 'completed')\
+            .execute()
+        
+        quest_ids = [q['quest_id'] for q in completed.data] if completed.data else []
+        
+        return jsonify({'completed_quest_ids': quest_ids}), 200
+    except Exception as e:
+        print(f"Error fetching completed quests: {str(e)}")
+        return jsonify({'error': str(e)}), 400
+
 @bp.route('/dashboard', methods=['GET'])
 @require_auth
 def get_dashboard(user_id):

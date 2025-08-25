@@ -9,6 +9,7 @@ const QuestsPage = () => {
   const initialSkillCategory = searchParams.get('skill_category') || ''
   
   const [quests, setQuests] = useState([])
+  const [completedQuestIds, setCompletedQuestIds] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
   const [selectedSkillCategory, setSelectedSkillCategory] = useState(initialSkillCategory)
@@ -29,6 +30,7 @@ const QuestsPage = () => {
 
   useEffect(() => {
     fetchFilterOptions()
+    fetchCompletedQuests()
   }, [])
   
   useEffect(() => {
@@ -49,6 +51,17 @@ const QuestsPage = () => {
       setFilterOptions(response.data)
     } catch (error) {
       console.error('Failed to fetch filter options:', error)
+    }
+  }
+
+  const fetchCompletedQuests = async () => {
+    try {
+      const response = await api.get('/users/completed-quests')
+      if (response.data && response.data.completed_quest_ids) {
+        setCompletedQuestIds(response.data.completed_quest_ids)
+      }
+    } catch (error) {
+      console.error('Failed to fetch completed quests:', error)
     }
   }
 
@@ -309,7 +322,11 @@ const QuestsPage = () => {
           {quests.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {quests.map(quest => (
-                <QuestCard key={quest.id} quest={quest} />
+                <QuestCard 
+                  key={quest.id} 
+                  quest={quest} 
+                  isCompleted={completedQuestIds.includes(quest.id)}
+                />
               ))}
             </div>
           ) : (

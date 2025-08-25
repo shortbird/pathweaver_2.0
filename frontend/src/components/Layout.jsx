@@ -20,10 +20,19 @@ const Layout = () => {
 
   const fetchPortfolioSlug = async () => {
     try {
+      console.log('Fetching portfolio for user:', user.id)
       const response = await api.get(`/portfolio/user/${user.id}`)
       console.log('Portfolio response:', response.data)
       if (response.data?.diploma?.portfolio_slug) {
         setPortfolioSlug(response.data.diploma.portfolio_slug)
+        console.log('Portfolio slug set to:', response.data.diploma.portfolio_slug)
+      } else if (response.data?.portfolio_url) {
+        // Extract slug from URL if diploma object not present
+        const match = response.data.portfolio_url.match(/\/portfolio\/(.+)$/)
+        if (match) {
+          setPortfolioSlug(match[1])
+          console.log('Portfolio slug extracted:', match[1])
+        }
       }
     } catch (error) {
       console.error('Failed to fetch portfolio slug:', error)
