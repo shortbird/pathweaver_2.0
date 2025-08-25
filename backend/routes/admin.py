@@ -359,22 +359,57 @@ def get_analytics(user_id):
     supabase = get_supabase_admin_client()
     
     try:
-        total_users = supabase.table('users').select('count').execute()
-        active_users = supabase.rpc('get_monthly_active_users').execute()
+        # Get total users count
+        total_users = supabase.table('users').select('*', count='exact').execute()
+        total_users_count = total_users.count if hasattr(total_users, 'count') else len(total_users.data)
         
+        # Get monthly active users (users who have activity in the last 30 days)
+        from datetime import datetime, timedelta
+        thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        
+        try:
+            # Try to get active users from activity_log
+            active_users_response = supabase.table('activity_log')\
+                .select('user_id')\
+                .gte('created_at', thirty_days_ago)\
+                .execute()
+            
+            # Get unique user IDs
+            active_user_ids = set()
+            if active_users_response.data:
+                for log in active_users_response.data:
+                    if log.get('user_id'):
+                        active_user_ids.add(log['user_id'])
+            monthly_active_count = len(active_user_ids)
+        except Exception:
+            # If activity_log doesn't exist or fails, use a fallback
+            monthly_active_count = 0
+        
+        # Get subscription breakdown
         subscription_breakdown = supabase.table('users').select('subscription_tier').execute()
         tier_counts = {'explorer': 0, 'creator': 0, 'visionary': 0}
-        for user in subscription_breakdown.data:
-            tier_counts[user['subscription_tier']] += 1
+        if subscription_breakdown.data:
+            for user in subscription_breakdown.data:
+                tier = user.get('subscription_tier', 'explorer')
+                if tier in tier_counts:
+                    tier_counts[tier] += 1
+                else:
+                    tier_counts['explorer'] += 1  # Default to explorer if unknown tier
         
-        quests_completed = supabase.table('user_quests').select('count').eq('status', 'completed').execute()
+        # Get quests completed count
+        quests_completed = supabase.table('user_quests')\
+            .select('*', count='exact')\
+            .eq('status', 'completed')\
+            .execute()
+        quests_completed_count = quests_completed.count if hasattr(quests_completed, 'count') else len(quests_completed.data)
         
         return jsonify({
-            'total_users': len(total_users.data) if total_users.data else 0,
-            'monthly_active_users': active_users.data if active_users.data else 0,
+            'total_users': total_users_count,
+            'monthly_active_users': monthly_active_count,
             'subscription_breakdown': tier_counts,
-            'total_quests_completed': len(quests_completed.data) if quests_completed.data else 0
+            'total_quests_completed': quests_completed_count
         }), 200
         
     except Exception as e:
+        print(f"Error in analytics endpoint: {str(e)}")
         return jsonify({'error': str(e)}), 400

@@ -13,17 +13,54 @@ def get_profile(user_id):
     try:
         user = supabase.table('users').select('*').eq('id', user_id).single().execute()
         
-        total_xp = supabase.rpc('get_user_total_xp', {'p_user_id': user_id}).execute()
+        # Calculate total XP
+        total_xp = 0
+        try:
+            # Try skill-based XP first
+            skill_xp = supabase.table('user_skill_xp')\
+                .select('total_xp')\
+                .eq('user_id', user_id)\
+                .execute()
+            
+            if skill_xp.data:
+                for record in skill_xp.data:
+                    total_xp += record.get('total_xp', 0)
+        except Exception:
+            # Fallback: calculate from completed quests
+            completed_quests_with_xp = supabase.table('user_quests')\
+                .select('*, quests(*, quest_skill_xp(*), quest_xp_awards(*))')\
+                .eq('user_id', user_id)\
+                .eq('status', 'completed')\
+                .execute()
+            
+            if completed_quests_with_xp.data:
+                for quest_record in completed_quests_with_xp.data:
+                    quest = quest_record.get('quests', {})
+                    # Try skill XP
+                    if quest.get('quest_skill_xp'):
+                        for award in quest['quest_skill_xp']:
+                            total_xp += award.get('xp_amount', 0)
+                    # Fallback to subject XP
+                    elif quest.get('quest_xp_awards'):
+                        for award in quest['quest_xp_awards']:
+                            total_xp += award.get('xp_amount', 0)
         
-        completed_quests = supabase.table('user_quests').select('count').eq('user_id', user_id).eq('status', 'completed').execute()
+        # Get completed quests count
+        completed_quests = supabase.table('user_quests')\
+            .select('*', count='exact')\
+            .eq('user_id', user_id)\
+            .eq('status', 'completed')\
+            .execute()
+        completed_count = completed_quests.count if hasattr(completed_quests, 'count') else len(completed_quests.data)
         
         return jsonify({
             'user': user.data,
-            'total_xp': total_xp.data if total_xp.data else 0,
-            'completed_quests': len(completed_quests.data) if completed_quests.data else 0
+            'total_xp': total_xp,
+            'completed_quests': completed_count
         }), 200
         
     except Exception as e:
+        print(f"Profile error: {str(e)}")
         return jsonify({'error': str(e)}), 400
 
 @bp.route('/profile', methods=['PUT'])
@@ -52,23 +89,95 @@ def get_dashboard(user_id):
     try:
         user = supabase.table('users').select('*').eq('id', user_id).single().execute()
         
-        active_quests = supabase.table('user_quests').select('*, quests(*)').eq('user_id', user_id).eq('status', 'in_progress').execute()
+        # Get active quests with their details
+        try:
+            active_quests = supabase.table('user_quests')\
+                .select('*, quests(*, quest_skill_xp(*), quest_xp_awards(*))')\
+                .eq('user_id', user_id)\
+                .eq('status', 'in_progress')\
+                .execute()
+        except Exception:
+            # Fallback without skill XP
+            active_quests = supabase.table('user_quests')\
+                .select('*, quests(*)')\
+                .eq('user_id', user_id)\
+                .eq('status', 'in_progress')\
+                .execute()
         
-        recent_completions = supabase.table('user_quests').select('*, quests(*)').eq('user_id', user_id).eq('status', 'completed').order('completed_at', desc=True).limit(5).execute()
+        # Get recent completions
+        try:
+            recent_completions = supabase.table('user_quests')\
+                .select('*, quests(*, quest_skill_xp(*), quest_xp_awards(*))')\
+                .eq('user_id', user_id)\
+                .eq('status', 'completed')\
+                .order('completed_at', desc=True)\
+                .limit(5)\
+                .execute()
+        except Exception:
+            # Fallback without skill XP
+            recent_completions = supabase.table('user_quests')\
+                .select('*, quests(*)')\
+                .eq('user_id', user_id)\
+                .eq('status', 'completed')\
+                .order('completed_at', desc=True)\
+                .limit(5)\
+                .execute()
         
-        xp_by_subject = supabase.rpc('get_user_xp_by_subject', {'p_user_id': user_id}).execute()
+        # Calculate XP by skill category or subject
+        xp_by_category = {}
+        try:
+            # Try skill-based XP first
+            skill_xp = supabase.table('user_skill_xp')\
+                .select('skill_category, total_xp')\
+                .eq('user_id', user_id)\
+                .execute()
+            
+            if skill_xp.data:
+                for record in skill_xp.data:
+                    xp_by_category[record['skill_category']] = record['total_xp']
+        except Exception:
+            # Fallback to calculating from completed quests
+            if recent_completions.data:
+                for quest_record in recent_completions.data:
+                    quest = quest_record.get('quests', {})
+                    # Try skill XP
+                    if quest.get('quest_skill_xp'):
+                        for award in quest['quest_skill_xp']:
+                            category = award['skill_category']
+                            if category not in xp_by_category:
+                                xp_by_category[category] = 0
+                            xp_by_category[category] += award['xp_amount']
+                    # Fallback to subject XP
+                    elif quest.get('quest_xp_awards'):
+                        for award in quest['quest_xp_awards']:
+                            subject = award['subject']
+                            if subject not in xp_by_category:
+                                xp_by_category[subject] = 0
+                            xp_by_category[subject] += award['xp_amount']
         
-        friends = supabase.table('friendships').select('*').or_(f'requester_id.eq.{user_id},addressee_id.eq.{user_id}').eq('status', 'accepted').execute()
+        # Get friend count
+        friend_count = 0
+        try:
+            friends = supabase.table('friendships')\
+                .select('*')\
+                .or_(f'requester_id.eq.{user_id},addressee_id.eq.{user_id}')\
+                .eq('status', 'accepted')\
+                .execute()
+            friend_count = len(friends.data) if friends.data else 0
+        except Exception:
+            # If friendships table doesn't exist, just return 0
+            pass
         
         return jsonify({
             'user': user.data,
-            'active_quests': active_quests.data,
-            'recent_completions': recent_completions.data,
-            'xp_by_subject': xp_by_subject.data if xp_by_subject.data else [],
-            'friend_count': len(friends.data) if friends.data else 0
+            'active_quests': active_quests.data if active_quests.data else [],
+            'recent_completions': recent_completions.data if recent_completions.data else [],
+            'xp_by_subject': list(xp_by_category.items()) if xp_by_category else [],
+            'friend_count': friend_count
         }), 200
         
     except Exception as e:
+        print(f"Dashboard error: {str(e)}")
         return jsonify({'error': str(e)}), 400
 
 @bp.route('/transcript', methods=['GET'])
