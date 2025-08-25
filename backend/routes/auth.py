@@ -1,8 +1,56 @@
 from flask import Blueprint, request, jsonify
 from database import get_supabase_client
 from utils.auth_utils import verify_token
+import re
 
 bp = Blueprint('auth', __name__)
+
+def generate_portfolio_slug(username):
+    """Generate a unique portfolio slug from username"""
+    # Remove non-alphanumeric characters and convert to lowercase
+    base_slug = re.sub(r'[^a-zA-Z0-9]', '', username).lower()
+    return base_slug
+
+def ensure_user_diploma_and_skills(supabase, user_id, username):
+    """Ensure user has diploma and skill categories initialized"""
+    try:
+        # Check if diploma exists
+        diploma_check = supabase.table('diplomas').select('id').eq('user_id', user_id).execute()
+        
+        if not diploma_check.data:
+            # Generate unique slug
+            slug = generate_portfolio_slug(username)
+            counter = 0
+            while True:
+                check_slug = slug if counter == 0 else f"{slug}{counter}"
+                existing = supabase.table('diplomas').select('id').eq('portfolio_slug', check_slug).execute()
+                if not existing.data:
+                    slug = check_slug
+                    break
+                counter += 1
+            
+            # Create diploma
+            supabase.table('diplomas').insert({
+                'user_id': user_id,
+                'portfolio_slug': slug
+            }).execute()
+        
+        # Initialize skill categories if they don't exist
+        skill_categories = ['reading_writing', 'thinking_skills', 'personal_growth', 
+                           'life_skills', 'making_creating', 'world_understanding']
+        
+        for category in skill_categories:
+            existing_skill = supabase.table('user_skill_xp').select('id').eq('user_id', user_id).eq('skill_category', category).execute()
+            if not existing_skill.data:
+                supabase.table('user_skill_xp').insert({
+                    'user_id': user_id,
+                    'skill_category': category,
+                    'total_xp': 0
+                }).execute()
+                
+    except Exception as e:
+        print(f"Error ensuring diploma and skills: {str(e)}")
+        # Don't fail registration if this fails - the database trigger should handle it
 
 @bp.route('/register', methods=['POST'])
 def register():
@@ -47,6 +95,9 @@ def register():
             }
             
             supabase.table('users').insert(user_data).execute()
+            
+            # Ensure diploma and skills are initialized (backup to database trigger)
+            ensure_user_diploma_and_skills(supabase, auth_response.user.id, data['username'])
             
             return jsonify({
                 'user': auth_response.user.model_dump(),

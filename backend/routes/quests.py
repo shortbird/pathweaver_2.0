@@ -13,15 +13,19 @@ def get_quests():
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
         search = request.args.get('search', '')
-        subject = request.args.get('subject', '')
+        skill_category = request.args.get('skill_category', '')
+        difficulty = request.args.get('difficulty', '')
         
-        query = supabase.table('quests').select('*, quest_xp_awards(*)')
+        query = supabase.table('quests').select('*, quest_skill_xp(*)')
         
         if search:
             query = query.ilike('title', f'%{search}%')
         
-        if subject:
-            query = query.eq('quest_xp_awards.subject', subject)
+        if skill_category:
+            query = query.eq('quest_skill_xp.skill_category', skill_category)
+        
+        if difficulty:
+            query = query.eq('difficulty_level', difficulty)
         
         start = (page - 1) * per_page
         end = start + per_page - 1
@@ -42,7 +46,7 @@ def get_quest(quest_id):
     supabase = get_supabase_client()
     
     try:
-        response = supabase.table('quests').select('*, quest_xp_awards(*)').eq('id', quest_id).single().execute()
+        response = supabase.table('quests').select('*, quest_skill_xp(*)').eq('id', quest_id).single().execute()
         return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 404
@@ -135,7 +139,7 @@ def get_user_quests(user_id, target_user_id):
     supabase = get_supabase_client()
     
     try:
-        response = supabase.table('user_quests').select('*, quests(*, quest_xp_awards(*))').eq('user_id', target_user_id).execute()
+        response = supabase.table('user_quests').select('*, quests(*, quest_skill_xp(*))').eq('user_id', target_user_id).execute()
         return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400

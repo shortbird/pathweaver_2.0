@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
+import AdminQuestManager from './AdminQuestManager'
 
 const AdminDashboard = () => {
   const [analytics, setAnalytics] = useState(null)
@@ -57,19 +58,10 @@ const AdminDashboard = () => {
 const AdminQuests = () => {
   const [quests, setQuests] = useState([])
   const [loading, setLoading] = useState(true)
-  const [creating, setCreating] = useState(false)
+  const [showManager, setShowManager] = useState(false)
+  const [editingQuest, setEditingQuest] = useState(null)
   const [importing, setImporting] = useState(false)
   const [csvFile, setCsvFile] = useState(null)
-  const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    evidence_requirements: '',
-    xp_awards: []
-  })
-  const [currentAward, setCurrentAward] = useState({
-    subject: '',
-    xp_amount: ''
-  })
 
   useEffect(() => {
     fetchQuests()
@@ -86,46 +78,27 @@ const AdminQuests = () => {
     }
   }
 
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    if (formData.xp_awards.length === 0) {
-      toast.error('Please add at least one subject with XP')
-      return
-    }
-    try {
-      await api.post('/admin/quests', formData)
-      toast.success('Quest created successfully!')
-      setCreating(false)
-      setFormData({
-        title: '',
-        description: '',
-        evidence_requirements: '',
-        xp_awards: []
-      })
-      fetchQuests()
-    } catch (error) {
-      toast.error('Failed to create quest')
-    }
+  const handleQuestSave = () => {
+    setShowManager(false)
+    setEditingQuest(null)
+    fetchQuests()
   }
 
-  const addXPAward = () => {
-    if (currentAward.subject && currentAward.xp_amount) {
-      setFormData({
-        ...formData,
-        xp_awards: [...formData.xp_awards, {
-          subject: currentAward.subject,
-          xp_amount: parseInt(currentAward.xp_amount)
-        }]
-      })
-      setCurrentAward({ subject: '', xp_amount: '' })
-    }
+  const handleEdit = (quest) => {
+    setEditingQuest(quest)
+    setShowManager(true)
   }
 
-  const removeXPAward = (index) => {
-    setFormData({
-      ...formData,
-      xp_awards: formData.xp_awards.filter((_, i) => i !== index)
-    })
+  const handleDelete = async (questId) => {
+    if (window.confirm('Are you sure you want to delete this quest?')) {
+      try {
+        await api.delete(`/admin/quests/${questId}`)
+        toast.success('Quest deleted successfully')
+        fetchQuests()
+      } catch (error) {
+        toast.error('Failed to delete quest')
+      }
+    }
   }
 
   const handleCSVUpload = async (e) => {
@@ -168,65 +141,33 @@ const AdminQuests = () => {
     window.URL.revokeObjectURL(url)
   }
 
-  const getSubjectName = (subject) => {
-    const subjectNames = {
-      'language_arts': 'Language Arts',
-      'math': 'Math',
-      'science': 'Science',
-      'social_studies': 'Social Studies',
-      'foreign_language': 'Foreign Language',
-      'arts': 'Arts',
-      'technology': 'Technology',
-      'physical_education': 'PE'
+  const getSkillCategoryName = (category) => {
+    const categoryNames = {
+      'reading_writing': 'Reading & Writing',
+      'thinking_skills': 'Thinking Skills',
+      'personal_growth': 'Personal Growth',
+      'life_skills': 'Life Skills',
+      'making_creating': 'Making & Creating',
+      'world_understanding': 'World Understanding'
     }
-    return subjectNames[subject] || subject
+    return categoryNames[category] || category
   }
 
-  const [editingQuest, setEditingQuest] = useState(null)
-
-  const handleEdit = (quest) => {
-    setEditingQuest(quest)
-    setFormData({
-      title: quest.title,
-      description: quest.description,
-      evidence_requirements: quest.evidence_requirements,
-      xp_awards: quest.quest_xp_awards || []
-    })
-    setCreating(true)
-  }
-
-  const handleDelete = async (questId) => {
-    if (window.confirm('Are you sure you want to delete this quest?')) {
-      try {
-        await api.delete(`/admin/quests/${questId}`)
-        toast.success('Quest deleted successfully')
-        fetchQuests()
-      } catch (error) {
-        toast.error('Failed to delete quest')
-      }
+  const getDifficultyBadgeColor = (level) => {
+    switch(level) {
+      case 'beginner': return 'bg-green-100 text-green-800'
+      case 'intermediate': return 'bg-yellow-100 text-yellow-800'
+      case 'advanced': return 'bg-red-100 text-red-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
   }
 
-  const handleUpdate = async (e) => {
-    e.preventDefault()
-    if (formData.xp_awards.length === 0) {
-      toast.error('Please add at least one subject with XP')
-      return
-    }
-    try {
-      await api.put(`/admin/quests/${editingQuest.id}`, formData)
-      toast.success('Quest updated successfully!')
-      setCreating(false)
-      setEditingQuest(null)
-      setFormData({
-        title: '',
-        description: '',
-        evidence_requirements: '',
-        xp_awards: []
-      })
-      fetchQuests()
-    } catch (error) {
-      toast.error('Failed to update quest')
+  const getEffortBadgeColor = (level) => {
+    switch(level) {
+      case 'light': return 'bg-blue-100 text-blue-800'
+      case 'moderate': return 'bg-orange-100 text-orange-800'
+      case 'intensive': return 'bg-purple-100 text-purple-800'
+      default: return 'bg-gray-100 text-gray-800'
     }
   }
 
@@ -243,20 +184,12 @@ const AdminQuests = () => {
           </button>
           <button
             onClick={() => {
-              setCreating(!creating)
               setEditingQuest(null)
-              if (!creating) {
-                setFormData({
-                  title: '',
-                  description: '',
-                  evidence_requirements: '',
-                  xp_awards: []
-                })
-              }
+              setShowManager(true)
             }}
             className="btn-primary"
           >
-            {creating ? 'Cancel' : 'Create Quest'}
+            Create Quest
           </button>
         </div>
       </div>
@@ -297,101 +230,15 @@ const AdminQuests = () => {
         </div>
       )}
 
-      {creating && (
-        <div className="card mb-6">
-          <h3 className="text-lg font-semibold mb-4">{editingQuest ? 'Edit Quest' : 'Create New Quest'}</h3>
-          <form onSubmit={editingQuest ? handleUpdate : handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Title</label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="input-field w-full"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Description</label>
-              <textarea
-                value={formData.description}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                className="input-field w-full h-32"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Evidence Requirements</label>
-              <textarea
-                value={formData.evidence_requirements}
-                onChange={(e) => setFormData({ ...formData, evidence_requirements: e.target.value })}
-                className="input-field w-full h-24"
-                placeholder="e.g., A selfie at the top of your hike with GPS location visible"
-                required
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-1">Subjects & XP Awards</label>
-              <div className="flex gap-2 mb-2">
-                <select
-                  value={currentAward.subject}
-                  onChange={(e) => setCurrentAward({ ...currentAward, subject: e.target.value })}
-                  className="input-field flex-1"
-                >
-                  <option value="">Select Subject</option>
-                  <option value="language_arts">Language Arts</option>
-                  <option value="math">Math</option>
-                  <option value="science">Science</option>
-                  <option value="social_studies">Social Studies</option>
-                  <option value="foreign_language">Foreign Language</option>
-                  <option value="arts">Arts</option>
-                  <option value="technology">Technology</option>
-                  <option value="physical_education">Physical Education</option>
-                </select>
-                <input
-                  type="number"
-                  placeholder="XP Amount"
-                  value={currentAward.xp_amount}
-                  onChange={(e) => setCurrentAward({ ...currentAward, xp_amount: e.target.value })}
-                  className="input-field w-32"
-                  min="1"
-                />
-                <button
-                  type="button"
-                  onClick={addXPAward}
-                  className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-                >
-                  Add
-                </button>
-              </div>
-              
-              {formData.xp_awards.length > 0 && (
-                <div className="bg-gray-50 rounded p-3">
-                  <p className="text-xs font-semibold text-gray-600 mb-2">Current Awards:</p>
-                  {formData.xp_awards.map((award, index) => (
-                    <div key={index} className="flex justify-between items-center mb-1">
-                      <span className="text-sm">
-                        {getSubjectName(award.subject)}: <span className="font-semibold">{award.xp_amount} XP</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => removeXPAward(index)}
-                        className="text-red-600 hover:text-red-800 text-sm"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            
-            <button type="submit" className="btn-primary">
-              {editingQuest ? 'Update Quest' : 'Create Quest'}
-            </button>
-          </form>
-        </div>
+      {showManager && (
+        <AdminQuestManager
+          quest={editingQuest}
+          onClose={() => {
+            setShowManager(false)
+            setEditingQuest(null)
+          }}
+          onSave={handleQuestSave}
+        />
       )}
 
       {loading ? (
@@ -405,7 +252,7 @@ const AdminQuests = () => {
                   Quest Name
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                  Subjects & XP
+                  Difficulty & Skills
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
                   Evidence Requirements
@@ -425,16 +272,35 @@ const AdminQuests = () => {
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <div className="text-sm">
-                      {quest.quest_xp_awards && quest.quest_xp_awards.length > 0 ? (
-                        quest.quest_xp_awards.map((award, idx) => (
-                          <div key={idx} className="mb-1">
-                            <span className="font-medium">{getSubjectName(award.subject)}:</span>
-                            <span className="ml-2 text-primary font-semibold">{award.xp_amount} XP</span>
-                          </div>
-                        ))
+                    <div className="space-y-2">
+                      <div className="flex gap-2">
+                        {quest.difficulty_level && (
+                          <span className={`px-2 py-1 text-xs rounded ${getDifficultyBadgeColor(quest.difficulty_level)}`}>
+                            {quest.difficulty_level}
+                          </span>
+                        )}
+                        {quest.effort_level && (
+                          <span className={`px-2 py-1 text-xs rounded ${getEffortBadgeColor(quest.effort_level)}`}>
+                            {quest.effort_level}
+                          </span>
+                        )}
+                        {quest.estimated_hours && (
+                          <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">
+                            ~{quest.estimated_hours}h
+                          </span>
+                        )}
+                      </div>
+                      {quest.quest_skill_xp && quest.quest_skill_xp.length > 0 ? (
+                        <div className="text-xs">
+                          {quest.quest_skill_xp.map((award, idx) => (
+                            <span key={idx} className="inline-block mr-2">
+                              <span className="font-medium">{getSkillCategoryName(award.skill_category)}:</span>
+                              <span className="ml-1 text-primary font-semibold">{award.xp_amount}XP</span>
+                            </span>
+                          ))}
+                        </div>
                       ) : (
-                        <span className="text-gray-400">No XP awards set</span>
+                        <span className="text-xs text-gray-400">No XP awards set</span>
                       )}
                     </div>
                   </td>
