@@ -1,7 +1,7 @@
 # AI Quest Generation Tool - Implementation Plan
 
 ## Overview
-This document outlines the plan for creating an AI-powered quest generation system that can create hundreds or thousands of high-quality educational quests for Optio Quests.
+This document outlines the plan for creating an AI-powered quest generation system that can create hundreds or thousands of high-quality educational quests for Optio.
 
 ## Goals
 1. Generate diverse, educational quests across all 6 skill categories

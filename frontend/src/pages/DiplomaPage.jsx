@@ -111,7 +111,7 @@ const DiplomaPage = () => {
               {diploma.student.first_name} {diploma.student.last_name}
             </p>
             <div className="mt-4">
-              <p className="text-sm opacity-80">Issued by Optio Quests</p>
+              <p className="text-sm opacity-80">Issued by Optio</p>
               <p className="text-lg font-semibold">{formatDate(diploma.diploma_issued)}</p>
             </div>
           </div>
@@ -287,7 +287,7 @@ const DiplomaPage = () => {
         {/* Footer */}
         <div className="mt-12 pt-8 border-t-2 border-amber-200 text-center">
           <div className="mb-4">
-            <p className="text-lg font-bold text-gray-800">Optio Quests</p>
+            <p className="text-lg font-bold text-gray-800">Optio</p>
             <p className="text-gray-600">Self-Validated Learning Platform</p>
           </div>
           <p className="text-sm text-gray-500 max-w-2xl mx-auto">

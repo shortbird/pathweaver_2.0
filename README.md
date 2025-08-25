@@ -1,4 +1,4 @@
-# Optio Quest Application
+# Optio Application
 
 A comprehensive web application for interest-led learning, built with React (frontend) and Flask (backend), powered by Supabase and Stripe.
 

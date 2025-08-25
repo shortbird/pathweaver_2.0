@@ -1,4 +1,4 @@
-# Optio Quest Application - Quest Redesign Implementation Requirements
+# Optio Application - Quest Redesign Implementation Requirements
 
 ## Overview
 We are redesigning the quest system to move beyond traditional subjects and implement a skills-based learning framework with a revolutionary "Self-Validated Diploma" system. Students receive their diploma upon joining and build its value through quest completion.

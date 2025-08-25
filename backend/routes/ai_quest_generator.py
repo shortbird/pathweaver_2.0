@@ -318,7 +318,7 @@ def generate_sample_quests(existing_titles):
             "location_requirements": "Any suitable teaching space",
             "safety_considerations": "",
             "requires_adult_supervision": False,
-            "collaboration_ideas": "Teach a skill to other Optio Quest members and have them teach you something in return. Create a skills exchange workshop with multiple members teaching different skills. Partner to create an online course or tutorial series together.",
+            "collaboration_ideas": "Teach a skill to other Optio members and have them teach you something in return. Create a skills exchange workshop with multiple members teaching different skills. Partner to create an online course or tutorial series together.",
             "optional_challenges": [
                 {
                     "description": "Create a YouTube tutorial based on your teaching experience",

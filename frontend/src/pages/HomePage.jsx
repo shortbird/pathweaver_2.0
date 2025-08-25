@@ -14,7 +14,7 @@ const HomePage = () => {
               Your Diploma Starts Today
             </h1>
             <p className="text-xl mb-8 max-w-2xl mx-auto">
-              At Optio Quest, we award you your diploma on day one. Now it's up to you to make it 
+              At Optio, we award you your diploma on day one. Now it's up to you to make it 
               extraordinary through real-world quests, meaningful projects, and authentic learning.
             </p>
             {!isAuthenticated && (

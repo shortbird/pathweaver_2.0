@@ -57,7 +57,7 @@ const Layout = () => {
           <div className="flex justify-between h-16">
             <div className="flex">
               <Link to="/" className="flex items-center">
-                <span className="text-2xl font-bold text-primary">Optio Quest</span>
+                <span className="text-2xl font-bold text-primary">Optio</span>
               </Link>
               
               {isAuthenticated && (
@@ -147,7 +147,7 @@ const Layout = () => {
       <footer className="bg-white border-t border-border mt-auto">
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <p className="text-center text-sm text-gray-500">
-            © 2025 Optio Quest. All rights reserved.
+            © 2025 Optio. All rights reserved.
           </p>
         </div>
       </footer>
