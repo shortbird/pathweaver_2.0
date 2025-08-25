@@ -46,8 +46,8 @@ For each quest, provide the following in valid JSON format:
   "core_skills": [list of 3-5 skills from: reading, writing, speaking, digital_media, math_data, critical_thinking, creative_thinking, research, information_literacy, systems_thinking, decision_making, learning_reflection, emotional_skills, grit, time_management, money_skills, health_fitness, home_skills, tech_skills, citizenship, building, art, scientific_method, coding, business_thinking, cultural_awareness, history, environment, teamwork, ethics_philosophy],
   "skill_xp_awards": [
     {{
-      "skill_category": "category_name",
-      "xp_amount": number between 25-300
+      "skill_category": "MUST be one of exactly these: reading_writing, thinking_skills, personal_growth, life_skills, making_creating, world_understanding",
+      "xp_amount": number between 25-300 (guide: light effort=25-75, moderate=75-150, intensive=150-300 XP per category)
     }}
   ],
   "resources_needed": "Materials or tools needed (optional, can be empty string)",
@@ -58,22 +58,36 @@ For each quest, provide the following in valid JSON format:
   "optional_challenges": [
     {{
       "description": "Bonus challenge description",
-      "skill_category": "category_name",
+      "skill_category": "MUST be one of: reading_writing, thinking_skills, personal_growth, life_skills, making_creating, world_understanding",
       "xp_amount": number between 10-50
     }}
   ]
 }}
 
+SKILL CATEGORIES (use EXACTLY these values in skill_category fields):
+- reading_writing: Reading, writing, speaking, presentations, digital media
+- thinking_skills: Critical thinking, problem-solving, research, analysis, decision making
+- personal_growth: Self-reflection, emotional intelligence, perseverance, time management
+- life_skills: Money management, health, home skills, technology, citizenship
+- making_creating: Building, art, design, coding, entrepreneurship, scientific method
+- world_understanding: Cultural awareness, history, environment, teamwork, ethics
+
 Guidelines:
-- IMPORTANT: Quest titles should focus on ACCOMPLISHMENTS, not starting processes (e.g., "Build a Budget Tracker" not "Start Building a Budget Tracker")
+- CRITICAL: Quests must be SPECIFIC and CONCRETE, not broad or vague
+  ✅ GOOD: "Bake a Sourdough Bread Loaf", "Build a Birdhouse from Reclaimed Wood", "Create a 5-Minute Documentary About Your Street"
+  ❌ BAD: "Master Cooking Skills", "Learn Woodworking", "Explore Film Making"
+- Each quest should be ONE specific accomplishment that can be clearly completed
+- Quest titles should be action-focused accomplishments (what will be achieved, not "Start" or "Learn")
 - Make quests practical and achievable for teenagers
-- Focus on real-world application of skills
+- Focus on real-world application of skills through specific projects
 - Vary the difficulty and effort levels across the 5 quests
-- Include at least 2-3 skill categories per quest
+- Include 2-3 skill categories per quest with appropriate XP awards
+- Distribute total XP across skill categories (total 100-500 XP based on effort)
 - Total XP should be proportional to effort and hours
 - Make them engaging and relevant to modern students
 - Include diverse types of activities (physical, creative, intellectual, social)
 - Ensure titles are unique and don't overlap with existing quests
+- Collaboration ideas should be formatted as separate sentences that can be displayed as bullet points
 - Remember: Students already have their diploma - evidence is for self-validation, not proof
 
 Return a JSON array with exactly 5 quest objects."""
@@ -232,8 +246,8 @@ def generate_sample_quests(existing_titles):
     """Generate sample quests without AI"""
     sample_quests = [
         {
-            "title": "Build a Personal Budget Tracker",
-            "description": "Create and maintain a personal budget for one month, tracking income, expenses, and savings goals. Learn financial literacy through hands-on money management.",
+            "title": "Track Your Spending for 30 Days",
+            "description": "Create a detailed spending tracker for one month, categorizing every expense and identifying patterns. Build a spreadsheet or use an app to visualize where your money goes.",
             "difficulty_level": "intermediate",
             "effort_level": "moderate",
             "estimated_hours": 10,
@@ -259,8 +273,8 @@ def generate_sample_quests(existing_titles):
             ]
         },
         {
-            "title": "Local History Documentary",
-            "description": "Research and create a 5-minute documentary about an interesting historical event or figure from your local area. Interview residents and explore archives.",
+            "title": "Film a 5-Minute Documentary About Your Street",
+            "description": "Create a short documentary featuring the history and stories of your street or neighborhood. Interview at least 3 neighbors and include historical photos or footage.",
             "difficulty_level": "advanced",
             "effort_level": "intensive",
             "estimated_hours": 20,
@@ -287,8 +301,8 @@ def generate_sample_quests(existing_titles):
             ]
         },
         {
-            "title": "Teach a Skill to Others",
-            "description": "Choose a skill you're good at and teach it to at least 3 people. Create lesson plans and document the teaching process.",
+            "title": "Teach 3 People to Juggle",
+            "description": "Learn to juggle with 3 balls, then teach this skill to 3 different people. Document each person's learning journey from first attempt to successful juggling.",
             "difficulty_level": "intermediate",
             "effort_level": "moderate",
             "estimated_hours": 8,
@@ -314,8 +328,8 @@ def generate_sample_quests(existing_titles):
             ]
         },
         {
-            "title": "30-Day Fitness Challenge",
-            "description": "Design and complete a personalized 30-day fitness challenge. Track your progress, nutrition, and how you feel throughout the journey.",
+            "title": "Complete 1000 Push-ups in 30 Days",
+            "description": "Complete 1000 total push-ups over 30 days (about 34 per day). Track your daily count, form improvements, and physical changes throughout the challenge.",
             "difficulty_level": "beginner",
             "effort_level": "moderate",
             "estimated_hours": 15,
@@ -341,8 +355,8 @@ def generate_sample_quests(existing_titles):
             ]
         },
         {
-            "title": "Code Your First Web App",
-            "description": "Learn basic web development and create a simple but functional web application that solves a real problem in your life.",
+            "title": "Build a Homework Deadline Tracker Website",
+            "description": "Create a functional web application that tracks homework deadlines with features like adding assignments, due dates, and completion status. Deploy it online for actual use.",
             "difficulty_level": "intermediate",
             "effort_level": "intensive",
             "estimated_hours": 25,

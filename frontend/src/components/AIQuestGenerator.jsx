@@ -552,7 +552,15 @@ const AIQuestGenerator = ({ onQuestAccepted, onClose }) => {
                       {currentQuest.collaboration_ideas && (
                         <div>
                           <h4 className="text-sm font-semibold text-gray-600 mb-2">Ideas for Collaboration (2x XP Bonus)</h4>
-                          <p className="text-sm text-gray-700 bg-green-50 p-3 rounded">{currentQuest.collaboration_ideas}</p>
+                          <div className="bg-green-50 p-3 rounded">
+                            <ul className="list-disc list-inside space-y-1">
+                              {currentQuest.collaboration_ideas.split('. ').filter(idea => idea.trim()).map((idea, idx) => (
+                                <li key={idx} className="text-sm text-gray-700">
+                                  {idea.replace(/^\d+\.\s*/, '').replace(/\.$/, '')}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
                         </div>
                       )}
 
