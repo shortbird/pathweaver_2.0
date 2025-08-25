@@ -53,19 +53,48 @@ const DashboardPage = () => {
   }
 
   // Transform skill XP data for charts
-  const skillXPData = portfolioData?.skill_xp?.map(skill => ({
-    category: skillCategoryNames[skill.skill_category] || skill.skill_category,
-    xp: skill.total_xp,
-    fullMark: 1000 // Max for radar chart scaling
-  })) || []
-
-  const totalXP = skillXPData.reduce((sum, item) => sum + item.xp, 0)
+  // Handle both formats: from portfolio endpoint and from dashboard endpoint
+  let skillXPData = []
+  let totalXP = 0
+  
+  if (portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp)) {
+    skillXPData = portfolioData.skill_xp.map(skill => ({
+      category: skillCategoryNames[skill.skill_category] || skill.skill_category,
+      xp: skill.total_xp,
+      fullMark: 1000 // Max for radar chart scaling
+    }))
+    totalXP = skillXPData.reduce((sum, item) => sum + item.xp, 0)
+  } else if (dashboardData?.xp_by_category) {
+    // Use dashboard data if portfolio data is not available
+    skillXPData = Object.entries(dashboardData.xp_by_category).map(([category, xp]) => ({
+      category: skillCategoryNames[category] || category,
+      xp: xp,
+      fullMark: 1000
+    }))
+    totalXP = dashboardData.total_xp || Object.values(dashboardData.xp_by_category).reduce((sum, xp) => sum + xp, 0)
+  } else if (dashboardData?.xp_by_subject && Array.isArray(dashboardData.xp_by_subject)) {
+    // Fallback to old format
+    skillXPData = dashboardData.xp_by_subject.map(([category, xp]) => ({
+      category: skillCategoryNames[category] || category,
+      xp: xp,
+      fullMark: 1000
+    }))
+    totalXP = skillXPData.reduce((sum, item) => sum + item.xp, 0)
+  }
 
   // Get least developed skills for recommendations
-  const leastDevelopedSkills = [...(portfolioData?.skill_xp || [])]
-    .sort((a, b) => a.total_xp - b.total_xp)
+  const leastDevelopedSkills = skillXPData
+    .sort((a, b) => a.xp - b.xp)
     .slice(0, 2)
-    .map(s => s.skill_category)
+    .map(s => {
+      // Find the original category key
+      for (const [key, value] of Object.entries(skillCategoryNames)) {
+        if (value === s.category || key === s.category) {
+          return key
+        }
+      }
+      return s.category
+    })
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">

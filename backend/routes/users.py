@@ -13,37 +13,57 @@ def get_profile(user_id):
     try:
         user = supabase.table('users').select('*').eq('id', user_id).single().execute()
         
-        # Calculate total XP
+        # Calculate total XP and get skill breakdown
         total_xp = 0
+        skill_breakdown = {}
+        
         try:
-            # Try skill-based XP first
+            # Get skill-based XP from user_skill_xp table
             skill_xp = supabase.table('user_skill_xp')\
-                .select('total_xp')\
+                .select('skill_category, total_xp')\
                 .eq('user_id', user_id)\
                 .execute()
             
             if skill_xp.data:
                 for record in skill_xp.data:
-                    total_xp += record.get('total_xp', 0)
-        except Exception:
-            # Fallback: calculate from completed quests
-            completed_quests_with_xp = supabase.table('user_quests')\
-                .select('*, quests(*, quest_skill_xp(*), quest_xp_awards(*))')\
-                .eq('user_id', user_id)\
-                .eq('status', 'completed')\
-                .execute()
+                    xp_amount = record.get('total_xp', 0)
+                    total_xp += xp_amount
+                    skill_breakdown[record['skill_category']] = xp_amount
+        except Exception as e:
+            print(f"Error getting skill XP: {str(e)}")
             
-            if completed_quests_with_xp.data:
-                for quest_record in completed_quests_with_xp.data:
-                    quest = quest_record.get('quests', {})
-                    # Try skill XP
-                    if quest.get('quest_skill_xp'):
-                        for award in quest['quest_skill_xp']:
-                            total_xp += award.get('xp_amount', 0)
-                    # Fallback to subject XP
-                    elif quest.get('quest_xp_awards'):
-                        for award in quest['quest_xp_awards']:
-                            total_xp += award.get('xp_amount', 0)
+        # If no XP in user_skill_xp table, calculate from completed quests
+        if total_xp == 0:
+            try:
+                completed_quests_with_xp = supabase.table('user_quests')\
+                    .select('*, quests(id)')\
+                    .eq('user_id', user_id)\
+                    .eq('status', 'completed')\
+                    .execute()
+                
+                if completed_quests_with_xp.data:
+                    for quest_record in completed_quests_with_xp.data:
+                        quest_id = quest_record.get('quests', {}).get('id')
+                        if quest_id:
+                            # Get XP awards for this quest
+                            try:
+                                skill_awards = supabase.table('quest_skill_xp').select('*').eq('quest_id', quest_id).execute()
+                                if skill_awards.data:
+                                    for award in skill_awards.data:
+                                        total_xp += award.get('xp_amount', 0)
+                                        cat = award['skill_category']
+                                        skill_breakdown[cat] = skill_breakdown.get(cat, 0) + award['xp_amount']
+                            except:
+                                # Try old XP system
+                                try:
+                                    subject_awards = supabase.table('quest_xp_awards').select('*').eq('quest_id', quest_id).execute()
+                                    if subject_awards.data:
+                                        for award in subject_awards.data:
+                                            total_xp += award.get('xp_amount', 0)
+                                except:
+                                    pass
+            except Exception as e:
+                print(f"Error calculating XP from quests: {str(e)}")
         
         # Get completed quests count
         completed_quests = supabase.table('user_quests')\
@@ -56,7 +76,8 @@ def get_profile(user_id):
         return jsonify({
             'user': user.data,
             'total_xp': total_xp,
-            'completed_quests': completed_count
+            'completed_quests': completed_count,
+            'skill_breakdown': skill_breakdown
         }), 200
         
     except Exception as e:
@@ -124,10 +145,19 @@ def get_dashboard(user_id):
                 .limit(5)\
                 .execute()
         
-        # Calculate XP by skill category or subject
+        # Calculate XP by skill category
         xp_by_category = {}
+        skill_xp_data = []
+        total_xp = 0
+        
+        # Initialize all skill categories with 0
+        skill_categories = ['reading_writing', 'thinking_skills', 'personal_growth', 
+                          'life_skills', 'making_creating', 'world_understanding']
+        for cat in skill_categories:
+            xp_by_category[cat] = 0
+            
         try:
-            # Try skill-based XP first
+            # Get skill-based XP from user_skill_xp table
             skill_xp = supabase.table('user_skill_xp')\
                 .select('skill_category, total_xp')\
                 .eq('user_id', user_id)\
@@ -136,25 +166,48 @@ def get_dashboard(user_id):
             if skill_xp.data:
                 for record in skill_xp.data:
                     xp_by_category[record['skill_category']] = record['total_xp']
-        except Exception:
-            # Fallback to calculating from completed quests
-            if recent_completions.data:
-                for quest_record in recent_completions.data:
-                    quest = quest_record.get('quests', {})
-                    # Try skill XP
-                    if quest.get('quest_skill_xp'):
-                        for award in quest['quest_skill_xp']:
-                            category = award['skill_category']
-                            if category not in xp_by_category:
-                                xp_by_category[category] = 0
-                            xp_by_category[category] += award['xp_amount']
-                    # Fallback to subject XP
-                    elif quest.get('quest_xp_awards'):
-                        for award in quest['quest_xp_awards']:
-                            subject = award['subject']
-                            if subject not in xp_by_category:
-                                xp_by_category[subject] = 0
-                            xp_by_category[subject] += award['xp_amount']
+                    total_xp += record['total_xp']
+                    skill_xp_data.append(record)
+        except Exception as e:
+            print(f"Error fetching skill XP: {str(e)}")
+            
+        # If no XP data exists, calculate from completed quests
+        if total_xp == 0 and recent_completions.data:
+            for quest_record in recent_completions.data:
+                quest = quest_record.get('quests', {})
+                quest_id = quest.get('id')
+                
+                if quest_id:
+                    try:
+                        # Try to get skill XP awards for this quest
+                        skill_awards = supabase.table('quest_skill_xp').select('*').eq('quest_id', quest_id).execute()
+                        if skill_awards.data:
+                            for award in skill_awards.data:
+                                category = award['skill_category']
+                                amount = award['xp_amount']
+                                xp_by_category[category] = xp_by_category.get(category, 0) + amount
+                                total_xp += amount
+                    except:
+                        # Try old subject-based XP
+                        try:
+                            subject_awards = supabase.table('quest_xp_awards').select('*').eq('quest_id', quest_id).execute()
+                            if subject_awards.data:
+                                for award in subject_awards.data:
+                                    # Map subjects to skill categories for backward compatibility
+                                    subject = award['subject']
+                                    amount = award['xp_amount']
+                                    # Simple mapping - you may want to adjust this
+                                    if subject in ['language_arts']:
+                                        xp_by_category['reading_writing'] += amount
+                                    elif subject in ['math', 'science']:
+                                        xp_by_category['thinking_skills'] += amount
+                                    elif subject in ['social_studies']:
+                                        xp_by_category['world_understanding'] += amount
+                                    else:
+                                        xp_by_category['personal_growth'] += amount
+                                    total_xp += amount
+                        except:
+                            pass
         
         # Get friend count
         friend_count = 0
@@ -169,11 +222,27 @@ def get_dashboard(user_id):
             # If friendships table doesn't exist, just return 0
             pass
         
+        # Get skill details (individual skills practiced)
+        skill_details = []
+        try:
+            details = supabase.table('user_skill_details')\
+                .select('skill_name, times_practiced, last_practiced')\
+                .eq('user_id', user_id)\
+                .execute()
+            if details.data:
+                skill_details = details.data
+        except:
+            pass
+            
         return jsonify({
             'user': user.data,
             'active_quests': active_quests.data if active_quests.data else [],
             'recent_completions': recent_completions.data if recent_completions.data else [],
-            'xp_by_subject': list(xp_by_category.items()) if xp_by_category else [],
+            'xp_by_subject': list(xp_by_category.items()),  # Keep for backward compatibility
+            'xp_by_category': xp_by_category,
+            'skill_xp': skill_xp_data,
+            'total_xp': total_xp,
+            'skill_details': skill_details,
             'friend_count': friend_count
         }), 200
         
