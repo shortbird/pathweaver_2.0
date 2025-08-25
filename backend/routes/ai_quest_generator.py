@@ -54,7 +54,7 @@ For each quest, provide the following in valid JSON format:
   "location_requirements": "Where this can be done (optional, can be empty string)",
   "safety_considerations": "Any safety notes (optional, can be empty string)",
   "requires_adult_supervision": boolean,
-  "collaboration_ideas": "2-3 specific ideas for how students can collaborate with other Optio Quest members to earn the 2x XP bonus",
+  "collaboration_ideas": "Exactly 3 collaboration ideas separated by periods. Format: 'First idea. Second idea. Third idea.' Each must be a complete sentence describing how to work with other members.",
   "optional_challenges": [
     {{
       "description": "Bonus challenge description",
@@ -87,7 +87,7 @@ Guidelines:
 - Make them engaging and relevant to modern students
 - Include diverse types of activities (physical, creative, intellectual, social)
 - Ensure titles are unique and don't overlap with existing quests
-- Collaboration ideas should be formatted as separate sentences that can be displayed as bullet points
+- Format collaboration_ideas as EXACTLY 3 sentences separated by periods (they will display as bullets)
 - Remember: Students already have their diploma - evidence is for self-validation, not proof
 
 Return a JSON array with exactly 5 quest objects."""

@@ -336,22 +336,21 @@ const AIQuestGenerator = ({ onQuestAccepted, onClose }) => {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium mb-2">Suggested Evidence</label>
-                        <textarea
-                          value={editingQuest.evidence_requirements}
-                          onChange={(e) => handleEditFieldChange('evidence_requirements', e.target.value)}
-                          className="input-field w-full h-16"
-                          placeholder="Suggestions for how students can validate their learning"
-                        />
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium mb-2">Example Submissions</label>
-                        <textarea
-                          value={editingQuest.example_submissions}
-                          onChange={(e) => handleEditFieldChange('example_submissions', e.target.value)}
-                          className="input-field w-full h-16"
-                        />
+                        <label className="block text-sm font-medium mb-2">Suggested Evidence Submission</label>
+                        <div className="space-y-2">
+                          <textarea
+                            value={editingQuest.evidence_requirements}
+                            onChange={(e) => handleEditFieldChange('evidence_requirements', e.target.value)}
+                            className="input-field w-full h-16"
+                            placeholder="Main suggestions for how students can validate their learning"
+                          />
+                          <textarea
+                            value={editingQuest.example_submissions}
+                            onChange={(e) => handleEditFieldChange('example_submissions', e.target.value)}
+                            className="input-field w-full h-16"
+                            placeholder="Specific examples of good submissions (optional)"
+                          />
+                        </div>
                       </div>
 
                       <div>
@@ -502,16 +501,16 @@ const AIQuestGenerator = ({ onQuestAccepted, onClose }) => {
                         )}
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-600 mb-2">Suggested Evidence</h4>
-                          <p className="text-sm text-gray-700">{currentQuest.evidence_requirements}</p>
-                        </div>
-                        
-                        <div>
-                          <h4 className="text-sm font-semibold text-gray-600 mb-2">Example Submissions</h4>
-                          <p className="text-sm text-gray-700">{currentQuest.example_submissions}</p>
-                        </div>
+                      <div>
+                        <h4 className="text-sm font-semibold text-gray-600 mb-2">Suggested Evidence Submission</h4>
+                        <p className="text-sm text-gray-700">
+                          {currentQuest.evidence_requirements}
+                          {currentQuest.example_submissions && (
+                            <span className="block mt-2 text-gray-600">
+                              <strong>Examples:</strong> {currentQuest.example_submissions}
+                            </span>
+                          )}
+                        </p>
                       </div>
 
                       <div>
