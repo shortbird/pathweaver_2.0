@@ -267,8 +267,8 @@ const QuestsPage = () => {
                     className="input-field w-full"
                   >
                     <option value="">Any</option>
-                    <option value="false">Not Required</option>
-                    <option value="true">Required</option>
+                    <option value="false">Solo Quest</option>
+                    <option value="true">Adult Supervised</option>
                   </select>
                 </div>
               </div>

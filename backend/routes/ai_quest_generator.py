@@ -40,7 +40,7 @@ For each quest, provide the following in valid JSON format:
   "difficulty_level": "beginner" | "intermediate" | "advanced",
   "effort_level": "light" | "moderate" | "intensive",
   "estimated_hours": number between 1-50,
-  "evidence_requirements": "Suggestions for how students can validate and demonstrate their learning (they already have their diploma)",
+  "evidence_requirements": "Friendly suggestions for how students can showcase and celebrate their learning journey (remember: they already have their diploma - this is about quality documentation, not requirements)",
   "accepted_evidence_types": ["photo", "video", "written", "project_link", "presentation", "artifact", "certificate"],
   "example_submissions": "Examples of good evidence submissions",
   "core_skills": [list of 3-5 skills from: reading, writing, speaking, digital_media, math_data, critical_thinking, creative_thinking, research, information_literacy, systems_thinking, decision_making, learning_reflection, emotional_skills, grit, time_management, money_skills, health_fitness, home_skills, tech_skills, citizenship, building, art, scientific_method, coding, business_thinking, cultural_awareness, history, environment, teamwork, ethics_philosophy],

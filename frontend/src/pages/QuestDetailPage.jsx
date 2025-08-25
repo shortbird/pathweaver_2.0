@@ -183,7 +183,8 @@ const QuestDetailPage = () => {
         </div>
 
         <div className="bg-blue-50 rounded-lg p-4 mb-6">
-          <h2 className="text-xl font-semibold mb-2">Evidence Requirements</h2>
+          <h2 className="text-xl font-semibold mb-2">Evidence Suggestions</h2>
+          <p className="text-sm text-gray-600 mb-2 italic">Remember: You already have your diploma! These are suggestions to help you showcase quality learning.</p>
           <p className="text-gray-700 whitespace-pre-wrap mb-3">{quest.evidence_requirements}</p>
           
           {quest.accepted_evidence_types && quest.accepted_evidence_types.length > 0 && (
@@ -207,7 +208,7 @@ const QuestDetailPage = () => {
           )}
         </div>
 
-        {/* Additional Requirements */}
+        {/* Additional Information */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
           {quest.resources_needed && (
             <div className="bg-gray-50 rounded-lg p-4">
@@ -218,7 +219,7 @@ const QuestDetailPage = () => {
           
           {quest.location_requirements && (
             <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-600 mb-1">Location Requirements:</h3>
+              <h3 className="text-sm font-semibold text-gray-600 mb-1">Suggested Locations:</h3>
               <p className="text-sm text-gray-700">{quest.location_requirements}</p>
             </div>
           )}
@@ -281,7 +282,7 @@ const QuestDetailPage = () => {
             <textarea
               value={evidenceText}
               onChange={(e) => setEvidenceText(e.target.value)}
-              placeholder="Describe what you learned and how you completed this quest..."
+              placeholder="Share your learning journey - what you discovered, how you grew, and what you're proud of..."
               className="input-field w-full h-32 mb-4"
             />
             <div className="flex gap-4">

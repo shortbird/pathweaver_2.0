@@ -256,17 +256,17 @@ const AdminQuestManager = ({ quest, onClose, onSave }) => {
             </div>
           </div>
 
-          {/* Evidence Requirements */}
+          {/* Evidence Suggestions */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold border-b pb-2">Evidence Requirements</h3>
+            <h3 className="text-lg font-semibold border-b pb-2">Evidence Suggestions</h3>
             
             <div>
-              <label className="block text-sm font-medium mb-1">Evidence Requirements *</label>
+              <label className="block text-sm font-medium mb-1">Evidence Suggestions *</label>
               <textarea
                 value={formData.evidence_requirements}
                 onChange={(e) => setFormData({ ...formData, evidence_requirements: e.target.value })}
                 className="input-field w-full h-24"
-                placeholder="Describe what students need to submit as evidence..."
+                placeholder="Suggest ways students can demonstrate their learning (remember: they already have their diploma)..."
                 required
               />
             </div>
@@ -442,9 +442,9 @@ const AdminQuestManager = ({ quest, onClose, onSave }) => {
             )}
           </div>
 
-          {/* Additional Requirements */}
+          {/* Additional Information */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold border-b pb-2">Additional Requirements</h3>
+            <h3 className="text-lg font-semibold border-b pb-2">Additional Information</h3>
             
             <div>
               <label className="block text-sm font-medium mb-1">Resources Needed</label>
@@ -457,7 +457,7 @@ const AdminQuestManager = ({ quest, onClose, onSave }) => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Location Requirements</label>
+              <label className="block text-sm font-medium mb-1">Suggested Locations</label>
               <input
                 type="text"
                 value={formData.location_requirements}

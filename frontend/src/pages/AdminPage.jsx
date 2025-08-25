@@ -325,11 +325,11 @@ const AdminQuests = () => {
                       </div>
                     )}
 
-                    {/* Evidence Requirements */}
+                    {/* Evidence Suggestions */}
                     <div className="border-t pt-4">
-                      <p className="text-xs font-semibold text-gray-500 mb-2">EVIDENCE REQUIREMENTS:</p>
+                      <p className="text-xs font-semibold text-gray-500 mb-2">EVIDENCE SUGGESTIONS:</p>
                       <p className="text-sm text-gray-700 line-clamp-2">
-                        {quest.evidence_requirements || 'No specific requirements set'}
+                        {quest.evidence_requirements || 'No specific suggestions set'}
                       </p>
                       
                       {quest.accepted_evidence_types?.length > 0 && (

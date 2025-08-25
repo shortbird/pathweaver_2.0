@@ -50,16 +50,16 @@ const HomePage = () => {
               </div>
               <h3 className="text-xl font-semibold mb-2">Complete Challenges</h3>
               <p className="text-gray-600">
-                Submit evidence of your learning through projects, research, and real-world activities.
+                Share your learning journey through projects, research, and real-world activities.
               </p>
             </div>
             <div className="text-center">
               <div className="bg-primary text-white w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
                 3
               </div>
-              <h3 className="text-xl font-semibold mb-2">Earn Official Credit</h3>
+              <h3 className="text-xl font-semibold mb-2">Celebrate Your Growth</h3>
               <p className="text-gray-600">
-                Gain XP, earn official high school credits toward your diploma, and showcase your unique educational journey.
+                Gain XP, build a portfolio of achievements, and create a diploma that reflects your unique educational journey.
               </p>
             </div>
           </div>
@@ -69,17 +69,17 @@ const HomePage = () => {
       <div className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">High School Credit Through Quest-Based Learning</h2>
+            <h2 className="text-3xl font-bold mb-4">Your Diploma, Your Journey</h2>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              Optio Quest enables students to earn official high school credit toward their diploma. Complete quests aligned with 
-              academic standards to earn credits that count toward graduation requirements.
+              At Optio Quest, you already have your diploma from day one! Our quests help you build a portfolio of quality learning 
+              experiences that make your diploma meaningful and showcase your unique educational journey.
             </p>
           </div>
           <div className="grid md:grid-cols-3 gap-6 mb-8">
             <div className="bg-white p-6 rounded-lg shadow-sm">
-              <h3 className="font-semibold text-primary mb-2">Accredited Quests</h3>
+              <h3 className="font-semibold text-primary mb-2">Quality Learning</h3>
               <p className="text-sm text-gray-600">
-                Earn credits recognized by schools and education departments nationwide
+                Build a portfolio of meaningful experiences that demonstrate real growth
               </p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-sm">
@@ -89,9 +89,9 @@ const HomePage = () => {
               </p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow-sm">
-              <h3 className="font-semibold text-primary mb-2">Official Transcripts</h3>
+              <h3 className="font-semibold text-primary mb-2">Portfolio & Transcripts</h3>
               <p className="text-sm text-gray-600">
-                Generate official transcripts documenting your earned credits for college applications
+                Create a rich portfolio and transcript that tells your unique learning story
               </p>
             </div>
           </div>
@@ -119,7 +119,7 @@ const HomePage = () => {
               <p className="text-gray-600 mb-4">For students seeking a diploma</p>
               <ul className="space-y-2 text-sm">
                 <li>✓ Everything in Explorer</li>
-                <li>✓ Earn official credit toward your diploma</li>
+                <li>✓ Build your quality diploma portfolio</li>
                 <li>✓ Accredited transcript generation</li>
                 <li>✓ Email educator support (1 business day response)</li>
                 <li>✓ Community XP bonuses</li>
