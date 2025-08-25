@@ -20,7 +20,7 @@
   - [ ] FRONTEND_URL (your Vercel URL)
 - [ ] API accessible at production URL
 - [ ] Test endpoint: GET /api/health
-
+ 
 ## Frontend (Vercel)
 - [ ] Deployed successfully
 - [ ] Environment variables set:
