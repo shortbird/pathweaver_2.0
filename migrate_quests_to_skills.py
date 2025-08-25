@@ -231,7 +231,7 @@ def migrate_quests(supabase: Client):
     except Exception as e:
         print(f"Error migrating user XP: {e}")
     
-    print("\n✅ Migration script complete!")
+    print("\nMigration script complete!")
     print("\nNext steps:")
     print("1. Verify the migration by checking a few quests in the admin panel")
     print("2. Test quest creation with new fields")
@@ -240,13 +240,31 @@ def migrate_quests(supabase: Client):
 
 def main():
     # Get Supabase credentials from environment
-    supabase_url = os.getenv('VITE_SUPABASE_URL')
-    supabase_service_key = os.getenv('SUPABASE_SERVICE_KEY')
+    # Extract project ref from the database URL or use directly if available
+    db_url = os.getenv('VITE_SUPABASE_URL') or os.getenv('supabase_url')
     
-    if not supabase_url or not supabase_service_key:
-        print("Error: Missing Supabase credentials in environment variables")
-        print("Please ensure VITE_SUPABASE_URL and SUPABASE_SERVICE_KEY are set")
+    # Extract project reference from database URL
+    if db_url and 'supabase.co' in db_url:
+        # Extract project ref from URL like: db.yzdrqaookkhgkxwdmroz.supabase.co
+        project_ref = db_url.split('@db.')[1].split('.supabase.co')[0] if '@db.' in db_url else None
+        if project_ref:
+            supabase_url = f'https://{project_ref}.supabase.co'
+        else:
+            print("Error: Could not extract project reference from database URL")
+            sys.exit(1)
+    else:
+        print("Error: No valid Supabase URL found in environment variables")
         sys.exit(1)
+    
+    # Get service role key
+    supabase_service_key = os.getenv('supabase_service_role_key') or os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+    
+    if not supabase_service_key:
+        print("Error: Missing Supabase service role key in environment variables")
+        print("Please ensure supabase_service_role_key is set in .env")
+        sys.exit(1)
+    
+    print(f"Using Supabase URL: {supabase_url}")
     
     # Create Supabase client with service key for admin access
     supabase: Client = create_client(supabase_url, supabase_service_key)

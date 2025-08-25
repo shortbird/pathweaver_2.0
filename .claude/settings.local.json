@@ -11,7 +11,9 @@
       "Bash(git push:*)",
       "Bash(git rm:*)",
       "Bash(npm install)",
-      "Bash(git ls-tree:*)"
+      "Bash(git ls-tree:*)",
+      "Bash(pip install:*)",
+      "Bash(grep:*)"
     ],
     "deny": [],
     "ask": []

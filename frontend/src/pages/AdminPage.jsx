@@ -244,92 +244,152 @@ const AdminQuests = () => {
       {loading ? (
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
       ) : (
-        <div className="overflow-x-auto">
-          <table className="min-w-full bg-white border border-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                  Quest Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                  Difficulty & Skills
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                  Evidence Requirements
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-b">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {quests.map(quest => (
-                <tr key={quest.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div>
-                      <div className="text-sm font-medium text-gray-900">{quest.title}</div>
-                      <div className="text-sm text-gray-500 mt-1">{quest.description}</div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        {quest.difficulty_level && (
-                          <span className={`px-2 py-1 text-xs rounded ${getDifficultyBadgeColor(quest.difficulty_level)}`}>
-                            {quest.difficulty_level}
-                          </span>
-                        )}
-                        {quest.effort_level && (
-                          <span className={`px-2 py-1 text-xs rounded ${getEffortBadgeColor(quest.effort_level)}`}>
-                            {quest.effort_level}
-                          </span>
-                        )}
-                        {quest.estimated_hours && (
-                          <span className="px-2 py-1 text-xs rounded bg-gray-100 text-gray-800">
-                            ~{quest.estimated_hours}h
-                          </span>
-                        )}
+        <div>
+          {quests.length === 0 ? (
+            <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+              <p className="text-lg">No quests found</p>
+              <p className="text-sm mt-2">Create your first quest using the button above</p>
+            </div>
+          ) : (
+            <div className="grid gap-4">
+              {quests.map(quest => {
+                const totalXP = quest.quest_skill_xp?.reduce((sum, award) => sum + award.xp_amount, 0) || 
+                               quest.quest_xp_awards?.reduce((sum, award) => sum + award.xp_amount, 0) || 0;
+                
+                return (
+                  <div key={quest.id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow">
+                    {/* Header Row */}
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-900">{quest.title}</h3>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{quest.description}</p>
                       </div>
-                      {quest.quest_skill_xp && quest.quest_skill_xp.length > 0 ? (
-                        <div className="text-xs">
-                          {quest.quest_skill_xp.map((award, idx) => (
-                            <span key={idx} className="inline-block mr-2">
-                              <span className="font-medium">{getSkillCategoryName(award.skill_category)}:</span>
-                              <span className="ml-1 text-primary font-semibold">{award.xp_amount}XP</span>
+                      <div className="flex gap-2 ml-4">
+                        <button 
+                          onClick={() => handleEdit(quest)}
+                          className="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(quest.id)}
+                          className="px-3 py-1 text-sm bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Quest Metadata */}
+                    <div className="flex flex-wrap gap-2 mb-4">
+                      {quest.difficulty_level && (
+                        <span className={`px-3 py-1 text-xs font-medium rounded ${getDifficultyBadgeColor(quest.difficulty_level)}`}>
+                          {quest.difficulty_level?.charAt(0).toUpperCase() + quest.difficulty_level?.slice(1)}
+                        </span>
+                      )}
+                      {quest.effort_level && (
+                        <span className={`px-3 py-1 text-xs font-medium rounded ${getEffortBadgeColor(quest.effort_level)}`}>
+                          {quest.effort_level?.charAt(0).toUpperCase() + quest.effort_level?.slice(1)} Effort
+                        </span>
+                      )}
+                      {quest.estimated_hours && (
+                        <span className="px-3 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700">
+                          ⏱️ ~{quest.estimated_hours} hours
+                        </span>
+                      )}
+                      {quest.requires_adult_supervision && (
+                        <span className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-700">
+                          ⚠️ Adult Supervision
+                        </span>
+                      )}
+                      {totalXP > 0 && (
+                        <span className="px-3 py-1 text-xs font-medium rounded bg-purple-100 text-purple-700">
+                          🏆 {totalXP} Total XP
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Skills or Subjects XP */}
+                    {(quest.quest_skill_xp?.length > 0 || quest.quest_xp_awards?.length > 0) && (
+                      <div className="mb-4">
+                        <p className="text-xs font-semibold text-gray-500 mb-2">XP AWARDS:</p>
+                        <div className="flex flex-wrap gap-2">
+                          {quest.quest_skill_xp?.map((award, idx) => (
+                            <div key={`skill-${idx}`} className="bg-gradient-to-r from-blue-50 to-purple-50 px-3 py-1 rounded-full border border-gray-200">
+                              <span className="text-xs font-medium text-gray-700">
+                                {getSkillCategoryName(award.skill_category)}: 
+                              </span>
+                              <span className="text-xs font-bold text-primary ml-1">{award.xp_amount} XP</span>
+                            </div>
+                          ))}
+                          {quest.quest_xp_awards?.map((award, idx) => (
+                            <div key={`subject-${idx}`} className="bg-gradient-to-r from-green-50 to-blue-50 px-3 py-1 rounded-full border border-gray-200">
+                              <span className="text-xs font-medium text-gray-700">
+                                {award.subject?.replace(/_/g, ' ')}: 
+                              </span>
+                              <span className="text-xs font-bold text-primary ml-1">{award.xp_amount} XP</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Core Skills */}
+                    {quest.core_skills?.length > 0 && (
+                      <div className="mb-4">
+                        <p className="text-xs font-semibold text-gray-500 mb-2">CORE SKILLS:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {quest.core_skills.map((skill, idx) => (
+                            <span key={idx} className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
+                              {skill.replace(/_/g, ' ')}
                             </span>
                           ))}
                         </div>
-                      ) : (
-                        <span className="text-xs text-gray-400">No XP awards set</span>
+                      </div>
+                    )}
+
+                    {/* Evidence Requirements */}
+                    <div className="border-t pt-4">
+                      <p className="text-xs font-semibold text-gray-500 mb-2">EVIDENCE REQUIREMENTS:</p>
+                      <p className="text-sm text-gray-700 line-clamp-2">
+                        {quest.evidence_requirements || 'No specific requirements set'}
+                      </p>
+                      
+                      {quest.accepted_evidence_types?.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {quest.accepted_evidence_types.map((type, idx) => (
+                            <span key={idx} className="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded">
+                              {type}
+                            </span>
+                          ))}
+                        </div>
                       )}
                     </div>
-                  </td>
-                  <td className="px-6 py-4">
-                    <div className="text-sm text-gray-600 max-w-xs">
-                      {quest.evidence_requirements}
+
+                    {/* Additional Info */}
+                    <div className="mt-4 grid grid-cols-2 gap-4 text-xs text-gray-500">
+                      {quest.location_requirements && (
+                        <div>
+                          <span className="font-semibold">Location:</span> {quest.location_requirements}
+                        </div>
+                      )}
+                      {quest.resources_needed && (
+                        <div>
+                          <span className="font-semibold">Resources:</span> {quest.resources_needed}
+                        </div>
+                      )}
+                      {quest.optional_challenges?.length > 0 && (
+                        <div>
+                          <span className="font-semibold">Optional Challenges:</span> {quest.optional_challenges.length}
+                        </div>
+                      )}
+                      <div>
+                        <span className="font-semibold">Quest ID:</span> {quest.id.slice(0, 8)}...
+                      </div>
                     </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm">
-                    <button 
-                      onClick={() => handleEdit(quest)}
-                      className="text-primary hover:text-primary-dark mr-3"
-                    >
-                      Edit
-                    </button>
-                    <button 
-                      onClick={() => handleDelete(quest.id)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      Delete
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {quests.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No quests found. Create your first quest above.
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
