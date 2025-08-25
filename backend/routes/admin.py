@@ -81,7 +81,7 @@ def create_quest(user_id):
             'difficulty_level', 'effort_level', 'estimated_hours',
             'accepted_evidence_types', 'example_submissions', 'core_skills',
             'resources_needed', 'location_requirements', 'optional_challenges',
-            'safety_considerations', 'requires_adult_supervision'
+            'safety_considerations', 'requires_adult_supervision', 'collaboration_ideas'
         ]
         for field in optional_fields:
             if field in data:
@@ -134,7 +134,7 @@ def update_quest(user_id, quest_id):
             'difficulty_level', 'effort_level', 'estimated_hours',
             'accepted_evidence_types', 'example_submissions', 'core_skills',
             'resources_needed', 'location_requirements', 'optional_challenges',
-            'safety_considerations', 'requires_adult_supervision'
+            'safety_considerations', 'requires_adult_supervision', 'collaboration_ideas'
         ]
         update_data = {k: v for k, v in data.items() if k in allowed_fields}
         

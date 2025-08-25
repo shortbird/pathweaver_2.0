@@ -336,11 +336,12 @@ const AIQuestGenerator = ({ onQuestAccepted, onClose }) => {
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium mb-2">Evidence Requirements</label>
+                        <label className="block text-sm font-medium mb-2">Suggested Evidence</label>
                         <textarea
                           value={editingQuest.evidence_requirements}
                           onChange={(e) => handleEditFieldChange('evidence_requirements', e.target.value)}
                           className="input-field w-full h-16"
+                          placeholder="Suggestions for how students can validate their learning"
                         />
                       </div>
 
@@ -432,6 +433,16 @@ const AIQuestGenerator = ({ onQuestAccepted, onClose }) => {
                       </div>
 
                       <div>
+                        <label className="block text-sm font-medium mb-2">Ideas for Collaboration</label>
+                        <textarea
+                          value={editingQuest.collaboration_ideas || ''}
+                          onChange={(e) => handleEditFieldChange('collaboration_ideas', e.target.value)}
+                          className="input-field w-full h-20"
+                          placeholder="Suggestions for how students can collaborate to earn 2x XP bonus"
+                        />
+                      </div>
+
+                      <div>
                         <label className="flex items-center">
                           <input
                             type="checkbox"
@@ -493,7 +504,7 @@ const AIQuestGenerator = ({ onQuestAccepted, onClose }) => {
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                          <h4 className="text-sm font-semibold text-gray-600 mb-2">Evidence Requirements</h4>
+                          <h4 className="text-sm font-semibold text-gray-600 mb-2">Suggested Evidence</h4>
                           <p className="text-sm text-gray-700">{currentQuest.evidence_requirements}</p>
                         </div>
                         
@@ -508,7 +519,7 @@ const AIQuestGenerator = ({ onQuestAccepted, onClose }) => {
                         <div className="flex flex-wrap gap-2">
                           {currentQuest.skill_xp_awards?.map((award, idx) => (
                             <span key={idx} className="bg-white px-3 py-1 rounded-full text-xs border">
-                              {skillCategoryNames[award.skill_category]}: <strong>{award.xp_amount} XP</strong>
+                              {skillCategoryNames[award.skill_category] || award.skill_category}: <strong>{award.xp_amount} XP</strong>
                             </span>
                           ))}
                         </div>
@@ -538,6 +549,13 @@ const AIQuestGenerator = ({ onQuestAccepted, onClose }) => {
                         </div>
                       )}
 
+                      {currentQuest.collaboration_ideas && (
+                        <div>
+                          <h4 className="text-sm font-semibold text-gray-600 mb-2">Ideas for Collaboration (2x XP Bonus)</h4>
+                          <p className="text-sm text-gray-700 bg-green-50 p-3 rounded">{currentQuest.collaboration_ideas}</p>
+                        </div>
+                      )}
+
                       {currentQuest.optional_challenges?.length > 0 && (
                         <div>
                           <h4 className="text-sm font-semibold text-gray-600 mb-2">Optional Challenges</h4>
@@ -545,7 +563,7 @@ const AIQuestGenerator = ({ onQuestAccepted, onClose }) => {
                             <div key={idx} className="bg-white rounded p-2 mb-1">
                               <p className="text-sm">{challenge.description}</p>
                               <span className="text-xs text-gray-600">
-                                +{challenge.xp_amount} XP in {skillCategoryNames[challenge.skill_category]}
+                                +{challenge.xp_amount} XP in {skillCategoryNames[challenge.skill_category] || challenge.skill_category}
                               </span>
                             </div>
                           ))}

@@ -13,6 +13,7 @@ ALTER TABLE quests ADD COLUMN IF NOT EXISTS location_requirements TEXT;
 ALTER TABLE quests ADD COLUMN IF NOT EXISTS optional_challenges JSONB;
 ALTER TABLE quests ADD COLUMN IF NOT EXISTS safety_considerations TEXT;
 ALTER TABLE quests ADD COLUMN IF NOT EXISTS requires_adult_supervision BOOLEAN DEFAULT FALSE;
+ALTER TABLE quests ADD COLUMN IF NOT EXISTS collaboration_ideas TEXT;
 
 -- 2. Create new skills-based XP table
 CREATE TABLE IF NOT EXISTS quest_skill_xp (

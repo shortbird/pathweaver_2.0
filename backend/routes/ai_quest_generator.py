@@ -35,12 +35,12 @@ EXISTING QUESTS TO AVOID (don't create similar titles):
 
 For each quest, provide the following in valid JSON format:
 {{
-  "title": "Engaging title (max 100 chars)",
-  "description": "Detailed description of what the student will do and learn (200-300 chars)",
+  "title": "Action-focused accomplishment title (max 100 chars) - focus on what will be achieved, NOT 'Start', 'Begin', or 'Learn'",
+  "description": "Detailed description of what the student will accomplish and learn (200-300 chars) - focus on outcomes",
   "difficulty_level": "beginner" | "intermediate" | "advanced",
   "effort_level": "light" | "moderate" | "intensive",
   "estimated_hours": number between 1-50,
-  "evidence_requirements": "Clear description of what students must submit as proof of completion",
+  "evidence_requirements": "Suggestions for how students can validate and demonstrate their learning (they already have their diploma)",
   "accepted_evidence_types": ["photo", "video", "written", "project_link", "presentation", "artifact", "certificate"],
   "example_submissions": "Examples of good evidence submissions",
   "core_skills": [list of 3-5 skills from: reading, writing, speaking, digital_media, math_data, critical_thinking, creative_thinking, research, information_literacy, systems_thinking, decision_making, learning_reflection, emotional_skills, grit, time_management, money_skills, health_fitness, home_skills, tech_skills, citizenship, building, art, scientific_method, coding, business_thinking, cultural_awareness, history, environment, teamwork, ethics_philosophy],
@@ -54,6 +54,7 @@ For each quest, provide the following in valid JSON format:
   "location_requirements": "Where this can be done (optional, can be empty string)",
   "safety_considerations": "Any safety notes (optional, can be empty string)",
   "requires_adult_supervision": boolean,
+  "collaboration_ideas": "2-3 specific ideas for how students can collaborate with other Optio Quest members to earn the 2x XP bonus",
   "optional_challenges": [
     {{
       "description": "Bonus challenge description",
@@ -64,6 +65,7 @@ For each quest, provide the following in valid JSON format:
 }}
 
 Guidelines:
+- IMPORTANT: Quest titles should focus on ACCOMPLISHMENTS, not starting processes (e.g., "Build a Budget Tracker" not "Start Building a Budget Tracker")
 - Make quests practical and achievable for teenagers
 - Focus on real-world application of skills
 - Vary the difficulty and effort levels across the 5 quests
@@ -72,6 +74,7 @@ Guidelines:
 - Make them engaging and relevant to modern students
 - Include diverse types of activities (physical, creative, intellectual, social)
 - Ensure titles are unique and don't overlap with existing quests
+- Remember: Students already have their diploma - evidence is for self-validation, not proof
 
 Return a JSON array with exactly 5 quest objects."""
     
@@ -246,6 +249,7 @@ def generate_sample_quests(existing_titles):
             "location_requirements": "",
             "safety_considerations": "",
             "requires_adult_supervision": False,
+            "collaboration_ideas": "Compare budgeting strategies with another member and create a joint presentation on money-saving tips. Team up to research and review different budgeting apps together. Create a group challenge to see who can save the most percentage of their income.",
             "optional_challenges": [
                 {
                     "description": "Research and compare 3 different investment options for teenagers",
@@ -273,6 +277,7 @@ def generate_sample_quests(existing_titles):
             "location_requirements": "Local library, historical sites, community",
             "safety_considerations": "Get permission before filming people or private property",
             "requires_adult_supervision": False,
+            "collaboration_ideas": "Partner with another member to create a documentary series covering different aspects of local history. Collaborate on interviews by having one person film while the other conducts the interview. Work together to organize a community screening of your documentaries.",
             "optional_challenges": [
                 {
                     "description": "Submit your documentary to a local history organization or museum",
@@ -299,6 +304,7 @@ def generate_sample_quests(existing_titles):
             "location_requirements": "Any suitable teaching space",
             "safety_considerations": "",
             "requires_adult_supervision": False,
+            "collaboration_ideas": "Teach a skill to other Optio Quest members and have them teach you something in return. Create a skills exchange workshop with multiple members teaching different skills. Partner to create an online course or tutorial series together.",
             "optional_challenges": [
                 {
                     "description": "Create a YouTube tutorial based on your teaching experience",
@@ -325,6 +331,7 @@ def generate_sample_quests(existing_titles):
             "location_requirements": "Home, gym, or outdoor space",
             "safety_considerations": "Start slowly and listen to your body. Consult a doctor if you have health concerns.",
             "requires_adult_supervision": False,
+            "collaboration_ideas": "Find an accountability partner and complete the challenge together with daily check-ins. Create a fitness group with multiple members doing different challenges. Organize weekly group workout sessions or virtual fitness meetups.",
             "optional_challenges": [
                 {
                     "description": "Get a friend or family member to join your challenge",
@@ -351,6 +358,7 @@ def generate_sample_quests(existing_titles):
             "location_requirements": "",
             "safety_considerations": "",
             "requires_adult_supervision": False,
+            "collaboration_ideas": "Pair program with another member learning to code - take turns writing code and reviewing. Build a multi-feature app where each member contributes different components. Create a coding study group to solve challenges and debug together.",
             "optional_challenges": [
                 {
                     "description": "Add user authentication to your app",

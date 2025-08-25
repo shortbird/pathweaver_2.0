@@ -62,6 +62,7 @@ const AdminQuests = () => {
   const [showManager, setShowManager] = useState(false)
   const [editingQuest, setEditingQuest] = useState(null)
   const [showAIGenerator, setShowAIGenerator] = useState(false)
+  const [collapsedQuests, setCollapsedQuests] = useState(new Set())
 
   useEffect(() => {
     fetchQuests()
@@ -135,6 +136,18 @@ const AdminQuests = () => {
     }
   }
 
+  const toggleQuestCollapse = (questId) => {
+    setCollapsedQuests(prev => {
+      const newSet = new Set(prev)
+      if (newSet.has(questId)) {
+        newSet.delete(questId)
+      } else {
+        newSet.add(questId)
+      }
+      return newSet
+    })
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -192,13 +205,20 @@ const AdminQuests = () => {
                 const totalXP = quest.quest_skill_xp?.reduce((sum, award) => sum + award.xp_amount, 0) || 
                                quest.quest_xp_awards?.reduce((sum, award) => sum + award.xp_amount, 0) || 0;
                 
+                const isCollapsed = collapsedQuests.has(quest.id);
+                
                 return (
                   <div key={quest.id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow">
                     {/* Header Row */}
                     <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1">
-                        <h3 className="text-lg font-semibold text-gray-900">{quest.title}</h3>
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{quest.description}</p>
+                      <div className="flex-1 cursor-pointer" onClick={() => toggleQuestCollapse(quest.id)}>
+                        <div className="flex items-center gap-2">
+                          <span className="text-gray-500">
+                            {isCollapsed ? '▶' : '▼'}
+                          </span>
+                          <h3 className="text-lg font-semibold text-gray-900">{quest.title}</h3>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2 ml-6">{quest.description}</p>
                       </div>
                       <div className="flex gap-2 ml-4">
                         <button 
@@ -216,6 +236,9 @@ const AdminQuests = () => {
                       </div>
                     </div>
 
+                    {/* Collapsible Content */}
+                    {!isCollapsed && (
+                      <>
                     {/* Quest Metadata */}
                     <div className="flex flex-wrap gap-2 mb-4">
                       {quest.difficulty_level && (
@@ -323,6 +346,8 @@ const AdminQuests = () => {
                         <span className="font-semibold">Quest ID:</span> {quest.id.slice(0, 8)}...
                       </div>
                     </div>
+                      </>
+                    )}
                   </div>
                 );
               })}
