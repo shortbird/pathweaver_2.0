@@ -15,19 +15,50 @@ def get_quests():
         search = request.args.get('search', '')
         skill_category = request.args.get('skill_category', '')
         difficulty = request.args.get('difficulty', '')
+        effort_level = request.args.get('effort_level', '')
+        core_skill = request.args.get('core_skill', '')
+        min_hours = request.args.get('min_hours', type=int)
+        max_hours = request.args.get('max_hours', type=int)
+        adult_supervision = request.args.get('adult_supervision', '')
         
         # Try with new skill-based system first
         try:
             query = supabase.table('quests').select('*, quest_skill_xp(*)')
             
             if search:
-                query = query.ilike('title', f'%{search}%')
+                # Search in title, description, and core_skills
+                query = query.or_(f'title.ilike.%{search}%,description.ilike.%{search}%')
             
             if skill_category:
-                query = query.eq('quest_skill_xp.skill_category', skill_category)
+                # Filter quests that have XP in the specified skill category
+                filtered_quests = supabase.table('quest_skill_xp').select('quest_id').eq('skill_category', skill_category).execute()
+                quest_ids = [item['quest_id'] for item in filtered_quests.data]
+                if quest_ids:
+                    query = query.in_('id', quest_ids)
+                else:
+                    # No quests match this skill category
+                    return jsonify({'quests': [], 'page': page, 'per_page': per_page}), 200
             
             if difficulty:
                 query = query.eq('difficulty_level', difficulty)
+            
+            if effort_level:
+                query = query.eq('effort_level', effort_level)
+            
+            if core_skill:
+                # Filter by core_skills array containing the skill
+                query = query.contains('core_skills', [core_skill])
+            
+            if min_hours is not None:
+                query = query.gte('estimated_hours', min_hours)
+            
+            if max_hours is not None:
+                query = query.lte('estimated_hours', max_hours)
+            
+            if adult_supervision == 'true':
+                query = query.eq('requires_adult_supervision', True)
+            elif adult_supervision == 'false':
+                query = query.eq('requires_adult_supervision', False)
             
             start = (page - 1) * per_page
             end = start + per_page - 1
@@ -43,7 +74,7 @@ def get_quests():
             if search:
                 query = query.ilike('title', f'%{search}%')
             
-            # Note: subject filtering won't work with the old parameter name
+            # Note: advanced filtering won't work with the old system
             
             start = (page - 1) * per_page
             end = start + per_page - 1
@@ -58,6 +89,45 @@ def get_quests():
         
     except Exception as e:
         print(f"Error fetching quests: {str(e)}")
+        return jsonify({'error': str(e)}), 400
+
+@bp.route('/filter-options', methods=['GET'])
+def get_filter_options():
+    supabase = get_supabase_client()
+    
+    try:
+        # Get all unique core skills from quests
+        quests_response = supabase.table('quests').select('core_skills').execute()
+        
+        all_skills = set()
+        for quest in quests_response.data:
+            if quest.get('core_skills'):
+                all_skills.update(quest['core_skills'])
+        
+        return jsonify({
+            'skill_categories': [
+                {'value': 'reading_writing', 'label': 'Reading & Writing'},
+                {'value': 'thinking_skills', 'label': 'Thinking Skills'},
+                {'value': 'personal_growth', 'label': 'Personal Growth'},
+                {'value': 'life_skills', 'label': 'Life Skills'},
+                {'value': 'making_creating', 'label': 'Making & Creating'},
+                {'value': 'world_understanding', 'label': 'World Understanding'}
+            ],
+            'difficulty_levels': [
+                {'value': 'beginner', 'label': 'Beginner'},
+                {'value': 'intermediate', 'label': 'Intermediate'},
+                {'value': 'advanced', 'label': 'Advanced'}
+            ],
+            'effort_levels': [
+                {'value': 'light', 'label': 'Light'},
+                {'value': 'moderate', 'label': 'Moderate'},
+                {'value': 'intensive', 'label': 'Intensive'}
+            ],
+            'core_skills': sorted(list(all_skills))
+        }), 200
+        
+    except Exception as e:
+        print(f"Error fetching filter options: {str(e)}")
         return jsonify({'error': str(e)}), 400
 
 @bp.route('/<quest_id>', methods=['GET'])

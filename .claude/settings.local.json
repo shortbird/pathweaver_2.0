@@ -14,7 +14,8 @@
       "Bash(git ls-tree:*)",
       "Bash(pip install:*)",
       "Bash(grep:*)",
-      "Bash(set)"
+      "Bash(set)",
+      "Bash(npm run dev:*)"
     ],
     "deny": [],
     "ask": []
