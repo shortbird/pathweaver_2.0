@@ -201,9 +201,9 @@ CREATE POLICY "Admins can view all generation jobs" ON ai_generation_jobs
     FOR SELECT
     USING (
         EXISTS (
-            SELECT 1 FROM profiles
-            WHERE profiles.id = auth.uid()
-            AND profiles.role = 'admin'
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.role = 'admin'
         )
     );
 
@@ -211,9 +211,9 @@ CREATE POLICY "Admins can create generation jobs" ON ai_generation_jobs
     FOR INSERT
     WITH CHECK (
         EXISTS (
-            SELECT 1 FROM profiles
-            WHERE profiles.id = auth.uid()
-            AND profiles.role = 'admin'
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.role = 'admin'
         )
     );
 
@@ -221,9 +221,9 @@ CREATE POLICY "Admins can update generation jobs" ON ai_generation_jobs
     FOR UPDATE
     USING (
         EXISTS (
-            SELECT 1 FROM profiles
-            WHERE profiles.id = auth.uid()
-            AND profiles.role = 'admin'
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.role = 'admin'
         )
     );
 
@@ -232,9 +232,9 @@ CREATE POLICY "Admins can view all generated quests" ON ai_generated_quests
     FOR SELECT
     USING (
         EXISTS (
-            SELECT 1 FROM profiles
-            WHERE profiles.id = auth.uid()
-            AND profiles.role = 'admin'
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.role = 'admin'
         )
     );
 
@@ -242,9 +242,9 @@ CREATE POLICY "Admins can manage generated quests" ON ai_generated_quests
     FOR ALL
     USING (
         EXISTS (
-            SELECT 1 FROM profiles
-            WHERE profiles.id = auth.uid()
-            AND profiles.role = 'admin'
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.role = 'admin'
         )
     );
 
@@ -253,9 +253,9 @@ CREATE POLICY "Admins can manage prompt templates" ON ai_prompt_templates
     FOR ALL
     USING (
         EXISTS (
-            SELECT 1 FROM profiles
-            WHERE profiles.id = auth.uid()
-            AND profiles.role = 'admin'
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.role = 'admin'
         )
     );
 
@@ -264,9 +264,9 @@ CREATE POLICY "Admins can view review history" ON ai_quest_review_history
     FOR SELECT
     USING (
         EXISTS (
-            SELECT 1 FROM profiles
-            WHERE profiles.id = auth.uid()
-            AND profiles.role = 'admin'
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.role = 'admin'
         )
     );
 
@@ -274,9 +274,9 @@ CREATE POLICY "Admins can create review history" ON ai_quest_review_history
     FOR INSERT
     WITH CHECK (
         EXISTS (
-            SELECT 1 FROM profiles
-            WHERE profiles.id = auth.uid()
-            AND profiles.role = 'admin'
+            SELECT 1 FROM users
+            WHERE users.id = auth.uid()
+            AND users.role = 'admin'
         )
     );
 
