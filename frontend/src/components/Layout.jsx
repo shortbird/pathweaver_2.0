@@ -42,8 +42,11 @@ const Layout = () => {
       }
     } catch (error) {
       console.error('Failed to fetch portfolio slug:', error)
-      console.error('Error details:', error.response?.data)
+      console.error('Error response data:', error.response?.data)
       console.error('Error status:', error.response?.status)
+      if (error.response?.data?.error) {
+        console.error('Backend error message:', error.response.data.error)
+      }
     }
   }
 
