@@ -3,6 +3,7 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 import AdminQuestManager from './AdminQuestManager'
+import AIQuestGenerator from '../components/AIQuestGenerator'
 
 const AdminDashboard = () => {
   const [analytics, setAnalytics] = useState(null)
@@ -60,8 +61,7 @@ const AdminQuests = () => {
   const [loading, setLoading] = useState(true)
   const [showManager, setShowManager] = useState(false)
   const [editingQuest, setEditingQuest] = useState(null)
-  const [importing, setImporting] = useState(false)
-  const [csvFile, setCsvFile] = useState(null)
+  const [showAIGenerator, setShowAIGenerator] = useState(false)
 
   useEffect(() => {
     fetchQuests()
@@ -101,44 +101,8 @@ const AdminQuests = () => {
     }
   }
 
-  const handleCSVUpload = async (e) => {
-    e.preventDefault()
-    if (!csvFile) {
-      toast.error('Please select a CSV file')
-      return
-    }
-
-    const formData = new FormData()
-    formData.append('file', csvFile)
-
-    try {
-      await api.post('/admin/quests/bulk-import', formData, {
-        headers: {
-          'Content-Type': 'multipart/form-data'
-        }
-      })
-      toast.success('Quests imported successfully!')
-      setImporting(false)
-      setCsvFile(null)
-      fetchQuests()
-    } catch (error) {
-      toast.error('Failed to import quests. Please check your CSV format.')
-    }
-  }
-
-  const downloadCSVTemplate = () => {
-    const template = 'title,description,evidence_requirements,subjects,xp_amounts\n' +
-      '"Hike to 10,000 feet","Complete a challenging high-altitude hike","A selfie at the top of your hike with GPS location or trail marker visible","physical_education,science","100,25"\n' +
-      '"Read Classic Literature","Read and analyze a classic novel","Written book report (500 words) including themes and personal reflection","language_arts","150"\n' +
-      '"Build a Website","Create a functional website with HTML/CSS/JavaScript","Link to deployed website and GitHub repository","technology,arts","200,50"'
-    
-    const blob = new Blob([template], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = 'quest_import_template.csv'
-    a.click()
-    window.URL.revokeObjectURL(url)
+  const handleAIQuestAccepted = () => {
+    fetchQuests()
   }
 
   const getSkillCategoryName = (category) => {
@@ -177,10 +141,11 @@ const AdminQuests = () => {
         <h2 className="text-2xl font-bold">Manage Quests</h2>
         <div className="flex gap-2">
           <button
-            onClick={() => setImporting(!importing)}
-            className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
+            onClick={() => setShowAIGenerator(true)}
+            className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded hover:from-purple-700 hover:to-blue-700 flex items-center gap-2"
           >
-            {importing ? 'Cancel Import' : 'Bulk Import'}
+            <span>🤖</span>
+            <span>AI Generate</span>
           </button>
           <button
             onClick={() => {
@@ -194,40 +159,11 @@ const AdminQuests = () => {
         </div>
       </div>
 
-      {importing && (
-        <div className="card mb-6">
-          <h3 className="text-lg font-semibold mb-4">Bulk Import Quests</h3>
-          <form onSubmit={handleCSVUpload} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Upload CSV File</label>
-              <input
-                type="file"
-                accept=".csv"
-                onChange={(e) => setCsvFile(e.target.files[0])}
-                className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary-dark"
-                required
-              />
-            </div>
-            <div className="flex gap-2">
-              <button type="submit" className="btn-primary">
-                Import Quests
-              </button>
-              <button
-                type="button"
-                onClick={downloadCSVTemplate}
-                className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-              >
-                Download Template
-              </button>
-            </div>
-            <div className="text-sm text-gray-600">
-              <p className="font-semibold mb-1">CSV Format:</p>
-              <p>title, description, evidence_requirements, subjects, xp_amounts</p>
-              <p className="mt-1">Subjects should be comma-separated (e.g., "physical_education,science")</p>
-              <p>XP amounts should match subjects order (e.g., "100,25")</p>
-            </div>
-          </form>
-        </div>
+      {showAIGenerator && (
+        <AIQuestGenerator
+          onQuestAccepted={handleAIQuestAccepted}
+          onClose={() => setShowAIGenerator(false)}
+        />
       )}
 
       {showManager && (
