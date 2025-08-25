@@ -9,56 +9,96 @@ bp = Blueprint('admin', __name__)
 
 def award_skill_xp(supabase, user_id, quest_id):
     """Award skill-based XP when a quest is completed"""
+    xp_awarded = False
+    
+    # Try new skill-based XP system first
     try:
-        # Get quest skill awards
         skill_awards = supabase.table('quest_skill_xp').select('*').eq('quest_id', quest_id).execute()
         
-        for award in skill_awards.data:
-            # Get current XP for this skill category
-            current_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).eq('skill_category', award['skill_category']).execute()
+        if skill_awards.data:
+            for award in skill_awards.data:
+                # Get current XP for this skill category
+                current_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).eq('skill_category', award['skill_category']).execute()
+                
+                if current_xp.data:
+                    # Update existing XP
+                    new_total = current_xp.data[0]['total_xp'] + award['xp_amount']
+                    supabase.table('user_skill_xp').update({
+                        'total_xp': new_total,
+                        'last_updated': datetime.utcnow().isoformat()
+                    }).eq('user_id', user_id).eq('skill_category', award['skill_category']).execute()
+                else:
+                    # Create new XP record
+                    supabase.table('user_skill_xp').insert({
+                        'user_id': user_id,
+                        'skill_category': award['skill_category'],
+                        'total_xp': award['xp_amount'],
+                        'last_updated': datetime.utcnow().isoformat()
+                    }).execute()
+            xp_awarded = True
+            print(f"Awarded skill-based XP for quest {quest_id} to user {user_id}")
+    except Exception as e:
+        print(f"Error awarding skill-based XP: {str(e)}")
+    
+    # Fallback to old subject-based XP system if skill-based fails or has no data
+    if not xp_awarded:
+        try:
+            subject_awards = supabase.table('quest_xp_awards').select('*').eq('quest_id', quest_id).execute()
             
-            if current_xp.data:
-                # Update existing XP
-                new_total = current_xp.data[0]['total_xp'] + award['xp_amount']
-                supabase.table('user_skill_xp').update({
-                    'total_xp': new_total,
-                    'last_updated': datetime.utcnow().isoformat()
-                }).eq('user_id', user_id).eq('skill_category', award['skill_category']).execute()
-            else:
-                # Create new XP record
-                supabase.table('user_skill_xp').insert({
-                    'user_id': user_id,
-                    'skill_category': award['skill_category'],
-                    'total_xp': award['xp_amount']
-                }).execute()
-        
-        # Track individual skills practiced
+            if subject_awards.data:
+                for award in subject_awards.data:
+                    # For backward compatibility, we'll also track subject XP in user_xp table if it exists
+                    try:
+                        current_xp = supabase.table('user_xp').select('*').eq('user_id', user_id).eq('subject', award['subject']).execute()
+                        
+                        if current_xp.data:
+                            new_total = current_xp.data[0]['total_xp'] + award['xp_amount']
+                            supabase.table('user_xp').update({
+                                'total_xp': new_total
+                            }).eq('user_id', user_id).eq('subject', award['subject']).execute()
+                        else:
+                            supabase.table('user_xp').insert({
+                                'user_id': user_id,
+                                'subject': award['subject'],
+                                'total_xp': award['xp_amount']
+                            }).execute()
+                        xp_awarded = True
+                        print(f"Awarded subject-based XP for quest {quest_id} to user {user_id}")
+                    except Exception as e2:
+                        print(f"Error awarding subject XP: {str(e2)}")
+        except Exception as e:
+            print(f"Error checking subject-based XP: {str(e)}")
+    
+    # Track individual skills practiced (if available)
+    try:
         quest = supabase.table('quests').select('core_skills').eq('id', quest_id).execute()
         if quest.data and quest.data[0].get('core_skills'):
             for skill in quest.data[0]['core_skills']:
-                # Check if skill detail exists
-                skill_detail = supabase.table('user_skill_details').select('*').eq('user_id', user_id).eq('skill_name', skill).execute()
-                
-                if skill_detail.data:
-                    # Update existing skill detail
-                    times_practiced = skill_detail.data[0]['times_practiced'] + 1
-                    supabase.table('user_skill_details').update({
-                        'times_practiced': times_practiced,
-                        'last_practiced': datetime.utcnow().isoformat()
-                    }).eq('user_id', user_id).eq('skill_name', skill).execute()
-                else:
-                    # Create new skill detail
-                    supabase.table('user_skill_details').insert({
-                        'user_id': user_id,
-                        'skill_name': skill,
-                        'times_practiced': 1,
-                        'last_practiced': datetime.utcnow().isoformat()
-                    }).execute()
-        
-        return True
+                try:
+                    # Check if skill detail exists
+                    skill_detail = supabase.table('user_skill_details').select('*').eq('user_id', user_id).eq('skill_name', skill).execute()
+                    
+                    if skill_detail.data:
+                        # Update existing skill detail
+                        times_practiced = skill_detail.data[0]['times_practiced'] + 1
+                        supabase.table('user_skill_details').update({
+                            'times_practiced': times_practiced,
+                            'last_practiced': datetime.utcnow().isoformat()
+                        }).eq('user_id', user_id).eq('skill_name', skill).execute()
+                    else:
+                        # Create new skill detail
+                        supabase.table('user_skill_details').insert({
+                            'user_id': user_id,
+                            'skill_name': skill,
+                            'times_practiced': 1,
+                            'last_practiced': datetime.utcnow().isoformat()
+                        }).execute()
+                except Exception as e:
+                    print(f"Error tracking skill {skill}: {str(e)}")
     except Exception as e:
-        print(f"Error awarding skill XP: {str(e)}")
-        return False
+        print(f"Error tracking skills practiced: {str(e)}")
+    
+    return xp_awarded
 
 @bp.route('/quests', methods=['POST'])
 @require_admin
