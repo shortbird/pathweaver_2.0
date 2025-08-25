@@ -33,6 +33,11 @@ const DiplomaPage = () => {
   const fetchDiploma = async () => {
     try {
       const response = await api.get(`/portfolio/public/${slug}`)
+      console.log('Diploma data received:', response.data)
+      console.log('Total XP:', response.data.total_xp)
+      console.log('Skill XP:', response.data.skill_xp)
+      console.log('Skill Details:', response.data.skill_details)
+      console.log('Completed Quests:', response.data.completed_quests)
       setDiploma(response.data)
     } catch (error) {
       if (error.response?.status === 404) {
@@ -105,13 +110,19 @@ const DiplomaPage = () => {
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Diploma Statement */}
         <div className="bg-white rounded-lg shadow-lg p-8 mb-8 border-2 border-amber-200">
-          <h2 className="text-2xl font-bold text-center mb-4">Official Credential</h2>
-          <p className="text-center text-gray-700 leading-relaxed">
-            This diploma certifies that <strong>{diploma.student.first_name} {diploma.student.last_name}</strong> has demonstrated
-            mastery through evidence-based learning, completing <strong>{diploma.total_quests_completed || 0} quests</strong> and
-            earning <strong>{diploma.total_xp || 0} experience points</strong> across multiple skill domains.
-            Each quest represents real-world application of knowledge, validated through submitted evidence.
-          </p>
+          <h2 className="text-2xl font-bold text-center mb-4">Self-Validated Credential</h2>
+          <div className="text-center text-gray-700 leading-relaxed space-y-4">
+            <p>
+              This is a <strong>self-validated diploma</strong> certifying that <strong>{diploma.student.first_name} {diploma.student.last_name}</strong> has
+              completed <strong>{diploma.total_quests_completed || 0} quests</strong> and earned <strong>{diploma.total_xp || 0} experience points</strong>.
+            </p>
+            <p className="text-sm bg-amber-50 p-4 rounded-lg border border-amber-300">
+              <strong>What is a self-validated diploma?</strong> The quality and value of this diploma is determined entirely by the quality
+              and authenticity of the work submitted by the student. Each quest completion includes evidence of real learning and skill
+              development. Employers and institutions can review the submitted evidence below to assess the depth and authenticity of the
+              learning demonstrated.
+            </p>
+          </div>
         </div>
 
         {/* Stats Overview */}
@@ -135,34 +146,6 @@ const DiplomaPage = () => {
           </div>
         </div>
 
-        {/* Skill Progress */}
-        <div className="bg-white rounded-lg shadow-lg p-8 mb-8">
-          <h2 className="text-2xl font-bold mb-6 text-gray-800">Core Competencies</h2>
-          <p className="text-gray-600 mb-6">Skill development across six essential learning domains</p>
-          <div className="space-y-4">
-            {diploma.skill_xp && diploma.skill_xp.length > 0 ? diploma.skill_xp.map((skill) => (
-              <div key={skill.skill_category}>
-                <div className="flex justify-between items-center mb-2">
-                  <span className="font-medium">
-                    {skillCategoryNames[skill.skill_category]}
-                  </span>
-                  <span className="text-sm font-semibold">{skill.total_xp} XP</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
-                  <div
-                    className="h-3 rounded-full transition-all duration-500"
-                    style={{
-                      width: `${getSkillPercentage(skill.total_xp)}%`,
-                      backgroundColor: skillCategoryColors[skill.skill_category]
-                    }}
-                  />
-                </div>
-              </div>
-            )) : (
-              <p className="text-gray-600">No skill data available yet. Complete quests to build your skills!</p>
-            )}
-          </div>
-        </div>
 
         {/* Individual Skills */}
         {diploma.skill_details && diploma.skill_details.length > 0 && (
@@ -189,7 +172,7 @@ const DiplomaPage = () => {
         {/* Completed Quests */}
         <div className="bg-white rounded-lg shadow-lg p-8">
           <h2 className="text-2xl font-bold mb-6 text-gray-800">Learning Journey</h2>
-          <p className="text-gray-600 mb-6">Evidence-based quests completed with real-world application</p>
+          <p className="text-gray-600 mb-6">Quests completed with evidence of real-world application and skill development</p>
           {diploma.completed_quests && diploma.completed_quests.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {diploma.completed_quests.map((userQuest) => (
