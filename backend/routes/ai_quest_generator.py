@@ -5,6 +5,7 @@ import os
 import json
 import httpx
 from datetime import datetime
+import google.generativeai as genai
 
 bp = Blueprint('ai_quest_generator', __name__)
 
@@ -84,25 +85,27 @@ def generate_quests(user_id):
     theme = data.get('theme', '')
     existing_titles = data.get('existing_titles', [])
     
-    # Get API key from environment
-    api_key = os.getenv('OPENAI_API_KEY') or os.getenv('ANTHROPIC_API_KEY')
-    
-    if not api_key:
-        # Fallback to generating sample quests without AI
-        return jsonify({
-            'quests': generate_sample_quests(existing_titles),
-            'source': 'sample'
-        }), 200
+    # Get API key from environment - prioritize Gemini
+    gemini_key = os.getenv('GEMINI_API_KEY')
+    openai_key = os.getenv('OPENAI_API_KEY')
+    anthropic_key = os.getenv('ANTHROPIC_API_KEY')
     
     try:
-        # Try OpenAI first
-        if os.getenv('OPENAI_API_KEY'):
+        # Try Gemini first
+        if gemini_key:
+            quests = call_gemini_api(existing_titles, theme)
+        # Try OpenAI
+        elif openai_key:
             quests = call_openai_api(existing_titles, theme)
         # Try Anthropic
-        elif os.getenv('ANTHROPIC_API_KEY'):
+        elif anthropic_key:
             quests = call_anthropic_api(existing_titles, theme)
         else:
-            quests = generate_sample_quests(existing_titles)
+            # Fallback to generating sample quests without AI
+            return jsonify({
+                'quests': generate_sample_quests(existing_titles),
+                'source': 'sample'
+            }), 200
             
         return jsonify({
             'quests': quests,
@@ -117,6 +120,43 @@ def generate_quests(user_id):
             'source': 'sample',
             'error': str(e)
         }), 200
+
+def call_gemini_api(existing_titles, theme):
+    """Call Gemini API to generate quests"""
+    api_key = os.getenv('GEMINI_API_KEY')
+    genai.configure(api_key=api_key)
+    
+    # Use Gemini Pro model
+    model = genai.GenerativeModel('gemini-pro')
+    
+    prompt = generate_quest_prompt(existing_titles, theme)
+    
+    # Add instruction to return only JSON
+    prompt += "\n\nIMPORTANT: Return ONLY the JSON array with no additional text, markdown formatting, or explanation."
+    
+    try:
+        response = model.generate_content(prompt)
+        content = response.text
+        
+        # Clean up the response - remove markdown code blocks if present
+        if '```json' in content:
+            content = content.split('```json')[1].split('```')[0]
+        elif '```' in content:
+            content = content.split('```')[1].split('```')[0]
+        
+        # Parse JSON
+        quests = json.loads(content.strip())
+        
+        # Ensure it's a list
+        if isinstance(quests, dict) and 'quests' in quests:
+            quests = quests['quests']
+        
+        return quests[:5]  # Ensure we only return 5 quests
+        
+    except Exception as e:
+        print(f"Gemini API error: {str(e)}")
+        # If Gemini fails, fall back to sample quests
+        return generate_sample_quests(existing_titles)
 
 def call_openai_api(existing_titles, theme):
     """Call OpenAI API to generate quests"""
