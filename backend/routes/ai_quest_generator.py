@@ -124,6 +124,12 @@ def generate_quests(user_id):
 def call_gemini_api(existing_titles, theme):
     """Call Gemini API to generate quests"""
     api_key = os.getenv('GEMINI_API_KEY')
+    
+    if not api_key:
+        print("ERROR: GEMINI_API_KEY not found in environment variables")
+        raise ValueError("GEMINI_API_KEY not configured")
+    
+    print(f"Using Gemini API with key: {api_key[:10]}...")
     genai.configure(api_key=api_key)
     
     # Use Gemini 1.5 Flash model (faster and more cost-effective)
@@ -135,8 +141,10 @@ def call_gemini_api(existing_titles, theme):
     prompt += "\n\nIMPORTANT: Return ONLY the JSON array with no additional text, markdown formatting, or explanation."
     
     try:
+        print(f"Sending prompt to Gemini API...")
         response = model.generate_content(prompt)
         content = response.text
+        print(f"Gemini API response received, length: {len(content)}")
         
         # Clean up the response - remove markdown code blocks if present
         if '```json' in content:
@@ -151,10 +159,12 @@ def call_gemini_api(existing_titles, theme):
         if isinstance(quests, dict) and 'quests' in quests:
             quests = quests['quests']
         
+        print(f"Successfully parsed {len(quests)} quests from Gemini API")
         return quests[:5]  # Ensure we only return 5 quests
         
     except Exception as e:
         print(f"Gemini API error: {str(e)}")
+        print(f"Error type: {type(e).__name__}")
         # If Gemini fails, fall back to sample quests
         return generate_sample_quests(existing_titles)
 
