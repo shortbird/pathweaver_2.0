@@ -13,16 +13,16 @@ CREATE TABLE IF NOT EXISTS ai_generation_jobs (
     created_by UUID REFERENCES auth.users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
     started_at TIMESTAMP WITH TIME ZONE,
-    completed_at TIMESTAMP WITH TIME ZONE,
-    
-    -- Parameters stored in JSONB will include:
-    -- count: number of quests to generate
-    -- distribution: how to distribute across categories
-    -- skill_categories: specific categories to focus on
-    -- difficulty_levels: distribution of difficulties
-    -- themes: optional themes or topics
-    -- min_hours/max_hours: time commitment range
+    completed_at TIMESTAMP WITH TIME ZONE
 );
+
+-- Parameters stored in JSONB will include:
+-- count: number of quests to generate
+-- distribution: how to distribute across categories
+-- skill_categories: specific categories to focus on
+-- difficulty_levels: distribution of difficulties
+-- themes: optional themes or topics
+-- min_hours/max_hours: time commitment range
 
 -- Index for job status queries
 CREATE INDEX idx_ai_generation_jobs_status ON ai_generation_jobs(status);
