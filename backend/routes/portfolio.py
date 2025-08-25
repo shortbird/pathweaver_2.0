@@ -53,16 +53,22 @@ def get_public_portfolio(portfolio_slug):
         ).eq('user_id', user_id).eq('status', 'completed').execute()
         
         # Get skill XP totals
+        print(f"Fetching skill XP for user_id: {user_id}")
         skill_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()
+        print(f"Skill XP data: {skill_xp.data}")
         
         # Get skill details (times practiced)
+        print(f"Fetching skill details for user_id: {user_id}")
         skill_details = supabase.table('user_skill_details').select('*').eq('user_id', user_id).execute()
+        print(f"Skill details data: {skill_details.data}")
         
         # Calculate total quests completed
         total_quests = len(completed_quests.data) if completed_quests.data else 0
+        print(f"Total quests completed: {total_quests}")
         
         # Calculate total XP across all categories
         total_xp = sum(skill['total_xp'] for skill in skill_xp.data) if skill_xp.data else 0
+        print(f"Total XP calculated: {total_xp}")
         
         return jsonify({
             'student': user.data[0],
