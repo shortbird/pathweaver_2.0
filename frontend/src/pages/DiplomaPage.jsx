@@ -33,11 +33,22 @@ const DiplomaPage = () => {
   const fetchDiploma = async () => {
     try {
       const response = await api.get(`/portfolio/public/${slug}`)
-      console.log('Diploma data received:', response.data)
-      console.log('Total XP:', response.data.total_xp)
-      console.log('Skill XP:', response.data.skill_xp)
-      console.log('Skill Details:', response.data.skill_details)
-      console.log('Completed Quests:', response.data.completed_quests)
+      console.log('=== DIPLOMA DEBUG ===')
+      console.log('Full response data:', response.data)
+      console.log('Total XP from response:', response.data.total_xp)
+      console.log('Skill XP array:', response.data.skill_xp)
+      
+      // Calculate total XP from skill_xp array
+      const calculatedTotalXP = response.data.skill_xp 
+        ? response.data.skill_xp.reduce((sum, skill) => sum + (skill.total_xp || 0), 0)
+        : 0
+      console.log('Calculated total XP from skill_xp:', calculatedTotalXP)
+      
+      console.log('Skill Details array:', response.data.skill_details)
+      console.log('Number of skill details:', response.data.skill_details?.length || 0)
+      console.log('Completed Quests count:', response.data.completed_quests?.length || 0)
+      console.log('Total quests completed from response:', response.data.total_quests_completed)
+      console.log('===================')
       setDiploma(response.data)
     } catch (error) {
       if (error.response?.status === 404) {
@@ -114,7 +125,13 @@ const DiplomaPage = () => {
           <div className="text-center text-gray-700 leading-relaxed space-y-4">
             <p>
               This is a <strong>self-validated diploma</strong> certifying that <strong>{diploma.student.first_name} {diploma.student.last_name}</strong> has
-              completed <strong>{diploma.total_quests_completed || 0} quests</strong> and earned <strong>{diploma.total_xp || 0} experience points</strong>.
+              completed <strong>{(() => {
+                console.log('Text - total_quests_completed:', diploma.total_quests_completed)
+                return diploma.total_quests_completed || 0
+              })()} quests</strong> and earned <strong>{(() => {
+                console.log('Text - total_xp:', diploma.total_xp)
+                return diploma.total_xp || 0
+              })()} experience points</strong>.
             </p>
             <p className="text-sm bg-amber-50 p-4 rounded-lg border border-amber-300">
               <strong>What is a self-validated diploma?</strong> The quality and value of this diploma is determined entirely by the quality
@@ -128,18 +145,31 @@ const DiplomaPage = () => {
         {/* Stats Overview */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-amber-500">
-            <h3 className="text-4xl font-bold text-amber-600">{diploma.total_xp || 0}</h3>
+            <h3 className="text-4xl font-bold text-amber-600">
+              {(() => {
+                console.log('Rendering total_xp:', diploma.total_xp, 'Type:', typeof diploma.total_xp)
+                return diploma.total_xp || 0
+              })()}
+            </h3>
             <p className="text-gray-700 font-semibold">Total Experience Points</p>
             <p className="text-sm text-gray-500 mt-1">Earned through validated learning</p>
           </div>
           <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-green-500">
-            <h3 className="text-4xl font-bold text-green-600">{diploma.total_quests_completed || 0}</h3>
+            <h3 className="text-4xl font-bold text-green-600">
+              {(() => {
+                console.log('Rendering total_quests_completed:', diploma.total_quests_completed, 'Type:', typeof diploma.total_quests_completed)
+                return diploma.total_quests_completed || 0
+              })()}
+            </h3>
             <p className="text-gray-700 font-semibold">Quests Completed</p>
             <p className="text-sm text-gray-500 mt-1">Real-world challenges mastered</p>
           </div>
           <div className="bg-white rounded-lg shadow-lg p-6 border-l-4 border-purple-500">
             <h3 className="text-4xl font-bold text-purple-600">
-              {diploma.skill_details?.length || 0}
+              {(() => {
+                console.log('Rendering skill_details length:', diploma.skill_details?.length, 'Array:', diploma.skill_details)
+                return diploma.skill_details?.length || 0
+              })()}
             </h3>
             <p className="text-gray-700 font-semibold">Skills Developed</p>
             <p className="text-sm text-gray-500 mt-1">Unique competencies demonstrated</p>
