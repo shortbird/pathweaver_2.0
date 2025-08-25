@@ -67,6 +67,7 @@ def create_quest(user_id):
     supabase = get_supabase_admin_client()
     
     try:
+        # Base quest data
         quest_data = {
             'title': data['title'],
             'description': data['description'],
@@ -75,16 +76,45 @@ def create_quest(user_id):
             'created_at': datetime.utcnow().isoformat()
         }
         
+        # Add new fields if present
+        optional_fields = [
+            'difficulty_level', 'effort_level', 'estimated_hours',
+            'accepted_evidence_types', 'example_submissions', 'core_skills',
+            'resources_needed', 'location_requirements', 'optional_challenges',
+            'safety_considerations', 'requires_adult_supervision'
+        ]
+        for field in optional_fields:
+            if field in data:
+                quest_data[field] = data[field]
+        
         quest_response = supabase.table('quests').insert(quest_data).execute()
         quest_id = quest_response.data[0]['id']
         
+        # Handle skill-based XP awards (new system)
+        if 'skill_xp_awards' in data:
+            for award in data['skill_xp_awards']:
+                try:
+                    supabase.table('quest_skill_xp').insert({
+                        'quest_id': quest_id,
+                        'skill_category': award['skill_category'],
+                        'xp_amount': award['xp_amount']
+                    }).execute()
+                except Exception:
+                    # If skill table doesn't exist, skip
+                    pass
+        
+        # Handle subject-based XP awards (old system fallback)
         if 'xp_awards' in data:
             for award in data['xp_awards']:
-                supabase.table('quest_xp_awards').insert({
-                    'quest_id': quest_id,
-                    'subject': award['subject'],
-                    'xp_amount': award['xp_amount']
-                }).execute()
+                try:
+                    supabase.table('quest_xp_awards').insert({
+                        'quest_id': quest_id,
+                        'subject': award['subject'],
+                        'xp_amount': award['xp_amount']
+                    }).execute()
+                except Exception:
+                    # If old table doesn't exist, skip
+                    pass
         
         return jsonify({'quest_id': quest_id}), 201
         
@@ -98,21 +128,44 @@ def update_quest(user_id, quest_id):
     supabase = get_supabase_admin_client()
     
     try:
-        allowed_fields = ['title', 'description', 'evidence_requirements']
+        # Expanded allowed fields for new system
+        allowed_fields = [
+            'title', 'description', 'evidence_requirements',
+            'difficulty_level', 'effort_level', 'estimated_hours',
+            'accepted_evidence_types', 'example_submissions', 'core_skills',
+            'resources_needed', 'location_requirements', 'optional_challenges',
+            'safety_considerations', 'requires_adult_supervision'
+        ]
         update_data = {k: v for k, v in data.items() if k in allowed_fields}
         
         if update_data:
             supabase.table('quests').update(update_data).eq('id', quest_id).execute()
         
+        # Handle skill-based XP awards (new system)
+        if 'skill_xp_awards' in data:
+            try:
+                supabase.table('quest_skill_xp').delete().eq('quest_id', quest_id).execute()
+                for award in data['skill_xp_awards']:
+                    supabase.table('quest_skill_xp').insert({
+                        'quest_id': quest_id,
+                        'skill_category': award['skill_category'],
+                        'xp_amount': award['xp_amount']
+                    }).execute()
+            except Exception:
+                pass
+        
+        # Handle subject-based XP awards (old system)
         if 'xp_awards' in data:
-            supabase.table('quest_xp_awards').delete().eq('quest_id', quest_id).execute()
-            
-            for award in data['xp_awards']:
-                supabase.table('quest_xp_awards').insert({
-                    'quest_id': quest_id,
-                    'subject': award['subject'],
-                    'xp_amount': award['xp_amount']
-                }).execute()
+            try:
+                supabase.table('quest_xp_awards').delete().eq('quest_id', quest_id).execute()
+                for award in data['xp_awards']:
+                    supabase.table('quest_xp_awards').insert({
+                        'quest_id': quest_id,
+                        'subject': award['subject'],
+                        'xp_amount': award['xp_amount']
+                    }).execute()
+            except Exception:
+                pass
         
         return jsonify({'message': 'Quest updated successfully'}), 200
         
@@ -125,7 +178,17 @@ def delete_quest(user_id, quest_id):
     supabase = get_supabase_admin_client()
     
     try:
-        supabase.table('quest_xp_awards').delete().eq('quest_id', quest_id).execute()
+        # Try to delete from both old and new XP tables
+        try:
+            supabase.table('quest_skill_xp').delete().eq('quest_id', quest_id).execute()
+        except Exception:
+            pass
+        
+        try:
+            supabase.table('quest_xp_awards').delete().eq('quest_id', quest_id).execute()
+        except Exception:
+            pass
+        
         supabase.table('quests').delete().eq('id', quest_id).execute()
         
         return jsonify({'message': 'Quest deleted successfully'}), 200

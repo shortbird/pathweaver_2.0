@@ -16,21 +16,39 @@ def get_quests():
         skill_category = request.args.get('skill_category', '')
         difficulty = request.args.get('difficulty', '')
         
-        query = supabase.table('quests').select('*, quest_skill_xp(*)')
-        
-        if search:
-            query = query.ilike('title', f'%{search}%')
-        
-        if skill_category:
-            query = query.eq('quest_skill_xp.skill_category', skill_category)
-        
-        if difficulty:
-            query = query.eq('difficulty_level', difficulty)
-        
-        start = (page - 1) * per_page
-        end = start + per_page - 1
-        
-        response = query.range(start, end).execute()
+        # Try with new skill-based system first
+        try:
+            query = supabase.table('quests').select('*, quest_skill_xp(*)')
+            
+            if search:
+                query = query.ilike('title', f'%{search}%')
+            
+            if skill_category:
+                query = query.eq('quest_skill_xp.skill_category', skill_category)
+            
+            if difficulty:
+                query = query.eq('difficulty_level', difficulty)
+            
+            start = (page - 1) * per_page
+            end = start + per_page - 1
+            
+            response = query.range(start, end).execute()
+            
+        except Exception as skill_error:
+            # Fall back to old subject-based system if skill tables don't exist
+            print(f"Skill-based query failed, falling back to subject-based: {skill_error}")
+            
+            query = supabase.table('quests').select('*, quest_xp_awards(*)')
+            
+            if search:
+                query = query.ilike('title', f'%{search}%')
+            
+            # Note: subject filtering won't work with the old parameter name
+            
+            start = (page - 1) * per_page
+            end = start + per_page - 1
+            
+            response = query.range(start, end).execute()
         
         return jsonify({
             'quests': response.data,
@@ -39,6 +57,7 @@ def get_quests():
         }), 200
         
     except Exception as e:
+        print(f"Error fetching quests: {str(e)}")
         return jsonify({'error': str(e)}), 400
 
 @bp.route('/<quest_id>', methods=['GET'])
@@ -46,7 +65,13 @@ def get_quest(quest_id):
     supabase = get_supabase_client()
     
     try:
-        response = supabase.table('quests').select('*, quest_skill_xp(*)').eq('id', quest_id).single().execute()
+        # Try with new skill-based system first
+        try:
+            response = supabase.table('quests').select('*, quest_skill_xp(*)').eq('id', quest_id).single().execute()
+        except Exception:
+            # Fall back to old subject-based system
+            response = supabase.table('quests').select('*, quest_xp_awards(*)').eq('id', quest_id).single().execute()
+        
         return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 404
@@ -139,7 +164,13 @@ def get_user_quests(user_id, target_user_id):
     supabase = get_supabase_client()
     
     try:
-        response = supabase.table('user_quests').select('*, quests(*, quest_skill_xp(*))').eq('user_id', target_user_id).execute()
+        # Try with new skill-based system first
+        try:
+            response = supabase.table('user_quests').select('*, quests(*, quest_skill_xp(*))').eq('user_id', target_user_id).execute()
+        except Exception:
+            # Fall back to old subject-based system
+            response = supabase.table('user_quests').select('*, quests(*, quest_xp_awards(*))').eq('user_id', target_user_id).execute()
+        
         return jsonify(response.data), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400
