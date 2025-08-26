@@ -50,12 +50,16 @@ SKILL_CATEGORY_DETAILS = {
 class BulkQuestGenerator:
     def __init__(self):
         self.api_key = os.getenv('GEMINI_API_KEY')
+        print(f"Initializing BulkQuestGenerator - API Key present: {bool(self.api_key)}")
         if self.api_key:
+            print(f"API Key length: {len(self.api_key)}")
             genai.configure(api_key=self.api_key)
             # Use Gemini 1.5 Flash for cost-effective bulk generation
             self.model = genai.GenerativeModel('gemini-1.5-flash')
+            print("Gemini model initialized successfully")
         else:
             self.model = None
+            print("WARNING: No GEMINI_API_KEY found in environment!")
             
     def generate_category_specific_prompt(self, category: str, count: int, difficulty: str, 
                                          existing_titles: List[str], theme: Optional[str] = None) -> str:
@@ -134,10 +138,15 @@ Return ONLY a JSON array with exactly {count} quest objects."""
         
         prompts = []
         
+        print(f"Generating prompts for {total_count} quests with distribution: {distribution}")
+        
         # Parse distribution settings
         category_dist = distribution.get('categories', 'even')
         difficulty_dist = distribution.get('difficulties', {'beginner': 0.4, 'intermediate': 0.4, 'advanced': 0.2})
         themes = distribution.get('themes', [])
+        
+        print(f"Category distribution: {category_dist}")
+        print(f"Difficulty distribution: {difficulty_dist}")
         
         # Calculate quests per category
         categories = list(SKILL_CATEGORY_DETAILS.keys())
@@ -167,11 +176,29 @@ Return ONLY a JSON array with exactly {count} quest objects."""
             if category_count == 0:
                 continue
                 
-            # Distribute by difficulty
+            print(f"  Category {category}: {category_count} quests")
+                
+            # Distribute by difficulty - ensure at least 1 quest per difficulty if category has quests
+            remaining = category_count
+            difficulty_counts = {}
+            
+            # Calculate initial distribution
             for difficulty, ratio in difficulty_dist.items():
-                diff_count = int(category_count * ratio)
+                count = int(category_count * ratio)
+                difficulty_counts[difficulty] = count
+                remaining -= count
+            
+            # Distribute remaining quests to ensure we use all allocated quests
+            difficulties = list(difficulty_dist.keys())
+            for i in range(remaining):
+                difficulty_counts[difficulties[i % len(difficulties)]] += 1
+            
+            # Create prompts for each difficulty
+            for difficulty, diff_count in difficulty_counts.items():
                 if diff_count == 0:
                     continue
+                
+                print(f"    {difficulty}: {diff_count} quests")
                     
                 # Add theme variation
                 theme = random.choice(themes) if themes else None
@@ -191,7 +218,10 @@ Return ONLY a JSON array with exactly {count} quest objects."""
     def call_gemini_batch(self, prompt: str, retry_count: int = 3) -> List[Dict]:
         """Call Gemini API with retry logic"""
         
+        print("Calling Gemini API...")
+        
         if not self.model:
+            print("ERROR: Model is None!")
             raise ValueError("Gemini API not configured")
         
         for attempt in range(retry_count):
@@ -202,6 +232,7 @@ Return ONLY a JSON array with exactly {count} quest objects."""
                 
                 response = self.model.generate_content(prompt)
                 content = response.text
+                print(f"Gemini response received, length: {len(content)}")
                 
                 # Clean up the response
                 if '```json' in content:
@@ -216,6 +247,7 @@ Return ONLY a JSON array with exactly {count} quest objects."""
                 if isinstance(quests, dict) and 'quests' in quests:
                     quests = quests['quests']
                 
+                print(f"Successfully parsed {len(quests)} quests from Gemini")
                 return quests
                 
             except Exception as e:
@@ -318,6 +350,9 @@ def generate_batch(user_id):
     distribution = data.get('distribution', {'categories': 'even'})
     parameters = data.get('parameters', {})
     
+    print(f"Generate batch called - Count: {count}, Distribution: {distribution}")
+    print(f"User ID: {user_id}")
+    
     try:
         # Create generation job
         job_data = {
@@ -341,8 +376,13 @@ def generate_batch(user_id):
         # Initialize generator
         generator = BulkQuestGenerator()
         
+        if not generator.model:
+            print("ERROR: Gemini model not initialized - likely missing API key")
+            raise ValueError("AI model not configured. Please set GEMINI_API_KEY environment variable.")
+        
         # Generate varied prompts
         prompts = generator.generate_varied_prompts(count, distribution, existing_titles)
+        print(f"Generated {len(prompts)} prompts for processing")
         
         # Generate quests in parallel (with rate limiting)
         all_generated_quests = []
