@@ -87,13 +87,17 @@ EXISTING DATA:
 
 Create a cohesive quest that:
 1. Builds on the existing information
-2. Has 3-5 clear mission steps in "your_mission"
+2. Has 3-5 clear mission steps in "your_mission" array
 3. Lists 2-4 tangible things to create in "what_youll_create"
 4. Includes process-focused evidence requirements in "showcase_your_journey"
 5. Assigns primary XP (50-200) to the primary pillar
 6. May include secondary XP awards to related pillars
 7. Suggests helpful resources (tools, materials, links)
 8. Adds collaboration ideas and optional real-world bonuses
+
+IMPORTANT: For "your_mission" array, write each step as a direct action statement WITHOUT numbering or "Step X:" prefix.
+Good example: ["Research different birdhouse designs", "Create a construction plan", "Build the birdhouse"]
+Bad example: ["Step 1: Research designs", "Step 2: Create plan", "Step 3: Build"]
 
 Return ONLY a valid JSON object with all quest fields completed. Ensure all arrays are properly formatted and all values are appropriate types."""
 
@@ -142,6 +146,18 @@ Return ONLY a valid JSON object with all quest fields completed. Ensure all arra
             
             if 'your_mission' not in completed_quest or not completed_quest['your_mission']:
                 completed_quest['your_mission'] = ["Research and plan your approach", "Create your project", "Document and reflect on your learning"]
+            else:
+                # Clean up mission steps - remove "Step X:" prefix if present
+                cleaned_mission = []
+                for step in completed_quest['your_mission']:
+                    if isinstance(step, str):
+                        # Remove "Step 1:", "Step 2:", etc. from the beginning
+                        import re
+                        cleaned_step = re.sub(r'^Step\s*\d+\s*:\s*', '', step)
+                        cleaned_mission.append(cleaned_step)
+                    else:
+                        cleaned_mission.append(step)
+                completed_quest['your_mission'] = cleaned_mission
             
             # Set pillar icon based on primary pillar
             pillar_icons = {
