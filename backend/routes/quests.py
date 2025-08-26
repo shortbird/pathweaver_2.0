@@ -196,11 +196,22 @@ def start_quest(user_id, quest_id):
             'event_details': {'quest_id': quest_id}
         }).execute()
         
-        # Check if data exists and is not empty
+        # Fetch the complete user_quest with quest details
         if response.data and len(response.data) > 0:
-            return jsonify(response.data[0]), 201
+            user_quest_id = response.data[0]['id']
+            # Fetch the complete user quest with quest details
+            complete_quest = supabase.table('user_quests')\
+                .select('*, quests(*)')\
+                .eq('id', user_quest_id)\
+                .single()\
+                .execute()
+            
+            if complete_quest.data:
+                return jsonify(complete_quest.data), 201
+            else:
+                return jsonify(response.data[0]), 201
         else:
-            # Return the inserted user_quest with an id
+            # Fallback: return the basic user_quest
             return jsonify(user_quest), 201
         
     except Exception as e:

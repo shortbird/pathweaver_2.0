@@ -54,6 +54,14 @@ const QuestDetailPage = () => {
       const response = await api.post(`/quests/${id}/start`, {})
       setUserQuest(response.data)
       toast.success('Quest started! Begin your adventure!')
+      
+      // If we have the user quest ID, fetch learning logs
+      if (response.data?.id) {
+        fetchLearningLogs(response.data.id)
+      }
+      
+      // Refresh quest details to ensure everything is in sync
+      fetchQuestDetails()
     } catch (error) {
       const errorMessage = error.response?.data?.error
       // Ensure the error message is a string
