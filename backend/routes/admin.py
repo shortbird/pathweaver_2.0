@@ -254,7 +254,14 @@ def delete_quest(user_id, quest_id):
         except Exception as e:
             print(f"Warning: Could not delete user_quests: {e}")
         
-        # 4. Removed AI quest table update - no longer needed
+        # 4. Update ai_generated_quests to remove reference (table may still exist in production)
+        try:
+            supabase.table('ai_generated_quests').update({
+                'published_quest_id': None
+            }).eq('published_quest_id', quest_id).execute()
+        except Exception as e:
+            # Table may not exist, that's OK
+            print(f"Info: Could not update ai_generated_quests (table may not exist): {e}")
         
         # 5. Delete community shares that reference this quest
         try:
@@ -268,19 +275,25 @@ def delete_quest(user_id, quest_id):
         except Exception as e:
             print(f"Warning: Could not delete quest ideas: {e}")
         
-        # 7. Delete quest_skill_xp
+        # 7. Delete quest ratings if they exist
+        try:
+            supabase.table('quest_ratings').delete().eq('quest_id', quest_id).execute()
+        except Exception as e:
+            print(f"Info: Could not delete quest ratings (table may not exist): {e}")
+        
+        # 8. Delete quest_skill_xp
         try:
             supabase.table('quest_skill_xp').delete().eq('quest_id', quest_id).execute()
         except Exception as e:
             print(f"Warning: Could not delete quest_skill_xp: {e}")
         
-        # 8. Delete quest_xp_awards (old table)
+        # 9. Delete quest_xp_awards (old table)
         try:
             supabase.table('quest_xp_awards').delete().eq('quest_id', quest_id).execute()
         except Exception as e:
             print(f"Warning: Could not delete quest_xp_awards: {e}")
         
-        # 9. Delete from activity_log (if any references exist)
+        # 10. Delete from activity_log (if any references exist)
         try:
             # Fetch all activity logs
             activity_logs = supabase.table('activity_log').select('id, event_details').execute()
@@ -294,7 +307,7 @@ def delete_quest(user_id, quest_id):
         except Exception as e:
             print(f"Warning: Could not check/delete activity logs: {e}")
         
-        # 10. Finally, delete the quest itself
+        # 11. Finally, delete the quest itself
         result = supabase.table('quests').delete().eq('id', quest_id).execute()
         
         return jsonify({'message': 'Quest and all related data deleted successfully'}), 200
