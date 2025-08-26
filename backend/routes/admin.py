@@ -107,24 +107,42 @@ def create_quest(user_id):
     data = request.json
     supabase = get_supabase_admin_client()
     
+    # Debug logging
+    print(f"Creating quest with data keys: {list(data.keys())}")
+    print(f"Primary pillar: {data.get('primary_pillar')}")
+    print(f"Has big_idea: {'big_idea' in data}")
+    print(f"Has description: {'description' in data}")
+    
     try:
-        # Base quest data
+        # Base quest data - handle both Visual format and standard format
         quest_data = {
             'title': data['title'],
-            'description': data['description'],
-            'evidence_requirements': data['evidence_requirements'],
             'created_by': user_id,
             'created_at': datetime.utcnow().isoformat()
         }
         
-        # Add new fields if present
-        optional_fields = [
-            'difficulty_level', 'effort_level', 'estimated_hours',
-            'accepted_evidence_types', 'example_submissions', 'core_skills',
+        # Map Visual format fields to database fields if needed
+        # The database can store both formats, we just pass through all fields
+        
+        # Add all fields from the request (Visual/Diploma Pillars format)
+        visual_fields = [
+            'big_idea', 'what_youll_create', 'primary_pillar', 'primary_pillar_icon',
+            'intensity', 'estimated_time', 'your_mission', 'showcase_your_journey',
+            'helpful_resources', 'core_competencies', 'collaboration_spark',
+            'real_world_bonus', 'log_bonus', 'heads_up', 'location', 'total_xp',
+            'collaboration_bonus', 'quest_banner_image'
+        ]
+        
+        # Also support old fields for backward compatibility
+        standard_fields = [
+            'description', 'evidence_requirements', 'difficulty_level', 'effort_level', 
+            'estimated_hours', 'accepted_evidence_types', 'example_submissions', 'core_skills',
             'resources_needed', 'location_requirements', 'optional_challenges',
             'safety_considerations', 'requires_adult_supervision', 'collaboration_ideas'
         ]
-        for field in optional_fields:
+        
+        # Add all present fields from either format
+        for field in visual_fields + standard_fields:
             if field in data:
                 quest_data[field] = data[field]
         
@@ -160,6 +178,9 @@ def create_quest(user_id):
         return jsonify({'quest_id': quest_id}), 201
         
     except Exception as e:
+        print(f"Error creating quest: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 400
 
 @bp.route('/quests/complete-with-ai', methods=['POST'])
@@ -190,14 +211,21 @@ def update_quest(user_id, quest_id):
     supabase = get_supabase_admin_client()
     
     try:
-        # Expanded allowed fields for new system
-        allowed_fields = [
-            'title', 'description', 'evidence_requirements',
-            'difficulty_level', 'effort_level', 'estimated_hours',
-            'accepted_evidence_types', 'example_submissions', 'core_skills',
+        # Expanded allowed fields for both Visual and standard formats
+        visual_fields = [
+            'title', 'big_idea', 'what_youll_create', 'primary_pillar', 'primary_pillar_icon',
+            'intensity', 'estimated_time', 'your_mission', 'showcase_your_journey',
+            'helpful_resources', 'core_competencies', 'collaboration_spark',
+            'real_world_bonus', 'log_bonus', 'heads_up', 'location', 'total_xp',
+            'collaboration_bonus', 'quest_banner_image'
+        ]
+        standard_fields = [
+            'description', 'evidence_requirements', 'difficulty_level', 'effort_level',
+            'estimated_hours', 'accepted_evidence_types', 'example_submissions', 'core_skills',
             'resources_needed', 'location_requirements', 'optional_challenges',
             'safety_considerations', 'requires_adult_supervision', 'collaboration_ideas'
         ]
+        allowed_fields = visual_fields + standard_fields
         update_data = {k: v for k, v in data.items() if k in allowed_fields}
         
         if update_data:
