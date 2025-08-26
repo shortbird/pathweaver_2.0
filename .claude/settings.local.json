@@ -17,7 +17,16 @@
       "Bash(set)",
       "Bash(npm run dev:*)",
       "Bash(test:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(venvScripts:*)",
+      "Bash(call venvScriptsactivate)",
+      "Bash(venv/Scripts/python.exe -m pip install:*)",
+      "Bash(cp:*)",
+      "Bash(venv/Scripts/python.exe:*)",
+      "Bash(set FLASK_RUN_PORT=5001)",
+      "Bash(set FLASK_RUN_PORT=8000)",
+      "Bash(venv/Scripts/pip show:*)",
+      "Bash(timeout:*)"
     ],
     "deny": [],
     "ask": []
