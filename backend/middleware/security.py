@@ -6,8 +6,14 @@ import json
 from flask import request, jsonify, abort
 from functools import wraps
 from typing import Dict, List, Any
-import bleach
 from werkzeug.exceptions import BadRequest
+
+# Try to import bleach, but don't fail if it's not available
+try:
+    import bleach
+    HAS_BLEACH = True
+except ImportError:
+    HAS_BLEACH = False
 
 # Maximum sizes for different input types
 MAX_FIELD_LENGTH = {
@@ -111,7 +117,11 @@ class SecurityMiddleware:
         
         elif isinstance(data, str):
             # Remove HTML/script tags
-            data = bleach.clean(data, tags=[], strip=True)
+            if HAS_BLEACH:
+                data = bleach.clean(data, tags=[], strip=True)
+            else:
+                # Fallback: basic HTML tag removal
+                data = re.sub(r'<[^>]*>', '', data)
             # Limit string length based on context
             max_length = MAX_FIELD_LENGTH['default']
             return data[:max_length] if len(data) > max_length else data
@@ -194,12 +204,20 @@ def sanitize_html(text: str) -> str:
     allowed_tags = ['p', 'br', 'strong', 'em', 'u', 'a', 'ul', 'ol', 'li', 'blockquote', 'code', 'pre']
     allowed_attributes = {'a': ['href', 'title']}
     
-    return bleach.clean(
-        text,
-        tags=allowed_tags,
-        attributes=allowed_attributes,
-        strip=True
-    )
+    if HAS_BLEACH:
+        return bleach.clean(
+            text,
+            tags=allowed_tags,
+            attributes=allowed_attributes,
+            strip=True
+        )
+    else:
+        # Fallback: basic HTML sanitization
+        # Remove script tags and dangerous attributes
+        text = re.sub(r'<script[^>]*>.*?</script>', '', text, flags=re.IGNORECASE | re.DOTALL)
+        text = re.sub(r'on\w+\s*=\s*["\'][^"\'>]*["\']', '', text, flags=re.IGNORECASE)
+        text = re.sub(r'javascript:', '', text, flags=re.IGNORECASE)
+        return text
 
 def validate_uuid(uuid_string: str) -> bool:
     """Validate UUID format"""
