@@ -574,10 +574,12 @@ def review_quest(user_id, quest_id):
         quest_response = supabase.table('ai_generated_quests')\
             .select('*')\
             .eq('id', quest_id)\
-            .single()\
             .execute()
         
-        generated_quest = quest_response.data
+        if not quest_response.data or len(quest_response.data) == 0:
+            return jsonify({'error': 'Quest not found'}), 404
+            
+        generated_quest = quest_response.data[0]
         
         # Create review history entry
         history_entry = {
@@ -595,11 +597,10 @@ def review_quest(user_id, quest_id):
             # Create actual quest from approved data
             quest_data = generated_quest['quest_data']
             
-            # Map to actual quest table structure
+            # Map to actual quest table structure (excluding skill_xp_awards which goes to separate table)
             new_quest = {
                 'title': quest_data.get('title'),
                 'description': quest_data.get('description'),
-                'skill_category': quest_data.get('skill_category'),
                 'difficulty_level': quest_data.get('difficulty_level'),
                 'effort_level': quest_data.get('effort_level'),
                 'estimated_hours': quest_data.get('estimated_hours'),
@@ -607,7 +608,6 @@ def review_quest(user_id, quest_id):
                 'accepted_evidence_types': quest_data.get('accepted_evidence_types'),
                 'example_submissions': quest_data.get('example_submissions'),
                 'core_skills': quest_data.get('core_skills'),
-                'skill_xp_awards': quest_data.get('skill_xp_awards'),
                 'resources_needed': quest_data.get('resources_needed'),
                 'location_requirements': quest_data.get('location_requirements'),
                 'safety_considerations': quest_data.get('safety_considerations'),
@@ -622,6 +622,18 @@ def review_quest(user_id, quest_id):
             # Insert the new quest
             quest_insert_response = supabase.table('quests').insert(new_quest).execute()
             published_quest_id = quest_insert_response.data[0]['id']
+            
+            # Insert skill XP awards into separate table
+            if quest_data.get('skill_xp_awards'):
+                for award in quest_data['skill_xp_awards']:
+                    try:
+                        supabase.table('quest_skill_xp').insert({
+                            'quest_id': published_quest_id,
+                            'skill_category': award.get('skill_category'),
+                            'xp_amount': award.get('xp_amount', 0)
+                        }).execute()
+                    except Exception as xp_error:
+                        print(f"Error inserting skill XP award: {str(xp_error)}")
             
             # Update generated quest status
             supabase.table('ai_generated_quests').update({
@@ -717,11 +729,10 @@ def auto_publish_high_quality(user_id):
         for generated_quest in response.data:
             quest_data = generated_quest['quest_data']
             
-            # Create actual quest
+            # Create actual quest (excluding skill_xp_awards which goes to separate table)
             new_quest = {
                 'title': quest_data.get('title'),
                 'description': quest_data.get('description'),
-                'skill_category': quest_data.get('skill_category'),
                 'difficulty_level': quest_data.get('difficulty_level'),
                 'effort_level': quest_data.get('effort_level'),
                 'estimated_hours': quest_data.get('estimated_hours'),
@@ -729,7 +740,6 @@ def auto_publish_high_quality(user_id):
                 'accepted_evidence_types': quest_data.get('accepted_evidence_types'),
                 'example_submissions': quest_data.get('example_submissions'),
                 'core_skills': quest_data.get('core_skills'),
-                'skill_xp_awards': quest_data.get('skill_xp_awards'),
                 'resources_needed': quest_data.get('resources_needed'),
                 'location_requirements': quest_data.get('location_requirements'),
                 'safety_considerations': quest_data.get('safety_considerations'),
@@ -737,7 +747,8 @@ def auto_publish_high_quality(user_id):
                 'collaboration_ideas': quest_data.get('collaboration_ideas'),
                 'optional_challenges': quest_data.get('optional_challenges'),
                 'is_ai_generated': True,
-                'created_by': user_id
+                'created_by': user_id,
+                'created_at': datetime.utcnow().isoformat()
             }
             
             # Insert quest
@@ -745,6 +756,18 @@ def auto_publish_high_quality(user_id):
             
             if quest_insert.data:
                 published_quest_id = quest_insert.data[0]['id']
+                
+                # Insert skill XP awards into separate table
+                if quest_data.get('skill_xp_awards'):
+                    for award in quest_data['skill_xp_awards']:
+                        try:
+                            supabase.table('quest_skill_xp').insert({
+                                'quest_id': published_quest_id,
+                                'skill_category': award.get('skill_category'),
+                                'xp_amount': award.get('xp_amount', 0)
+                            }).execute()
+                        except Exception as xp_error:
+                            print(f"Error inserting skill XP award: {str(xp_error)}")
                 
                 # Update generated quest status
                 supabase.table('ai_generated_quests').update({
