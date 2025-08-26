@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_client, get_authenticated_supabase_client
 from utils.auth_utils import require_auth
 from datetime import datetime
+from cache import cache, cached
 
 bp = Blueprint('quests', __name__)
 
@@ -95,6 +96,12 @@ def get_quests():
 
 @bp.route('/filter-options', methods=['GET'])
 def get_filter_options():
+    # Check cache first
+    cache_key = 'filter_options'
+    cached_data = cache.get(cache_key)
+    if cached_data:
+        return jsonify(cached_data), 200
+    
     supabase = get_supabase_client()
     
     try:
@@ -106,7 +113,7 @@ def get_filter_options():
             if quest.get('core_skills'):
                 all_skills.update(quest['core_skills'])
         
-        return jsonify({
+        filter_options = {
             'skill_categories': [
                 {'value': 'reading_writing', 'label': 'Reading & Writing'},
                 {'value': 'thinking_skills', 'label': 'Thinking Skills'},
@@ -126,7 +133,12 @@ def get_filter_options():
                 {'value': 'intensive', 'label': 'Intensive'}
             ],
             'core_skills': sorted(list(all_skills))
-        }), 200
+        }
+        
+        # Cache for 10 minutes (600 seconds)
+        cache.set(cache_key, filter_options, ttl=600)
+        
+        return jsonify(filter_options), 200
         
     except Exception as e:
         print(f"Error fetching filter options: {str(e)}")
@@ -134,6 +146,12 @@ def get_filter_options():
 
 @bp.route('/<quest_id>', methods=['GET'])
 def get_quest(quest_id):
+    # Check cache first
+    cache_key = f'quest:{quest_id}'
+    cached_quest = cache.get(cache_key)
+    if cached_quest:
+        return jsonify(cached_quest), 200
+    
     # Use admin client to bypass RLS for public quest viewing
     from database import get_supabase_admin_client
     supabase = get_supabase_admin_client()
@@ -145,6 +163,9 @@ def get_quest(quest_id):
         except Exception:
             # Fall back to old subject-based system
             response = supabase.table('quests').select('*, quest_xp_awards(*)').eq('id', quest_id).single().execute()
+        
+        # Cache for 5 minutes (300 seconds)
+        cache.set(cache_key, response.data, ttl=300)
         
         return jsonify(response.data), 200
     except Exception as e:
@@ -238,13 +259,34 @@ def get_user_quests(user_id, target_user_id):
     supabase = get_authenticated_supabase_client()
     
     try:
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
+        
+        # Calculate range for pagination
+        start = (page - 1) * per_page
+        end = start + per_page - 1
+        
         # Try with new skill-based system first
         try:
-            response = supabase.table('user_quests').select('*, quests(*, quest_skill_xp(*))').eq('user_id', target_user_id).execute()
+            response = supabase.table('user_quests')\
+                .select('*, quests(*, quest_skill_xp(*))', count='exact')\
+                .eq('user_id', target_user_id)\
+                .range(start, end)\
+                .execute()
         except Exception:
             # Fall back to old subject-based system
-            response = supabase.table('user_quests').select('*, quests(*, quest_xp_awards(*))').eq('user_id', target_user_id).execute()
+            response = supabase.table('user_quests')\
+                .select('*, quests(*, quest_xp_awards(*))', count='exact')\
+                .eq('user_id', target_user_id)\
+                .range(start, end)\
+                .execute()
         
-        return jsonify(response.data), 200
+        return jsonify({
+            'quests': response.data,
+            'page': page,
+            'per_page': per_page,
+            'total': response.count if hasattr(response, 'count') else len(response.data)
+        }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 400

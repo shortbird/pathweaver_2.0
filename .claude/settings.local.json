@@ -26,7 +26,12 @@
       "Bash(set FLASK_RUN_PORT=5001)",
       "Bash(set FLASK_RUN_PORT=8000)",
       "Bash(venv/Scripts/pip show:*)",
-      "Bash(timeout:*)"
+      "Bash(timeout:*)",
+      "Bash(if [ -d venv ])",
+      "Bash(then echo \"Virtual environment exists\")",
+      "Bash(else python -m venv venv)",
+      "Bash(fi)",
+      "Bash(venv/Scripts/pip install:*)"
     ],
     "deny": [],
     "ask": []

@@ -7,31 +7,46 @@ def configure_cors(app):
     """Configure CORS based on environment"""
     from flask_cors import CORS
     
-    # Get allowed origins from environment or use defaults
-    allowed_origins = os.getenv('ALLOWED_ORIGINS', '').split(',')
+    # Determine environment
+    is_development = os.getenv('FLASK_ENV', 'production').lower() == 'development'
     
-    if not allowed_origins or allowed_origins == ['']:
-        # Default to allowing common origins
-        allowed_origins = [
-            'http://localhost:3000',
-            'http://localhost:3001',
-            'http://localhost:3002',
-            'http://localhost:3003',
-            'http://localhost:3004',
-            'http://localhost:3005',
-            'http://localhost:5173',
-            'http://localhost:1234',
-            'http://localhost:1235',
-            'http://localhost:1236',
-            'https://pathweaver-2-0.vercel.app',
-            'https://pathweaver20-production.up.railway.app'
-        ]
+    # Get allowed origins from environment
+    allowed_origins = []
     
-    # Add any additional production URLs
+    if os.getenv('ALLOWED_ORIGINS'):
+        # Use explicitly configured origins
+        allowed_origins = [origin.strip() for origin in os.getenv('ALLOWED_ORIGINS').split(',') if origin.strip()]
+    
+    # Add production URLs if configured
     if os.getenv('FRONTEND_URL'):
         allowed_origins.append(os.getenv('FRONTEND_URL'))
     
-    print(f"Configuring CORS with allowed origins: {allowed_origins}")
+    # Production domains
+    production_domains = [
+        'https://pathweaver-2-0.vercel.app',
+        'https://pathweaver20-production.up.railway.app'
+    ]
+    
+    # Only add production domains if they're not already in the list
+    for domain in production_domains:
+        if domain not in allowed_origins:
+            allowed_origins.append(domain)
+    
+    # In development, also allow localhost origins
+    if is_development:
+        dev_origins = [
+            'http://localhost:3000',  # Primary React dev server
+            'http://localhost:5173',  # Vite dev server
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:5173'
+        ]
+        allowed_origins.extend(dev_origins)
+    
+    # Remove duplicates while preserving order
+    allowed_origins = list(dict.fromkeys(allowed_origins))
+    
+    print(f"CORS Configuration - Environment: {'Development' if is_development else 'Production'}")
+    print(f"Allowed origins: {allowed_origins}")
     
     CORS(app,
          resources={r"/api/*": {"origins": allowed_origins}},

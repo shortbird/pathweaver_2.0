@@ -1,6 +1,11 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, make_response
 from database import get_supabase_client
 from utils.auth_utils import verify_token
+from utils.validation import validate_registration_data, sanitize_input
+from utils.session_manager import session_manager
+from middleware.rate_limiter import rate_limit
+from middleware.error_handler import ValidationError, AuthenticationError, ExternalServiceError, ConflictError
+from utils.retry_handler import retry_database_operation
 import re
 
 bp = Blueprint('auth', __name__)
@@ -53,18 +58,23 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
         # Don't fail registration if this fails - the database trigger should handle it
 
 @bp.route('/register', methods=['POST'])
+@rate_limit(max_requests=5, window_seconds=300)  # 5 registrations per 5 minutes
 def register():
     try:
         data = request.json
         
-        # Log the incoming data for debugging
-        print(f"Registration attempt for email: {data.get('email')}")
+        # Validate input data
+        is_valid, error_message = validate_registration_data(data)
+        if not is_valid:
+            raise ValidationError(error_message)
         
-        # Validate required fields
-        required_fields = ['email', 'password', 'first_name', 'last_name']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({'error': f'Missing required field: {field}'}), 400
+        # Sanitize text inputs
+        data['first_name'] = sanitize_input(data['first_name']).strip()
+        data['last_name'] = sanitize_input(data['last_name']).strip()
+        data['email'] = data['email'].strip().lower()  # Normalize email to lowercase
+        
+        # Log the registration attempt (without password)
+        print(f"Registration attempt for email: {data['email']}")
         
         # Use admin client for registration to bypass RLS
         from database import get_supabase_admin_client
@@ -112,13 +122,24 @@ def register():
         else:
             return jsonify({'error': 'Registration failed - no user created'}), 400
             
+    except ValidationError:
+        raise  # Re-raise validation errors
     except Exception as e:
+        # Parse error message for specific cases
+        error_str = str(e).lower()
+        if 'already registered' in error_str or 'already exists' in error_str:
+            raise ConflictError('This email is already registered')
+        elif 'invalid' in error_str and 'email' in error_str:
+            raise ValidationError('Please enter a valid email address')
+        elif 'weak' in error_str and 'password' in error_str:
+            raise ValidationError('Password is too weak. Please use at least 8 characters with a mix of letters and numbers')
+        
+        # Log unexpected errors and raise as external service error
         print(f"Registration error: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': f'Server error: {str(e)}'}), 500
+        raise ExternalServiceError('Supabase', 'Registration failed. Please try again', e)
 
 @bp.route('/login', methods=['POST'])
+@rate_limit(max_requests=5, window_seconds=60)  # 5 login attempts per minute
 def login():
     data = request.json
     supabase = get_supabase_client()
@@ -147,13 +168,23 @@ def login():
             except Exception as log_error:
                 print(f"Failed to log activity: {log_error}")
             
-            return jsonify({
+            # Create response with user data
+            response_data = {
                 'user': user_data.data,
                 'session': auth_response.session.model_dump()
-            }), 200
-        else:
-            return jsonify({'error': 'Invalid credentials'}), 401
+            }
+            response = make_response(jsonify(response_data), 200)
             
+            # Set secure httpOnly cookies for new sessions
+            # Keep returning tokens in response for backward compatibility
+            session_manager.set_auth_cookies(response, auth_response.user.id)
+            
+            return response
+        else:
+            raise AuthenticationError('Invalid credentials')
+            
+    except AuthenticationError:
+        raise  # Re-raise authentication errors
     except Exception as e:
         error_message = str(e)
         print(f"Login error: {error_message}")
@@ -168,7 +199,10 @@ def login():
 
 @bp.route('/logout', methods=['POST'])
 def logout():
-    token = request.headers.get('Authorization', '').replace('Bearer ', '')
+    # Get token from cookie or header
+    token = request.cookies.get('access_token')
+    if not token:
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
     
     if not token:
         return jsonify({'error': 'No token provided'}), 401
@@ -177,7 +211,10 @@ def logout():
     
     try:
         supabase.auth.sign_out()
-        return jsonify({'message': 'Logged out successfully'}), 200
+        response = make_response(jsonify({'message': 'Logged out successfully'}), 200)
+        # Clear authentication cookies
+        session_manager.clear_auth_cookies(response)
+        return response
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 

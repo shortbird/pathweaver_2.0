@@ -1,0 +1,195 @@
+"""Field validators and validation schemas"""
+
+from typing import Any, Dict, List, Optional, Callable, Tuple
+from datetime import datetime
+import re
+
+class FieldValidator:
+    """Base field validator class"""
+    
+    def __init__(self, required: bool = False, error_message: Optional[str] = None):
+        self.required = required
+        self.error_message = error_message
+    
+    def validate(self, value: Any, field_name: str) -> Tuple[bool, Optional[str]]:
+        """Validate field value"""
+        if value is None or value == "":
+            if self.required:
+                return False, self.error_message or f"{field_name} is required"
+            return True, None
+        
+        return self._validate_value(value, field_name)
+    
+    def _validate_value(self, value: Any, field_name: str) -> Tuple[bool, Optional[str]]:
+        """Override in subclasses to implement specific validation"""
+        return True, None
+
+class RequiredField(FieldValidator):
+    """Validator for required fields"""
+    
+    def __init__(self):
+        super().__init__(required=True)
+
+class EmailField(FieldValidator):
+    """Email field validator"""
+    
+    def _validate_value(self, value: str, field_name: str) -> Tuple[bool, Optional[str]]:
+        email_pattern = re.compile(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$')
+        
+        if not email_pattern.match(value):
+            return False, self.error_message or "Invalid email format"
+        
+        if len(value) > 255:
+            return False, "Email is too long (max 255 characters)"
+        
+        return True, None
+
+class StringField(FieldValidator):
+    """String field validator with length constraints"""
+    
+    def __init__(self, min_length: int = 0, max_length: int = 255, 
+                 pattern: Optional[str] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.min_length = min_length
+        self.max_length = max_length
+        self.pattern = re.compile(pattern) if pattern else None
+    
+    def _validate_value(self, value: str, field_name: str) -> Tuple[bool, Optional[str]]:
+        if len(value) < self.min_length:
+            return False, f"{field_name} must be at least {self.min_length} characters"
+        
+        if len(value) > self.max_length:
+            return False, f"{field_name} must not exceed {self.max_length} characters"
+        
+        if self.pattern and not self.pattern.match(value):
+            return False, self.error_message or f"{field_name} has invalid format"
+        
+        return True, None
+
+class IntegerField(FieldValidator):
+    """Integer field validator with range constraints"""
+    
+    def __init__(self, min_value: Optional[int] = None, 
+                 max_value: Optional[int] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.min_value = min_value
+        self.max_value = max_value
+    
+    def _validate_value(self, value: Any, field_name: str) -> Tuple[bool, Optional[str]]:
+        try:
+            int_value = int(value)
+        except (ValueError, TypeError):
+            return False, f"{field_name} must be an integer"
+        
+        if self.min_value is not None and int_value < self.min_value:
+            return False, f"{field_name} must be at least {self.min_value}"
+        
+        if self.max_value is not None and int_value > self.max_value:
+            return False, f"{field_name} must not exceed {self.max_value}"
+        
+        return True, None
+
+class FloatField(FieldValidator):
+    """Float field validator with range constraints"""
+    
+    def __init__(self, min_value: Optional[float] = None, 
+                 max_value: Optional[float] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.min_value = min_value
+        self.max_value = max_value
+    
+    def _validate_value(self, value: Any, field_name: str) -> Tuple[bool, Optional[str]]:
+        try:
+            float_value = float(value)
+        except (ValueError, TypeError):
+            return False, f"{field_name} must be a number"
+        
+        if self.min_value is not None and float_value < self.min_value:
+            return False, f"{field_name} must be at least {self.min_value}"
+        
+        if self.max_value is not None and float_value > self.max_value:
+            return False, f"{field_name} must not exceed {self.max_value}"
+        
+        return True, None
+
+class DateField(FieldValidator):
+    """Date field validator"""
+    
+    def __init__(self, date_format: str = "%Y-%m-%d", 
+                 min_date: Optional[datetime] = None,
+                 max_date: Optional[datetime] = None, **kwargs):
+        super().__init__(**kwargs)
+        self.date_format = date_format
+        self.min_date = min_date
+        self.max_date = max_date
+    
+    def _validate_value(self, value: Any, field_name: str) -> Tuple[bool, Optional[str]]:
+        if isinstance(value, datetime):
+            date_value = value
+        else:
+            try:
+                date_value = datetime.strptime(str(value), self.date_format)
+            except ValueError:
+                return False, f"{field_name} must be a valid date ({self.date_format})"
+        
+        if self.min_date and date_value < self.min_date:
+            return False, f"{field_name} must be after {self.min_date.strftime(self.date_format)}"
+        
+        if self.max_date and date_value > self.max_date:
+            return False, f"{field_name} must be before {self.max_date.strftime(self.date_format)}"
+        
+        return True, None
+
+class ChoiceField(FieldValidator):
+    """Choice field validator"""
+    
+    def __init__(self, choices: List[Any], **kwargs):
+        super().__init__(**kwargs)
+        self.choices = choices
+    
+    def _validate_value(self, value: Any, field_name: str) -> Tuple[bool, Optional[str]]:
+        if value not in self.choices:
+            choices_str = ", ".join(str(c) for c in self.choices)
+            return False, f"{field_name} must be one of: {choices_str}"
+        
+        return True, None
+
+class ValidationSchema:
+    """Schema for validating complex data structures"""
+    
+    def __init__(self, fields: Dict[str, FieldValidator]):
+        self.fields = fields
+    
+    def validate(self, data: Dict[str, Any]) -> Tuple[bool, Dict[str, str]]:
+        """
+        Validate data against schema
+        
+        Returns:
+            Tuple of (is_valid, errors_dict)
+        """
+        errors = {}
+        
+        for field_name, validator in self.fields.items():
+            value = data.get(field_name)
+            is_valid, error_message = validator.validate(value, field_name)
+            
+            if not is_valid:
+                errors[field_name] = error_message
+        
+        return len(errors) == 0, errors
+
+# Example schemas
+USER_REGISTRATION_SCHEMA = ValidationSchema({
+    'email': EmailField(required=True),
+    'password': StringField(required=True, min_length=8, max_length=128),
+    'first_name': StringField(required=True, min_length=1, max_length=50),
+    'last_name': StringField(required=True, min_length=1, max_length=50)
+})
+
+QUEST_CREATION_SCHEMA = ValidationSchema({
+    'title': StringField(required=True, min_length=3, max_length=100),
+    'description': StringField(required=True, min_length=10, max_length=1000),
+    'difficulty': ChoiceField(choices=['beginner', 'intermediate', 'advanced'], required=True),
+    'category': StringField(required=True, max_length=50),
+    'estimated_hours': FloatField(min_value=0.5, max_value=100)
+})

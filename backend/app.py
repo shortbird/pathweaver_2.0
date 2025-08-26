@@ -4,11 +4,24 @@ import os
 
 from routes import auth, quests, subscriptions, users, admin, community, portfolio, ai_quest_generator, ai_quest_bulk_generator, test_xp
 from cors_config import configure_cors
+from middleware.security import security_middleware
+from middleware.error_handler import error_handler
 
 load_dotenv()
 
+# Set Flask environment (development or production)
+if not os.getenv('FLASK_ENV'):
+    os.environ['FLASK_ENV'] = 'development'  # Default to development for local
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max request size
+
+# Configure security middleware
+security_middleware.init_app(app)
+
+# Configure error handling middleware
+error_handler.init_app(app)
 
 # Configure CORS with proper settings
 configure_cors(app)
@@ -61,13 +74,7 @@ def handle_preflight():
         response.headers.add('Access-Control-Allow-Methods', "*")
         return response
 
-@app.errorhandler(404)
-def not_found(error):
-    return jsonify({'error': 'Not found'}), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    return jsonify({'error': 'Internal server error'}), 500
+# Error handlers are now managed by error_handler middleware
 
 if __name__ == '__main__':
     app.run(debug=True, port=8000)

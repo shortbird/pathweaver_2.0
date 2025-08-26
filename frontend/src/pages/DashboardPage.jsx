@@ -1,8 +1,78 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo, useCallback, memo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+
+// Memoized component for Active Quests section
+const ActiveQuests = memo(({ activeQuests }) => {
+  if (!activeQuests || activeQuests.length === 0) {
+    return <p className="text-gray-600">No active quests. Start exploring!</p>
+  }
+  
+  return (
+    <div className="space-y-3">
+      {activeQuests.map(quest => (
+        <Link
+          key={quest.id}
+          to={`/quests/${quest.quest_id}`}
+          className="block p-3 bg-background rounded-lg hover:bg-gray-100 transition-colors"
+        >
+          <h3 className="font-medium">{quest.quests?.title}</h3>
+          <div className="flex gap-2 mt-1">
+            {quest.quests?.difficulty_level && (
+              <span className={`text-xs px-2 py-0.5 rounded ${
+                quest.quests.difficulty_level === 'beginner' ? 'bg-green-100 text-green-800' :
+                quest.quests.difficulty_level === 'intermediate' ? 'bg-yellow-100 text-yellow-800' :
+                'bg-red-100 text-red-800'
+              }`}>
+                {quest.quests.difficulty_level}
+              </span>
+            )}
+            {quest.quests?.estimated_hours && (
+              <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-800">
+                {quest.quests.estimated_hours}h
+              </span>
+            )}
+          </div>
+          <p className="text-sm text-gray-600 mt-1">
+            Started {new Date(quest.started_at).toLocaleDateString()}
+          </p>
+        </Link>
+      ))}
+    </div>
+  )
+})
+
+// Memoized component for Recent Completions section  
+const RecentCompletions = memo(({ recentCompletions, skillCategoryNames }) => {
+  if (!recentCompletions || recentCompletions.length === 0) {
+    return <p className="text-gray-600">No completed quests yet. Keep going!</p>
+  }
+  
+  return (
+    <div className="space-y-3">
+      {recentCompletions.slice(0, 3).map(quest => (
+        <div
+          key={quest.id}
+          className="p-3 bg-green-50 rounded-lg"
+        >
+          <h3 className="font-medium">{quest.quests?.title}</h3>
+          <div className="flex gap-2 mt-1">
+            {quest.quests?.quest_skill_xp?.map((award, idx) => (
+              <span key={idx} className="text-xs text-green-700">
+                +{award.xp_amount} {skillCategoryNames[award.skill_category]?.split(' ')[0]} XP
+              </span>
+            ))}
+          </div>
+          <p className="text-sm text-gray-600 mt-1">
+            Completed {new Date(quest.completed_at).toLocaleDateString()}
+          </p>
+        </div>
+      ))}
+    </div>
+  )
+})
 
 const DashboardPage = () => {
   const { user } = useAuth()
@@ -10,23 +80,16 @@ const DashboardPage = () => {
   const [portfolioData, setPortfolioData] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const skillCategoryNames = {
+  const skillCategoryNames = useMemo(() => ({
     reading_writing: 'Reading & Writing',
     thinking_skills: 'Thinking Skills',
     personal_growth: 'Personal Growth',
     life_skills: 'Life Skills',
     making_creating: 'Making & Creating',
     world_understanding: 'World Understanding'
-  }
+  }), [])
 
-  useEffect(() => {
-    if (user?.id) {
-      fetchDashboardData()
-      fetchPortfolioData()
-    }
-  }, [user?.id])
-
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = useCallback(async () => {
     try {
       const response = await api.get('/users/dashboard')
       console.log('=== DASHBOARD DEBUG ===')
@@ -42,9 +105,9 @@ const DashboardPage = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const fetchPortfolioData = async () => {
+  const fetchPortfolioData = useCallback(async () => {
     if (!user?.id) {
       console.log('No user ID available for portfolio fetch')
       return
@@ -63,40 +126,33 @@ const DashboardPage = () => {
       // Don't let portfolio failure affect the dashboard
       // The dashboard data should have everything we need
     }
-  }
+  }, [user?.id])
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
-  // Transform skill XP data for charts
-  // Handle both formats: from portfolio endpoint and from dashboard endpoint
-  let skillXPData = []
-  let totalXP = 0
-  
-  console.log('Dashboard data:', dashboardData)
-  console.log('Portfolio data:', portfolioData)
-  
-  // Check if dashboard has any non-zero XP values
-  const dashboardHasXP = dashboardData?.xp_by_category && 
-    Object.values(dashboardData.xp_by_category).some(xp => xp > 0)
-  
-  // Priority 1: Use portfolio skill_xp if available and has data
-  if (portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp) && portfolioData.skill_xp.length > 0) {
-    console.log('Using portfolio skill_xp:', portfolioData.skill_xp)
-    skillXPData = portfolioData.skill_xp
-      .filter(skill => skill.total_xp > 0) // Only include categories with XP
-      .map(skill => ({
-        category: skillCategoryNames[skill.skill_category] || skill.skill_category,
-        xp: skill.total_xp,
-        fullMark: 1000
-      }))
-    totalXP = portfolioData.total_xp || skillXPData.reduce((sum, item) => sum + item.xp, 0)
-  }
+  // Transform skill XP data for charts using memoization
+  // IMPORTANT: All hooks must be called before any conditional returns
+  const { skillXPData, totalXP } = useMemo(() => {
+    let skillXPData = []
+    let totalXP = 0
+    
+    console.log('Dashboard data:', dashboardData)
+    console.log('Portfolio data:', portfolioData)
+    
+    // Check if dashboard has any non-zero XP values
+    const dashboardHasXP = dashboardData?.xp_by_category && 
+      Object.values(dashboardData.xp_by_category).some(xp => xp > 0)
+    
+    // Priority 1: Use portfolio skill_xp if available and has data
+    if (portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp) && portfolioData.skill_xp.length > 0) {
+      console.log('Using portfolio skill_xp:', portfolioData.skill_xp)
+      skillXPData = portfolioData.skill_xp
+        .filter(skill => skill.total_xp > 0) // Only include categories with XP
+        .map(skill => ({
+          category: skillCategoryNames[skill.skill_category] || skill.skill_category,
+          xp: skill.total_xp,
+          fullMark: 1000
+        }))
+      totalXP = portfolioData.total_xp || skillXPData.reduce((sum, item) => sum + item.xp, 0)
+    }
   // Priority 2: Use dashboard xp_by_category if it has actual XP values
   else if (dashboardHasXP) {
     console.log('Using dashboard xp_by_category:', dashboardData.xp_by_category)
@@ -142,24 +198,46 @@ const DashboardPage = () => {
       xp: 0,
       fullMark: 1000
     }))
-  }
-  
-  console.log('Final skillXPData:', skillXPData)
-  console.log('Total XP:', totalXP)
+    }
+    
+    console.log('Final skillXPData:', skillXPData)
+    console.log('Total XP:', totalXP)
+    
+    return { skillXPData, totalXP }
+  }, [dashboardData, portfolioData, skillCategoryNames])
 
   // Get least developed skills for recommendations
-  const leastDevelopedSkills = skillXPData
-    .sort((a, b) => a.xp - b.xp)
-    .slice(0, 2)
-    .map(s => {
-      // Find the original category key
-      for (const [key, value] of Object.entries(skillCategoryNames)) {
-        if (value === s.category || key === s.category) {
-          return key
+  const leastDevelopedSkills = useMemo(() => {
+    return skillXPData
+      .sort((a, b) => a.xp - b.xp)
+      .slice(0, 2)
+      .map(s => {
+        // Find the original category key
+        for (const [key, value] of Object.entries(skillCategoryNames)) {
+          if (value === s.category || key === s.category) {
+            return key
+          }
         }
-      }
-      return s.category
-    })
+        return s.category
+      })
+  }, [skillXPData, skillCategoryNames])
+
+  // useEffect must be called after all other hooks
+  useEffect(() => {
+    if (user?.id) {
+      fetchDashboardData()
+      fetchPortfolioData()
+    }
+  }, [user?.id, fetchDashboardData, fetchPortfolioData])
+
+  // Early return for loading state - MUST be after all hooks
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -292,68 +370,15 @@ const DashboardPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card">
           <h2 className="text-xl font-semibold mb-4">Active Quests</h2>
-          {dashboardData?.active_quests?.length > 0 ? (
-            <div className="space-y-3">
-              {dashboardData.active_quests.map(quest => (
-                <Link
-                  key={quest.id}
-                  to={`/quests/${quest.quest_id}`}
-                  className="block p-3 bg-background rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <h3 className="font-medium">{quest.quests?.title}</h3>
-                  <div className="flex gap-2 mt-1">
-                    {quest.quests?.difficulty_level && (
-                      <span className={`text-xs px-2 py-0.5 rounded ${
-                        quest.quests.difficulty_level === 'beginner' ? 'bg-green-100 text-green-800' :
-                        quest.quests.difficulty_level === 'intermediate' ? 'bg-yellow-100 text-yellow-800' :
-                        'bg-red-100 text-red-800'
-                      }`}>
-                        {quest.quests.difficulty_level}
-                      </span>
-                    )}
-                    {quest.quests?.estimated_hours && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-800">
-                        {quest.quests.estimated_hours}h
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Started {new Date(quest.started_at).toLocaleDateString()}
-                  </p>
-                </Link>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-600">No active quests. Start exploring!</p>
-          )}
+          <ActiveQuests activeQuests={dashboardData?.active_quests} />
         </div>
 
         <div className="card">
           <h2 className="text-xl font-semibold mb-4">Recent Completions</h2>
-          {dashboardData?.recent_completions?.length > 0 ? (
-            <div className="space-y-3">
-              {dashboardData.recent_completions.slice(0, 3).map(quest => (
-                <div
-                  key={quest.id}
-                  className="p-3 bg-green-50 rounded-lg"
-                >
-                  <h3 className="font-medium">{quest.quests?.title}</h3>
-                  <div className="flex gap-2 mt-1">
-                    {quest.quests?.quest_skill_xp?.map((award, idx) => (
-                      <span key={idx} className="text-xs text-green-700">
-                        +{award.xp_amount} {skillCategoryNames[award.skill_category]?.split(' ')[0]} XP
-                      </span>
-                    ))}
-                  </div>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Completed {new Date(quest.completed_at).toLocaleDateString()}
-                  </p>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-gray-600">No completed quests yet. Keep going!</p>
-          )}
+          <RecentCompletions 
+            recentCompletions={dashboardData?.recent_completions} 
+            skillCategoryNames={skillCategoryNames}
+          />
         </div>
       </div>
 

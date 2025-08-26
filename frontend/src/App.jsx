@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { QueryClient, QueryClientProvider } from 'react-query'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './contexts/AuthContext'
+import ErrorBoundary from './components/ErrorBoundary'
 
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
@@ -22,10 +23,11 @@ const queryClient = new QueryClient()
 
 function App() {
   return (
-    <QueryClientProvider client={queryClient}>
-      <Router>
-        <AuthProvider>
-          <Toaster
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <Router>
+          <AuthProvider>
+            <Toaster
             position="top-right"
             toastOptions={{
               duration: 4000,
@@ -61,6 +63,7 @@ function App() {
         </AuthProvider>
       </Router>
     </QueryClientProvider>
+    </ErrorBoundary>
   )
 }
 

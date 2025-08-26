@@ -43,20 +43,20 @@ const QuestCard = ({ quest, isCompleted }) => {
   return (
     <Link to={`/quests/${quest.id}`} className="block">
       <div className="card hover:shadow-lg transition-shadow duration-200">
-        {isCompleted && (
-          <div className="mb-3 flex justify-end">
-            <span className="bg-green-500 text-white text-xs font-semibold px-3 py-1 rounded-full">
-              ✓ Completed
-            </span>
-          </div>
-        )}
         <div className="flex justify-between items-start mb-2">
           <h3 className="text-lg font-semibold text-gray-900 flex-1 pr-2">{quest.title}</h3>
-          {quest.requires_adult_supervision && (
-            <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full flex-shrink-0">
-              Adult Supervision
-            </span>
-          )}
+          <div className="flex gap-2 flex-shrink-0">
+            {isCompleted && (
+              <span className="bg-green-500 text-white text-xs font-semibold px-3 py-1 rounded-full">
+                ✓ Completed
+              </span>
+            )}
+            {quest.requires_adult_supervision && (
+              <span className="text-xs bg-red-100 text-red-800 px-2 py-1 rounded-full">
+                Adult Supervision
+              </span>
+            )}
+          </div>
         </div>
         
         <p className="text-gray-600 text-sm mb-3 line-clamp-2">{quest.description}</p>

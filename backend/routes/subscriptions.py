@@ -1,5 +1,6 @@
 from flask import Blueprint, request, jsonify
 import stripe
+import os
 from database import get_supabase_client
 from utils.auth_utils import require_auth
 from config import Config
@@ -7,10 +8,12 @@ from config import Config
 bp = Blueprint('subscriptions', __name__)
 stripe.api_key = Config.STRIPE_SECRET_KEY
 
+# Load Stripe price IDs from environment variables
+# These should be set in your .env file with actual Stripe price IDs
 SUBSCRIPTION_PRICES = {
-    'explorer': None,
-    'creator': 'price_XXXXX',  # Replace with your Creator price ID from Stripe
-    'visionary': 'price_XXXXX'  # Replace with your Visionary price ID from Stripe
+    'explorer': None,  # Free tier
+    'creator': os.getenv('STRIPE_CREATOR_PRICE_ID'),  # Set in .env
+    'visionary': os.getenv('STRIPE_VISIONARY_PRICE_ID')  # Set in .env
 }
 
 @bp.route('/create-checkout', methods=['POST'])
@@ -21,6 +24,12 @@ def create_checkout_session(user_id):
     
     if tier not in ['creator', 'visionary']:
         return jsonify({'error': 'Invalid subscription tier'}), 400
+    
+    # Validate that we have a price ID configured for this tier
+    if not SUBSCRIPTION_PRICES.get(tier):
+        return jsonify({
+            'error': f'Stripe price ID not configured for {tier} tier. Please contact support.'
+        }), 500
     
     supabase = get_supabase_client()
     

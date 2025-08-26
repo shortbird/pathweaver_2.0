@@ -309,9 +309,26 @@ def get_pending_submissions(user_id):
     supabase = get_supabase_admin_client()
     
     try:
-        submissions = supabase.table('submissions').select('*, user_quests(*, users(*), quests(*)), submission_evidence(*)').is_('educator_id', None).execute()
+        # Get pagination parameters
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 20, type=int)
         
-        return jsonify(submissions.data), 200
+        # Calculate range for pagination
+        start = (page - 1) * per_page
+        end = start + per_page - 1
+        
+        submissions = supabase.table('submissions')\
+            .select('*, user_quests(*, users(*), quests(*)), submission_evidence(*)', count='exact')\
+            .is_('educator_id', None)\
+            .range(start, end)\
+            .execute()
+        
+        return jsonify({
+            'submissions': submissions.data,
+            'page': page,
+            'per_page': per_page,
+            'total': submissions.count if hasattr(submissions, 'count') else len(submissions.data)
+        }), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 400
