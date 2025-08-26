@@ -3,7 +3,6 @@ import json
 import google.generativeai as genai
 from supabase import create_client, Client
 from datetime import datetime
-from sentence_transformers import SentenceTransformer
 
 class ExpanderService:
     def __init__(self):
@@ -13,7 +12,6 @@ class ExpanderService:
         )
         genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
         self.model = genai.GenerativeModel('gemini-pro')
-        self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
     
     def get_seed_prompt(self):
         """Fetch the current AI seed prompt from database"""
@@ -99,15 +97,10 @@ class ExpanderService:
             time_multiplier = min(int(quest_data['estimated_time']) / 30, 2.0)
             quest_data['xp_reward'] = min(int(base_xp * time_multiplier), 500)
             
-            # Generate embedding
-            quest_text = f"{quest_data['title']} {quest_data['description']}"
-            embedding = self.embedding_model.encode(quest_text).tolist()
-            
             # Add metadata
             quest_data['status'] = 'generated'  # Will go through grading
             quest_data['created_at'] = datetime.utcnow().isoformat()
             quest_data['created_by'] = user_id
-            quest_data['embedding'] = embedding
             quest_data['is_active'] = False  # Will be activated after grading
             quest_data['source_idea_id'] = idea_id
             

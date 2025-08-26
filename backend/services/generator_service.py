@@ -3,8 +3,6 @@ import json
 import google.generativeai as genai
 from supabase import create_client, Client
 from datetime import datetime
-import numpy as np
-from sentence_transformers import SentenceTransformer
 
 class GeneratorService:
     def __init__(self):
@@ -14,7 +12,6 @@ class GeneratorService:
         )
         genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
         self.model = genai.GenerativeModel('gemini-pro')
-        self.embedding_model = SentenceTransformer('all-MiniLM-L6-v2')
     
     def get_seed_prompt(self):
         """Fetch the current AI seed prompt from database"""
@@ -56,24 +53,15 @@ class GeneratorService:
         }
     
     def check_semantic_duplicates(self, quest_title, quest_description):
-        """Check for semantic duplicates using vector embeddings"""
-        # Create embedding for the new quest
-        new_quest_text = f"{quest_title} {quest_description}"
-        new_embedding = self.embedding_model.encode(new_quest_text)
-        
-        # Fetch existing quest embeddings
-        existing_quests = self.supabase.table('quests').select('id, title, embedding').execute()
+        """Check for duplicates using simple text matching for now"""
+        # For now, just check for exact title matches
+        # TODO: Implement semantic similarity when we have a lightweight solution
+        existing_quests = self.supabase.table('quests').select('id, title').execute()
         
         if existing_quests.data:
             for quest in existing_quests.data:
-                if quest.get('embedding'):
-                    # Calculate cosine similarity
-                    existing_embedding = np.array(quest['embedding'])
-                    similarity = np.dot(new_embedding, existing_embedding) / (np.linalg.norm(new_embedding) * np.linalg.norm(existing_embedding))
-                    
-                    # If similarity is above threshold, it's likely a duplicate
-                    if similarity > 0.85:
-                        return True, quest['title']
+                if quest['title'].lower() == quest_title.lower():
+                    return True, quest['title']
         
         return False, None
     
@@ -150,14 +138,9 @@ class GeneratorService:
                 int(quest_data['estimated_time'])
             )
             
-            # Generate embedding
-            quest_text = f"{quest_data['title']} {quest_data['description']}"
-            embedding = self.embedding_model.encode(quest_text).tolist()
-            
             # Add metadata
             quest_data['status'] = 'generated'
             quest_data['created_at'] = datetime.utcnow().isoformat()
-            quest_data['embedding'] = embedding
             quest_data['is_active'] = False  # Will be activated after grading
             
             # Save to database
