@@ -127,7 +127,22 @@ class GeneratorService:
         
         try:
             response = self.model.generate_content(prompt)
-            quest_data = json.loads(response.text)
+            
+            # Extract JSON from the response (handle markdown code blocks)
+            response_text = response.text
+            
+            # Remove markdown code blocks if present
+            if '```json' in response_text:
+                response_text = response_text.split('```json')[1].split('```')[0]
+            elif '```' in response_text:
+                response_text = response_text.split('```')[1].split('```')[0]
+            
+            # Clean up the response
+            response_text = response_text.strip()
+            
+            print(f"AI Response (cleaned): {response_text[:200]}...")
+            
+            quest_data = json.loads(response_text)
             
             # Check for semantic duplicates
             is_duplicate, duplicate_title = self.check_semantic_duplicates(
@@ -155,8 +170,14 @@ class GeneratorService:
             
             return result.data[0] if result.data else None
             
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSON from AI response: {str(e)}")
+            print(f"Response was: {response_text if 'response_text' in locals() else 'No response'}")
+            return None
         except Exception as e:
             print(f"Error generating quest: {str(e)}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def run_generation_cycle(self):
