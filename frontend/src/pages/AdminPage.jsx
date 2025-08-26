@@ -3,7 +3,6 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 import AdminQuestManager from './AdminQuestManager'
-import AIQuestGenerator from '../components/AIQuestGenerator'
 import AIQuestBulkGenerator from '../components/AIQuestBulkGenerator'
 
 const AdminDashboard = () => {
@@ -62,7 +61,6 @@ const AdminQuests = () => {
   const [loading, setLoading] = useState(true)
   const [showManager, setShowManager] = useState(false)
   const [editingQuest, setEditingQuest] = useState(null)
-  const [showAIGenerator, setShowAIGenerator] = useState(false)
   const [showBulkGenerator, setShowBulkGenerator] = useState(false)
   const [collapsedQuests, setCollapsedQuests] = useState(new Set())
 
@@ -107,9 +105,6 @@ const AdminQuests = () => {
     }
   }
 
-  const handleAIQuestAccepted = () => {
-    fetchQuests()
-  }
 
   const getSkillCategoryName = (category) => {
     const categoryNames = {
@@ -181,13 +176,6 @@ const AdminQuests = () => {
             <span>Bulk Generate</span>
           </button>
           <button
-            onClick={() => setShowAIGenerator(true)}
-            className="bg-gradient-to-r from-purple-600 to-blue-600 text-white px-4 py-2 rounded hover:from-purple-700 hover:to-blue-700 flex items-center gap-2"
-          >
-            <span>🤖</span>
-            <span>AI Generate</span>
-          </button>
-          <button
             onClick={() => {
               setEditingQuest(null)
               setShowManager(true)
@@ -206,12 +194,6 @@ const AdminQuests = () => {
         />
       )}
 
-      {showAIGenerator && (
-        <AIQuestGenerator
-          onQuestAccepted={handleAIQuestAccepted}
-          onClose={() => setShowAIGenerator(false)}
-        />
-      )}
 
       {showManager && (
         <AdminQuestManager

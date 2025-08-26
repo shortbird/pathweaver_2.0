@@ -489,21 +489,30 @@ def get_generation_jobs(user_id):
     try:
         response = supabase.table('ai_generation_jobs')\
             .select('*')\
-            .order('created_at', {'ascending': False})\
+            .order('created_at', desc=True)\
             .limit(50)\
             .execute()
         
-        return jsonify({'jobs': response.data}), 200
+        return jsonify({'jobs': response.data if response.data else []}), 200
         
     except Exception as e:
         error_msg = str(e)
         print(f"Error in get_generation_jobs: {error_msg}")
-        if 'does not exist' in error_msg:
-            return jsonify({
-                'error': 'AI quest tables not found. Please run the migration.',
-                'details': error_msg,
-                'solution': 'Run the SQL migration in backend/migrations/add_ai_generation_tables.sql'
-            }), 400
+        
+        # Try to check if table exists
+        try:
+            test_response = supabase.table('ai_generation_jobs').select('id').limit(1).execute()
+            # Table exists but might be empty
+            return jsonify({'jobs': []}), 200
+        except:
+            # Table doesn't exist
+            if 'does not exist' in error_msg or 'relation' in error_msg.lower():
+                return jsonify({
+                    'error': 'AI quest tables not found. Please run the migration.',
+                    'details': error_msg,
+                    'solution': 'Run the SQL migration in backend/migrations/add_ai_generation_tables.sql'
+                }), 400
+        
         return jsonify({'error': error_msg}), 400
 
 @bp.route('/review-queue', methods=['GET'])
@@ -518,22 +527,31 @@ def get_review_queue(user_id):
         response = supabase.table('ai_generated_quests')\
             .select('*')\
             .eq('review_status', 'pending')\
-            .order('quality_score', {'ascending': False})\
+            .order('quality_score', desc=True)\
             .limit(50)\
             .execute()
         
-        print(f"Review queue response: {len(response.data)} quests found")
-        return jsonify({'quests': response.data}), 200
+        print(f"Review queue response: {len(response.data) if response.data else 0} quests found")
+        return jsonify({'quests': response.data if response.data else []}), 200
         
     except Exception as e:
         error_msg = str(e)
         print(f"Error in get_review_queue: {error_msg}")
-        if 'does not exist' in error_msg:
-            return jsonify({
-                'error': 'AI quest tables not found. Please run the migration.',
-                'details': error_msg,
-                'solution': 'Run the SQL migration in backend/migrations/add_ai_generation_tables.sql'
-            }), 400
+        
+        # Try to check if table exists
+        try:
+            test_response = supabase.table('ai_generated_quests').select('id').limit(1).execute()
+            # Table exists but might be empty
+            return jsonify({'quests': []}), 200
+        except:
+            # Table doesn't exist
+            if 'does not exist' in error_msg or 'relation' in error_msg.lower():
+                return jsonify({
+                    'error': 'AI quest tables not found. Please run the migration.',
+                    'details': error_msg,
+                    'solution': 'Run the SQL migration in backend/migrations/add_ai_generation_tables.sql'
+                }), 400
+        
         return jsonify({'error': error_msg}), 400
 
 @bp.route('/review/<quest_id>', methods=['POST'])

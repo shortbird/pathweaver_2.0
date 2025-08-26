@@ -34,7 +34,9 @@ const AIQuestBulkGenerator = ({ onClose, onQuestsGenerated }) => {
       const response = await api.get('/ai-quests/generation-jobs')
       setGenerationJobs(response.data.jobs || [])
     } catch (error) {
-      console.error('Error fetching generation jobs:', error)
+      console.error('Error fetching generation jobs:', error.response?.data || error)
+      // Set empty array on error to avoid issues
+      setGenerationJobs([])
     }
   }
 
@@ -43,7 +45,9 @@ const AIQuestBulkGenerator = ({ onClose, onQuestsGenerated }) => {
       const response = await api.get('/ai-quests/review-queue')
       setReviewQueue(response.data.quests || [])
     } catch (error) {
-      console.error('Error fetching review queue:', error)
+      console.error('Error fetching review queue:', error.response?.data || error)
+      // Set empty array on error to avoid issues
+      setReviewQueue([])
     }
   }
 
