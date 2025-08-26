@@ -24,7 +24,21 @@ def configure_cors(app):
     # Production domains
     production_domains = [
         'https://pathweaver-2-0.vercel.app',
-        'https://pathweaver20-production.up.railway.app'
+        'https://pathweaver20-production.up.railway.app',
+        # Optio Education domains
+        'https://optioed.org',
+        'https://www.optioed.org',
+        'https://optioeducation.com',
+        'https://www.optioeducation.com',
+        'https://optioed.com',
+        'https://www.optioed.com',
+        # HTTP versions (if needed during transition)
+        'http://optioed.org',
+        'http://www.optioed.org',
+        'http://optioeducation.com',
+        'http://www.optioeducation.com',
+        'http://optioed.com',
+        'http://www.optioed.com'
     ]
     
     # Only add production domains if they're not already in the list
