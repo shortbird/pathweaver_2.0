@@ -380,7 +380,7 @@ def generate_batch(user_id):
                             'generation_job_id': job_id,
                             'quest_data': quest,
                             'quality_score': quality_score,
-                            'review_status': 'approved' if quality_score >= 80 and not duplicate_of else 'pending',
+                            'review_status': 'pending',  # Always require manual review
                             'duplicate_of_quest_id': None,  # Would need to look up actual ID
                             'quality_metrics': {
                                 'clarity': quality_score * 0.25,
@@ -402,11 +402,12 @@ def generate_batch(user_id):
             supabase.table('ai_generated_quests').insert(all_generated_quests).execute()
         
         # Update job status
-        approved_count = len([q for q in all_generated_quests if q['review_status'] == 'approved'])
+        pending_count = len(all_generated_quests)
+        high_quality_count = len([q for q in all_generated_quests if q['quality_score'] >= 80])
         job_update = {
             'status': 'completed',
             'generated_count': len(all_generated_quests),
-            'approved_count': approved_count,
+            'approved_count': 0,  # None auto-approved anymore
             'completed_at': datetime.utcnow().isoformat()
         }
         
@@ -415,7 +416,8 @@ def generate_batch(user_id):
         return jsonify({
             'job_id': job_id,
             'generated_count': len(all_generated_quests),
-            'approved_count': approved_count,
+            'pending_review': pending_count,
+            'high_quality': high_quality_count,
             'failed_count': failed_count,
             'status': 'completed'
         }), 200
@@ -532,6 +534,7 @@ def review_quest(user_id, quest_id):
                 'collaboration_ideas': quest_data.get('collaboration_ideas'),
                 'optional_challenges': quest_data.get('optional_challenges'),
                 'is_ai_generated': True,
+                'created_by': user_id,  # Track who approved/published it
                 'created_at': datetime.utcnow().isoformat()
             }
             
@@ -616,7 +619,7 @@ def get_quality_metrics(user_id):
 @bp.route('/auto-publish', methods=['POST'])
 @require_admin
 def auto_publish_high_quality(user_id):
-    """Automatically publish all high-quality quests (score >= 80)"""
+    """Automatically publish all high-quality quests (score >= 95)"""
     
     supabase = get_supabase_admin_client()
     
@@ -625,7 +628,7 @@ def auto_publish_high_quality(user_id):
         response = supabase.table('ai_generated_quests')\
             .select('*')\
             .eq('review_status', 'pending')\
-            .gte('quality_score', 80)\
+            .gte('quality_score', 95)\
             .execute()
         
         published_count = 0
@@ -652,7 +655,8 @@ def auto_publish_high_quality(user_id):
                 'requires_adult_supervision': quest_data.get('requires_adult_supervision', False),
                 'collaboration_ideas': quest_data.get('collaboration_ideas'),
                 'optional_challenges': quest_data.get('optional_challenges'),
-                'is_ai_generated': True
+                'is_ai_generated': True,
+                'created_by': user_id
             }
             
             # Insert quest

@@ -61,7 +61,7 @@ const AIQuestBulkGenerator = ({ onClose, onQuestsGenerated }) => {
       })
 
       if (response.data) {
-        toast.success(`Successfully generated ${response.data.generated_count} quests! ${response.data.approved_count} were auto-approved.`)
+        toast.success(`Successfully generated ${response.data.generated_count} quests! ${response.data.high_quality || 0} are high quality. All quests require manual review before publishing.`)
         fetchGenerationJobs()
         setActiveTab('review')
         fetchReviewQueue()
