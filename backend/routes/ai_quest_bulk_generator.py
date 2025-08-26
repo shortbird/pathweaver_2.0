@@ -399,7 +399,13 @@ def generate_batch(user_id):
         
         # Insert generated quests
         if all_generated_quests:
-            supabase.table('ai_generated_quests').insert(all_generated_quests).execute()
+            print(f"Inserting {len(all_generated_quests)} generated quests...")
+            try:
+                insert_result = supabase.table('ai_generated_quests').insert(all_generated_quests).execute()
+                print(f"Successfully inserted {len(insert_result.data)} quests")
+            except Exception as insert_error:
+                print(f"Error inserting quests: {str(insert_error)}")
+                raise
         
         # Update job status
         pending_count = len(all_generated_quests)
@@ -468,6 +474,7 @@ def get_review_queue(user_id):
             .limit(50)\
             .execute()
         
+        print(f"Review queue response: {len(response.data)} quests found")
         return jsonify({'quests': response.data}), 200
         
     except Exception as e:
