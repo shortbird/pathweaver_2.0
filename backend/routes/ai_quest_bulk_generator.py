@@ -559,12 +559,16 @@ def get_review_queue(user_id):
 def review_quest(user_id, quest_id):
     """Review and approve/reject/modify a generated quest"""
     
+    print(f"Review quest called - user_id: {user_id}, quest_id: {quest_id}")
+    
     supabase = get_supabase_admin_client()
     data = request.json
     
     action = data.get('action')  # approve, reject, modify
     modifications = data.get('modifications', {})
     notes = data.get('notes', '')
+    
+    print(f"Action: {action}, Modifications: {modifications}")
     
     if action not in ['approve', 'reject', 'modify']:
         return jsonify({'error': 'Invalid action'}), 400
@@ -686,7 +690,28 @@ def review_quest(user_id, quest_id):
         return jsonify({'success': True, 'action': action}), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        error_msg = str(e)
+        print(f"Error in review_quest: {error_msg}")
+        print(f"Full error details: {repr(e)}")
+        
+        # Check for specific error types
+        if 'violates foreign key constraint' in error_msg:
+            return jsonify({
+                'error': 'Database constraint error',
+                'details': error_msg,
+                'hint': 'The quest references invalid data. Check skill categories and user IDs.'
+            }), 400
+        elif 'null value in column' in error_msg:
+            return jsonify({
+                'error': 'Missing required field',
+                'details': error_msg,
+                'hint': 'Some required quest fields are missing.'
+            }), 400
+        
+        return jsonify({
+            'error': 'Failed to process quest review',
+            'details': error_msg
+        }), 400
 
 @bp.route('/quality-metrics', methods=['GET'])
 @require_admin

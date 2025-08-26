@@ -103,7 +103,14 @@ const AIQuestBulkGenerator = ({ onClose, onQuestsGenerated }) => {
       }
     } catch (error) {
       console.error('Error reviewing quest:', error)
-      toast.error('Failed to review quest. Please try again.')
+      const errorMessage = error.response?.data?.error || error.response?.data?.details || 'Failed to review quest'
+      const hint = error.response?.data?.hint
+      
+      if (hint) {
+        toast.error(`${errorMessage}\n${hint}`)
+      } else {
+        toast.error(errorMessage)
+      }
     } finally {
       setIsReviewing(false)
     }
