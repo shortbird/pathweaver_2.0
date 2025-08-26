@@ -55,7 +55,13 @@ const QuestDetailPage = () => {
       setUserQuest(response.data)
       toast.success('Quest started! Begin your adventure!')
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to start quest')
+      const errorMessage = error.response?.data?.error
+      // Ensure the error message is a string
+      if (typeof errorMessage === 'object' && errorMessage !== null) {
+        toast.error(errorMessage.message || JSON.stringify(errorMessage))
+      } else {
+        toast.error(errorMessage || 'Failed to start quest')
+      }
     }
   }
 
@@ -98,7 +104,13 @@ const QuestDetailPage = () => {
       navigate('/dashboard')
       return true
     } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to submit quest')
+      const errorMessage = error.response?.data?.error
+      // Ensure the error message is a string
+      if (typeof errorMessage === 'object' && errorMessage !== null) {
+        toast.error(errorMessage.message || JSON.stringify(errorMessage))
+      } else {
+        toast.error(errorMessage || 'Failed to submit quest')
+      }
       return false
     }
   }

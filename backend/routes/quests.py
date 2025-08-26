@@ -196,7 +196,12 @@ def start_quest(user_id, quest_id):
             'event_details': {'quest_id': quest_id}
         }).execute()
         
-        return jsonify(response.data[0]), 201
+        # Check if data exists and is not empty
+        if response.data and len(response.data) > 0:
+            return jsonify(response.data[0]), 201
+        else:
+            # Return the inserted user_quest with an id
+            return jsonify(user_quest), 201
         
     except Exception as e:
         return jsonify({'error': str(e)}), 400
