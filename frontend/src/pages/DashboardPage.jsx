@@ -30,8 +30,16 @@ const ActiveQuests = memo(({ activeQuests }) => {
           console.warn('Quest missing ID, showing placeholder:', quest)
           return (
             <div key={quest.id} className="p-3 bg-yellow-50 rounded-lg">
-              <p className="text-yellow-800">Quest data loading issue - please refresh</p>
-              <p className="text-sm text-gray-600 mt-1">Quest ID: {quest.id}</p>
+              <p className="text-yellow-800">Quest data loading issue</p>
+              <p className="text-sm text-gray-600 mt-1">User Quest ID: {quest.id}</p>
+              <p className="text-sm text-gray-600">Quest ID field: {quest.quest_id || 'missing'}</p>
+              <p className="text-sm text-gray-600">Quest object ID: {quest.quests?.id || 'no quest object'}</p>
+              <button 
+                onClick={() => console.log('Full quest data:', quest)}
+                className="text-xs text-blue-600 hover:underline mt-2"
+              >
+                Log full data to console
+              </button>
             </div>
           )
         }
