@@ -35,7 +35,9 @@ const QuestDetailPage = () => {
       setQuest(questResponse.data)
 
       const userQuestsResponse = await api.get(`/quests/user/${user.id}/quests`)
-      const existingUserQuest = userQuestsResponse.data.find(uq => uq.quest_id === id)
+      // The response has a 'quests' property that contains the array
+      const userQuests = userQuestsResponse.data.quests || []
+      const existingUserQuest = userQuests.find(uq => uq.quest_id === id)
       setUserQuest(existingUserQuest)
 
       if (existingUserQuest) {

@@ -107,16 +107,16 @@ const AdminReviewQueue = () => {
                 <div className="flex justify-between items-start mb-2">
                   <h4 className="font-semibold text-gray-900">{quest.title}</h4>
                   <span className="px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full">
-                    Score: {quest.ai_grade_score}
+                    Score: {quest.ai_grade_score || 0}
                   </span>
                 </div>
-                <p className="text-sm text-gray-600 line-clamp-2">{quest.description}</p>
+                <p className="text-sm text-gray-600 line-clamp-2">{quest.description || quest.big_idea}</p>
                 <div className="mt-2 flex gap-2">
                   <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                    {quest.pillar}
+                    {quest.primary_pillar || quest.pillar || 'N/A'}
                   </span>
                   <span className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
-                    {quest.difficulty}
+                    {quest.difficulty_level || quest.difficulty || 'N/A'}
                   </span>
                 </div>
               </div>
@@ -131,17 +131,17 @@ const AdminReviewQueue = () => {
               <div className="space-y-4">
                 <div>
                   <label className="text-sm font-semibold text-gray-700">Description</label>
-                  <p className="text-gray-600 mt-1">{selectedQuest.description}</p>
+                  <p className="text-gray-600 mt-1">{selectedQuest.description || selectedQuest.big_idea}</p>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <label className="text-sm font-semibold text-gray-700">Pillar</label>
-                    <p className="text-gray-600">{selectedQuest.pillar}</p>
+                    <p className="text-gray-600">{selectedQuest.primary_pillar || selectedQuest.pillar || 'N/A'}</p>
                   </div>
                   <div>
                     <label className="text-sm font-semibold text-gray-700">Difficulty</label>
-                    <p className="text-gray-600">{selectedQuest.difficulty}</p>
+                    <p className="text-gray-600">{selectedQuest.difficulty_level || selectedQuest.difficulty || 'N/A'}</p>
                   </div>
                 </div>
 

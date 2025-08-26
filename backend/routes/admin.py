@@ -4,6 +4,7 @@ from utils.auth_utils import require_admin
 from datetime import datetime
 import csv
 import io
+import json
 
 bp = Blueprint('admin', __name__)
 
@@ -417,14 +418,30 @@ def get_pending_quests(user_id):
     supabase = get_supabase_admin_client()
     
     try:
-        # Get quests with status 'generated' that need review
-        pending = supabase.table('quests')\
+        # Get AI-generated quests pending review from the ai_generated_quests table
+        pending = supabase.table('ai_generated_quests')\
             .select('*')\
-            .eq('status', 'generated')\
+            .eq('review_status', 'pending')\
             .order('created_at', desc=False)\
             .execute()
         
-        return jsonify({'quests': pending.data if pending.data else []}), 200
+        # Transform the data to match the expected format
+        quests = []
+        if pending.data:
+            for item in pending.data:
+                quest_data = item.get('quest_data', {})
+                # Add necessary fields from the review queue record
+                quest_data['id'] = item['id']
+                quest_data['ai_grade_score'] = item.get('quality_score', 0)
+                quest_data['ai_grade_feedback'] = json.dumps({
+                    'feedback': f"Quality score: {item.get('quality_score', 0)}/100",
+                    'strengths': [],
+                    'weaknesses': []
+                })
+                quest_data['created_at'] = item.get('created_at')
+                quests.append(quest_data)
+        
+        return jsonify({'quests': quests}), 200
         
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -432,17 +449,63 @@ def get_pending_quests(user_id):
 @bp.route('/approve-quest/<quest_id>', methods=['POST'])
 @require_admin
 def approve_quest(user_id, quest_id):
-    """Approve an AI-generated quest"""
+    """Approve an AI-generated quest from the review queue"""
     supabase = get_supabase_admin_client()
     
     try:
-        # Update quest status to active
-        result = supabase.table('quests')\
-            .update({'status': 'active'})\
+        # Get the quest from ai_generated_quests table
+        review_quest = supabase.table('ai_generated_quests')\
+            .select('*')\
             .eq('id', quest_id)\
+            .single()\
             .execute()
         
-        return jsonify({'message': 'Quest approved successfully'}), 200
+        if not review_quest.data:
+            return jsonify({'error': 'Quest not found in review queue'}), 404
+        
+        quest_data = review_quest.data['quest_data']
+        
+        # Insert the approved quest into the main quests table
+        # Remove fields that shouldn't be in the quests table
+        fields_to_remove = ['id', 'ai_grade_score', 'ai_grade_feedback', 'skill_xp_awards']
+        for field in fields_to_remove:
+            quest_data.pop(field, None)
+        
+        # Add required fields for the quests table
+        quest_data['status'] = 'active'
+        quest_data['created_by'] = user_id
+        quest_data['created_at'] = datetime.utcnow().isoformat()
+        
+        # Insert into quests table
+        new_quest = supabase.table('quests').insert(quest_data).execute()
+        
+        if new_quest.data and len(new_quest.data) > 0:
+            published_quest_id = new_quest.data[0]['id']
+            
+            # Create skill XP awards if specified in the original quest data
+            original_quest_data = review_quest.data['quest_data']
+            if 'skill_xp_awards' in original_quest_data:
+                for award in original_quest_data['skill_xp_awards']:
+                    supabase.table('quest_skill_xp').insert({
+                        'quest_id': published_quest_id,
+                        'skill_category': award['skill_category'],
+                        'xp_amount': award['xp_amount']
+                    }).execute()
+            
+            # Update the review status
+            supabase.table('ai_generated_quests')\
+                .update({
+                    'review_status': 'approved',
+                    'reviewed_at': datetime.utcnow().isoformat(),
+                    'reviewer_id': user_id,
+                    'published_quest_id': published_quest_id
+                })\
+                .eq('id', quest_id)\
+                .execute()
+            
+            return jsonify({'message': 'Quest approved and published successfully'}), 200
+        
+        return jsonify({'error': 'Failed to publish quest'}), 500
         
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -450,13 +513,17 @@ def approve_quest(user_id, quest_id):
 @bp.route('/reject-quest/<quest_id>', methods=['POST'])
 @require_admin
 def reject_quest(user_id, quest_id):
-    """Reject an AI-generated quest"""
+    """Reject an AI-generated quest from the review queue"""
     supabase = get_supabase_admin_client()
     
     try:
-        # Update quest status to rejected
-        result = supabase.table('quests')\
-            .update({'status': 'rejected'})\
+        # Update the review status to rejected
+        result = supabase.table('ai_generated_quests')\
+            .update({
+                'review_status': 'rejected',
+                'reviewed_at': datetime.utcnow().isoformat(),
+                'reviewer_id': user_id
+            })\
             .eq('id', quest_id)\
             .execute()
         

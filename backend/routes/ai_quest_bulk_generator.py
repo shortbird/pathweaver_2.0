@@ -10,6 +10,9 @@ from typing import List, Dict, Any, Optional
 import time
 import random
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.quest_framework_validator import QuestFrameworkValidator
 
 bp = Blueprint('ai_quest_bulk_generator', __name__)
 
@@ -91,9 +94,11 @@ class BulkQuestGenerator:
         
         existing_titles_str = '\n'.join([f"- {title}" for title in existing_titles[:50]]) if existing_titles else "None"
         
-        prompt = f"""You are an expert educational quest designer specializing in {pillar_info.get('name', pillar)} development.
+        prompt = f"""You are an expert quest designer following The Quest Creation Framework.
 
-Create exactly {count} unique, narrative-driven quests for the "{pillar}" diploma pillar.
+Core Philosophy: The process is the goal. Every quest must inspire students to do, create, and reflect for its own sake, not to prove they did it.
+
+Create exactly {count} unique quests for the "{pillar_info.get('name', pillar)}" diploma pillar.
 
 PILLAR FOCUS: {pillar_info.get('name', pillar)}
 Core Competencies: {competencies_list}
@@ -107,47 +112,75 @@ INTENSITY LEVEL: {intensity}
 EXISTING QUESTS TO AVOID (don't create similar):
 {existing_titles_str}
 
-For each quest, provide the following in valid JSON format:
+Each quest MUST follow this EXACT framework structure:
+
+1. THE BIG PICTURE (The "Why"):
+- title: Action-oriented title starting with a verb (e.g., "Launch", "Build", "Create", NOT "Learn About")
+- big_idea: Single powerful sentence explaining the quest's purpose
+- what_youll_create: 2-4 tangible, exciting outcomes (array)
+- primary_pillar: "{pillar}"
+
+2. YOUR TOOLKIT (The "How"):
+- estimated_time: Realistic time estimate (e.g., "10-15 hours over 2-3 weeks")
+- intensity: "{intensity}"
+- helpful_resources: Objects with tools, materials, and links (1-3 quality starting points)
+
+3. THE JOURNEY (The "What"):
+- your_mission: 3-5 step guide focused on the creative process (array)
+- showcase_your_journey: How to celebrate work, asking for both product and reflection
+
+4. THE LEARNING LOG:
+- log_bonus: Object with description encouraging process documentation, xp_amount: 25
+
+5. GO FURTHER:
+- collaboration_spark: Direct call to action for teamwork (awards 2x XP)
+- real_world_bonus: Challenge for real-world interaction, xp_amount: 50
+
+6. FINE PRINT:
+- heads_up: Safety warnings or important context (or null)
+- location: Where this can be done (default: "anywhere")
+
+For each quest, return this EXACT JSON format:
 {{
-  "title": "Engaging, narrative title (max 100 chars)",
-  "big_idea": "The overarching concept or challenge (100-200 chars)",
-  "what_youll_create": ["List of", "tangible outcomes", "or deliverables"],
+  "title": "Action verb + compelling outcome",
+  "big_idea": "One sentence that sparks curiosity and provides vision",
+  "what_youll_create": ["Tangible outcome 1", "Tangible outcome 2"],
   "primary_pillar": "{pillar}",
   "intensity": "{intensity}",
-  "estimated_time": "Time estimate (e.g., '2-3 hours', '1 week', 'ongoing')",
-  "your_mission": ["Step 1 action", "Step 2 action", "Step 3 action"],
-  "showcase_your_journey": "How to document and share your work",
+  "estimated_time": "X-Y hours over Z weeks",
+  "your_mission": ["Step 1: Specific action", "Step 2: Specific action", "Step 3: Specific action"],
+  "showcase_your_journey": "Share [specific deliverable]. In your submission, include [reflection prompt]",
   "helpful_resources": {{
-    "tools": ["tool1", "tool2"],
-    "materials": ["material1", "material2"],
-    "links": ["helpful URL or resource"]
+    "tools": ["Specific tool with purpose"],
+    "materials": ["Specific material needed"],
+    "links": ["Curated resource or inspiration"]
   }},
-  "collaboration_spark": "Ideas for working with others",
+  "collaboration_spark": "Partner with [who] to [specific collaborative action] for 2x XP!",
   "real_world_bonus": {{
-    "description": "Extension challenge",
+    "description": "Present/share/teach [specific action] with [audience]",
     "xp_amount": 50
   }},
   "log_bonus": {{
-    "description": "Reward for keeping a learning log",
+    "description": "Add at least 3 log entries documenting your progress and earn bonus XP!",
     "xp_amount": 25
   }},
-  "heads_up": "Safety or important considerations (optional)",
-  "location": "Where this can be done",
+  "heads_up": null or "Specific safety/context note",
+  "location": "anywhere" or specific location,
   "skill_xp_awards": [
     {{
       "skill_category": "{pillar}",
-      "xp_amount": number (25-300 based on intensity)
+      "xp_amount": {25 if intensity == 'light' else 100 if intensity == 'moderate' else 200}
     }}
   ]
 }}
 
 CRITICAL REQUIREMENTS:
-- Each quest must be NARRATIVE-DRIVEN and intrinsically motivating
-- Focus on the learning journey, not just the outcome
+- Title MUST start with action verb
+- Focus on process over product
+- Make it narrative-driven and intrinsically motivating
 - Emphasize {pillar_info.get('name', pillar)} competencies
-- Make quests feel like adventures or challenges
-- Ensure clear but flexible completion paths
-- XP awards should match intensity (light: 25-75, moderate: 75-150, intensive: 150-300)
+- Clear but flexible completion paths
+- Celebrate the journey, not just the outcome
 
 Return ONLY a JSON array with exactly {count} quest objects."""
         
@@ -279,56 +312,9 @@ Return ONLY a JSON array with exactly {count} quest objects."""
         return []
     
     def calculate_quality_score(self, quest: Dict) -> float:
-        """Calculate quality score for a generated quest"""
-        
-        score = 0.0
-        
-        # Big Idea clarity (25%)
-        big_idea = quest.get('big_idea', '')
-        if len(big_idea) > 100:
-            score += 25
-        elif len(big_idea) > 50:
-            score += 15
-        else:
-            score += 5
-        
-        # Mission clarity and structure (25%)
-        mission = quest.get('your_mission', [])
-        if isinstance(mission, list) and len(mission) >= 3:
-            score += 25
-        elif isinstance(mission, list) and len(mission) >= 2:
-            score += 15
-        else:
-            score += 5
-        
-        # Engagement potential (20%)
-        title = quest.get('title', '')
-        if title and len(title) > 20 and not title.lower().startswith(('learn', 'start', 'begin')):
-            score += 20
-        elif title and len(title) > 10:
-            score += 10
-        else:
-            score += 5
-        
-        # Resources and support (15%)
-        resources = quest.get('helpful_resources', {})
-        if isinstance(resources, dict) and len(resources) >= 2:
-            score += 15
-        elif resources:
-            score += 7
-        else:
-            score += 3
-        
-        # Journey documentation clarity (15%)
-        showcase = quest.get('showcase_your_journey', '')
-        if showcase and len(showcase) > 50:
-            score += 15
-        elif showcase:
-            score += 7
-        else:
-            score += 3
-        
-        return score
+        """Calculate quality score for a generated quest using the framework validator"""
+        validator = QuestFrameworkValidator()
+        return validator.calculate_quality_score(quest)
     
     def check_for_duplicates(self, quest_title: str, existing_titles: List[str], 
                             threshold: float = 0.8) -> Optional[str]:
@@ -425,6 +411,13 @@ def generate_batch(user_id):
                         # Ensure intensity is set if not present
                         if 'intensity' not in quest:
                             quest['intensity'] = prompt_info['intensity']
+                        
+                        # Validate and enhance quest
+                        validator = QuestFrameworkValidator()
+                        is_valid, errors = validator.validate_quest(quest)
+                        if not is_valid:
+                            print(f"Quest validation errors: {errors}")
+                            quest = validator.enhance_quest(quest)
                         
                         # Calculate quality score
                         quality_score = generator.calculate_quality_score(quest)
