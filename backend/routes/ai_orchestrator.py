@@ -76,15 +76,19 @@ def manage_ai_seed():
                 os.environ.get('SUPABASE_SERVICE_KEY')
             )
             
-            response = supabase.table('ai_seeds').select('*').eq('prompt_name', 'primary_seed').single().execute()
+            response = supabase.table('ai_seeds').select('*').limit(1).execute()
             
-            if response.data:
+            if response.data and len(response.data) > 0:
                 return jsonify({
-                    'prompt_text': response.data['prompt_text'],
-                    'updated_at': response.data['updated_at']
+                    'prompt_text': response.data[0]['prompt_text'],
+                    'updated_at': response.data[0].get('updated_at', '')
                 }), 200
             else:
-                return jsonify({'error': 'Seed prompt not found'}), 404
+                # Return default prompt if none exists
+                return jsonify({
+                    'prompt_text': 'Generate educational quests focused on the five pillars: Physical Wellness, Mental Wellness, Financial Literacy, Life Skills, and Purpose & Contribution.',
+                    'updated_at': ''
+                }), 200
                 
         except Exception as e:
             return jsonify({'error': str(e)}), 500
@@ -105,10 +109,22 @@ def manage_ai_seed():
                 os.environ.get('SUPABASE_SERVICE_KEY')
             )
             
-            response = supabase.table('ai_seeds').update({
-                'prompt_text': prompt_text,
-                'updated_at': datetime.utcnow().isoformat()
-            }).eq('prompt_name', 'primary_seed').execute()
+            # Check if seed exists
+            existing = supabase.table('ai_seeds').select('*').limit(1).execute()
+            
+            if existing.data and len(existing.data) > 0:
+                # Update existing seed
+                response = supabase.table('ai_seeds').update({
+                    'prompt_text': prompt_text,
+                    'updated_at': datetime.utcnow().isoformat()
+                }).eq('id', existing.data[0]['id']).execute()
+            else:
+                # Create new seed
+                response = supabase.table('ai_seeds').insert({
+                    'prompt_text': prompt_text,
+                    'created_at': datetime.utcnow().isoformat(),
+                    'updated_at': datetime.utcnow().isoformat()
+                }).execute()
             
             return jsonify({'message': 'Seed prompt updated successfully'}), 200
             

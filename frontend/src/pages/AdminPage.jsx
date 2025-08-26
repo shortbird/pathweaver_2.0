@@ -525,7 +525,9 @@ const AdminSubmissions = () => {
   const fetchSubmissions = async () => {
     try {
       const response = await api.get('/admin/submissions/pending')
-      setSubmissions(response.data)
+      // Handle both array and object with submissions property
+      const submissionsData = response.data.submissions || response.data || []
+      setSubmissions(Array.isArray(submissionsData) ? submissionsData : [])
     } catch (error) {
       toast.error('Failed to load submissions')
     } finally {

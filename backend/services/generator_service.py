@@ -15,8 +15,15 @@ class GeneratorService:
     
     def get_seed_prompt(self):
         """Fetch the current AI seed prompt from database"""
-        response = self.supabase.table('ai_seeds').select('prompt_text').eq('prompt_name', 'primary_seed').single().execute()
-        return response.data['prompt_text'] if response.data else "Generate educational quests focused on the five pillars: Physical Wellness, Mental Wellness, Financial Literacy, Life Skills, and Purpose & Contribution."
+        try:
+            response = self.supabase.table('ai_seeds').select('prompt_text').limit(1).execute()
+            if response.data and len(response.data) > 0:
+                return response.data[0]['prompt_text']
+        except Exception as e:
+            print(f"Error fetching AI seed: {e}")
+        
+        # Default prompt if no seed exists
+        return "Generate educational quests focused on the five pillars: Physical Wellness, Mental Wellness, Financial Literacy, Life Skills, and Purpose & Contribution."
     
     def get_pillar_balance(self):
         """Analyze quest distribution across pillars"""
