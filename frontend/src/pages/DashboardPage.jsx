@@ -13,34 +13,39 @@ const ActiveQuests = memo(({ activeQuests }) => {
   
   return (
     <div className="space-y-3">
-      {activeQuests.map(quest => (
-        <Link
-          key={quest.id}
-          to={`/quests/${quest.quest_id}`}
-          className="block p-3 bg-background rounded-lg hover:bg-gray-100 transition-colors"
-        >
-          <h3 className="font-medium">{quest.quests?.title}</h3>
-          <div className="flex gap-2 mt-1">
-            {quest.quests?.difficulty_level && (
-              <span className={`text-xs px-2 py-0.5 rounded ${
-                quest.quests.difficulty_level === 'beginner' ? 'bg-green-100 text-green-800' :
-                quest.quests.difficulty_level === 'intermediate' ? 'bg-yellow-100 text-yellow-800' :
-                'bg-red-100 text-red-800'
-              }`}>
-                {quest.quests.difficulty_level}
-              </span>
-            )}
-            {quest.quests?.estimated_hours && (
-              <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-800">
-                {quest.quests.estimated_hours}h
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-gray-600 mt-1">
-            Started {new Date(quest.started_at).toLocaleDateString()}
-          </p>
-        </Link>
-      ))}
+      {activeQuests.map(quest => {
+        // Ensure we have a valid quest_id, fallback to quests.id if needed
+        const questId = quest.quest_id || quest.quests?.id
+        
+        return (
+          <Link
+            key={quest.id}
+            to={`/quests/${questId}`}
+            className="block p-3 bg-background rounded-lg hover:bg-gray-100 transition-colors"
+          >
+            <h3 className="font-medium">{quest.quests?.title || 'Untitled Quest'}</h3>
+            <div className="flex gap-2 mt-1">
+              {quest.quests?.difficulty_level && (
+                <span className={`text-xs px-2 py-0.5 rounded ${
+                  quest.quests.difficulty_level === 'beginner' ? 'bg-green-100 text-green-800' :
+                  quest.quests.difficulty_level === 'intermediate' ? 'bg-yellow-100 text-yellow-800' :
+                  'bg-red-100 text-red-800'
+                }`}>
+                  {quest.quests.difficulty_level}
+                </span>
+              )}
+              {quest.quests?.estimated_hours && (
+                <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-800">
+                  {quest.quests.estimated_hours}h
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-gray-600 mt-1">
+              Started {quest.started_at ? new Date(quest.started_at).toLocaleDateString() : 'Recently'}
+            </p>
+          </Link>
+        )
+      })}
     </div>
   )
 })
@@ -67,7 +72,7 @@ const RecentCompletions = memo(({ recentCompletions }) => {
             ))}
           </div>
           <p className="text-sm text-gray-600 mt-1">
-            Completed {new Date(quest.completed_at).toLocaleDateString()}
+            Completed {quest.completed_at ? new Date(quest.completed_at).toLocaleDateString() : 'Recently'}
           </p>
         </div>
       ))}
