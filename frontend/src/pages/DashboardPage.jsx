@@ -29,6 +29,13 @@ const DashboardPage = () => {
   const fetchDashboardData = async () => {
     try {
       const response = await api.get('/users/dashboard')
+      console.log('=== DASHBOARD DEBUG ===')
+      console.log('Dashboard API response:', response.data)
+      console.log('xp_by_category:', response.data.xp_by_category)
+      console.log('total_xp:', response.data.total_xp)
+      console.log('skill_xp:', response.data.skill_xp)
+      console.log('xp_by_subject:', response.data.xp_by_subject)
+      console.log('======================')
       setDashboardData(response.data)
     } catch (error) {
       console.error('Failed to fetch dashboard data:', error)
@@ -44,7 +51,12 @@ const DashboardPage = () => {
     }
     try {
       const response = await api.get(`/portfolio/user/${user.id}`)
-      console.log('Portfolio data received:', response.data)
+      console.log('=== PORTFOLIO DEBUG ===')
+      console.log('Portfolio API response:', response.data)
+      console.log('skill_xp:', response.data.skill_xp)
+      console.log('total_xp:', response.data.total_xp)
+      console.log('total_quests_completed:', response.data.total_quests_completed)
+      console.log('=======================')
       setPortfolioData(response.data)
     } catch (error) {
       console.error('Failed to fetch portfolio data:', error)
@@ -69,8 +81,24 @@ const DashboardPage = () => {
   console.log('Dashboard data:', dashboardData)
   console.log('Portfolio data:', portfolioData)
   
-  // Priority 1: Use dashboard xp_by_category if available
-  if (dashboardData?.xp_by_category && Object.keys(dashboardData.xp_by_category).length > 0) {
+  // Check if dashboard has any non-zero XP values
+  const dashboardHasXP = dashboardData?.xp_by_category && 
+    Object.values(dashboardData.xp_by_category).some(xp => xp > 0)
+  
+  // Priority 1: Use portfolio skill_xp if available and has data
+  if (portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp) && portfolioData.skill_xp.length > 0) {
+    console.log('Using portfolio skill_xp:', portfolioData.skill_xp)
+    skillXPData = portfolioData.skill_xp
+      .filter(skill => skill.total_xp > 0) // Only include categories with XP
+      .map(skill => ({
+        category: skillCategoryNames[skill.skill_category] || skill.skill_category,
+        xp: skill.total_xp,
+        fullMark: 1000
+      }))
+    totalXP = portfolioData.total_xp || skillXPData.reduce((sum, item) => sum + item.xp, 0)
+  }
+  // Priority 2: Use dashboard xp_by_category if it has actual XP values
+  else if (dashboardHasXP) {
     console.log('Using dashboard xp_by_category:', dashboardData.xp_by_category)
     skillXPData = Object.entries(dashboardData.xp_by_category)
       .filter(([_, xp]) => xp > 0) // Only include categories with XP
@@ -81,19 +109,19 @@ const DashboardPage = () => {
       }))
     totalXP = dashboardData.total_xp || Object.values(dashboardData.xp_by_category).reduce((sum, xp) => sum + xp, 0)
   }
-  // Priority 2: Use portfolio skill_xp if available
-  else if (portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp)) {
-    console.log('Using portfolio skill_xp:', portfolioData.skill_xp)
-    skillXPData = portfolioData.skill_xp
-      .filter(skill => skill.total_xp > 0) // Only include categories with XP
+  // Priority 3: Use dashboard skill_xp if available
+  else if (dashboardData?.skill_xp && Array.isArray(dashboardData.skill_xp) && dashboardData.skill_xp.length > 0) {
+    console.log('Using dashboard skill_xp array:', dashboardData.skill_xp)
+    skillXPData = dashboardData.skill_xp
+      .filter(skill => skill.total_xp > 0)
       .map(skill => ({
         category: skillCategoryNames[skill.skill_category] || skill.skill_category,
         xp: skill.total_xp,
         fullMark: 1000
       }))
-    totalXP = skillXPData.reduce((sum, item) => sum + item.xp, 0)
+    totalXP = dashboardData.total_xp || skillXPData.reduce((sum, item) => sum + item.xp, 0)
   }
-  // Priority 3: Fallback to old format
+  // Priority 4: Fallback to old format
   else if (dashboardData?.xp_by_subject && Array.isArray(dashboardData.xp_by_subject)) {
     console.log('Using fallback xp_by_subject:', dashboardData.xp_by_subject)
     skillXPData = dashboardData.xp_by_subject
@@ -169,7 +197,7 @@ const DashboardPage = () => {
         <div className="card">
           <h3 className="text-lg font-semibold mb-2">Quests Completed</h3>
           <p className="text-3xl font-bold text-green-600">
-            {dashboardData?.total_quests_completed || portfolioData?.total_quests_completed || 0}
+            {portfolioData?.total_quests_completed || dashboardData?.total_quests_completed || 0}
           </p>
           <p className="text-sm text-gray-600 mt-2">
             Keep building!

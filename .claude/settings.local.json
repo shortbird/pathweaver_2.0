@@ -15,7 +15,9 @@
       "Bash(pip install:*)",
       "Bash(grep:*)",
       "Bash(set)",
-      "Bash(npm run dev:*)"
+      "Bash(npm run dev:*)",
+      "Bash(test:*)",
+      "Bash(curl:*)"
     ],
     "deny": [],
     "ask": []
