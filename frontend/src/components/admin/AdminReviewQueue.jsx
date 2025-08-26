@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAuthHeaders } from '../../api/auth';
+import { getAuthHeaders } from '../../services/api';
 
 const AdminReviewQueue = () => {
   const [pendingQuests, setPendingQuests] = useState([]);

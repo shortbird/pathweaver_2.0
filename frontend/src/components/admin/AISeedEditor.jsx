@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAuthHeaders } from '../../api/auth';
+import { getAuthHeaders } from '../../services/api';
 
 const AISeedEditor = () => {
   const [seedPrompt, setSeedPrompt] = useState('');

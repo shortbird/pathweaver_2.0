@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getAuthHeaders } from '../api/auth';
+import { getAuthHeaders } from '../services/api';
 
 const QuestIdeaForm = ({ onClose, onSuccess }) => {
   const [title, setTitle] = useState('');
