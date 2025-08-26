@@ -1,17 +1,17 @@
 from flask import Flask, jsonify, request, make_response
-from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 
 from routes import auth, quests, subscriptions, users, admin, community, portfolio, ai_quest_generator, ai_quest_bulk_generator, test_xp
+from cors_config import configure_cors
 
 load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
 
-# Temporary: Allow all origins for debugging
-CORS(app, resources={r"/api/*": {"origins": "*"}})
+# Configure CORS with proper settings
+configure_cors(app)
 
 app.register_blueprint(auth.bp, url_prefix='/api/auth')
 app.register_blueprint(quests.bp, url_prefix='/api/quests')
