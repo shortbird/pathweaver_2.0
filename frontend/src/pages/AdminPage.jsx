@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import StandardQuestManager from '../components/admin/StandardQuestManager'
+import AdminQuestManager from './AdminQuestManager'
 
 const AdminDashboard = () => {
   const [analytics, setAnalytics] = useState(null)
@@ -183,7 +183,7 @@ const AdminQuests = () => {
 
 
       {showManager && (
-        <StandardQuestManager
+        <AdminQuestManager
           quest={editingQuest}
           onClose={() => {
             setShowManager(false)

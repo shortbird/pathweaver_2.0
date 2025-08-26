@@ -50,6 +50,24 @@ const AdminQuestManager = ({ quest, onClose, onSave }) => {
   const [currentTool, setCurrentTool] = useState('')
   const [currentMaterial, setCurrentMaterial] = useState('')
   const [currentLink, setCurrentLink] = useState('')
+  const [loadingAI, setLoadingAI] = useState(false)
+
+  const handleAIComplete = async () => {
+    setLoadingAI(true)
+    try {
+      const response = await api.post('/admin/quests/complete-with-ai', formData)
+      setFormData({
+        ...response.data,
+        skill_xp_awards: response.data.skill_xp_awards || []
+      })
+      toast.success('Quest completed with AI!')
+    } catch (error) {
+      const errorMsg = error.response?.data?.error || 'Failed to complete with AI'
+      toast.error(errorMsg)
+    } finally {
+      setLoadingAI(false)
+    }
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -160,6 +178,30 @@ const AdminQuestManager = ({ quest, onClose, onSave }) => {
         </h2>
         
         <form onSubmit={handleSubmit} className="space-y-6">
+          {/* AI Complete Button */}
+          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-lg p-4 border border-purple-200">
+            <div className="flex justify-between items-center">
+              <div>
+                <h3 className="font-semibold text-gray-900">Need help completing this quest?</h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  AI will intelligently fill in missing fields based on what you've already entered
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleAIComplete}
+                disabled={loadingAI}
+                className={`px-6 py-2 rounded-lg font-semibold transition-all ${
+                  loadingAI 
+                    ? 'bg-gray-400 cursor-not-allowed' 
+                    : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white'
+                }`}
+              >
+                {loadingAI ? 'Processing...' : '✨ Finish with AI'}
+              </button>
+            </div>
+          </div>
+
           {/* The Big Picture */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold border-b pb-2">The Big Picture</h3>
