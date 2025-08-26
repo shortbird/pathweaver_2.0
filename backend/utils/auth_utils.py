@@ -1,6 +1,6 @@
 from functools import wraps
 from flask import request, jsonify
-from database import get_supabase_client
+from database import get_supabase_client, get_authenticated_supabase_client
 
 def verify_token(token):
     if not token:
@@ -44,7 +44,8 @@ def require_admin(f):
         if not user_id:
             return jsonify({'error': 'Invalid or expired token'}), 401
         
-        supabase = get_supabase_client()
+        # Use authenticated client to respect RLS policies
+        supabase = get_authenticated_supabase_client()
         
         try:
             user = supabase.table('users').select('role').eq('id', user_id).single().execute()

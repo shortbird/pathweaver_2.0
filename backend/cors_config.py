@@ -14,7 +14,15 @@ def configure_cors(app):
         # Default to allowing common origins
         allowed_origins = [
             'http://localhost:3000',
+            'http://localhost:3001',
+            'http://localhost:3002',
+            'http://localhost:3003',
+            'http://localhost:3004',
+            'http://localhost:3005',
             'http://localhost:5173',
+            'http://localhost:1234',
+            'http://localhost:1235',
+            'http://localhost:1236',
             'https://pathweaver-2-0.vercel.app',
             'https://pathweaver20-production.up.railway.app'
         ]

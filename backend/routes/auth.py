@@ -129,12 +129,17 @@ def login():
             'password': data['password']
         })
         
-        if auth_response.user:
-            user_data = supabase.table('users').select('*').eq('id', auth_response.user.id).single().execute()
+        if auth_response.user and auth_response.session:
+            # Use admin client to fetch user data (bypasses RLS for login)
+            from database import get_supabase_admin_client
+            admin_client = get_supabase_admin_client()
+            
+            # Fetch user data with admin client
+            user_data = admin_client.table('users').select('*').eq('id', auth_response.user.id).single().execute()
             
             # Try to log activity, but don't fail login if it doesn't work
             try:
-                supabase.table('activity_log').insert({
+                admin_client.table('activity_log').insert({
                     'user_id': auth_response.user.id,
                     'event_type': 'user_login',
                     'event_details': {'ip': request.remote_addr}
@@ -150,7 +155,16 @@ def login():
             return jsonify({'error': 'Invalid credentials'}), 401
             
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        error_message = str(e)
+        print(f"Login error: {error_message}")
+        
+        # Provide more helpful error messages
+        if "Invalid login credentials" in error_message:
+            return jsonify({'error': 'Invalid email or password'}), 401
+        elif "Invalid API key" in error_message:
+            return jsonify({'error': 'Server configuration error - invalid API key'}), 500
+        else:
+            return jsonify({'error': error_message}), 400
 
 @bp.route('/logout', methods=['POST'])
 def logout():

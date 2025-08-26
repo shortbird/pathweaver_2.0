@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from database import get_supabase_client
+from database import get_supabase_client, get_authenticated_supabase_client
 from utils.auth_utils import require_auth
 from datetime import datetime
 
@@ -7,7 +7,9 @@ bp = Blueprint('quests', __name__)
 
 @bp.route('', methods=['GET'])
 def get_quests():
-    supabase = get_supabase_client()
+    # Use admin client to bypass RLS for public quest listing
+    from database import get_supabase_admin_client
+    supabase = get_supabase_admin_client()
     
     try:
         page = request.args.get('page', 1, type=int)
@@ -132,7 +134,9 @@ def get_filter_options():
 
 @bp.route('/<quest_id>', methods=['GET'])
 def get_quest(quest_id):
-    supabase = get_supabase_client()
+    # Use admin client to bypass RLS for public quest viewing
+    from database import get_supabase_admin_client
+    supabase = get_supabase_admin_client()
     
     try:
         # Try with new skill-based system first
@@ -149,7 +153,7 @@ def get_quest(quest_id):
 @bp.route('/<quest_id>/start', methods=['POST'])
 @require_auth
 def start_quest(user_id, quest_id):
-    supabase = get_supabase_client()
+    supabase = get_authenticated_supabase_client()
     
     try:
         existing = supabase.table('user_quests').select('*').eq('user_id', user_id).eq('quest_id', quest_id).execute()
@@ -180,7 +184,7 @@ def start_quest(user_id, quest_id):
 @bp.route('/<quest_id>/submit', methods=['POST'])
 @require_auth
 def submit_quest(user_id, quest_id):
-    supabase = get_supabase_client()
+    supabase = get_authenticated_supabase_client()
     data = request.json
     
     try:
@@ -231,7 +235,7 @@ def get_user_quests(user_id, target_user_id):
     if target_user_id != user_id:
         return jsonify({'error': 'Unauthorized'}), 403
     
-    supabase = get_supabase_client()
+    supabase = get_authenticated_supabase_client()
     
     try:
         # Try with new skill-based system first

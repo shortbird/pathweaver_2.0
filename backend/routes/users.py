@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from database import get_supabase_client
+from database import get_supabase_client, get_authenticated_supabase_client
 from utils.auth_utils import require_auth
 from datetime import datetime
 
@@ -8,7 +8,8 @@ bp = Blueprint('users', __name__)
 @bp.route('/profile', methods=['GET'])
 @require_auth
 def get_profile(user_id):
-    supabase = get_supabase_client()
+    # Use authenticated client to respect RLS policies
+    supabase = get_authenticated_supabase_client()
     
     try:
         user = supabase.table('users').select('*').eq('id', user_id).single().execute()
@@ -88,7 +89,8 @@ def get_profile(user_id):
 @require_auth
 def update_profile(user_id):
     data = request.json
-    supabase = get_supabase_client()
+    # Use authenticated client to respect RLS policies
+    supabase = get_authenticated_supabase_client()
     
     # Temporarily allow username for backward compatibility
     allowed_fields = ['first_name', 'last_name', 'username']
@@ -107,7 +109,7 @@ def update_profile(user_id):
 @require_auth
 def get_completed_quests(user_id):
     """Get list of completed quest IDs for the current user"""
-    supabase = get_supabase_client()
+    supabase = get_authenticated_supabase_client()
     
     try:
         completed = supabase.table('user_quests')\
@@ -126,7 +128,7 @@ def get_completed_quests(user_id):
 @bp.route('/dashboard', methods=['GET'])
 @require_auth
 def get_dashboard(user_id):
-    supabase = get_supabase_client()
+    supabase = get_authenticated_supabase_client()
     
     try:
         user = supabase.table('users').select('*').eq('id', user_id).single().execute()
@@ -287,7 +289,7 @@ def get_dashboard(user_id):
 @bp.route('/transcript', methods=['GET'])
 @require_auth
 def get_transcript(user_id):
-    supabase = get_supabase_client()
+    supabase = get_authenticated_supabase_client()
     
     user = supabase.table('users').select('*').eq('id', user_id).single().execute()
     
