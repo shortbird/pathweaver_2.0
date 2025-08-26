@@ -14,14 +14,26 @@ const ActiveQuests = memo(({ activeQuests }) => {
   return (
     <div className="space-y-3">
       {activeQuests.map(quest => {
+        // Debug log to see the actual structure
+        console.log('Active quest data structure:', {
+          quest_id: quest.quest_id,
+          quests_id: quest.quests?.id,
+          full_quest: quest
+        })
+        
         // The quest_id is a field on the user_quest record that references the quest
         // The actual quest data is nested under 'quests' property
         const questId = quest.quest_id || quest.quests?.id
         
-        // If still no ID, skip this quest
+        // If still no ID, show a placeholder but don't skip
         if (!questId) {
-          console.error('No quest ID found for quest:', quest)
-          return null
+          console.warn('Quest missing ID, showing placeholder:', quest)
+          return (
+            <div key={quest.id} className="p-3 bg-yellow-50 rounded-lg">
+              <p className="text-yellow-800">Quest data loading issue - please refresh</p>
+              <p className="text-sm text-gray-600 mt-1">Quest ID: {quest.id}</p>
+            </div>
+          )
         }
         
         return (
