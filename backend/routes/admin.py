@@ -162,6 +162,27 @@ def create_quest(user_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
+@bp.route('/quests/complete-with-ai', methods=['POST'])
+@require_admin
+def complete_quest_with_ai(user_id):
+    """Complete a partially filled quest form using AI"""
+    data = request.json
+    
+    try:
+        from services.quest_completion_service import QuestCompletionService
+        
+        service = QuestCompletionService()
+        completed_quest = service.complete_quest(data)
+        
+        return jsonify(completed_quest), 200
+        
+    except ValueError as e:
+        # GEMINI_API_KEY not configured
+        return jsonify({'error': 'AI service not configured. Please set GEMINI_API_KEY in environment variables.'}), 503
+    except Exception as e:
+        print(f"Error completing quest with AI: {str(e)}")
+        return jsonify({'error': 'Failed to complete quest with AI'}), 500
+
 @bp.route('/quests/<quest_id>', methods=['PUT'])
 @require_admin
 def update_quest(user_id, quest_id):
@@ -558,3 +579,73 @@ def get_analytics(user_id):
     except Exception as e:
         print(f"Error in analytics endpoint: {str(e)}")
         return jsonify({'error': str(e)}), 400
+
+@bp.route('/complete-quest-form', methods=['POST'])
+@require_admin  
+def complete_quest_form(user_id):
+    """
+    Complete a partially filled quest creation form using Gemini AI
+    """
+    try:
+        data = request.json
+        partial_quest_data = data.get('quest_data')
+        
+        if not partial_quest_data:
+            return jsonify({'error': 'quest_data is required'}), 400
+        
+        # Initialize quest completion service
+        service = QuestCompletionService()
+        
+        # Complete the quest form
+        completed_quest = service.complete_quest(partial_quest_data)
+        
+        if completed_quest is None:
+            return jsonify({'error': 'Failed to complete quest form. Please check your input data and try again.'}), 400
+        
+        return jsonify({
+            'completed_quest': completed_quest,
+            'quality_score': completed_quest.get('_quality_score'),
+            'message': 'Quest form completed successfully'
+        }), 200
+        
+    except Exception as e:
+        print(f"Error completing quest form: {str(e)}")
+        return jsonify({'error': f'Quest completion failed: {str(e)}'}), 500
+
+@bp.route('/batch-complete-quests', methods=['POST'])
+@require_admin
+def batch_complete_quests(user_id):
+    """
+    Complete multiple partially filled quest forms in batch
+    """
+    try:
+        data = request.json
+        quest_list = data.get('quest_list')
+        
+        if not quest_list or not isinstance(quest_list, list):
+            return jsonify({'error': 'quest_list must be a non-empty array'}), 400
+        
+        if len(quest_list) > 10:
+            return jsonify({'error': 'Maximum 10 quests allowed per batch'}), 400
+        
+        # Initialize quest completion service
+        service = QuestCompletionService()
+        
+        # Complete quests in batch
+        completed_quests = service.batch_complete_quests(quest_list)
+        
+        # Count successful completions
+        successful_quests = [q for q in completed_quests if q is not None]
+        failed_count = len(completed_quests) - len(successful_quests)
+        
+        return jsonify({
+            'completed_quests': completed_quests,
+            'success_count': len(successful_quests),
+            'failure_count': failed_count,
+            'total_requested': len(quest_list),
+            'message': f'Completed {len(successful_quests)}/{len(quest_list)} quests successfully'
+        }), 200
+        
+    except Exception as e:
+        print(f"Error in batch quest completion: {str(e)}")
+        return jsonify({'error': f'Batch completion failed: {str(e)}'}), 500
