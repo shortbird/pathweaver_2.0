@@ -410,6 +410,61 @@ def get_all_users(user_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
+@bp.route('/pending-quests', methods=['GET'])
+@require_admin
+def get_pending_quests(user_id):
+    """Get all AI-generated quests pending review"""
+    supabase = get_supabase_admin_client()
+    
+    try:
+        # Get quests with status 'generated' that need review
+        pending = supabase.table('quests')\
+            .select('*')\
+            .eq('status', 'generated')\
+            .order('created_at', desc=False)\
+            .execute()
+        
+        return jsonify({'quests': pending.data if pending.data else []}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@bp.route('/approve-quest/<quest_id>', methods=['POST'])
+@require_admin
+def approve_quest(user_id, quest_id):
+    """Approve an AI-generated quest"""
+    supabase = get_supabase_admin_client()
+    
+    try:
+        # Update quest status to active
+        result = supabase.table('quests')\
+            .update({'status': 'active'})\
+            .eq('id', quest_id)\
+            .execute()
+        
+        return jsonify({'message': 'Quest approved successfully'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@bp.route('/reject-quest/<quest_id>', methods=['POST'])
+@require_admin
+def reject_quest(user_id, quest_id):
+    """Reject an AI-generated quest"""
+    supabase = get_supabase_admin_client()
+    
+    try:
+        # Update quest status to rejected
+        result = supabase.table('quests')\
+            .update({'status': 'rejected'})\
+            .eq('id', quest_id)\
+            .execute()
+        
+        return jsonify({'message': 'Quest rejected successfully'}), 200
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
 @bp.route('/analytics', methods=['GET'])
 @require_admin
 def get_analytics(user_id):
