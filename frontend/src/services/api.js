@@ -7,6 +7,18 @@ const api = axios.create({
   },
 })
 
+// Helper function to get auth headers for fetch requests
+export const getAuthHeaders = () => {
+  const token = localStorage.getItem('access_token')
+  const headers = {
+    'Content-Type': 'application/json',
+  }
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`
+  }
+  return headers
+}
+
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('access_token')
