@@ -456,7 +456,15 @@ def get_generation_jobs(user_id):
         return jsonify({'jobs': response.data}), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        error_msg = str(e)
+        print(f"Error in get_generation_jobs: {error_msg}")
+        if 'does not exist' in error_msg:
+            return jsonify({
+                'error': 'AI quest tables not found. Please run the migration.',
+                'details': error_msg,
+                'solution': 'Run the SQL migration in backend/migrations/add_ai_generation_tables.sql'
+            }), 400
+        return jsonify({'error': error_msg}), 400
 
 @bp.route('/review-queue', methods=['GET'])
 @require_admin
@@ -478,7 +486,15 @@ def get_review_queue(user_id):
         return jsonify({'quests': response.data}), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        error_msg = str(e)
+        print(f"Error in get_review_queue: {error_msg}")
+        if 'does not exist' in error_msg:
+            return jsonify({
+                'error': 'AI quest tables not found. Please run the migration.',
+                'details': error_msg,
+                'solution': 'Run the SQL migration in backend/migrations/add_ai_generation_tables.sql'
+            }), 400
+        return jsonify({'error': error_msg}), 400
 
 @bp.route('/review/<quest_id>', methods=['POST'])
 @require_admin
