@@ -14,8 +14,15 @@ const ActiveQuests = memo(({ activeQuests }) => {
   return (
     <div className="space-y-3">
       {activeQuests.map(quest => {
-        // Ensure we have a valid quest_id, fallback to quests.id if needed
+        // The quest_id is a field on the user_quest record that references the quest
+        // The actual quest data is nested under 'quests' property
         const questId = quest.quest_id || quest.quests?.id
+        
+        // If still no ID, skip this quest
+        if (!questId) {
+          console.error('No quest ID found for quest:', quest)
+          return null
+        }
         
         return (
           <Link
