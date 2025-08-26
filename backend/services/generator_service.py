@@ -11,7 +11,7 @@ class GeneratorService:
             os.environ.get('SUPABASE_SERVICE_KEY')
         )
         genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
-        self.model = genai.GenerativeModel('gemini-pro')
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
     
     def get_seed_prompt(self):
         """Fetch the current AI seed prompt from database"""

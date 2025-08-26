@@ -11,7 +11,7 @@ class ValidatorService:
             os.environ.get('SUPABASE_SERVICE_KEY')
         )
         genai.configure(api_key=os.environ.get('GEMINI_API_KEY'))
-        self.model = genai.GenerativeModel('gemini-pro')
+        self.model = genai.GenerativeModel('gemini-1.5-flash')
     
     def get_seed_prompt(self):
         """Fetch the current AI seed prompt from database"""
@@ -134,6 +134,10 @@ class ValidatorService:
         results = []
         for submission in response.data:
             print(f"Validating submission {submission['id']}")
+            # Skip if quest_id is missing
+            if 'quest_id' not in submission:
+                print(f"Skipping submission {submission['id']} - no quest_id")
+                continue
             validation = self.validate_submission(
                 submission['id'],
                 submission['quest_id'],
