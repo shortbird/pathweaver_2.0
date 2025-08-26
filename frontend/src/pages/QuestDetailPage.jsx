@@ -51,7 +51,7 @@ const QuestDetailPage = () => {
 
   const handleStartQuest = async () => {
     try {
-      const response = await api.post(`/quests/${id}/start`)
+      const response = await api.post(`/quests/${id}/start`, {})
       setUserQuest(response.data)
       toast.success('Quest started! Begin your adventure!')
     } catch (error) {
