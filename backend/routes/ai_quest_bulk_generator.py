@@ -13,37 +13,57 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 bp = Blueprint('ai_quest_bulk_generator', __name__)
 
-# Skill categories with detailed descriptions for better prompting
-SKILL_CATEGORY_DETAILS = {
-    'reading_writing': {
-        'name': 'Reading & Writing',
-        'skills': ['reading', 'writing', 'speaking', 'digital_media', 'math_data'],
-        'examples': ['Create a blog series', 'Write a short story', 'Analyze literature', 'Create presentations']
+# Diploma Pillar details for AI quest generation
+DIPLOMA_PILLAR_DETAILS = {
+    'creativity': {
+        'name': 'Creativity',
+        'core_competencies': ['Artistic Expression', 'Design Thinking', 'Innovation', 'Problem-Solving'],
+        'examples': [
+            'Design a board game that teaches climate science',
+            'Create a photo essay documenting community stories',
+            'Compose original music for a short film',
+            'Build a prototype for a sustainable product'
+        ]
     },
-    'thinking_skills': {
-        'name': 'Thinking Skills', 
-        'skills': ['critical_thinking', 'creative_thinking', 'research', 'information_literacy', 'systems_thinking', 'decision_making'],
-        'examples': ['Solve complex puzzles', 'Design solutions', 'Research topics', 'Analyze systems']
+    'critical_thinking': {
+        'name': 'Critical Thinking',
+        'core_competencies': ['Analysis & Research', 'Logic & Reasoning', 'Systems Thinking', 'Evidence-Based Decision Making'],
+        'examples': [
+            'Analyze media bias in news coverage',
+            'Research and debate ethical AI implications',
+            'Design a scientific experiment to test a hypothesis',
+            'Create a data visualization revealing hidden patterns'
+        ]
     },
-    'personal_growth': {
-        'name': 'Personal Growth',
-        'skills': ['learning_reflection', 'emotional_skills', 'grit', 'time_management'],
-        'examples': ['Build habits', 'Practice mindfulness', 'Set and achieve goals', 'Develop resilience']
+    'practical_skills': {
+        'name': 'Practical Skills',
+        'core_competencies': ['Life Skills', 'Technical Skills', 'Financial Literacy', 'Health & Wellness'],
+        'examples': [
+            'Build a personal budget and track expenses',
+            'Code a mobile app solving a real problem',
+            'Plan and cook a week of healthy meals',
+            'Repair or upcycle household items'
+        ]
     },
-    'life_skills': {
-        'name': 'Life Skills',
-        'skills': ['money_skills', 'health_fitness', 'home_skills', 'tech_skills', 'citizenship'],
-        'examples': ['Budget planning', 'Fitness challenges', 'Cook meals', 'Learn software', 'Community service']
+    'communication': {
+        'name': 'Communication',
+        'core_competencies': ['Writing & Storytelling', 'Public Speaking', 'Digital Communication', 'Active Listening'],
+        'examples': [
+            'Host a podcast interviewing local changemakers',
+            'Write and illustrate a children\'s book',
+            'Create a documentary about an important issue',
+            'Lead a workshop teaching a skill to peers'
+        ]
     },
-    'making_creating': {
-        'name': 'Making & Creating',
-        'skills': ['building', 'art', 'scientific_method', 'coding', 'business_thinking'],
-        'examples': ['Build projects', 'Create artwork', 'Run experiments', 'Develop apps', 'Start ventures']
-    },
-    'world_understanding': {
-        'name': 'World Understanding',
-        'skills': ['cultural_awareness', 'history', 'environment', 'teamwork', 'ethics_philosophy'],
-        'examples': ['Study cultures', 'Document history', 'Environmental projects', 'Team collaborations', 'Ethical debates']
+    'cultural_literacy': {
+        'name': 'Cultural Literacy',
+        'core_competencies': ['Global Awareness', 'History & Context', 'Empathy & Perspective-Taking', 'Community Engagement'],
+        'examples': [
+            'Research family history and create a heritage project',
+            'Organize a cultural exchange event',
+            'Document endangered local traditions',
+            'Volunteer for a community organization'
+        ]
     }
 }
 
@@ -61,27 +81,27 @@ class BulkQuestGenerator:
             self.model = None
             print("WARNING: No GEMINI_API_KEY found in environment!")
             
-    def generate_category_specific_prompt(self, category: str, count: int, difficulty: str, 
+    def generate_pillar_specific_prompt(self, pillar: str, count: int, intensity: str, 
                                          existing_titles: List[str], theme: Optional[str] = None) -> str:
-        """Generate a category-specific prompt for better quest quality"""
+        """Generate a pillar-specific prompt for better quest quality"""
         
-        category_info = SKILL_CATEGORY_DETAILS.get(category, {})
-        skills_list = ', '.join(category_info.get('skills', []))
-        examples = '\n'.join([f"- {ex}" for ex in category_info.get('examples', [])])
+        pillar_info = DIPLOMA_PILLAR_DETAILS.get(pillar, {})
+        competencies_list = ', '.join(pillar_info.get('core_competencies', []))
+        examples = '\n'.join([f"- {ex}" for ex in pillar_info.get('examples', [])])
         
         existing_titles_str = '\n'.join([f"- {title}" for title in existing_titles[:50]]) if existing_titles else "None"
         
-        prompt = f"""You are an expert educational quest designer specializing in {category_info.get('name', category)} skills.
+        prompt = f"""You are an expert educational quest designer specializing in {pillar_info.get('name', pillar)} development.
 
-Create exactly {count} unique, highly specific quests for the "{category}" skill category.
+Create exactly {count} unique, narrative-driven quests for the "{pillar}" diploma pillar.
 
-CATEGORY FOCUS: {category_info.get('name', category)}
-Core Skills: {skills_list}
+PILLAR FOCUS: {pillar_info.get('name', pillar)}
+Core Competencies: {competencies_list}
 
 Example Activities for Inspiration:
 {examples}
 
-DIFFICULTY LEVEL: {difficulty}
+INTENSITY LEVEL: {intensity}
 {"THEME: " + theme if theme else ""}
 
 EXISTING QUESTS TO AVOID (don't create similar):
@@ -89,44 +109,45 @@ EXISTING QUESTS TO AVOID (don't create similar):
 
 For each quest, provide the following in valid JSON format:
 {{
-  "title": "Specific, action-focused accomplishment (max 100 chars)",
-  "description": "Detailed description (200-300 chars)",
-  "difficulty_level": "{difficulty}",
-  "effort_level": "light" | "moderate" | "intensive",
-  "estimated_hours": number between 1-50,
-  "evidence_requirements": "How students showcase their achievement",
-  "accepted_evidence_types": ["photo", "video", "written", "project_link", "presentation", "artifact", "certificate"],
-  "example_submissions": "Specific examples of good evidence",
-  "core_skills": [3-5 skills from: {skills_list}],
+  "title": "Engaging, narrative title (max 100 chars)",
+  "big_idea": "The overarching concept or challenge (100-200 chars)",
+  "what_youll_create": ["List of", "tangible outcomes", "or deliverables"],
+  "primary_pillar": "{pillar}",
+  "intensity": "{intensity}",
+  "estimated_time": "Time estimate (e.g., '2-3 hours', '1 week', 'ongoing')",
+  "your_mission": ["Step 1 action", "Step 2 action", "Step 3 action"],
+  "showcase_your_journey": "How to document and share your work",
+  "helpful_resources": {{
+    "tools": ["tool1", "tool2"],
+    "materials": ["material1", "material2"],
+    "links": ["helpful URL or resource"]
+  }},
+  "collaboration_spark": "Ideas for working with others",
+  "real_world_bonus": {{
+    "description": "Extension challenge",
+    "xp_amount": 50
+  }},
+  "log_bonus": {{
+    "description": "Reward for keeping a learning log",
+    "xp_amount": 25
+  }},
+  "heads_up": "Safety or important considerations (optional)",
+  "location": "Where this can be done",
   "skill_xp_awards": [
     {{
-      "skill_category": "{category}",
-      "xp_amount": number (25-300 based on effort)
+      "skill_category": "{pillar}",
+      "xp_amount": number (25-300 based on intensity)
     }}
-  ],
-  "resources_needed": "Materials or tools needed",
-  "location_requirements": "Where this can be done",
-  "safety_considerations": "Any safety notes",
-  "requires_adult_supervision": boolean,
-  "collaboration_ideas": "Three collaboration ideas separated by periods",
-  "optional_challenges": [
-    {{
-      "description": "Bonus challenge",
-      "skill_category": "{category}",
-      "xp_amount": 10-50
-    }}
-  ],
-  "tags": ["relevant", "searchable", "tags"],
-  "subject": "Academic subject if applicable"
+  ]
 }}
 
 CRITICAL REQUIREMENTS:
-- Each quest must be a SPECIFIC, CONCRETE achievement
-- Focus heavily on {category_info.get('name', category)} skills
-- Vary the activities to cover different aspects of the category
-- Make them age-appropriate for high school students
-- Ensure clear completion criteria
-- XP awards should match effort level (light: 25-75, moderate: 75-150, intensive: 150-300)
+- Each quest must be NARRATIVE-DRIVEN and intrinsically motivating
+- Focus on the learning journey, not just the outcome
+- Emphasize {pillar_info.get('name', pillar)} competencies
+- Make quests feel like adventures or challenges
+- Ensure clear but flexible completion paths
+- XP awards should match intensity (light: 25-75, moderate: 75-150, intensive: 150-300)
 
 Return ONLY a JSON array with exactly {count} quest objects."""
         
@@ -141,75 +162,75 @@ Return ONLY a JSON array with exactly {count} quest objects."""
         print(f"Generating prompts for {total_count} quests with distribution: {distribution}")
         
         # Parse distribution settings
-        category_dist = distribution.get('categories', 'even')
-        difficulty_dist = distribution.get('difficulties', {'beginner': 0.4, 'intermediate': 0.4, 'advanced': 0.2})
+        pillar_dist = distribution.get('pillars', 'even')
+        intensity_dist = distribution.get('intensities', {'light': 0.4, 'moderate': 0.4, 'intensive': 0.2})
         themes = distribution.get('themes', [])
         
-        print(f"Category distribution: {category_dist}")
-        print(f"Difficulty distribution: {difficulty_dist}")
+        print(f"Pillar distribution: {pillar_dist}")
+        print(f"Intensity distribution: {intensity_dist}")
         
-        # Calculate quests per category
-        categories = list(SKILL_CATEGORY_DETAILS.keys())
-        if category_dist == 'even':
-            quests_per_category = total_count // len(categories)
-            remainder = total_count % len(categories)
-        elif isinstance(category_dist, str) and category_dist in categories:
-            # Single category focus
-            quests_per_category = {category_dist: total_count}
+        # Calculate quests per pillar
+        pillars = list(DIPLOMA_PILLAR_DETAILS.keys())
+        if pillar_dist == 'even':
+            quests_per_pillar = total_count // len(pillars)
+            remainder = total_count % len(pillars)
+        elif isinstance(pillar_dist, str) and pillar_dist in pillars:
+            # Single pillar focus
+            quests_per_pillar = {pillar_dist: total_count}
             remainder = 0
-        elif isinstance(category_dist, dict):
+        elif isinstance(pillar_dist, dict):
             # Custom distribution dictionary
-            quests_per_category = category_dist
+            quests_per_pillar = pillar_dist
             remainder = 0
         else:
             # Default to even distribution if unknown
-            quests_per_category = total_count // len(categories)
-            remainder = total_count % len(categories)
+            quests_per_pillar = total_count // len(pillars)
+            remainder = total_count % len(pillars)
         
-        # Generate prompts for each category
-        for idx, category in enumerate(categories):
-            if isinstance(quests_per_category, dict):
-                category_count = quests_per_category.get(category, 0)
+        # Generate prompts for each pillar
+        for idx, pillar in enumerate(pillars):
+            if isinstance(quests_per_pillar, dict):
+                pillar_count = quests_per_pillar.get(pillar, 0)
             else:
-                category_count = quests_per_category + (1 if idx < remainder else 0)
+                pillar_count = quests_per_pillar + (1 if idx < remainder else 0)
             
-            if category_count == 0:
+            if pillar_count == 0:
                 continue
                 
-            print(f"  Category {category}: {category_count} quests")
+            print(f"  Pillar {pillar}: {pillar_count} quests")
                 
-            # Distribute by difficulty - ensure at least 1 quest per difficulty if category has quests
-            remaining = category_count
-            difficulty_counts = {}
+            # Distribute by intensity
+            remaining = pillar_count
+            intensity_counts = {}
             
             # Calculate initial distribution
-            for difficulty, ratio in difficulty_dist.items():
-                count = int(category_count * ratio)
-                difficulty_counts[difficulty] = count
+            for intensity, ratio in intensity_dist.items():
+                count = int(pillar_count * ratio)
+                intensity_counts[intensity] = count
                 remaining -= count
             
             # Distribute remaining quests to ensure we use all allocated quests
-            difficulties = list(difficulty_dist.keys())
+            intensities = list(intensity_dist.keys())
             for i in range(remaining):
-                difficulty_counts[difficulties[i % len(difficulties)]] += 1
+                intensity_counts[intensities[i % len(intensities)]] += 1
             
-            # Create prompts for each difficulty
-            for difficulty, diff_count in difficulty_counts.items():
-                if diff_count == 0:
+            # Create prompts for each intensity
+            for intensity, int_count in intensity_counts.items():
+                if int_count == 0:
                     continue
                 
-                print(f"    {difficulty}: {diff_count} quests")
+                print(f"    {intensity}: {int_count} quests")
                     
                 # Add theme variation
                 theme = random.choice(themes) if themes else None
                 
                 prompts.append({
-                    'category': category,
-                    'difficulty': difficulty,
-                    'count': diff_count,
+                    'pillar': pillar,
+                    'intensity': intensity,
+                    'count': int_count,
                     'theme': theme,
-                    'prompt': self.generate_category_specific_prompt(
-                        category, diff_count, difficulty, existing_titles, theme
+                    'prompt': self.generate_pillar_specific_prompt(
+                        pillar, int_count, intensity, existing_titles, theme
                     )
                 })
         
@@ -262,19 +283,20 @@ Return ONLY a JSON array with exactly {count} quest objects."""
         
         score = 0.0
         
-        # Clarity of instructions (25%)
-        instructions = quest.get('evidence_requirements', '')
-        if len(instructions) > 150:
+        # Big Idea clarity (25%)
+        big_idea = quest.get('big_idea', '')
+        if len(big_idea) > 100:
             score += 25
-        elif len(instructions) > 75:
+        elif len(big_idea) > 50:
             score += 15
         else:
             score += 5
         
-        # Educational value (25%)
-        if quest.get('core_skills') and len(quest.get('core_skills', [])) >= 3:
+        # Mission clarity and structure (25%)
+        mission = quest.get('your_mission', [])
+        if isinstance(mission, list) and len(mission) >= 3:
             score += 25
-        elif quest.get('description') and len(quest.get('description', '')) > 100:
+        elif isinstance(mission, list) and len(mission) >= 2:
             score += 15
         else:
             score += 5
@@ -288,25 +310,23 @@ Return ONLY a JSON array with exactly {count} quest objects."""
         else:
             score += 5
         
-        # Difficulty alignment (15%)
-        if quest.get('difficulty_level') and quest.get('estimated_hours'):
-            hours = quest.get('estimated_hours', 0)
-            difficulty = quest.get('difficulty_level', '')
-            
-            if (difficulty == 'beginner' and 1 <= hours <= 10) or \
-               (difficulty == 'intermediate' and 5 <= hours <= 20) or \
-               (difficulty == 'advanced' and 10 <= hours <= 50):
-                score += 15
-            else:
-                score += 7
-        else:
-            score += 5
-        
-        # Completion criteria clarity (15%)
-        if quest.get('example_submissions') and len(quest.get('example_submissions', '')) > 50:
+        # Resources and support (15%)
+        resources = quest.get('helpful_resources', {})
+        if isinstance(resources, dict) and len(resources) >= 2:
             score += 15
-        else:
+        elif resources:
             score += 7
+        else:
+            score += 3
+        
+        # Journey documentation clarity (15%)
+        showcase = quest.get('showcase_your_journey', '')
+        if showcase and len(showcase) > 50:
+            score += 15
+        elif showcase:
+            score += 7
+        else:
+            score += 3
         
         return score
     
@@ -402,9 +422,9 @@ def generate_batch(user_id):
                     # Process each quest
                     for quest in quests:
                         # Don't modify the original quest object
-                        # Ensure difficulty_level is set if not present
-                        if 'difficulty_level' not in quest:
-                            quest['difficulty_level'] = prompt_info['difficulty']
+                        # Ensure intensity is set if not present
+                        if 'intensity' not in quest:
+                            quest['intensity'] = prompt_info['intensity']
                         
                         # Calculate quality score
                         quality_score = generator.calculate_quality_score(quest)
@@ -434,7 +454,7 @@ def generate_batch(user_id):
                         all_generated_quests.append(generated_quest)
                         
                 except Exception as e:
-                    print(f"Failed to generate quests for {prompt_info['category']}: {str(e)}")
+                    print(f"Failed to generate quests for {prompt_info['pillar']}: {str(e)}")
                     failed_count += 1
         
         # Insert generated quests

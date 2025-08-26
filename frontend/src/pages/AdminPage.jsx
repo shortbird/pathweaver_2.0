@@ -4,6 +4,8 @@ import api from '../services/api'
 import toast from 'react-hot-toast'
 import AdminQuestManager from './AdminQuestManager'
 import AIQuestBulkGenerator from '../components/AIQuestBulkGenerator'
+import AISeedEditor from '../components/admin/AISeedEditor'
+import AdminReviewQueue from '../components/admin/AdminReviewQueue'
 
 const AdminDashboard = () => {
   const [analytics, setAnalytics] = useState(null)
@@ -492,12 +494,26 @@ const AdminPage = () => {
         >
           Submissions
         </Link>
+        <Link
+          to="/admin/review-queue"
+          className={`pb-2 px-1 ${currentPath === 'review-queue' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+        >
+          AI Review Queue
+        </Link>
+        <Link
+          to="/admin/ai-settings"
+          className={`pb-2 px-1 ${currentPath === 'ai-settings' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+        >
+          AI Settings
+        </Link>
       </div>
 
       <Routes>
         <Route index element={<AdminDashboard />} />
         <Route path="quests" element={<AdminQuests />} />
         <Route path="submissions" element={<AdminSubmissions />} />
+        <Route path="review-queue" element={<AdminReviewQueue />} />
+        <Route path="ai-settings" element={<AISeedEditor />} />
       </Routes>
     </div>
   )

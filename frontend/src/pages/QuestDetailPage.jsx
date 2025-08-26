@@ -10,28 +10,19 @@ const QuestDetailPage = () => {
   const { user } = useAuth()
   const [quest, setQuest] = useState(null)
   const [userQuest, setUserQuest] = useState(null)
+  const [learningLogs, setLearningLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [evidenceText, setEvidenceText] = useState('')
-  const [selectedEvidenceType, setSelectedEvidenceType] = useState('')
+  const [newLogEntry, setNewLogEntry] = useState('')
+  const [addingLog, setAddingLog] = useState(false)
 
-  const skillCategoryNames = {
-    reading_writing: 'Reading & Writing',
-    thinking_skills: 'Thinking Skills',
-    personal_growth: 'Personal Growth',
-    life_skills: 'Life Skills',
-    making_creating: 'Making & Creating',
-    world_understanding: 'World Understanding'
-  }
-
-  const evidenceTypeLabels = {
-    photo: 'Photo',
-    video: 'Video',
-    written: 'Written Work',
-    project_link: 'Project Link',
-    presentation: 'Presentation',
-    artifact: 'Physical Artifact',
-    certificate: 'Certificate'
+  const pillarNames = {
+    creativity: 'Creativity',
+    critical_thinking: 'Critical Thinking',
+    practical_skills: 'Practical Skills',
+    communication: 'Communication',
+    cultural_literacy: 'Cultural Literacy'
   }
 
   useEffect(() => {
@@ -46,6 +37,10 @@ const QuestDetailPage = () => {
       const userQuestsResponse = await api.get(`/quests/user/${user.id}/quests`)
       const existingUserQuest = userQuestsResponse.data.find(uq => uq.quest_id === id)
       setUserQuest(existingUserQuest)
+
+      if (existingUserQuest) {
+        fetchLearningLogs(existingUserQuest.id)
+      }
     } catch (error) {
       console.error('Failed to fetch quest details:', error)
       toast.error('Failed to load quest details')
@@ -54,32 +49,62 @@ const QuestDetailPage = () => {
     }
   }
 
+  const fetchLearningLogs = async (userQuestId) => {
+    try {
+      const response = await api.get(`/quests/${userQuestId}/logs`)
+      setLearningLogs(response.data.logs || [])
+    } catch (error) {
+      console.error('Failed to fetch learning logs:', error)
+    }
+  }
+
   const handleStartQuest = async () => {
     try {
       const response = await api.post(`/quests/${id}/start`)
       setUserQuest(response.data)
-      toast.success('Quest started!')
+      toast.success('Quest started! Begin your adventure!')
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to start quest')
     }
   }
 
-  const handleSubmitQuest = async () => {
-    if (!evidenceText.trim()) {
-      toast.error('Please provide evidence of your learning')
+  const handleAddLog = async () => {
+    if (!newLogEntry.trim()) {
+      toast.error('Please write something about your journey')
       return
     }
 
-    if (quest.accepted_evidence_types?.length > 0 && !selectedEvidenceType) {
-      toast.error('Please select an evidence type')
+    setAddingLog(true)
+    try {
+      const response = await api.post(`/quests/${userQuest.id}/log`, {
+        log_entry: newLogEntry
+      })
+      
+      if (response.data.bonus_awarded) {
+        toast.success(`Learning log added! Earned ${response.data.bonus_awarded.xp_amount} bonus XP!`)
+      } else {
+        toast.success('Learning log added!')
+      }
+      
+      setNewLogEntry('')
+      fetchLearningLogs(userQuest.id)
+    } catch (error) {
+      toast.error('Failed to add learning log')
+    } finally {
+      setAddingLog(false)
+    }
+  }
+
+  const handleSubmitQuest = async () => {
+    if (!evidenceText.trim()) {
+      toast.error('Please share how you showcased your journey')
       return
     }
 
     setSubmitting(true)
     try {
       await api.post(`/quests/${id}/submit`, {
-        evidence_text: evidenceText,
-        evidence_type: selectedEvidenceType
+        evidence_text: evidenceText
       })
       toast.success('Quest submitted for review!')
       navigate('/dashboard')
@@ -107,208 +132,327 @@ const QuestDetailPage = () => {
   }
 
   const totalXP = quest.quest_skill_xp?.reduce((sum, award) => sum + award.xp_amount, 0) || 0
+  const intensityColors = {
+    light: 'bg-green-100 text-green-800',
+    moderate: 'bg-yellow-100 text-yellow-800',
+    intensive: 'bg-red-100 text-red-800'
+  }
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="card mb-8">
-        {quest.requires_adult_supervision && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
-            <p className="text-red-800 font-semibold">
-              ⚠️ This quest requires adult supervision for safety
+        {/* Quest Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold mb-4">{quest.title}</h1>
+          
+          <div className="flex flex-wrap gap-3 mb-4">
+            {quest.primary_pillar && (
+              <span className="bg-primary/10 text-primary px-4 py-2 rounded-full font-medium">
+                {pillarNames[quest.primary_pillar]}
+              </span>
+            )}
+            {quest.intensity && (
+              <span className={`px-4 py-2 rounded-full font-medium ${intensityColors[quest.intensity]}`}>
+                {quest.intensity.charAt(0).toUpperCase() + quest.intensity.slice(1)} Intensity
+              </span>
+            )}
+            {quest.estimated_time && (
+              <span className="bg-gray-100 text-gray-800 px-4 py-2 rounded-full font-medium">
+                {quest.estimated_time}
+              </span>
+            )}
+            <span className="bg-secondary text-white px-4 py-2 rounded-full font-bold">
+              {totalXP} XP
+            </span>
+          </div>
+        </div>
+
+        {/* The Big Picture */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold mb-4 text-primary">The Big Picture</h2>
+          <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-6">
+            <p className="text-lg text-gray-700 leading-relaxed">
+              {quest.big_idea || quest.description}
             </p>
           </div>
-        )}
-
-        <h1 className="text-3xl font-bold mb-4">{quest.title}</h1>
-        
-        {/* Difficulty, Effort, and Time Badges */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {quest.difficulty_level && (
-            <span className={`px-3 py-1 rounded text-sm font-medium ${
-              quest.difficulty_level === 'beginner' ? 'bg-green-100 text-green-800' :
-              quest.difficulty_level === 'intermediate' ? 'bg-yellow-100 text-yellow-800' :
-              'bg-red-100 text-red-800'
-            }`}>
-              {quest.difficulty_level}
-            </span>
-          )}
-          {quest.effort_level && (
-            <span className={`px-3 py-1 rounded text-sm font-medium ${
-              quest.effort_level === 'light' ? 'bg-blue-100 text-blue-800' :
-              quest.effort_level === 'moderate' ? 'bg-orange-100 text-orange-800' :
-              'bg-purple-100 text-purple-800'
-            }`}>
-              {quest.effort_level} effort
-            </span>
-          )}
-          {quest.estimated_hours && (
-            <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded text-sm font-medium">
-              ~{quest.estimated_hours} hours
-            </span>
-          )}
         </div>
 
-        {/* Skill Category XP Awards */}
-        <div className="flex flex-wrap gap-2 mb-4">
-          {quest.quest_skill_xp?.map((award, index) => (
-            <span
-              key={index}
-              className="bg-primary/10 text-primary px-3 py-1 rounded-full text-sm"
-            >
-              {skillCategoryNames[award.skill_category]} • {award.xp_amount} XP
-            </span>
-          ))}
-          <span className="bg-secondary text-text px-3 py-1 rounded-full text-sm font-semibold">
-            Total: {totalXP} XP
-          </span>
-        </div>
-
-        {/* Core Skills */}
-        {quest.core_skills && quest.core_skills.length > 0 && (
-          <div className="mb-6">
-            <h3 className="text-sm font-semibold text-gray-600 mb-2">Skills You'll Develop:</h3>
-            <div className="flex flex-wrap gap-2">
-              {quest.core_skills.map((skill, index) => (
-                <span key={index} className="bg-gray-100 text-gray-700 px-2 py-1 rounded text-xs">
-                  {skill.replace(/_/g, ' ')}
-                </span>
+        {/* What You'll Create */}
+        {quest.what_youll_create && quest.what_youll_create.length > 0 && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-4 text-primary">What You'll Create</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {quest.what_youll_create.map((item, index) => (
+                <div key={index} className="flex items-start">
+                  <span className="text-2xl mr-3">✨</span>
+                  <p className="text-gray-700">{item}</p>
+                </div>
               ))}
             </div>
           </div>
         )}
 
-        <div className="prose max-w-none mb-6">
-          <h2 className="text-xl font-semibold mb-2">Description</h2>
-          <p className="text-gray-700 whitespace-pre-wrap">{quest.description}</p>
-        </div>
+        {/* Your Toolkit */}
+        {quest.helpful_resources && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-4 text-primary">Your Toolkit</h2>
+            <div className="bg-gray-50 rounded-lg p-6">
+              {quest.helpful_resources.tools && quest.helpful_resources.tools.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="font-semibold text-gray-700 mb-2">Tools:</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {quest.helpful_resources.tools.map((tool, index) => (
+                      <span key={index} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
+                        {tool}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {quest.helpful_resources.materials && quest.helpful_resources.materials.length > 0 && (
+                <div className="mb-4">
+                  <h3 className="font-semibold text-gray-700 mb-2">Materials:</h3>
+                  <div className="flex flex-wrap gap-2">
+                    {quest.helpful_resources.materials.map((material, index) => (
+                      <span key={index} className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm">
+                        {material}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {quest.helpful_resources.links && quest.helpful_resources.links.length > 0 && (
+                <div>
+                  <h3 className="font-semibold text-gray-700 mb-2">Helpful Resources:</h3>
+                  <ul className="space-y-1">
+                    {quest.helpful_resources.links.map((link, index) => (
+                      <li key={index}>
+                        <a href={link} target="_blank" rel="noopener noreferrer" 
+                           className="text-blue-600 hover:underline text-sm">
+                          {link}
+                        </a>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              
+              {/* Fallback to old fields if new structure not available */}
+              {!quest.helpful_resources.tools && !quest.helpful_resources.materials && !quest.helpful_resources.links && (
+                <>
+                  {quest.resources_needed && (
+                    <div className="mb-4">
+                      <h3 className="font-semibold text-gray-700 mb-2">Resources Needed:</h3>
+                      <p className="text-gray-600">{quest.resources_needed}</p>
+                    </div>
+                  )}
+                  {quest.location_requirements && (
+                    <div>
+                      <h3 className="font-semibold text-gray-700 mb-2">Suggested Location:</h3>
+                      <p className="text-gray-600">{quest.location_requirements}</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
-        <div className="bg-blue-50 rounded-lg p-4 mb-6">
-          <h2 className="text-xl font-semibold mb-2">Evidence Suggestions</h2>
-          <p className="text-sm text-gray-600 mb-2 italic">Remember: You already have your diploma! These are suggestions to help you showcase quality learning.</p>
-          <p className="text-gray-700 whitespace-pre-wrap mb-3">{quest.evidence_requirements}</p>
+        {/* The Journey */}
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold mb-4 text-primary">The Journey</h2>
           
-          {quest.accepted_evidence_types && quest.accepted_evidence_types.length > 0 && (
-            <div className="mt-3">
-              <p className="text-sm font-semibold text-gray-600 mb-1">Accepted Evidence Types:</p>
-              <div className="flex flex-wrap gap-2">
-                {quest.accepted_evidence_types.map((type, index) => (
-                  <span key={index} className="bg-white px-2 py-1 rounded text-xs">
-                    {evidenceTypeLabels[type] || type}
-                  </span>
+          {/* Your Mission */}
+          {quest.your_mission && quest.your_mission.length > 0 && (
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold mb-3">Your Mission:</h3>
+              <div className="space-y-3">
+                {quest.your_mission.map((step, index) => (
+                  <div key={index} className="flex items-start">
+                    <span className="bg-primary text-white rounded-full w-8 h-8 flex items-center justify-center text-sm font-bold mr-3 flex-shrink-0">
+                      {index + 1}
+                    </span>
+                    <p className="text-gray-700 pt-1">{step}</p>
+                  </div>
                 ))}
               </div>
             </div>
           )}
-          
-          {quest.example_submissions && (
-            <div className="mt-3">
-              <p className="text-sm font-semibold text-gray-600 mb-1">Example Submissions:</p>
-              <p className="text-sm text-gray-600">{quest.example_submissions}</p>
-            </div>
-          )}
-        </div>
 
-        {/* Additional Information */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          {quest.resources_needed && (
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-600 mb-1">Resources Needed:</h3>
-              <p className="text-sm text-gray-700">{quest.resources_needed}</p>
-            </div>
-          )}
-          
-          {quest.location_requirements && (
-            <div className="bg-gray-50 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-gray-600 mb-1">Suggested Locations:</h3>
-              <p className="text-sm text-gray-700">{quest.location_requirements}</p>
-            </div>
-          )}
-          
-          {quest.safety_considerations && (
-            <div className="bg-yellow-50 rounded-lg p-4">
-              <h3 className="text-sm font-semibold text-yellow-800 mb-1">Safety Considerations:</h3>
-              <p className="text-sm text-yellow-700">{quest.safety_considerations}</p>
-            </div>
-          )}
-        </div>
-
-        {/* Optional Challenges */}
-        {quest.optional_challenges && quest.optional_challenges.length > 0 && (
-          <div className="bg-purple-50 rounded-lg p-4 mb-6">
-            <h2 className="text-xl font-semibold mb-3">Optional Challenges (Bonus XP)</h2>
-            {quest.optional_challenges.map((challenge, index) => (
-              <div key={index} className="mb-3 pb-3 border-b border-purple-200 last:border-0">
-                <p className="text-gray-700 mb-1">{challenge.description}</p>
-                <span className="text-sm text-purple-700 font-semibold">
-                  +{challenge.xp_amount} XP in {skillCategoryNames[challenge.skill_category]}
-                </span>
+          {/* Showcase Your Journey */}
+          <div className="bg-blue-50 rounded-lg p-6 mb-6">
+            <h3 className="text-lg font-semibold mb-2">Showcase Your Journey:</h3>
+            <p className="text-gray-700">
+              {quest.showcase_your_journey || quest.evidence_requirements}
+            </p>
+            {quest.example_submissions && (
+              <div className="mt-3 text-sm text-gray-600">
+                <p className="font-semibold">Examples:</p>
+                <p>{quest.example_submissions}</p>
               </div>
-            ))}
+            )}
+          </div>
+
+          {/* Learning Log */}
+          {userQuest?.status === 'in_progress' && (
+            <div className="bg-yellow-50 rounded-lg p-6">
+              <h3 className="text-lg font-semibold mb-3">
+                📝 Learning Log 
+                {quest.log_bonus && (
+                  <span className="text-sm font-normal text-yellow-700 ml-2">
+                    (+{quest.log_bonus.xp_amount} XP for first entry!)
+                  </span>
+                )}
+              </h3>
+              
+              <div className="mb-4">
+                <textarea
+                  value={newLogEntry}
+                  onChange={(e) => setNewLogEntry(e.target.value)}
+                  placeholder="Document your journey... What did you discover? What challenged you? What made you proud?"
+                  className="input-field w-full h-24"
+                />
+                <button
+                  onClick={handleAddLog}
+                  disabled={addingLog}
+                  className="btn-primary mt-2"
+                >
+                  {addingLog ? 'Adding...' : 'Add Log Entry'}
+                </button>
+              </div>
+
+              {learningLogs.length > 0 && (
+                <div className="space-y-3">
+                  <h4 className="font-semibold text-gray-700">Your Journey So Far:</h4>
+                  {learningLogs.map((log, index) => (
+                    <div key={log.id || index} className="bg-white rounded p-3">
+                      <p className="text-gray-700 text-sm">{log.log_entry}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(log.created_at).toLocaleDateString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Go Further */}
+        {(quest.collaboration_spark || quest.real_world_bonus || quest.optional_challenges) && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-4 text-primary">Go Further</h2>
+            
+            {quest.collaboration_spark && (
+              <div className="mb-4">
+                <h3 className="font-semibold text-gray-700 mb-2">🤝 Collaboration Spark:</h3>
+                <p className="text-gray-600">{quest.collaboration_spark}</p>
+              </div>
+            )}
+            
+            {quest.real_world_bonus && (
+              <div className="bg-purple-50 rounded-lg p-4 mb-4">
+                <h3 className="font-semibold text-purple-800 mb-2">
+                  🌟 Real World Bonus (+{quest.real_world_bonus.xp_amount} XP)
+                </h3>
+                <p className="text-purple-700">{quest.real_world_bonus.description}</p>
+              </div>
+            )}
+
+            {quest.optional_challenges && quest.optional_challenges.length > 0 && (
+              <div className="bg-purple-50 rounded-lg p-4">
+                <h3 className="font-semibold text-purple-800 mb-3">Bonus Challenges:</h3>
+                {quest.optional_challenges.map((challenge, index) => (
+                  <div key={index} className="mb-2">
+                    <p className="text-purple-700">{challenge.description}</p>
+                    <span className="text-sm text-purple-600">
+                      +{challenge.xp_amount} XP
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
+        {/* The Fine Print */}
+        {(quest.heads_up || quest.safety_considerations || quest.location || quest.requires_adult_supervision) && (
+          <div className="mb-8">
+            <h2 className="text-2xl font-bold mb-4 text-primary">The Fine Print</h2>
+            <div className="bg-gray-50 rounded-lg p-6">
+              {quest.requires_adult_supervision && (
+                <div className="bg-red-50 border border-red-200 rounded p-3 mb-3">
+                  <p className="text-red-800 font-semibold">
+                    ⚠️ This quest requires adult supervision for safety
+                  </p>
+                </div>
+              )}
+              {quest.heads_up && (
+                <div className="mb-3">
+                  <h3 className="font-semibold text-gray-700 mb-1">Heads Up:</h3>
+                  <p className="text-gray-600">{quest.heads_up}</p>
+                </div>
+              )}
+              {quest.safety_considerations && (
+                <div className="mb-3">
+                  <h3 className="font-semibold text-yellow-700 mb-1">Safety Notes:</h3>
+                  <p className="text-yellow-600">{quest.safety_considerations}</p>
+                </div>
+              )}
+              {quest.location && (
+                <div>
+                  <h3 className="font-semibold text-gray-700 mb-1">Location:</h3>
+                  <p className="text-gray-600">{quest.location}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Action Buttons */}
         {!userQuest && (
           <button
             onClick={handleStartQuest}
-            className="btn-primary w-full md:w-auto"
+            className="btn-primary w-full md:w-auto text-lg py-3 px-8"
           >
-            Start This Quest
+            Begin This Quest
           </button>
         )}
 
         {userQuest?.status === 'in_progress' && (
-          <div className="bg-gray-50 rounded-lg p-6">
-            <h2 className="text-xl font-semibold mb-4">Submit Your Evidence</h2>
-            
-            {quest.accepted_evidence_types && quest.accepted_evidence_types.length > 0 && (
-              <div className="mb-4">
-                <label className="block text-sm font-medium mb-2">Evidence Type</label>
-                <select
-                  value={selectedEvidenceType}
-                  onChange={(e) => setSelectedEvidenceType(e.target.value)}
-                  className="input-field w-full"
-                  required
-                >
-                  <option value="">Select evidence type...</option>
-                  {quest.accepted_evidence_types.map(type => (
-                    <option key={type} value={type}>
-                      {evidenceTypeLabels[type] || type}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            
+          <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-lg p-6">
+            <h2 className="text-xl font-semibold mb-4">Ready to Submit?</h2>
+            <p className="text-gray-600 mb-4">
+              Once you've completed your quest and documented your journey, share how you showcased your work:
+            </p>
             <textarea
               value={evidenceText}
               onChange={(e) => setEvidenceText(e.target.value)}
-              placeholder="Share your learning journey - what you discovered, how you grew, and what you're proud of..."
+              placeholder="Describe how you showcased your journey and what you learned..."
               className="input-field w-full h-32 mb-4"
             />
-            <div className="flex gap-4">
-              <button
-                onClick={handleSubmitQuest}
-                disabled={submitting}
-                className="btn-primary disabled:opacity-50"
-              >
-                {submitting ? 'Submitting...' : 'Submit for Review'}
-              </button>
-            </div>
+            <button
+              onClick={handleSubmitQuest}
+              disabled={submitting}
+              className="btn-primary disabled:opacity-50"
+            >
+              {submitting ? 'Submitting...' : 'Submit for Review'}
+            </button>
           </div>
         )}
 
         {userQuest?.status === 'pending_review' && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <p className="text-yellow-800">
-              ✓ Your submission is pending review by an educator.
+              ⏳ Your submission is being reviewed by an educator. Great work on completing the quest!
             </p>
           </div>
         )}
 
         {userQuest?.status === 'completed' && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <p className="text-green-800">
-              ✓ Congratulations! You've completed this quest and earned {totalXP} XP!
+            <p className="text-green-800 text-lg">
+              🎉 Congratulations! You've completed this quest and earned {totalXP} XP!
             </p>
           </div>
         )}
@@ -316,7 +460,7 @@ const QuestDetailPage = () => {
         {userQuest?.status === 'needs_changes' && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-red-800 mb-2">
-              Your submission needs changes. Please review the feedback and resubmit.
+              Your submission needs some changes. Please review the feedback and try again!
             </p>
             <button
               onClick={() => setUserQuest({ ...userQuest, status: 'in_progress' })}

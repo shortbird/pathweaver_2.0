@@ -2,7 +2,10 @@ from flask import Flask, jsonify, request, make_response
 from dotenv import load_dotenv
 import os
 
-from routes import auth, quests, subscriptions, users, admin, community, portfolio, ai_quest_generator, ai_quest_bulk_generator, test_xp
+from routes import auth, quests, subscriptions, users, admin, community, portfolio, ai_quest_generator, ai_quest_bulk_generator, test_xp, learning_log
+from routes.ai_orchestrator import ai_orchestrator_bp
+from routes.quest_ideas import quest_ideas_bp
+from routes.ratings import ratings_bp
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -36,6 +39,10 @@ app.register_blueprint(portfolio.bp, url_prefix='/api/portfolio')
 app.register_blueprint(ai_quest_generator.bp, url_prefix='/api/ai-quests')
 app.register_blueprint(ai_quest_bulk_generator.bp, url_prefix='/api/ai-quests')
 app.register_blueprint(test_xp.bp, url_prefix='/api/test-xp')
+app.register_blueprint(learning_log.bp, url_prefix='/api')
+app.register_blueprint(ai_orchestrator_bp)
+app.register_blueprint(quest_ideas_bp)
+app.register_blueprint(ratings_bp)
 
 @app.route('/api/health')
 def health_check():

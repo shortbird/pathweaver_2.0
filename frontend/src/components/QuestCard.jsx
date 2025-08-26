@@ -1,41 +1,25 @@
 import React from 'react'
 import { Link } from 'react-router-dom'
+import { getPillarName, getPillarColor } from '../utils/pillarMappings'
 
 const QuestCard = ({ quest, isCompleted }) => {
   const totalXP = quest.quest_skill_xp?.reduce((sum, award) => sum + award.xp_amount, 0) || 0
   
-  const skillCategoryColors = {
-    reading_writing: 'bg-blue-100 text-blue-800',
-    thinking_skills: 'bg-purple-100 text-purple-800',
-    personal_growth: 'bg-green-100 text-green-800',
-    life_skills: 'bg-yellow-100 text-yellow-800',
-    making_creating: 'bg-orange-100 text-orange-800',
-    world_understanding: 'bg-pink-100 text-pink-800'
+  const getIntensityBadge = (level) => {
+    const colors = {
+      light: 'bg-green-100 text-green-800',
+      moderate: 'bg-yellow-100 text-yellow-800',
+      intensive: 'bg-red-100 text-red-800'
+    }
+    return colors[level] || 'bg-gray-100 text-gray-800'
   }
 
-  const skillCategoryNames = {
-    reading_writing: 'Reading & Writing',
-    thinking_skills: 'Thinking Skills',
-    personal_growth: 'Personal Growth',
-    life_skills: 'Life Skills',
-    making_creating: 'Making & Creating',
-    world_understanding: 'World Understanding'
-  }
-
+  // Fallback for old difficulty/effort fields
   const getDifficultyBadge = (level) => {
     const colors = {
       beginner: 'bg-green-100 text-green-800',
       intermediate: 'bg-yellow-100 text-yellow-800',
       advanced: 'bg-red-100 text-red-800'
-    }
-    return colors[level] || 'bg-gray-100 text-gray-800'
-  }
-
-  const getEffortBadge = (level) => {
-    const colors = {
-      light: 'bg-blue-100 text-blue-800',
-      moderate: 'bg-orange-100 text-orange-800',
-      intensive: 'bg-purple-100 text-purple-800'
     }
     return colors[level] || 'bg-gray-100 text-gray-800'
   }
@@ -59,48 +43,74 @@ const QuestCard = ({ quest, isCompleted }) => {
           </div>
         </div>
         
-        <p className="text-gray-600 text-sm mb-3 line-clamp-2">{quest.description}</p>
+        <p className="text-gray-600 text-sm mb-3 line-clamp-2">
+          {quest.big_idea || quest.description}
+        </p>
         
         <div className="flex flex-wrap gap-2 mb-3">
-          {quest.difficulty_level && (
-            <span className={`text-xs px-2 py-1 rounded ${getDifficultyBadge(quest.difficulty_level)}`}>
-              {quest.difficulty_level}
+          {/* Show primary pillar if available */}
+          {quest.primary_pillar && (
+            <span className={`text-xs px-3 py-1 rounded-full font-medium ${getPillarColor(quest.primary_pillar)}`}>
+              {getPillarName(quest.primary_pillar)}
             </span>
           )}
-          {quest.effort_level && (
-            <span className={`text-xs px-2 py-1 rounded ${getEffortBadge(quest.effort_level)}`}>
-              {quest.effort_level}
+          
+          {/* Show intensity or old difficulty/effort */}
+          {quest.intensity ? (
+            <span className={`text-xs px-2 py-1 rounded ${getIntensityBadge(quest.intensity)}`}>
+              {quest.intensity}
             </span>
+          ) : (
+            <>
+              {quest.difficulty_level && (
+                <span className={`text-xs px-2 py-1 rounded ${getDifficultyBadge(quest.difficulty_level)}`}>
+                  {quest.difficulty_level}
+                </span>
+              )}
+              {quest.effort_level && (
+                <span className={`text-xs px-2 py-1 rounded ${getIntensityBadge(quest.effort_level)}`}>
+                  {quest.effort_level}
+                </span>
+              )}
+            </>
           )}
-          {quest.estimated_hours && (
+          
+          {/* Show time estimate */}
+          {quest.estimated_time ? (
+            <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-800">
+              {quest.estimated_time}
+            </span>
+          ) : quest.estimated_hours ? (
             <span className="text-xs px-2 py-1 rounded bg-gray-100 text-gray-800">
               ~{quest.estimated_hours}h
             </span>
-          )}
+          ) : null}
         </div>
         
+        {/* Show XP awards */}
         <div className="flex flex-wrap gap-2 mb-3">
           {quest.quest_skill_xp?.map((award, index) => (
             <span
               key={index}
-              className={`text-xs px-2 py-1 rounded-full ${skillCategoryColors[award.skill_category] || 'bg-gray-100 text-gray-800'}`}
+              className={`text-xs px-2 py-1 rounded-full ${getPillarColor(award.skill_category)}`}
             >
-              {skillCategoryNames[award.skill_category] || award.skill_category} ({award.xp_amount} XP)
+              {getPillarName(award.skill_category)} ({award.xp_amount} XP)
             </span>
           ))}
         </div>
 
-        {quest.core_skills && quest.core_skills.length > 0 && (
+        {/* Show deliverables if available */}
+        {quest.what_youll_create && quest.what_youll_create.length > 0 && (
           <div className="mb-3">
-            <p className="text-xs text-gray-500 mb-1">Skills developed:</p>
+            <p className="text-xs text-gray-500 mb-1">What you'll create:</p>
             <div className="flex flex-wrap gap-1">
-              {quest.core_skills.slice(0, 5).map((skill, index) => (
+              {quest.what_youll_create.slice(0, 3).map((item, index) => (
                 <span key={index} className="text-xs bg-gray-100 text-gray-700 px-2 py-0.5 rounded">
-                  {skill.replace(/_/g, ' ')}
+                  {item}
                 </span>
               ))}
-              {quest.core_skills.length > 5 && (
-                <span className="text-xs text-gray-500">+{quest.core_skills.length - 5} more</span>
+              {quest.what_youll_create.length > 3 && (
+                <span className="text-xs text-gray-500">+{quest.what_youll_create.length - 3} more</span>
               )}
             </div>
           </div>
