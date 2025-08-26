@@ -26,4 +26,6 @@ GRANT SELECT ON ai_generation_analytics TO anon;
 GRANT ALL ON ai_generation_jobs TO service_role;
 GRANT ALL ON ai_generated_quests TO service_role;
 GRANT ALL ON ai_prompt_templates TO service_role;
-GRANT ALL ON ai_quest_review_history TO service_role;
+GRANT ALL ON ai_quest_review_history TO service_role;  
+
+ 
