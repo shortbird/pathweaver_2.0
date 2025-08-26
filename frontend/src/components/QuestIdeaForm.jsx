@@ -61,7 +61,7 @@ const QuestIdeaForm = ({ onClose, onSuccess }) => {
         </div>
 
         <p className="text-sm text-gray-600 mb-4">
-          Have an idea for a new quest? Share it with us! Our AI will expand your idea into a full quest.
+          Have an idea for a new quest? Share it with us! We'll review your suggestion and may create a new quest based on it.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">

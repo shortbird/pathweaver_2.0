@@ -3,15 +3,10 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 import AdminQuestManager from './AdminQuestManager'
-import AIQuestBulkGenerator from '../components/AIQuestBulkGenerator'
-import AISeedEditor from '../components/admin/AISeedEditor'
-import AdminReviewQueue from '../components/admin/AdminReviewQueue'
 
 const AdminDashboard = () => {
   const [analytics, setAnalytics] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [runningAICycle, setRunningAICycle] = useState(false)
-  const [aiCycleResult, setAICycleResult] = useState(null)
 
   useEffect(() => {
     fetchAnalytics()
@@ -28,53 +23,6 @@ const AdminDashboard = () => {
     }
   }
 
-  const runAICycle = async () => {
-    setRunningAICycle(true)
-    setAICycleResult(null)
-    
-    try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/ai/run-cycle`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${import.meta.env.VITE_CRON_SECRET || 'It:?nho:=d@~3ZzTE/=yQ46t,3c4[X'}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ trigger: 'manual_admin' })
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        setAICycleResult(data)
-        toast.success('AI cycle completed successfully!')
-        
-        // Show summary of what happened
-        if (data.results) {
-          const { generation, grading, expansion, validation } = data.results
-          
-          if (generation) {
-            toast.success(`Generated new quest: ${generation.quest_title}`)
-          }
-          if (grading && grading.length > 0) {
-            toast.success(`Graded ${grading.length} quest(s)`)
-          }
-          if (expansion && expansion.length > 0) {
-            toast.success(`Expanded ${expansion.length} quest idea(s)`)
-          }
-          if (validation && validation.length > 0) {
-            toast.success(`Validated ${validation.length} submission(s)`)
-          }
-        }
-      } else {
-        const error = await response.json()
-        toast.error(`AI cycle failed: ${error.error || 'Unknown error'}`)
-      }
-    } catch (error) {
-      console.error('Error running AI cycle:', error)
-      toast.error('Failed to run AI cycle')
-    } finally {
-      setRunningAICycle(false)
-    }
-  }
 
   if (loading) {
     return <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
@@ -83,91 +31,6 @@ const AdminDashboard = () => {
   return (
     <div>
       <h2 className="text-2xl font-bold mb-6">Dashboard Overview</h2>
-      
-      {/* AI Quest Generation Control Panel */}
-      <div className="bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl p-6 mb-6 border border-purple-200">
-        <div className="flex justify-between items-start mb-4">
-          <div>
-            <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
-              <span className="text-2xl">🤖</span>
-              AI Quest Generation System
-            </h3>
-            <p className="text-sm text-gray-600 mt-1">
-              Manually trigger the AI to generate, grade, expand, and validate quests
-            </p>
-          </div>
-          <button
-            onClick={runAICycle}
-            disabled={runningAICycle}
-            className={`px-6 py-3 rounded-lg font-semibold transition-all transform hover:scale-105 ${
-              runningAICycle 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-lg'
-            }`}
-          >
-            {runningAICycle ? (
-              <span className="flex items-center gap-2">
-                <span className="animate-spin">⚙️</span>
-                Running AI Cycle...
-              </span>
-            ) : (
-              <span className="flex items-center gap-2">
-                <span>🚀</span>
-                Run AI Quest Generator
-              </span>
-            )}
-          </button>
-        </div>
-        
-        {/* AI Cycle Results */}
-        {aiCycleResult && (
-          <div className="mt-4 p-4 bg-white rounded-lg">
-            <h4 className="font-semibold text-gray-800 mb-2">Last AI Cycle Results:</h4>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <span className="text-gray-600">Generation:</span>
-                <p className="font-semibold">
-                  {aiCycleResult.results?.generation ? '✅ Success' : '❌ None'}
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-600">Graded:</span>
-                <p className="font-semibold">
-                  {aiCycleResult.results?.grading?.length || 0} quests
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-600">Expanded:</span>
-                <p className="font-semibold">
-                  {aiCycleResult.results?.expansion?.length || 0} ideas
-                </p>
-              </div>
-              <div>
-                <span className="text-gray-600">Validated:</span>
-                <p className="font-semibold">
-                  {aiCycleResult.results?.validation?.length || 0} submissions
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {/* Quick Links */}
-        <div className="mt-4 flex gap-3 text-sm">
-          <Link 
-            to="/admin/ai-settings" 
-            className="text-purple-600 hover:text-purple-800 font-medium"
-          >
-            ⚙️ Configure AI Prompt →
-          </Link>
-          <Link 
-            to="/admin/review-queue" 
-            className="text-purple-600 hover:text-purple-800 font-medium"
-          >
-            📋 Review AI Quests →
-          </Link>
-        </div>
-      </div>
       
       {/* Analytics Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -200,7 +63,6 @@ const AdminQuests = () => {
   const [loading, setLoading] = useState(true)
   const [showManager, setShowManager] = useState(false)
   const [editingQuest, setEditingQuest] = useState(null)
-  const [showBulkGenerator, setShowBulkGenerator] = useState(false)
   const [collapsedQuests, setCollapsedQuests] = useState(new Set())
 
   useEffect(() => {
@@ -308,13 +170,6 @@ const AdminQuests = () => {
             {collapsedQuests.size === quests.length ? 'Expand All' : 'Collapse All'}
           </button>
           <button
-            onClick={() => setShowBulkGenerator(true)}
-            className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded hover:from-indigo-700 hover:to-purple-700 flex items-center gap-2"
-          >
-            <span>🚀</span>
-            <span>Bulk Generate</span>
-          </button>
-          <button
             onClick={() => {
               setEditingQuest(null)
               setShowManager(true)
@@ -325,13 +180,6 @@ const AdminQuests = () => {
           </button>
         </div>
       </div>
-
-      {showBulkGenerator && (
-        <AIQuestBulkGenerator
-          onClose={() => setShowBulkGenerator(false)}
-          onQuestsGenerated={fetchQuests}
-        />
-      )}
 
 
       {showManager && (
@@ -633,26 +481,12 @@ const AdminPage = () => {
         >
           Submissions
         </Link>
-        <Link
-          to="/admin/review-queue"
-          className={`pb-2 px-1 ${currentPath === 'review-queue' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
-        >
-          AI Review Queue
-        </Link>
-        <Link
-          to="/admin/ai-settings"
-          className={`pb-2 px-1 ${currentPath === 'ai-settings' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
-        >
-          AI Settings
-        </Link>
       </div>
 
       <Routes>
         <Route index element={<AdminDashboard />} />
         <Route path="quests" element={<AdminQuests />} />
         <Route path="submissions" element={<AdminSubmissions />} />
-        <Route path="review-queue" element={<AdminReviewQueue />} />
-        <Route path="ai-settings" element={<AISeedEditor />} />
       </Routes>
     </div>
   )

@@ -31,7 +31,9 @@
       "Bash(then echo \"Virtual environment exists\")",
       "Bash(else python -m venv venv)",
       "Bash(fi)",
-      "Bash(venv/Scripts/pip install:*)"
+      "Bash(venv/Scripts/pip install:*)",
+      "Bash(dir)",
+      "Bash(dir:*)"
     ],
     "deny": [],
     "ask": []

@@ -115,12 +115,11 @@ def get_filter_options():
         
         filter_options = {
             'skill_categories': [
-                {'value': 'reading_writing', 'label': 'Reading & Writing'},
-                {'value': 'thinking_skills', 'label': 'Thinking Skills'},
-                {'value': 'personal_growth', 'label': 'Personal Growth'},
-                {'value': 'life_skills', 'label': 'Life Skills'},
-                {'value': 'making_creating', 'label': 'Making & Creating'},
-                {'value': 'world_understanding', 'label': 'World Understanding'}
+                {'value': 'creativity', 'label': 'Creativity'},
+                {'value': 'critical_thinking', 'label': 'Critical Thinking'},
+                {'value': 'practical_skills', 'label': 'Practical Skills'},
+                {'value': 'communication', 'label': 'Communication'},
+                {'value': 'cultural_literacy', 'label': 'Cultural Literacy'}
             ],
             'difficulty_levels': [
                 {'value': 'beginner', 'label': 'Beginner'},

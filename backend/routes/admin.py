@@ -219,23 +219,91 @@ def delete_quest(user_id, quest_id):
     supabase = get_supabase_admin_client()
     
     try:
-        # Try to delete from both old and new XP tables
+        # Delete all related records first (in order of dependencies)
+        
+        # 1. Delete learning logs (depends on user_quests)
+        user_quests_response = supabase.table('user_quests').select('id').eq('quest_id', quest_id).execute()
+        if user_quests_response.data:
+            for uq in user_quests_response.data:
+                try:
+                    supabase.table('learning_logs').delete().eq('user_quest_id', uq['id']).execute()
+                except Exception as e:
+                    print(f"Warning: Could not delete learning logs: {e}")
+        
+        # 2. Delete submissions and submission evidence (depends on user_quests)
+        if user_quests_response.data:
+            for uq in user_quests_response.data:
+                # Get submissions first
+                submissions_response = supabase.table('submissions').select('id').eq('user_quest_id', uq['id']).execute()
+                if submissions_response.data:
+                    for submission in submissions_response.data:
+                        # Delete submission evidence
+                        try:
+                            supabase.table('submission_evidence').delete().eq('submission_id', submission['id']).execute()
+                        except Exception as e:
+                            print(f"Warning: Could not delete submission evidence: {e}")
+                    # Delete submissions
+                    try:
+                        supabase.table('submissions').delete().eq('user_quest_id', uq['id']).execute()
+                    except Exception as e:
+                        print(f"Warning: Could not delete submissions: {e}")
+        
+        # 3. Delete user_quests
+        try:
+            supabase.table('user_quests').delete().eq('quest_id', quest_id).execute()
+        except Exception as e:
+            print(f"Warning: Could not delete user_quests: {e}")
+        
+        # 4. Removed AI quest table update - no longer needed
+        
+        # 5. Delete community shares that reference this quest
+        try:
+            supabase.table('community_shares').delete().eq('quest_id', quest_id).execute()
+        except Exception as e:
+            print(f"Warning: Could not delete community shares: {e}")
+        
+        # 6. Delete quest ideas that might reference this quest
+        try:
+            supabase.table('quest_ideas').delete().eq('expanded_quest_id', quest_id).execute()
+        except Exception as e:
+            print(f"Warning: Could not delete quest ideas: {e}")
+        
+        # 7. Delete quest_skill_xp
         try:
             supabase.table('quest_skill_xp').delete().eq('quest_id', quest_id).execute()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: Could not delete quest_skill_xp: {e}")
         
+        # 8. Delete quest_xp_awards (old table)
         try:
             supabase.table('quest_xp_awards').delete().eq('quest_id', quest_id).execute()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Warning: Could not delete quest_xp_awards: {e}")
         
-        supabase.table('quests').delete().eq('id', quest_id).execute()
+        # 9. Delete from activity_log (if any references exist)
+        try:
+            # Fetch all activity logs
+            activity_logs = supabase.table('activity_log').select('id, event_details').execute()
+            if activity_logs.data:
+                for log in activity_logs.data:
+                    if log.get('event_details') and quest_id in str(log['event_details']):
+                        try:
+                            supabase.table('activity_log').delete().eq('id', log['id']).execute()
+                        except:
+                            pass
+        except Exception as e:
+            print(f"Warning: Could not check/delete activity logs: {e}")
         
-        return jsonify({'message': 'Quest deleted successfully'}), 200
+        # 10. Finally, delete the quest itself
+        result = supabase.table('quests').delete().eq('id', quest_id).execute()
+        
+        return jsonify({'message': 'Quest and all related data deleted successfully'}), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        print(f"Error deleting quest {quest_id}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to delete quest: {str(e)}'}), 400
 
 @bp.route('/quests/bulk-import', methods=['POST'])
 @require_admin
@@ -411,126 +479,11 @@ def get_all_users(user_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-@bp.route('/pending-quests', methods=['GET'])
-@require_admin
-def get_pending_quests(user_id):
-    """Get all AI-generated quests pending review"""
-    supabase = get_supabase_admin_client()
-    
-    try:
-        # Get AI-generated quests pending review from the ai_generated_quests table
-        pending = supabase.table('ai_generated_quests')\
-            .select('*')\
-            .eq('review_status', 'pending')\
-            .order('created_at', desc=False)\
-            .execute()
-        
-        # Transform the data to match the expected format
-        quests = []
-        if pending.data:
-            for item in pending.data:
-                quest_data = item.get('quest_data', {})
-                # Add necessary fields from the review queue record
-                quest_data['id'] = item['id']
-                quest_data['ai_grade_score'] = item.get('quality_score', 0)
-                quest_data['ai_grade_feedback'] = json.dumps({
-                    'feedback': f"Quality score: {item.get('quality_score', 0)}/100",
-                    'strengths': [],
-                    'weaknesses': []
-                })
-                quest_data['created_at'] = item.get('created_at')
-                quests.append(quest_data)
-        
-        return jsonify({'quests': quests}), 200
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
+# AI quest review endpoints removed - all quests will be created manually
 
-@bp.route('/approve-quest/<quest_id>', methods=['POST'])
-@require_admin
-def approve_quest(user_id, quest_id):
-    """Approve an AI-generated quest from the review queue"""
-    supabase = get_supabase_admin_client()
-    
-    try:
-        # Get the quest from ai_generated_quests table
-        review_quest = supabase.table('ai_generated_quests')\
-            .select('*')\
-            .eq('id', quest_id)\
-            .single()\
-            .execute()
-        
-        if not review_quest.data:
-            return jsonify({'error': 'Quest not found in review queue'}), 404
-        
-        quest_data = review_quest.data['quest_data']
-        
-        # Insert the approved quest into the main quests table
-        # Remove fields that shouldn't be in the quests table
-        fields_to_remove = ['id', 'ai_grade_score', 'ai_grade_feedback', 'skill_xp_awards']
-        for field in fields_to_remove:
-            quest_data.pop(field, None)
-        
-        # Add required fields for the quests table
-        quest_data['status'] = 'active'
-        quest_data['created_by'] = user_id
-        quest_data['created_at'] = datetime.utcnow().isoformat()
-        
-        # Insert into quests table
-        new_quest = supabase.table('quests').insert(quest_data).execute()
-        
-        if new_quest.data and len(new_quest.data) > 0:
-            published_quest_id = new_quest.data[0]['id']
-            
-            # Create skill XP awards if specified in the original quest data
-            original_quest_data = review_quest.data['quest_data']
-            if 'skill_xp_awards' in original_quest_data:
-                for award in original_quest_data['skill_xp_awards']:
-                    supabase.table('quest_skill_xp').insert({
-                        'quest_id': published_quest_id,
-                        'skill_category': award['skill_category'],
-                        'xp_amount': award['xp_amount']
-                    }).execute()
-            
-            # Update the review status
-            supabase.table('ai_generated_quests')\
-                .update({
-                    'review_status': 'approved',
-                    'reviewed_at': datetime.utcnow().isoformat(),
-                    'reviewer_id': user_id,
-                    'published_quest_id': published_quest_id
-                })\
-                .eq('id', quest_id)\
-                .execute()
-            
-            return jsonify({'message': 'Quest approved and published successfully'}), 200
-        
-        return jsonify({'error': 'Failed to publish quest'}), 500
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
+# AI quest approval endpoint removed - all quests will be created manually
 
-@bp.route('/reject-quest/<quest_id>', methods=['POST'])
-@require_admin
-def reject_quest(user_id, quest_id):
-    """Reject an AI-generated quest from the review queue"""
-    supabase = get_supabase_admin_client()
-    
-    try:
-        # Update the review status to rejected
-        result = supabase.table('ai_generated_quests')\
-            .update({
-                'review_status': 'rejected',
-                'reviewed_at': datetime.utcnow().isoformat(),
-                'reviewer_id': user_id
-            })\
-            .eq('id', quest_id)\
-            .execute()
-        
-        return jsonify({'message': 'Quest rejected successfully'}), 200
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
+# AI quest rejection endpoint removed - all quests will be created manually
 
 @bp.route('/analytics', methods=['GET'])
 @require_admin

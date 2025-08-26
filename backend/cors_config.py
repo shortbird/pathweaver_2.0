@@ -50,8 +50,10 @@ def configure_cors(app):
     if is_development:
         dev_origins = [
             'http://localhost:3000',  # Primary React dev server
+            'http://localhost:3001',  # Alternative React dev server port
             'http://localhost:5173',  # Vite dev server
             'http://127.0.0.1:3000',
+            'http://127.0.0.1:3001',
             'http://127.0.0.1:5173'
         ]
         allowed_origins.extend(dev_origins)

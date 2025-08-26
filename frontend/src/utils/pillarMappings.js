@@ -1,45 +1,40 @@
-// Diploma Pillars mapping utility
+// Diploma Pillars mapping utility - 5 Pillars of Optio Diploma
 export const DIPLOMA_PILLARS = {
   creativity: {
     name: 'Creativity',
+    description: 'The practice of generating new ideas and bringing them to life',
     color: 'purple',
     icon: '🎨',
     competencies: ['Artistic Expression', 'Design Thinking', 'Innovation', 'Problem-Solving']
   },
   critical_thinking: {
     name: 'Critical Thinking',
+    description: 'The practice of analyzing information, thinking logically, and making reasoned judgments',
     color: 'blue',
     icon: '🧠',
     competencies: ['Analysis & Research', 'Logic & Reasoning', 'Systems Thinking', 'Evidence-Based Decision Making']
   },
   practical_skills: {
     name: 'Practical Skills',
+    description: 'The practice of hands-on, real-world abilities for life and work',
     color: 'green',
     icon: '🛠️',
     competencies: ['Life Skills', 'Technical Skills', 'Financial Literacy', 'Health & Wellness']
   },
   communication: {
     name: 'Communication',
+    description: 'The practice of sharing and receiving information effectively',
     color: 'orange',
     icon: '💬',
     competencies: ['Writing & Storytelling', 'Public Speaking', 'Digital Communication', 'Active Listening']
   },
   cultural_literacy: {
     name: 'Cultural Literacy',
+    description: 'The practice of understanding the context of the world—its history, cultures, and social fabric',
     color: 'red',
     icon: '🌍',
     competencies: ['Global Awareness', 'History & Context', 'Empathy & Perspective-Taking', 'Community Engagement']
   }
-}
-
-// Old skill categories (for backward compatibility if needed)
-export const OLD_SKILL_CATEGORIES = {
-  reading_writing: 'communication',
-  thinking_skills: 'critical_thinking',
-  personal_growth: 'practical_skills',
-  life_skills: 'practical_skills',
-  making_creating: 'creativity',
-  world_understanding: 'cultural_literacy'
 }
 
 // Helper function to get pillar name
@@ -57,9 +52,4 @@ export const getPillarColor = (pillarKey) => {
     cultural_literacy: 'bg-red-100 text-red-800'
   }
   return colors[pillarKey] || 'bg-gray-100 text-gray-800'
-}
-
-// Helper to convert old category to new pillar
-export const mapOldCategoryToPillar = (oldCategory) => {
-  return OLD_SKILL_CATEGORIES[oldCategory] || oldCategory
 }

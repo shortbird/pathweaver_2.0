@@ -5,10 +5,7 @@ import jwt
 import os
 import sys
 from datetime import datetime
-import threading
-
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from services.expander_service import ExpanderService
 
 quest_ideas_bp = Blueprint('quest_ideas', __name__)
 
@@ -42,7 +39,7 @@ def token_required(f):
 @cross_origin()
 @token_required
 def submit_quest_idea(current_user_id):
-    """Submit a new quest idea for AI expansion"""
+    """Submit a new quest idea for review"""
     try:
         data = request.get_json()
         title = data.get('title')
@@ -68,7 +65,7 @@ def submit_quest_idea(current_user_id):
             'user_id': current_user_id,
             'title': title,
             'description': description,
-            'status': 'pending_expansion',
+            'status': 'pending_review',
             'created_at': datetime.utcnow().isoformat()
         }
         
@@ -77,17 +74,8 @@ def submit_quest_idea(current_user_id):
         if response.data:
             idea_id = response.data[0]['id']
             
-            # Trigger expansion asynchronously
-            def expand_async():
-                expander = ExpanderService()
-                expander.expand_idea(idea_id, title, description, current_user_id)
-            
-            thread = threading.Thread(target=expand_async)
-            thread.daemon = True
-            thread.start()
-            
             return jsonify({
-                'message': 'Your quest idea has been submitted and is being processed!',
+                'message': 'Your quest idea has been submitted for review!',
                 'idea_id': idea_id
             }), 202
         else:
@@ -133,10 +121,7 @@ def get_quest_idea_status(current_user_id, idea_id):
         response = supabase.table('quest_ideas').select('*').eq('id', idea_id).eq('user_id', current_user_id).single().execute()
         
         if response.data:
-            # If expanded, also get the quest details
-            if response.data['status'] == 'expanded':
-                quest_response = supabase.table('quests').select('*').eq('source_idea_id', idea_id).single().execute()
-                response.data['quest'] = quest_response.data if quest_response.data else None
+            # Quest ideas are now manually reviewed, no automatic expansion
             
             return jsonify(response.data), 200
         else:

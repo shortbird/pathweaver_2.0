@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+import { DIPLOMA_PILLARS, getPillarName } from '../utils/pillarMappings'
 
 // Memoized component for Active Quests section
 const ActiveQuests = memo(({ activeQuests }) => {
@@ -45,7 +46,7 @@ const ActiveQuests = memo(({ activeQuests }) => {
 })
 
 // Memoized component for Recent Completions section  
-const RecentCompletions = memo(({ recentCompletions, skillCategoryNames }) => {
+const RecentCompletions = memo(({ recentCompletions }) => {
   if (!recentCompletions || recentCompletions.length === 0) {
     return <p className="text-gray-600">No completed quests yet. Keep going!</p>
   }
@@ -61,7 +62,7 @@ const RecentCompletions = memo(({ recentCompletions, skillCategoryNames }) => {
           <div className="flex gap-2 mt-1">
             {quest.quests?.quest_skill_xp?.map((award, idx) => (
               <span key={idx} className="text-xs text-green-700">
-                +{award.xp_amount} {skillCategoryNames[award.skill_category]?.split(' ')[0]} XP
+                +{award.xp_amount} {getPillarName(award.skill_category)} XP
               </span>
             ))}
           </div>
@@ -80,14 +81,14 @@ const DashboardPage = () => {
   const [portfolioData, setPortfolioData] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  const skillCategoryNames = useMemo(() => ({
-    reading_writing: 'Reading & Writing',
-    thinking_skills: 'Thinking Skills',
-    personal_growth: 'Personal Growth',
-    life_skills: 'Life Skills',
-    making_creating: 'Making & Creating',
-    world_understanding: 'World Understanding'
-  }), [])
+  // Use the 5 Diploma Pillars
+  const skillCategoryNames = useMemo(() => {
+    const names = {}
+    Object.entries(DIPLOMA_PILLARS).forEach(([key, pillar]) => {
+      names[key] = pillar.name
+    })
+    return names
+  }, [])
 
   const fetchDashboardData = useCallback(async () => {
     try {
@@ -377,7 +378,6 @@ const DashboardPage = () => {
           <h2 className="text-xl font-semibold mb-4">Recent Completions</h2>
           <RecentCompletions 
             recentCompletions={dashboardData?.recent_completions} 
-            skillCategoryNames={skillCategoryNames}
           />
         </div>
       </div>

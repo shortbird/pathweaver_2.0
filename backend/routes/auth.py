@@ -40,9 +40,9 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
                 'portfolio_slug': slug
             }).execute()
         
-        # Initialize skill categories if they don't exist
-        skill_categories = ['reading_writing', 'thinking_skills', 'personal_growth', 
-                           'life_skills', 'making_creating', 'world_understanding']
+        # Initialize the 5 Diploma Pillars
+        skill_categories = ['creativity', 'critical_thinking', 'practical_skills', 
+                           'communication', 'cultural_literacy']
         
         for category in skill_categories:
             existing_skill = supabase.table('user_skill_xp').select('id').eq('user_id', user_id).eq('skill_category', category).execute()
