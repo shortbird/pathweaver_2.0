@@ -401,10 +401,10 @@ def generate_batch(user_id):
                     
                     # Process each quest
                     for quest in quests:
-                        # Add metadata
-                        quest['generation_job_id'] = job_id
-                        quest['skill_category'] = prompt_info['category']
-                        quest['difficulty_level'] = prompt_info['difficulty']
+                        # Don't modify the original quest object
+                        # Ensure difficulty_level is set if not present
+                        if 'difficulty_level' not in quest:
+                            quest['difficulty_level'] = prompt_info['difficulty']
                         
                         # Calculate quality score
                         quality_score = generator.calculate_quality_score(quest)
@@ -601,6 +601,14 @@ def review_quest(user_id, quest_id):
             # Create actual quest from approved data
             quest_data = generated_quest['quest_data']
             
+            # Validate required fields
+            if not quest_data.get('title'):
+                return jsonify({'error': 'Quest is missing title'}), 400
+            if not quest_data.get('description'):
+                return jsonify({'error': 'Quest is missing description'}), 400
+            if not quest_data.get('evidence_requirements'):
+                return jsonify({'error': 'Quest is missing evidence requirements'}), 400
+            
             # Base quest data (matching manual creation pattern)
             new_quest = {
                 'title': quest_data.get('title'),
@@ -611,6 +619,7 @@ def review_quest(user_id, quest_id):
             }
             
             # Add optional fields if present (matching manual creation)
+            # IMPORTANT: Only add fields that exist in the quests table
             optional_fields = [
                 'difficulty_level', 'effort_level', 'estimated_hours',
                 'accepted_evidence_types', 'example_submissions', 'core_skills',
@@ -619,15 +628,31 @@ def review_quest(user_id, quest_id):
             ]
             
             for field in optional_fields:
-                if field in quest_data and quest_data[field] is not None:
-                    new_quest[field] = quest_data[field]
+                value = quest_data.get(field)
+                if value is not None:
+                    # Special handling for estimated_hours - ensure it's an integer
+                    if field == 'estimated_hours':
+                        try:
+                            new_quest[field] = int(value)
+                        except (TypeError, ValueError):
+                            new_quest[field] = 1  # Default to 1 hour if invalid
+                    else:
+                        new_quest[field] = value
             
-            # Add AI-generated flag
-            new_quest['is_ai_generated'] = True
+            # Note: Removed is_ai_generated flag as it may not exist in the quests table
+            
+            print(f"Inserting quest with fields: {list(new_quest.keys())}")
+            print(f"Quest data: {json.dumps(new_quest, default=str)[:500]}")  # Log first 500 chars for debugging
             
             # Insert the new quest
-            quest_insert_response = supabase.table('quests').insert(new_quest).execute()
-            published_quest_id = quest_insert_response.data[0]['id']
+            try:
+                quest_insert_response = supabase.table('quests').insert(new_quest).execute()
+                if not quest_insert_response.data or len(quest_insert_response.data) == 0:
+                    return jsonify({'error': 'Failed to insert quest'}), 400
+                published_quest_id = quest_insert_response.data[0]['id']
+            except Exception as insert_error:
+                print(f"Quest insert error: {str(insert_error)}")
+                return jsonify({'error': f'Failed to insert quest: {str(insert_error)}'}), 400
             
             # Handle skill-based XP awards (new system) - with error handling like manual creation
             if 'skill_xp_awards' in quest_data:
@@ -775,11 +800,16 @@ def auto_publish_high_quality(user_id):
             ]
             
             for field in optional_fields:
-                if field in quest_data and quest_data[field] is not None:
-                    new_quest[field] = quest_data[field]
-            
-            # Add AI-generated flag
-            new_quest['is_ai_generated'] = True
+                value = quest_data.get(field)
+                if value is not None:
+                    # Special handling for estimated_hours - ensure it's an integer
+                    if field == 'estimated_hours':
+                        try:
+                            new_quest[field] = int(value)
+                        except (TypeError, ValueError):
+                            new_quest[field] = 1  # Default to 1 hour if invalid
+                    else:
+                        new_quest[field] = value
             
             # Insert quest
             quest_insert = supabase.table('quests').insert(new_quest).execute()
