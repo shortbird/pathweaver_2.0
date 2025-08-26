@@ -160,7 +160,7 @@ def get_user_quest_rating(user, quest_id):
         if response.data:
             return jsonify({'user_rating': response.data['rating']}), 200
         else:
-            return jsonify({'user_rating': null}), 200
+            return jsonify({'user_rating': None}), 200
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
