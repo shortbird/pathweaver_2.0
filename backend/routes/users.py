@@ -152,7 +152,7 @@ def get_dashboard(user_id):
                 .select('*, quests(*, quest_skill_xp(*), quest_xp_awards(*))')\
                 .eq('user_id', user_id)\
                 .eq('status', 'completed')\
-                .order('completed_at', desc=True)\
+                .order('completed_at', {'ascending': False})\
                 .limit(5)\
                 .execute()
         except Exception:
@@ -161,7 +161,7 @@ def get_dashboard(user_id):
                 .select('*, quests(*)')\
                 .eq('user_id', user_id)\
                 .eq('status', 'completed')\
-                .order('completed_at', desc=True)\
+                .order('completed_at', {'ascending': False})\
                 .limit(5)\
                 .execute()
         

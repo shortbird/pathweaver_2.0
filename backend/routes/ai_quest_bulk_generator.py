@@ -144,10 +144,18 @@ Return ONLY a JSON array with exactly {count} quest objects."""
         if category_dist == 'even':
             quests_per_category = total_count // len(categories)
             remainder = total_count % len(categories)
-        else:
-            # Custom distribution
+        elif isinstance(category_dist, str) and category_dist in categories:
+            # Single category focus
+            quests_per_category = {category_dist: total_count}
+            remainder = 0
+        elif isinstance(category_dist, dict):
+            # Custom distribution dictionary
             quests_per_category = category_dist
             remainder = 0
+        else:
+            # Default to even distribution if unknown
+            quests_per_category = total_count // len(categories)
+            remainder = total_count % len(categories)
         
         # Generate prompts for each category
         for idx, category in enumerate(categories):
@@ -433,7 +441,7 @@ def get_generation_jobs(user_id):
     try:
         response = supabase.table('ai_generation_jobs')\
             .select('*')\
-            .order('created_at', desc=True)\
+            .order('created_at', {'ascending': False})\
             .limit(50)\
             .execute()
         
@@ -454,7 +462,7 @@ def get_review_queue(user_id):
         response = supabase.table('ai_generated_quests')\
             .select('*')\
             .eq('review_status', 'pending')\
-            .order('quality_score', desc=True)\
+            .order('quality_score', {'ascending': False})\
             .limit(50)\
             .execute()
         
@@ -541,12 +549,13 @@ def review_quest(user_id, quest_id):
             }).eq('id', quest_id).execute()
             
             # Update job counts
-            job_id = generated_quest['generation_job_id']
-            supabase.rpc('increment', {
-                'table_name': 'ai_generation_jobs',
-                'column_name': 'approved_count',
-                'row_id': job_id
-            }).execute()
+            # TODO: Implement job count updates
+            # job_id = generated_quest['generation_job_id']
+            # supabase.rpc('increment', {
+            #     'table_name': 'ai_generation_jobs',
+            #     'column_name': 'approved_count',
+            #     'row_id': job_id
+            # }).execute()
             
         elif action == 'reject':
             # Update status to rejected
@@ -558,12 +567,13 @@ def review_quest(user_id, quest_id):
             }).eq('id', quest_id).execute()
             
             # Update job counts
-            job_id = generated_quest['generation_job_id']
-            supabase.rpc('increment', {
-                'table_name': 'ai_generation_jobs',
-                'column_name': 'rejected_count',
-                'row_id': job_id
-            }).execute()
+            # TODO: Implement job count updates
+            # job_id = generated_quest['generation_job_id']
+            # supabase.rpc('increment', {
+            #     'table_name': 'ai_generation_jobs',
+            #     'column_name': 'rejected_count',
+            #     'row_id': job_id
+            # }).execute()
             
         elif action == 'modify':
             # Update quest data with modifications
@@ -591,17 +601,13 @@ def get_quality_metrics(user_id):
     
     try:
         # Get aggregated metrics
-        metrics_response = supabase.rpc('get_ai_generation_metrics').execute()
+        # TODO: Implement metrics aggregation
+        # metrics_response = supabase.rpc('get_ai_generation_metrics').execute()
         
-        # Get recent generation analytics
-        analytics_response = supabase.table('ai_generation_analytics')\
-            .select('*')\
-            .limit(30)\
-            .execute()
-        
+        # For now, return empty metrics
         return jsonify({
-            'metrics': metrics_response.data,
-            'analytics': analytics_response.data
+            'metrics': {},
+            'analytics': []
         }), 200
         
     except Exception as e:
