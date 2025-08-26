@@ -14,7 +14,7 @@ const AISeedEditor = () => {
   const fetchSeedPrompt = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/ai/seed`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/ai/seed`, {
         headers: getAuthHeaders()
       });
       
@@ -37,7 +37,7 @@ const AISeedEditor = () => {
     setMessage('');
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/ai/seed`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/ai/seed`, {
         method: 'POST',
         headers: {
           ...getAuthHeaders(),

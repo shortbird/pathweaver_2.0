@@ -14,7 +14,7 @@ const AdminReviewQueue = () => {
   const fetchPendingQuests = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/pending-quests`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/admin/pending-quests`, {
         headers: getAuthHeaders()
       });
       
@@ -32,7 +32,7 @@ const AdminReviewQueue = () => {
   const handleApprove = async (questId) => {
     setProcessing(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/approve-quest/${questId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/admin/approve-quest/${questId}`, {
         method: 'POST',
         headers: getAuthHeaders()
       });
@@ -51,7 +51,7 @@ const AdminReviewQueue = () => {
   const handleReject = async (questId) => {
     setProcessing(true);
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/admin/reject-quest/${questId}`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/admin/reject-quest/${questId}`, {
         method: 'POST',
         headers: getAuthHeaders()
       });
