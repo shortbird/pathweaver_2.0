@@ -5,6 +5,7 @@ import os
 from routes import auth, quests, subscriptions, users, admin, community, portfolio, test_xp, learning_log
 from routes.quest_ideas import quest_ideas_bp
 from routes.ratings import ratings_bp
+from routes import uploads
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -17,7 +18,7 @@ if not os.getenv('FLASK_ENV'):
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
-app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max request size
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max request size
 
 # Configure security middleware
 security_middleware.init_app(app)
@@ -39,6 +40,7 @@ app.register_blueprint(test_xp.bp, url_prefix='/api/test-xp')
 app.register_blueprint(learning_log.bp, url_prefix='/api')
 app.register_blueprint(quest_ideas_bp)
 app.register_blueprint(ratings_bp)
+app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
 
 @app.route('/api/health')
 def health_check():

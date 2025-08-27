@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import QuestSubmissionForm from './QuestSubmissionForm'
 
 const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddLog, learningLogs = [] }) => {
   const [expandedSections, setExpandedSections] = useState({})
@@ -151,20 +152,15 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
               {/* Submit Evidence (if quest in progress) */}
               {userQuest?.status === 'in_progress' && (
                 <div className="mt-6 border-t pt-6">
-                  <h3 className="font-bold text-lg mb-3">Ready to Submit?</h3>
-                  <textarea
-                    value={evidenceText}
-                    onChange={(e) => setEvidenceText(e.target.value)}
-                    placeholder="Share your journey and what you created..."
-                    className="w-full p-3 border rounded-lg h-32"
+                  <QuestSubmissionForm 
+                    onSubmit={async (submissionData, files) => {
+                      setSubmitting(true)
+                      const success = await onSubmitQuest(submissionData, files)
+                      setSubmitting(false)
+                      return success
+                    }}
+                    isSubmitting={submitting}
                   />
-                  <button
-                    onClick={() => onSubmitQuest(evidenceText)}
-                    disabled={submitting || !evidenceText.trim()}
-                    className="mt-3 bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-6 rounded-lg transition disabled:opacity-50"
-                  >
-                    {submitting ? 'Submitting...' : 'Submit Quest'}
-                  </button>
                 </div>
               )}
             </div>

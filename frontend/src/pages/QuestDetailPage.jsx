@@ -98,16 +98,36 @@ const QuestDetailPage = () => {
     }
   }
 
-  const handleSubmitQuest = async (evidenceText) => {
-    if (!evidenceText.trim()) {
-      toast.error('Please share how you showcased your journey')
-      return
-    }
-
+  const handleSubmitQuest = async (submissionData, files) => {
     try {
+      let fileUrls = []
+      
+      // Upload files if any
+      if (files && files.length > 0) {
+        const formData = new FormData()
+        files.forEach(file => {
+          formData.append('files', file)
+        })
+        
+        try {
+          const uploadResponse = await api.post('/uploads/evidence', formData, {
+            headers: {
+              'Content-Type': 'multipart/form-data'
+            }
+          })
+          fileUrls = uploadResponse.data.files.map(f => f.url)
+        } catch (uploadError) {
+          console.error('File upload failed:', uploadError)
+          toast.error('Failed to upload files. Submitting with text evidence only.')
+        }
+      }
+      
+      // Submit quest with evidence
       await api.post(`/quests/${id}/submit`, {
-        evidence_text: evidenceText
+        evidence_text: submissionData.evidence_text || '',
+        evidence_files: fileUrls
       })
+      
       toast.success('Quest submitted for review!')
       navigate('/dashboard')
       return true
