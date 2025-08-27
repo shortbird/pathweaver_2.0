@@ -33,6 +33,7 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
     """
     total_xp = 0
     skill_breakdown = {cat: 0 for cat in SKILL_CATEGORIES}
+    has_skill_xp_records = False
     
     try:
         # Get skill-based XP from user_skill_xp table
@@ -42,16 +43,57 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
             .execute()
         
         if skill_xp.data:
+            has_skill_xp_records = True
             for record in skill_xp.data:
                 xp_amount = record.get('total_xp', 0)
                 total_xp += xp_amount
                 skill_breakdown[record['skill_category']] = xp_amount
     except Exception as e:
         print(f"Error getting skill XP: {str(e)}")
+    
+    # Check if user has completed quests
+    try:
+        completed_count = supabase.table('user_quests')\
+            .select('id', count='exact')\
+            .eq('user_id', user_id)\
+            .eq('status', 'completed')\
+            .execute()
+        has_completed_quests = completed_count.count > 0 if hasattr(completed_count, 'count') else False
+    except:
+        has_completed_quests = False
         
-    # If no XP in user_skill_xp table, calculate from completed quests
-    if total_xp == 0:
+    # If user has completed quests but no XP, recalculate and save
+    if has_completed_quests and total_xp == 0:
+        print(f"User {user_id} has completed quests but no XP - recalculating...")
         total_xp, skill_breakdown = calculate_xp_from_quests(supabase, user_id)
+        
+        # Save the calculated XP to the database
+        if total_xp > 0:
+            for category, xp in skill_breakdown.items():
+                if xp > 0:
+                    try:
+                        # Check if record exists
+                        existing = supabase.table('user_skill_xp')\
+                            .select('id')\
+                            .eq('user_id', user_id)\
+                            .eq('skill_category', category)\
+                            .execute()
+                        
+                        if existing.data:
+                            # Update existing record
+                            supabase.table('user_skill_xp').update({
+                                'total_xp': xp
+                            }).eq('user_id', user_id).eq('skill_category', category).execute()
+                        else:
+                            # Create new record
+                            supabase.table('user_skill_xp').insert({
+                                'user_id': user_id,
+                                'skill_category': category,
+                                'total_xp': xp
+                            }).execute()
+                        print(f"Saved XP for {category}: {xp}")
+                    except Exception as e:
+                        print(f"Error saving XP for {category}: {str(e)}")
     
     return total_xp, skill_breakdown
 
