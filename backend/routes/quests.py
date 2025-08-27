@@ -253,9 +253,11 @@ def submit_quest(user_id, quest_id):
                 'text_content': data['evidence_text']
             }).execute()
         
-        supabase.table('user_quests').update({
-            'status': 'pending_review'
-        }).eq('id', user_quest.data['id']).execute()
+        # Keep status as in_progress since submission tracks review status
+        # The user_quest will be marked completed when submission is approved
+        # supabase.table('user_quests').update({
+        #     'status': 'pending_review'
+        # }).eq('id', user_quest.data['id']).execute()
         
         supabase.table('activity_log').insert({
             'user_id': user_id,
