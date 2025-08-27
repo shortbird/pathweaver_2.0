@@ -193,7 +193,8 @@ const DashboardPage = () => {
           xpByCategory[category] = xp || 0
         }
       })
-      totalXP = dashboardData.total_xp || Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
+      // Dashboard sends total_xp in stats object
+      totalXP = dashboardData.stats?.total_xp || dashboardData.total_xp || Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
     }
     // Priority 3: Use dashboard skill_xp array
     else if (dashboardData?.skill_xp && Array.isArray(dashboardData.skill_xp)) {
@@ -203,7 +204,7 @@ const DashboardPage = () => {
           xpByCategory[skill.skill_category] = skill.total_xp || 0
         }
       })
-      totalXP = dashboardData.total_xp || Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
+      totalXP = dashboardData.stats?.total_xp || dashboardData.total_xp || Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
     }
     
     // Convert to chart data format - include ALL categories
@@ -288,7 +289,7 @@ const DashboardPage = () => {
         <div className="card">
           <h3 className="text-lg font-semibold mb-2">Quests Completed</h3>
           <p className="text-3xl font-bold text-green-600">
-            {portfolioData?.total_quests_completed || dashboardData?.total_quests_completed || 0}
+            {portfolioData?.total_quests_completed || dashboardData?.stats?.quests_completed || dashboardData?.total_quests_completed || 0}
           </p>
           <p className="text-sm text-gray-600 mt-2">
             Keep building!
