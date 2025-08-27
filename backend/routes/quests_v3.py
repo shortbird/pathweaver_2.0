@@ -376,7 +376,7 @@ def cancel_quest(user_id: str, quest_id: str):
     Deletes the user's progress and any submitted evidence.
     """
     try:
-        supabase = get_supabase_client()
+        supabase = get_supabase_admin_client()
         
         # Check if user is enrolled in this quest
         enrollment = supabase.table('user_quests')\
@@ -412,16 +412,11 @@ def cancel_quest(user_id: str, quest_id: str):
             .eq('id', user_quest_id)\
             .execute()
         
-        if result.data:
-            return jsonify({
-                'success': True,
-                'message': 'Quest cancelled successfully'
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to cancel quest'
-            }), 500
+        # Delete operation successful if no exception was raised
+        return jsonify({
+            'success': True,
+            'message': 'Quest cancelled successfully'
+        })
             
     except Exception as e:
         print(f"Error cancelling quest: {str(e)}")

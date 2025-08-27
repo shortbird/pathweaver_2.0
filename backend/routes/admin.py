@@ -211,6 +211,45 @@ def update_quest(user_id, quest_id):
     supabase = get_supabase_admin_client()
     
     try:
+        # Handle base64 image upload if provided
+        if 'header_image_base64' in data and data['header_image_base64']:
+            import base64
+            import uuid
+            from datetime import datetime
+            
+            # Extract base64 data
+            base64_data = data['header_image_base64']
+            if ',' in base64_data:
+                base64_data = base64_data.split(',')[1]
+            
+            # Generate unique filename
+            file_ext = 'jpg'
+            if 'header_image_filename' in data:
+                file_ext = data['header_image_filename'].split('.')[-1]
+            filename = f"quest-{quest_id}-{uuid.uuid4().hex[:8]}.{file_ext}"
+            
+            # Upload to Supabase storage
+            try:
+                # Decode base64 to bytes
+                image_bytes = base64.b64decode(base64_data)
+                
+                # Upload to storage bucket
+                storage_response = supabase.storage.from_('quest-images').upload(
+                    filename,
+                    image_bytes,
+                    {'content-type': f'image/{file_ext}'}
+                )
+                
+                # Get public URL
+                image_url = supabase.storage.from_('quest-images').get_public_url(filename)
+                
+                # Add the URL to update data
+                data['header_image_url'] = image_url
+                
+            except Exception as e:
+                print(f"Error uploading image: {str(e)}")
+                # Continue without image if upload fails
+        
         # Expanded allowed fields for both Visual and standard formats
         visual_fields = [
             'title', 'big_idea', 'what_youll_create', 'primary_pillar', 'primary_pillar_icon',

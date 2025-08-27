@@ -250,7 +250,7 @@ const QuestDetailV3 = () => {
                       onClick={() => setShowTeamUpModal(true)}
                       className="bg-purple-600 text-white py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors font-medium"
                     >
-                      Work with a Friend for Double XP
+                      Team Up
                     </button>
                   )}
                   <button

@@ -213,12 +213,14 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
           body: JSON.stringify(jsonData)
         });
       } else {
-        // No image, send as JSON
+        // No new image, but preserve existing image URL if editing
         const jsonData = {
           title: formData.title,
           big_idea: formData.big_idea,
           is_active: formData.is_active,
-          tasks: tasks
+          tasks: tasks,
+          // Preserve existing image URL when editing
+          ...(quest && formData.header_image_url ? { header_image_url: formData.header_image_url } : {})
         };
         
         response = await fetch(url, {
