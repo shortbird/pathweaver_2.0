@@ -313,7 +313,6 @@ const QuestDetailV3 = () => {
             isOwner={true}
           />
         )}
-      </div>
 
       {/* Task Completion Modal */}
       {showTaskModal && selectedTask && (
