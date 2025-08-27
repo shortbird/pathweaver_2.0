@@ -25,11 +25,6 @@ EVIDENCE_RULES = {
         'allowed_extensions': {'jpg', 'jpeg', 'png', 'gif', 'webp'},
         'max_size': 10 * 1024 * 1024,  # 10MB
         'required_fields': ['file_url']
-    },
-    'video': {
-        'allowed_extensions': {'mp4', 'mov', 'avi', 'webm'},
-        'max_size': 100 * 1024 * 1024,  # 100MB
-        'required_fields': ['file_url']
     }
 }
 
@@ -45,7 +40,7 @@ class EvidenceService:
         Validate evidence based on type and rules.
         
         Args:
-            evidence_type: Type of evidence (text, link, image, video)
+            evidence_type: Type of evidence (text, link, image)
             evidence_data: Dictionary containing evidence data
             
         Returns:
@@ -68,8 +63,6 @@ class EvidenceService:
             return self._validate_link(evidence_data, rules)
         elif evidence_type == 'image':
             return self._validate_image(evidence_data, rules)
-        elif evidence_type == 'video':
-            return self._validate_video(evidence_data, rules)
         
         return True, None
     
@@ -127,23 +120,6 @@ class EvidenceService:
         
         return True, None
     
-    def _validate_video(self, data: Dict[str, Any], rules: Dict) -> Tuple[bool, Optional[str]]:
-        """Validate video evidence."""
-        file_url = data.get('file_url', '')
-        file_size = data.get('file_size', 0)
-        
-        # Check file extension
-        ext = file_url.split('.')[-1].lower() if '.' in file_url else ''
-        if ext not in rules['allowed_extensions']:
-            return False, f"Invalid video format. Allowed: {', '.join(rules['allowed_extensions'])}"
-        
-        # Check file size
-        if file_size > rules['max_size']:
-            max_mb = rules['max_size'] / (1024 * 1024)
-            return False, f"Video size must not exceed {max_mb}MB"
-        
-        return True, None
-    
     def _contains_script_tags(self, text: str) -> bool:
         """Check if text contains potentially malicious script tags."""
         dangerous_patterns = [
@@ -195,7 +171,7 @@ class EvidenceService:
             prepared_data['url'] = evidence_data.get('url', '').strip()
             prepared_data['title'] = self.sanitize_text(evidence_data.get('title', ''))
         
-        elif evidence_type in ['image', 'video']:
+        elif evidence_type == 'image':
             prepared_data['file_url'] = evidence_data.get('file_url', '')
             prepared_data['file_size'] = evidence_data.get('file_size', 0)
             prepared_data['original_name'] = secure_filename(evidence_data.get('original_name', ''))
@@ -231,7 +207,7 @@ class EvidenceService:
             if domain_match:
                 display_data['domain'] = domain_match.group(1)
         
-        elif evidence_type in ['image', 'video']:
+        elif evidence_type == 'image':
             # Ensure URL is properly formatted
             if not evidence_content.startswith('http'):
                 display_data['content'] = f"/api/uploads/evidence/{evidence_content}"

@@ -21,9 +21,8 @@ xp_service = XPService()
 
 # File upload configuration
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads/evidence')
-MAX_FILE_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', 104857600))  # 100MB default
+MAX_FILE_SIZE = int(os.getenv('MAX_IMAGE_UPLOAD_SIZE', 10485760))  # 10MB default for images
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
-ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov', 'avi', 'webm'}
 
 @bp.route('/<task_id>/complete', methods=['POST'])
 @require_auth
@@ -101,12 +100,12 @@ def complete_task(user_id: str, task_id: str):
             evidence_data['title'] = request.form.get('link_title', '')
             evidence_content = evidence_data['url']
             
-        elif evidence_type in ['image', 'video']:
+        elif evidence_type == 'image':
             # Handle file upload
             if 'file' not in request.files:
                 return jsonify({
                     'success': False,
-                    'error': 'File is required for image/video evidence'
+                    'error': 'File is required for image evidence'
                 }), 400
             
             file = request.files['file']
@@ -120,16 +119,10 @@ def complete_task(user_id: str, task_id: str):
             filename = secure_filename(file.filename)
             ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
             
-            if evidence_type == 'image' and ext not in ALLOWED_IMAGE_EXTENSIONS:
+            if ext not in ALLOWED_IMAGE_EXTENSIONS:
                 return jsonify({
                     'success': False,
                     'error': f'Invalid image format. Allowed: {", ".join(ALLOWED_IMAGE_EXTENSIONS)}'
-                }), 400
-            
-            if evidence_type == 'video' and ext not in ALLOWED_VIDEO_EXTENSIONS:
-                return jsonify({
-                    'success': False,
-                    'error': f'Invalid video format. Allowed: {", ".join(ALLOWED_VIDEO_EXTENSIONS)}'
                 }), 400
             
             # Check file size

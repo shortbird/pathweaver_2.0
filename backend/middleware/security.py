@@ -48,8 +48,8 @@ class SecurityMiddleware:
     
     def before_request(self):
         """Process request before it reaches the route handler"""
-        # Validate request size
-        if request.content_length and request.content_length > 10 * 1024 * 1024:  # 10MB max
+        # Validate request size (11MB to account for image + form data overhead)
+        if request.content_length and request.content_length > 11 * 1024 * 1024:  # 11MB max
             abort(413, description="Request payload too large")
         
         # Validate content type for POST/PUT/PATCH requests

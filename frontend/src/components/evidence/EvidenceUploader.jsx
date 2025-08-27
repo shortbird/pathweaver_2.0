@@ -11,11 +11,9 @@ const EvidenceUploader = ({ evidenceType, onChange, error }) => {
 
   // File size limits
   const MAX_IMAGE_SIZE = 10 * 1024 * 1024; // 10MB
-  const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100MB
 
   // Allowed file types
   const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-  const ALLOWED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/x-msvideo', 'video/webm'];
 
   useEffect(() => {
     // Reset state when evidence type changes
@@ -48,16 +46,14 @@ const EvidenceUploader = ({ evidenceType, onChange, error }) => {
     if (!file) return;
 
     // Validate file type
-    const allowedTypes = evidenceType === 'image' ? ALLOWED_IMAGE_TYPES : ALLOWED_VIDEO_TYPES;
-    if (!allowedTypes.includes(file.type)) {
-      alert(`Invalid file type. Allowed types: ${allowedTypes.map(t => t.split('/')[1]).join(', ')}`);
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      alert(`Invalid file type. Allowed types: ${ALLOWED_IMAGE_TYPES.map(t => t.split('/')[1]).join(', ')}`);
       return;
     }
 
     // Validate file size
-    const maxSize = evidenceType === 'image' ? MAX_IMAGE_SIZE : MAX_VIDEO_SIZE;
-    if (file.size > maxSize) {
-      alert(`File too large. Maximum size: ${maxSize / (1024 * 1024)}MB`);
+    if (file.size > MAX_IMAGE_SIZE) {
+      alert(`File too large. Maximum size: ${MAX_IMAGE_SIZE / (1024 * 1024)}MB`);
       return;
     }
 
@@ -65,16 +61,11 @@ const EvidenceUploader = ({ evidenceType, onChange, error }) => {
     onChange({ file });
 
     // Create preview for images
-    if (evidenceType === 'image') {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFilePreview(reader.result);
-      };
-      reader.readAsDataURL(file);
-    } else {
-      // For videos, just show file info
-      setFilePreview(null);
-    }
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFilePreview(reader.result);
+    };
+    reader.readAsDataURL(file);
   };
 
   const removeFile = () => {
@@ -140,7 +131,7 @@ const EvidenceUploader = ({ evidenceType, onChange, error }) => {
   const renderFileInput = () => (
     <div>
       <label className="block text-sm font-medium text-gray-700 mb-2">
-        Upload {evidenceType === 'image' ? 'Image' : 'Video'}
+        Upload Image
       </label>
       
       {!selectedFile ? (
@@ -155,27 +146,18 @@ const EvidenceUploader = ({ evidenceType, onChange, error }) => {
             Click to upload or drag and drop
           </p>
           <p className="text-xs text-gray-500 mt-1">
-            {evidenceType === 'image' 
-              ? 'PNG, JPG, GIF up to 10MB'
-              : 'MP4, MOV, AVI up to 100MB'}
+            PNG, JPG, GIF up to 10MB
           </p>
         </div>
       ) : (
         <div className="border border-gray-300 rounded-lg p-4">
-          {filePreview && evidenceType === 'image' ? (
+          {filePreview && (
             <div className="mb-3">
               <img 
                 src={filePreview} 
                 alt="Preview" 
                 className="max-h-48 mx-auto rounded-lg"
               />
-            </div>
-          ) : (
-            <div className="flex items-center justify-center mb-3">
-              <svg className="h-12 w-12 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                <path fillRule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 100 4h2a2 2 0 100-4h-.5a1 1 0 000-2H8a2 2 0 012-2z" clipRule="evenodd" />
-              </svg>
             </div>
           )}
           
@@ -199,7 +181,7 @@ const EvidenceUploader = ({ evidenceType, onChange, error }) => {
         ref={fileInputRef}
         type="file"
         onChange={handleFileSelect}
-        accept={evidenceType === 'image' ? ALLOWED_IMAGE_TYPES.join(',') : ALLOWED_VIDEO_TYPES.join(',')}
+        accept={ALLOWED_IMAGE_TYPES.join(',')}
         className="hidden"
       />
     </div>
@@ -209,7 +191,7 @@ const EvidenceUploader = ({ evidenceType, onChange, error }) => {
     <div className="space-y-4">
       {evidenceType === 'text' && renderTextInput()}
       {evidenceType === 'link' && renderLinkInput()}
-      {(evidenceType === 'image' || evidenceType === 'video') && renderFileInput()}
+      {evidenceType === 'image' && renderFileInput()}
       
       {uploadProgress > 0 && uploadProgress < 100 && (
         <div className="w-full bg-gray-200 rounded-full h-2.5">

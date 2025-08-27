@@ -32,7 +32,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
       } else if (evidenceType === 'link') {
         formData.append('text_content', evidenceData.url);
         formData.append('link_title', evidenceData.title || '');
-      } else if (evidenceType === 'image' || evidenceType === 'video') {
+      } else if (evidenceType === 'image') {
         if (evidenceData.file) {
           formData.append('file', evidenceData.file);
         } else {
@@ -139,7 +139,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
             <label className="block text-sm font-medium text-gray-700 mb-3">
               How will you verify you completed this task?
             </label>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               <button
                 onClick={() => setEvidenceType('text')}
                 className={`p-3 rounded-lg border-2 transition-all ${
@@ -182,19 +182,6 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
                 <span className="text-xs">Image</span>
               </button>
 
-              <button
-                onClick={() => setEvidenceType('video')}
-                className={`p-3 rounded-lg border-2 transition-all ${
-                  evidenceType === 'video'
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <svg className="w-6 h-6 mx-auto mb-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 6a2 2 0 012-2h6a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM14.553 7.106A1 1 0 0014 8v4a1 1 0 00.553.894l2 1A1 1 0 0018 13V7a1 1 0 00-1.447-.894l-2 1z" />
-                </svg>
-                <span className="text-xs">Video</span>
-              </button>
             </div>
           </div>
 
