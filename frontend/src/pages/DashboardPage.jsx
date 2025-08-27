@@ -164,74 +164,54 @@ const DashboardPage = () => {
   // Transform skill XP data for charts using memoization
   // IMPORTANT: All hooks must be called before any conditional returns
   const { skillXPData, totalXP } = useMemo(() => {
-    let skillXPData = []
+    // Start with all categories initialized to 0
+    const xpByCategory = {}
+    Object.keys(skillCategoryNames).forEach(key => {
+      xpByCategory[key] = 0
+    })
+    
     let totalXP = 0
     
     console.log('Dashboard data:', dashboardData)
     console.log('Portfolio data:', portfolioData)
     
-    // Check if dashboard has any non-zero XP values
-    const dashboardHasXP = dashboardData?.xp_by_category && 
-      Object.values(dashboardData.xp_by_category).some(xp => xp > 0)
-    
-    // Priority 1: Use portfolio skill_xp if available and has data
-    if (portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp) && portfolioData.skill_xp.length > 0) {
+    // Priority 1: Use portfolio skill_xp if available
+    if (portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp)) {
       console.log('Using portfolio skill_xp:', portfolioData.skill_xp)
-      skillXPData = portfolioData.skill_xp
-        .filter(skill => skill.total_xp > 0) // Only include categories with XP
-        .map(skill => ({
-          category: skillCategoryNames[skill.skill_category] || skill.skill_category,
-          xp: skill.total_xp,
-          fullMark: 1000
-        }))
-      totalXP = portfolioData.total_xp || skillXPData.reduce((sum, item) => sum + item.xp, 0)
+      portfolioData.skill_xp.forEach(skill => {
+        if (skill.skill_category in xpByCategory) {
+          xpByCategory[skill.skill_category] = skill.total_xp || 0
+        }
+      })
+      totalXP = portfolioData.total_xp || Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
     }
-  // Priority 2: Use dashboard xp_by_category if it has actual XP values
-  else if (dashboardHasXP) {
-    console.log('Using dashboard xp_by_category:', dashboardData.xp_by_category)
-    skillXPData = Object.entries(dashboardData.xp_by_category)
-      .filter(([_, xp]) => xp > 0) // Only include categories with XP
-      .map(([category, xp]) => ({
-        category: skillCategoryNames[category] || category,
-        xp: xp,
-        fullMark: 1000
-      }))
-    totalXP = dashboardData.total_xp || Object.values(dashboardData.xp_by_category).reduce((sum, xp) => sum + xp, 0)
-  }
-  // Priority 3: Use dashboard skill_xp if available
-  else if (dashboardData?.skill_xp && Array.isArray(dashboardData.skill_xp) && dashboardData.skill_xp.length > 0) {
-    console.log('Using dashboard skill_xp array:', dashboardData.skill_xp)
-    skillXPData = dashboardData.skill_xp
-      .filter(skill => skill.total_xp > 0)
-      .map(skill => ({
-        category: skillCategoryNames[skill.skill_category] || skill.skill_category,
-        xp: skill.total_xp,
-        fullMark: 1000
-      }))
-    totalXP = dashboardData.total_xp || skillXPData.reduce((sum, item) => sum + item.xp, 0)
-  }
-  // Priority 4: Fallback to old format
-  else if (dashboardData?.xp_by_subject && Array.isArray(dashboardData.xp_by_subject)) {
-    console.log('Using fallback xp_by_subject:', dashboardData.xp_by_subject)
-    skillXPData = dashboardData.xp_by_subject
-      .filter(([_, xp]) => xp > 0) // Only include categories with XP
-      .map(([category, xp]) => ({
-        category: skillCategoryNames[category] || category,
-        xp: xp,
-        fullMark: 1000
-      }))
-    totalXP = skillXPData.reduce((sum, item) => sum + item.xp, 0)
-  }
-  
-  // If still no data, initialize with zeros for all categories
-  if (skillXPData.length === 0) {
-    console.log('No XP data found, initializing with zeros')
-    skillXPData = Object.entries(skillCategoryNames).map(([key, name]) => ({
-      category: name,
-      xp: 0,
+    // Priority 2: Use dashboard xp_by_category
+    else if (dashboardData?.xp_by_category) {
+      console.log('Using dashboard xp_by_category:', dashboardData.xp_by_category)
+      Object.entries(dashboardData.xp_by_category).forEach(([category, xp]) => {
+        if (category in xpByCategory) {
+          xpByCategory[category] = xp || 0
+        }
+      })
+      totalXP = dashboardData.total_xp || Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
+    }
+    // Priority 3: Use dashboard skill_xp array
+    else if (dashboardData?.skill_xp && Array.isArray(dashboardData.skill_xp)) {
+      console.log('Using dashboard skill_xp array:', dashboardData.skill_xp)
+      dashboardData.skill_xp.forEach(skill => {
+        if (skill.skill_category in xpByCategory) {
+          xpByCategory[skill.skill_category] = skill.total_xp || 0
+        }
+      })
+      totalXP = dashboardData.total_xp || Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
+    }
+    
+    // Convert to chart data format - include ALL categories
+    const skillXPData = Object.entries(xpByCategory).map(([category, xp]) => ({
+      category: skillCategoryNames[category] || category,
+      xp: xp,
       fullMark: 1000
     }))
-    }
     
     console.log('Final skillXPData:', skillXPData)
     console.log('Total XP:', totalXP)
