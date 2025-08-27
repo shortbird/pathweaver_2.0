@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from utils.auth_utils import require_auth
+from utils.auth.decorators import require_auth
 from database import get_supabase_admin_client
 import base64
 import uuid

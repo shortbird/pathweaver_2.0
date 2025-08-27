@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from database import get_supabase_client, get_authenticated_supabase_client
-from utils.auth_utils import require_auth
+from utils.auth.decorators import require_auth
 from datetime import datetime
 from cache import cache, cached
 

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify, make_response
 from database import get_supabase_client
-from utils.auth_utils import verify_token
+from utils.auth.token_utils import verify_token
 from utils.validation import validate_registration_data, sanitize_input
 from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit

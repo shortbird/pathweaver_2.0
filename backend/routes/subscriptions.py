@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 import stripe
 import os
 from database import get_supabase_client
-from utils.auth_utils import require_auth
+from utils.auth.decorators import require_auth
 from config import Config
 
 bp = Blueprint('subscriptions', __name__)

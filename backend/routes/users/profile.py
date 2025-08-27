@@ -2,7 +2,7 @@
 
 from flask import Blueprint, request, jsonify
 from database import get_authenticated_supabase_client
-from utils.auth_utils import require_auth
+from utils.auth.decorators import require_auth
 from middleware.error_handler import NotFoundError, ValidationError
 from .helpers import calculate_user_xp, get_user_skills
 

@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from database import get_supabase_client
-from utils.auth_utils import require_auth
+from utils.auth.decorators import require_auth
 
 bp = Blueprint('community', __name__)
 

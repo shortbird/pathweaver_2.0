@@ -33,7 +33,10 @@
       "Bash(fi)",
       "Bash(venv/Scripts/pip install:*)",
       "Bash(dir)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(for:*)",
+      "Bash(do sed -i \"s/from utils.auth_utils import require_auth/from utils.auth.decorators import require_auth/g; s/from utils.auth_utils import require_admin/from utils.auth.decorators import require_admin/g\" \"$file\")",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

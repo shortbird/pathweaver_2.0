@@ -2,7 +2,7 @@
 
 from flask import Blueprint, jsonify, request
 from database import get_authenticated_supabase_client
-from utils.auth_utils import require_auth
+from utils.auth.decorators import require_auth
 from middleware.error_handler import ValidationError
 
 completed_quests_bp = Blueprint('completed_quests', __name__)

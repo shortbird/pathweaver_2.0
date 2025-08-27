@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from utils.auth_utils import require_admin
+from utils.auth.decorators import require_admin
 from datetime import datetime
 import csv
 import io
