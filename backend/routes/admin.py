@@ -448,10 +448,9 @@ def get_pending_submissions(user_id):
         start = (page - 1) * per_page
         end = start + per_page - 1
         
-        # First get submissions with evidence
+        # First get submissions with evidence - filter by pending status only
         submissions = supabase.table('submissions')\
             .select('*, submission_evidence(*)', count='exact')\
-            .is_('educator_id', None)\
             .eq('status', 'pending')\
             .range(start, end)\
             .execute()
