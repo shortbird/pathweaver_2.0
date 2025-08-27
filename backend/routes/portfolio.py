@@ -271,8 +271,8 @@ def get_user_portfolio(user_id):
         except:
             pass
         
-        # Calculate total XP
-        total_xp = sum(s['total_xp'] for s in skill_xp_data) if skill_xp_data else 0
+        # Calculate total XP (V3 uses xp_amount, old uses total_xp)
+        total_xp = sum(s.get('xp_amount', s.get('total_xp', 0)) for s in skill_xp_data) if skill_xp_data else 0
         
         # Prepare response
         response_data = {

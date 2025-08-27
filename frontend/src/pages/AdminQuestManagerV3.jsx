@@ -100,6 +100,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
     setIsSubmitting(true);
 
     try {
+      // Try V3 endpoint first
       const formDataToSend = new FormData();
       formDataToSend.append('title', formData.title);
       formDataToSend.append('big_idea', formData.big_idea);
@@ -110,10 +111,9 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         formDataToSend.append('header_image', headerImageFile);
       }
 
-      // Try V3 endpoint first, fallback to old endpoint if it doesn't exist
-      let url = quest ? `/api/v3/admin/quests/${quest.id}` : '/api/v3/admin/quests';
       const method = quest ? 'PUT' : 'POST';
-
+      let url = quest ? `/api/v3/admin/quests/${quest.id}` : '/api/v3/admin/quests';
+      
       let response = await fetch(url, {
         method,
         headers: {
@@ -122,7 +122,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         body: formDataToSend
       });
       
-      // If V3 endpoint doesn't exist (405), try the old endpoint
+      // If V3 endpoint doesn't exist (404/405), fallback to old endpoint
       if (response.status === 405 || response.status === 404) {
         // Convert to old format for backward compatibility
         const oldFormatData = {

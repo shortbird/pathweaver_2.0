@@ -618,12 +618,12 @@ def get_analytics(user_id):
                 else:
                     tier_counts['explorer'] += 1  # Default to explorer if unknown tier
         
-        # Get quests completed count
+        # Get quests completed count (V3 schema: completed_at not null means completed)
         quests_completed = supabase.table('user_quests')\
             .select('*', count='exact')\
-            .eq('status', 'completed')\
+            .not_.is_('completed_at', 'null')\
             .execute()
-        quests_completed_count = quests_completed.count if hasattr(quests_completed, 'count') else len(quests_completed.data)
+        quests_completed_count = quests_completed.count if hasattr(quests_completed, 'count') else len(quests_completed.data if quests_completed.data else [])
         
         return jsonify({
             'total_users': total_users_count,
