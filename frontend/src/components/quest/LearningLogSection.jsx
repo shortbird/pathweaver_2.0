@@ -82,6 +82,32 @@ const LearningLogSection = ({ userQuestId, isOwner = true }) => {
     }
   };
 
+  const handleDeleteLog = async (logId) => {
+    if (!confirm('Are you sure you want to delete this log entry?')) {
+      return;
+    }
+
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiBase}/v3/logs/${logId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete log entry');
+      }
+
+      // Remove the deleted log from the state
+      setLogs(logs.filter(log => log.id !== logId));
+    } catch (error) {
+      console.error('Error deleting log:', error);
+      alert('Failed to delete log entry');
+    }
+  };
+
   const formatDate = (dateString) => {
     const date = new Date(dateString);
     const now = new Date();
@@ -187,8 +213,12 @@ const LearningLogSection = ({ userQuestId, isOwner = true }) => {
                   <span className="text-xs text-gray-500">
                     {formatDate(log.created_at)}
                   </span>
-                  {log.is_owner && (
-                    <button className="text-xs text-gray-400 hover:text-red-600">
+                  {isOwner && (
+                    <button 
+                      onClick={() => handleDeleteLog(log.id)}
+                      className="text-xs text-gray-400 hover:text-red-600 transition-colors"
+                      title="Delete log entry"
+                    >
                       <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                         <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
                       </svg>

@@ -98,6 +98,35 @@ const QuestDetailV3 = () => {
     alert(result.message);
   };
 
+  const handleCancelQuest = async () => {
+    if (!confirm('Are you sure you want to cancel this quest?\n\nWarning: All your progress and any work submitted to Optio for this quest will be permanently deleted.')) {
+      return;
+    }
+
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiBase}/v3/quests/${id}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to cancel quest');
+      }
+
+      alert('Quest cancelled successfully');
+      navigate('/quests');
+    } catch (error) {
+      console.error('Error cancelling quest:', error);
+      alert(error.message || 'Failed to cancel quest');
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex justify-center py-12">
@@ -215,14 +244,22 @@ const QuestDetailV3 = () => {
                   View Achievement 🏆
                 </button>
               ) : (
-                !quest.collaboration && (
+                <div className="flex gap-3 flex-1">
+                  {!quest.collaboration && (
+                    <button
+                      onClick={() => setShowTeamUpModal(true)}
+                      className="bg-purple-600 text-white py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                    >
+                      Work with a Friend for Double XP
+                    </button>
+                  )}
                   <button
-                    onClick={() => setShowTeamUpModal(true)}
-                    className="bg-purple-600 text-white py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                    onClick={handleCancelQuest}
+                    className="bg-red-600 text-white py-3 px-6 rounded-lg hover:bg-red-700 transition-colors font-medium"
                   >
-                    Invite Friend for 2x XP
+                    Cancel Quest
                   </button>
-                )
+                </div>
               )}
             </div>
           </div>
