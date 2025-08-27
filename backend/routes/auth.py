@@ -40,17 +40,17 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
                 'portfolio_slug': slug
             }).execute()
         
-        # Initialize the 5 Diploma Pillars
+        # Initialize the 5 Diploma Pillars for V3
         skill_categories = ['creativity', 'critical_thinking', 'practical_skills', 
                            'communication', 'cultural_literacy']
         
-        for category in skill_categories:
-            existing_skill = supabase.table('user_skill_xp').select('id').eq('user_id', user_id).eq('skill_category', category).execute()
+        for pillar in skill_categories:
+            existing_skill = supabase.table('user_skill_xp').select('id').eq('user_id', user_id).eq('pillar', pillar).execute()
             if not existing_skill.data:
                 supabase.table('user_skill_xp').insert({
                     'user_id': user_id,
-                    'skill_category': category,
-                    'total_xp': 0
+                    'pillar': pillar,
+                    'xp_amount': 0
                 }).execute()
                 
     except Exception as e:

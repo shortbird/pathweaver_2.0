@@ -244,14 +244,14 @@ def get_user_portfolio(user_id):
             skill_categories = ['creativity', 'critical_thinking', 'practical_skills',
                               'communication', 'cultural_literacy']
             
-            for category in skill_categories:
+            for pillar in skill_categories:
                 try:
-                    existing = supabase.table('user_skill_xp').select('id').eq('user_id', user_id).eq('skill_category', category).execute()
+                    existing = supabase.table('user_skill_xp').select('id').eq('user_id', user_id).eq('pillar', pillar).execute()
                     if not existing.data:
                         supabase.table('user_skill_xp').insert({
                             'user_id': user_id,
-                            'skill_category': category,
-                            'total_xp': 0
+                            'pillar': pillar,
+                            'xp_amount': 0
                         }).execute()
                 except:
                     pass  # Ignore errors in initialization
@@ -265,7 +265,8 @@ def get_user_portfolio(user_id):
         # Get completed quests count
         total_quests = 0
         try:
-            completed_quests = supabase.table('user_quests').select('id').eq('user_id', user_id).eq('status', 'completed').execute()
+            # In V3 schema, completed quests have completed_at not null
+            completed_quests = supabase.table('user_quests').select('id').eq('user_id', user_id).not_.is_('completed_at', 'null').execute()
             total_quests = len(completed_quests.data) if completed_quests.data else 0
         except:
             pass

@@ -110,16 +110,53 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         formDataToSend.append('header_image', headerImageFile);
       }
 
-      const url = quest ? `/api/v3/admin/quests/${quest.id}` : '/api/v3/admin/quests';
+      // Try V3 endpoint first, fallback to old endpoint if it doesn't exist
+      let url = quest ? `/api/v3/admin/quests/${quest.id}` : '/api/v3/admin/quests';
       const method = quest ? 'PUT' : 'POST';
 
-      const response = await fetch(url, {
+      let response = await fetch(url, {
         method,
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: formDataToSend
       });
+      
+      // If V3 endpoint doesn't exist (405), try the old endpoint
+      if (response.status === 405 || response.status === 404) {
+        // Convert to old format for backward compatibility
+        const oldFormatData = {
+          title: formData.title,
+          description: formData.big_idea,
+          difficulty_level: 'intermediate',
+          effort_level: 'moderate',
+          estimated_hours: 2,
+          evidence_requirements: 'Complete all tasks and provide evidence',
+          accepted_evidence_types: ['text', 'link', 'image', 'video'],
+          is_active: formData.is_active,
+          // Add XP awards based on tasks
+          quest_skill_xp: tasks.map(task => ({
+            skill_category: 
+              task.pillar === 'creativity' ? 'making_creating' :
+              task.pillar === 'critical_thinking' ? 'thinking_skills' :
+              task.pillar === 'practical_skills' ? 'life_skills' :
+              task.pillar === 'communication' ? 'reading_writing' :
+              task.pillar === 'cultural_literacy' ? 'world_understanding' :
+              'personal_growth',
+            xp_amount: task.xp_amount
+          }))
+        };
+        
+        url = quest ? `/api/admin/quests/${quest.id}` : '/api/admin/quests';
+        response = await fetch(url, {
+          method,
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(oldFormatData)
+        });
+      }
 
       const data = await response.json();
 

@@ -164,7 +164,8 @@ def invite_to_quest(user_id, quest_id):
     supabase = get_supabase_client()
     
     try:
-        user_quest = supabase.table('user_quests').select('*').eq('user_id', user_id).eq('quest_id', quest_id).eq('status', 'in_progress').single().execute()
+        # In V3 schema, in-progress quests have completed_at null
+        user_quest = supabase.table('user_quests').select('*').eq('user_id', user_id).eq('quest_id', quest_id).is_('completed_at', 'null').single().execute()
         
         if not user_quest.data:
             return jsonify({'error': 'Quest not in progress'}), 400
