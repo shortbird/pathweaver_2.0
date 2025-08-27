@@ -54,8 +54,12 @@ class SecurityMiddleware:
         
         # Validate content type for POST/PUT/PATCH requests
         if request.method in ['POST', 'PUT', 'PATCH']:
-            if request.endpoint and 'upload' not in request.endpoint:  # Skip for file uploads
-                if not request.is_json and request.content_type != 'application/json':
+            # Skip JSON validation for file uploads and task completions (which may include files)
+            if request.endpoint and 'upload' not in request.endpoint and 'complete' not in request.endpoint:
+                # Also skip if it's multipart/form-data (file upload)
+                if request.content_type and 'multipart/form-data' in request.content_type:
+                    pass  # Allow multipart/form-data
+                elif not request.is_json and request.content_type != 'application/json':
                     abort(400, description="Content-Type must be application/json")
         
         # Sanitize query parameters
