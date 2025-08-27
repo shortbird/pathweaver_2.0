@@ -39,6 +39,10 @@ const Layout = () => {
         }
       } else {
         console.log('No portfolio slug found in response')
+        // Generate a fallback slug based on user ID
+        const fallbackSlug = `user${user.id.slice(0, 8)}`
+        setPortfolioSlug(fallbackSlug)
+        console.log('Using fallback slug:', fallbackSlug)
       }
     } catch (error) {
       console.error('Failed to fetch portfolio slug:', error)
@@ -46,6 +50,12 @@ const Layout = () => {
       console.error('Error status:', error.response?.status)
       if (error.response?.data?.error) {
         console.error('Backend error message:', error.response.data.error)
+      }
+      // Even on error, set a fallback slug
+      if (user?.id) {
+        const fallbackSlug = `user${user.id.slice(0, 8)}`
+        setPortfolioSlug(fallbackSlug)
+        console.log('Using fallback slug on error:', fallbackSlug)
       }
     }
   }

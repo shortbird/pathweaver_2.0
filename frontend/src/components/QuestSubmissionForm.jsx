@@ -115,9 +115,19 @@ const QuestSubmissionForm = ({ onSubmit, isSubmitting }) => {
 
   const isValidUrl = (string) => {
     try {
+      // Try with the string as-is first
       new URL(string)
       return true
     } catch (_) {
+      // If it fails, try adding https:// if it looks like a domain
+      if (string.match(/^[a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9]?\.[\w.]+$/)) {
+        try {
+          new URL('https://' + string)
+          return true
+        } catch (_) {
+          return false
+        }
+      }
       return false
     }
   }
@@ -209,56 +219,59 @@ const QuestSubmissionForm = ({ onSubmit, isSubmitting }) => {
         )}
 
         {(inputType === 'image' || inputType === 'video' || inputType === 'file') && (
-          <div className="space-y-4">
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
-              <input
-                type="file"
-                onChange={handleFileSelect}
-                accept={
-                  inputType === 'image' ? 'image/*' :
-                  inputType === 'video' ? 'video/*' :
-                  '*'
-                }
-                multiple
-                className="hidden"
-                id="file-upload"
-              />
-              <label htmlFor="file-upload" className="cursor-pointer">
-                <div className="space-y-2">
-                  <div className="text-4xl">
-                    {inputType === 'image' ? '🖼️' : inputType === 'video' ? '🎥' : '📎'}
-                  </div>
-                  <p className="text-gray-600">
-                    Click to select {inputType === 'image' ? 'images' : inputType === 'video' ? 'videos' : 'files'}
-                  </p>
-                  <p className="text-sm text-gray-400">Max size: 50MB per file</p>
-                </div>
-              </label>
-            </div>
-            
-            {/* Show selected files preview */}
-            {selectedFiles.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-medium">Selected ({selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''})</p>
-                <div className="space-y-1 max-h-32 overflow-y-auto border rounded p-2">
-                  {selectedFiles.map((file, index) => (
-                    <div key={index} className="flex items-center gap-2 text-sm">
-                      <span className="text-lg">
-                        {file.type === 'image' ? '🖼️' : file.type === 'video' ? '🎥' : '📎'}
-                      </span>
-                      <span className="flex-1 truncate">{file.name}</span>
-                      <span className="text-gray-500">{file.size}</span>
+          <div className="flex gap-2">
+            <div className="flex-1 space-y-4">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                <input
+                  type="file"
+                  onChange={handleFileSelect}
+                  accept={
+                    inputType === 'image' ? 'image/*' :
+                    inputType === 'video' ? 'video/*' :
+                    '*'
+                  }
+                  multiple
+                  className="hidden"
+                  id="file-upload"
+                />
+                <label htmlFor="file-upload" className="cursor-pointer">
+                  <div className="space-y-2">
+                    <div className="text-4xl">
+                      {inputType === 'image' ? '🖼️' : inputType === 'video' ? '🎥' : '📎'}
                     </div>
-                  ))}
-                </div>
-                <button
-                  onClick={handleAddFiles}
-                  className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition"
-                >
-                  Add Selected Files
-                </button>
+                    <p className="text-gray-600">
+                      Click to select {inputType === 'image' ? 'images' : inputType === 'video' ? 'videos' : 'files'}
+                    </p>
+                    <p className="text-sm text-gray-400">Max size: 50MB per file</p>
+                  </div>
+                </label>
               </div>
-            )}
+              
+              {/* Show selected files preview */}
+              {selectedFiles.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">Selected ({selectedFiles.length} file{selectedFiles.length !== 1 ? 's' : ''})</p>
+                  <div className="space-y-1 max-h-32 overflow-y-auto border rounded p-2">
+                    {selectedFiles.map((file, index) => (
+                      <div key={index} className="flex items-center gap-2 text-sm">
+                        <span className="text-lg">
+                          {file.type === 'image' ? '🖼️' : file.type === 'video' ? '🎥' : '📎'}
+                        </span>
+                        <span className="flex-1 truncate">{file.name}</span>
+                        <span className="text-gray-500">{file.size}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <button
+              onClick={handleAddFiles}
+              disabled={selectedFiles.length === 0}
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition disabled:opacity-50 disabled:cursor-not-allowed self-start"
+            >
+              Add
+            </button>
           </div>
         )}
       </div>
