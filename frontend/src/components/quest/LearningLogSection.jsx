@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { handleApiResponse } from '../../utils/errorHandling';
 
 const LearningLogSection = ({ userQuestId, isOwner = true }) => {
   const [logs, setLogs] = useState([]);
@@ -61,9 +62,7 @@ const LearningLogSection = ({ userQuestId, isOwner = true }) => {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to add log entry');
-      }
+      handleApiResponse(response, data, 'Failed to add log entry');
 
       // Add new entry to the list
       setLogs([data.entry, ...logs]);

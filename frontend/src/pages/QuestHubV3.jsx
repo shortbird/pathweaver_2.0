@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { handleApiResponse } from '../utils/errorHandling';
 import QuestCardV3 from '../components/quest/QuestCardV3';
 import TeamUpModal from '../components/quest/TeamUpModal';
 
@@ -81,9 +82,7 @@ const QuestHubV3 = () => {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to enroll');
-      }
+      handleApiResponse(response, data, 'Failed to enroll');
 
       // Update quest in state to show enrollment
       setQuests(quests.map(q => 

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import EvidenceUploader from '../evidence/EvidenceUploader';
+import { handleApiResponse } from '../../utils/errorHandling';
 
 const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
   const [evidenceType, setEvidenceType] = useState('text');
@@ -49,10 +50,9 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
       });
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to complete task');
-      }
+      
+      // Use utility function for consistent error handling
+      handleApiResponse(response, data, 'Failed to complete task');
 
       // Show success message with XP earned
       const successMessage = data.has_collaboration_bonus 
@@ -68,6 +68,13 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
 
     } catch (error) {
       console.error('Error completing task:', error);
+      console.error('Error details:', {
+        message: error.message,
+        taskId: task.id,
+        questId: questId,
+        evidenceType: evidenceType,
+        evidenceData: evidenceData
+      });
       setError(error.message || 'Failed to complete task. Please try again.');
     } finally {
       setIsSubmitting(false);

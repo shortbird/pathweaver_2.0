@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { handleApiResponse } from '../utils/errorHandling';
 import TaskCompletionModal from '../components/quest/TaskCompletionModal';
 import LearningLogSection from '../components/quest/LearningLogSection';
 import TeamUpModal from '../components/quest/TeamUpModal';
@@ -61,9 +62,7 @@ const QuestDetailV3 = () => {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to enroll');
-      }
+      handleApiResponse(response, data, 'Failed to enroll');
 
       // Refresh quest details to show enrollment
       await fetchQuestDetails();
@@ -115,9 +114,7 @@ const QuestDetailV3 = () => {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to cancel quest');
-      }
+      handleApiResponse(response, data, 'Failed to cancel quest');
 
       alert('Quest cancelled successfully');
       navigate('/quests');

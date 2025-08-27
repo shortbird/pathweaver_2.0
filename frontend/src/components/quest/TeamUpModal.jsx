@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { handleApiResponse } from '../../utils/errorHandling';
 
 const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
   const navigate = useNavigate();
@@ -58,9 +59,7 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
 
       const data = await response.json();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send invitation');
-      }
+      handleApiResponse(response, data, 'Failed to send invitation');
 
       // Success
       onInviteSent({
