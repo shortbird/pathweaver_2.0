@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import AdminQuestManager from './AdminQuestManager'
+import AdminQuestManagerV3 from './AdminQuestManagerV3'
 
 const AdminDashboard = () => {
   const [analytics, setAnalytics] = useState(null)
@@ -183,7 +183,7 @@ const AdminQuests = () => {
 
 
       {showManager && (
-        <AdminQuestManager
+        <AdminQuestManagerV3
           quest={editingQuest}
           onClose={() => {
             setShowManager(false)
@@ -205,8 +205,11 @@ const AdminQuests = () => {
           ) : (
             <div className="grid gap-4">
               {quests.map(quest => {
-                const totalXP = quest.quest_skill_xp?.reduce((sum, award) => sum + award.xp_amount, 0) || 
-                               quest.quest_xp_awards?.reduce((sum, award) => sum + award.xp_amount, 0) || 0;
+                // Calculate total XP from tasks for V3 or fallback to old system
+                const totalXP = quest.quest_tasks?.reduce((sum, task) => sum + (task.xp_amount || 0), 0) ||
+                               quest.quest_skill_xp?.reduce((sum, award) => sum + award.xp_amount, 0) || 
+                               quest.quest_xp_awards?.reduce((sum, award) => sum + award.xp_amount, 0) || 
+                               quest.total_xp || 0;
                 
                 const isCollapsed = collapsedQuests.has(quest.id);
                 
@@ -221,7 +224,9 @@ const AdminQuests = () => {
                           </span>
                           <h3 className="text-lg font-semibold text-gray-900">{quest.title}</h3>
                         </div>
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2 ml-6">{quest.description}</p>
+                        <p className="text-sm text-gray-600 mt-1 line-clamp-2 ml-6">
+                          {quest.big_idea || quest.description || 'No description'}
+                        </p>
                       </div>
                       <div className="flex gap-2 ml-4">
                         <button 
@@ -242,6 +247,50 @@ const AdminQuests = () => {
                     {/* Collapsible Content */}
                     {!isCollapsed && (
                       <>
+                    {/* Tasks Section for V3 Quests */}
+                    {quest.quest_tasks && quest.quest_tasks.length > 0 && (
+                      <div className="mb-4">
+                        <p className="text-xs font-semibold text-gray-500 mb-2">TASKS ({quest.quest_tasks.length}):</p>
+                        <div className="space-y-2">
+                          {quest.quest_tasks
+                            .sort((a, b) => (a.task_order || 0) - (b.task_order || 0))
+                            .map((task, idx) => (
+                            <div key={task.id || idx} className="bg-gray-50 p-3 rounded-lg">
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <span className="font-medium text-sm">{idx + 1}. {task.title}</span>
+                                  {task.description && (
+                                    <p className="text-xs text-gray-600 mt-1">{task.description}</p>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 ml-2">
+                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                                    {task.xp_amount} XP
+                                  </span>
+                                  <span className={`text-xs px-2 py-1 rounded ${
+                                    task.pillar === 'creativity' ? 'bg-purple-100 text-purple-700' :
+                                    task.pillar === 'critical_thinking' ? 'bg-blue-100 text-blue-700' :
+                                    task.pillar === 'practical_skills' ? 'bg-green-100 text-green-700' :
+                                    task.pillar === 'communication' ? 'bg-orange-100 text-orange-700' :
+                                    task.pillar === 'cultural_literacy' ? 'bg-red-100 text-red-700' :
+                                    'bg-gray-100 text-gray-700'
+                                  }`}>
+                                    {task.pillar?.replace('_', ' ')}
+                                  </span>
+                                  {task.is_required && (
+                                    <span className="text-xs text-gray-500">Required</span>
+                                  )}
+                                  {task.is_collaboration_eligible && (
+                                    <span className="text-xs text-purple-600">Team-up eligible</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
                     {/* Quest Metadata */}
                     <div className="flex flex-wrap gap-2 mb-4">
                       {quest.difficulty_level && (

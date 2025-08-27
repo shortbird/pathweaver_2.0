@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import VisualQuestCard from '../components/VisualQuestCard'
+// Removed VisualQuestCard import - component not implemented yet
 
 const QuestDetailPage = () => {
   const { id } = useParams()
@@ -161,14 +161,65 @@ const QuestDetailPage = () => {
 
   return (
     <div className="px-4 sm:px-6 lg:px-8 py-8">
-      <VisualQuestCard 
-        quest={quest}
-        userQuest={userQuest}
-        onStartQuest={handleStartQuest}
-        onSubmitQuest={handleSubmitQuest}
-        onAddLog={handleAddLog}
-        learningLogs={learningLogs}
-      />
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-lg shadow-lg p-6">
+          <h1 className="text-3xl font-bold mb-4">{quest.title}</h1>
+          <p className="text-gray-600 mb-6">{quest.description || quest.big_idea}</p>
+          
+          <div className="mb-6">
+            <span className="text-lg font-semibold">Total XP: </span>
+            <span className="text-green-600 font-bold">{quest.total_xp || 0}</span>
+          </div>
+          
+          {!userQuest && (
+            <button
+              onClick={handleStartQuest}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
+            >
+              Start Quest
+            </button>
+          )}
+          
+          {userQuest && !userQuest.completed_at && (
+            <div>
+              <p className="text-gray-600 mb-4">Quest in progress...</p>
+              <button
+                onClick={() => {
+                  const evidenceText = prompt('Enter your evidence:')
+                  if (evidenceText) {
+                    handleSubmitQuest({ evidence_text: evidenceText }, [])
+                  }
+                }}
+                className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700"
+              >
+                Submit Quest
+              </button>
+            </div>
+          )}
+          
+          {userQuest && userQuest.completed_at && (
+            <div className="bg-green-100 p-4 rounded-lg">
+              <p className="text-green-800 font-semibold">Quest Completed!</p>
+            </div>
+          )}
+          
+          {learningLogs.length > 0 && (
+            <div className="mt-6">
+              <h3 className="text-xl font-semibold mb-3">Learning Logs</h3>
+              <div className="space-y-2">
+                {learningLogs.map((log, index) => (
+                  <div key={index} className="bg-gray-50 p-3 rounded">
+                    <p className="text-sm text-gray-600">{log.content}</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      {new Date(log.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   )
 }
