@@ -1,13 +1,15 @@
 """Backend utilities package with organized sub-modules"""
 
 # Authentication utilities
-from .auth import (
+from .auth.decorators import (
     require_auth,
-    require_admin,
-    verify_token,
-    generate_token,
-    session_manager
+    require_admin
 )
+from .auth.token_utils import (
+    verify_token,
+    generate_token
+)
+from .session_manager import session_manager
 
 # Validation utilities  
 from .validation import (
@@ -35,10 +37,7 @@ from .retry_handler import (
     RetryableOperation
 )
 
-# Legacy imports for backward compatibility
-# These will be deprecated in future versions
-from .auth_utils import require_auth as legacy_require_auth
-from .validation import sanitize_input as legacy_sanitize_input
+# Legacy imports removed - auth_utils no longer exists
 
 __all__ = [
     # Auth
