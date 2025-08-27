@@ -6,6 +6,9 @@ from routes import auth, quests, subscriptions, users, admin, community, portfol
 from routes.quest_ideas import quest_ideas_bp
 from routes.ratings import ratings_bp
 from routes import uploads
+
+# Import V3 routes
+from routes import quests_v3, tasks, collaborations, learning_logs_v3, admin_v3
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -29,6 +32,7 @@ error_handler.init_app(app)
 # Configure CORS with proper settings
 configure_cors(app)
 
+# Register existing routes (will be deprecated)
 app.register_blueprint(auth.bp, url_prefix='/api/auth')
 app.register_blueprint(quests.bp, url_prefix='/api/quests')
 app.register_blueprint(subscriptions.bp, url_prefix='/api/subscriptions')
@@ -40,6 +44,13 @@ app.register_blueprint(learning_log.bp, url_prefix='/api')
 app.register_blueprint(quest_ideas_bp)
 app.register_blueprint(ratings_bp)
 app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
+
+# Register V3 routes
+app.register_blueprint(quests_v3.bp)  # /api/v3/quests
+app.register_blueprint(tasks.bp)      # /api/v3/tasks
+app.register_blueprint(collaborations.bp)  # /api/v3/collaborations
+app.register_blueprint(learning_logs_v3.bp)  # /api/v3/logs
+app.register_blueprint(admin_v3.bp)   # /api/v3/admin
 
 @app.route('/api/health')
 def health_check():
@@ -81,4 +92,4 @@ def handle_preflight():
 # Error handlers are now managed by error_handler middleware
 
 if __name__ == '__main__':
-    app.run(debug=True, port=8000)
+    app.run(debug=True, port=5001)

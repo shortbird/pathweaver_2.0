@@ -449,11 +449,13 @@ def get_pending_submissions(user_id):
         end = start + per_page - 1
         
         # First get submissions with evidence - filter by pending status only
+        print(f"Fetching submissions: start={start}, end={end}")
         submissions = supabase.table('submissions')\
             .select('*, submission_evidence(*)', count='exact')\
             .eq('status', 'pending')\
             .range(start, end)\
             .execute()
+        print(f"Submissions fetched: {len(submissions.data) if submissions.data else 0} items")
         
         # Then enrich with user and quest data
         if submissions.data:
@@ -485,6 +487,9 @@ def get_pending_submissions(user_id):
         }), 200
         
     except Exception as e:
+        print(f"Error in get_pending_submissions: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 400
 
 @bp.route('/submissions/<submission_id>/review', methods=['POST'])

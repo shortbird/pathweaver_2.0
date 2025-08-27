@@ -1,0 +1,393 @@
+"""
+Task completion endpoints for Quest V3 system.
+Handles task completion with evidence upload and XP awards.
+"""
+
+from flask import Blueprint, request, jsonify
+from database import get_supabase_admin_client
+from utils.auth.decorators import require_auth
+from services.evidence_service import EvidenceService
+from services.xp_service import XPService
+from datetime import datetime
+import os
+from werkzeug.utils import secure_filename
+from typing import Dict, Any, Optional
+
+bp = Blueprint('tasks', __name__, url_prefix='/api/v3/tasks')
+
+# Initialize services
+evidence_service = EvidenceService()
+xp_service = XPService()
+
+# File upload configuration
+UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads/evidence')
+MAX_FILE_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', 104857600))  # 100MB default
+ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+ALLOWED_VIDEO_EXTENSIONS = {'mp4', 'mov', 'avi', 'webm'}
+
+@bp.route('/<task_id>/complete', methods=['POST'])
+@require_auth
+def complete_task(user_id: str, task_id: str):
+    """
+    Complete a task with evidence submission.
+    Handles file uploads and awards XP with collaboration bonus if applicable.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+        
+        # Get task details
+        task = supabase.table('quest_tasks')\
+            .select('*, quests(id, title)')\
+            .eq('id', task_id)\
+            .single()\
+            .execute()
+        
+        if not task.data:
+            return jsonify({
+                'success': False,
+                'error': 'Task not found'
+            }), 404
+        
+        task_data = task.data
+        quest_id = task_data['quest_id']
+        
+        # Check if user is enrolled in the quest
+        enrollment = supabase.table('user_quests')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .eq('is_active', True)\
+            .execute()
+        
+        if not enrollment.data:
+            return jsonify({
+                'success': False,
+                'error': 'You must be enrolled in the quest to complete tasks'
+            }), 403
+        
+        user_quest_id = enrollment.data[0]['id']
+        
+        # Check if task already completed
+        existing_completion = supabase.table('user_quest_tasks')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .eq('quest_task_id', task_id)\
+            .execute()
+        
+        if existing_completion.data:
+            return jsonify({
+                'success': False,
+                'error': 'Task already completed'
+            }), 400
+        
+        # Get evidence from request
+        evidence_type = request.form.get('evidence_type')
+        if not evidence_type:
+            return jsonify({
+                'success': False,
+                'error': 'Evidence type is required'
+            }), 400
+        
+        # Prepare evidence data based on type
+        evidence_data = {}
+        evidence_content = ''
+        
+        if evidence_type == 'text':
+            evidence_data['content'] = request.form.get('text_content', '')
+            evidence_content = evidence_data['content']
+            
+        elif evidence_type == 'link':
+            evidence_data['url'] = request.form.get('text_content', '')
+            evidence_data['title'] = request.form.get('link_title', '')
+            evidence_content = evidence_data['url']
+            
+        elif evidence_type in ['image', 'video']:
+            # Handle file upload
+            if 'file' not in request.files:
+                return jsonify({
+                    'success': False,
+                    'error': 'File is required for image/video evidence'
+                }), 400
+            
+            file = request.files['file']
+            if file.filename == '':
+                return jsonify({
+                    'success': False,
+                    'error': 'No file selected'
+                }), 400
+            
+            # Validate file extension
+            filename = secure_filename(file.filename)
+            ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+            
+            if evidence_type == 'image' and ext not in ALLOWED_IMAGE_EXTENSIONS:
+                return jsonify({
+                    'success': False,
+                    'error': f'Invalid image format. Allowed: {", ".join(ALLOWED_IMAGE_EXTENSIONS)}'
+                }), 400
+            
+            if evidence_type == 'video' and ext not in ALLOWED_VIDEO_EXTENSIONS:
+                return jsonify({
+                    'success': False,
+                    'error': f'Invalid video format. Allowed: {", ".join(ALLOWED_VIDEO_EXTENSIONS)}'
+                }), 400
+            
+            # Check file size
+            file.seek(0, os.SEEK_END)
+            file_size = file.tell()
+            file.seek(0)
+            
+            if file_size > MAX_FILE_SIZE:
+                return jsonify({
+                    'success': False,
+                    'error': f'File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)}MB'
+                }), 400
+            
+            # Save file with unique name
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            unique_filename = f"{user_id}_{task_id}_{timestamp}_{filename}"
+            file_path = os.path.join(UPLOAD_FOLDER, unique_filename)
+            
+            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+            file.save(file_path)
+            
+            evidence_data['file_url'] = f"/uploads/evidence/{unique_filename}"
+            evidence_data['file_size'] = file_size
+            evidence_data['original_name'] = filename
+            evidence_content = evidence_data['file_url']
+        
+        # Validate evidence
+        is_valid, error_msg = evidence_service.validate_evidence(evidence_type, evidence_data)
+        if not is_valid:
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 400
+        
+        # Calculate XP with collaboration bonus
+        base_xp = task_data['xp_amount']
+        final_xp, has_collaboration = xp_service.calculate_task_xp(
+            user_id, task_id, quest_id, base_xp
+        )
+        
+        # Create task completion record
+        completion = supabase.table('user_quest_tasks')\
+            .insert({
+                'user_id': user_id,
+                'quest_task_id': task_id,
+                'user_quest_id': user_quest_id,
+                'evidence_type': evidence_type,
+                'evidence_content': evidence_content,
+                'xp_awarded': final_xp,
+                'completed_at': datetime.utcnow().isoformat()
+            })\
+            .execute()
+        
+        if not completion.data:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to save task completion'
+            }), 500
+        
+        # Award XP to user
+        xp_awarded = xp_service.award_xp(
+            user_id,
+            task_data['pillar'],
+            final_xp,
+            f'task_completion:{task_id}'
+        )
+        
+        if not xp_awarded:
+            print(f"Warning: Failed to award XP for task {task_id} to user {user_id}")
+        
+        # Check if all required tasks are completed
+        all_tasks = supabase.table('quest_tasks')\
+            .select('id')\
+            .eq('quest_id', quest_id)\
+            .eq('is_required', True)\
+            .execute()
+        
+        completed_tasks = supabase.table('user_quest_tasks')\
+            .select('quest_task_id')\
+            .eq('user_id', user_id)\
+            .eq('user_quest_id', user_quest_id)\
+            .execute()
+        
+        required_task_ids = {t['id'] for t in all_tasks.data}
+        completed_task_ids = {t['quest_task_id'] for t in completed_tasks.data}
+        
+        # If all required tasks completed, mark quest as complete
+        if required_task_ids.issubset(completed_task_ids):
+            supabase.table('user_quests')\
+                .update({
+                    'completed_at': datetime.utcnow().isoformat(),
+                    'is_active': False
+                })\
+                .eq('id', user_quest_id)\
+                .execute()
+            
+            quest_completed = True
+        else:
+            quest_completed = False
+        
+        return jsonify({
+            'success': True,
+            'message': f'Task completed! Earned {final_xp} XP',
+            'xp_awarded': final_xp,
+            'has_collaboration_bonus': has_collaboration,
+            'quest_completed': quest_completed,
+            'completion': completion.data[0]
+        })
+        
+    except Exception as e:
+        print(f"Error completing task: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to complete task'
+        }), 500
+
+@bp.route('/<task_id>/completions', methods=['GET'])
+@require_auth
+def get_task_completions(user_id: str, task_id: str):
+    """
+    Get all completions for a specific task.
+    Useful for showing examples to other users.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+        
+        # Get task details first
+        task = supabase.table('quest_tasks')\
+            .select('id, title, quest_id')\
+            .eq('id', task_id)\
+            .single()\
+            .execute()
+        
+        if not task.data:
+            return jsonify({
+                'success': False,
+                'error': 'Task not found'
+            }), 404
+        
+        # Get completions with user info
+        completions = supabase.table('user_quest_tasks')\
+            .select('*, users(username, avatar_url)')\
+            .eq('quest_task_id', task_id)\
+            .order('completed_at', desc=True)\
+            .limit(20)\
+            .execute()
+        
+        # Format evidence for display
+        formatted_completions = []
+        for completion in completions.data:
+            # Only show non-sensitive evidence
+            if completion['evidence_type'] in ['text', 'link']:
+                evidence_display = evidence_service.get_evidence_display_data(
+                    completion['evidence_type'],
+                    completion['evidence_content']
+                )
+                
+                formatted_completions.append({
+                    'user': completion.get('users'),
+                    'evidence_type': completion['evidence_type'],
+                    'evidence_display': evidence_display,
+                    'xp_awarded': completion['xp_awarded'],
+                    'completed_at': completion['completed_at']
+                })
+        
+        return jsonify({
+            'success': True,
+            'task': task.data,
+            'completions': formatted_completions,
+            'total': len(formatted_completions)
+        })
+        
+    except Exception as e:
+        print(f"Error getting task completions: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch task completions'
+        }), 500
+
+@bp.route('/suggest', methods=['POST'])
+@require_auth
+def suggest_task(user_id: str):
+    """
+    Allow users to suggest new tasks for existing quests.
+    Suggestions go to admin review queue.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+        
+        # Get suggestion data
+        data = request.get_json()
+        quest_id = data.get('quest_id')
+        title = data.get('title')
+        description = data.get('description')
+        suggested_xp = data.get('xp_amount', 50)
+        suggested_pillar = data.get('pillar')
+        
+        # Validate required fields
+        if not all([quest_id, title, suggested_pillar]):
+            return jsonify({
+                'success': False,
+                'error': 'Quest ID, title, and pillar are required'
+            }), 400
+        
+        # Validate pillar
+        valid_pillars = ['creativity', 'critical_thinking', 'practical_skills', 
+                        'communication', 'cultural_literacy']
+        if suggested_pillar not in valid_pillars:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid pillar. Must be one of: {", ".join(valid_pillars)}'
+            }), 400
+        
+        # Check if quest exists
+        quest = supabase.table('quests')\
+            .select('id, title')\
+            .eq('id', quest_id)\
+            .single()\
+            .execute()
+        
+        if not quest.data:
+            return jsonify({
+                'success': False,
+                'error': 'Quest not found'
+            }), 404
+        
+        # Create task suggestion (stored as inactive task)
+        suggestion = supabase.table('quest_tasks')\
+            .insert({
+                'quest_id': quest_id,
+                'title': f"[SUGGESTION] {title}",
+                'description': description or '',
+                'xp_amount': min(max(suggested_xp, 10), 500),  # Clamp between 10-500
+                'pillar': suggested_pillar,
+                'task_order': 999,  # Put suggestions at the end
+                'is_required': False,
+                'is_collaboration_eligible': False,
+                'is_suggestion_task': True,  # Custom flag for suggestions
+                'suggested_by': user_id,
+                'created_at': datetime.utcnow().isoformat()
+            })\
+            .execute()
+        
+        if not suggestion.data:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to submit suggestion'
+            }), 500
+        
+        return jsonify({
+            'success': True,
+            'message': 'Task suggestion submitted for review',
+            'suggestion': suggestion.data[0]
+        })
+        
+    except Exception as e:
+        print(f"Error suggesting task: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to submit task suggestion'
+        }), 500

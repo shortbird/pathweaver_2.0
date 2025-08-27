@@ -10,6 +10,11 @@ import HomePage from './pages/HomePage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
+// V3 Quest Pages
+import QuestHubV3 from './pages/QuestHubV3'
+import QuestDetailV3 from './pages/QuestDetailV3'
+import DiplomaPageV3 from './pages/DiplomaPageV3'
+// Legacy pages (to be removed)
 import QuestsPage from './pages/QuestsPage'
 import QuestDetailPage from './pages/QuestDetailPage'
 import ProfilePage from './pages/ProfilePage'
@@ -43,11 +48,17 @@ function App() {
               <Route path="login" element={<LoginPage />} />
               <Route path="register" element={<RegisterPage />} />
               <Route path="portfolio/:slug" element={<DiplomaPage />} />
+              <Route path="diploma/:userId" element={<DiplomaPageV3 />} />
               
               <Route element={<PrivateRoute />}>
                 <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="quests" element={<QuestsPage />} />
-                <Route path="quests/:id" element={<QuestDetailPage />} />
+                {/* V3 Quest Routes */}
+                <Route path="quests" element={<QuestHubV3 />} />
+                <Route path="quests/:id" element={<QuestDetailV3 />} />
+                <Route path="diploma" element={<DiplomaPageV3 />} />
+                {/* Legacy routes - keeping for now */}
+                <Route path="quests-old" element={<QuestsPage />} />
+                <Route path="quests-old/:id" element={<QuestDetailPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="friends" element={<FriendsPage />} />
                 <Route path="subscription" element={<SubscriptionPage />} />
