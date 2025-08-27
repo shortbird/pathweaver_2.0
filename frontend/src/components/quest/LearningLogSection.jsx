@@ -18,7 +18,7 @@ const LearningLogSection = ({ userQuestId, isOwner = true }) => {
     try {
       const response = await fetch(`/api/v3/logs/${userQuestId}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
       });
 
@@ -49,7 +49,7 @@ const LearningLogSection = ({ userQuestId, isOwner = true }) => {
       const response = await fetch(`/api/v3/logs/${userQuestId}/entry`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({

@@ -18,7 +18,7 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
     try {
       const response = await fetch('/api/community/friends', {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
       });
 
@@ -46,7 +46,7 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
       const response = await fetch('/api/v3/collaborations/invite', {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({

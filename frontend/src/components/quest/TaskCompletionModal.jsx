@@ -42,7 +42,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
       const response = await fetch(`/api/v3/tasks/${task.id}/complete`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         },
         body: formData
       });

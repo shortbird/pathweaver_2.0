@@ -42,7 +42,7 @@ const QuestHubV3 = () => {
 
       const response = await fetch(`/api/v3/quests?${params}`, {
         headers: user ? {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         } : {}
       });
 
@@ -72,7 +72,7 @@ const QuestHubV3 = () => {
       const response = await fetch(`/api/v3/quests/${questId}/enroll`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });

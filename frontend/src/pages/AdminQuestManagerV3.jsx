@@ -120,7 +120,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         response = await fetch(url, {
           method,
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
             // Don't set Content-Type for FormData - browser will set it with boundary
           },
           body: formDataToSend
@@ -137,7 +137,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         response = await fetch(url, {
           method,
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(jsonData)
@@ -173,7 +173,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         response = await fetch(url, {
           method,
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(oldFormatData)

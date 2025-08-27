@@ -25,7 +25,7 @@ const QuestDetailV3 = () => {
     try {
       const response = await fetch(`/api/v3/quests/${id}`, {
         headers: user ? {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         } : {}
       });
 
@@ -53,7 +53,7 @@ const QuestDetailV3 = () => {
       const response = await fetch(`/api/v3/quests/${id}/enroll`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         }
       });
