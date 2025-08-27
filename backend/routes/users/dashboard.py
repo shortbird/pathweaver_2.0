@@ -81,26 +81,41 @@ def get_tasks_completed_count(supabase, user_id: str) -> int:
 
 def get_active_quests(supabase, user_id: str) -> list:
     """Get user's active quests with details"""
+    print(f"Fetching active quests for user {user_id}")
     try:
-        # Try with full details first
+        # Try with is_active field (V3 quests)
         active_quests = supabase.table('user_quests')\
             .select('*, quests(*, quest_skill_xp(*), quest_xp_awards(*))')\
             .eq('user_id', user_id)\
-            .eq('status', 'in_progress')\
+            .eq('is_active', True)\
+            .is_('completed_at', 'null')\
             .execute()
     except:
-        # Fallback without skill XP if tables don't exist
+        # Fallback to status field (older schema)
         try:
             active_quests = supabase.table('user_quests')\
                 .select('*, quests(*)')\
                 .eq('user_id', user_id)\
                 .eq('status', 'in_progress')\
                 .execute()
-        except Exception as e:
-            print(f"Error fetching active quests: {str(e)}")
-            return []
+        except:
+            # Final fallback without skill XP tables
+            try:
+                active_quests = supabase.table('user_quests')\
+                    .select('*, quests(*)')\
+                    .eq('user_id', user_id)\
+                    .eq('is_active', True)\
+                    .is_('completed_at', 'null')\
+                    .execute()
+            except Exception as e:
+                print(f"Error fetching active quests: {str(e)}")
+                return []
     
+    print(f"Active quests query result: {len(active_quests.data) if active_quests.data else 0} quests found")
     if active_quests.data:
+        # Log the status of each quest
+        for quest in active_quests.data:
+            print(f"  - Quest ID: {quest.get('id')}, Status: {quest.get('status')}, Quest ID ref: {quest.get('quest_id')}")
         # Return the raw data with proper structure
         # The frontend expects user_quest records with nested quest data
         return active_quests.data
@@ -110,16 +125,16 @@ def get_active_quests(supabase, user_id: str) -> list:
 def get_recent_completions(supabase, user_id: str, limit: int = 5) -> list:
     """Get user's recent quest completions"""
     try:
-        # Try with full details first
+        # Try with completed_at field (V3 quests)
         completions = supabase.table('user_quests')\
             .select('*, quests(*, quest_skill_xp(*), quest_xp_awards(*))')\
             .eq('user_id', user_id)\
-            .eq('status', 'completed')\
+            .not_.is_('completed_at', 'null')\
             .order('completed_at', desc=True)\
             .limit(limit)\
             .execute()
     except:
-        # Fallback without skill XP
+        # Fallback to status field (older schema)
         try:
             completions = supabase.table('user_quests')\
                 .select('*, quests(*)')\
@@ -142,14 +157,26 @@ def get_recent_completions(supabase, user_id: str, limit: int = 5) -> list:
 def get_completion_stats(supabase, user_id: str) -> dict:
     """Get user's completion statistics"""
     try:
-        # Count total completed quests
+        # Count total completed quests (V3 uses completed_at field)
         completed = supabase.table('user_quests')\
             .select('id', count='exact')\
             .eq('user_id', user_id)\
-            .eq('status', 'completed')\
+            .not_.is_('completed_at', 'null')\
             .execute()
         
         completed_count = completed.count if completed else 0
+        
+        # Fallback to status field if needed
+        if completed_count == 0:
+            try:
+                completed = supabase.table('user_quests')\
+                    .select('id', count='exact')\
+                    .eq('user_id', user_id)\
+                    .eq('status', 'completed')\
+                    .execute()
+                completed_count = completed.count if completed else 0
+            except:
+                pass
         
         # Calculate streak (simplified - days with completions)
         # This is a basic implementation - can be enhanced

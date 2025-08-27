@@ -81,11 +81,26 @@ const QuestDetailV3 = () => {
     // Show success message
     alert(result.message);
 
+    // Dispatch event for dashboard to refresh
+    window.dispatchEvent(new CustomEvent('taskCompleted', { 
+      detail: { 
+        taskId: result.task?.id,
+        xp_awarded: result.xp_awarded 
+      } 
+    }));
+
     // Refresh quest details to update progress
     await fetchQuestDetails();
 
     // If quest completed, show special message
     if (result.quest_completed) {
+      // Dispatch quest completion event
+      window.dispatchEvent(new CustomEvent('questCompleted', { 
+        detail: { 
+          questId: id 
+        } 
+      }));
+      
       setTimeout(() => {
         alert('🎉 Congratulations! You\'ve completed the entire quest!');
       }, 1000);
