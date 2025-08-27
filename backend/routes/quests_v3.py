@@ -426,7 +426,7 @@ def cancel_quest(user_id: str, quest_id: str):
             .execute()
         
         # Delete any learning logs
-        supabase.table('user_learning_logs')\
+        supabase.table('learning_logs')\
             .delete()\
             .eq('user_quest_id', user_quest_id)\
             .execute()
