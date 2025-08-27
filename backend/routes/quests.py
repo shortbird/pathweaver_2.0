@@ -8,7 +8,10 @@ bp = Blueprint('quests', __name__)
 
 @bp.route('', methods=['GET'])
 def get_quests():
-    # Use admin client to bypass RLS for public quest listing
+    """
+    Legacy endpoint - redirects to V3.
+    Kept for backward compatibility but uses new schema.
+    """
     from database import get_supabase_admin_client
     supabase = get_supabase_admin_client()
     
@@ -16,297 +19,172 @@ def get_quests():
         page = request.args.get('page', 1, type=int)
         per_page = request.args.get('per_page', 20, type=int)
         search = request.args.get('search', '')
-        skill_category = request.args.get('skill_category', '')
-        difficulty = request.args.get('difficulty', '')
-        effort_level = request.args.get('effort_level', '')
-        core_skill = request.args.get('core_skill', '')
-        min_hours = request.args.get('min_hours', type=int)
-        max_hours = request.args.get('max_hours', type=int)
-        adult_supervision = request.args.get('adult_supervision', '')
         
-        # Try with new skill-based system first
-        try:
-            query = supabase.table('quests').select('*, quest_skill_xp(*)')
+        # Calculate offset
+        offset = (page - 1) * per_page
+        
+        # Use the new schema - get quests with their tasks
+        query = supabase.table('quests').select('*, quest_tasks(*)', count='exact')
+        
+        if search:
+            query = query.ilike('title', f'%{search}%')
+        
+        # Apply pagination
+        query = query.range(offset, offset + per_page - 1)
+        
+        result = query.execute()
+        
+        # Format response for backward compatibility
+        quests = []
+        for quest in result.data:
+            # Calculate total XP from tasks
+            total_xp = sum(task.get('xp_amount', 0) for task in quest.get('quest_tasks', []))
             
-            if search:
-                # Search in title, description, and core_skills
-                query = query.or_(f'title.ilike.%{search}%,description.ilike.%{search}%')
-            
-            if skill_category:
-                # Filter quests that have XP in the specified skill category
-                filtered_quests = supabase.table('quest_skill_xp').select('quest_id').eq('skill_category', skill_category).execute()
-                quest_ids = [item['quest_id'] for item in filtered_quests.data]
-                if quest_ids:
-                    query = query.in_('id', quest_ids)
-                else:
-                    # No quests match this skill category
-                    return jsonify({'quests': [], 'page': page, 'per_page': per_page}), 200
-            
-            if difficulty:
-                query = query.eq('difficulty_level', difficulty)
-            
-            if effort_level:
-                query = query.eq('effort_level', effort_level)
-            
-            if core_skill:
-                # Filter by core_skills array containing the skill
-                query = query.contains('core_skills', [core_skill])
-            
-            if min_hours is not None:
-                query = query.gte('estimated_hours', min_hours)
-            
-            if max_hours is not None:
-                query = query.lte('estimated_hours', max_hours)
-            
-            if adult_supervision == 'true':
-                query = query.eq('requires_adult_supervision', True)
-            elif adult_supervision == 'false':
-                query = query.eq('requires_adult_supervision', False)
-            
-            start = (page - 1) * per_page
-            end = start + per_page - 1
-            
-            response = query.range(start, end).execute()
-            
-        except Exception as skill_error:
-            # Fall back to old subject-based system if skill tables don't exist
-            print(f"Skill-based query failed, falling back to subject-based: {skill_error}")
-            
-            query = supabase.table('quests').select('*, quest_xp_awards(*)')
-            
-            if search:
-                query = query.ilike('title', f'%{search}%')
-            
-            # Note: advanced filtering won't work with the old system
-            
-            start = (page - 1) * per_page
-            end = start + per_page - 1
-            
-            response = query.range(start, end).execute()
+            # Format quest for old frontend
+            formatted_quest = {
+                'id': quest['id'],
+                'title': quest['title'],
+                'description': quest.get('big_idea', ''),  # Map big_idea to description
+                'total_xp': total_xp,
+                'task_count': len(quest.get('quest_tasks', [])),
+                'is_active': quest.get('is_active', True),
+                'created_at': quest.get('created_at'),
+                'header_image_url': quest.get('header_image_url'),
+                # Add empty fields that old frontend might expect
+                'difficulty_level': 'medium',
+                'effort_level': 'moderate',
+                'estimated_hours': 2,
+                'core_skills': []
+            }
+            quests.append(formatted_quest)
         
         return jsonify({
-            'quests': response.data,
+            'quests': quests,
             'page': page,
-            'per_page': per_page
+            'per_page': per_page,
+            'total': result.count if hasattr(result, 'count') else len(quests)
         }), 200
         
     except Exception as e:
         print(f"Error fetching quests: {str(e)}")
-        return jsonify({'error': str(e)}), 400
-
-@bp.route('/filter-options', methods=['GET'])
-def get_filter_options():
-    # Check cache first
-    cache_key = 'filter_options'
-    cached_data = cache.get(cache_key)
-    if cached_data:
-        return jsonify(cached_data), 200
-    
-    supabase = get_supabase_client()
-    
-    try:
-        # Get all unique core skills from quests
-        quests_response = supabase.table('quests').select('core_skills').execute()
-        
-        all_skills = set()
-        for quest in quests_response.data:
-            if quest.get('core_skills'):
-                all_skills.update(quest['core_skills'])
-        
-        filter_options = {
-            'skill_categories': [
-                {'value': 'creativity', 'label': 'Creativity'},
-                {'value': 'critical_thinking', 'label': 'Critical Thinking'},
-                {'value': 'practical_skills', 'label': 'Practical Skills'},
-                {'value': 'communication', 'label': 'Communication'},
-                {'value': 'cultural_literacy', 'label': 'Cultural Literacy'}
-            ],
-            'difficulty_levels': [
-                {'value': 'beginner', 'label': 'Beginner'},
-                {'value': 'intermediate', 'label': 'Intermediate'},
-                {'value': 'advanced', 'label': 'Advanced'}
-            ],
-            'effort_levels': [
-                {'value': 'light', 'label': 'Light'},
-                {'value': 'moderate', 'label': 'Moderate'},
-                {'value': 'intensive', 'label': 'Intensive'}
-            ],
-            'core_skills': sorted(list(all_skills))
-        }
-        
-        # Cache for 10 minutes (600 seconds)
-        cache.set(cache_key, filter_options, ttl=600)
-        
-        return jsonify(filter_options), 200
-        
-    except Exception as e:
-        print(f"Error fetching filter options: {str(e)}")
-        return jsonify({'error': str(e)}), 400
+        return jsonify({'error': 'Failed to fetch quests', 'details': str(e)}), 500
 
 @bp.route('/<quest_id>', methods=['GET'])
 def get_quest(quest_id):
-    # Check cache first
-    cache_key = f'quest:{quest_id}'
-    cached_quest = cache.get(cache_key)
-    if cached_quest:
-        return jsonify(cached_quest), 200
-    
-    # Use admin client to bypass RLS for public quest viewing
+    """Legacy endpoint - redirects to V3."""
     from database import get_supabase_admin_client
     supabase = get_supabase_admin_client()
     
     try:
-        # Try with new skill-based system first
-        try:
-            response = supabase.table('quests').select('*, quest_skill_xp(*)').eq('id', quest_id).single().execute()
-        except Exception:
-            # Fall back to old subject-based system
-            response = supabase.table('quests').select('*, quest_xp_awards(*)').eq('id', quest_id).single().execute()
+        # Get quest with tasks
+        result = supabase.table('quests').select('*, quest_tasks(*)').eq('id', quest_id).single().execute()
         
-        # Cache for 5 minutes (300 seconds)
-        cache.set(cache_key, response.data, ttl=300)
+        if not result.data:
+            return jsonify({'error': 'Quest not found'}), 404
         
-        return jsonify(response.data), 200
+        quest = result.data
+        
+        # Calculate total XP from tasks
+        total_xp = sum(task.get('xp_amount', 0) for task in quest.get('quest_tasks', []))
+        
+        # Format for old frontend
+        formatted_quest = {
+            'id': quest['id'],
+            'title': quest['title'],
+            'description': quest.get('big_idea', ''),
+            'total_xp': total_xp,
+            'task_count': len(quest.get('quest_tasks', [])),
+            'quest_tasks': quest.get('quest_tasks', []),
+            'is_active': quest.get('is_active', True),
+            'header_image_url': quest.get('header_image_url'),
+            # Add fields old frontend might expect
+            'difficulty_level': 'medium',
+            'effort_level': 'moderate',
+            'estimated_hours': 2,
+            'core_skills': [],
+            'accepted_evidence_types': ['text', 'link', 'image', 'video']
+        }
+        
+        return jsonify(formatted_quest), 200
+        
     except Exception as e:
-        return jsonify({'error': str(e)}), 404
+        print(f"Error fetching quest {quest_id}: {str(e)}")
+        return jsonify({'error': 'Failed to fetch quest', 'details': str(e)}), 500
 
-@bp.route('/<quest_id>/start', methods=['POST'])
+@bp.route('/user', methods=['GET'])
 @require_auth
-def start_quest(user_id, quest_id):
-    supabase = get_authenticated_supabase_client()
+def get_user_quests(user_id):
+    """Get quests for the authenticated user."""
+    supabase = get_supabase_client()
     
     try:
-        existing = supabase.table('user_quests').select('*').eq('user_id', user_id).eq('quest_id', quest_id).execute()
+        # Get user's enrolled quests from new schema
+        user_quests = supabase.table('user_quests').select('*, quests(*, quest_tasks(*))').eq('user_id', user_id).execute()
+        
+        if not user_quests.data:
+            return jsonify([]), 200
+        
+        # Format for response
+        formatted_quests = []
+        for uq in user_quests.data:
+            if uq.get('quests'):
+                quest = uq['quests']
+                total_xp = sum(task.get('xp_amount', 0) for task in quest.get('quest_tasks', []))
+                
+                formatted_quests.append({
+                    'id': uq['id'],
+                    'quest_id': quest['id'],
+                    'quest': {
+                        'id': quest['id'],
+                        'title': quest['title'],
+                        'description': quest.get('big_idea', ''),
+                        'total_xp': total_xp
+                    },
+                    'started_at': uq.get('started_at'),
+                    'completed_at': uq.get('completed_at'),
+                    'status': 'completed' if uq.get('completed_at') else 'in_progress'
+                })
+        
+        return jsonify(formatted_quests), 200
+        
+    except Exception as e:
+        print(f"Error fetching user quests: {str(e)}")
+        return jsonify({'error': 'Failed to fetch user quests', 'details': str(e)}), 500
+
+@bp.route('/<quest_id>/enroll', methods=['POST'])
+@require_auth
+def enroll_in_quest(user_id, quest_id):
+    """Enroll user in a quest."""
+    from database import get_supabase_admin_client
+    supabase = get_supabase_admin_client()
+    
+    try:
+        # Check if already enrolled
+        existing = supabase.table('user_quests').select('id').eq('user_id', user_id).eq('quest_id', quest_id).execute()
         
         if existing.data:
-            return jsonify({'error': 'Quest already started'}), 400
+            return jsonify({'error': 'Already enrolled in this quest'}), 400
         
-        user_quest = {
+        # Create enrollment
+        enrollment = supabase.table('user_quests').insert({
             'user_id': user_id,
             'quest_id': quest_id,
-            'status': 'in_progress',
-            'started_at': datetime.utcnow().isoformat()
-        }
-        
-        response = supabase.table('user_quests').insert(user_quest).execute()
-        
-        supabase.table('activity_log').insert({
-            'user_id': user_id,
-            'event_type': 'quest_started',
-            'event_details': {'quest_id': quest_id}
+            'started_at': datetime.utcnow().isoformat(),
+            'is_active': True
         }).execute()
         
-        # Fetch the complete user_quest with quest details
-        if response.data and len(response.data) > 0:
-            user_quest_id = response.data[0]['id']
-            # Fetch the complete user quest with quest details
-            complete_quest = supabase.table('user_quests')\
-                .select('*, quests(*)')\
-                .eq('id', user_quest_id)\
-                .single()\
-                .execute()
-            
-            if complete_quest.data:
-                return jsonify(complete_quest.data), 201
-            else:
-                return jsonify(response.data[0]), 201
-        else:
-            # Fallback: return the basic user_quest
-            return jsonify(user_quest), 201
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
-
-@bp.route('/<quest_id>/submit', methods=['POST'])
-@require_auth
-def submit_quest(user_id, quest_id):
-    supabase = get_authenticated_supabase_client()
-    data = request.json
-    
-    try:
-        user_quest = supabase.table('user_quests').select('*').eq('user_id', user_id).eq('quest_id', quest_id).eq('status', 'in_progress').single().execute()
-        
-        if not user_quest.data:
-            return jsonify({'error': 'Quest not in progress'}), 400
-        
-        submission = {
-            'user_quest_id': user_quest.data['id'],
-            'user_id': user_id,
-            'quest_id': quest_id,
-            'status': 'pending',
-            'submitted_at': datetime.utcnow().isoformat()
-        }
-        
-        submission_response = supabase.table('submissions').insert(submission).execute()
-        submission_id = submission_response.data[0]['id']
-        
-        if 'evidence_files' in data:
-            for file_url in data['evidence_files']:
-                supabase.table('submission_evidence').insert({
-                    'submission_id': submission_id,
-                    'file_url': file_url
-                }).execute()
-        
-        if 'evidence_text' in data:
-            supabase.table('submission_evidence').insert({
-                'submission_id': submission_id,
-                'text_content': data['evidence_text']
-            }).execute()
-        
-        # Keep status as in_progress since submission tracks review status
-        # The user_quest will be marked completed when submission is approved
-        # supabase.table('user_quests').update({
-        #     'status': 'pending_review'
-        # }).eq('id', user_quest.data['id']).execute()
-        
-        supabase.table('activity_log').insert({
-            'user_id': user_id,
-            'event_type': 'quest_submitted',
-            'event_details': {'quest_id': quest_id, 'submission_id': submission_id}
-        }).execute()
-        
-        return jsonify({'submission_id': submission_id}), 201
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
-
-@bp.route('/user/<target_user_id>/quests', methods=['GET'])
-@require_auth
-def get_user_quests(user_id, target_user_id):
-    if target_user_id != user_id:
-        return jsonify({'error': 'Unauthorized'}), 403
-    
-    supabase = get_authenticated_supabase_client()
-    
-    try:
-        # Get pagination parameters
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
-        
-        # Calculate range for pagination
-        start = (page - 1) * per_page
-        end = start + per_page - 1
-        
-        # Try with new skill-based system first
-        try:
-            response = supabase.table('user_quests')\
-                .select('*, quests(*, quest_skill_xp(*))', count='exact')\
-                .eq('user_id', target_user_id)\
-                .range(start, end)\
-                .execute()
-        except Exception:
-            # Fall back to old subject-based system
-            response = supabase.table('user_quests')\
-                .select('*, quests(*, quest_xp_awards(*))', count='exact')\
-                .eq('user_id', target_user_id)\
-                .range(start, end)\
-                .execute()
+        if not enrollment.data:
+            return jsonify({'error': 'Failed to enroll in quest'}), 500
         
         return jsonify({
-            'quests': response.data,
-            'page': page,
-            'per_page': per_page,
-            'total': response.count if hasattr(response, 'count') else len(response.data)
+            'success': True,
+            'message': 'Successfully enrolled in quest',
+            'enrollment': enrollment.data[0]
         }), 200
+        
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        print(f"Error enrolling in quest: {str(e)}")
+        return jsonify({'error': 'Failed to enroll', 'details': str(e)}), 500
+
+# Remove or comment out old submission endpoints since they're no longer valid
+# The submission functionality is now handled by the tasks.py file
