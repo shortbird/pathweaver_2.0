@@ -108,22 +108,32 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
       
       let response;
       
-      // If we have an image file, use FormData
+      // If we have an image file, convert to base64 and send as JSON
       if (headerImageFile) {
-        const formDataToSend = new FormData();
-        formDataToSend.append('title', formData.title);
-        formDataToSend.append('big_idea', formData.big_idea);
-        formDataToSend.append('is_active', formData.is_active);
-        formDataToSend.append('tasks', JSON.stringify(tasks));
-        formDataToSend.append('header_image', headerImageFile);
+        // Convert image to base64
+        const reader = new FileReader();
+        const base64Promise = new Promise((resolve) => {
+          reader.onloadend = () => resolve(reader.result);
+        });
+        reader.readAsDataURL(headerImageFile);
+        const base64Data = await base64Promise;
+        
+        const jsonData = {
+          title: formData.title,
+          big_idea: formData.big_idea,
+          is_active: formData.is_active,
+          tasks: tasks,
+          header_image_base64: base64Data,
+          header_image_filename: headerImageFile.name
+        };
         
         response = await fetch(url, {
           method,
           headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-            // Don't set Content-Type for FormData - browser will set it with boundary
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+            'Content-Type': 'application/json'
           },
-          body: formDataToSend
+          body: JSON.stringify(jsonData)
         });
       } else {
         // No image, send as JSON
@@ -209,6 +219,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
           }
         }
         console.error('Server error response:', data);
+        console.error('Server error details:', JSON.stringify(data, null, 2));
         throw new Error(errorMessage);
       }
 
