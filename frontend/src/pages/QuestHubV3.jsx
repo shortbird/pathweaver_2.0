@@ -234,7 +234,6 @@ const QuestHubV3 = () => {
             )}
           </>
         )}
-      </div>
 
       {/* Team Up Modal */}
       {showTeamUpModal && selectedQuestForTeamUp && (
