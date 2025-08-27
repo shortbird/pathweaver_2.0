@@ -16,6 +16,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
     xp_amount: 50,
     pillar: 'creativity'
   });
+  const [editingTaskIndex, setEditingTaskIndex] = useState(null);
 
   const [headerImageFile, setHeaderImageFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,6 +52,26 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
       task.task_order = i;
     });
     setTasks(updatedTasks);
+    // Cancel editing if this task was being edited
+    if (editingTaskIndex === index) {
+      setEditingTaskIndex(null);
+    }
+  };
+
+  const handleEditTask = (index) => {
+    setEditingTaskIndex(index);
+  };
+
+  const handleSaveEditedTask = (index, updatedTask) => {
+    const newTasks = [...tasks];
+    newTasks[index] = { ...newTasks[index], ...updatedTask };
+    setTasks(newTasks);
+    setEditingTaskIndex(null);
+    toast.success('Task updated');
+  };
+
+  const handleCancelEdit = () => {
+    setEditingTaskIndex(null);
   };
 
   const handleMoveTask = (index, direction) => {
@@ -417,47 +438,128 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
               <div className="space-y-3 mb-6">
                 {tasks.map((task, index) => (
                   <div key={index} className="border rounded-lg p-4 bg-gray-50">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="font-medium text-gray-800 mb-1">{task.title}</div>
-                        {task.description && (
-                          <p className="text-sm text-gray-600 mb-2">{task.description}</p>
-                        )}
-                        <div className="flex items-center gap-3 text-sm">
-                          <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium text-white bg-gradient-to-r ${
-                            pillars.find(p => p.value === task.pillar)?.color || 'from-gray-500 to-gray-600'
-                          }`}>
-                            {task.pillar.replace('_', ' ')}
-                          </span>
-                          <span className="font-medium text-green-600">{task.xp_amount} XP</span>
+                    {editingTaskIndex === index ? (
+                      // Edit mode
+                      <div className="space-y-3">
+                        <input
+                          type="text"
+                          value={task.title}
+                          onChange={(e) => {
+                            const newTasks = [...tasks];
+                            newTasks[index].title = e.target.value;
+                            setTasks(newTasks);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Task title"
+                        />
+                        <textarea
+                          value={task.description || ''}
+                          onChange={(e) => {
+                            const newTasks = [...tasks];
+                            newTasks[index].description = e.target.value;
+                            setTasks(newTasks);
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          placeholder="Task description (optional)"
+                          rows="2"
+                        />
+                        <div className="flex gap-3">
+                          <select
+                            value={task.pillar}
+                            onChange={(e) => {
+                              const newTasks = [...tasks];
+                              newTasks[index].pillar = e.target.value;
+                              setTasks(newTasks);
+                            }}
+                            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          >
+                            {pillars.map(p => (
+                              <option key={p.value} value={p.value}>{p.label}</option>
+                            ))}
+                          </select>
+                          <input
+                            type="number"
+                            value={task.xp_amount}
+                            onChange={(e) => {
+                              const newTasks = [...tasks];
+                              newTasks[index].xp_amount = parseInt(e.target.value) || 0;
+                              setTasks(newTasks);
+                            }}
+                            className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            min="0"
+                            step="10"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleSaveEditedTask(index, task)}
+                            className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                          >
+                            Save
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleCancelEdit}
+                            className="px-3 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500"
+                          >
+                            Cancel
+                          </button>
                         </div>
                       </div>
-                      <div className="flex gap-1 ml-4">
-                        <button
-                          type="button"
-                          onClick={() => handleMoveTask(index, 'up')}
-                          disabled={index === 0}
-                          className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
-                        >
-                          ↑
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleMoveTask(index, 'down')}
-                          disabled={index === tasks.length - 1}
-                          className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
-                        >
-                          ↓
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTask(index)}
-                          className="p-1 text-red-500 hover:text-red-700"
-                        >
-                          ×
-                        </button>
+                    ) : (
+                      // View mode
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="font-medium text-gray-800 mb-1">{task.title}</div>
+                          {task.description && (
+                            <p className="text-sm text-gray-600 mb-2">{task.description}</p>
+                          )}
+                          <div className="flex items-center gap-3 text-sm">
+                            <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium text-white bg-gradient-to-r ${
+                              pillars.find(p => p.value === task.pillar)?.color || 'from-gray-500 to-gray-600'
+                            }`}>
+                              {task.pillar.replace('_', ' ')}
+                            </span>
+                            <span className="font-medium text-green-600">{task.xp_amount} XP</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-1 ml-4">
+                          <button
+                            type="button"
+                            onClick={() => handleEditTask(index)}
+                            className="p-1 text-blue-500 hover:text-blue-700"
+                            title="Edit task"
+                          >
+                            ✎
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveTask(index, 'up')}
+                            disabled={index === 0}
+                            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                            title="Move up"
+                          >
+                            ↑
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveTask(index, 'down')}
+                            disabled={index === tasks.length - 1}
+                            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                            title="Move down"
+                          >
+                            ↓
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveTask(index)}
+                            className="p-1 text-red-500 hover:text-red-700"
+                            title="Delete task"
+                          >
+                            ×
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>

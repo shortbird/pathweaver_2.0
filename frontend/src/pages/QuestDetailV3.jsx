@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import Layout from '../components/Layout';
 import TaskCompletionModal from '../components/quest/TaskCompletionModal';
 import LearningLogSection from '../components/quest/LearningLogSection';
 import TeamUpModal from '../components/quest/TeamUpModal';
@@ -101,29 +100,25 @@ const QuestDetailV3 = () => {
 
   if (isLoading) {
     return (
-      <Layout>
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
-      </Layout>
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
     );
   }
 
   if (error || !quest) {
     return (
-      <Layout>
-        <div className="max-w-4xl mx-auto px-4 py-8">
-          <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-            <p className="text-red-700">{error || 'Quest not found'}</p>
-            <button
-              onClick={() => navigate('/quests')}
-              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Back to Quest Hub
-            </button>
-          </div>
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+          <p className="text-red-700">{error || 'Quest not found'}</p>
+          <button
+            onClick={() => navigate('/quests')}
+            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+          >
+            Back to Quest Hub
+          </button>
         </div>
-      </Layout>
+      </div>
     );
   }
 
@@ -133,8 +128,7 @@ const QuestDetailV3 = () => {
   const progressPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
 
   return (
-    <Layout>
-      <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Quest Header */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
           {quest.header_image_url ? (
@@ -342,7 +336,7 @@ const QuestDetailV3 = () => {
           onInviteSent={handleTeamUpInviteSent}
         />
       )}
-    </Layout>
+    </div>
   );
 };
 
