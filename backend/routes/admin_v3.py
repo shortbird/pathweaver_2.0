@@ -12,6 +12,10 @@ bp = Blueprint('admin_v3', __name__, url_prefix='/api/v3/admin')
 @require_admin
 def create_quest(user_id):
     """Create a new quest with tasks."""
+    print(f"CREATE QUEST V3: user_id={user_id}, content_type={request.content_type}")
+    print(f"Files in request: {list(request.files.keys())}")
+    print(f"Form data keys: {list(request.form.keys())}")
+    
     supabase = get_supabase_admin_client()
     
     try:
@@ -41,16 +45,28 @@ def create_quest(user_id):
                     file_name = f"quest_headers/{uuid.uuid4()}.{file_extension}"
                     
                     # Upload to Supabase storage
-                    storage_response = supabase.storage.from_('quest-images').upload(
-                        file_name,
-                        file_content,
-                        {'content-type': file.content_type}
-                    )
-                    
-                    if storage_response:
+                    try:
+                        print(f"Uploading image: {file.filename}, size: {len(file_content)} bytes, type: {file.content_type}")
+                        storage_response = supabase.storage.from_('quest-images').upload(
+                            file_name,
+                            file_content,
+                            {'content-type': file.content_type}
+                        )
+                        
+                        # Check if upload was successful
+                        if hasattr(storage_response, 'error') and storage_response.error:
+                            print(f"Storage upload error: {storage_response.error}")
+                            return jsonify({'error': f'Image upload failed: {storage_response.error}'}), 400
+                        
                         # Get public URL
                         header_image_url = supabase.storage.from_('quest-images').get_public_url(file_name)
                         data['header_image_url'] = header_image_url
+                        print(f"Image uploaded successfully: {header_image_url}")
+                    except Exception as upload_error:
+                        print(f"Storage upload exception: {str(upload_error)}")
+                        import traceback
+                        traceback.print_exc()
+                        return jsonify({'error': f'Image upload failed: {str(upload_error)}'}), 400
         else:
             # Handle JSON
             data = request.json
@@ -136,16 +152,28 @@ def update_quest(user_id, quest_id):
                     file_name = f"quest_headers/{uuid.uuid4()}.{file_extension}"
                     
                     # Upload to Supabase storage
-                    storage_response = supabase.storage.from_('quest-images').upload(
-                        file_name,
-                        file_content,
-                        {'content-type': file.content_type}
-                    )
-                    
-                    if storage_response:
+                    try:
+                        print(f"Uploading image: {file.filename}, size: {len(file_content)} bytes, type: {file.content_type}")
+                        storage_response = supabase.storage.from_('quest-images').upload(
+                            file_name,
+                            file_content,
+                            {'content-type': file.content_type}
+                        )
+                        
+                        # Check if upload was successful
+                        if hasattr(storage_response, 'error') and storage_response.error:
+                            print(f"Storage upload error: {storage_response.error}")
+                            return jsonify({'error': f'Image upload failed: {storage_response.error}'}), 400
+                        
                         # Get public URL
                         header_image_url = supabase.storage.from_('quest-images').get_public_url(file_name)
                         data['header_image_url'] = header_image_url
+                        print(f"Image uploaded successfully: {header_image_url}")
+                    except Exception as upload_error:
+                        print(f"Storage upload exception: {str(upload_error)}")
+                        import traceback
+                        traceback.print_exc()
+                        return jsonify({'error': f'Image upload failed: {str(upload_error)}'}), 400
         else:
             # Handle JSON
             data = request.json
