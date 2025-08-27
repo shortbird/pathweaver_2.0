@@ -108,10 +108,12 @@ def get_public_portfolio(portfolio_slug):
             for quest_record in completed_quests.data:
                 quest = quest_record.get('quests', {})
                 core_skills = quest.get('core_skills', [])
-                for skill in core_skills:
-                    if skill not in skill_details_map:
-                        skill_details_map[skill] = 0
-                    skill_details_map[skill] += 1
+                # Handle None or non-list core_skills
+                if core_skills and isinstance(core_skills, list):
+                    for skill in core_skills:
+                        if skill not in skill_details_map:
+                            skill_details_map[skill] = 0
+                        skill_details_map[skill] += 1
             
             skill_details.data = [
                 {'skill_name': skill, 'times_practiced': count}
@@ -136,7 +138,9 @@ def get_public_portfolio(portfolio_slug):
         }), 200
         
     except Exception as e:
+        import traceback
         print(f"Error fetching portfolio: {str(e)}")
+        print(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to fetch portfolio'}), 500
 
 @bp.route('/user/<user_id>', methods=['GET'])
