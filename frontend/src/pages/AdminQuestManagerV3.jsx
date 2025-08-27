@@ -175,7 +175,21 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
       }
 
       if (!response.ok) {
-        throw new Error(data.error || `Failed to save quest: ${response.status}`);
+        // Better error handling - check different error formats
+        let errorMessage = `Failed to save quest: ${response.status}`;
+        if (data) {
+          if (typeof data.error === 'string') {
+            errorMessage = data.error;
+          } else if (data.message) {
+            errorMessage = data.message;
+          } else if (data.detail) {
+            errorMessage = data.detail;
+          } else if (typeof data === 'string') {
+            errorMessage = data;
+          }
+        }
+        console.error('Server error response:', data);
+        throw new Error(errorMessage);
       }
 
       toast.success(quest ? 'Quest updated successfully!' : 'Quest created successfully!');
@@ -193,6 +207,11 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
       onClose();
     } catch (error) {
       console.error('Error saving quest:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        error: error
+      });
       toast.error(error.message || 'Failed to save quest');
     } finally {
       setIsSubmitting(false);
