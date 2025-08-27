@@ -73,13 +73,69 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         toast.error('Image must be less than 5MB');
         return;
       }
-      setHeaderImageFile(file);
       
-      // Preview
+      // Create image to check dimensions and resize if needed
+      const img = new Image();
       const reader = new FileReader();
+      
       reader.onloadend = () => {
-        setFormData({ ...formData, header_image_url: reader.result });
+        img.onload = () => {
+          // Recommended dimensions for quest cards (16:9 aspect ratio, optimized for display)
+          const maxWidth = 1200;
+          const maxHeight = 675;
+          
+          // Check if resizing is needed
+          if (img.width > maxWidth || img.height > maxHeight) {
+            // Resize image using canvas
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            // Calculate new dimensions maintaining aspect ratio
+            if (width > height) {
+              if (width > maxWidth) {
+                height = Math.round((height * maxWidth) / width);
+                width = maxWidth;
+              }
+            } else {
+              if (height > maxHeight) {
+                width = Math.round((width * maxHeight) / height);
+                height = maxHeight;
+              }
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            // Convert canvas to blob
+            canvas.toBlob((blob) => {
+              const resizedFile = new File([blob], file.name, {
+                type: file.type || 'image/jpeg',
+                lastModified: Date.now()
+              });
+              setHeaderImageFile(resizedFile);
+              
+              // Set preview
+              const resizedUrl = canvas.toDataURL(file.type || 'image/jpeg', 0.9);
+              setFormData({ ...formData, header_image_url: resizedUrl });
+              
+              if (width !== img.width || height !== img.height) {
+                toast.success(`Image resized to ${width}x${height} for optimal display`);
+              }
+            }, file.type || 'image/jpeg', 0.9);
+          } else {
+            // Image is already optimal size
+            setHeaderImageFile(file);
+            setFormData({ ...formData, header_image_url: reader.result });
+          }
+        };
+        
+        img.src = reader.result;
       };
+      
       reader.readAsDataURL(file);
     }
   };
@@ -325,7 +381,9 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
                   onChange={handleImageChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
-                <p className="text-xs text-gray-500 mt-1">Max size: 5MB</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Max size: 5MB • Recommended: 1200x675px (16:9 ratio) • Images will be automatically resized
+                </p>
               </div>
 
               <div className="flex items-center">

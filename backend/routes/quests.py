@@ -40,11 +40,13 @@ def get_quests():
             # Calculate total XP from tasks
             total_xp = sum(task.get('xp_amount', 0) for task in quest.get('quest_tasks', []))
             
-            # Format quest for old frontend
+            # Format quest for frontend - include both old and new fields
             formatted_quest = {
                 'id': quest['id'],
                 'title': quest['title'],
-                'description': quest.get('big_idea', ''),  # Map big_idea to description
+                'description': quest.get('big_idea', ''),  # Map big_idea to description for old frontend
+                'big_idea': quest.get('big_idea', ''),  # Include original field for V3 editor
+                'quest_tasks': quest.get('quest_tasks', []),  # Include tasks for V3 editor
                 'total_xp': total_xp,
                 'task_count': len(quest.get('quest_tasks', [])),
                 'is_active': quest.get('is_active', True),
