@@ -112,7 +112,9 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
       }
 
       const method = quest ? 'PUT' : 'POST';
-      let url = quest ? `/api/v3/admin/quests/${quest.id}` : '/api/v3/admin/quests';
+      // In production, use relative URLs. In dev, use the environment variable
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      let url = quest ? `${apiBase}/v3/admin/quests/${quest.id}` : `${apiBase}/v3/admin/quests`;
       
       let response = await fetch(url, {
         method,
@@ -147,7 +149,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
           }))
         };
         
-        url = quest ? `/api/admin/quests/${quest.id}` : '/api/admin/quests';
+        url = quest ? `${apiBase}/admin/quests/${quest.id}` : `${apiBase}/admin/quests`;
         response = await fetch(url, {
           method,
           headers: {
