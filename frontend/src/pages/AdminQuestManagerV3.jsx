@@ -101,28 +101,48 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
 
     try {
       // Try V3 endpoint first
-      const formDataToSend = new FormData();
-      formDataToSend.append('title', formData.title);
-      formDataToSend.append('big_idea', formData.big_idea);
-      formDataToSend.append('is_active', formData.is_active);
-      formDataToSend.append('tasks', JSON.stringify(tasks));
-      
-      if (headerImageFile) {
-        formDataToSend.append('header_image', headerImageFile);
-      }
-
       const method = quest ? 'PUT' : 'POST';
       // In production, use relative URLs. In dev, use the environment variable
       const apiBase = import.meta.env.VITE_API_URL || '/api';
       let url = quest ? `${apiBase}/v3/admin/quests/${quest.id}` : `${apiBase}/v3/admin/quests`;
       
-      let response = await fetch(url, {
-        method,
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        },
-        body: formDataToSend
-      });
+      let response;
+      
+      // If we have an image file, use FormData
+      if (headerImageFile) {
+        const formDataToSend = new FormData();
+        formDataToSend.append('title', formData.title);
+        formDataToSend.append('big_idea', formData.big_idea);
+        formDataToSend.append('is_active', formData.is_active);
+        formDataToSend.append('tasks', JSON.stringify(tasks));
+        formDataToSend.append('header_image', headerImageFile);
+        
+        response = await fetch(url, {
+          method,
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`
+            // Don't set Content-Type for FormData - browser will set it with boundary
+          },
+          body: formDataToSend
+        });
+      } else {
+        // No image, send as JSON
+        const jsonData = {
+          title: formData.title,
+          big_idea: formData.big_idea,
+          is_active: formData.is_active,
+          tasks: tasks
+        };
+        
+        response = await fetch(url, {
+          method,
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('token')}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(jsonData)
+        });
+      }
       
       // If V3 endpoint doesn't exist (404/405), fallback to old endpoint
       if (response.status === 405 || response.status === 404) {
