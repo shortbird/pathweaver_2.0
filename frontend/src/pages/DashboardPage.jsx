@@ -115,11 +115,13 @@ const DashboardPage = () => {
 
   // Use the 5 Diploma Pillars
   const skillCategoryNames = useMemo(() => {
-    const names = {}
-    Object.entries(DIPLOMA_PILLARS).forEach(([key, pillar]) => {
-      names[key] = pillar.name
-    })
-    return names
+    return {
+      creativity: 'Creativity',
+      critical_thinking: 'Critical Thinking',
+      practical_skills: 'Practical Skills',
+      communication: 'Communication',
+      cultural_literacy: 'Cultural Literacy'
+    }
   }, [])
 
   const fetchDashboardData = useCallback(async () => {

@@ -4,12 +4,11 @@ from typing import Tuple, Dict, List
 from cache import cached as cache_decorator
 
 SKILL_CATEGORIES = [
-    'reading_writing', 
-    'thinking_skills', 
-    'personal_growth', 
-    'life_skills', 
-    'making_creating', 
-    'world_understanding'
+    'creativity',
+    'critical_thinking', 
+    'practical_skills',
+    'communication',
+    'cultural_literacy'
 ]
 
 # Mapping for legacy subject system to skill categories
@@ -106,13 +105,15 @@ def calculate_xp_from_quests(supabase, user_id: str) -> Tuple[int, Dict[str, int
     
     try:
         completed_quests = supabase.table('user_quests')\
-            .select('*, quests(id)')\
+            .select('*, quests(id, title)')\
             .eq('user_id', user_id)\
             .eq('status', 'completed')\
             .execute()
         
         if not completed_quests.data:
             return total_xp, skill_breakdown
+        
+        print(f"User {user_id} has {len(completed_quests.data)} completed quests")
         
         # Extract quest IDs for batch querying
         quest_ids = [q['quests']['id'] for q in completed_quests.data if q.get('quests', {}).get('id')]
@@ -128,11 +129,29 @@ def calculate_xp_from_quests(supabase, user_id: str) -> Tuple[int, Dict[str, int
                 .execute()
             
             if skill_awards.data:
+                print(f"Found {len(skill_awards.data)} skill XP awards")
+                quest_xp_map = {}
                 for award in skill_awards.data:
+                    quest_id = award['quest_id']
                     category = award['skill_category']
                     amount = award['xp_amount']
-                    skill_breakdown[category] += amount
-                    total_xp += amount
+                    
+                    # Track XP per quest to prevent duplication
+                    if quest_id not in quest_xp_map:
+                        quest_xp_map[quest_id] = []
+                    quest_xp_map[quest_id].append((category, amount))
+                    
+                # Now add XP only once per quest completion
+                for quest_record in completed_quests.data:
+                    quest_id = quest_record['quests']['id']
+                    quest_title = quest_record['quests'].get('title', 'Unknown')
+                    if quest_id in quest_xp_map:
+                        for category, amount in quest_xp_map[quest_id]:
+                            skill_breakdown[category] += amount
+                            total_xp += amount
+                            print(f"Quest '{quest_title}': {category} +{amount} XP")
+                        
+                print(f"Total XP from skill awards: {total_xp}")
         except:
             pass
         

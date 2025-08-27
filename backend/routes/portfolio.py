@@ -49,8 +49,8 @@ def get_public_portfolio(portfolio_slug):
         total_xp = 0
         
         # Initialize all skill categories with 0
-        skill_categories = ['reading_writing', 'thinking_skills', 'personal_growth', 
-                          'life_skills', 'making_creating', 'world_understanding']
+        skill_categories = ['creativity', 'critical_thinking', 'practical_skills',
+                          'communication', 'cultural_literacy']
         for cat in skill_categories:
             xp_by_category[cat] = 0
             
@@ -241,8 +241,8 @@ def get_user_portfolio(user_id):
         skill_xp_data = []
         try:
             # Initialize skill categories if they don't exist
-            skill_categories = ['reading_writing', 'thinking_skills', 'personal_growth',
-                              'life_skills', 'making_creating', 'world_understanding']
+            skill_categories = ['creativity', 'critical_thinking', 'practical_skills',
+                              'communication', 'cultural_literacy']
             
             for category in skill_categories:
                 try:
