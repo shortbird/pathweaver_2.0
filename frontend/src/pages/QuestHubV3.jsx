@@ -40,7 +40,8 @@ const QuestHubV3 = () => {
         ...(selectedPillar !== 'all' && { pillar: selectedPillar })
       });
 
-      const response = await fetch(`/api/v3/quests?${params}`, {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiBase}/v3/quests?${params}`, {
         headers: user ? {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         } : {}
@@ -69,7 +70,8 @@ const QuestHubV3 = () => {
     }
 
     try {
-      const response = await fetch(`/api/v3/quests/${questId}/enroll`, {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiBase}/v3/quests/${questId}/enroll`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

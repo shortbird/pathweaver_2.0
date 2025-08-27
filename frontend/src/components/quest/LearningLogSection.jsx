@@ -16,7 +16,8 @@ const LearningLogSection = ({ userQuestId, isOwner = true }) => {
 
   const fetchLogs = async () => {
     try {
-      const response = await fetch(`/api/v3/logs/${userQuestId}`, {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiBase}/v3/logs/${userQuestId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
@@ -46,7 +47,8 @@ const LearningLogSection = ({ userQuestId, isOwner = true }) => {
     setError('');
 
     try {
-      const response = await fetch(`/api/v3/logs/${userQuestId}/entry`, {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiBase}/v3/logs/${userQuestId}/entry`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

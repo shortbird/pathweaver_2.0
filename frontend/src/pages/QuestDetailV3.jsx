@@ -23,7 +23,8 @@ const QuestDetailV3 = () => {
 
   const fetchQuestDetails = async () => {
     try {
-      const response = await fetch(`/api/v3/quests/${id}`, {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiBase}/v3/quests/${id}`, {
         headers: user ? {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         } : {}
@@ -50,7 +51,8 @@ const QuestDetailV3 = () => {
     }
 
     try {
-      const response = await fetch(`/api/v3/quests/${id}/enroll`, {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiBase}/v3/quests/${id}/enroll`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

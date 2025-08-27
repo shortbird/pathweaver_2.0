@@ -43,7 +43,8 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
     setError('');
 
     try {
-      const response = await fetch('/api/v3/collaborations/invite', {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiBase}/v3/collaborations/invite`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
