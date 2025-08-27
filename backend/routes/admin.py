@@ -448,11 +448,35 @@ def get_pending_submissions(user_id):
         start = (page - 1) * per_page
         end = start + per_page - 1
         
+        # First get submissions with evidence
         submissions = supabase.table('submissions')\
-            .select('*, user_quests(*, users(*), quests(*)), submission_evidence(*)', count='exact')\
+            .select('*, submission_evidence(*)', count='exact')\
             .is_('educator_id', None)\
+            .eq('status', 'pending')\
             .range(start, end)\
             .execute()
+        
+        # Then enrich with user and quest data
+        if submissions.data:
+            for submission in submissions.data:
+                # Get user quest details
+                if submission.get('user_quest_id'):
+                    user_quest = supabase.table('user_quests')\
+                        .select('*, quests(*)')\
+                        .eq('id', submission['user_quest_id'])\
+                        .single()\
+                        .execute()
+                    if user_quest.data:
+                        submission['user_quest'] = user_quest.data
+                        # Get user details
+                        if user_quest.data.get('user_id'):
+                            user = supabase.table('users')\
+                                .select('*')\
+                                .eq('id', user_quest.data['user_id'])\
+                                .single()\
+                                .execute()
+                            if user.data:
+                                submission['user'] = user.data
         
         return jsonify({
             'submissions': submissions.data,

@@ -410,9 +410,9 @@ const AdminSubmissions = () => {
           {submissions.map(submission => (
             <div key={submission.id} className="card">
               <div className="mb-4">
-                <h3 className="font-semibold">{submission.user_quests?.quests?.title}</h3>
+                <h3 className="font-semibold">{submission.user_quest?.quests?.title}</h3>
                 <p className="text-sm text-gray-600">
-                  Submitted by: {submission.user_quests?.users?.first_name} {submission.user_quests?.users?.last_name}
+                  Submitted by: {submission.user?.first_name} {submission.user?.last_name}
                 </p>
                 <p className="text-sm text-gray-600">
                   Date: {new Date(submission.submitted_at).toLocaleDateString()}
