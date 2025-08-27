@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, make_response
 from dotenv import load_dotenv
 import os
 
-from routes import auth, quests, subscriptions, users, admin, community, portfolio, test_xp, learning_log
+from routes import auth, quests, subscriptions, users, admin, community, portfolio, learning_log
 from routes.quest_ideas import quest_ideas_bp
 from routes.ratings import ratings_bp
 from routes import uploads
@@ -36,7 +36,6 @@ app.register_blueprint(users.bp, url_prefix='/api/users')
 app.register_blueprint(admin.bp, url_prefix='/api/admin')
 app.register_blueprint(community.bp, url_prefix='/api/community')
 app.register_blueprint(portfolio.bp, url_prefix='/api/portfolio')
-app.register_blueprint(test_xp.bp, url_prefix='/api/test-xp')
 app.register_blueprint(learning_log.bp, url_prefix='/api')
 app.register_blueprint(quest_ideas_bp)
 app.register_blueprint(ratings_bp)
