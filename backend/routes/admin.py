@@ -217,7 +217,7 @@ def update_quest(user_id, quest_id):
             'intensity', 'estimated_time', 'your_mission', 'showcase_your_journey',
             'helpful_resources', 'core_competencies', 'collaboration_spark',
             'real_world_bonus', 'log_bonus', 'heads_up', 'location', 'total_xp',
-            'collaboration_bonus', 'quest_banner_image'
+            'collaboration_bonus', 'quest_banner_image', 'header_image_url', 'image_url'
         ]
         standard_fields = [
             'description', 'evidence_requirements', 'difficulty_level', 'effort_level',

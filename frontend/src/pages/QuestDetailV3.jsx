@@ -255,7 +255,7 @@ const QuestDetailV3 = () => {
                   )}
                   <button
                     onClick={handleCancelQuest}
-                    className="bg-red-600 text-white py-3 px-6 rounded-lg hover:bg-red-700 transition-colors font-medium"
+                    className="ml-auto bg-red-600 text-white py-3 px-6 rounded-lg hover:bg-red-700 transition-colors font-medium"
                   >
                     Cancel Quest
                   </button>
@@ -267,11 +267,7 @@ const QuestDetailV3 = () => {
 
         {/* Tasks Section */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6 flex items-center">
-            <svg className="w-6 h-6 mr-2 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-              <path fillRule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 100 4h2a2 2 0 100-4h-.5a1 1 0 000-2H8a2 2 0 012-2z" clipRule="evenodd" />
-            </svg>
+          <h2 className="text-2xl font-bold text-gray-800 mb-6">
             Tasks
           </h2>
 
