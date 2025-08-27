@@ -117,7 +117,14 @@ const QuestCard = ({ quest, isCompleted }) => {
         )}
         
         <div className="flex justify-between items-center">
-          <span className="text-sm font-semibold text-primary">Total XP: {totalXP}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-primary">Total XP: {totalXP}</span>
+            {quest.primary_pillar && (
+              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${getPillarColor(quest.primary_pillar)}`}>
+                {getPillarName(quest.primary_pillar)}
+              </span>
+            )}
+          </div>
           <span className="text-primary text-sm font-medium">View Details →</span>
         </div>
       </div>

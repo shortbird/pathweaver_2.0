@@ -69,6 +69,11 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
             <div className="flex items-center gap-2">
               <span className="text-2xl">✨</span>
               <span className="font-medium">{totalXP} XP</span>
+              {quest.primary_pillar && (
+                <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-medium ${getPillarColor(quest.primary_pillar)}`}>
+                  {quest.primary_pillar.replace('_', ' ')}
+                </span>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <span className="text-2xl">👥</span>
@@ -160,56 +165,9 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
                 </p>
               </div>
 
-              {/* Submit Evidence (if quest in progress and form is shown) */}
-              {userQuest?.status === 'in_progress' && showSubmissionForm && (
-                <div className="mt-6 border-t pt-6">
-                  <QuestSubmissionForm 
-                    onSubmit={async (submissionData, files) => {
-                      setSubmitting(true)
-                      const success = await onSubmitQuest(submissionData, files)
-                      setSubmitting(false)
-                      return success
-                    }}
-                    isSubmitting={submitting}
-                  />
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Your Toolkit Section */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <button
-            onClick={() => toggleSection('toolkit')}
-            className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-lg">{expandedSections.toolkit ? '▼' : '▶'}</span>
-              <span className="text-2xl">🛠️</span>
-              <span className="text-xl font-bold">Your Toolkit</span>
-            </div>
-          </button>
-          
-          {expandedSections.toolkit && (
-            <div className="px-6 pb-6">
-              {/* Core Competencies */}
-              {quest.core_competencies && quest.core_competencies.length > 0 && (
-                <div className="mb-4">
-                  <h3 className="font-bold text-lg mb-2">Core Competencies</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {quest.core_competencies.map((skill, index) => (
-                      <span key={index} className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm">
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               {/* Helpful Resources */}
               {quest.helpful_resources && Array.isArray(quest.helpful_resources) && quest.helpful_resources.length > 0 && (
-                <div className="mb-4">
+                <div className="mt-6">
                   <h3 className="font-bold text-lg mb-2">Helpful Resources</h3>
                   <div className="space-y-2">
                     {quest.helpful_resources.map((resource, index) => (
@@ -237,7 +195,7 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
               {/* Heads Up */}
               {quest.heads_up && (
                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-4">
-                  <h3 className="font-bold mb-1">Heads Up</h3>
+                  <h3 className="font-bold mb-1">⚠️ Heads Up</h3>
                   <p className="text-gray-700">{quest.heads_up}</p>
                 </div>
               )}
@@ -245,67 +203,23 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
               {/* Location */}
               {quest.location && (
                 <div className="bg-gray-50 rounded-lg p-4 mt-4">
-                  <h3 className="font-bold mb-1">Location</h3>
+                  <h3 className="font-bold mb-1">📍 Location</h3>
                   <p className="text-gray-700">{quest.location}</p>
                 </div>
               )}
-            </div>
-          )}
-        </div>
 
-        {/* Learning Log Section */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
-          <button
-            onClick={() => toggleSection('log')}
-            className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"
-          >
-            <div className="flex items-center gap-3">
-              <span className="text-lg">{expandedSections.log ? '▼' : '▶'}</span>
-              <span className="text-2xl">📓</span>
-              <span className="text-xl font-bold">Learning Log</span>
-            </div>
-          </button>
-          
-          {expandedSections.log && (
-            <div className="px-6 pb-6">
-              {/* Log Bonus */}
-              {quest.log_bonus && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4">
-                  <p className="font-medium">{quest.log_bonus.prompt || quest.log_bonus.description}</p>
-                </div>
-              )}
-
-              {/* Add Log Entry (if quest in progress) */}
-              {userQuest?.status === 'in_progress' && (
-                <div className="mb-4">
-                  <textarea
-                    value={newLogEntry}
-                    onChange={(e) => setNewLogEntry(e.target.value)}
-                    placeholder="Document your journey... What did you discover? What challenged you?"
-                    className="w-full p-3 border rounded-lg h-24"
+              {/* Submit Evidence (if quest in progress and form is shown) */}
+              {userQuest?.status === 'in_progress' && showSubmissionForm && (
+                <div className="mt-6 border-t pt-6">
+                  <QuestSubmissionForm 
+                    onSubmit={async (submissionData, files) => {
+                      setSubmitting(true)
+                      const success = await onSubmitQuest(submissionData, files)
+                      setSubmitting(false)
+                      return success
+                    }}
+                    isSubmitting={submitting}
                   />
-                  <button
-                    onClick={() => onAddLog(newLogEntry)}
-                    disabled={addingLog || !newLogEntry.trim()}
-                    className="mt-2 bg-primary hover:bg-primary-dark text-white font-bold py-2 px-4 rounded-lg transition disabled:opacity-50"
-                  >
-                    {addingLog ? 'Adding...' : 'Add Log Entry'}
-                  </button>
-                </div>
-              )}
-
-              {/* Previous Logs */}
-              {learningLogs.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="font-bold">Your Journey So Far</h3>
-                  {learningLogs.map((log, index) => (
-                    <div key={log.id || index} className="bg-gray-50 rounded-lg p-3">
-                      <p className="text-gray-700">{log.log_entry}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {new Date(log.created_at).toLocaleDateString()}
-                      </p>
-                    </div>
-                  ))}
                 </div>
               )}
             </div>
@@ -338,7 +252,7 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
 
               {/* Real World Bonus */}
               {quest.real_world_bonus && Array.isArray(quest.real_world_bonus) && quest.real_world_bonus.length > 0 && (
-                <div className="space-y-3">
+                <div className="space-y-3 mb-4">
                   <h3 className="font-bold text-lg">Real World Bonus</h3>
                   {quest.real_world_bonus.map((bonus, index) => (
                     <div key={index} className="bg-purple-50 rounded-lg p-4">
@@ -348,6 +262,49 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
                   ))}
                 </div>
               )}
+
+              {/* Learning Log - Moved Here */}
+              <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                <h3 className="font-bold text-lg mb-2">📓 Learning Log</h3>
+                {quest.log_bonus && (
+                  <p className="text-gray-700 mb-2">{quest.log_bonus.prompt || quest.log_bonus.description}</p>
+                )}
+                <span className="text-sm text-green-600 inline-block">+{quest.log_bonus?.xp_amount || 25} XP for documenting your journey</span>
+                
+                {/* Add Log Entry (if quest in progress) */}
+                {userQuest?.status === 'in_progress' && (
+                  <div className="mt-4">
+                    <textarea
+                      value={newLogEntry}
+                      onChange={(e) => setNewLogEntry(e.target.value)}
+                      placeholder="Document your journey... What did you discover? What challenged you?"
+                      className="w-full p-3 border rounded-lg h-24 bg-white"
+                    />
+                    <button
+                      onClick={() => onAddLog(newLogEntry)}
+                      disabled={addingLog || !newLogEntry.trim()}
+                      className="mt-2 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition disabled:opacity-50"
+                    >
+                      {addingLog ? 'Adding...' : `Add Log Entry (+${quest.log_bonus?.xp_amount || 25} XP)`}
+                    </button>
+                  </div>
+                )}
+
+                {/* Previous Logs */}
+                {learningLogs.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <h4 className="font-semibold text-sm">Your Journey So Far:</h4>
+                    {learningLogs.map((log, index) => (
+                      <div key={log.id || index} className="bg-white rounded-lg p-3 border border-green-100">
+                        <p className="text-gray-700 text-sm">{log.log_entry}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(log.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           )}
         </div>

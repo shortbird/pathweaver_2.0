@@ -487,6 +487,122 @@ const AdminQuestManager = ({ quest, onClose, onSave }) => {
             </div>
           </div>
 
+          {/* XP Configuration */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold border-b pb-2">XP Configuration</h3>
+            
+            <div>
+              <label className="block text-sm font-medium mb-2">Base Quest XP *</label>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-xs text-gray-600">XP Amount</label>
+                  <input
+                    type="number"
+                    value={formData.skill_xp_awards.find(a => a.skill_category === formData.primary_pillar)?.xp_amount || 
+                           (formData.intensity === 'light' ? 50 : formData.intensity === 'moderate' ? 100 : 200)}
+                    onChange={(e) => {
+                      const xpAmount = parseInt(e.target.value) || 0
+                      const existingAwards = formData.skill_xp_awards.filter(a => a.skill_category !== formData.primary_pillar)
+                      setFormData({
+                        ...formData,
+                        skill_xp_awards: [
+                          ...existingAwards,
+                          { skill_category: formData.primary_pillar, xp_amount: xpAmount }
+                        ]
+                      })
+                    }}
+                    className="input-field w-full"
+                    min="10"
+                    max="500"
+                    disabled={!formData.primary_pillar}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-600">Pillar</label>
+                  <input
+                    type="text"
+                    value={formData.primary_pillar ? DIPLOMA_PILLARS[formData.primary_pillar]?.name : 'Select a pillar first'}
+                    className="input-field w-full bg-gray-50"
+                    disabled
+                  />
+                </div>
+              </div>
+              {!formData.primary_pillar && (
+                <p className="text-xs text-gray-500 mt-1">Select a primary pillar above to configure XP</p>
+              )}
+            </div>
+
+            {/* Additional XP Awards */}
+            <div>
+              <label className="block text-sm font-medium mb-1">Additional Skill XP (Optional)</label>
+              <p className="text-xs text-gray-600 mb-2">Add XP for secondary skills this quest develops</p>
+              {formData.skill_xp_awards
+                .filter(award => award.skill_category !== formData.primary_pillar)
+                .map((award, index) => (
+                  <div key={index} className="flex gap-2 mb-2">
+                    <select
+                      value={award.skill_category}
+                      onChange={(e) => {
+                        const newAwards = [...formData.skill_xp_awards]
+                        const awardIndex = formData.skill_xp_awards.findIndex(a => a === award)
+                        newAwards[awardIndex] = { ...award, skill_category: e.target.value }
+                        setFormData({ ...formData, skill_xp_awards: newAwards })
+                      }}
+                      className="input-field flex-1"
+                    >
+                      <option value="">Select Pillar</option>
+                      {Object.entries(DIPLOMA_PILLARS)
+                        .filter(([key]) => key !== formData.primary_pillar)
+                        .map(([key, pillar]) => (
+                          <option key={key} value={key}>{pillar.name}</option>
+                        ))}
+                    </select>
+                    <input
+                      type="number"
+                      value={award.xp_amount}
+                      onChange={(e) => {
+                        const newAwards = [...formData.skill_xp_awards]
+                        const awardIndex = formData.skill_xp_awards.findIndex(a => a === award)
+                        newAwards[awardIndex] = { ...award, xp_amount: parseInt(e.target.value) || 0 }
+                        setFormData({ ...formData, skill_xp_awards: newAwards })
+                      }}
+                      className="input-field w-32"
+                      placeholder="XP Amount"
+                      min="10"
+                      max="200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFormData({
+                          ...formData,
+                          skill_xp_awards: formData.skill_xp_awards.filter(a => a !== award)
+                        })
+                      }}
+                      className="text-red-600 hover:text-red-800 px-2"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setFormData({
+                    ...formData,
+                    skill_xp_awards: [
+                      ...formData.skill_xp_awards,
+                      { skill_category: '', xp_amount: 50 }
+                    ]
+                  })
+                }}
+                className="text-sm text-blue-600 hover:text-blue-800"
+              >
+                + Add Secondary Skill XP
+              </button>
+            </div>
+          </div>
+
           {/* Go Further */}
           <div className="space-y-4">
             <h3 className="text-lg font-semibold border-b pb-2">Go Further</h3>
