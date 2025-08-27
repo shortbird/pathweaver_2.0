@@ -85,22 +85,9 @@ def get_active_quests(supabase, user_id: str) -> list:
             return []
     
     if active_quests.data:
-        # Process and format quest data
-        formatted_quests = []
-        for quest_data in active_quests.data:
-            quest = quest_data.get('quests', {})
-            if quest:
-                formatted_quest = {
-                    'id': quest.get('id'),
-                    'title': quest.get('title'),
-                    'description': quest.get('description'),
-                    'difficulty': quest.get('difficulty'),
-                    'enrolled_at': quest_data.get('enrolled_at'),
-                    'progress': quest_data.get('progress', 0),
-                    'xp_rewards': extract_xp_rewards(quest)
-                }
-                formatted_quests.append(formatted_quest)
-        return formatted_quests
+        # Return the raw data with proper structure
+        # The frontend expects user_quest records with nested quest data
+        return active_quests.data
     
     return []
 
@@ -130,20 +117,9 @@ def get_recent_completions(supabase, user_id: str, limit: int = 5) -> list:
             return []
     
     if completions.data:
-        # Format completion data
-        formatted_completions = []
-        for completion_data in completions.data:
-            quest = completion_data.get('quests', {})
-            if quest:
-                formatted_completion = {
-                    'id': quest.get('id'),
-                    'title': quest.get('title'),
-                    'difficulty': quest.get('difficulty'),
-                    'completed_at': completion_data.get('completed_at'),
-                    'xp_earned': extract_xp_rewards(quest)
-                }
-                formatted_completions.append(formatted_completion)
-        return formatted_completions
+        # Return the raw data with proper structure
+        # The frontend expects user_quest records with nested quest data
+        return completions.data
     
     return []
 
