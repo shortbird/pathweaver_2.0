@@ -14,9 +14,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
     title: '',
     description: '',
     xp_amount: 50,
-    pillar: 'creativity',
-    is_required: true,
-    is_collaboration_eligible: false
+    pillar: 'creativity'
   });
 
   const [headerImageFile, setHeaderImageFile] = useState(null);
@@ -41,9 +39,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
       title: '',
       description: '',
       xp_amount: 50,
-      pillar: 'creativity',
-      is_required: true,
-      is_collaboration_eligible: false
+      pillar: 'creativity'
     });
     toast.success('Task added');
   };
@@ -152,7 +148,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         <div className="sticky top-0 bg-white border-b px-6 py-4">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold text-gray-800">
-              {quest ? 'Edit Quest' : 'Create New Quest'} (V3)
+              {quest ? 'Edit Quest' : 'Create New Quest'}
             </h2>
             <button
               onClick={onClose}
@@ -265,10 +261,6 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
                             {task.pillar.replace('_', ' ')}
                           </span>
                           <span className="font-medium text-green-600">{task.xp_amount} XP</span>
-                          {task.is_required && <span className="text-gray-500">Required</span>}
-                          {task.is_collaboration_eligible && (
-                            <span className="text-purple-600">Team-up eligible</span>
-                          )}
                         </div>
                       </div>
                       <div className="flex gap-1 ml-4">
@@ -348,49 +340,21 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Pillar *
-                  </label>
-                  <select
-                    value={newTask.pillar}
-                    onChange={(e) => setNewTask({ ...newTask, pillar: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {pillars.map(pillar => (
-                      <option key={pillar.value} value={pillar.value}>
-                        {pillar.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="is_required"
-                    checked={newTask.is_required}
-                    onChange={(e) => setNewTask({ ...newTask, is_required: e.target.checked })}
-                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="is_required" className="ml-2 text-sm text-gray-700">
-                    Required task
-                  </label>
-                </div>
-
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="is_collaboration_eligible"
-                    checked={newTask.is_collaboration_eligible}
-                    onChange={(e) => setNewTask({ ...newTask, is_collaboration_eligible: e.target.checked })}
-                    className="h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="is_collaboration_eligible" className="ml-2 text-sm text-gray-700">
-                    Team-up eligible
-                  </label>
-                </div>
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Pillar *
+                </label>
+                <select
+                  value={newTask.pillar}
+                  onChange={(e) => setNewTask({ ...newTask, pillar: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  {pillars.map(pillar => (
+                    <option key={pillar.value} value={pillar.value}>
+                      {pillar.label}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <button

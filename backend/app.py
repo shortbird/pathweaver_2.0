@@ -48,9 +48,9 @@ app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
 # Register V3 routes
 app.register_blueprint(quests_v3.bp)  # /api/v3/quests
 app.register_blueprint(tasks.bp)      # /api/v3/tasks
+app.register_blueprint(admin_v3.bp)   # /api/v3/admin
 app.register_blueprint(collaborations.bp)  # /api/v3/collaborations
 app.register_blueprint(learning_logs_v3.bp)  # /api/v3/logs
-app.register_blueprint(admin_v3.bp)   # /api/v3/admin
 
 @app.route('/api/health')
 def health_check():
