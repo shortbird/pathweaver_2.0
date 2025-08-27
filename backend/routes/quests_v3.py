@@ -367,3 +367,65 @@ def get_user_completed_quests(user_id: str):
             'success': False,
             'error': 'Failed to fetch completed quests'
         }), 500
+
+@bp.route('/<quest_id>/cancel', methods=['POST'])
+@require_auth
+def cancel_quest(user_id: str, quest_id: str):
+    """
+    Cancel an active quest enrollment.
+    Deletes the user's progress and any submitted evidence.
+    """
+    try:
+        supabase = get_supabase_client()
+        
+        # Check if user is enrolled in this quest
+        enrollment = supabase.table('user_quests')\
+            .select('*')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .eq('is_active', True)\
+            .execute()
+        
+        if not enrollment.data:
+            return jsonify({
+                'success': False,
+                'error': 'Not enrolled in this quest'
+            }), 404
+        
+        user_quest_id = enrollment.data[0]['id']
+        
+        # Delete any task completions
+        supabase.table('user_quest_tasks')\
+            .delete()\
+            .eq('user_quest_id', user_quest_id)\
+            .execute()
+        
+        # Delete any learning logs
+        supabase.table('user_learning_logs')\
+            .delete()\
+            .eq('user_quest_id', user_quest_id)\
+            .execute()
+        
+        # Delete the enrollment itself
+        result = supabase.table('user_quests')\
+            .delete()\
+            .eq('id', user_quest_id)\
+            .execute()
+        
+        if result.data:
+            return jsonify({
+                'success': True,
+                'message': 'Quest cancelled successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to cancel quest'
+            }), 500
+            
+    except Exception as e:
+        print(f"Error cancelling quest: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to cancel quest'
+        }), 500

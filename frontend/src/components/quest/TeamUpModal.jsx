@@ -91,7 +91,7 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
             <div>
               <h2 className="text-2xl font-bold mb-2">Team Up!</h2>
               <p className="text-purple-100 text-sm">
-                Complete "{quest.title}" together for double XP
+                Complete this quest with a friend for double XP
               </p>
             </div>
             <button
