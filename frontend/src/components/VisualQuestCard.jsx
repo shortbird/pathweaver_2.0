@@ -3,6 +3,7 @@ import QuestSubmissionForm from './QuestSubmissionForm'
 
 const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddLog, learningLogs = [] }) => {
   const [expandedSections, setExpandedSections] = useState({})
+  const [showSubmissionForm, setShowSubmissionForm] = useState(false)
   const [evidenceText, setEvidenceText] = useState('')
   const [newLogEntry, setNewLogEntry] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -85,9 +86,19 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
             </button>
           )}
           {userQuest?.status === 'in_progress' && (
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg">
-              <p className="text-blue-800 font-medium">Quest In Progress</p>
-            </div>
+            <button 
+              onClick={() => {
+                setExpandedSections(prev => ({ ...prev, mission: true }))
+                setShowSubmissionForm(true)
+                // Scroll to the mission section after a brief delay
+                setTimeout(() => {
+                  document.querySelector('.mission-section')?.scrollIntoView({ behavior: 'smooth' })
+                }, 100)
+              }}
+              className="mt-6 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition"
+            >
+              Finish Quest
+            </button>
           )}
         </div>
       </div>
@@ -95,7 +106,7 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
       {/* Core Sections - Collapsible */}
       <div className="space-y-4">
         {/* The Mission Section */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden">
+        <div className="bg-white rounded-lg shadow-md overflow-hidden mission-section">
           <button
             onClick={() => toggleSection('mission')}
             className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"
@@ -149,8 +160,8 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
                 </p>
               </div>
 
-              {/* Submit Evidence (if quest in progress) */}
-              {userQuest?.status === 'in_progress' && (
+              {/* Submit Evidence (if quest in progress and form is shown) */}
+              {userQuest?.status === 'in_progress' && showSubmissionForm && (
                 <div className="mt-6 border-t pt-6">
                   <QuestSubmissionForm 
                     onSubmit={async (submissionData, files) => {
