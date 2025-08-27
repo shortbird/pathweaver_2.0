@@ -67,18 +67,22 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
               <span className="font-medium">{quest.estimated_time}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-2xl">✨</span>
-              <span className="font-medium">{totalXP} XP</span>
               {quest.primary_pillar && (
-                <span className={`ml-1 px-2 py-0.5 rounded-full text-xs font-medium ${getPillarColor(quest.primary_pillar)}`}>
-                  {quest.primary_pillar.replace('_', ' ')}
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPillarColor(quest.primary_pillar)}`}>
+                  {totalXP} XP • {quest.primary_pillar.replace(/_/g, ' ')}
                 </span>
               )}
+              {quest.quest_skill_xp?.filter(xp => xp.skill_category !== quest.primary_pillar).map((xp, index) => (
+                <span key={index} className={`px-2 py-1 rounded-full text-xs font-medium ${getPillarColor(xp.skill_category)}`}>
+                  +{xp.xp_amount} {xp.skill_category.replace(/_/g, ' ')}
+                </span>
+              ))}
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-2xl">👥</span>
-              <span className="font-medium">{quest.collaboration_bonus || '2x XP Bonus'}</span>
-            </div>
+            {quest.collaboration_spark && (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Collaboration: 2x XP</span>
+              </div>
+            )}
           </div>
 
           {/* Action Buttons */}
@@ -118,7 +122,6 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
           >
             <div className="flex items-center gap-3">
               <span className="text-lg">{expandedSections.process ? '▼' : '▶'}</span>
-              <span className="text-2xl">🎯</span>
               <span className="text-xl font-bold">The Process</span>
             </div>
           </button>
@@ -127,84 +130,57 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
             <div className="px-6 pb-6">
               {/* What You'll Create */}
               {quest.what_youll_create && quest.what_youll_create.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="font-bold text-lg mb-3">What You'll Create</h3>
-                  <div className="space-y-2">
+                <div className="mb-4">
+                  <h3 className="font-semibold mb-2">Deliverables</h3>
+                  <ul className="space-y-1">
                     {quest.what_youll_create.map((item, index) => (
-                      <div key={index} className="flex items-start gap-2">
-                        <span className="text-primary mt-1">•</span>
-                        <p className="text-gray-700">{item}</p>
-                      </div>
+                      <li key={index} className="text-gray-700 text-sm pl-4">
+                        • {item}
+                      </li>
                     ))}
-                  </div>
+                  </ul>
                 </div>
               )}
 
               {/* Your Process */}
               {quest.your_mission && quest.your_mission.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="font-bold text-lg mb-3">Your Process</h3>
-                  <div className="space-y-3">
+                <div className="mb-4">
+                  <h3 className="font-semibold mb-2">Steps</h3>
+                  <ol className="space-y-2">
                     {quest.your_mission.map((step, index) => (
-                      <div key={index} className="flex items-start gap-3">
-                        <span className="bg-primary text-white rounded-full w-6 h-6 flex items-center justify-center text-sm flex-shrink-0">
-                          {index + 1}
-                        </span>
-                        <p className="text-gray-700">{step}</p>
-                      </div>
+                      <li key={index} className="flex items-start gap-2">
+                        <span className="text-primary font-medium">{index + 1}.</span>
+                        <span className="text-gray-700 text-sm">{step}</span>
+                      </li>
                     ))}
-                  </div>
+                  </ol>
                 </div>
               )}
 
-              {/* Showcase Your Journey */}
-              <div className="bg-blue-50 rounded-lg p-4">
-                <h3 className="font-bold text-lg mb-2">Showcase Your Journey</h3>
-                <p className="text-gray-700">
-                  {quest.showcase_your_journey}
-                </p>
-              </div>
-
-              {/* Helpful Resources */}
+              {/* Resources - Only show first 3 */}
               {quest.helpful_resources && Array.isArray(quest.helpful_resources) && quest.helpful_resources.length > 0 && (
-                <div className="mt-6">
-                  <h3 className="font-bold text-lg mb-2">Helpful Resources</h3>
-                  <div className="space-y-2">
-                    {quest.helpful_resources.map((resource, index) => (
-                      <div key={index} className="flex items-start gap-3">
-                        <span className="text-lg">
-                          {resource.type === 'Tool' ? '🔧' : resource.type === 'Tutorial' ? '📖' : '💡'}
-                        </span>
-                        <div>
-                          <span className="font-medium">{resource.name}</span>
-                          {resource.url && (
-                            <a href={resource.url} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline ml-2">
-                              →
-                            </a>
-                          )}
-                          {resource.description && (
-                            <p className="text-sm text-gray-600 mt-1">{resource.description}</p>
-                          )}
-                        </div>
+                <div className="mt-4">
+                  <h3 className="font-semibold mb-2 text-sm text-gray-600">Resources</h3>
+                  <div className="space-y-1">
+                    {quest.helpful_resources.slice(0, 3).map((resource, index) => (
+                      <div key={index} className="text-sm">
+                        {resource.url ? (
+                          <a href={resource.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                            {resource.name}
+                          </a>
+                        ) : (
+                          <span className="text-gray-700">{resource.name}</span>
+                        )}
                       </div>
                     ))}
                   </div>
                 </div>
               )}
 
-              {/* Heads Up */}
+              {/* Important Note */}
               {quest.heads_up && (
-                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mt-4">
-                  <h3 className="font-bold mb-1">⚠️ Heads Up</h3>
-                  <p className="text-gray-700">{quest.heads_up}</p>
-                </div>
-              )}
-
-              {/* Location */}
-              {quest.location && (
-                <div className="bg-gray-50 rounded-lg p-4 mt-4">
-                  <h3 className="font-bold mb-1">📍 Location</h3>
-                  <p className="text-gray-700">{quest.location}</p>
+                <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mt-4">
+                  <p className="text-sm text-gray-700">💡 {quest.heads_up}</p>
                 </div>
               )}
 
@@ -234,42 +210,42 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
           >
             <div className="flex items-center gap-3">
               <span className="text-lg">{expandedSections.further ? '▼' : '▶'}</span>
-              <span className="text-2xl">✨</span>
               <span className="text-xl font-bold">Go Further</span>
             </div>
           </button>
           
           {expandedSections.further && (
             <div className="px-6 pb-6">
-              {/* Collaboration Spark */}
+              {/* Collaboration */}
               {quest.collaboration_spark && (
                 <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-                  <h3 className="font-bold text-lg mb-2">👥 Collaboration Spark</h3>
+                  <h3 className="font-bold text-lg mb-2">Collaboration</h3>
                   <p className="text-gray-700">{quest.collaboration_spark}</p>
-                  <span className="text-sm text-blue-600 mt-2 inline-block">Earn 2x XP when working with others!</span>
+                  <span className="text-sm text-blue-600 mt-2 inline-block">2x XP when working with others</span>
                 </div>
               )}
 
-              {/* Real World Bonus */}
+              {/* Extensions */}
               {quest.real_world_bonus && Array.isArray(quest.real_world_bonus) && quest.real_world_bonus.length > 0 && (
-                <div className="space-y-3 mb-4">
-                  <h3 className="font-bold text-lg">Real World Bonus</h3>
+                <div className="mb-4">
+                  <h3 className="font-bold mb-2">Extensions</h3>
                   {quest.real_world_bonus.map((bonus, index) => (
-                    <div key={index} className="bg-purple-50 rounded-lg p-4">
-                      <p className="text-gray-700">{bonus.description}</p>
-                      <span className="text-sm text-purple-600 mt-2 inline-block">+{bonus.xp_amount} XP</span>
+                    <div key={index} className="bg-purple-50 rounded-lg p-3 mb-2">
+                      <p className="text-sm text-gray-700">{bonus.description}</p>
+                      <span className="text-xs text-purple-600">+{bonus.xp_amount} XP</span>
                     </div>
                   ))}
                 </div>
               )}
 
-              {/* Learning Log - Moved Here */}
+              {/* Learning Log */}
               <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                <h3 className="font-bold text-lg mb-2">📓 Learning Log</h3>
-                {quest.log_bonus && (
-                  <p className="text-gray-700 mb-2">{quest.log_bonus.prompt || quest.log_bonus.description}</p>
+                <h3 className="font-bold text-lg mb-2">Learning Log</h3>
+                <p className="text-gray-700 mb-2">Keep a regular written record of your process throughout this quest. Document your discoveries, challenges, and reflections as you work.</p>
+                {quest.log_bonus && quest.log_bonus.prompt && (
+                  <p className="text-gray-700 mb-2 italic">{quest.log_bonus.prompt}</p>
                 )}
-                <span className="text-sm text-green-600 inline-block">+{quest.log_bonus?.xp_amount || 25} XP for documenting your journey</span>
+                <span className="text-sm text-green-600 inline-block">+{quest.log_bonus?.xp_amount || 25} XP bonus</span>
                 
                 {/* Add Log Entry (if quest in progress) */}
                 {userQuest?.status === 'in_progress' && (
