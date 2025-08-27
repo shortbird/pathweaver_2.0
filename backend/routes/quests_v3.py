@@ -16,8 +16,21 @@ def list_quests():
     """
     List all active quests with their tasks.
     Public endpoint - no auth required.
+    Includes user enrollment data if authenticated.
     """
     try:
+        # Check if user is authenticated
+        auth_header = request.headers.get('Authorization')
+        user_id = None
+        if auth_header and auth_header.startswith('Bearer '):
+            try:
+                from utils.auth.decorators import decode_token
+                token = auth_header.split(' ')[1]
+                payload = decode_token(token)
+                if payload:
+                    user_id = payload.get('sub')
+            except:
+                pass  # Continue without auth
         supabase = get_supabase_client()
         
         # Get pagination parameters
@@ -63,6 +76,18 @@ def list_quests():
             quest['total_xp'] = total_xp
             quest['task_count'] = task_count
             quest['pillar_breakdown'] = pillar_xp
+            
+            # Add user enrollment data if authenticated
+            if user_id:
+                enrollment = supabase.table('user_quests')\
+                    .select('*')\
+                    .eq('user_id', user_id)\
+                    .eq('quest_id', quest['id'])\
+                    .eq('is_active', True)\
+                    .execute()
+                
+                if enrollment.data:
+                    quest['user_enrollment'] = enrollment.data[0]
             
             # Apply pillar filter if specified
             if not pillar_filter or pillar_filter in pillar_xp:
@@ -420,7 +445,9 @@ def cancel_quest(user_id: str, quest_id: str):
             
     except Exception as e:
         print(f"Error cancelling quest: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
-            'error': 'Failed to cancel quest'
+            'error': str(e)
         }), 500

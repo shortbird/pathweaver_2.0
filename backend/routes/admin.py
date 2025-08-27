@@ -233,11 +233,20 @@ def update_quest(user_id, quest_id):
                 # Decode base64 to bytes
                 image_bytes = base64.b64decode(base64_data)
                 
+                # First, try to delete existing image if it exists
+                try:
+                    # Try to delete any existing image with similar name pattern
+                    existing_files = supabase.storage.from_('quest-images').list(path='', options={'search': f'quest-{quest_id}'})
+                    for file in existing_files:
+                        supabase.storage.from_('quest-images').remove([file['name']])
+                except:
+                    pass  # Ignore deletion errors
+                
                 # Upload to storage bucket
                 storage_response = supabase.storage.from_('quest-images').upload(
                     filename,
                     image_bytes,
-                    {'content-type': f'image/{file_ext}'}
+                    {'content-type': f'image/{file_ext}', 'upsert': 'true'}
                 )
                 
                 # Get public URL
@@ -245,10 +254,14 @@ def update_quest(user_id, quest_id):
                 
                 # Add the URL to update data
                 data['header_image_url'] = image_url
+                print(f"Successfully uploaded image: {image_url}")
                 
             except Exception as e:
                 print(f"Error uploading image: {str(e)}")
-                # Continue without image if upload fails
+                import traceback
+                traceback.print_exc()
+                # Try simpler approach - just store the base64 directly
+                data['header_image_url'] = data['header_image_base64']
         
         # Expanded allowed fields for both Visual and standard formats
         visual_fields = [
