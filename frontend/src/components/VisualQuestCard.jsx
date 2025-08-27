@@ -51,7 +51,7 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
               {quest.primary_pillar_icon}
             </div>
             <div className="flex-1">
-              <h1 className="text-3xl font-bold text-gray-900">{quest.title}</h1>
+              <h1 className="text-4xl font-bold text-gray-900">{quest.title}</h1>
             </div>
           </div>
 
@@ -64,23 +64,23 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
           <div className="flex flex-wrap gap-4 p-4 bg-gray-50 rounded-lg">
             <div className="flex items-center gap-2">
               <span className="text-2xl">⏱️</span>
-              <span className="font-medium">{quest.estimated_time}</span>
+              <span className="text-lg font-medium">{quest.estimated_time}</span>
             </div>
             <div className="flex items-center gap-2">
               {quest.primary_pillar && (
-                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getPillarColor(quest.primary_pillar)}`}>
+                <span className={`px-3 py-1 rounded-full text-base font-medium ${getPillarColor(quest.primary_pillar)}`}>
                   {totalXP} XP • {quest.primary_pillar.replace(/_/g, ' ')}
                 </span>
               )}
               {quest.quest_skill_xp?.filter(xp => xp.skill_category !== quest.primary_pillar).map((xp, index) => (
-                <span key={index} className={`px-2 py-1 rounded-full text-xs font-medium ${getPillarColor(xp.skill_category)}`}>
+                <span key={index} className={`px-2 py-1 rounded-full text-sm font-medium ${getPillarColor(xp.skill_category)}`}>
                   +{xp.xp_amount} {xp.skill_category.replace(/_/g, ' ')}
                 </span>
               ))}
             </div>
             {quest.collaboration_spark && (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Collaboration: Double XP</span>
+                <span className="text-base text-gray-600">Collaboration: Double XP</span>
               </div>
             )}
           </div>
@@ -122,7 +122,7 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
           >
             <div className="flex items-center gap-3">
               <span className="text-lg">{expandedSections.process ? '▼' : '▶'}</span>
-              <span className="text-xl font-bold">The Process</span>
+              <span className="text-2xl font-bold">The Process</span>
             </div>
           </button>
           
@@ -131,11 +131,11 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
               {/* Evidence Ideas */}
               {quest.what_youll_create && quest.what_youll_create.length > 0 && (
                 <div className="mb-4">
-                  <h3 className="font-semibold mb-2">Portfolio Evidence Ideas</h3>
-                  <p className="text-xs text-gray-600 mb-2">Ways to strengthen your diploma:</p>
+                  <h3 className="text-xl font-semibold mb-2">Portfolio Evidence Ideas</h3>
+                  <p className="text-base text-gray-600 mb-2">Ways to strengthen your diploma:</p>
                   <ul className="space-y-1">
                     {quest.what_youll_create.map((item, index) => (
-                      <li key={index} className="text-gray-700 text-sm pl-4">
+                      <li key={index} className="text-gray-700 text-lg pl-4">
                         • {item}
                       </li>
                     ))}
@@ -146,12 +146,12 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
               {/* Suggested Process */}
               {quest.your_mission && quest.your_mission.length > 0 && (
                 <div className="mb-4">
-                  <h3 className="font-semibold mb-2">Suggested Process</h3>
+                  <h3 className="text-xl font-semibold mb-2">Suggested Process</h3>
                   <ol className="space-y-2">
                     {quest.your_mission.map((step, index) => (
                       <li key={index} className="flex items-start gap-2">
                         <span className="text-primary font-medium">{index + 1}.</span>
-                        <span className="text-gray-700 text-sm">{step}</span>
+                        <span className="text-gray-700 text-lg">{step}</span>
                       </li>
                     ))}
                   </ol>
@@ -161,10 +161,10 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
               {/* Resources - Only show first 3 */}
               {quest.helpful_resources && Array.isArray(quest.helpful_resources) && quest.helpful_resources.length > 0 && (
                 <div className="mt-4">
-                  <h3 className="font-semibold mb-2 text-sm text-gray-600">Resources</h3>
+                  <h3 className="font-semibold mb-2 text-lg text-gray-600">Resources</h3>
                   <div className="space-y-1">
                     {quest.helpful_resources.slice(0, 3).map((resource, index) => (
-                      <div key={index} className="text-sm">
+                      <div key={index} className="text-lg">
                         {resource.url ? (
                           <a href={resource.url} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
                             {resource.name}
@@ -181,7 +181,7 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
               {/* Important Note */}
               {quest.heads_up && (
                 <div className="bg-yellow-50 border-l-4 border-yellow-400 p-3 mt-4">
-                  <p className="text-sm text-gray-700">💡 {quest.heads_up}</p>
+                  <p className="text-lg text-gray-700">💡 {quest.heads_up}</p>
                 </div>
               )}
 
@@ -211,7 +211,7 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
           >
             <div className="flex items-center gap-3">
               <span className="text-lg">{expandedSections.further ? '▼' : '▶'}</span>
-              <span className="text-xl font-bold">Go Further</span>
+              <span className="text-2xl font-bold">Go Further</span>
             </div>
           </button>
           
@@ -220,20 +220,20 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
               {/* Collaboration */}
               {quest.collaboration_spark && (
                 <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-                  <h3 className="font-bold text-lg mb-2">Collaboration</h3>
-                  <p className="text-gray-700">{quest.collaboration_spark}</p>
-                  <span className="text-sm text-blue-600 mt-2 inline-block">2x XP when working with others</span>
+                  <h3 className="font-bold text-xl mb-2">Collaboration</h3>
+                  <p className="text-lg text-gray-700">{quest.collaboration_spark}</p>
+                  <span className="text-base text-blue-600 mt-2 inline-block">Double XP when working with others</span>
                 </div>
               )}
 
               {/* Extensions */}
               {quest.real_world_bonus && Array.isArray(quest.real_world_bonus) && quest.real_world_bonus.length > 0 && (
                 <div className="bg-purple-50 rounded-lg p-4 border border-purple-200 mb-4">
-                  <h3 className="font-bold text-lg mb-2">Extensions</h3>
+                  <h3 className="font-bold text-xl mb-2">Extensions</h3>
                   {quest.real_world_bonus.map((bonus, index) => (
                     <div key={index} className="mb-2">
-                      <p className="text-gray-700 text-sm">{bonus.description}</p>
-                      <span className="text-sm text-purple-600 inline-block">+{bonus.xp_amount} XP bonus</span>
+                      <p className="text-gray-700 text-lg">{bonus.description}</p>
+                      <span className="text-base text-purple-600 inline-block">+{bonus.xp_amount} XP bonus</span>
                     </div>
                   ))}
                 </div>
@@ -241,12 +241,12 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
 
               {/* Learning Log */}
               <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                <h3 className="font-bold text-lg mb-2">Learning Log</h3>
-                <p className="text-gray-700 mb-2">Keep a regular written record of your process throughout this quest. Document your discoveries, challenges, and reflections as you work.</p>
+                <h3 className="font-bold text-xl mb-2">Learning Log</h3>
+                <p className="text-lg text-gray-700 mb-2">Keep a regular written record of your process throughout this quest. Document your discoveries, challenges, and reflections as you work.</p>
                 {quest.log_bonus && quest.log_bonus.prompt && (
-                  <p className="text-gray-700 mb-2 italic">{quest.log_bonus.prompt}</p>
+                  <p className="text-lg text-gray-700 mb-2 italic">{quest.log_bonus.prompt}</p>
                 )}
-                <span className="text-sm text-green-600 inline-block">+{quest.log_bonus?.xp_amount || 25} XP bonus</span>
+                <span className="text-base text-green-600 inline-block">+{quest.log_bonus?.xp_amount || 25} XP bonus</span>
                 
                 {/* Add Log Entry (if quest in progress) */}
                 {userQuest?.status === 'in_progress' && (
@@ -270,11 +270,11 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
                 {/* Previous Logs */}
                 {learningLogs.length > 0 && (
                   <div className="mt-4 space-y-2">
-                    <h4 className="font-semibold text-sm">Your Journey So Far:</h4>
+                    <h4 className="font-semibold text-lg">Your Journey So Far:</h4>
                     {learningLogs.map((log, index) => (
                       <div key={log.id || index} className="bg-white rounded-lg p-3 border border-green-100">
-                        <p className="text-gray-700 text-sm">{log.log_entry}</p>
-                        <p className="text-xs text-gray-500 mt-1">
+                        <p className="text-gray-700 text-lg">{log.log_entry}</p>
+                        <p className="text-sm text-gray-500 mt-1">
                           {new Date(log.created_at).toLocaleDateString()}
                         </p>
                       </div>
