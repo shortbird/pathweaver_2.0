@@ -64,27 +64,27 @@ class XPService:
             current_xp = self.supabase.table('user_skill_xp')\
                 .select('*')\
                 .eq('user_id', user_id)\
-                .eq('pillar', pillar)\
+                .eq('skill_category', pillar)\
                 .execute()
             
             if current_xp.data:
                 # Update existing XP record
-                new_total = current_xp.data[0]['xp_amount'] + xp_amount
+                new_total = current_xp.data[0].get('total_xp', current_xp.data[0].get('xp_amount', 0)) + xp_amount
                 result = self.supabase.table('user_skill_xp')\
                     .update({
-                        'xp_amount': new_total,
+                        'total_xp': new_total,
                         'updated_at': datetime.utcnow().isoformat()
                     })\
                     .eq('user_id', user_id)\
-                    .eq('pillar', pillar)\
+                    .eq('skill_category', pillar)\
                     .execute()
             else:
                 # Create new XP record
                 result = self.supabase.table('user_skill_xp')\
                     .insert({
                         'user_id': user_id,
-                        'pillar': pillar,
-                        'xp_amount': xp_amount,
+                        'skill_category': pillar,
+                        'total_xp': xp_amount,
                         'updated_at': datetime.utcnow().isoformat()
                     })\
                     .execute()

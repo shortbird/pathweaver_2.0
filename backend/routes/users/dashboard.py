@@ -39,6 +39,9 @@ def get_dashboard(user_id):
         # Calculate completion stats
         completion_stats = get_completion_stats(supabase, user_id)
         
+        # Get task completion count
+        tasks_completed = get_tasks_completed_count(supabase, user_id)
+        
         # Build dashboard response
         dashboard_data = {
             'user': user.data,
@@ -47,6 +50,7 @@ def get_dashboard(user_id):
                 'level': level_info,
                 'quests_completed': completion_stats['completed'],
                 'quests_in_progress': len(active_quests),
+                'tasks_completed': tasks_completed,
                 'streak': completion_stats.get('streak', 0)
             },
             'xp_by_category': skill_breakdown,
@@ -62,6 +66,18 @@ def get_dashboard(user_id):
     except Exception as e:
         print(f"Dashboard error: {str(e)}")
         return jsonify({'error': 'Failed to load dashboard'}), 500
+
+def get_tasks_completed_count(supabase, user_id: str) -> int:
+    """Get total number of tasks completed by user"""
+    try:
+        result = supabase.table('user_quest_tasks')\
+            .select('id', count='exact')\
+            .eq('user_id', user_id)\
+            .execute()
+        return result.count if result.count else 0
+    except Exception as e:
+        print(f"Error fetching task completion count: {str(e)}")
+        return 0
 
 def get_active_quests(supabase, user_id: str) -> list:
     """Get user's active quests with details"""

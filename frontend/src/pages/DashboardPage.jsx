@@ -245,6 +245,36 @@ const DashboardPage = () => {
       fetchPortfolioData()
     }
   }, [user?.id, fetchDashboardData, fetchPortfolioData])
+  
+  // Refresh dashboard data every 30 seconds to reflect task completions
+  useEffect(() => {
+    if (!user?.id) return
+    
+    const interval = setInterval(() => {
+      fetchDashboardData()
+      fetchPortfolioData()
+    }, 30000) // 30 seconds
+    
+    return () => clearInterval(interval)
+  }, [user?.id, fetchDashboardData, fetchPortfolioData])
+  
+  // Listen for task completion events
+  useEffect(() => {
+    const handleTaskComplete = () => {
+      // Refresh data when a task is completed
+      fetchDashboardData()
+      fetchPortfolioData()
+    }
+    
+    // Listen for custom event that could be triggered from task completion
+    window.addEventListener('taskCompleted', handleTaskComplete)
+    window.addEventListener('questCompleted', handleTaskComplete)
+    
+    return () => {
+      window.removeEventListener('taskCompleted', handleTaskComplete)
+      window.removeEventListener('questCompleted', handleTaskComplete)
+    }
+  }, [fetchDashboardData, fetchPortfolioData])
 
   // Early return for loading state - MUST be after all hooks
   if (loading) {
@@ -271,7 +301,7 @@ const DashboardPage = () => {
         <div className="card">
           <h3 className="text-lg font-semibold mb-2">Active Quests</h3>
           <p className="text-3xl font-bold text-primary">
-            {dashboardData?.active_quests?.length || 0}
+            {dashboardData?.stats?.quests_in_progress || dashboardData?.active_quests?.length || 0}
           </p>
           <Link to="/quests" className="text-sm text-primary hover:underline mt-2 inline-block">
             Browse more quests →
@@ -299,13 +329,13 @@ const DashboardPage = () => {
         </div>
 
         <div className="card">
-          <h3 className="text-lg font-semibold mb-2">Friends</h3>
+          <h3 className="text-lg font-semibold mb-2">Tasks Completed</h3>
           <p className="text-3xl font-bold text-purple-600">
-            {dashboardData?.friend_count || 0}
+            {dashboardData?.stats?.tasks_completed || 0}
           </p>
-          <Link to="/friends" className="text-sm text-primary hover:underline mt-2 inline-block">
-            Manage friends →
-          </Link>
+          <p className="text-sm text-gray-600 mt-2">
+            Progress on all quests
+          </p>
         </div>
       </div>
 
