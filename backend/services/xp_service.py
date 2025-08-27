@@ -59,38 +59,48 @@ class XPService:
         Returns:
             True if successful, False otherwise
         """
+        print(f"=== XP SERVICE AWARD DEBUG ===")
+        print(f"User: {user_id}, Pillar: {pillar}, Amount: {xp_amount}, Source: {source}")
+        
         try:
             # Check current XP for this pillar
             current_xp = self.supabase.table('user_skill_xp')\
                 .select('*')\
                 .eq('user_id', user_id)\
-                .eq('skill_category', pillar)\
+                .eq('pillar', pillar)\
                 .execute()
             
+            print(f"Current XP records found: {len(current_xp.data) if current_xp.data else 0}")
             if current_xp.data:
-                # Update existing XP record
-                new_total = current_xp.data[0].get('total_xp', current_xp.data[0].get('xp_amount', 0)) + xp_amount
+                print(f"Existing record: {current_xp.data[0]}")
+            
+            if current_xp.data:
+                # Update existing XP record - use 'xp_amount' column
+                new_total = current_xp.data[0].get('xp_amount', 0) + xp_amount
                 result = self.supabase.table('user_skill_xp')\
                     .update({
-                        'total_xp': new_total,
+                        'xp_amount': new_total,
                         'updated_at': datetime.utcnow().isoformat()
                     })\
                     .eq('user_id', user_id)\
-                    .eq('skill_category', pillar)\
+                    .eq('pillar', pillar)\
                     .execute()
             else:
-                # Create new XP record
+                # Create new XP record - use 'pillar' and 'xp_amount' columns
                 result = self.supabase.table('user_skill_xp')\
                     .insert({
                         'user_id': user_id,
-                        'skill_category': pillar,
-                        'total_xp': xp_amount,
+                        'pillar': pillar,
+                        'xp_amount': xp_amount,
                         'updated_at': datetime.utcnow().isoformat()
                     })\
                     .execute()
             
             # Create audit log entry
             self._create_xp_audit_log(user_id, pillar, xp_amount, source)
+            
+            print(f"XP award result: {result.data if result.data else 'Failed'}")
+            print("===============================")
             
             return bool(result.data)
             

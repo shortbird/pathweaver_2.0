@@ -35,18 +35,29 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
     has_skill_xp_records = False
     
     try:
-        # Get skill-based XP from user_skill_xp table
+        # Get skill-based XP from user_skill_xp table - uses 'pillar' and 'xp_amount' columns
         skill_xp = supabase.table('user_skill_xp')\
-            .select('skill_category, total_xp')\
+            .select('pillar, xp_amount')\
             .eq('user_id', user_id)\
             .execute()
+        
+        print(f"=== XP CALCULATION DEBUG for user {user_id} ===")
+        print(f"Raw skill_xp data: {skill_xp.data}")
         
         if skill_xp.data:
             has_skill_xp_records = True
             for record in skill_xp.data:
-                xp_amount = record.get('total_xp', 0)
-                total_xp += xp_amount
-                skill_breakdown[record['skill_category']] = xp_amount
+                print(f"Processing record: {record}")
+                xp_amount = record.get('xp_amount', 0)
+                skill_cat = record.get('pillar')  # Column is named 'pillar' not 'skill_category'
+                print(f"  Category: {skill_cat}, XP: {xp_amount}")
+                if skill_cat in skill_breakdown:
+                    total_xp += xp_amount
+                    skill_breakdown[skill_cat] = xp_amount
+                else:
+                    print(f"  WARNING: Category '{skill_cat}' not in SKILL_CATEGORIES")
+        print(f"Final skill_breakdown: {skill_breakdown}")
+        print("=======================================")
     except Exception as e:
         print(f"Error getting skill XP: {str(e)}")
     
@@ -71,24 +82,24 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
             for category, xp in skill_breakdown.items():
                 if xp > 0:
                     try:
-                        # Check if record exists
+                        # Check if record exists - use 'pillar' column
                         existing = supabase.table('user_skill_xp')\
                             .select('id')\
                             .eq('user_id', user_id)\
-                            .eq('skill_category', category)\
+                            .eq('pillar', category)\
                             .execute()
                         
                         if existing.data:
-                            # Update existing record
+                            # Update existing record - use 'xp_amount' column
                             supabase.table('user_skill_xp').update({
-                                'total_xp': xp
-                            }).eq('user_id', user_id).eq('skill_category', category).execute()
+                                'xp_amount': xp
+                            }).eq('user_id', user_id).eq('pillar', category).execute()
                         else:
-                            # Create new record
+                            # Create new record - use 'pillar' and 'xp_amount' columns
                             supabase.table('user_skill_xp').insert({
                                 'user_id': user_id,
-                                'skill_category': category,
-                                'total_xp': xp
+                                'pillar': category,
+                                'xp_amount': xp
                             }).execute()
                         print(f"Saved XP for {category}: {xp}")
                     except Exception as e:

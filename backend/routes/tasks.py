@@ -183,9 +183,15 @@ def complete_task(user_id: str, task_id: str):
             }), 500
         
         # Award XP to user
+        print(f"=== TASK COMPLETION XP DEBUG ===")
+        print(f"Task ID: {task_id}, User ID: {user_id}")
+        print(f"Task pillar: {task_data.get('pillar')}")
+        print(f"XP to award: {final_xp}")
+        print("================================")
+        
         xp_awarded = xp_service.award_xp(
             user_id,
-            task_data['pillar'],
+            task_data.get('pillar', 'creativity'),  # Default to creativity if missing
             final_xp,
             f'task_completion:{task_id}'
         )

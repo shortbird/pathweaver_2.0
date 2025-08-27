@@ -30,6 +30,11 @@ def get_dashboard(user_id):
         # Calculate XP stats
         total_xp, skill_breakdown = calculate_user_xp(supabase, user_id)
         
+        print(f"=== DASHBOARD XP DEBUG for user {user_id} ===")
+        print(f"Total XP: {total_xp}")
+        print(f"Skill breakdown: {skill_breakdown}")
+        print("=======================================")
+        
         # Get user level info
         level_info = get_user_level(total_xp)
         
