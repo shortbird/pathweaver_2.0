@@ -93,11 +93,11 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
           {userQuest?.status === 'in_progress' && (
             <button 
               onClick={() => {
-                setExpandedSections(prev => ({ ...prev, mission: true }))
+                setExpandedSections(prev => ({ ...prev, process: true }))
                 setShowSubmissionForm(true)
-                // Scroll to the mission section after a brief delay
+                // Scroll to the process section after a brief delay
                 setTimeout(() => {
-                  document.querySelector('.mission-section')?.scrollIntoView({ behavior: 'smooth' })
+                  document.querySelector('.process-section')?.scrollIntoView({ behavior: 'smooth' })
                 }, 100)
               }}
               className="mt-6 w-full bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-6 rounded-lg transition"
@@ -110,20 +110,20 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
 
       {/* Core Sections - Collapsible */}
       <div className="space-y-4">
-        {/* The Mission Section */}
-        <div className="bg-white rounded-lg shadow-md overflow-hidden mission-section">
+        {/* The Process Section */}
+        <div className="bg-white rounded-lg shadow-md overflow-hidden process-section">
           <button
-            onClick={() => toggleSection('mission')}
+            onClick={() => toggleSection('process')}
             className="w-full px-6 py-4 flex items-center justify-between hover:bg-gray-50 transition"
           >
             <div className="flex items-center gap-3">
-              <span className="text-lg">{expandedSections.mission ? '▼' : '▶'}</span>
+              <span className="text-lg">{expandedSections.process ? '▼' : '▶'}</span>
               <span className="text-2xl">🎯</span>
-              <span className="text-xl font-bold">The Mission</span>
+              <span className="text-xl font-bold">The Process</span>
             </div>
           </button>
           
-          {expandedSections.mission && (
+          {expandedSections.process && (
             <div className="px-6 pb-6">
               {/* What You'll Create */}
               {quest.what_youll_create && quest.what_youll_create.length > 0 && (
@@ -140,10 +140,10 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
                 </div>
               )}
 
-              {/* Your Mission */}
+              {/* Your Process */}
               {quest.your_mission && quest.your_mission.length > 0 && (
                 <div className="mb-6">
-                  <h3 className="font-bold text-lg mb-3">Your Mission</h3>
+                  <h3 className="font-bold text-lg mb-3">Your Process</h3>
                   <div className="space-y-3">
                     {quest.your_mission.map((step, index) => (
                       <div key={index} className="flex items-start gap-3">

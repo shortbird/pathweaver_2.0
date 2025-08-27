@@ -46,7 +46,7 @@ const AdminQuestManager = ({ quest, onClose, onSave }) => {
   })
 
   const [currentDeliverable, setCurrentDeliverable] = useState('')
-  const [currentMissionStep, setCurrentMissionStep] = useState('')
+  const [currentProcessStep, setCurrentProcessStep] = useState('')
   const [currentTool, setCurrentTool] = useState('')
   const [currentMaterial, setCurrentMaterial] = useState('')
   const [currentLink, setCurrentLink] = useState('')
@@ -78,7 +78,7 @@ const AdminQuestManager = ({ quest, onClose, onSave }) => {
     }
 
     if (formData.your_mission.length === 0) {
-      toast.error('Please add at least one mission step')
+      toast.error('Please add at least one process step')
       return
     }
 
@@ -130,17 +130,17 @@ const AdminQuestManager = ({ quest, onClose, onSave }) => {
     })
   }
 
-  const addMissionStep = () => {
-    if (currentMissionStep.trim()) {
+  const addProcessStep = () => {
+    if (currentProcessStep.trim()) {
       setFormData({
         ...formData,
-        your_mission: [...formData.your_mission, currentMissionStep.trim()]
+        your_mission: [...formData.your_mission, currentProcessStep.trim()]
       })
-      setCurrentMissionStep('')
+      setCurrentProcessStep('')
     }
   }
 
-  const removeMissionStep = (index) => {
+  const removeProcessStep = (index) => {
     setFormData({
       ...formData,
       your_mission: formData.your_mission.filter((_, i) => i !== index)
@@ -312,22 +312,22 @@ const AdminQuestManager = ({ quest, onClose, onSave }) => {
             )}
           </div>
 
-          {/* Your Mission */}
+          {/* Your Process */}
           <div className="space-y-4">
-            <h3 className="text-lg font-semibold border-b pb-2">Your Mission *</h3>
+            <h3 className="text-lg font-semibold border-b pb-2">Your Process *</h3>
             
             <div className="flex gap-2">
               <input
                 type="text"
-                value={currentMissionStep}
-                onChange={(e) => setCurrentMissionStep(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addMissionStep())}
+                value={currentProcessStep}
+                onChange={(e) => setCurrentProcessStep(e.target.value)}
+                onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addProcessStep())}
                 className="input-field flex-1"
-                placeholder="Add a mission step..."
+                placeholder="Add a process step..."
               />
               <button
                 type="button"
-                onClick={addMissionStep}
+                onClick={addProcessStep}
                 className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
               >
                 Add Step
@@ -341,7 +341,7 @@ const AdminQuestManager = ({ quest, onClose, onSave }) => {
                     <span className="text-sm">{index + 1}. {step}</span>
                     <button
                       type="button"
-                      onClick={() => removeMissionStep(index)}
+                      onClick={() => removeProcessStep(index)}
                       className="text-red-600 hover:text-red-800 text-sm"
                     >
                       Remove
