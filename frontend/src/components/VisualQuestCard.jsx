@@ -80,7 +80,7 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
             </div>
             {quest.collaboration_spark && (
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Collaboration: 2x XP</span>
+                <span className="text-sm text-gray-600">Collaboration: Double XP</span>
               </div>
             )}
           </div>
@@ -128,10 +128,11 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
           
           {expandedSections.process && (
             <div className="px-6 pb-6">
-              {/* What You'll Create */}
+              {/* Evidence Ideas */}
               {quest.what_youll_create && quest.what_youll_create.length > 0 && (
                 <div className="mb-4">
-                  <h3 className="font-semibold mb-2">Deliverables</h3>
+                  <h3 className="font-semibold mb-2">Portfolio Evidence Ideas</h3>
+                  <p className="text-xs text-gray-600 mb-2">Ways to strengthen your diploma:</p>
                   <ul className="space-y-1">
                     {quest.what_youll_create.map((item, index) => (
                       <li key={index} className="text-gray-700 text-sm pl-4">
@@ -142,10 +143,10 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
                 </div>
               )}
 
-              {/* Your Process */}
+              {/* Suggested Process */}
               {quest.your_mission && quest.your_mission.length > 0 && (
                 <div className="mb-4">
-                  <h3 className="font-semibold mb-2">Steps</h3>
+                  <h3 className="font-semibold mb-2">Suggested Process</h3>
                   <ol className="space-y-2">
                     {quest.your_mission.map((step, index) => (
                       <li key={index} className="flex items-start gap-2">
@@ -227,12 +228,12 @@ const VisualQuestCard = ({ quest, userQuest, onStartQuest, onSubmitQuest, onAddL
 
               {/* Extensions */}
               {quest.real_world_bonus && Array.isArray(quest.real_world_bonus) && quest.real_world_bonus.length > 0 && (
-                <div className="mb-4">
-                  <h3 className="font-bold mb-2">Extensions</h3>
+                <div className="bg-purple-50 rounded-lg p-4 border border-purple-200 mb-4">
+                  <h3 className="font-bold text-lg mb-2">Extensions</h3>
                   {quest.real_world_bonus.map((bonus, index) => (
-                    <div key={index} className="bg-purple-50 rounded-lg p-3 mb-2">
-                      <p className="text-sm text-gray-700">{bonus.description}</p>
-                      <span className="text-xs text-purple-600">+{bonus.xp_amount} XP</span>
+                    <div key={index} className="mb-2">
+                      <p className="text-gray-700 text-sm">{bonus.description}</p>
+                      <span className="text-sm text-purple-600 inline-block">+{bonus.xp_amount} XP bonus</span>
                     </div>
                   ))}
                 </div>
