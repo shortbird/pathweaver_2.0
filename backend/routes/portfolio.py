@@ -35,16 +35,7 @@ def get_public_portfolio(portfolio_slug):
         completed_quests = supabase.table('user_quests').select(
             '''
             *,
-            quests!inner(
-                id,
-                title,
-                description,
-                difficulty_level,
-                estimated_hours,
-                effort_level,
-                core_skills,
-                optional_challenges
-            ),
+            quests!inner(*),
             submissions!inner(
                 *,
                 submission_evidence(*)
