@@ -155,7 +155,19 @@ const DashboardPage = () => {
       console.log('total_xp:', response.data.total_xp)
       console.log('total_quests_completed:', response.data.total_quests_completed)
       console.log('=======================')
-      setPortfolioData(response.data)
+      
+      // Only set portfolio data if it has actual XP data
+      // This prevents overwriting good dashboard data with empty portfolio data
+      if (response.data?.skill_xp && response.data.skill_xp.length > 0) {
+        const hasActualXP = response.data.skill_xp.some(s => 
+          (s.xp_amount && s.xp_amount > 0) || (s.total_xp && s.total_xp > 0)
+        )
+        if (hasActualXP || response.data.total_xp > 0) {
+          setPortfolioData(response.data)
+        } else {
+          console.log('Portfolio has no XP data, not updating state')
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch portfolio data:', error)
       // Don't let portfolio failure affect the dashboard
@@ -173,40 +185,49 @@ const DashboardPage = () => {
     })
     
     let totalXP = 0
+    let dataSource = null
     
     console.log('Dashboard data:', dashboardData)
     console.log('Portfolio data:', portfolioData)
     
-    // Priority 1: Use portfolio skill_xp if available
-    if (portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp)) {
-      console.log('Using portfolio skill_xp:', portfolioData.skill_xp)
-      portfolioData.skill_xp.forEach(skill => {
-        if (skill.skill_category in xpByCategory) {
-          xpByCategory[skill.skill_category] = skill.total_xp || 0
-        }
-      })
-      totalXP = portfolioData.total_xp || Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
-    }
-    // Priority 2: Use dashboard xp_by_category
-    else if (dashboardData?.xp_by_category) {
+    // Always use dashboard xp_by_category if available - it's the most reliable
+    if (dashboardData?.xp_by_category) {
       console.log('Using dashboard xp_by_category:', dashboardData.xp_by_category)
+      
+      // Check if we have actual XP data
+      let hasXP = false
       Object.entries(dashboardData.xp_by_category).forEach(([category, xp]) => {
         if (category in xpByCategory) {
           xpByCategory[category] = xp || 0
+          if (xp > 0) hasXP = true
         }
       })
-      // Dashboard sends total_xp in stats object
-      totalXP = dashboardData.stats?.total_xp || dashboardData.total_xp || Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
+      
+      // Only update totalXP if we have data
+      if (hasXP || dashboardData.stats?.total_xp > 0) {
+        totalXP = dashboardData.stats?.total_xp || dashboardData.total_xp || Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
+        dataSource = 'dashboard'
+      }
     }
-    // Priority 3: Use dashboard skill_xp array
-    else if (dashboardData?.skill_xp && Array.isArray(dashboardData.skill_xp)) {
-      console.log('Using dashboard skill_xp array:', dashboardData.skill_xp)
-      dashboardData.skill_xp.forEach(skill => {
-        if (skill.skill_category in xpByCategory) {
-          xpByCategory[skill.skill_category] = skill.total_xp || 0
+    
+    // Only use portfolio as fallback if dashboard has no data
+    if (dataSource !== 'dashboard' && portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp)) {
+      console.log('Fallback to portfolio skill_xp:', portfolioData.skill_xp)
+      
+      // Portfolio uses 'pillar' field, not 'skill_category'
+      portfolioData.skill_xp.forEach(skill => {
+        const category = skill.pillar || skill.skill_category
+        const xp = skill.xp_amount ?? skill.total_xp ?? 0
+        if (category && category in xpByCategory) {
+          xpByCategory[category] = xp
         }
       })
-      totalXP = dashboardData.stats?.total_xp || dashboardData.total_xp || Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
+      
+      // Only update totalXP if we got data
+      const portfolioTotal = Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
+      if (portfolioTotal > 0) {
+        totalXP = portfolioData.total_xp || portfolioTotal
+      }
     }
     
     // Convert to chart data format - include ALL categories
