@@ -24,12 +24,11 @@ def list_quests():
         user_id = None
         if auth_header and auth_header.startswith('Bearer '):
             try:
-                from utils.auth.decorators import decode_token
+                from utils.auth.token_utils import verify_token
                 token = auth_header.split(' ')[1]
-                payload = decode_token(token)
-                if payload:
-                    user_id = payload.get('sub')
-            except:
+                user_id = verify_token(token)
+            except Exception as e:
+                print(f"Auth check failed: {e}")
                 pass  # Continue without auth
         supabase = get_supabase_client()
         
