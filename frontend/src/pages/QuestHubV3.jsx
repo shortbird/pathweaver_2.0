@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import Layout from '../components/Layout';
 import QuestCardV3 from '../components/quest/QuestCardV3';
 import TeamUpModal from '../components/quest/TeamUpModal';
 
@@ -114,9 +113,8 @@ const QuestHubV3 = () => {
   };
 
   return (
-    <Layout>
-      <div className="max-w-7xl mx-auto px-4 py-8">
-        {/* Header */}
+    <div className="max-w-7xl mx-auto px-4 py-8">
+      {/* Header */}
         <div className="mb-8">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">Quest Hub</h1>
           <p className="text-gray-600">Choose your adventure and start earning XP!</p>
@@ -249,7 +247,7 @@ const QuestHubV3 = () => {
           onInviteSent={handleInviteSent}
         />
       )}
-    </Layout>
+    </div>
   );
 };
 

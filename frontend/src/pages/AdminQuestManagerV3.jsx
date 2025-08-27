@@ -134,8 +134,8 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
           evidence_requirements: 'Complete all tasks and provide evidence',
           accepted_evidence_types: ['text', 'link', 'image', 'video'],
           is_active: formData.is_active,
-          // Add XP awards based on tasks
-          quest_skill_xp: tasks.map(task => ({
+          // Add XP awards based on tasks (using old endpoint field name)
+          skill_xp_awards: tasks.map(task => ({
             skill_category: 
               task.pillar === 'creativity' ? 'making_creating' :
               task.pillar === 'critical_thinking' ? 'thinking_skills' :
@@ -158,14 +158,36 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         });
       }
 
-      const data = await response.json();
+      // Check if response has content
+      let data = {};
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        try {
+          data = await response.json();
+        } catch (jsonError) {
+          console.error('Failed to parse JSON response:', jsonError);
+          if (!response.ok) {
+            throw new Error(`Server error: ${response.status} ${response.statusText}`);
+          }
+        }
+      }
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to save quest');
+        throw new Error(data.error || `Failed to save quest: ${response.status}`);
       }
 
       toast.success(quest ? 'Quest updated successfully!' : 'Quest created successfully!');
-      onSave(data.quest);
+      
+      // For old endpoint, construct the quest object if not returned
+      const questData = data.quest || {
+        id: data.quest_id || data.id || quest?.id,
+        title: formData.title,
+        big_idea: formData.big_idea,
+        quest_tasks: tasks,
+        is_active: formData.is_active
+      };
+      
+      onSave(questData);
       onClose();
     } catch (error) {
       console.error('Error saving quest:', error);
