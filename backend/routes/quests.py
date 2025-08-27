@@ -231,6 +231,7 @@ def submit_quest(user_id, quest_id):
         
         submission = {
             'user_quest_id': user_quest.data['id'],
+            'user_id': user_id,
             'submitted_at': datetime.utcnow().isoformat()
         }
         
