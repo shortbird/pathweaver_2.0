@@ -569,16 +569,7 @@ const AdminUsers = () => {
                 Subscription
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Total XP
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Joined
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Last Active
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Status
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Actions
@@ -618,23 +609,8 @@ const AdminUsers = () => {
                     {(user.subscription_tier || 'free').charAt(0).toUpperCase() + (user.subscription_tier || 'free').slice(1)}
                   </span>
                 </td>
-                <td className="px-6 py-4 text-sm text-gray-900">
-                  {user.total_xp || 0}
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500">
-                  {formatDate(user.created_at)}
-                </td>
                 <td className="px-6 py-4 text-sm text-gray-500">
                   {formatDate(user.last_active)}
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    user.status === 'active' 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {user.status || 'active'}
-                  </span>
                 </td>
                 <td className="px-6 py-4 text-right text-sm font-medium">
                   <div className="flex justify-end gap-2">
