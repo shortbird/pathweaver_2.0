@@ -17,7 +17,11 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
 
   const fetchFriends = async () => {
     try {
-      const response = await fetch('/api/community/friends', {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const url = `${apiBase}/api/community/friends`;
+      console.log('Fetching friends from:', url);
+      
+      const response = await fetch(url, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
@@ -28,6 +32,7 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
       }
 
       const data = await response.json();
+      console.log('Friends API response:', data);
       setFriends(data.friends || []);
     } catch (error) {
       console.error('Error fetching friends:', error);
@@ -79,9 +84,18 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
     }
   };
 
-  const filteredFriends = friends.filter(friend =>
-    friend.username?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredFriends = friends.filter(friend => {
+    const searchLower = searchTerm.toLowerCase();
+    const username = friend.username?.toLowerCase() || '';
+    const firstName = friend.first_name?.toLowerCase() || '';
+    const lastName = friend.last_name?.toLowerCase() || '';
+    const fullName = `${firstName} ${lastName}`.toLowerCase();
+    
+    return username.includes(searchLower) || 
+           firstName.includes(searchLower) || 
+           lastName.includes(searchLower) ||
+           fullName.includes(searchLower);
+  });
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -112,7 +126,7 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
             <div className="flex justify-center py-8">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
             </div>
-          ) : friends.length === 0 ? (
+          ) : (console.log('Friends loaded:', friends.length, friends), friends.length === 0) ? (
             <div className="text-center py-8">
               <svg className="mx-auto h-12 w-12 text-gray-400 mb-3" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
