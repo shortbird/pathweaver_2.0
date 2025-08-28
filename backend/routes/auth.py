@@ -232,9 +232,13 @@ def login():
     data = request.json
     supabase = get_supabase_client()
     
+    # Validate input
+    if not data or not data.get('email') or not data.get('password'):
+        return jsonify({'error': 'Email and password are required'}), 400
+    
     try:
         auth_response = supabase.auth.sign_in_with_password({
-            'email': data['email'],
+            'email': data['email'].strip().lower(),  # Normalize email
             'password': data['password']
         })
         
@@ -244,7 +248,31 @@ def login():
             admin_client = get_supabase_admin_client()
             
             # Fetch user data with admin client
-            user_data = admin_client.table('users').select('*').eq('id', auth_response.user.id).single().execute()
+            try:
+                user_data = admin_client.table('users').select('*').eq('id', auth_response.user.id).single().execute()
+            except Exception as e:
+                # If user profile doesn't exist, create it (for users who registered before profile creation)
+                error_str = str(e)
+                if 'rows' in error_str or 'single' in error_str:
+                    # Create minimal user profile
+                    user_data = admin_client.table('users').insert({
+                        'id': auth_response.user.id,
+                        'first_name': auth_response.user.user_metadata.get('first_name', 'User'),
+                        'last_name': auth_response.user.user_metadata.get('last_name', ''),
+                        'subscription_tier': 'free',
+                        'subscription_status': 'active',
+                        'created_at': 'now()'
+                    }).execute()
+                    
+                    # Ensure diploma and skills
+                    ensure_user_diploma_and_skills(
+                        admin_client, 
+                        auth_response.user.id,
+                        auth_response.user.user_metadata.get('first_name', 'User'),
+                        auth_response.user.user_metadata.get('last_name', '')
+                    )
+                else:
+                    raise
             
             # Try to log activity, but don't fail login if it doesn't work
             try:
@@ -269,21 +297,38 @@ def login():
             
             return response
         else:
-            raise AuthenticationError('Invalid credentials')
+            return jsonify({'error': 'Invalid email or password. Please check your credentials and try again.'}), 401
             
-    except AuthenticationError:
-        raise  # Re-raise authentication errors
     except Exception as e:
         error_message = str(e)
         print(f"Login error: {error_message}")
         
-        # Provide more helpful error messages
-        if "Invalid login credentials" in error_message:
-            return jsonify({'error': 'Invalid email or password'}), 401
-        elif "Invalid API key" in error_message:
-            return jsonify({'error': 'Server configuration error - invalid API key'}), 500
+        # Parse error for specific cases
+        error_lower = error_message.lower()
+        
+        if "invalid login credentials" in error_lower:
+            return jsonify({'error': 'Invalid email or password. Please check your credentials and try again.'}), 401
+        elif "email not confirmed" in error_lower:
+            return jsonify({'error': 'Please verify your email address before logging in. Check your inbox for a confirmation email.'}), 401
+        elif "user not found" in error_lower:
+            return jsonify({'error': 'No account found with this email. Please register first or check your email address.'}), 401
+        elif "rate limit" in error_lower or "too many requests" in error_lower:
+            import re
+            wait_match = re.search(r'after (\d+) seconds', error_message)
+            if wait_match:
+                wait_time = wait_match.group(1)
+                return jsonify({'error': f'Too many login attempts. Please wait {wait_time} seconds before trying again.'}), 429
+            else:
+                return jsonify({'error': 'Too many login attempts. Please wait a minute before trying again.'}), 429
+        elif "invalid api key" in error_lower:
+            return jsonify({'error': 'Server configuration error. Please contact support.'}), 500
+        elif "connection" in error_lower or "timeout" in error_lower:
+            return jsonify({'error': 'Connection error. Please check your internet connection and try again.'}), 503
+        elif "password" in error_lower:
+            return jsonify({'error': 'Invalid password. Please check your password and try again.'}), 401
         else:
-            return jsonify({'error': error_message}), 400
+            # Generic error but still informative
+            return jsonify({'error': 'Login failed. Please try again or contact support if the problem persists.'}), 400
 
 @bp.route('/logout', methods=['POST'])
 def logout():

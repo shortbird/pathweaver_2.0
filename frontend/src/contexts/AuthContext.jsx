@@ -62,15 +62,30 @@ export const AuthProvider = ({ children }) => {
       return { success: true }
     } catch (error) {
       // Handle nested error structure from backend
-      let message = 'Login failed'
+      let message = 'Login failed. Please try again.'
+      
       if (error.response?.data?.error) {
         if (typeof error.response.data.error === 'string') {
           message = error.response.data.error
         } else if (error.response.data.error.message) {
           message = error.response.data.error.message
         }
+      } else if (error.response?.status === 429) {
+        message = 'Too many login attempts. Please wait a moment and try again.'
+      } else if (error.response?.status === 503) {
+        message = 'Service temporarily unavailable. Please try again in a few moments.'
+      } else if (error.response?.status === 500) {
+        message = 'Server error. Please contact support if this continues.'
+      } else if (!error.response) {
+        message = 'Connection error. Please check your internet connection.'
       }
-      toast.error(message)
+      
+      // Don't show toast for expected errors - let the form handle display
+      // Only show toast for unexpected errors
+      if (error.response?.status >= 500) {
+        toast.error(message)
+      }
+      
       return { success: false, error: message }
     }
   }
