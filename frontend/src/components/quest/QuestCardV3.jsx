@@ -63,12 +63,12 @@ const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
       onClick={handleCardClick}
     >
       {/* Header Image Section */}
-      <div className="relative h-48 overflow-hidden bg-white">
+      <div className="relative h-48 overflow-hidden">
         {quest.header_image_url ? (
           <img 
             src={quest.header_image_url} 
             alt={quest.title}
-            className="w-full h-full object-contain"
+            className="w-full h-full object-cover"
             onError={(e) => {
               e.target.style.display = 'none';
               e.target.nextSibling.style.display = 'flex';
