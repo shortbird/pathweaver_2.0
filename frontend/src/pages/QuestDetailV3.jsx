@@ -6,6 +6,7 @@ import TaskCompletionModal from '../components/quest/TaskCompletionModal';
 import LearningLogSection from '../components/quest/LearningLogSection';
 import TeamUpModal from '../components/quest/TeamUpModal';
 import { getQuestHeaderImage } from '../utils/questSourceConfig';
+import toast from 'react-hot-toast';
 
 const QuestDetailV3 = () => {
   const { id } = useParams();
@@ -110,7 +111,9 @@ const QuestDetailV3 = () => {
 
   const handleTeamUpInviteSent = (result) => {
     setShowTeamUpModal(false);
-    alert(result.message);
+    toast.success(result.message || 'Team-up invitation sent!');
+    // Refresh quest details to show collaboration status
+    fetchQuestDetails();
   };
 
   const handleCancelQuest = async () => {

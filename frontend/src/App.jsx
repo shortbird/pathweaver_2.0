@@ -34,13 +34,14 @@ function App() {
         <Router>
           <AuthProvider>
             <Toaster
-            position="top-center"
+            position="top-right"
             toastOptions={{
               duration: 4000,
               style: {
                 background: '#363636',
                 color: '#fff',
                 marginTop: '70px',
+                marginRight: '20px',
                 zIndex: 9999,
               },
             }}
