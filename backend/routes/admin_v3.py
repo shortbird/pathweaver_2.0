@@ -25,6 +25,7 @@ def create_quest(user_id):
             data = {
                 'title': request.form.get('title'),
                 'big_idea': request.form.get('big_idea'),
+                'source': request.form.get('source', 'optio'),
                 'is_active': request.form.get('is_active', 'true').lower() == 'true'
             }
             
@@ -123,6 +124,7 @@ def create_quest(user_id):
         quest_data = {
             'title': data['title'],
             'big_idea': data['big_idea'],
+            'source': data.get('source', 'optio'),
             'is_active': data.get('is_active', True),
             'created_at': datetime.utcnow().isoformat()
         }
@@ -180,6 +182,7 @@ def update_quest(user_id, quest_id):
             data = {
                 'title': request.form.get('title'),
                 'big_idea': request.form.get('big_idea'),
+                'source': request.form.get('source', 'optio'),
                 'is_active': request.form.get('is_active', 'true').lower() == 'true'
             }
             
@@ -277,6 +280,7 @@ def update_quest(user_id, quest_id):
         quest_data = {
             'title': data['title'],
             'big_idea': data['big_idea'],
+            'source': data.get('source', 'optio'),
             'is_active': data.get('is_active', True),
             'updated_at': datetime.utcnow().isoformat()
         }
