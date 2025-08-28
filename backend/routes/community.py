@@ -10,12 +10,31 @@ def get_friends(user_id):
     supabase = get_supabase_client()
     
     try:
-        friendships = supabase.table('friendships').select('*, requester:users!requester_id(*), addressee:users!addressee_id(*)').or_(f'requester_id.eq.{user_id},addressee_id.eq.{user_id}').execute()
+        print(f"[GET_FRIENDS] Fetching friends for user: {user_id}")
+        
+        # Get friendships where user is the requester
+        friendships_as_requester = supabase.table('friendships')\
+            .select('*, requester:users!requester_id(*), addressee:users!addressee_id(*)')\
+            .eq('requester_id', user_id)\
+            .execute()
+        
+        print(f"[GET_FRIENDS] Friendships as requester: {len(friendships_as_requester.data or [])} found")
+        
+        # Get friendships where user is the addressee
+        friendships_as_addressee = supabase.table('friendships')\
+            .select('*, requester:users!requester_id(*), addressee:users!addressee_id(*)')\
+            .eq('addressee_id', user_id)\
+            .execute()
+        
+        print(f"[GET_FRIENDS] Friendships as addressee: {len(friendships_as_addressee.data or [])} found")
+        
+        # Combine both results
+        all_friendships = (friendships_as_requester.data or []) + (friendships_as_addressee.data or [])
         
         friends = []
         pending_requests = []
         
-        for friendship in friendships.data:
+        for friendship in all_friendships:
             if friendship['status'] == 'accepted':
                 friend = friendship['addressee'] if friendship['requester_id'] == user_id else friendship['requester']
                 friends.append(friend)
@@ -95,13 +114,25 @@ def send_friend_request(user_id):
             'status': 'pending'
         }
         
+        print(f"[FRIEND_REQUEST] Creating friendship: {friendship}")
+        
         response = supabase.table('friendships').insert(friendship).execute()
         
-        supabase.table('activity_log').insert({
-            'user_id': user_id,
-            'event_type': 'friend_request_sent',
-            'event_details': {'addressee_id': addressee.data['id']}
-        }).execute()
+        if not response.data:
+            print(f"[FRIEND_REQUEST] Failed to create friendship")
+            return jsonify({'error': 'Failed to create friend request'}), 500
+        
+        print(f"[FRIEND_REQUEST] Friendship created: {response.data[0]}")
+        
+        # Try to log activity but don't fail if it doesn't work
+        try:
+            supabase.table('activity_log').insert({
+                'user_id': user_id,
+                'event_type': 'friend_request_sent',
+                'event_details': {'addressee_id': addressee.data['id']}
+            }).execute()
+        except Exception as log_error:
+            print(f"[FRIEND_REQUEST] Failed to log activity: {log_error}")
         
         return jsonify(response.data[0]), 201
         
