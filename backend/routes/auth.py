@@ -68,52 +68,56 @@ def register():
         if not is_valid:
             raise ValidationError(error_message)
         
-        # Sanitize text inputs
-        data['first_name'] = sanitize_input(data['first_name']).strip()
-        data['last_name'] = sanitize_input(data['last_name']).strip()
-        data['email'] = data['email'].strip().lower()  # Normalize email to lowercase
+        # Store original names for Supabase Auth (no HTML encoding)
+        original_first_name = data['first_name'].strip()
+        original_last_name = data['last_name'].strip()
+        email = data['email'].strip().lower()  # Normalize email to lowercase
         
         # Log the registration attempt (without password)
-        print(f"Registration attempt for email: {data['email']}")
+        print(f"Registration attempt for email: {email}")
+        print(f"Name: {original_first_name} {original_last_name}")
         
         # Use admin client for registration to bypass RLS
         from database import get_supabase_admin_client
         supabase = get_supabase_admin_client()
         
-        # Sign up with Supabase Auth
-        auth_response = supabase.auth.sign_up({
-            'email': data['email'],
-            'password': data['password'],
-            'options': {
-                'data': {
-                    'first_name': data['first_name'],
-                    'last_name': data['last_name']
+        # Sign up with Supabase Auth (use original names without HTML encoding)
+        try:
+            auth_response = supabase.auth.sign_up({
+                'email': email,
+                'password': data['password'],
+                'options': {
+                    'data': {
+                        'first_name': original_first_name,
+                        'last_name': original_last_name
+                    }
                 }
-            }
-        })
+            })
+        except Exception as auth_error:
+            print(f"Supabase auth error: {auth_error}")
+            raise
         
         if auth_response.user:
+            # Sanitize names for database storage (prevent XSS)
+            sanitized_first_name = sanitize_input(original_first_name)
+            sanitized_last_name = sanitize_input(original_last_name)
+            
             # Create user profile in our users table
             user_data = {
                 'id': auth_response.user.id,
-                'first_name': data['first_name'],
-                'last_name': data['last_name'],
+                'first_name': sanitized_first_name,
+                'last_name': sanitized_last_name,
                 'subscription_tier': 'explorer',
                 'created_at': 'now()'
             }
             
-            # Temporarily add username for backward compatibility until migration is run
-            # This will be ignored if the column doesn't exist
-            if 'username' in data:
-                user_data['username'] = data['username']
-            else:
-                # Generate a temporary username from first and last name
-                user_data['username'] = (data['first_name'] + data['last_name']).lower()[:20]
+            # Note: username column has been removed from the database
+            # Don't include it in the insert
             
             supabase.table('users').insert(user_data).execute()
             
             # Ensure diploma and skills are initialized (backup to database trigger)
-            ensure_user_diploma_and_skills(supabase, auth_response.user.id, data['first_name'], data['last_name'])
+            ensure_user_diploma_and_skills(supabase, auth_response.user.id, sanitized_first_name, sanitized_last_name)
             
             return jsonify({
                 'user': auth_response.user.model_dump(),
@@ -127,19 +131,26 @@ def register():
     except Exception as e:
         # Parse error message for specific cases
         error_str = str(e).lower()
+        print(f"Full registration error: {str(e)}")
+        
         if 'already registered' in error_str or 'already exists' in error_str:
             raise ConflictError('This email is already registered')
+        elif 'email signups are disabled' in error_str:
+            raise ValidationError('Registration is temporarily disabled. Please contact support.')
         elif 'invalid' in error_str and 'email' in error_str:
-            raise ValidationError('Please enter a valid email address')
+            # Supabase might be rejecting certain email domains
+            raise ValidationError('This email address cannot be used for registration. Please use a different email.')
         elif 'weak' in error_str and 'password' in error_str:
             raise ValidationError('Password is too weak. Please use at least 8 characters with a mix of letters and numbers')
         elif 'password' in error_str:
             # If Supabase rejects the password for any reason, provide our requirement message
             raise ValidationError('Password must be at least 8 characters and contain uppercase, lowercase, and numbers')
+        elif 'rate limit' in error_str:
+            raise ValidationError('Too many registration attempts. Please wait a few minutes and try again.')
         
         # Log unexpected errors and raise as external service error
         print(f"Registration error: {str(e)}")
-        raise ExternalServiceError('Supabase', 'Registration failed. Please try again', e)
+        raise ExternalServiceError('Supabase', 'Registration service is currently unavailable. Please try again later.', e)
 
 @bp.route('/login', methods=['POST'])
 @rate_limit(max_requests=5, window_seconds=60)  # 5 login attempts per minute
