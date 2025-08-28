@@ -97,8 +97,8 @@ export const AuthProvider = ({ children }) => {
       
       // Handle email verification required case (rate limit or email confirmation)
       if (email_verification_required || message) {
-        toast.success(message || 'Please check your email to verify your account')
-        navigate('/login')
+        // Navigate to email verification page with user's email
+        navigate('/email-verification', { state: { email: userData.email } })
         return { success: true }
       }
       
@@ -115,8 +115,8 @@ export const AuthProvider = ({ children }) => {
         toast.success('Account created successfully!')
         navigate('/dashboard')
       } else {
-        toast.success('Please check your email to verify your account')
-        navigate('/login')
+        // Email verification required - redirect to verification page
+        navigate('/email-verification', { state: { email: userData.email } })
       }
       
       return { success: true }

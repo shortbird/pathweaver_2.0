@@ -373,3 +373,46 @@ def refresh_token():
             
     except Exception as e:
         return jsonify({'error': str(e)}), 400
+
+@bp.route('/resend-verification', methods=['POST'])
+@rate_limit(max_requests=3, window_seconds=600)  # 3 resends per 10 minutes
+def resend_verification():
+    """Resend verification email to user"""
+    try:
+        data = request.json
+        email = data.get('email')
+        
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        # Sanitize email input
+        email = sanitize_input(email.lower().strip())
+        
+        supabase = get_supabase_client()
+        
+        # Check if user exists and is not already verified
+        user_check = supabase.table('users').select('id, email_verified').eq('email', email).execute()
+        
+        if not user_check.data:
+            # Don't reveal if user doesn't exist for security
+            return jsonify({'message': 'If this email is registered, a verification email has been sent'}), 200
+        
+        user = user_check.data[0]
+        
+        if user.get('email_verified'):
+            return jsonify({'error': 'Email is already verified'}), 400
+        
+        # Resend verification email using Supabase Auth
+        try:
+            # Use Supabase's resend functionality
+            supabase.auth.resend(email=email, type='signup')
+            
+            return jsonify({'message': 'Verification email has been resent. Please check your inbox.'}), 200
+        except Exception as auth_error:
+            print(f"[RESEND_VERIFICATION] Supabase auth error: {str(auth_error)}")
+            # If Supabase resend fails, still return success to avoid revealing user existence
+            return jsonify({'message': 'If this email is registered, a verification email has been sent'}), 200
+            
+    except Exception as e:
+        print(f"[RESEND_VERIFICATION] Error: {str(e)}")
+        return jsonify({'error': 'Failed to resend verification email'}), 500
