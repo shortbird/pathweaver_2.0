@@ -5,6 +5,7 @@ from datetime import datetime
 import csv
 import io
 import json
+import os
 
 bp = Blueprint('admin', __name__)
 
@@ -769,3 +770,23 @@ def batch_complete_quests(user_id):
     except Exception as e:
         print(f"Error in batch quest completion: {str(e)}")
         return jsonify({'error': f'Batch completion failed: {str(e)}'}), 500
+
+@bp.route('/clear-rate-limit', methods=['POST'])
+@require_admin
+def clear_rate_limit():
+    """Clear rate limiting for a specific IP address (admin only)"""
+    try:
+        from middleware.rate_limiter import rate_limiter
+        
+        # Get IP from request body or use requester's IP
+        data = request.json or {}
+        ip_to_clear = data.get('ip', request.remote_addr)
+        
+        if ip_to_clear:
+            rate_limiter.reset(ip_to_clear)
+            return jsonify({'message': f'Rate limit cleared for IP: {ip_to_clear}'}), 200
+        else:
+            return jsonify({'error': 'No IP address provided'}), 400
+            
+    except Exception as e:
+        return jsonify({'error': f'Failed to clear rate limit: {str(e)}'}), 500

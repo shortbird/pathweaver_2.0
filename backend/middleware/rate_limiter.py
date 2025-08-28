@@ -67,13 +67,20 @@ def rate_limit(max_requests: int = 60, window_seconds: int = 60):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            import os
+            
             # Use IP address as identifier
             identifier = request.remote_addr or 'unknown'
             
             # Special handling for auth endpoints (stricter limits)
             if 'auth' in request.endpoint and request.method == 'POST':
-                max_req = 5  # Only 5 auth attempts
-                window = 60  # Per minute
+                # More lenient in development mode
+                if os.getenv('FLASK_ENV') == 'development':
+                    max_req = 50  # Much higher limit for testing
+                    window = 60  # Per minute
+                else:
+                    max_req = 5  # Only 5 auth attempts in production
+                    window = 60  # Per minute
             else:
                 max_req = max_requests
                 window = window_seconds
