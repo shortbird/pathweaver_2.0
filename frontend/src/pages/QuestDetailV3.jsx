@@ -5,6 +5,7 @@ import { handleApiResponse } from '../utils/errorHandling';
 import TaskCompletionModal from '../components/quest/TaskCompletionModal';
 import LearningLogSection from '../components/quest/LearningLogSection';
 import TeamUpModal from '../components/quest/TeamUpModal';
+import { getQuestHeaderImage } from '../utils/questSourceConfig';
 
 const QuestDetailV3 = () => {
   const { id } = useParams();
@@ -172,20 +173,27 @@ const QuestDetailV3 = () => {
     <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Quest Header */}
         <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
-          {quest.header_image_url ? (
+          {quest.header_image_url || quest.source ? (
             <img 
-              src={quest.header_image_url} 
+              src={quest.header_image_url || getQuestHeaderImage(quest)} 
               alt={quest.title}
               className="w-full h-64 object-cover"
+              onError={(e) => {
+                // Fallback to default gradient if image fails to load
+                e.target.style.display = 'none';
+                e.target.nextSibling.style.display = 'flex';
+              }}
             />
-          ) : (
-            <div className="h-64 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center">
-              <div className="text-white text-center">
-                <div className="text-6xl mb-2">🚀</div>
-                <div className="text-xl font-medium">Quest</div>
-              </div>
+          ) : null}
+          <div 
+            className="h-64 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center"
+            style={{ display: quest.header_image_url || quest.source ? 'none' : 'flex' }}
+          >
+            <div className="text-white text-center">
+              <div className="text-6xl mb-2">🚀</div>
+              <div className="text-xl font-medium">Quest</div>
             </div>
-          )}
+          </div>
 
           <div className="p-6">
             <div className="flex justify-between items-start mb-4">

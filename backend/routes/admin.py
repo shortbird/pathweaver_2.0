@@ -139,7 +139,8 @@ def create_quest(user_id):
             'description', 'evidence_requirements', 'difficulty_level', 'effort_level', 
             'estimated_hours', 'accepted_evidence_types', 'example_submissions', 'core_skills',
             'resources_needed', 'location_requirements', 'optional_challenges',
-            'safety_considerations', 'requires_adult_supervision', 'collaboration_ideas'
+            'safety_considerations', 'requires_adult_supervision', 'collaboration_ideas',
+            'source'  # Add source field
         ]
         
         # Add all present fields from either format

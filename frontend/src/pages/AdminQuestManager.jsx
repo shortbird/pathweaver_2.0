@@ -26,9 +26,22 @@ const DIPLOMA_PILLARS = {
   }
 }
 
+// Predefined sources with their associated header images
+const DEFAULT_QUEST_SOURCES = {
+  optio: 'Optio',
+  khan_academy: 'Khan Academy'
+}
+
+// Map sources to their default header images
+const SOURCE_IMAGES = {
+  optio: '/images/headers/optio-header.png',
+  khan_academy: '/images/headers/khan-academy-header.png'
+}
+
 const AdminQuestManager = ({ quest, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     title: quest?.title || '',
+    source: quest?.source || 'optio',
     big_idea: quest?.big_idea || '',
     what_youll_create: quest?.what_youll_create || [],
     primary_pillar: quest?.primary_pillar || '',
@@ -51,6 +64,40 @@ const AdminQuestManager = ({ quest, onClose, onSave }) => {
   const [currentMaterial, setCurrentMaterial] = useState('')
   const [currentLink, setCurrentLink] = useState('')
   const [loadingAI, setLoadingAI] = useState(false)
+  const [showAddSource, setShowAddSource] = useState(false)
+  const [newSourceName, setNewSourceName] = useState('')
+  const [customSources, setCustomSources] = useState(() => {
+    // Load custom sources from localStorage
+    const saved = localStorage.getItem('customQuestSources')
+    return saved ? JSON.parse(saved) : {}
+  })
+
+  const handleAddSource = () => {
+    if (!newSourceName.trim()) {
+      toast.error('Please enter a source name')
+      return
+    }
+    
+    const sourceKey = newSourceName.toLowerCase().replace(/\s+/g, '_')
+    if (DEFAULT_QUEST_SOURCES[sourceKey] || customSources[sourceKey]) {
+      toast.error('This source already exists')
+      return
+    }
+    
+    const updatedCustomSources = {
+      ...customSources,
+      [sourceKey]: newSourceName
+    }
+    
+    setCustomSources(updatedCustomSources)
+    localStorage.setItem('customQuestSources', JSON.stringify(updatedCustomSources))
+    setFormData({ ...formData, source: sourceKey })
+    setNewSourceName('')
+    setShowAddSource(false)
+    toast.success(`Added new source: ${newSourceName}`)
+  }
+
+  const allSources = { ...DEFAULT_QUEST_SOURCES, ...customSources }
 
   const handleAIComplete = async () => {
     setLoadingAI(true)
@@ -216,6 +263,80 @@ const AdminQuestManager = ({ quest, onClose, onSave }) => {
                 placeholder="An engaging, narrative title"
                 required
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-1">Quest Source *</label>
+              {!showAddSource ? (
+                <div>
+                  <div className="flex items-center gap-2">
+                    <select
+                      value={formData.source}
+                      onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                      className="input-field flex-1"
+                      required
+                    >
+                      {Object.entries(allSources).map(([key, name]) => (
+                        <option key={key} value={key}>{name}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => setShowAddSource(true)}
+                      className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                    >
+                      + Add New Source
+                    </button>
+                  </div>
+                  {formData.source && (
+                    <div className="mt-2 text-sm text-gray-600">
+                      {SOURCE_IMAGES[formData.source] ? (
+                        <span>
+                          Uses default header: <span className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">
+                            {SOURCE_IMAGES[formData.source].split('/').pop()}
+                          </span>
+                        </span>
+                      ) : (
+                        <span className="text-amber-600">
+                          Custom source - will use default Optio header image
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={newSourceName}
+                    onChange={(e) => setNewSourceName(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSource())}
+                    className="input-field flex-1"
+                    placeholder="Enter new source name (e.g., Coursera, edX)"
+                    autoFocus
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddSource}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    Add
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowAddSource(false)
+                      setNewSourceName('')
+                    }}
+                    className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+              <p className="text-xs text-gray-500 mt-1">
+                Source determines the default header image. All {allSources[formData.source]} quests will share the same header.
+              </p>
             </div>
 
             <div>
