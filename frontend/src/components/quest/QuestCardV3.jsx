@@ -63,12 +63,12 @@ const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
       onClick={handleCardClick}
     >
       {/* Header Image Section */}
-      <div className="relative h-48 overflow-hidden">
+      <div className="relative h-48 overflow-hidden bg-white">
         {quest.header_image_url ? (
           <img 
             src={quest.header_image_url} 
             alt={quest.title}
-            className="w-full h-full object-cover"
+            className="w-full h-full object-contain"
             onError={(e) => {
               e.target.style.display = 'none';
               e.target.nextSibling.style.display = 'flex';
@@ -114,7 +114,7 @@ const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
               <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
               <path fillRule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 100 4h2a2 2 0 100-4h-.5a1 1 0 000-2H8a2 2 0 012-2z" clipRule="evenodd" />
             </svg>
-            <span>{taskCount} Tasks</span>
+            <span>{taskCount} {taskCount === 1 ? 'Task' : 'Tasks'}</span>
           </div>
           
           {quest.user_enrollment && (
