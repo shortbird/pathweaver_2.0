@@ -7,6 +7,7 @@ from middleware.rate_limiter import rate_limit
 from middleware.error_handler import ValidationError, AuthenticationError, ExternalServiceError, ConflictError
 from utils.retry_handler import retry_database_operation
 import re
+import os
 
 bp = Blueprint('auth', __name__)
 
@@ -62,11 +63,9 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
 def register():
     try:
         data = request.json
-        print(f"Registration data received: {data}")
         
         # Validate input data
         is_valid, error_message = validate_registration_data(data)
-        print(f"Validation result: valid={is_valid}, error={error_message}")
         if not is_valid:
             raise ValidationError(error_message)
         
@@ -75,9 +74,10 @@ def register():
         original_last_name = data['last_name'].strip()
         email = data['email'].strip().lower()  # Normalize email to lowercase
         
-        # Log the registration attempt (without password)
-        print(f"Registration attempt for email: {email}")
-        print(f"Name: {original_first_name} {original_last_name}")
+        # Log the registration attempt (without password or PII)
+        # Only log in development mode
+        if os.getenv('FLASK_ENV') == 'development':
+            print(f"Registration attempt for email: {email[:3]}***")
         
         # Use admin client for registration to bypass RLS
         from database import get_supabase_admin_client
@@ -98,7 +98,9 @@ def register():
                 }
             })
         except Exception as auth_error:
-            print(f"Supabase auth error: {auth_error}")
+            # Log error without exposing sensitive data
+            if os.getenv('FLASK_ENV') == 'development':
+                print(f"Supabase auth error: {auth_error}")
             raise
         
         if auth_response.user:
@@ -125,6 +127,15 @@ def register():
             # Ensure diploma and skills are initialized (backup to database trigger)
             ensure_user_diploma_and_skills(supabase, auth_response.user.id, sanitized_first_name, sanitized_last_name)
             
+            # Send welcome email (optional - only if you want custom emails beyond Supabase's)
+            try:
+                from services.email_service import email_service
+                full_name = f"{original_first_name} {original_last_name}"
+                email_service.send_welcome_email(email, full_name)
+            except Exception as email_error:
+                # Don't fail registration if email fails
+                print(f"Welcome email failed: {email_error}")
+            
             return jsonify({
                 'user': auth_response.user.model_dump(),
                 'session': auth_response.session.model_dump() if auth_response.session else None
@@ -137,7 +148,6 @@ def register():
     except Exception as e:
         # Parse error message for specific cases
         error_str = str(e).lower()
-        print(f"Full registration error: {str(e)}")
         
         if 'already registered' in error_str or 'already exists' in error_str:
             raise ConflictError('This email is already registered')
@@ -161,8 +171,9 @@ def register():
             else:
                 raise ValidationError('Too many registration attempts. Please wait a minute and try again.')
         
-        # Log unexpected errors and raise as external service error
-        print(f"Registration error: {str(e)}")
+        # Log unexpected errors in development only
+        if os.getenv('FLASK_ENV') == 'development':
+            print(f"Registration error: {str(e)}")
         raise ExternalServiceError('Supabase', 'Registration service is currently unavailable. Please try again later.', e)
 
 @bp.route('/login', methods=['POST'])
