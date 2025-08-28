@@ -62,6 +62,9 @@ class EmailService:
             html_part = MIMEText(html_body, 'html')
             msg.attach(html_part)
             
+            # Disable SendGrid click tracking to avoid HTTP warning
+            msg['X-SMTPAPI'] = '{"filters": {"clicktrack": {"settings": {"enable": 0}}}}'
+            
             # Prepare recipient list
             recipients = [to_email]
             if cc:
