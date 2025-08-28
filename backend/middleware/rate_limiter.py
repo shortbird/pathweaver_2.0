@@ -69,6 +69,10 @@ def rate_limit(max_requests: int = 60, window_seconds: int = 60):
         def decorated_function(*args, **kwargs):
             import os
             
+            # Check if rate limiting is disabled via environment variable
+            if os.getenv('DISABLE_RATE_LIMIT') == 'true':
+                return f(*args, **kwargs)
+            
             # Use IP address as identifier
             identifier = request.remote_addr or 'unknown'
             
