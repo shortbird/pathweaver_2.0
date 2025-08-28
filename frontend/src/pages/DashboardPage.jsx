@@ -372,19 +372,26 @@ const DashboardPage = () => {
         <div className="card">
           <h2 className="text-xl font-semibold mb-4">Skill Category Progress</h2>
           {skillXPData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={skillXPData}>
-                <CartesianGrid strokeDasharray="3 3" />
+            <ResponsiveContainer width="100%" height={350}>
+              <BarChart data={skillXPData} margin={{ top: 20, right: 20, bottom: 80, left: 60 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis 
                   dataKey="category" 
-                  tick={{ fontSize: 11 }}
-                  angle={-45}
+                  tick={{ fontSize: 14, fill: '#374151', fontWeight: 500 }}
+                  angle={-35}
                   textAnchor="end"
-                  height={100}
+                  height={120}
+                  interval={0}
                 />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="xp" fill="#6A4C93" name="XP Earned" />
+                <YAxis 
+                  tick={{ fontSize: 14, fill: '#374151' }}
+                  label={{ value: 'XP Points', angle: -90, position: 'insideLeft', style: { fontSize: 14, fill: '#374151', fontWeight: 500 } }}
+                />
+                <Tooltip 
+                  contentStyle={{ fontSize: 14, backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                  labelStyle={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}
+                />
+                <Bar dataKey="xp" fill="#6A4C93" name="XP Earned" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           ) : (
@@ -397,20 +404,35 @@ const DashboardPage = () => {
           <h2 className="text-xl font-semibold mb-4">Skill Balance</h2>
           {skillXPData.length > 0 ? (
             <ResponsiveContainer width="100%" height={350}>
-              <RadarChart data={skillXPData} margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
-                <PolarGrid />
+              <RadarChart data={skillXPData} margin={{ top: 30, right: 50, bottom: 30, left: 50 }}>
+                <PolarGrid 
+                  stroke="#e5e7eb"
+                  strokeWidth={1.5}
+                />
                 <PolarAngleAxis 
                   dataKey="category" 
-                  tick={{ fontSize: 10 }}
+                  tick={{ fontSize: 14, fill: '#374151', fontWeight: 500 }}
                   className="text-gray-700"
                 />
                 <PolarRadiusAxis 
                   angle={90} 
                   domain={[0, 'dataMax']} 
-                  tick={{ fontSize: 9 }}
+                  tick={{ fontSize: 12, fill: '#6b7280' }}
                   tickFormatter={(value) => value.toLocaleString()}
+                  stroke="#e5e7eb"
                 />
-                <Radar name="Skills" dataKey="xp" stroke="#6A4C93" fill="#6A4C93" fillOpacity={0.6} />
+                <Radar 
+                  name="Skills" 
+                  dataKey="xp" 
+                  stroke="#6A4C93" 
+                  fill="#6A4C93" 
+                  fillOpacity={0.6}
+                  strokeWidth={2}
+                />
+                <Tooltip 
+                  contentStyle={{ fontSize: 14, backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px' }}
+                  labelStyle={{ fontSize: 14, fontWeight: 600, marginBottom: 4 }}
+                />
               </RadarChart>
             </ResponsiveContainer>
           ) : (
