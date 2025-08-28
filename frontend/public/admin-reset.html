@@ -97,10 +97,16 @@
 
         function showMessage(text, isSuccess) {
             const messageDiv = document.getElementById('message');
-            messageDiv.textContent = text;
+            messageDiv.innerHTML = text.replace(/\n/g, '<br>');
             messageDiv.className = 'message ' + (isSuccess ? 'success' : 'error');
+            messageDiv.style.whiteSpace = 'pre-wrap';
+            messageDiv.style.textAlign = 'left';
+            if (!isSuccess) {
+                // Don't auto-hide error messages with debug info
+                return;
+            }
             setTimeout(() => {
-                messageDiv.textContent = '';
+                messageDiv.innerHTML = '';
                 messageDiv.className = '';
             }, 5000);
         }
@@ -131,7 +137,13 @@
                 if (response.ok) {
                     showMessage(data.message || 'Rate limit reset successfully!', true);
                 } else {
-                    showMessage(data.error || 'Failed to reset rate limit', false);
+                    // Show debug info if available
+                    let errorMsg = data.error || 'Failed to reset rate limit';
+                    if (data.debug) {
+                        errorMsg += '\nDebug: ' + JSON.stringify(data.debug, null, 2);
+                    }
+                    showMessage(errorMsg, false);
+                    console.error('Error details:', data);
                 }
             } catch (error) {
                 showMessage('Error: ' + error.message, false);
@@ -166,7 +178,13 @@
                 if (response.ok) {
                     showMessage(data.message || 'All rate limits reset successfully!', true);
                 } else {
-                    showMessage(data.error || 'Failed to reset rate limits', false);
+                    // Show debug info if available
+                    let errorMsg = data.error || 'Failed to reset rate limits';
+                    if (data.debug) {
+                        errorMsg += '\nDebug: ' + JSON.stringify(data.debug, null, 2);
+                    }
+                    showMessage(errorMsg, false);
+                    console.error('Error details:', data);
                 }
             } catch (error) {
                 showMessage('Error: ' + error.message, false);
