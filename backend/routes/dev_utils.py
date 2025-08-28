@@ -51,8 +51,20 @@ def reset_all_rate_limits():
     # In production, require password
     if os.getenv('FLASK_ENV') != 'development':
         data = request.json or {}
-        if not verify_admin_password(data.get('password')):
-            return jsonify({'error': 'Invalid password'}), 403
+        password = data.get('password')
+        if not verify_admin_password(password):
+            # Debug info - remove after testing
+            import hashlib
+            provided_hash = hashlib.sha256(password.encode()).hexdigest() if password else 'No password provided'
+            return jsonify({
+                'error': 'Invalid password',
+                'debug': {
+                    'env': os.getenv('FLASK_ENV'),
+                    'password_provided': bool(password),
+                    'expected_hash': ADMIN_RESET_PASSWORD_HASH[:10] + '...',
+                    'provided_hash': provided_hash[:10] + '...' if password else provided_hash
+                }
+            }), 403
     
     # Clear all rate limit data
     rate_limiter.requests.clear()
