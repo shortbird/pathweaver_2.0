@@ -306,14 +306,20 @@ const DashboardPage = () => {
     )
   }
 
+  // Check if user is new (created within the last 5 minutes)
+  const isNewUser = user?.created_at ? 
+    (new Date() - new Date(user.created_at)) < 5 * 60 * 1000 : false
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">
-          Welcome back, {user?.first_name}!
+          {isNewUser ? `Welcome to OptioQuest, ${user?.first_name}!` : `Welcome back, ${user?.first_name}!`}
         </h1>
         <p className="text-gray-600 mt-2">
-          Your Self-Validated Diploma is building value with every quest you complete.
+          {isNewUser ? 
+            'Start your learning journey by completing quests and earning XP!' :
+            'Your Self-Validated Diploma is building value with every quest you complete.'}
         </p>
       </div>
 

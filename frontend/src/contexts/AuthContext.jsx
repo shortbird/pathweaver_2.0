@@ -46,7 +46,17 @@ export const AuthProvider = ({ children }) => {
       
       api.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`
       
-      toast.success('Welcome back!')
+      // Check if user is new (created within the last 5 minutes)
+      const createdAt = new Date(user.created_at)
+      const now = new Date()
+      const timeDiff = now - createdAt
+      const isNewUser = timeDiff < 5 * 60 * 1000 // 5 minutes in milliseconds
+      
+      if (isNewUser) {
+        toast.success(`Welcome to OptioQuest, ${user.first_name}!`)
+      } else {
+        toast.success('Welcome back!')
+      }
       navigate('/dashboard')
       
       return { success: true }
