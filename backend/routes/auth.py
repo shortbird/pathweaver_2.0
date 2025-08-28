@@ -18,22 +18,20 @@ def generate_portfolio_slug(first_name, last_name):
     return base_slug
 
 def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
-    """Ensure user has diploma and skill categories initialized"""
+    """Ensure user has diploma and skill categories initialized - OPTIMIZED"""
     try:
         # Check if diploma exists
         diploma_check = supabase.table('diplomas').select('id').eq('user_id', user_id).execute()
         
         if not diploma_check.data:
-            # Generate unique slug
+            # Generate unique slug with fewer checks (max 10 attempts)
             slug = generate_portfolio_slug(first_name, last_name)
-            counter = 0
-            while True:
+            for counter in range(10):
                 check_slug = slug if counter == 0 else f"{slug}{counter}"
                 existing = supabase.table('diplomas').select('id').eq('portfolio_slug', check_slug).execute()
                 if not existing.data:
                     slug = check_slug
                     break
-                counter += 1
             
             # Create diploma
             supabase.table('diplomas').insert({
@@ -41,18 +39,30 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
                 'portfolio_slug': slug
             }).execute()
         
-        # Initialize the 5 Diploma Pillars for V3
+        # Batch insert all skill categories at once instead of checking each one
         skill_categories = ['creativity', 'critical_thinking', 'practical_skills', 
                            'communication', 'cultural_literacy']
         
-        for pillar in skill_categories:
-            existing_skill = supabase.table('user_skill_xp').select('id').eq('user_id', user_id).eq('pillar', pillar).execute()
-            if not existing_skill.data:
-                supabase.table('user_skill_xp').insert({
-                    'user_id': user_id,
-                    'pillar': pillar,
-                    'xp_amount': 0
-                }).execute()
+        # Build all skill records to insert
+        skill_records = [
+            {
+                'user_id': user_id,
+                'pillar': pillar,
+                'xp_amount': 0
+            }
+            for pillar in skill_categories
+        ]
+        
+        # Try to insert all at once, ignore conflicts (if they already exist)
+        try:
+            supabase.table('user_skill_xp').upsert(skill_records, on_conflict='user_id,pillar').execute()
+        except:
+            # If batch insert fails, fall back to individual inserts
+            for record in skill_records:
+                try:
+                    supabase.table('user_skill_xp').insert(record).execute()
+                except:
+                    pass  # Skill already exists
                 
     except Exception as e:
         print(f"Error ensuring diploma and skills: {str(e)}")
@@ -137,6 +147,13 @@ def register():
             raise
         
         if auth_response.user:
+            # If no session, email verification is required
+            if not auth_response.session:
+                return jsonify({
+                    'message': 'Account created successfully! Please check your email to verify your account.',
+                    'email_verification_required': True
+                }), 201
+                
             # Sanitize names for database storage (prevent XSS)
             sanitized_first_name = sanitize_input(original_first_name)
             sanitized_last_name = sanitize_input(original_last_name)
@@ -158,16 +175,10 @@ def register():
             supabase.table('users').insert(user_data).execute()
             
             # Ensure diploma and skills are initialized (backup to database trigger)
+            # This is now optimized to use batch operations
             ensure_user_diploma_and_skills(supabase, auth_response.user.id, sanitized_first_name, sanitized_last_name)
             
-            # Send welcome email (optional - only if you want custom emails beyond Supabase's)
-            try:
-                from services.email_service import email_service
-                full_name = f"{original_first_name} {original_last_name}"
-                email_service.send_welcome_email(email, full_name)
-            except Exception as email_error:
-                # Don't fail registration if email fails
-                print(f"Welcome email failed: {email_error}")
+            # Skip welcome email to avoid timeout - Supabase sends its own
             
             return jsonify({
                 'user': auth_response.user.model_dump(),
