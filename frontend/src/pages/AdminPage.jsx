@@ -119,23 +119,6 @@ const AdminQuests = () => {
     return categoryNames[category] || category
   }
 
-  const getDifficultyBadgeColor = (level) => {
-    switch(level) {
-      case 'beginner': return 'bg-green-100 text-green-800'
-      case 'intermediate': return 'bg-yellow-100 text-yellow-800'
-      case 'advanced': return 'bg-red-100 text-red-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
-  }
-
-  const getEffortBadgeColor = (level) => {
-    switch(level) {
-      case 'light': return 'bg-blue-100 text-blue-800'
-      case 'moderate': return 'bg-orange-100 text-orange-800'
-      case 'intensive': return 'bg-purple-100 text-purple-800'
-      default: return 'bg-gray-100 text-gray-800'
-    }
-  }
 
   const toggleQuestCollapse = (questId) => {
     setCollapsedQuests(prev => {
@@ -277,9 +260,6 @@ const AdminQuests = () => {
                                   }`}>
                                     {task.pillar?.replace('_', ' ')}
                                   </span>
-                                  {task.is_required && (
-                                    <span className="text-xs text-gray-500">Required</span>
-                                  )}
                                   {task.is_collaboration_eligible && (
                                     <span className="text-xs text-purple-600">Team-up eligible</span>
                                   )}
@@ -291,34 +271,6 @@ const AdminQuests = () => {
                       </div>
                     )}
 
-                    {/* Quest Metadata */}
-                    <div className="flex flex-wrap gap-2 mb-4">
-                      {quest.difficulty_level && (
-                        <span className={`px-3 py-1 text-xs font-medium rounded ${getDifficultyBadgeColor(quest.difficulty_level)}`}>
-                          {quest.difficulty_level?.charAt(0).toUpperCase() + quest.difficulty_level?.slice(1)}
-                        </span>
-                      )}
-                      {quest.effort_level && (
-                        <span className={`px-3 py-1 text-xs font-medium rounded ${getEffortBadgeColor(quest.effort_level)}`}>
-                          {quest.effort_level?.charAt(0).toUpperCase() + quest.effort_level?.slice(1)} Effort
-                        </span>
-                      )}
-                      {quest.estimated_hours && (
-                        <span className="px-3 py-1 text-xs font-medium rounded bg-gray-100 text-gray-700">
-                          ⏱️ ~{quest.estimated_hours} hours
-                        </span>
-                      )}
-                      {quest.requires_adult_supervision && (
-                        <span className="px-3 py-1 text-xs font-medium rounded bg-red-100 text-red-700">
-                          ⚠️ Adult Supervision
-                        </span>
-                      )}
-                      {totalXP > 0 && (
-                        <span className="px-3 py-1 text-xs font-medium rounded bg-purple-100 text-purple-700">
-                          🏆 {totalXP} Total XP
-                        </span>
-                      )}
-                    </div>
 
                     {/* Skills or Subjects XP */}
                     {(quest.quest_skill_xp?.length > 0 || quest.quest_xp_awards?.length > 0) && (
@@ -359,23 +311,6 @@ const AdminQuests = () => {
                       </div>
                     )}
 
-                    {/* Evidence Suggestions */}
-                    <div className="border-t pt-4">
-                      <p className="text-xs font-semibold text-gray-500 mb-2">EVIDENCE SUGGESTIONS:</p>
-                      <p className="text-sm text-gray-700 line-clamp-2">
-                        {quest.evidence_requirements || 'No specific suggestions set'}
-                      </p>
-                      
-                      {quest.accepted_evidence_types?.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1">
-                          {quest.accepted_evidence_types.map((type, idx) => (
-                            <span key={idx} className="px-2 py-0.5 text-xs bg-blue-50 text-blue-700 rounded">
-                              {type}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
 
                     {/* Additional Info */}
                     <div className="mt-4 grid grid-cols-2 gap-4 text-xs text-gray-500">

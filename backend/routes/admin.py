@@ -325,7 +325,9 @@ def delete_quest(user_id, quest_id):
         # 1. Delete learning logs (depends on user_quests)
         user_quests_response = supabase.table('user_quests').select('id').eq('quest_id', quest_id).execute()
         if user_quests_response.data:
+            print(f"DEBUG: user_quests data: {user_quests_response.data}")
             for uq in user_quests_response.data:
+                print(f"DEBUG: uq['id'] = {uq['id']}, type = {type(uq['id'])}")
                 try:
                     supabase.table('learning_logs').delete().eq('user_quest_id', uq['id']).execute()
                 except Exception as e:
@@ -335,8 +337,18 @@ def delete_quest(user_id, quest_id):
         if user_quests_response.data:
             for uq in user_quests_response.data:
                 # Get submissions first
-                submissions_response = supabase.table('submissions').select('id').eq('user_quest_id', uq['id']).execute()
-                if submissions_response.data:
+                # Check if id is actually a UUID string and needs conversion
+                user_quest_id = uq['id']
+                print(f"DEBUG: Checking submissions for user_quest_id = {user_quest_id}")
+                
+                # Try to handle both integer and UUID cases
+                try:
+                    submissions_response = supabase.table('submissions').select('id').eq('user_quest_id', user_quest_id).execute()
+                except Exception as e:
+                    print(f"Error querying submissions: {e}")
+                    submissions_response = None
+                    
+                if submissions_response and submissions_response.data:
                     for submission in submissions_response.data:
                         # Delete submission evidence
                         try:
