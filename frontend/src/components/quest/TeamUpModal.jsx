@@ -70,10 +70,11 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
       setInvitedFriends(prev => new Set([...prev, friend.id]));
       
       // Show success message
+      const friendName = friend.username || `${friend.first_name} ${friend.last_name}`;
       onInviteSent({
         friend: friend,
         quest: quest,
-        message: data.message || `Invitation sent to ${friend.username || friend.first_name}!`
+        message: data.message || `Invitation sent to ${friendName}!`
       });
 
     } catch (error) {

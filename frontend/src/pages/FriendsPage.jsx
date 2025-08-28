@@ -208,7 +208,7 @@ const FriendsPage = () => {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <p className="font-medium text-purple-900">
-                          {invite.requester.username} invited you to team up!
+                          {invite.requester.username || `${invite.requester.first_name} ${invite.requester.last_name}`} invited you to team up!
                         </p>
                         <p className="text-sm text-purple-700 mt-1">
                           Quest: {invite.quest.title}
@@ -287,7 +287,7 @@ const FriendsPage = () => {
                           {collab.quest.title}
                         </p>
                         <p className="text-sm text-green-700">
-                          Partner: {collab.partner.username}
+                          Partner: {collab.partner.username || `${collab.partner.first_name} ${collab.partner.last_name}`}
                         </p>
                       </div>
                       <div className="text-right">

@@ -97,9 +97,9 @@ def send_collaboration_invite(user_id: str):
                     'error': 'A pending invitation already exists for this quest'
                 }), 400
         
-        # Get friend's username for notification
+        # Get friend's name for notification
         friend_info = supabase.table('users')\
-            .select('username')\
+            .select('first_name, last_name')\
             .eq('id', friend_id)\
             .single()\
             .execute()
@@ -121,21 +121,24 @@ def send_collaboration_invite(user_id: str):
                 'error': 'Failed to send invitation'
             }), 500
         
-        # Get requester's username for response
+        # Get requester's name for response
         requester_info = supabase.table('users')\
-            .select('username')\
+            .select('first_name, last_name')\
             .eq('id', user_id)\
             .single()\
             .execute()
         
+        friend_name = f"{friend_info.data['first_name']} {friend_info.data['last_name']}"
+        requester_name = f"{requester_info.data['first_name']} {requester_info.data['last_name']}"
+        
         return jsonify({
             'success': True,
-            'message': f'Team-up invitation sent to {friend_info.data["username"]}',
+            'message': f'Team-up invitation sent to {friend_name}',
             'invitation': {
                 **invitation.data[0],
                 'quest_title': quest.data['title'],
-                'friend_username': friend_info.data['username'],
-                'requester_username': requester_info.data['username']
+                'friend_name': friend_name,
+                'requester_name': requester_name
             }
         })
         
@@ -157,7 +160,7 @@ def get_pending_invites(user_id: str):
         
         # Get invitations where user is the partner
         invitations = supabase.table('quest_collaborations')\
-            .select('*, quests(id, title, header_image_url), users!requester_id(id, username, avatar_url)')\
+            .select('*, quests(id, title, header_image_url), users!requester_id(id, first_name, last_name, avatar_url)')\
             .eq('partner_id', user_id)\
             .eq('status', 'pending')\
             .order('created_at', desc=True)\
@@ -258,16 +261,18 @@ def accept_invitation(user_id: str, invite_id: str):
                 'error': 'Failed to accept invitation'
             }), 500
         
-        # Get requester's username for notification
+        # Get requester's name for notification
         requester = supabase.table('users')\
-            .select('username')\
+            .select('first_name, last_name')\
             .eq('id', invitation.data['requester_id'])\
             .single()\
             .execute()
         
+        requester_name = f"{requester.data['first_name']} {requester.data['last_name']}"
+        
         return jsonify({
             'success': True,
-            'message': f'Team-up accepted! You and {requester.data["username"]} will earn 2x XP for "{invitation.data["quests"]["title"]}"',
+            'message': f'Team-up accepted! You and {requester_name} will earn 2x XP for "{invitation.data["quests"]["title"]}"',
             'collaboration': updated.data[0]
         })
         
@@ -360,7 +365,7 @@ def get_active_collaborations(user_id: str):
             
             # Get partner info
             partner = supabase.table('users')\
-                .select('id, username, avatar_url')\
+                .select('id, first_name, last_name, avatar_url')\
                 .eq('id', partner_id)\
                 .single()\
                 .execute()
