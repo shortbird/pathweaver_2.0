@@ -383,47 +383,6 @@ const DashboardPage = () => {
       </div>
 
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="card">
-          <h3 className="text-lg font-semibold mb-2">Active Quests</h3>
-          <p className="text-3xl font-bold text-primary">
-            {dashboardData?.stats?.quests_in_progress || dashboardData?.active_quests?.length || 0}
-          </p>
-          <Link to="/quests" className="text-sm text-primary hover:underline mt-2 inline-block">
-            Browse more quests →
-          </Link>
-        </div>
-
-        <div className="card">
-          <h3 className="text-lg font-semibold mb-2">Total XP Earned</h3>
-          <p className="text-3xl font-bold text-secondary">
-            {totalXP}
-          </p>
-          <p className="text-sm text-gray-600 mt-2">
-            Across all skill categories
-          </p>
-        </div>
-
-        <div className="card">
-          <h3 className="text-lg font-semibold mb-2">Quests Completed</h3>
-          <p className="text-3xl font-bold text-green-600">
-            {portfolioData?.total_quests_completed || dashboardData?.stats?.quests_completed || dashboardData?.total_quests_completed || 0}
-          </p>
-          <p className="text-sm text-gray-600 mt-2">
-            Keep building!
-          </p>
-        </div>
-
-        <div className="card">
-          <h3 className="text-lg font-semibold mb-2">Tasks Completed</h3>
-          <p className="text-3xl font-bold text-purple-600">
-            {dashboardData?.stats?.tasks_completed || 0}
-          </p>
-          <p className="text-sm text-gray-600 mt-2">
-            Progress on all quests
-          </p>
-        </div>
-      </div>
 
       {/* Skill Development Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -431,20 +390,20 @@ const DashboardPage = () => {
         <div className="card">
           <h2 className="text-xl font-semibold mb-4">Skill Category Progress</h2>
           {skillXPData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={350}>
-              <BarChart data={skillXPData} margin={{ top: 20, right: 20, bottom: 80, left: 60 }}>
+            <ResponsiveContainer width="100%" height={420}>
+              <BarChart data={skillXPData} margin={{ top: 10, right: 10, bottom: 70, left: 50 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
                 <XAxis 
                   dataKey="category" 
-                  tick={{ fontSize: 14, fill: '#374151', fontWeight: 500 }}
+                  tick={{ fontSize: 12, fill: '#374151', fontWeight: 500 }}
                   angle={-35}
                   textAnchor="end"
-                  height={120}
+                  height={100}
                   interval={0}
                 />
                 <YAxis 
-                  tick={{ fontSize: 14, fill: '#374151' }}
-                  label={{ value: 'XP Points', angle: -90, position: 'insideLeft', style: { fontSize: 14, fill: '#374151', fontWeight: 500 } }}
+                  tick={{ fontSize: 12, fill: '#374151' }}
+                  label={{ value: 'XP', angle: -90, position: 'insideLeft', style: { fontSize: 14, fill: '#374151', fontWeight: 500 } }}
                 />
                 <Tooltip 
                   contentStyle={{ fontSize: 14, backgroundColor: '#f9fafb', border: '1px solid #e5e7eb', borderRadius: '8px' }}
@@ -462,7 +421,7 @@ const DashboardPage = () => {
         <div className="card">
           <h2 className="text-xl font-semibold mb-4">Skill Balance</h2>
           {skillXPData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={350}>
+            <ResponsiveContainer width="100%" height={420}>
               <RadarChart data={skillXPData} margin={{ top: 30, right: 50, bottom: 30, left: 50 }}>
                 <PolarGrid 
                   stroke="#e5e7eb"
@@ -480,7 +439,7 @@ const DashboardPage = () => {
                   axisLine={false}
                 />
                 <Radar 
-                  name="Skills" 
+                  name="XP" 
                   dataKey="xp" 
                   stroke="#6A4C93" 
                   fill="#6A4C93" 
@@ -499,26 +458,6 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Skill Recommendations */}
-      {leastDevelopedSkills.length > 0 && (
-        <div className="card mb-8 bg-yellow-50 border-yellow-200">
-          <h2 className="text-xl font-semibold mb-3">Skills to Focus On</h2>
-          <p className="text-gray-700 mb-3 text-sm">
-            Build a well-rounded portfolio by developing these skills:
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {leastDevelopedSkills.map(skill => (
-              <Link
-                key={skill}
-                to={`/quests?skill_category=${skill}`}
-                className="bg-yellow-200 text-yellow-900 px-4 py-2 rounded hover:bg-yellow-300 text-sm"
-              >
-                Explore {skillCategoryNames[skill]} →
-              </Link>
-            ))}
-          </div>
-        </div>
-      )}
 
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
