@@ -6,6 +6,7 @@ Handles quest listing, enrollment, and detail views.
 from flask import Blueprint, request, jsonify
 from database import get_supabase_client, get_supabase_admin_client
 from utils.auth.decorators import require_auth
+from utils.source_utils import get_quest_header_image
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -76,6 +77,12 @@ def list_quests():
             quest['task_count'] = task_count
             quest['pillar_breakdown'] = pillar_xp
             
+            # Add source header image if no custom header exists
+            if not quest.get('header_image_url') and quest.get('source'):
+                source_header = get_quest_header_image(quest)
+                if source_header:
+                    quest['header_image_url'] = source_header
+            
             # Add user enrollment data if authenticated
             if user_id:
                 enrollment = supabase.table('user_quests')\
@@ -132,6 +139,12 @@ def get_quest_detail(user_id: str, quest_id: str):
             }), 404
         
         quest_data = quest.data
+        
+        # Add source header image if no custom header exists
+        if not quest_data.get('header_image_url') and quest_data.get('source'):
+            source_header = get_quest_header_image(quest_data)
+            if source_header:
+                quest_data['header_image_url'] = source_header
         
         # Sort tasks by order
         if quest_data.get('quest_tasks'):

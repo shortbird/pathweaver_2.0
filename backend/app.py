@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, make_response
 from dotenv import load_dotenv
 import os
 
-from routes import auth, quests, subscriptions, users, admin, community, portfolio, learning_log
+from routes import auth, quests, subscriptions, users, admin, community, portfolio, learning_log, sources
 from routes.quest_ideas import quest_ideas_bp
 from routes.ratings import ratings_bp
 from routes import uploads
@@ -47,6 +47,7 @@ app.register_blueprint(learning_log.bp, url_prefix='/api')
 app.register_blueprint(quest_ideas_bp)
 app.register_blueprint(ratings_bp)
 app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
+app.register_blueprint(sources.bp)  # /api/sources
 
 # Register V3 routes
 app.register_blueprint(quests_v3.bp)  # /api/v3/quests

@@ -3,6 +3,7 @@ import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 import AdminQuestManagerV3 from './AdminQuestManagerV3'
+import SourcesManager from '../components/SourcesManager'
 
 const AdminDashboard = () => {
   const [analytics, setAnalytics] = useState(null)
@@ -64,6 +65,7 @@ const AdminQuests = () => {
   const [showManager, setShowManager] = useState(false)
   const [editingQuest, setEditingQuest] = useState(null)
   const [collapsedQuests, setCollapsedQuests] = useState(new Set())
+  const [showSourcesManager, setShowSourcesManager] = useState(false)
 
   useEffect(() => {
     fetchQuests()
@@ -153,6 +155,12 @@ const AdminQuests = () => {
             {collapsedQuests.size === quests.length ? 'Expand All' : 'Collapse All'}
           </button>
           <button
+            onClick={() => setShowSourcesManager(true)}
+            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+          >
+            Manage Source Images
+          </button>
+          <button
             onClick={() => {
               setEditingQuest(null)
               setShowManager(true)
@@ -173,6 +181,12 @@ const AdminQuests = () => {
             setEditingQuest(null)
           }}
           onSave={handleQuestSave}
+        />
+      )}
+
+      {showSourcesManager && (
+        <SourcesManager
+          onClose={() => setShowSourcesManager(false)}
         />
       )}
 
