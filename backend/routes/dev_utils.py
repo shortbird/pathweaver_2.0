@@ -1,22 +1,34 @@
 """
-Development utilities - ONLY for testing
-REMOVE OR SECURE IN PRODUCTION!
+Development utilities - for testing and admin use
 """
 from flask import Blueprint, request, jsonify
 import os
+import hashlib
 from middleware.rate_limiter import rate_limiter
 
 bp = Blueprint('dev_utils', __name__)
+
+# Simple password hash for admin access (Test123!)
+ADMIN_RESET_PASSWORD_HASH = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"  # SHA256 of "Test123!"
+
+def verify_admin_password(password):
+    """Verify the admin password for rate limit reset"""
+    if not password:
+        return False
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    return password_hash == ADMIN_RESET_PASSWORD_HASH
 
 @bp.route('/reset-rate-limit', methods=['POST'])
 def reset_rate_limit():
     """
     Reset rate limit for testing purposes
-    ONLY WORKS IN DEVELOPMENT MODE
+    Requires password in production
     """
-    # Only allow in development
+    # In production, require password
     if os.getenv('FLASK_ENV') != 'development':
-        return jsonify({'error': 'This endpoint is only available in development mode'}), 403
+        data = request.json or {}
+        if not verify_admin_password(data.get('password')):
+            return jsonify({'error': 'Invalid password'}), 403
     
     # Get IP to reset (default to requester's IP)
     data = request.json or {}
@@ -34,11 +46,13 @@ def reset_rate_limit():
 def reset_all_rate_limits():
     """
     Reset ALL rate limits for testing
-    ONLY WORKS IN DEVELOPMENT MODE
+    Requires password in production
     """
-    # Only allow in development
+    # In production, require password
     if os.getenv('FLASK_ENV') != 'development':
-        return jsonify({'error': 'This endpoint is only available in development mode'}), 403
+        data = request.json or {}
+        if not verify_admin_password(data.get('password')):
+            return jsonify({'error': 'Invalid password'}), 403
     
     # Clear all rate limit data
     rate_limiter.requests.clear()

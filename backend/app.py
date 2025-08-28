@@ -10,9 +10,8 @@ from routes import uploads
 # Import V3 routes
 from routes import quests_v3, tasks, collaborations, learning_logs_v3, admin_v3
 
-# Development utilities (only in dev mode)
-if os.getenv('FLASK_ENV') == 'development':
-    from routes import dev_utils
+# Development utilities (password protected in production)
+from routes import dev_utils
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -56,9 +55,8 @@ app.register_blueprint(admin_v3.bp)   # /api/v3/admin
 app.register_blueprint(collaborations.bp)  # /api/v3/collaborations
 app.register_blueprint(learning_logs_v3.bp)  # /api/v3/logs
 
-# Register development utilities (only in dev mode)
-if os.getenv('FLASK_ENV') == 'development':
-    app.register_blueprint(dev_utils.bp, url_prefix='/api/dev')
+# Register development utilities (password protected in production)
+app.register_blueprint(dev_utils.bp, url_prefix='/api/dev')
 
 @app.route('/api/health')
 def health_check():
