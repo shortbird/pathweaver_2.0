@@ -153,6 +153,9 @@ def register():
             raise ConflictError('This email is already registered')
         elif 'email signups are disabled' in error_str:
             raise ValidationError('Registration is temporarily disabled. Please contact support.')
+        elif 'error sending confirmation email' in error_str or 'email' in error_str and 'error' in error_str:
+            # SMTP configuration issue
+            raise ValidationError('Registration is temporarily unavailable due to email service issues. Please try again later or contact support.')
         elif 'invalid' in error_str and 'email' in error_str:
             # Supabase might be rejecting certain email domains
             raise ValidationError('This email address cannot be used for registration. Please use a different email.')
