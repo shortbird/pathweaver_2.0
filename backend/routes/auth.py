@@ -145,8 +145,15 @@ def register():
         elif 'password' in error_str:
             # If Supabase rejects the password for any reason, provide our requirement message
             raise ValidationError('Password must be at least 8 characters and contain uppercase, lowercase, and numbers')
-        elif 'rate limit' in error_str:
-            raise ValidationError('Too many registration attempts. Please wait a few minutes and try again.')
+        elif 'rate limit' in error_str or 'too many requests' in error_str or 'security purposes' in error_str:
+            # Extract wait time if available
+            import re
+            wait_match = re.search(r'after (\d+) seconds', str(e))
+            if wait_match:
+                wait_time = wait_match.group(1)
+                raise ValidationError(f'Too many registration attempts. Please wait {wait_time} seconds and try again.')
+            else:
+                raise ValidationError('Too many registration attempts. Please wait a minute and try again.')
         
         # Log unexpected errors and raise as external service error
         print(f"Registration error: {str(e)}")
