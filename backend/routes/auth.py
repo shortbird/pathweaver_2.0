@@ -191,10 +191,13 @@ def register():
             # This is now optimized to use batch operations
             ensure_user_diploma_and_skills(supabase, auth_response.user.id, sanitized_first_name, sanitized_last_name)
             
+            # Fetch the complete user profile data to return to frontend
+            user_profile = supabase.table('users').select('*').eq('id', auth_response.user.id).single().execute()
+            
             # Skip welcome email to avoid timeout - Supabase sends its own
             
             return jsonify({
-                'user': auth_response.user.model_dump(),
+                'user': user_profile.data if user_profile.data else auth_response.user.model_dump(),
                 'session': auth_response.session.model_dump() if auth_response.session else None
             }), 201
         else:

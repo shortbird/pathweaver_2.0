@@ -72,9 +72,9 @@ def send_friend_request(user_id):
         if addressee.data['id'] == user_id:
             return jsonify({'error': 'Cannot send friend request to yourself'}), 400
         
+        # Check if friendship already exists (in either direction)
         existing = supabase.table('friendships').select('*').or_(
-            f"requester_id.eq.{user_id},addressee_id.eq.{addressee.data['id']}",
-            f"requester_id.eq.{addressee.data['id']},addressee_id.eq.{user_id}"
+            f"(requester_id.eq.{user_id},addressee_id.eq.{addressee.data['id']}),(requester_id.eq.{addressee.data['id']},addressee_id.eq.{user_id})"
         ).execute()
         
         if existing.data:
@@ -172,8 +172,7 @@ def invite_to_quest(user_id, quest_id):
         
         for friend_id in friend_ids:
             friendship = supabase.table('friendships').select('*').or_(
-                f"requester_id.eq.{user_id},addressee_id.eq.{friend_id}",
-                f"requester_id.eq.{friend_id},addressee_id.eq.{user_id}"
+                f"(requester_id.eq.{user_id},addressee_id.eq.{friend_id}),(requester_id.eq.{friend_id},addressee_id.eq.{user_id})"
             ).eq('status', 'accepted').execute()
             
             if friendship.data:
