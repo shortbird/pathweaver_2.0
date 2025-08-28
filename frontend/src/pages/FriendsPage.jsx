@@ -48,7 +48,7 @@ const FriendsPage = () => {
 
   const acceptRequest = async (friendshipId) => {
     try {
-      await api.post(`/community/friends/accept/${friendshipId}`)
+      await api.post(`/community/friends/accept/${friendshipId}`, {})
       toast.success('Friend request accepted!')
       fetchFriends()
     } catch (error) {
