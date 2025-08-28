@@ -103,12 +103,16 @@ const FriendsPage = () => {
     }
   }
 
-  const acceptTeamInvite = async (inviteId) => {
+  const acceptTeamInvite = async (inviteId, questId) => {
     try {
       await api.post(`/v3/collaborations/${inviteId}/accept`)
       toast.success('Team invitation accepted! You\'ll earn 2x XP together!')
       fetchTeamInvitations()
       fetchActiveCollaborations()
+      // Navigate to the quest page after accepting
+      setTimeout(() => {
+        navigate(`/quests/${questId}`)
+      }, 1500)
     } catch (error) {
       toast.error('Failed to accept team invitation')
     }
@@ -215,7 +219,7 @@ const FriendsPage = () => {
                       </div>
                       <div className="flex gap-2 ml-4">
                         <button
-                          onClick={() => acceptTeamInvite(invite.id)}
+                          onClick={() => acceptTeamInvite(invite.id, invite.quest.id)}
                           className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700"
                         >
                           Accept

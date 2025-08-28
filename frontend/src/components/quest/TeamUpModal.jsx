@@ -5,9 +5,9 @@ import { handleApiResponse } from '../../utils/errorHandling';
 const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
   const navigate = useNavigate();
   const [friends, setFriends] = useState([]);
-  const [selectedFriend, setSelectedFriend] = useState(null);
+  const [invitedFriends, setInvitedFriends] = useState(new Set());
+  const [sendingInvite, setSendingInvite] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -37,10 +37,8 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
     }
   };
 
-  const handleSendInvite = async () => {
-    if (!selectedFriend) return;
-
-    setIsSending(true);
+  const handleSendInvite = async (friend) => {
+    setSendingInvite(friend.id);
     setError('');
 
     try {
@@ -53,27 +51,31 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
         },
         body: JSON.stringify({
           quest_id: quest.id,
-          friend_id: selectedFriend.id
+          friend_id: friend.id
         })
       });
 
       const data = await response.json();
 
-      handleApiResponse(response, data, 'Failed to send invitation');
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send invitation');
+      }
 
-      // Success
+      // Mark friend as invited
+      setInvitedFriends(prev => new Set([...prev, friend.id]));
+      
+      // Show success message
       onInviteSent({
-        friend: selectedFriend,
+        friend: friend,
         quest: quest,
-        message: data.message
+        message: data.message || `Invitation sent to ${friend.username || friend.first_name}!`
       });
-      onClose();
 
     } catch (error) {
       console.error('Error sending invite:', error);
       setError(error.message || 'Failed to send invitation');
     } finally {
-      setIsSending(false);
+      setSendingInvite(null);
     }
   };
 
@@ -148,38 +150,40 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
                 ) : (
                   <div className="space-y-2">
                     {filteredFriends.map(friend => (
-                      <label
+                      <div
                         key={friend.id}
-                        className={`flex items-center p-3 rounded-lg border cursor-pointer transition-all ${
-                          selectedFriend?.id === friend.id
-                            ? 'border-purple-500 bg-purple-50'
-                            : 'border-gray-200 hover:border-gray-300'
-                        }`}
+                        className="flex items-center p-3 rounded-lg border border-gray-200 hover:border-purple-300 transition-all"
                       >
-                        <input
-                          type="radio"
-                          name="friend"
-                          className="sr-only"
-                          checked={selectedFriend?.id === friend.id}
-                          onChange={() => setSelectedFriend(friend)}
-                        />
                         <div className="flex items-center flex-1">
                           <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-bold">
-                            {friend.username?.[0]?.toUpperCase() || '?'}
+                            {friend.username?.[0]?.toUpperCase() || friend.first_name?.[0]?.toUpperCase() || '?'}
                           </div>
                           <div className="ml-3">
-                            <p className="font-medium text-gray-900">{friend.username}</p>
+                            <p className="font-medium text-gray-900">
+                              {friend.username || `${friend.first_name} ${friend.last_name}`}
+                            </p>
                             {friend.total_xp && (
                               <p className="text-xs text-gray-500">{friend.total_xp} XP</p>
                             )}
                           </div>
                         </div>
-                        {selectedFriend?.id === friend.id && (
-                          <svg className="w-5 h-5 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
+                        {invitedFriends.has(friend.id) ? (
+                          <span className="text-green-600 text-sm font-medium flex items-center">
+                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
+                            Invited
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => handleSendInvite(friend)}
+                            disabled={sendingInvite === friend.id}
+                            className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {sendingInvite === friend.id ? 'Inviting...' : 'Invite to Quest'}
+                          </button>
                         )}
-                      </label>
+                      </div>
                     ))}
                   </div>
                 )}
@@ -207,21 +211,13 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
                 </div>
               )}
 
-              {/* Action Buttons */}
-              <div className="flex justify-end gap-3">
+              {/* Close Button */}
+              <div className="flex justify-end">
                 <button
                   onClick={onClose}
-                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-                  disabled={isSending}
+                  className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
                 >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSendInvite}
-                  disabled={!selectedFriend || isSending}
-                  className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {isSending ? 'Sending...' : 'Send Invitation'}
+                  Close
                 </button>
               </div>
             </>

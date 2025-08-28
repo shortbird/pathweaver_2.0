@@ -51,26 +51,29 @@ def send_collaboration_invite(user_id: str):
                 'error': 'Quest not found or inactive'
             }), 404
         
-        # Check if both users are enrolled in the quest
-        enrollments = supabase.table('user_quests')\
+        # Check if sender is enrolled in the quest
+        sender_enrollment = supabase.table('user_quests')\
             .select('user_id')\
             .eq('quest_id', quest_id)\
-            .in_('user_id', [user_id, friend_id])\
+            .eq('user_id', user_id)\
             .execute()
         
-        enrolled_users = {e['user_id'] for e in enrollments.data}
-        
-        if user_id not in enrolled_users:
-            return jsonify({
-                'success': False,
-                'error': 'You must be enrolled in the quest to send invitations'
-            }), 403
-        
-        if friend_id not in enrolled_users:
-            return jsonify({
-                'success': False,
-                'error': 'Your friend must be enrolled in the quest first'
-            }), 400
+        # Auto-enroll sender if not enrolled
+        if not sender_enrollment.data:
+            enrollment_result = supabase.table('user_quests')\
+                .insert({
+                    'user_id': user_id,
+                    'quest_id': quest_id,
+                    'enrolled_at': datetime.utcnow().isoformat(),
+                    'status': 'active'
+                })\
+                .execute()
+            
+            if not enrollment_result.data:
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to enroll you in the quest'
+                }), 500
         
         # Check for existing collaboration (pending or accepted)
         existing = supabase.table('quest_collaborations')\
@@ -214,6 +217,31 @@ def accept_invitation(user_id: str, invite_id: str):
                 'success': False,
                 'error': 'Invitation not found or already processed'
             }), 404
+        
+        quest_id = invitation.data['quest_id']
+        
+        # Auto-enroll the accepting user if not already enrolled
+        user_enrollment = supabase.table('user_quests')\
+            .select('id')\
+            .eq('quest_id', quest_id)\
+            .eq('user_id', user_id)\
+            .execute()
+        
+        if not user_enrollment.data:
+            enrollment_result = supabase.table('user_quests')\
+                .insert({
+                    'user_id': user_id,
+                    'quest_id': quest_id,
+                    'enrolled_at': datetime.utcnow().isoformat(),
+                    'status': 'active'
+                })\
+                .execute()
+            
+            if not enrollment_result.data:
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to enroll you in the quest'
+                }), 500
         
         # Update invitation status
         updated = supabase.table('quest_collaborations')\
