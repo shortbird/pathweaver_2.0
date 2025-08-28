@@ -8,69 +8,104 @@ import { DIPLOMA_PILLARS, getPillarName } from '../utils/pillarMappings'
 // Memoized component for Active Quests section
 const ActiveQuests = memo(({ activeQuests }) => {
   if (!activeQuests || activeQuests.length === 0) {
-    return <p className="text-gray-600">No active quests. Start exploring!</p>
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-600 mb-4">No active quests yet.</p>
+        <Link 
+          to="/quests" 
+          className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-purple-700 transition-colors"
+        >
+          <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+          Start Your First Quest
+        </Link>
+      </div>
+    )
   }
   
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       {activeQuests.map(quest => {
-        // Debug log to see the actual structure
-        console.log('Active quest data structure:', {
-          quest_id: quest.quest_id,
-          quests_id: quest.quests?.id,
-          full_quest: quest
-        })
-        
-        // The quest_id is a field on the user_quest record that references the quest
-        // The actual quest data is nested under 'quests' property
         const questId = quest.quest_id || quest.quests?.id
         
-        // If still no ID, show a placeholder but don't skip
         if (!questId) {
-          console.warn('Quest missing ID, showing placeholder:', quest)
-          return (
-            <div key={quest.id} className="p-3 bg-yellow-50 rounded-lg">
-              <p className="text-yellow-800">Quest data loading issue</p>
-              <p className="text-sm text-gray-600 mt-1">User Quest ID: {quest.id}</p>
-              <p className="text-sm text-gray-600">Quest ID field: {quest.quest_id || 'missing'}</p>
-              <p className="text-sm text-gray-600">Quest object ID: {quest.quests?.id || 'no quest object'}</p>
-              <button 
-                onClick={() => console.log('Full quest data:', quest)}
-                className="text-xs text-blue-600 hover:underline mt-2"
-              >
-                Log full data to console
-              </button>
-            </div>
-          )
+          return null
         }
         
+        // Calculate progress percentage (placeholder - will need backend support)
+        const tasksCompleted = quest.tasks_completed || 0
+        const totalTasks = quest.quests?.total_tasks || quest.total_tasks || 5
+        const progressPercent = totalTasks > 0 ? Math.round((tasksCompleted / totalTasks) * 100) : 0
+        
         return (
-          <Link
+          <div
             key={quest.id}
-            to={`/quests/${questId}`}
-            className="block p-3 bg-background rounded-lg hover:bg-gray-100 transition-colors"
+            className="bg-white border-2 border-green-400 rounded-xl p-4 shadow-sm hover:shadow-md transition-all"
           >
-            <h3 className="font-medium">{quest.quests?.title || 'Untitled Quest'}</h3>
-            <div className="flex gap-2 mt-1">
-              {quest.quests?.difficulty_level && (
-                <span className={`text-xs px-2 py-0.5 rounded ${
-                  quest.quests.difficulty_level === 'beginner' ? 'bg-green-100 text-green-800' :
-                  quest.quests.difficulty_level === 'intermediate' ? 'bg-yellow-100 text-yellow-800' :
-                  'bg-red-100 text-red-800'
-                }`}>
-                  {quest.quests.difficulty_level}
-                </span>
-              )}
-              {quest.quests?.estimated_hours && (
-                <span className="text-xs px-2 py-0.5 rounded bg-gray-100 text-gray-800">
-                  {quest.quests.estimated_hours}h
-                </span>
-              )}
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex-1">
+                <h3 className="font-semibold text-lg text-gray-900">
+                  {quest.quests?.title || 'Untitled Quest'}
+                </h3>
+                <div className="flex items-center gap-3 mt-2">
+                  {quest.quests?.difficulty_level && (
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
+                      quest.quests.difficulty_level === 'beginner' ? 'bg-green-100 text-green-700' :
+                      quest.quests.difficulty_level === 'intermediate' ? 'bg-yellow-100 text-yellow-700' :
+                      'bg-red-100 text-red-700'
+                    }`}>
+                      {quest.quests.difficulty_level.charAt(0).toUpperCase() + quest.quests.difficulty_level.slice(1)}
+                    </span>
+                  )}
+                  {quest.quests?.estimated_hours && (
+                    <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-medium">
+                      ⏱ {quest.quests.estimated_hours}h
+                    </span>
+                  )}
+                  <span className="text-xs text-gray-500">
+                    Started {quest.started_at ? new Date(quest.started_at).toLocaleDateString() : 'Recently'}
+                  </span>
+                </div>
+              </div>
             </div>
-            <p className="text-sm text-gray-600 mt-1">
-              Started {quest.started_at ? new Date(quest.started_at).toLocaleDateString() : 'Recently'}
-            </p>
-          </Link>
+            
+            {/* Progress Bar */}
+            <div className="mb-4">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-xs font-medium text-gray-600">Progress</span>
+                <span className="text-xs font-bold text-gray-700">{progressPercent}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div 
+                  className="bg-gradient-to-r from-green-400 to-green-500 h-2 rounded-full transition-all duration-500"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            </div>
+            
+            {/* XP Preview */}
+            {quest.quests?.quest_skill_xp && quest.quests.quest_skill_xp.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-4">
+                {quest.quests.quest_skill_xp.slice(0, 3).map((xp, idx) => (
+                  <span key={idx} className="text-xs px-2 py-1 bg-purple-50 text-purple-700 rounded-full">
+                    +{xp.xp_amount} {getPillarName(xp.skill_category)}
+                  </span>
+                ))}
+              </div>
+            )}
+            
+            {/* Continue Button */}
+            <Link
+              to={`/quests/${questId}`}
+              className="w-full inline-flex justify-center items-center px-4 py-2.5 bg-green-500 text-white font-medium rounded-lg hover:bg-green-600 transition-colors shadow-sm"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+              </svg>
+              Continue Quest
+            </Link>
+          </div>
         )
       })}
     </div>
@@ -441,38 +476,202 @@ const DashboardPage = () => {
         </div>
       </div>
 
-      {/* Skill Recommendations */}
-      {leastDevelopedSkills.length > 0 && (
-        <div className="card mb-8 bg-yellow-50 border-yellow-200">
-          <h2 className="text-xl font-semibold mb-3">Skills to Focus On</h2>
-          <p className="text-gray-700 mb-3">
-            Build a well-rounded portfolio by developing these skills:
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {leastDevelopedSkills.map(skill => (
-              <Link
-                key={skill}
-                to={`/quests?skill_category=${skill}`}
-                className="bg-yellow-200 text-yellow-900 px-4 py-2 rounded hover:bg-yellow-300"
-              >
-                Explore {skillCategoryNames[skill]} Quests →
-              </Link>
-            ))}
-          </div>
+      {/* Upcoming Deadlines & Recommendations Row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        {/* Upcoming Deadlines */}
+        <div className="card bg-amber-50 border-amber-200">
+          <h2 className="text-xl font-semibold mb-3 flex items-center">
+            <svg className="w-5 h-5 mr-2 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Upcoming Deadlines
+          </h2>
+          {dashboardData?.active_quests && dashboardData.active_quests.length > 0 ? (
+            <div className="space-y-2">
+              {dashboardData.active_quests.slice(0, 3).map(quest => {
+                const daysActive = quest.started_at ? 
+                  Math.floor((new Date() - new Date(quest.started_at)) / (1000 * 60 * 60 * 24)) : 0
+                const estimatedDays = (quest.quests?.estimated_hours || 8) / 2 // Assume 2 hours per day
+                const daysRemaining = Math.max(0, Math.ceil(estimatedDays - daysActive))
+                
+                return (
+                  <div key={quest.id} className="flex items-center justify-between p-2 bg-white rounded-lg">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        {quest.quests?.title || 'Quest'}
+                      </p>
+                      <p className="text-xs text-gray-600">
+                        Est. {daysRemaining} days to complete
+                      </p>
+                    </div>
+                    {daysRemaining <= 3 && (
+                      <span className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded-full">
+                        Soon
+                      </span>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="text-gray-600 text-sm">No active quests with deadlines</p>
+          )}
         </div>
-      )}
+        
+        {/* Skill Recommendations */}
+        {leastDevelopedSkills.length > 0 && (
+          <div className="card bg-yellow-50 border-yellow-200">
+            <h2 className="text-xl font-semibold mb-3">Skills to Focus On</h2>
+            <p className="text-gray-700 mb-3 text-sm">
+              Build a well-rounded portfolio by developing these skills:
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {leastDevelopedSkills.map(skill => (
+                <Link
+                  key={skill}
+                  to={`/quests?skill_category=${skill}`}
+                  className="bg-yellow-200 text-yellow-900 px-4 py-2 rounded hover:bg-yellow-300 text-sm"
+                >
+                  Explore {skillCategoryNames[skill]} →
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="card">
-          <h2 className="text-xl font-semibold mb-4">Active Quests</h2>
+      {/* Active Quests - Full Width for Prominence */}
+      <div className="mb-8">
+        <div className="card bg-gradient-to-br from-green-50 to-white border-green-200">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold flex items-center">
+              <svg className="w-6 h-6 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Your Active Quests
+            </h2>
+            <Link 
+              to="/quests" 
+              className="text-sm text-primary hover:text-purple-700 font-medium"
+            >
+              Browse All Quests →
+            </Link>
+          </div>
           <ActiveQuests activeQuests={dashboardData?.active_quests} />
         </div>
+      </div>
 
+      {/* Quick Actions */}
+      <div className="mb-8">
+        <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <Link
+            to="/quests"
+            className="flex flex-col items-center p-4 bg-white rounded-lg border-2 border-gray-200 hover:border-primary hover:shadow-md transition-all"
+          >
+            <svg className="w-8 h-8 mb-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            <span className="text-sm font-medium">New Quest</span>
+          </Link>
+          
+          <Link
+            to="/portfolio"
+            className="flex flex-col items-center p-4 bg-white rounded-lg border-2 border-gray-200 hover:border-primary hover:shadow-md transition-all"
+          >
+            <svg className="w-8 h-8 mb-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <span className="text-sm font-medium">Portfolio</span>
+          </Link>
+          
+          <Link
+            to="/leaderboard"
+            className="flex flex-col items-center p-4 bg-white rounded-lg border-2 border-gray-200 hover:border-primary hover:shadow-md transition-all"
+          >
+            <svg className="w-8 h-8 mb-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+            </svg>
+            <span className="text-sm font-medium">Leaderboard</span>
+          </Link>
+          
+          <Link
+            to="/ai-quests"
+            className="flex flex-col items-center p-4 bg-white rounded-lg border-2 border-gray-200 hover:border-primary hover:shadow-md transition-all"
+          >
+            <svg className="w-8 h-8 mb-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <span className="text-sm font-medium">AI Quests</span>
+          </Link>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card">
           <h2 className="text-xl font-semibold mb-4">Recent Completions</h2>
           <RecentCompletions 
             recentCompletions={dashboardData?.recent_completions} 
           />
+        </div>
+        
+        {/* Daily Streak & Achievements */}
+        <div className="card">
+          <h2 className="text-xl font-semibold mb-4">Your Progress</h2>
+          <div className="space-y-4">
+            {/* Streak Counter */}
+            <div className="flex items-center justify-between p-3 bg-orange-50 rounded-lg">
+              <div className="flex items-center">
+                <svg className="w-8 h-8 text-orange-500 mr-3" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+                <div>
+                  <p className="font-semibold text-gray-900">Daily Streak</p>
+                  <p className="text-sm text-gray-600">Keep it going!</p>
+                </div>
+              </div>
+              <div className="text-2xl font-bold text-orange-600">
+                {dashboardData?.streak || 0} 🔥
+              </div>
+            </div>
+            
+            {/* Next Milestone */}
+            <div className="p-3 bg-blue-50 rounded-lg">
+              <div className="flex justify-between items-center mb-2">
+                <p className="text-sm font-medium text-blue-900">Next Milestone</p>
+                <p className="text-xs text-blue-700">{totalXP}/1000 XP</p>
+              </div>
+              <div className="w-full bg-blue-200 rounded-full h-2">
+                <div 
+                  className="bg-blue-500 h-2 rounded-full transition-all"
+                  style={{ width: `${Math.min((totalXP / 1000) * 100, 100)}%` }}
+                />
+              </div>
+              <p className="text-xs text-blue-700 mt-2">Unlock "Knowledge Seeker" badge at 1000 XP</p>
+            </div>
+            
+            {/* Recent Achievements */}
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Recent Achievements</p>
+              <div className="flex gap-2">
+                {totalXP >= 100 && (
+                  <div className="w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center" title="First 100 XP">
+                    <span className="text-xl">🌟</span>
+                  </div>
+                )}
+                {(dashboardData?.stats?.quests_completed || 0) >= 5 && (
+                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center" title="5 Quests Completed">
+                    <span className="text-xl">🎯</span>
+                  </div>
+                )}
+                {(dashboardData?.streak || 0) >= 3 && (
+                  <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center" title="3 Day Streak">
+                    <span className="text-xl">🔥</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
