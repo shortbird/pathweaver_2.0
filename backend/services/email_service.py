@@ -133,6 +133,121 @@ class EmailService:
         
         return self.send_email(user_email, subject, html_body, text_body)
     
+    def send_confirmation_email(self, user_email: str, user_name: str, confirmation_link: str) -> bool:
+        """Send signup confirmation email to new users"""
+        subject = "Confirm your OptioQuest account"
+        
+        html_body = f"""
+        <html>
+            <head>
+                <style>
+                    @media only screen and (max-width: 600px) {{
+                        .container {{ padding: 10px !important; }}
+                        .button {{ width: 100% !important; text-align: center !important; }}
+                    }}
+                </style>
+            </head>
+            <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; background-color: #f5f5f5; margin: 0; padding: 0;">
+                <div class="container" style="max-width: 600px; margin: 40px auto; background-color: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden;">
+                    <!-- Header -->
+                    <div style="background: linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%); padding: 40px 20px; text-align: center;">
+                        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">Welcome to OptioQuest!</h1>
+                        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">Just one more step to start your learning adventure</p>
+                    </div>
+                    
+                    <!-- Body -->
+                    <div style="padding: 40px 30px;">
+                        <p style="font-size: 16px; margin: 0 0 20px 0;">Hi {user_name},</p>
+                        
+                        <p style="font-size: 15px; line-height: 1.8; color: #555;">
+                            Thanks for signing up for OptioQuest! We're excited to have you join our community of learners.
+                        </p>
+                        
+                        <p style="font-size: 15px; line-height: 1.8; color: #555;">
+                            Please confirm your email address to activate your account and start exploring quests:
+                        </p>
+                        
+                        <!-- CTA Button -->
+                        <div style="text-align: center; margin: 35px 0;">
+                            <a href="{confirmation_link}" 
+                               class="button"
+                               style="background: linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%); 
+                                      color: white; 
+                                      padding: 14px 40px; 
+                                      text-decoration: none; 
+                                      border-radius: 8px; 
+                                      display: inline-block;
+                                      font-size: 16px;
+                                      font-weight: 600;
+                                      box-shadow: 0 4px 15px rgba(107, 70, 193, 0.3);
+                                      transition: all 0.3s ease;">
+                                Confirm Email Address
+                            </a>
+                        </div>
+                        
+                        <!-- What's Next Section -->
+                        <div style="background-color: #f8f7ff; border-radius: 8px; padding: 20px; margin: 30px 0;">
+                            <h3 style="color: #6B46C1; margin: 0 0 15px 0; font-size: 16px;">What happens next?</h3>
+                            <ul style="margin: 0; padding-left: 20px; color: #555;">
+                                <li style="margin-bottom: 8px;">Access hundreds of educational quests</li>
+                                <li style="margin-bottom: 8px;">Track your progress across 5 skill pillars</li>
+                                <li style="margin-bottom: 8px;">Earn XP and unlock achievements</li>
+                                <li>Join a community of motivated learners</li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Alternative Link -->
+                        <p style="font-size: 13px; color: #999; margin-top: 25px;">
+                            If the button doesn't work, copy and paste this link into your browser:
+                        </p>
+                        <p style="font-size: 12px; color: #6B46C1; word-break: break-all; margin: 5px 0 0 0;">
+                            {confirmation_link}
+                        </p>
+                    </div>
+                    
+                    <!-- Footer -->
+                    <div style="background-color: #f8f7ff; padding: 20px 30px; border-top: 1px solid #e5e5e5;">
+                        <p style="font-size: 12px; color: #999; margin: 0; text-align: center;">
+                            This confirmation link will expire in 24 hours for security reasons.
+                        </p>
+                        <p style="font-size: 12px; color: #999; margin: 10px 0 0 0; text-align: center;">
+                            If you didn't create an account with OptioQuest, please ignore this email.
+                        </p>
+                        <p style="font-size: 11px; color: #999; margin: 15px 0 0 0; text-align: center;">
+                            © 2024 OptioQuest | <a href="https://optioeducation.com" style="color: #6B46C1; text-decoration: none;">optioeducation.com</a>
+                        </p>
+                    </div>
+                </div>
+            </body>
+        </html>
+        """
+        
+        text_body = f"""
+        Welcome to OptioQuest!
+        
+        Hi {user_name},
+        
+        Thanks for signing up for OptioQuest! We're excited to have you join our community of learners.
+        
+        Please confirm your email address to activate your account:
+        
+        {confirmation_link}
+        
+        What happens next?
+        - Access hundreds of educational quests
+        - Track your progress across 5 skill pillars  
+        - Earn XP and unlock achievements
+        - Join a community of motivated learners
+        
+        This confirmation link will expire in 24 hours for security reasons.
+        
+        If you didn't create an account with OptioQuest, please ignore this email.
+        
+        © 2024 OptioQuest | optioeducation.com
+        """
+        
+        return self.send_email(user_email, subject, html_body, text_body)
+    
     def send_quest_completion_email(self, user_email: str, user_name: str, quest_title: str, xp_earned: int) -> bool:
         """Send email when user completes a quest"""
         subject = f"Congratulations! You completed '{quest_title}'"
