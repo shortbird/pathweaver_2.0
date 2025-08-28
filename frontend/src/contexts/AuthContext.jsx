@@ -166,7 +166,8 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin' || user?.role === 'educator',
     isCreator: user?.subscription_tier === 'creator' || user?.subscription_tier === 'visionary',
-    isVisionary: user?.subscription_tier === 'visionary'
+    isVisionary: user?.subscription_tier === 'visionary',
+    isFree: user?.subscription_tier === 'free' || user?.subscription_tier === 'explorer' || !user?.subscription_tier
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

@@ -11,7 +11,8 @@ stripe.api_key = Config.STRIPE_SECRET_KEY
 # Load Stripe price IDs from environment variables
 # These should be set in your .env file with actual Stripe price IDs
 SUBSCRIPTION_PRICES = {
-    'explorer': None,  # Free tier
+    'free': None,  # Free tier - default for all new users
+    'explorer': None,  # Legacy free tier name (for backwards compatibility)
     'creator': os.getenv('STRIPE_CREATOR_PRICE_ID'),  # Set in .env
     'visionary': os.getenv('STRIPE_VISIONARY_PRICE_ID')  # Set in .env
 }

@@ -62,9 +62,11 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
 def register():
     try:
         data = request.json
+        print(f"Registration data received: {data}")
         
         # Validate input data
         is_valid, error_message = validate_registration_data(data)
+        print(f"Validation result: valid={is_valid}, error={error_message}")
         if not is_valid:
             raise ValidationError(error_message)
         
@@ -103,11 +105,13 @@ def register():
             sanitized_last_name = sanitize_input(original_last_name)
             
             # Create user profile in our users table
+            # All new users start with free tier, can upgrade later
             user_data = {
                 'id': auth_response.user.id,
                 'first_name': sanitized_first_name,
                 'last_name': sanitized_last_name,
-                'subscription_tier': 'explorer',
+                'subscription_tier': 'free',
+                'subscription_status': 'active',  # Free tier is always active
                 'created_at': 'now()'
             }
             
