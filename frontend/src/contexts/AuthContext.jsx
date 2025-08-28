@@ -51,7 +51,15 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true }
     } catch (error) {
-      const message = error.response?.data?.error || 'Login failed'
+      // Handle nested error structure from backend
+      let message = 'Login failed'
+      if (error.response?.data?.error) {
+        if (typeof error.response.data.error === 'string') {
+          message = error.response.data.error
+        } else if (error.response.data.error.message) {
+          message = error.response.data.error.message
+        }
+      }
       toast.error(message)
       return { success: false, error: message }
     }
@@ -81,7 +89,15 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true }
     } catch (error) {
-      const message = error.response?.data?.error || 'Registration failed'
+      // Handle nested error structure from backend
+      let message = 'Registration failed'
+      if (error.response?.data?.error) {
+        if (typeof error.response.data.error === 'string') {
+          message = error.response.data.error
+        } else if (error.response.data.error.message) {
+          message = error.response.data.error.message
+        }
+      }
       toast.error(message)
       return { success: false, error: message }
     }

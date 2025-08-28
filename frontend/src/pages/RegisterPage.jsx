@@ -8,6 +8,17 @@ const RegisterPage = () => {
   const { register } = useAuth()
   const [loading, setLoading] = useState(false)
   const password = watch('password')
+  
+  // Password validation checks
+  const passwordChecks = {
+    length: password?.length >= 8,
+    uppercase: password && /[A-Z]/.test(password),
+    lowercase: password && /[a-z]/.test(password),
+    number: password && /[0-9]/.test(password)
+  }
+  
+  const isPasswordValid = passwordChecks.length && passwordChecks.uppercase && 
+                          passwordChecks.lowercase && passwordChecks.number
 
   const onSubmit = async (data) => {
     setLoading(true)
@@ -96,15 +107,68 @@ const RegisterPage = () => {
               <input
                 {...registerField('password', {
                   required: 'Password is required',
-                  minLength: {
-                    value: 8,
-                    message: 'Password must be at least 8 characters'
+                  validate: value => {
+                    if (value.length < 8) return 'Password must be at least 8 characters'
+                    if (!/[A-Z]/.test(value)) return 'Password must contain at least one uppercase letter'
+                    if (!/[a-z]/.test(value)) return 'Password must contain at least one lowercase letter'
+                    if (!/[0-9]/.test(value)) return 'Password must contain at least one number'
+                    return true
                   }
                 })}
                 type="password"
                 className="input-field mt-1"
                 placeholder="••••••••"
               />
+              
+              {/* Password requirements checklist */}
+              {password && (
+                <div className="mt-2 space-y-1">
+                  <p className="text-xs font-medium text-gray-700">Password must contain:</p>
+                  <div className="space-y-1">
+                    <div className={`text-xs flex items-center ${passwordChecks.length ? 'text-green-600' : 'text-gray-400'}`}>
+                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        {passwordChecks.length ? (
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        ) : (
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        )}
+                      </svg>
+                      At least 8 characters
+                    </div>
+                    <div className={`text-xs flex items-center ${passwordChecks.uppercase ? 'text-green-600' : 'text-gray-400'}`}>
+                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        {passwordChecks.uppercase ? (
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        ) : (
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        )}
+                      </svg>
+                      One uppercase letter
+                    </div>
+                    <div className={`text-xs flex items-center ${passwordChecks.lowercase ? 'text-green-600' : 'text-gray-400'}`}>
+                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        {passwordChecks.lowercase ? (
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        ) : (
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        )}
+                      </svg>
+                      One lowercase letter
+                    </div>
+                    <div className={`text-xs flex items-center ${passwordChecks.number ? 'text-green-600' : 'text-gray-400'}`}>
+                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        {passwordChecks.number ? (
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        ) : (
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        )}
+                      </svg>
+                      One number
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
               )}
