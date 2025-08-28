@@ -17,8 +17,8 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
 
   const fetchFriends = async () => {
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const url = `${apiBase}/api/community/friends`;
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const url = `${apiBase}/community/friends`;
       console.log('Fetching friends from:', url);
       
       const response = await fetch(url, {
