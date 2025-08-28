@@ -34,10 +34,11 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
     khan_academy: 'Khan Academy'
   };
 
-  // Map sources to their default header images
+  // Map sources to their default header images (stored in Supabase)
+  // These would be the actual Supabase storage URLs if we had default images
   const SOURCE_IMAGES = {
-    optio: '/images/headers/optio-header.png',
-    khan_academy: '/images/headers/khan-academy-header.png'
+    optio: null, // Will use uploaded image or no image
+    khan_academy: null // Will use uploaded image or no image
   };
 
   const allSources = { ...DEFAULT_QUEST_SOURCES, ...customSources };
@@ -267,10 +268,8 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
           source: formData.source,
           is_active: formData.is_active,
           tasks: tasks,
-          // Use source-based header image if no custom image
-          header_image_url: formData.header_image_url || SOURCE_IMAGES[formData.source] || SOURCE_IMAGES.optio,
           // Preserve existing image URL when editing
-          ...(quest && formData.header_image_url ? { header_image_url: formData.header_image_url } : {})
+          ...(formData.header_image_url ? { header_image_url: formData.header_image_url } : {})
         };
         
         response = await fetch(url, {
@@ -445,13 +444,11 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
                     value={formData.source}
                     onChange={(e) => {
                       const newSource = e.target.value;
-                      // Update source and clear custom header image to use source default
+                      // Only update the source, don't override existing uploaded images
                       setFormData({ 
                         ...formData, 
-                        source: newSource,
-                        header_image_url: SOURCE_IMAGES[newSource] || SOURCE_IMAGES.optio
+                        source: newSource
                       });
-                      setHeaderImageFile(null);
                     }}
                     className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   >
@@ -496,7 +493,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
                   </div>
                 )}
                 <p className="text-xs text-gray-500 mt-1">
-                  Select the curriculum provider for this quest. This determines the default header image.
+                  Select the curriculum provider for this quest. This helps organize quests by source.
                 </p>
               </div>
 
