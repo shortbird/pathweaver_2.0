@@ -133,6 +133,9 @@ def register():
             raise ValidationError('Please enter a valid email address')
         elif 'weak' in error_str and 'password' in error_str:
             raise ValidationError('Password is too weak. Please use at least 8 characters with a mix of letters and numbers')
+        elif 'password' in error_str:
+            # If Supabase rejects the password for any reason, provide our requirement message
+            raise ValidationError('Password must be at least 8 characters and contain uppercase, lowercase, and numbers')
         
         # Log unexpected errors and raise as external service error
         print(f"Registration error: {str(e)}")
