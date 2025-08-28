@@ -105,20 +105,34 @@ def send_collaboration_invite(user_id: str):
             .execute()
         
         # Create collaboration invitation
-        invitation = supabase.table('quest_collaborations')\
-            .insert({
-                'quest_id': quest_id,
-                'requester_id': user_id,
-                'partner_id': friend_id,
-                'status': 'pending',
-                'created_at': datetime.utcnow().isoformat()
-            })\
-            .execute()
-        
-        if not invitation.data:
+        try:
+            invitation = supabase.table('quest_collaborations')\
+                .insert({
+                    'quest_id': quest_id,
+                    'requester_id': user_id,
+                    'partner_id': friend_id,
+                    'status': 'pending',
+                    'created_at': datetime.utcnow().isoformat()
+                })\
+                .execute()
+            
+            if not invitation.data:
+                print(f"Failed to insert invitation - no data returned")
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to send invitation - database insert failed'
+                }), 500
+        except Exception as insert_error:
+            print(f"Error inserting collaboration invitation: {str(insert_error)}")
+            # Check if table exists
+            if 'relation "quest_collaborations" does not exist' in str(insert_error):
+                return jsonify({
+                    'success': False,
+                    'error': 'Team-up feature not yet configured. Please run the database migration.'
+                }), 500
             return jsonify({
                 'success': False,
-                'error': 'Failed to send invitation'
+                'error': f'Database error: {str(insert_error)}'
             }), 500
         
         # Get requester's name for response
