@@ -5,6 +5,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
   const [formData, setFormData] = useState({
     title: quest?.title || '',
     big_idea: quest?.big_idea || '',
+    source: quest?.source || 'optio',
     header_image_url: quest?.header_image_url || '',
     is_active: quest?.is_active !== undefined ? quest.is_active : true
   });
@@ -20,6 +21,51 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
 
   const [headerImageFile, setHeaderImageFile] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showAddSource, setShowAddSource] = useState(false);
+  const [newSourceName, setNewSourceName] = useState('');
+  const [customSources, setCustomSources] = useState(() => {
+    const saved = localStorage.getItem('customQuestSources');
+    return saved ? JSON.parse(saved) : {};
+  });
+
+  // Predefined sources with their associated header images
+  const DEFAULT_QUEST_SOURCES = {
+    optio: 'Optio',
+    khan_academy: 'Khan Academy'
+  };
+
+  // Map sources to their default header images
+  const SOURCE_IMAGES = {
+    optio: '/images/headers/optio-header.png',
+    khan_academy: '/images/headers/khan-academy-header.png'
+  };
+
+  const allSources = { ...DEFAULT_QUEST_SOURCES, ...customSources };
+
+  const handleAddSource = () => {
+    if (!newSourceName.trim()) {
+      toast.error('Please enter a source name');
+      return;
+    }
+    
+    const sourceKey = newSourceName.toLowerCase().replace(/\s+/g, '_');
+    if (DEFAULT_QUEST_SOURCES[sourceKey] || customSources[sourceKey]) {
+      toast.error('This source already exists');
+      return;
+    }
+    
+    const updatedCustomSources = {
+      ...customSources,
+      [sourceKey]: newSourceName
+    };
+    
+    setCustomSources(updatedCustomSources);
+    localStorage.setItem('customQuestSources', JSON.stringify(updatedCustomSources));
+    setFormData({ ...formData, source: sourceKey });
+    setNewSourceName('');
+    setShowAddSource(false);
+    toast.success(`Added new source: ${newSourceName}`);
+  };
 
   const pillars = [
     { value: 'creativity', label: 'Creativity', color: 'from-purple-500 to-pink-500' },
@@ -198,6 +244,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         const jsonData = {
           title: formData.title,
           big_idea: formData.big_idea,
+          source: formData.source,
           is_active: formData.is_active,
           tasks: tasks,
           header_image_base64: base64Data,
@@ -217,8 +264,11 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         const jsonData = {
           title: formData.title,
           big_idea: formData.big_idea,
+          source: formData.source,
           is_active: formData.is_active,
           tasks: tasks,
+          // Use source-based header image if no custom image
+          header_image_url: formData.header_image_url || SOURCE_IMAGES[formData.source] || SOURCE_IMAGES.optio,
           // Preserve existing image URL when editing
           ...(quest && formData.header_image_url ? { header_image_url: formData.header_image_url } : {})
         };
@@ -239,6 +289,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         const oldFormatData = {
           title: formData.title,
           description: formData.big_idea,
+          source: formData.source,
           difficulty_level: 'intermediate',
           effort_level: 'moderate',
           estimated_hours: 2,
@@ -387,7 +438,71 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Header Image (Optional)
+                  Quest Source *
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={formData.source}
+                    onChange={(e) => {
+                      const newSource = e.target.value;
+                      // Update source and clear custom header image to use source default
+                      setFormData({ 
+                        ...formData, 
+                        source: newSource,
+                        header_image_url: SOURCE_IMAGES[newSource] || SOURCE_IMAGES.optio
+                      });
+                      setHeaderImageFile(null);
+                    }}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {Object.entries(allSources).map(([key, name]) => (
+                      <option key={key} value={key}>{name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddSource(!showAddSource)}
+                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
+                  >
+                    + Add Source
+                  </button>
+                </div>
+                {showAddSource && (
+                  <div className="mt-2 flex gap-2">
+                    <input
+                      type="text"
+                      value={newSourceName}
+                      onChange={(e) => setNewSourceName(e.target.value)}
+                      placeholder="Enter source name"
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddSource}
+                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowAddSource(false);
+                        setNewSourceName('');
+                      }}
+                      className="px-3 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Select the curriculum provider for this quest. This determines the default header image.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Custom Header Image (Optional)
                 </label>
                 {formData.header_image_url && (
                   <div className="mb-2">
@@ -406,6 +521,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Max size: 5MB • Recommended: 1200x675px (16:9 ratio) • Images will be automatically resized
+                  <br />Leave blank to use the default image for the selected source.
                 </p>
               </div>
 
