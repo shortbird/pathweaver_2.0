@@ -73,11 +73,20 @@ def send_friend_request(user_id):
             return jsonify({'error': 'Cannot send friend request to yourself'}), 400
         
         # Check if friendship already exists (in either direction)
-        existing = supabase.table('friendships').select('*').or_(
-            f"(requester_id.eq.{user_id},addressee_id.eq.{addressee.data['id']}),(requester_id.eq.{addressee.data['id']},addressee_id.eq.{user_id})"
-        ).execute()
+        # Need to check both directions of the friendship
+        existing_query1 = supabase.table('friendships').select('*')\
+            .eq('requester_id', user_id)\
+            .eq('addressee_id', addressee.data['id'])\
+            .execute()
         
-        if existing.data:
+        existing_query2 = supabase.table('friendships').select('*')\
+            .eq('requester_id', addressee.data['id'])\
+            .eq('addressee_id', user_id)\
+            .execute()
+        
+        existing = existing_query1.data or existing_query2.data
+        
+        if existing:
             return jsonify({'error': 'Friend request already exists'}), 400
         
         friendship = {
@@ -171,11 +180,22 @@ def invite_to_quest(user_id, quest_id):
             return jsonify({'error': 'Quest not in progress'}), 400
         
         for friend_id in friend_ids:
-            friendship = supabase.table('friendships').select('*').or_(
-                f"(requester_id.eq.{user_id},addressee_id.eq.{friend_id}),(requester_id.eq.{friend_id},addressee_id.eq.{user_id})"
-            ).eq('status', 'accepted').execute()
+            # Check if users are friends (accepted friendship in either direction)
+            friendship_query1 = supabase.table('friendships').select('*')\
+                .eq('requester_id', user_id)\
+                .eq('addressee_id', friend_id)\
+                .eq('status', 'accepted')\
+                .execute()
             
-            if friendship.data:
+            friendship_query2 = supabase.table('friendships').select('*')\
+                .eq('requester_id', friend_id)\
+                .eq('addressee_id', user_id)\
+                .eq('status', 'accepted')\
+                .execute()
+            
+            friendship = friendship_query1.data or friendship_query2.data
+            
+            if friendship:
                 pass
         
         return jsonify({'message': f'Invited {len(friend_ids)} friends to quest'}), 200
