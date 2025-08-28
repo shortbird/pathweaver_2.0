@@ -53,7 +53,7 @@ export const AuthProvider = ({ children }) => {
       const isNewUser = timeDiff < 5 * 60 * 1000 // 5 minutes in milliseconds
       
       if (isNewUser) {
-        toast.success(`Welcome to OptioQuest, ${user.first_name}!`)
+        toast.success(`Welcome to Optio, ${user.first_name}!`)
       } else {
         toast.success('Welcome back!')
       }

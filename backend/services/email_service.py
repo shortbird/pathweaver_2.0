@@ -18,7 +18,7 @@ class EmailService:
         self.smtp_user = os.getenv('SMTP_USER', 'apikey')
         self.smtp_pass = os.getenv('SMTP_PASS', '')
         self.sender_email = os.getenv('SENDER_EMAIL', 'noreply@optioeducation.com')
-        self.sender_name = os.getenv('SENDER_NAME', 'OptioQuest')
+        self.sender_name = os.getenv('SENDER_NAME', 'Optio')
         
     def send_email(
         self,
@@ -87,13 +87,13 @@ class EmailService:
     
     def send_welcome_email(self, user_email: str, user_name: str) -> bool:
         """Send a welcome email to new users"""
-        subject = "Welcome to OptioQuest!"
+        subject = "Welcome to Optio!"
         
         html_body = f"""
         <html>
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h1 style="color: #6B46C1;">Welcome to OptioQuest, {user_name}!</h1>
+                    <h1 style="color: #6B46C1;">Welcome to Optio, {user_name}!</h1>
                     <p>We're excited to have you join our learning community.</p>
                     <p>Your account has been successfully created. Here's what you can do next:</p>
                     <ul>
@@ -117,7 +117,7 @@ class EmailService:
         """
         
         text_body = f"""
-        Welcome to OptioQuest, {user_name}!
+        Welcome to Optio, {user_name}!
         
         We're excited to have you join our learning community.
         
@@ -135,7 +135,7 @@ class EmailService:
     
     def send_confirmation_email(self, user_email: str, user_name: str, confirmation_link: str) -> bool:
         """Send signup confirmation email to new users"""
-        subject = "Confirm your OptioQuest account"
+        subject = "Confirm your Optio account"
         
         html_body = f"""
         <html>
@@ -151,7 +151,7 @@ class EmailService:
                 <div class="container" style="max-width: 600px; margin: 40px auto; background-color: white; border-radius: 10px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); overflow: hidden;">
                     <!-- Header -->
                     <div style="background: linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%); padding: 40px 20px; text-align: center;">
-                        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">Welcome to OptioQuest!</h1>
+                        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 600;">Welcome to Optio!</h1>
                         <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0; font-size: 16px;">Just one more step to start your learning adventure</p>
                     </div>
                     
@@ -160,7 +160,7 @@ class EmailService:
                         <p style="font-size: 16px; margin: 0 0 20px 0;">Hi {user_name},</p>
                         
                         <p style="font-size: 15px; line-height: 1.8; color: #555;">
-                            Thanks for signing up for OptioQuest! We're excited to have you join our community of learners.
+                            Thanks for signing up for Optio! We're excited to have you join our community of learners.
                         </p>
                         
                         <p style="font-size: 15px; line-height: 1.8; color: #555;">
@@ -211,10 +211,10 @@ class EmailService:
                             This confirmation link will expire in 24 hours for security reasons.
                         </p>
                         <p style="font-size: 12px; color: #999; margin: 10px 0 0 0; text-align: center;">
-                            If you didn't create an account with OptioQuest, please ignore this email.
+                            If you didn't create an account with Optio, please ignore this email.
                         </p>
                         <p style="font-size: 11px; color: #999; margin: 15px 0 0 0; text-align: center;">
-                            © 2024 OptioQuest | <a href="https://optioeducation.com" style="color: #6B46C1; text-decoration: none;">optioeducation.com</a>
+                            © 2024 Optio | <a href="https://optioeducation.com" style="color: #6B46C1; text-decoration: none;">optioeducation.com</a>
                         </p>
                     </div>
                 </div>
@@ -223,11 +223,11 @@ class EmailService:
         """
         
         text_body = f"""
-        Welcome to OptioQuest!
+        Welcome to Optio!
         
         Hi {user_name},
         
-        Thanks for signing up for OptioQuest! We're excited to have you join our community of learners.
+        Thanks for signing up for Optio! We're excited to have you join our community of learners.
         
         Please confirm your email address to activate your account:
         
@@ -241,9 +241,9 @@ class EmailService:
         
         This confirmation link will expire in 24 hours for security reasons.
         
-        If you didn't create an account with OptioQuest, please ignore this email.
+        If you didn't create an account with Optio, please ignore this email.
         
-        © 2024 OptioQuest | optioeducation.com
+        © 2024 Optio | optioeducation.com
         """
         
         return self.send_email(user_email, subject, html_body, text_body)
