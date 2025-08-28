@@ -29,11 +29,11 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max request size
 # Configure security middleware
 security_middleware.init_app(app)
 
-# Configure error handling middleware
-error_handler.init_app(app)
-
-# Configure CORS with proper settings
+# Configure CORS with proper settings - MUST come before error handler
 configure_cors(app)
+
+# Configure error handling middleware - MUST come after CORS
+error_handler.init_app(app)
 
 # Register existing routes (will be deprecated)
 app.register_blueprint(auth.bp, url_prefix='/api/auth')
