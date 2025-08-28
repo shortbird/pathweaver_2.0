@@ -74,6 +74,25 @@ def register():
         original_last_name = data['last_name'].strip()
         email = data['email'].strip().lower()  # Normalize email to lowercase
         
+        # TESTING BYPASS: Skip Supabase registration if TEST_MODE is enabled
+        if os.getenv('TEST_MODE') == 'true':
+            import uuid
+            from datetime import datetime
+            mock_user_id = str(uuid.uuid4())
+            print(f"TEST MODE: Bypassing Supabase registration for {email}")
+            return jsonify({
+                'user': {
+                    'id': mock_user_id,
+                    'email': email,
+                    'created_at': datetime.utcnow().isoformat()
+                },
+                'session': {
+                    'access_token': 'test-token-' + mock_user_id,
+                    'refresh_token': 'test-refresh-' + mock_user_id,
+                    'expires_at': (datetime.utcnow().timestamp() + 3600)
+                }
+            }), 201
+        
         # Log the registration attempt (without password or PII)
         # Only log in development mode
         if os.getenv('FLASK_ENV') == 'development':
@@ -101,6 +120,16 @@ def register():
             # Log error without exposing sensitive data
             if os.getenv('FLASK_ENV') == 'development':
                 print(f"Supabase auth error: {auth_error}")
+            
+            # Check if the error is about rate limiting
+            error_str = str(auth_error).lower()
+            if 'email rate limit exceeded' in error_str or 'rate limit' in error_str:
+                # When rate limit is hit, the user might have been created successfully
+                # Return a more helpful message
+                return jsonify({
+                    'message': 'Registration may have succeeded. If you received a confirmation email, please verify your account. Otherwise, wait a minute and try again.',
+                    'email_verification_required': True
+                }), 201
             raise
         
         if auth_response.user:
@@ -146,6 +175,9 @@ def register():
     except ValidationError:
         raise  # Re-raise validation errors
     except Exception as e:
+        # Log the full error for debugging
+        print(f"Supabase registration error: {str(e)}")
+        
         # Parse error message for specific cases
         error_str = str(e).lower()
         

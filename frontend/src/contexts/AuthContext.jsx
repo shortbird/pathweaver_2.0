@@ -68,7 +68,14 @@ export const AuthProvider = ({ children }) => {
   const register = async (userData) => {
     try {
       const response = await api.post('/auth/register', userData)
-      const { user, session } = response.data
+      const { user, session, message, email_verification_required } = response.data
+      
+      // Handle email verification required case (rate limit or email confirmation)
+      if (email_verification_required || message) {
+        toast.success(message || 'Please check your email to verify your account')
+        navigate('/login')
+        return { success: true }
+      }
       
       if (session) {
         setUser(user)
