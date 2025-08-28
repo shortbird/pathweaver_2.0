@@ -9,7 +9,7 @@ from middleware.rate_limiter import rate_limiter
 bp = Blueprint('dev_utils', __name__)
 
 # Simple password hash for admin access (Test123!)
-ADMIN_RESET_PASSWORD_HASH = "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918"  # SHA256 of "Test123!"
+ADMIN_RESET_PASSWORD_HASH = "9b1810e1fcb0cbf9e996ff7c288f356f4f3758cb3edb1d8f15311f7d381e4b33"  # SHA256 of "Test123!"
 
 def verify_admin_password(password):
     """Verify the admin password for rate limit reset"""
