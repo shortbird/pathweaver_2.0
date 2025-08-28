@@ -84,6 +84,7 @@ def register():
         supabase = get_supabase_admin_client()
         
         # Sign up with Supabase Auth (use original names without HTML encoding)
+        from config import Config
         try:
             auth_response = supabase.auth.sign_up({
                 'email': email,
@@ -92,7 +93,8 @@ def register():
                     'data': {
                         'first_name': original_first_name,
                         'last_name': original_last_name
-                    }
+                    },
+                    'email_redirect_to': f"{Config.FRONTEND_URL}/login"
                 }
             })
         except Exception as auth_error:
