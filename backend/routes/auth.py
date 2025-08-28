@@ -62,17 +62,21 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
 @rate_limit(max_requests=5, window_seconds=300)  # 5 registrations per 5 minutes
 def register():
     try:
+        print(f"[REGISTRATION] Starting registration process")
         data = request.json
         
         # Validate input data
         is_valid, error_message = validate_registration_data(data)
         if not is_valid:
+            print(f"[REGISTRATION] Validation failed: {error_message}")
             raise ValidationError(error_message)
         
         # Store original names for Supabase Auth (no HTML encoding)
         original_first_name = data['first_name'].strip()
         original_last_name = data['last_name'].strip()
         email = data['email'].strip().lower()  # Normalize email to lowercase
+        
+        print(f"[REGISTRATION] Processing registration for email: {email[:3]}***")
         
         # TESTING BYPASS: Skip Supabase registration if TEST_MODE is enabled
         if os.getenv('TEST_MODE') == 'true':
