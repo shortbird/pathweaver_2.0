@@ -225,6 +225,53 @@ def update_quest(user_id, quest_id):
             # Handle JSON
             data = request.json
             tasks = data.pop('tasks', [])
+            
+            # Check if base64 image is included (same as create endpoint)
+            if 'header_image_base64' in data:
+                try:
+                    import base64
+                    # Extract base64 data (remove data:image/xxx;base64, prefix)
+                    base64_str = data['header_image_base64']
+                    if ',' in base64_str:
+                        base64_str = base64_str.split(',')[1]
+                    
+                    # Decode base64 to bytes
+                    file_content = base64.b64decode(base64_str)
+                    
+                    # Get filename and extension
+                    filename = data.get('header_image_filename', 'image.jpg')
+                    file_extension = filename.rsplit('.', 1)[-1].lower()
+                    
+                    # Generate unique filename
+                    file_name = f"quest_headers/{uuid.uuid4()}.{file_extension}"
+                    
+                    # Upload to Supabase storage
+                    print(f"Uploading base64 image: {filename}, size: {len(file_content)} bytes")
+                    storage_response = supabase.storage.from_('quest-images').upload(
+                        file_name,
+                        file_content,
+                        {'content-type': f'image/{file_extension}'}
+                    )
+                    
+                    # Check if upload was successful
+                    if hasattr(storage_response, 'error') and storage_response.error:
+                        print(f"Storage upload error: {storage_response.error}")
+                        return jsonify({'error': f'Image upload failed: {storage_response.error}'}), 400
+                    
+                    # Get public URL
+                    header_image_url = supabase.storage.from_('quest-images').get_public_url(file_name)
+                    data['header_image_url'] = header_image_url
+                    print(f"Image uploaded successfully: {header_image_url}")
+                    
+                    # Remove base64 data from data dict
+                    del data['header_image_base64']
+                    if 'header_image_filename' in data:
+                        del data['header_image_filename']
+                except Exception as upload_error:
+                    print(f"Base64 image upload exception: {str(upload_error)}")
+                    import traceback
+                    traceback.print_exc()
+                    return jsonify({'error': f'Image upload failed: {str(upload_error)}'}), 400
         
         # Update quest
         quest_data = {
