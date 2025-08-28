@@ -80,7 +80,7 @@ const EmailVerificationPage = () => {
               <p className="font-semibold text-gray-900">Next steps:</p>
               <ol className="list-decimal list-inside space-y-2 text-sm text-gray-600">
                 <li>Open your email inbox</li>
-                <li>Look for an email from OptioQuest</li>
+                <li>Look for an email from Optio</li>
                 <li>Click the verification link in the email</li>
                 <li>Once verified, you can log in with your credentials</li>
               </ol>

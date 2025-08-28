@@ -20,24 +20,36 @@ def generate_portfolio_slug(first_name, last_name):
 def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
     """Ensure user has diploma and skill categories initialized - OPTIMIZED"""
     try:
-        # Check if diploma exists
+        # Check if diploma exists for this user
         diploma_check = supabase.table('diplomas').select('id').eq('user_id', user_id).execute()
         
         if not diploma_check.data:
-            # Generate unique slug with fewer checks (max 10 attempts)
-            slug = generate_portfolio_slug(first_name, last_name)
-            for counter in range(10):
-                check_slug = slug if counter == 0 else f"{slug}{counter}"
-                existing = supabase.table('diplomas').select('id').eq('portfolio_slug', check_slug).execute()
-                if not existing.data:
-                    slug = check_slug
-                    break
+            # Generate unique slug with better collision handling
+            base_slug = generate_portfolio_slug(first_name, last_name)
+            slug = base_slug
             
-            # Create diploma
-            supabase.table('diplomas').insert({
-                'user_id': user_id,
-                'portfolio_slug': slug
-            }).execute()
+            # Try to create diploma with increasingly unique slugs
+            for counter in range(100):  # Increased attempts for common names
+                try:
+                    check_slug = base_slug if counter == 0 else f"{base_slug}{counter}"
+                    
+                    # Try to insert directly - let database handle uniqueness
+                    supabase.table('diplomas').insert({
+                        'user_id': user_id,
+                        'portfolio_slug': check_slug
+                    }).execute()
+                    
+                    # If successful, we're done
+                    break
+                    
+                except Exception as insert_error:
+                    # If it's a duplicate key error, try next slug
+                    if '23505' in str(insert_error) or 'duplicate' in str(insert_error).lower():
+                        continue
+                    else:
+                        # Some other error - log it but don't fail
+                        print(f"Error creating diploma: {str(insert_error)}")
+                        break
         
         # Batch insert all skill categories at once instead of checking each one
         skill_categories = ['creativity', 'critical_thinking', 'practical_skills', 
@@ -56,8 +68,9 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
         # Try to insert all at once, ignore conflicts (if they already exist)
         try:
             supabase.table('user_skill_xp').upsert(skill_records, on_conflict='user_id,pillar').execute()
-        except:
+        except Exception as skill_error:
             # If batch insert fails, fall back to individual inserts
+            print(f"Batch skill insert failed: {str(skill_error)}, trying individual inserts")
             for record in skill_records:
                 try:
                     supabase.table('user_skill_xp').insert(record).execute()
@@ -273,6 +286,18 @@ def login():
                     )
                 else:
                     raise
+            
+            # Ensure user has diploma and skills initialized (for existing users)
+            # This is non-blocking - if it fails, we still allow login
+            try:
+                ensure_user_diploma_and_skills(
+                    admin_client,
+                    auth_response.user.id,
+                    user_data.data.get('first_name', 'User'),
+                    user_data.data.get('last_name', '')
+                )
+            except Exception as diploma_error:
+                print(f"Non-critical: Failed to ensure diploma/skills during login: {diploma_error}")
             
             # Try to log activity, but don't fail login if it doesn't work
             try:
