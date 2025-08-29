@@ -64,8 +64,7 @@ def send_collaboration_invite(user_id: str):
                 .insert({
                     'user_id': user_id,
                     'quest_id': quest_id,
-                    'started_at': datetime.utcnow().isoformat(),
-                    'status': 'in_progress'
+                    'started_at': datetime.utcnow().isoformat()
                 })\
                 .execute()
             
@@ -267,8 +266,7 @@ def accept_invitation(user_id: str, invite_id: str):
                 .insert({
                     'user_id': user_id,
                     'quest_id': quest_id,
-                    'started_at': datetime.utcnow().isoformat(),
-                    'status': 'in_progress'
+                    'started_at': datetime.utcnow().isoformat()
                 })\
                 .execute()
             
