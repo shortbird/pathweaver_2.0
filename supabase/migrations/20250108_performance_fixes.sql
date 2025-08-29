@@ -32,7 +32,7 @@ CREATE POLICY "Service role can manage skill details" ON public.user_skill_detai
 DROP POLICY IF EXISTS "Diplomas viewable by owner or if public" ON public.diplomas;
 CREATE POLICY "Diplomas viewable by owner or if public" ON public.diplomas
   FOR SELECT USING (
-    user_id = (SELECT auth.uid()) OR public_visibility = true
+    user_id = (SELECT auth.uid()) OR is_public = true
   );
 
 DROP POLICY IF EXISTS "Diplomas updatable by owner" ON public.diplomas;

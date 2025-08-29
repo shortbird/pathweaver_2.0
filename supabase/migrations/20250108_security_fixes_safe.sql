@@ -284,7 +284,7 @@ BEGIN
                 EXISTS (
                     SELECT 1 FROM public.diplomas
                     WHERE diplomas.user_id = user_achievements.user_id
-                    AND diplomas.public_visibility = true
+                    AND diplomas.is_public = true
                 )
             );
 
