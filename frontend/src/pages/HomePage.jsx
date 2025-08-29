@@ -41,9 +41,6 @@ const HomePage = () => {
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             {/* Left column - Value proposition */}
             <div className="text-center lg:text-left">
-              <div className="inline-flex items-center bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 mb-6">
-                <span className="text-sm font-medium">Self-Directed Learning Platform</span>
-              </div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
                 Your Learning Journey
                 <span className="block sm:inline bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
@@ -464,17 +461,6 @@ const HomePage = () => {
             </p>
           </div>
 
-          {/* Early Adopter Benefit */}
-          <div className="bg-gradient-to-r from-coral/10 to-orange-500/10 border border-coral/20 rounded-xl p-6 mb-8 max-w-2xl mx-auto">
-            <div className="flex items-center">
-              <div className="bg-coral text-white rounded-full p-2 mr-4">
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                </svg>
-              </div>
-            </div>
-          </div>
-
           <div className="grid md:grid-cols-3 gap-8">
             <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 hover:shadow-lg transition-shadow">
               <h3 className="text-xl font-semibold mb-2">Explorer</h3>
@@ -536,6 +522,12 @@ const HomePage = () => {
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
                   <span className="text-gray-700">Learning support team</span>
+                </li>
+                <li className="flex items-start">
+                  <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-gray-700">Earn XP for completing quests</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -604,7 +596,6 @@ const HomePage = () => {
               Your curiosity and creativity are about to flourish!
             </p>
             <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-8 max-w-2xl mx-auto">
-              <div className="text-5xl mb-4">🌟</div>
               <p className="text-xl font-semibold text-gray-800 mb-4">
                 Your Journey Awaits
               </p>
