@@ -11,6 +11,7 @@
 - Diplomas reflect student effort - poor documentation reflects poorly on them
 - Must be well-designed and reflect the Optio brand positively
 - This is often the first exposure to the brand - must clearly communicate self-validated diploma value
+- If you identify discrepancies with production code and this CLAUDE.md file, update this file. Specifically focus on keeping the database schema up to date.
 
 ## Project Overview
 
@@ -112,12 +113,14 @@ pw_v2/
 ### Core Tables
 
 **users** (extends auth.users)
-- id (UUID, PK)
+- id (UUID, PK, references auth.users(id))
 - username (unique)
-- first_name, last_name
+- first_name, last_name  
 - subscription_tier (explorer/creator/visionary)
 - stripe_customer_id
-- role (student/admin/educator)
+- role (student/parent/advisor/admin)
+- created_at
+- Note: email is stored in auth.users table, not users table
 
 **quests**
 - id (UUID, PK)
@@ -169,8 +172,9 @@ pw_v2/
 - public_visibility
 
 **user_skill_xp**
-- user_id, pillar
-- xp_amount
+- user_id (references users(id))
+- pillar (skill category name)
+- xp_amount (total XP for that pillar)
 
 ### Supporting Tables
 - quest_ratings

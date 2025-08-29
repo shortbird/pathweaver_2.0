@@ -798,7 +798,8 @@ def get_users_list(user_id):
             # This is safer than using or_() with formatted strings
             if search:
                 # Build the query safely using Supabase's query builder
-                query = query.or_(f"first_name.ilike.%{search}%,last_name.ilike.%{search}%,email.ilike.%{search}%")
+                # Note: We can't search by email here since it's in auth.users, not users table
+                query = query.or_(f"first_name.ilike.%{search}%,last_name.ilike.%{search}%,username.ilike.%{search}%")
         
         # Apply subscription filter
         if subscription != 'all':
@@ -840,7 +841,23 @@ def get_users_list(user_id):
         
         # Enhance user data with additional information
         users = response.data if response.data else []
+        
+        # Get emails from auth.users table
+        try:
+            # Get all auth users to map emails
+            auth_users = supabase.auth.admin.list_users()
+            email_map = {}
+            if auth_users:
+                for auth_user in auth_users:
+                    email_map[auth_user.id] = getattr(auth_user, 'email', None)
+        except Exception as e:
+            print(f"Warning: Could not fetch auth users for email mapping: {e}")
+            email_map = {}
+        
         for user in users:
+            # Add email from auth.users
+            user['email'] = email_map.get(user['id'], '')
+            
             # Calculate total XP across all pillars
             try:
                 xp_response = supabase.table('user_skill_xp')\
@@ -885,6 +902,17 @@ def get_user_details(admin_id, user_id):
             return jsonify({'error': 'User not found'}), 404
         
         user_data = user_response.data
+        
+        # Get email from auth.users
+        try:
+            auth_user = supabase.auth.admin.get_user_by_id(user_id)
+            if auth_user and hasattr(auth_user, 'user'):
+                user_data['email'] = getattr(auth_user.user, 'email', '')
+            else:
+                user_data['email'] = ''
+        except Exception as e:
+            print(f"Warning: Could not fetch email for user {user_id}: {e}")
+            user_data['email'] = ''
         
         # Get XP by pillar
         xp_response = supabase.table('user_skill_xp')\
@@ -982,29 +1010,31 @@ def update_user_profile(admin_id, user_id):
     data = request.json
     
     try:
-        # Only allow updating certain fields
-        allowed_fields = ['first_name', 'last_name', 'email', 'avatar_url']
+        # Separate email from other fields since email is in auth.users
+        email_update = data.get('email')
+        
+        # Only allow updating certain fields in users table
+        allowed_fields = ['first_name', 'last_name', 'avatar_url']
         update_data = {k: v for k, v in data.items() if k in allowed_fields}
         
-        if not update_data:
-            return jsonify({'error': 'No valid fields to update'}), 400
+        # Update user profile in users table if there are fields to update
+        if update_data:
+            response = supabase.table('users')\
+                .update(update_data)\
+                .eq('id', user_id)\
+                .execute()
         
-        # Update user in database
-        response = supabase.table('users')\
-            .update(update_data)\
-            .eq('id', user_id)\
-            .execute()
-        
-        # If email was changed, update auth user as well
-        if 'email' in update_data:
+        # If email was provided, update it in auth.users
+        if email_update:
             try:
                 # Update auth user email using admin client
                 supabase.auth.admin.update_user_by_id(
                     user_id,
-                    {'email': update_data['email']}
+                    {'email': email_update}
                 )
             except Exception as e:
                 print(f"Warning: Could not update auth email: {e}")
+                return jsonify({'error': 'Failed to update email'}), 400
         
         return jsonify({'message': 'User profile updated successfully'}), 200
         
