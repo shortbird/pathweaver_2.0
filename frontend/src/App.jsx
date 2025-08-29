@@ -13,6 +13,7 @@ import EmailVerificationPage from './pages/EmailVerificationPage'
 import DashboardPage from './pages/DashboardPage'
 import TermsOfService from './pages/TermsOfService'
 import PrivacyPolicy from './pages/PrivacyPolicy'
+import AcceptTermsPage from './pages/AcceptTermsPage'
 // V3 Quest Pages
 import QuestHubV3 from './pages/QuestHubV3'
 import QuestDetailV3 from './pages/QuestDetailV3'
@@ -59,6 +60,7 @@ function App() {
               <Route path="diploma/:userId" element={<DiplomaPageV3 />} />
               
               <Route element={<PrivateRoute />}>
+                <Route path="accept-terms" element={<AcceptTermsPage />} />
                 <Route path="dashboard" element={<DashboardPage />} />
                 {/* V3 Quest Routes */}
                 <Route path="quests" element={<QuestHubV3 />} />

@@ -17,7 +17,31 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState(null)
+  const [needsTosAcceptance, setNeedsTosAcceptance] = useState(false)
+  const [tosCheckLoading, setTosCheckLoading] = useState(false)
   const navigate = useNavigate()
+
+  // Check if user needs to accept ToS
+  const checkTosAcceptance = async () => {
+    if (!user || user.role === 'admin') {
+      setNeedsTosAcceptance(false)
+      return false
+    }
+    
+    setTosCheckLoading(true)
+    try {
+      const response = await api.get('/auth/check-tos-acceptance')
+      const needsAcceptance = response.data.needs_acceptance
+      setNeedsTosAcceptance(needsAcceptance)
+      return needsAcceptance
+    } catch (error) {
+      console.error('Error checking ToS acceptance:', error)
+      setNeedsTosAcceptance(false)
+      return false
+    } finally {
+      setTosCheckLoading(false)
+    }
+  }
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
@@ -25,8 +49,14 @@ export const AuthProvider = ({ children }) => {
     
     if (token && userData) {
       setSession({ access_token: token })
-      setUser(JSON.parse(userData))
+      const parsedUser = JSON.parse(userData)
+      setUser(parsedUser)
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+      
+      // Check ToS acceptance for non-admin users
+      if (parsedUser && parsedUser.role !== 'admin') {
+        checkTosAcceptance()
+      }
     }
     
     setLoading(false)
@@ -57,6 +87,16 @@ export const AuthProvider = ({ children }) => {
       } else {
         toast.success('Welcome back!')
       }
+      
+      // Check if user needs to accept ToS (for existing users)
+      if (user.role !== 'admin') {
+        const needsAcceptance = await checkTosAcceptance()
+        if (needsAcceptance) {
+          navigate('/accept-terms')
+          return { success: true }
+        }
+      }
+      
       navigate('/dashboard')
       
       return { success: true }
@@ -195,6 +235,9 @@ export const AuthProvider = ({ children }) => {
     logout,
     refreshToken,
     updateUser,
+    checkTosAcceptance,
+    needsTosAcceptance,
+    tosCheckLoading,
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin' || user?.role === 'educator',
     isCreator: user?.subscription_tier === 'creator' || user?.subscription_tier === 'visionary',
