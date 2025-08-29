@@ -110,10 +110,9 @@ def list_quests():
                         quest['user_enrollment'] = active_enrollment
                         
                         # Add progress information
-                        completed_tasks_result = supabase.table('task_completions')\
-                            .select('task_id')\
-                            .eq('user_id', user_id)\
-                            .eq('quest_id', quest['id'])\
+                        completed_tasks_result = supabase.table('user_quest_tasks')\
+                            .select('quest_task_id')\
+                            .eq('user_quest_id', active_enrollment['id'])\
                             .execute()
                         
                         completed_task_count = len(completed_tasks_result.data) if completed_tasks_result.data else 0
