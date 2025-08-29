@@ -231,14 +231,21 @@ def get_quest_detail(user_id: str, quest_id: str):
             # Fetch user names for collaboration
             collaborator_names = []
             
+            print(f"[QUEST DETAIL] Found collaboration: requester={collaboration_data['requester_id'][:8]}, partner={collaboration_data['partner_id'][:8]}, current_user={user_id[:8]}")
+            
             # Get requester name if not current user
             if collaboration_data['requester_id'] != user_id:
                 requester = supabase.table('users')\
                     .select('first_name, last_name')\
                     .eq('id', collaboration_data['requester_id'])\
                     .execute()
-                if requester.data:
-                    collaborator_names.append(f"{requester.data[0]['first_name']} {requester.data[0]['last_name']}")
+                print(f"[QUEST DETAIL] Requester query result: {requester.data}")
+                if requester.data and len(requester.data) > 0:
+                    name = f"{requester.data[0].get('first_name', 'Unknown')} {requester.data[0].get('last_name', 'User')}"
+                    collaborator_names.append(name)
+                    print(f"[QUEST DETAIL] Added requester name: {name}")
+                else:
+                    print(f"[QUEST DETAIL] No user data found for requester {collaboration_data['requester_id'][:8]}")
             
             # Get partner name if not current user
             if collaboration_data['partner_id'] != user_id:
@@ -246,9 +253,15 @@ def get_quest_detail(user_id: str, quest_id: str):
                     .select('first_name, last_name')\
                     .eq('id', collaboration_data['partner_id'])\
                     .execute()
-                if partner.data:
-                    collaborator_names.append(f"{partner.data[0]['first_name']} {partner.data[0]['last_name']}")
+                print(f"[QUEST DETAIL] Partner query result: {partner.data}")
+                if partner.data and len(partner.data) > 0:
+                    name = f"{partner.data[0].get('first_name', 'Unknown')} {partner.data[0].get('last_name', 'User')}"
+                    collaborator_names.append(name)
+                    print(f"[QUEST DETAIL] Added partner name: {name}")
+                else:
+                    print(f"[QUEST DETAIL] No user data found for partner {collaboration_data['partner_id'][:8]}")
             
+            print(f"[QUEST DETAIL] Final collaborator_names: {collaborator_names}")
             collaboration_data['collaborator_names'] = collaborator_names
             quest_data['collaboration'] = collaboration_data
         else:

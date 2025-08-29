@@ -103,8 +103,11 @@ def send_collaboration_invite(user_id: str):
             .eq('id', friend_id)\
             .execute()
         
+        print(f"[COLLABORATIONS] Friend query for {friend_id[:8]}: {friend_info.data}")
+        
         # Provide fallback if user doesn't exist
         if not friend_info.data or len(friend_info.data) == 0:
+            print(f"[COLLABORATIONS] No user data found for friend {friend_id[:8]}, using fallback")
             friend_info.data = [{'first_name': 'User', 'last_name': 'Account'}]
         
         # Create collaboration invitation
@@ -416,7 +419,10 @@ def get_active_collaborations(user_id: str):
                 .eq('id', partner_id)\
                 .execute()
             
+            print(f"[COLLABORATIONS] Partner query for {partner_id[:8]}: {partner.data}")
+            
             if not partner.data or len(partner.data) == 0:
+                print(f"[COLLABORATIONS] No user data found for partner {partner_id[:8]}, using fallback")
                 partner.data = [{
                     'id': partner_id,
                     'first_name': 'User',
