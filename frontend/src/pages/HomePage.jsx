@@ -48,7 +48,7 @@ const HomePage = () => {
                 </span>
               </h1>
               <p className="text-lg sm:text-xl mb-8 leading-relaxed opacity-90 px-2 sm:px-0">
-                Complete real-world quests that interest you. Document what you learn. 
+                Complete real-world quests that interest you. Document your process. 
                 Build skills through actual practice.
               </p>
               
@@ -172,7 +172,7 @@ const HomePage = () => {
       <div id="demo" className="py-16 bg-gradient-to-br from-purple-50 to-blue-50" role="main">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">A Diploma That Tells Your Story</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">A Diploma That Tells <u>Your</u> Story</h2>
             <p className="text-lg sm:text-xl text-gray-700 mb-8 max-w-3xl mx-auto">
               Share your verified learning journey with employers, schools, and your community. 
               Every quest you complete adds real evidence to your shareable portfolio.
@@ -185,7 +185,7 @@ const HomePage = () => {
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="text-left">
                       <h3 className="text-xl font-semibold">Your Validated Optio Portfolio Diploma</h3>
-                      <p className="text-sm opacity-90 mt-1">Shareable link: optio.quest/learner/demo-2025</p>
+                      <p className="text-sm opacity-90 mt-1">Shareable link: optioeducation.com/learner/demo-2025</p>
                     </div>
                     <div className="flex gap-2">
                       <button className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center">
