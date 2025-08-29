@@ -274,22 +274,14 @@ const QuestDetailV3 = () => {
                   View Achievement 🏆
                 </button>
               ) : (
-                <div className="flex gap-3 flex-1">
-                  {!quest.collaboration && (
-                    <button
-                      onClick={() => setShowTeamUpModal(true)}
-                      className="bg-purple-600 text-white py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors font-medium"
-                    >
-                      Team Up
-                    </button>
-                  )}
+                !quest.collaboration && (
                   <button
-                    onClick={handleCancelQuest}
-                    className="ml-auto bg-red-600 text-white py-3 px-6 rounded-lg hover:bg-red-700 transition-colors font-medium"
+                    onClick={() => setShowTeamUpModal(true)}
+                    className="flex-1 bg-purple-600 text-white py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors font-medium"
                   >
-                    Cancel Quest
+                    Team Up
                   </button>
-                </div>
+                )
               )}
             </div>
           </div>
@@ -372,6 +364,21 @@ const QuestDetailV3 = () => {
             userQuestId={quest.user_enrollment.id}
             isOwner={true}
           />
+        )}
+
+        {/* Cancel Quest Button - at the bottom */}
+        {quest.user_enrollment && progressPercentage < 100 && (
+          <div className="mt-8 text-center">
+            <button
+              onClick={handleCancelQuest}
+              className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+            >
+              Cancel Quest
+            </button>
+            <p className="mt-2 text-sm text-gray-500">
+              Warning: This will delete all progress and work submitted for this quest
+            </p>
+          </div>
         )}
 
       {/* Task Completion Modal */}
