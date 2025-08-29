@@ -132,7 +132,7 @@ const HomePage = () => {
                           <span className="font-bold text-primary">12</span>
                         </div>
                         <div className="flex justify-between text-sm mt-2">
-                          <span className="text-gray-600">XP</span>
+                          <span className="text-gray-600">XP Earned</span>
                           <span className="font-bold text-primary">1,450</span>
                         </div>
                       </div>
@@ -184,7 +184,7 @@ const HomePage = () => {
                 <div className="bg-gradient-to-r from-primary to-primary-dark text-white p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="text-left">
-                      <h3 className="text-xl font-semibold">Your Validated Learning Portfolio</h3>
+                      <h3 className="text-xl font-semibold">Your Validated Optio Portfolio Diploma</h3>
                       <p className="text-sm opacity-90 mt-1">Shareable link: optio.quest/learner/demo-2025</p>
                     </div>
                     <div className="flex gap-2">
@@ -344,9 +344,9 @@ const HomePage = () => {
             <div className="inline-flex items-center bg-gradient-to-r from-primary to-primary-dark text-white rounded-full px-6 py-3 mb-6">
               <span className="text-sm font-semibold tracking-wide uppercase">Our Philosophy</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-6">Build a Portfolio Worth Sharing</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-6">The Process is the Goal</h2>
             <p className="text-lg sm:text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
-              Your Optio Portfolio Diploma isn't just a certificate—it's a living document of your real learning journey. 
+              Your Optio Portfolio Diploma isn't just a certificate; it's a living document of your real learning journey. 
               Each quest you complete becomes verified evidence that you can share with employers, colleges, and your community.
             </p>
           </div>
