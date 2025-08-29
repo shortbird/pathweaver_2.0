@@ -87,8 +87,13 @@ const FriendsPage = () => {
 
   const fetchTeamInvitations = async () => {
     try {
+      console.log('Fetching team invitations...')
       const response = await api.get('/v3/collaborations/invites')
+      console.log('Team invitations response:', response.data)
       setTeamInvitations(response.data.invitations || [])
+      if (response.data.invitations && response.data.invitations.length > 0) {
+        console.log('Found', response.data.invitations.length, 'team invitations')
+      }
     } catch (error) {
       console.error('Failed to fetch team invitations:', error)
     }
@@ -196,11 +201,27 @@ const FriendsPage = () => {
             </form>
           </div>
 
-          {teamInvitations.length > 0 && (
+          {(teamInvitations.length > 0 || true) && (
             <div className="card mb-6">
-              <h2 className="text-xl font-semibold mb-4">Team-Up Invitations</h2>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Team-Up Invitations</h2>
+                <button
+                  onClick={() => {
+                    fetchTeamInvitations();
+                    toast.success('Refreshed invitations');
+                  }}
+                  className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200"
+                >
+                  Refresh
+                </button>
+              </div>
               <div className="space-y-3">
-                {teamInvitations.map(invite => (
+                {teamInvitations.length === 0 ? (
+                  <p className="text-gray-500 text-center py-4">
+                    No pending team invitations
+                  </p>
+                ) : (
+                  teamInvitations.map(invite => (
                   <div
                     key={invite.id}
                     className="p-4 bg-purple-50 border border-purple-200 rounded-lg"
@@ -233,7 +254,8 @@ const FriendsPage = () => {
                       </div>
                     </div>
                   </div>
-                ))}
+                ))
+                )}
               </div>
             </div>
           )}

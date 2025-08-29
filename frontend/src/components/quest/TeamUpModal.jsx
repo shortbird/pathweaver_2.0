@@ -213,7 +213,7 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
                   <div className="ml-2">
                     <p className="text-sm font-medium text-purple-900">2x XP Bonus!</p>
                     <p className="text-xs text-purple-700 mt-1">
-                      Both you and your friend will earn double XP for all tasks completed in this quest
+                      Both you and any friends you work with will earn double XP for all tasks completed in this quest
                     </p>
                   </div>
                 </div>

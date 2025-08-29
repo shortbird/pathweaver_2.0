@@ -172,13 +172,17 @@ def get_pending_invites(user_id: str):
     try:
         supabase = get_supabase_client()
         
+        print(f"Fetching invitations for user: {user_id}")
+        
         # Get invitations where user is the partner
         invitations = supabase.table('quest_collaborations')\
-            .select('*, quests(id, title, header_image_url), users!requester_id(id, first_name, last_name, avatar_url)')\
+            .select('*')\
             .eq('partner_id', user_id)\
             .eq('status', 'pending')\
             .order('created_at', desc=True)\
             .execute()
+        
+        print(f"Found {len(invitations.data or [])} pending invitations")
         
         if not invitations.data:
             return jsonify({
@@ -187,13 +191,27 @@ def get_pending_invites(user_id: str):
                 'message': 'No pending invitations'
             })
         
-        # Format invitations for display
+        # Format invitations for display - fetch related data separately
         formatted_invites = []
         for invite in invitations.data:
+            # Get quest details
+            quest = supabase.table('quests')\
+                .select('id, title, header_image_url')\
+                .eq('id', invite['quest_id'])\
+                .single()\
+                .execute()
+            
+            # Get requester details
+            requester = supabase.table('users')\
+                .select('id, first_name, last_name, avatar_url')\
+                .eq('id', invite['requester_id'])\
+                .single()\
+                .execute()
+            
             formatted_invites.append({
                 'id': invite['id'],
-                'quest': invite['quests'],
-                'requester': invite['users'],
+                'quest': quest.data if quest.data else None,
+                'requester': requester.data if requester.data else None,
                 'created_at': invite['created_at'],
                 'status': invite['status']
             })
