@@ -452,6 +452,33 @@ Standard error response:
 - design_implementation.md - Design decisions
 - SECURITY_FIX_CHANGELOG.md - Security updates log
 - AI_imp_plan.md - AI implementation roadmap
+- supabase_issues.md - Current security/performance issues from Supabase dashboard
+
+### Recent Security Updates (2025-01-08)
+
+**Critical Security Fixes Applied:**
+1. **RLS (Row Level Security) enabled** on previously unprotected tables:
+   - learning_logs, learning_logs_backup, submissions, friendships
+   - quest_collaborations, quest_reviews, user_achievements, leaderboards
+
+2. **Performance optimizations** for RLS policies:
+   - Fixed auth.uid() calls to use (SELECT auth.uid()) for better query planning
+   - Consolidated multiple permissive policies to reduce overhead
+   - Optimized policies on 25+ tables for improved performance
+
+3. **Function security hardening**:
+   - Added search_path restrictions to all database functions
+   - Prevents SQL injection via search path manipulation
+
+4. **Migration files created** in `supabase/migrations/`:
+   - 20250108_security_fixes.sql - Enables RLS and creates policies
+   - 20250108_performance_fixes.sql - Optimizes RLS performance  
+   - 20250108_function_security_fixes.sql - Secures database functions
+
+**Manual Actions Required in Supabase Dashboard:**
+- Move extensions (pg_net, pg_trgm, vector) from public to extensions schema
+- Apply migration files via SQL Editor (requires superuser privileges)
+- Verify Security Advisor shows resolved issues after migration
 
 ## Future Enhancements
 
