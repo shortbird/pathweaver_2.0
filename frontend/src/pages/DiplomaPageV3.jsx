@@ -11,11 +11,11 @@ const DiplomaPageV3 = () => {
   const [shareableLink, setShareableLink] = useState('');
 
   const pillarColors = {
-    creativity: 'from-purple-500 to-pink-500',
-    critical_thinking: 'from-blue-500 to-cyan-500',
-    practical_skills: 'from-green-500 to-emerald-500',
-    communication: 'from-orange-500 to-yellow-500',
-    cultural_literacy: 'from-red-500 to-rose-500'
+    creativity: 'from-[#ef597b] to-[#6d469b]',
+    critical_thinking: 'from-[#6d469b] to-[#ef597b]',
+    practical_skills: 'from-[#ef597b] to-[#6d469b]',
+    communication: 'from-[#6d469b] to-[#ef597b]',
+    cultural_literacy: 'from-[#ef597b] to-[#6d469b]'
   };
 
   useEffect(() => {
@@ -83,7 +83,7 @@ const DiplomaPageV3 = () => {
     switch (evidence.evidence_type) {
       case 'text':
         return (
-          <div className="p-3 bg-gray-50 rounded-lg">
+          <div className="p-4 rounded-lg" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">
               {evidence.evidence_content}
             </p>
@@ -110,7 +110,7 @@ const DiplomaPageV3 = () => {
       
       case 'image':
         return (
-          <div className="p-3 bg-gray-50 rounded-lg">
+          <div className="p-4 rounded-lg" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }>
             <img 
               src={evidence.evidence_content}
               alt="Task evidence"
@@ -122,7 +122,7 @@ const DiplomaPageV3 = () => {
       
       case 'video':
         return (
-          <div className="p-3 bg-gray-50 rounded-lg">
+          <div className="p-4 rounded-lg" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }>
             <video 
               controls
               className="max-w-full rounded-lg"
@@ -148,58 +148,70 @@ const DiplomaPageV3 = () => {
 
   return (
     <Layout>
-      <div className="max-w-7xl mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-10" style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg shadow-lg p-8 mb-8">
-          <div className="flex justify-between items-start">
-            <div>
-              <h1 className="text-4xl font-bold mb-2">My Learning Diploma</h1>
-              <p className="text-blue-100 text-lg">
-                A showcase of my completed quests and earned achievements
-              </p>
+        <div className="rounded-xl shadow-lg overflow-hidden mb-8" style={{ background: 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)', boxShadow: '0 4px 20px rgba(239, 89, 123, 0.35)' }}>
+          <div className="p-12 text-white">
+            <div className="flex justify-between items-start">
+              <div>
+                <h1 className="text-5xl font-bold mb-3" style={{ letterSpacing: '-1px' }}>My Learning Diploma</h1>
+                <p className="text-white/90 text-lg">
+                  A showcase of my completed quests and earned achievements
+                </p>
+              </div>
+              <button
+                onClick={copyShareLink}
+                className="px-6 py-3 rounded-full transition-all font-semibold text-sm"
+                style={{ 
+                  background: 'white', 
+                  color: '#6d469b',
+                  boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
+                }}
+                onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+                onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+              >
+                Share Diploma 🔗
+              </button>
             </div>
-            <button
-              onClick={copyShareLink}
-              className="bg-white text-blue-600 px-4 py-2 rounded-lg hover:bg-blue-50 transition-colors font-medium"
-            >
-              Share Diploma 🔗
-            </button>
-          </div>
 
-          {/* XP Summary */}
-          <div className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-4">
-            {Object.entries(pillarColors).map(([pillar, gradient]) => {
-              const xp = totalXP[pillar] || 0;
-              return (
-                <div key={pillar} className="bg-white/20 backdrop-blur rounded-lg p-3">
-                  <div className={`text-xs font-medium mb-1 capitalize`}>
-                    {pillar.replace('_', ' ')}
+            {/* XP Summary */}
+            <div className="mt-10 grid grid-cols-2 md:grid-cols-5 gap-4">
+              {Object.entries(pillarColors).map(([pillar, gradient]) => {
+                const xp = totalXP[pillar] || 0;
+                return (
+                  <div key={pillar} className="bg-white/15 backdrop-blur-sm rounded-xl p-4 border border-white/20">
+                    <div className="text-xs font-semibold mb-2 capitalize text-white/80">
+                      {pillar.replace('_', ' ')}
+                    </div>
+                    <div className="text-2xl font-bold text-white">
+                      {xp.toLocaleString()} XP
+                    </div>
                   </div>
-                  <div className="text-2xl font-bold">
-                    {xp.toLocaleString()} XP
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
         </div>
 
         {/* Achievements Grid */}
         {achievements.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
-            <svg className="mx-auto h-16 w-16 text-gray-400 mb-4" fill="currentColor" viewBox="0 0 20 20">
+          <div className="bg-white rounded-xl p-12 text-center" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}>
+            <svg className="mx-auto h-16 w-16 mb-4" fill="currentColor" viewBox="0 0 20 20" style={{ color: '#6d469b', opacity: 0.3 }}>
               <path fillRule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
             </svg>
-            <p className="text-gray-600 text-lg mb-2">No completed quests yet</p>
-            <p className="text-gray-500">Complete quests to showcase your achievements here!</p>
+            <p className="text-lg mb-2 font-semibold" style={{ color: '#003f5c' }}>No completed quests yet</p>
+            <p style={{ color: '#003f5c', opacity: 0.7 }}>Complete quests to showcase your achievements here!</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {achievements.map((achievement) => (
               <div 
                 key={achievement.quest.id}
-                className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer"
+                className="bg-white rounded-xl overflow-hidden transition-all cursor-pointer hover:transform hover:-translate-y-1"
+                style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}
                 onClick={() => setSelectedAchievement(achievement)}
+                onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 8px 20px rgba(109,70,155,0.15)'}
+                onMouseLeave={(e) => e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.07)'}
               >
                 {/* Quest Header Image */}
                 {achievement.quest.header_image_url ? (
@@ -209,28 +221,30 @@ const DiplomaPageV3 = () => {
                     className="w-full h-32 object-cover"
                   />
                 ) : (
-                  <div className="h-32 bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center">
+                  <div className="h-32 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)' }}>
                     <div className="text-white text-4xl">🏆</div>
                   </div>
                 )}
 
-                <div className="p-4">
-                  <h3 className="font-bold text-gray-800 mb-2">{achievement.quest.title}</h3>
-                  <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                <div className="p-5">
+                  <h3 className="font-bold mb-2" style={{ color: '#003f5c', fontSize: '18px' }}>{achievement.quest.title}</h3>
+                  <p className="text-sm mb-3 line-clamp-2" style={{ color: '#003f5c', opacity: 0.8, lineHeight: 1.6 }}>
                     {achievement.quest.big_idea}
                   </p>
                   
                   <div className="flex justify-between items-center text-sm">
-                    <span className="text-gray-500">
+                    <span style={{ color: '#003f5c', opacity: 0.6 }}>
                       Completed {formatDate(achievement.completed_at)}
                     </span>
-                    <span className="font-bold text-green-600">
+                    <span className="font-bold" style={{ color: '#6d469b' }}>
                       {achievement.total_xp_earned} XP
                     </span>
                   </div>
 
-                  <div className="mt-3 flex flex-wrap gap-1">
-                    {Object.keys(achievement.task_evidence).length} tasks completed
+                  <div className="mt-3 px-3 py-1 rounded-full inline-block" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.1) 0%, rgba(109,70,155,0.1) 100%)', border: '1px solid rgba(109,70,155,0.2)' }}>
+                    <span className="text-xs font-semibold" style={{ color: '#6d469b' }}>
+                      {Object.keys(achievement.task_evidence).length} tasks completed
+                    </span>
                   </div>
                 </div>
               </div>
