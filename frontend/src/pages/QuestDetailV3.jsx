@@ -26,10 +26,15 @@ const QuestDetailV3 = () => {
   const fetchQuestDetails = async () => {
     try {
       const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const token = localStorage.getItem('access_token');
+      const headers = {};
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
       const response = await fetch(`${apiBase}/v3/quests/${id}`, {
-        headers: user ? {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        } : {}
+        headers
       });
 
       if (!response.ok) {
@@ -37,6 +42,8 @@ const QuestDetailV3 = () => {
       }
 
       const data = await response.json();
+      console.log('[QuestDetailV3] Received quest data:', data.quest);
+      console.log('[QuestDetailV3] User enrollment:', data.quest?.user_enrollment);
       setQuest(data.quest);
     } catch (error) {
       console.error('Error fetching quest:', error);

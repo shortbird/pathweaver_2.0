@@ -161,6 +161,7 @@ def get_quest_detail(user_id: str, quest_id: str):
     Includes user's progress if enrolled.
     """
     try:
+        print(f"[QUEST DETAIL] Getting quest {quest_id} for user {user_id}")
         supabase = get_supabase_client()
         
         # Get quest with tasks
@@ -189,12 +190,17 @@ def get_quest_detail(user_id: str, quest_id: str):
             quest_data['quest_tasks'].sort(key=lambda x: x.get('task_order', 0))
         
         # Check if user is actively enrolled
+        print(f"[QUEST DETAIL] Checking enrollment for user {user_id} on quest {quest_id}")
         user_quest = supabase.table('user_quests')\
             .select('*, user_quest_tasks(*)')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
             .eq('is_active', True)\
             .execute()
+        
+        print(f"[QUEST DETAIL] Found {len(user_quest.data) if user_quest.data else 0} enrollment(s)")
+        if user_quest.data:
+            print(f"[QUEST DETAIL] Enrollment data: is_active={user_quest.data[0].get('is_active')}, completed_at={user_quest.data[0].get('completed_at')}")
         
         if user_quest.data and user_quest.data[0].get('is_active') and not user_quest.data[0].get('completed_at'):
             quest_data['user_enrollment'] = user_quest.data[0]
