@@ -123,6 +123,7 @@ def get_user_quests(user_id):
     
     try:
         # Get user's enrolled quests from new schema
+        # Include both active and completed for comprehensive view
         user_quests = supabase.table('user_quests').select('*, quests(*, quest_tasks(*))').eq('user_id', user_id).execute()
         
         if not user_quests.data:
@@ -135,6 +136,14 @@ def get_user_quests(user_id):
                 quest = uq['quests']
                 total_xp = sum(task.get('xp_amount', 0) for task in quest.get('quest_tasks', []))
                 
+                # Determine actual status based on both is_active and completed_at
+                if uq.get('completed_at'):
+                    status = 'completed'
+                elif uq.get('is_active'):
+                    status = 'in_progress'
+                else:
+                    status = 'inactive'  # Dropped or paused
+                
                 formatted_quests.append({
                     'id': uq['id'],
                     'quest_id': quest['id'],
@@ -146,7 +155,8 @@ def get_user_quests(user_id):
                     },
                     'started_at': uq.get('started_at'),
                     'completed_at': uq.get('completed_at'),
-                    'status': 'completed' if uq.get('completed_at') else 'in_progress'
+                    'is_active': uq.get('is_active', False),
+                    'status': status
                 })
         
         return jsonify(formatted_quests), 200
@@ -163,11 +173,34 @@ def enroll_in_quest(user_id, quest_id):
     supabase = get_supabase_admin_client()
     
     try:
-        # Check if already enrolled
-        existing = supabase.table('user_quests').select('id').eq('user_id', user_id).eq('quest_id', quest_id).execute()
+        # Check if already enrolled (active enrollment only)
+        existing = supabase.table('user_quests')\
+            .select('id, is_active, completed_at')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .execute()
         
         if existing.data:
-            return jsonify({'error': 'Already enrolled in this quest'}), 400
+            # Check for active enrollment
+            for enrollment in existing.data:
+                if enrollment.get('is_active') and not enrollment.get('completed_at'):
+                    return jsonify({'error': 'Already enrolled in this quest'}), 400
+            
+            # Reactivate inactive enrollment if exists
+            if existing.data:
+                enrollment_id = existing.data[0]['id']
+                updated = supabase.table('user_quests')\
+                    .update({
+                        'is_active': True,
+                        'started_at': datetime.utcnow().isoformat()
+                    })\
+                    .eq('id', enrollment_id)\
+                    .execute()
+                
+                return jsonify({
+                    'message': 'Re-enrolled in quest successfully',
+                    'enrollment': updated.data[0] if updated.data else None
+                }), 200
         
         # Create enrollment
         enrollment = supabase.table('user_quests').insert({

@@ -95,17 +95,15 @@ def list_quests():
                     .execute()
                 
                 if enrollment.data:
-                    # Find the active enrollment (or most recent if none active)
+                    # Find the active enrollment ONLY
                     active_enrollment = None
                     for enr in enrollment.data:
                         if enr.get('is_active') and not enr.get('completed_at'):
                             active_enrollment = enr
                             break
                     
-                    # If no active enrollment, take the most recent one
-                    if not active_enrollment and enrollment.data:
-                        active_enrollment = enrollment.data[0]
-                    
+                    # Only include active enrollments in the response
+                    # This ensures the frontend shows correct button state
                     if active_enrollment:
                         quest['user_enrollment'] = active_enrollment
             

@@ -149,32 +149,36 @@ def get_active_quests(supabase, user_id: str) -> list:
 def get_recent_completions(supabase, user_id: str, limit: int = 5) -> list:
     """Get user's recent quest completions"""
     try:
-        # Try with completed_at field (V3 quests)
+        # Simple query that works with current schema
         completions = supabase.table('user_quests')\
-            .select('*, quests(*, quest_skill_xp(*), quest_xp_awards(*))')\
+            .select('*, quests(*, quest_tasks(*))')\
             .eq('user_id', user_id)\
             .not_.is_('completed_at', 'null')\
             .order('completed_at', desc=True)\
             .limit(limit)\
             .execute()
-    except:
-        # Fallback to status field (older schema)
+        
+        if completions.data:
+            return completions.data
+            
+    except Exception as e:
+        print(f"Error in first completions query: {str(e)}")
+        
+        # Fallback to simpler query
         try:
             completions = supabase.table('user_quests')\
                 .select('*, quests(*)')\
                 .eq('user_id', user_id)\
-                .eq('status', 'completed')\
+                .not_.is_('completed_at', 'null')\
                 .order('completed_at', desc=True)\
                 .limit(limit)\
                 .execute()
-        except Exception as e:
-            print(f"Error fetching recent completions: {str(e)}")
-            return []
-    
-    if completions.data:
-        # Return the raw data with proper structure
-        # The frontend expects user_quest records with nested quest data
-        return completions.data
+            
+            if completions.data:
+                return completions.data
+                
+        except Exception as fallback_error:
+            print(f"Error fetching recent completions: {str(fallback_error)}")
     
     return []
 
