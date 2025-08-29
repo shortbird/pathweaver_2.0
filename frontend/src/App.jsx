@@ -22,7 +22,6 @@ import ProfilePage from './pages/ProfilePage'
 import FriendsPage from './pages/FriendsPage'
 import SubscriptionPage from './pages/SubscriptionPage'
 import AdminPage from './pages/AdminPage'
-import DiplomaPage from './pages/DiplomaPage'
 import PrivateRoute from './components/PrivateRoute'
 
 const queryClient = new QueryClient()
@@ -52,7 +51,7 @@ function App() {
               <Route path="login" element={<LoginPage />} />
               <Route path="register" element={<RegisterPage />} />
               <Route path="email-verification" element={<EmailVerificationPage />} />
-              <Route path="portfolio/:slug" element={<DiplomaPage />} />
+              <Route path="portfolio/:slug" element={<DiplomaPageV3 />} />
               <Route path="diploma/:userId" element={<DiplomaPageV3 />} />
               
               <Route element={<PrivateRoute />}>
