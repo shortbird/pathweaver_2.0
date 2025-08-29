@@ -490,6 +490,7 @@ Standard error response:
    - 20250829_consolidate_permissive_policies.sql - Merges redundant policies
    - 20250829_create_missing_rls_policies.sql - Adds missing policies
    - 20250829_comprehensive_security_fixes.sql - Master migration with all fixes
+   - 20250829_fix_performance_issues.sql - Fixes auth RLS init and consolidates policies
 
 **Manual Actions Required in Supabase Dashboard:**
 1. Move extensions (pg_net, pg_trgm, vector) from public to extensions schema
