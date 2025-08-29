@@ -454,7 +454,53 @@ Standard error response:
 - AI_imp_plan.md - AI implementation roadmap
 - supabase_issues.md - Current security/performance issues from Supabase dashboard
 
-### Recent Security Updates (2025-01-08)
+### Recent Security Updates (2025-08-29)
+
+**Latest Security and Performance Fixes Applied:**
+
+1. **Security Definer View Fixed**:
+   - Removed SECURITY DEFINER from ai_generation_analytics view
+   - Ensures proper RLS policy enforcement
+
+2. **Function Security Hardening**:
+   - Added search_path restrictions to ALL database functions
+   - Prevents SQL injection via search path manipulation
+   - Fixed 13 vulnerable functions
+
+3. **RLS Performance Optimizations**:
+   - Fixed auth.uid() calls to use (SELECT auth.uid()) for better query planning
+   - Created is_admin() helper function for efficient admin checks
+   - Added database indexes to improve RLS policy performance
+
+4. **Consolidated Multiple Permissive Policies**:
+   - Merged redundant policies on 10+ tables
+   - Significantly improved query performance
+   - Simplified policy management
+
+5. **Created Missing RLS Policies**:
+   - Added policies for ai_cycle_logs, ai_generated_quests, ai_generation_jobs
+   - Added policies for ai_prompt_templates, ai_quest_review_history, ai_seeds
+   - Enabled RLS on friendships, learning_logs_backup, quest_reviews, user_achievements
+
+6. **Migration Files Created** in `supabase/migrations/`:
+   - 20250829_fix_security_definer_view.sql - Fixes view security
+   - 20250829_fix_function_search_paths.sql - Secures all functions
+   - 20250829_move_extensions_to_schema.sql - Extension relocation guide
+   - 20250829_fix_rls_performance.sql - Optimizes RLS performance
+   - 20250829_consolidate_permissive_policies.sql - Merges redundant policies
+   - 20250829_create_missing_rls_policies.sql - Adds missing policies
+   - 20250829_comprehensive_security_fixes.sql - Master migration with all fixes
+
+**Manual Actions Required in Supabase Dashboard:**
+1. Move extensions (pg_net, pg_trgm, vector) from public to extensions schema
+2. Apply migration files via SQL Editor (requires superuser privileges)
+3. Configure Auth settings:
+   - Set OTP expiry to less than 1 hour
+   - Enable leaked password protection (HaveIBeenPwned)
+4. Run `SELECT * FROM public.check_security_fixes()` to verify all fixes
+5. Verify Security Advisor shows resolved issues after migration
+
+### Previous Security Updates (2025-01-08)
 
 **Critical Security Fixes Applied:**
 1. **RLS (Row Level Security) enabled** on previously unprotected tables:
@@ -474,11 +520,6 @@ Standard error response:
    - 20250108_security_fixes.sql - Enables RLS and creates policies
    - 20250108_performance_fixes.sql - Optimizes RLS performance  
    - 20250108_function_security_fixes.sql - Secures database functions
-
-**Manual Actions Required in Supabase Dashboard:**
-- Move extensions (pg_net, pg_trgm, vector) from public to extensions schema
-- Apply migration files via SQL Editor (requires superuser privileges)
-- Verify Security Advisor shows resolved issues after migration
 
 ## Future Enhancements
 
