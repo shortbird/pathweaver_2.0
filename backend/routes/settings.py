@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from database import supabase
+from database import get_supabase_admin_client
 from utils.auth.decorators import require_auth, require_admin
 import uuid
 from datetime import datetime
@@ -10,6 +10,7 @@ settings_bp = Blueprint('settings', __name__)
 def get_settings():
     try:
         # Get public settings (logo, site name, etc.)
+        supabase = get_supabase_admin_client()
         response = supabase.table('site_settings').select('*').single().execute()
         
         if response.data:
@@ -35,6 +36,7 @@ def get_settings():
 def update_settings(current_user):
     try:
         data = request.get_json()
+        supabase = get_supabase_admin_client()
         
         # Check if settings exist
         existing = supabase.table('site_settings').select('id').execute()
@@ -77,6 +79,7 @@ def upload_logo(current_user):
         
         # Upload to Supabase storage
         file_data = logo_file.read()
+        supabase = get_supabase_admin_client()
         
         # Create bucket if it doesn't exist
         try:
