@@ -51,8 +51,8 @@ const HomePage = () => {
                 </span>
               </h1>
               <p className="text-lg sm:text-xl mb-8 leading-relaxed opacity-90 px-2 sm:px-0">
-                Complete real-world quests that spark your curiosity. Document your discoveries. 
-                Create a learning story that's uniquely yours. The process is the goal.
+                Complete real-world quests that interest you. Document what you learn. 
+                Build skills through actual practice.
               </p>
               
               {/* Placeholder metrics - will be dynamic in Phase 2 */}
@@ -131,11 +131,11 @@ const HomePage = () => {
                       </div>
                       <div className="mt-6 pt-4 border-t border-gray-200">
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Adventures Completed</span>
+                          <span className="text-gray-600">Quests Completed</span>
                           <span className="font-bold text-primary">12</span>
                         </div>
                         <div className="flex justify-between text-sm mt-2">
-                          <span className="text-gray-600">Growth Points</span>
+                          <span className="text-gray-600">XP</span>
                           <span className="font-bold text-primary">1,450</span>
                         </div>
                       </div>
@@ -163,9 +163,9 @@ const HomePage = () => {
       <div id="demo" className="py-16 bg-gradient-to-br from-purple-50 to-blue-50" role="main">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Watch Your Growth Unfold</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">See Your Progress Take Shape</h2>
             <p className="text-lg sm:text-xl text-gray-700 mb-8 max-w-3xl mx-auto">
-              Every quest you complete is a discovery about yourself. See how your learning journey creates something beautiful.
+              Every quest you complete adds value to your diploma. Watch how your efforts build into something substantial.
             </p>
             
             {/* Interactive portfolio preview */}
@@ -201,7 +201,7 @@ const HomePage = () => {
                             <p className="text-sm text-gray-600">What I created: Training journal & finish line moment</p>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs bg-coral/10 text-coral px-2 py-0.5 rounded">Practical Skills</span>
-                              <span className="text-xs text-gray-500">Felt amazing!</span>
+                              <span className="text-xs text-gray-500">Felt accomplished</span>
                             </div>
                           </div>
                         </div>
@@ -214,7 +214,7 @@ const HomePage = () => {
                             <p className="text-sm text-gray-600">What I created: Analysis notebook with visualizations</p>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">Critical Thinking</span>
-                              <span className="text-xs text-gray-500">Eye-opening insights</span>
+                              <span className="text-xs text-gray-500">Interesting findings</span>
                             </div>
                           </div>
                         </div>
@@ -227,7 +227,7 @@ const HomePage = () => {
                             <p className="text-sm text-gray-600">What I created: Piano solo recording & sheet music</p>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs bg-purple-500/10 text-purple-700 px-2 py-0.5 rounded">Creativity</span>
-                              <span className="text-xs text-gray-500">Pure joy</span>
+                              <span className="text-xs text-gray-500">Satisfying</span>
                             </div>
                           </div>
                         </div>
@@ -276,9 +276,9 @@ const HomePage = () => {
                       </div>
                       
                       <div className="mt-6 p-4 bg-gradient-to-r from-primary/5 to-purple-500/5 rounded-lg">
-                        <p className="text-sm text-gray-700 font-medium">Your Learning Energy</p>
-                        <p className="text-2xl font-bold text-primary mt-1">Flowing Beautifully</p>
-                        <p className="text-xs text-gray-600 mt-1">12 adventures completed</p>
+                        <p className="text-sm text-gray-700 font-medium">Current Progress</p>
+                        <p className="text-2xl font-bold text-primary mt-1">1,450 XP</p>
+                        <p className="text-xs text-gray-600 mt-1">12 quests completed</p>
                       </div>
                     </div>
                   </div>
@@ -305,8 +305,8 @@ const HomePage = () => {
             </div>
             <h2 className="text-3xl sm:text-4xl font-bold mb-6">The Process Is The Goal</h2>
             <p className="text-lg sm:text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
-              Your diploma isn't the destination—it's the beautiful byproduct of a meaningful learning journey. 
-              Every quest teaches you something valuable right now, not someday.
+              Your diploma isn't the destination—it's the beautiful byproduct of a meaningful learning journey. Each piece of evidence adds depth.
+              Every skill you develop matters right now, not someday.
             </p>
           </div>
           
@@ -459,8 +459,8 @@ const HomePage = () => {
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">Choose Your Learning Rhythm</h2>
             <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-              We celebrate your commitment to growth with a diploma on day one. 
-              How you fill it with meaning is your beautiful journey to craft.
+              We give you a diploma on day one. 
+              What makes it valuable is the real work you put in - the quests you complete, the skills you build.
             </p>
           </div>
 
@@ -471,10 +471,6 @@ const HomePage = () => {
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
                 </svg>
-              </div>
-              <div>
-                <p className="font-semibold text-coral">Join Our Learning Community</p>
-                <p className="text-sm text-gray-600">Be part of something new. Help shape how people learn and grow together!</p>
               </div>
             </div>
           </div>
@@ -489,19 +485,25 @@ const HomePage = () => {
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Explore all quests</span>
+                  <span className="text-gray-700">Access quest library</span>
                 </li>
                 <li className="flex items-start">
-                  <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  <svg className="w-5 h-5 text-gray-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Track your discoveries</span>
+                  <span className="text-gray-500 line-through">Submit evidence</span>
                 </li>
                 <li className="flex items-start">
-                  <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  <svg className="w-5 h-5 text-gray-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Learn alongside others</span>
+                  <span className="text-gray-500 line-through">Earn XP</span>
+                </li>
+                <li className="flex items-start">
+                  <svg className="w-5 h-5 text-gray-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-gray-500 line-through">Collaborate with others</span>
                 </li>
               </ul>
               <Link 
@@ -519,20 +521,15 @@ const HomePage = () => {
                 </span>
               </div>
               <h3 className="text-xl font-semibold mb-2">Creator</h3>
-              <p className="text-3xl font-bold mb-1">$20<span className="text-lg font-normal text-gray-600">/month</span></p>
-              <p className="text-gray-600 mb-6">For dedicated learners ready to grow</p>
+              <p className="text-3xl font-bold mb-1">$50<span className="text-lg font-normal text-gray-600">/month</span></p>
+              <p className="text-gray-600 mb-4">For dedicated learners ready to grow</p>
+              <p className="text-sm text-gray-500 mb-4">Creators get everything in Explorer, plus:</p>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Everything in Explorer</span>
-                </li>
-                <li className="flex items-start">
-                  <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-gray-700 font-medium">Build your learning story</span>
+                  <span className="text-gray-700 font-medium">Validate your Optio Diploma</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -544,7 +541,7 @@ const HomePage = () => {
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Celebrate with the community</span>
+                  <span className="text-gray-700">Collaborate with other Creators</span>
                 </li>
               </ul>
               <Link 
@@ -557,15 +554,10 @@ const HomePage = () => {
 
             <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 hover:shadow-lg transition-shadow">
               <h3 className="text-xl font-semibold mb-2">Visionary</h3>
-              <p className="text-3xl font-bold mb-1">$200<span className="text-lg font-normal text-gray-600">/month</span></p>
-              <p className="text-gray-600 mb-6">Deep partnership in your growth</p>
+              <p className="text-3xl font-bold mb-1">$500<span className="text-lg font-normal text-gray-600">/month</span></p>
+              <p className="text-gray-600 mb-4">A personalized private school experience</p>
+              <p className="text-sm text-gray-500 mb-4">Visionaries get everything in Creator, plus:</p>
               <ul className="space-y-3 mb-8">
-                <li className="flex items-start">
-                  <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-gray-700">Everything in Creator</span>
-                </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -582,13 +574,13 @@ const HomePage = () => {
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Connect with mentors</span>
+                  <span className="text-gray-700">Daily check-ins with licensed teacher</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Priority inspiration</span>
+                  <span className="text-gray-700">Earn an accredited high school diploma</span>
                 </li>
               </ul>
               <Link 
@@ -617,8 +609,8 @@ const HomePage = () => {
                 Your Journey Awaits
               </p>
               <p className="text-gray-600 leading-relaxed mb-6">
-                Every adventure starts with a single step. Join us in discovering what you're capable of creating. 
-                Your growth will inspire others to begin their own journey.
+                Take on quests that interest you. Build real skills. Document your progress. 
+                There's no right or wrong way - just your way.
               </p>
               <Link 
                 to="/register" 
