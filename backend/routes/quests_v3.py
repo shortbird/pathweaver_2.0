@@ -543,12 +543,13 @@ def get_user_completed_quests(user_id: str):
             'error': 'Failed to fetch completed quests'
         }), 500
 
-@bp.route('/<quest_id>/cancel', methods=['POST'])
+@bp.route('/<quest_id>/end', methods=['POST'])
 @require_auth
-def cancel_quest(user_id: str, quest_id: str):
+def end_quest(user_id: str, quest_id: str):
     """
-    Cancel an active quest enrollment.
-    Deletes the user's progress and any submitted evidence.
+    End an active quest enrollment.
+    Keeps all progress, submitted tasks, and XP earned.
+    Simply marks the quest as inactive.
     """
     try:
         supabase = get_supabase_admin_client()
@@ -569,32 +570,35 @@ def cancel_quest(user_id: str, quest_id: str):
         
         user_quest_id = enrollment.data[0]['id']
         
-        # Delete any task completions
-        supabase.table('user_quest_tasks')\
-            .delete()\
-            .eq('user_quest_id', user_quest_id)\
-            .execute()
-        
-        # Delete any learning logs
-        supabase.table('learning_logs')\
-            .delete()\
-            .eq('user_quest_id', user_quest_id)\
-            .execute()
-        
-        # Delete the enrollment itself
+        # Mark the quest as inactive (ended) but keep all data
         result = supabase.table('user_quests')\
-            .delete()\
+            .update({
+                'is_active': False,
+                'ended_at': datetime.utcnow().isoformat()
+            })\
             .eq('id', user_quest_id)\
             .execute()
         
-        # Delete operation successful if no exception was raised
+        # Get task completion stats for the response
+        completed_tasks = supabase.table('user_quest_tasks')\
+            .select('xp_awarded')\
+            .eq('user_quest_id', user_quest_id)\
+            .execute()
+        
+        total_xp = sum(task.get('xp_awarded', 0) for task in completed_tasks.data)
+        task_count = len(completed_tasks.data)
+        
         return jsonify({
             'success': True,
-            'message': 'Quest cancelled successfully'
+            'message': f'Quest ended successfully. You completed {task_count} tasks and earned {total_xp} XP.',
+            'stats': {
+                'tasks_completed': task_count,
+                'xp_earned': total_xp
+            }
         })
             
     except Exception as e:
-        print(f"Error cancelling quest: {str(e)}")
+        print(f"Error ending quest: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({

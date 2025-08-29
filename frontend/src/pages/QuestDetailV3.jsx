@@ -121,14 +121,14 @@ const QuestDetailV3 = () => {
     await fetchQuestDetails();
   };
 
-  const handleCancelQuest = async () => {
-    if (!confirm('Are you sure you want to cancel this quest?\n\nWarning: All your progress and any work submitted to Optio for this quest will be permanently deleted.')) {
+  const handleEndQuest = async () => {
+    if (!confirm('Are you sure you want to end this quest?\n\nYour progress and XP will be saved, but you won\'t be able to complete any remaining tasks.')) {
       return;
     }
 
     try {
       const apiBase = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${apiBase}/v3/quests/${id}/cancel`, {
+      const response = await fetch(`${apiBase}/v3/quests/${id}/end`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -138,13 +138,17 @@ const QuestDetailV3 = () => {
 
       const data = await response.json();
 
-      handleApiResponse(response, data, 'Failed to cancel quest');
+      handleApiResponse(response, data, 'Failed to end quest');
 
-      alert('Quest cancelled successfully');
+      if (data.stats) {
+        alert(`Quest ended successfully! You completed ${data.stats.tasks_completed} tasks and earned ${data.stats.xp_earned} XP.`);
+      } else {
+        alert('Quest ended successfully');
+      }
       navigate('/quests');
     } catch (error) {
-      console.error('Error cancelling quest:', error);
-      alert(error.message || 'Failed to cancel quest');
+      console.error('Error ending quest:', error);
+      alert(error.message || 'Failed to end quest');
     }
   };
 
@@ -366,17 +370,17 @@ const QuestDetailV3 = () => {
           />
         )}
 
-        {/* Cancel Quest Button - at the bottom */}
+        {/* End Quest Button - at the bottom */}
         {quest.user_enrollment && progressPercentage < 100 && (
           <div className="mt-8 text-center">
             <button
-              onClick={handleCancelQuest}
+              onClick={handleEndQuest}
               className="px-6 py-3 bg-red-500 text-white rounded-[30px] hover:bg-red-600 hover:-translate-y-0.5 transition-all duration-300 font-semibold"
             >
-              Cancel Quest
+              End Quest
             </button>
             <p className="mt-2 text-sm text-gray-500">
-              Warning: This will delete all progress and work submitted for this quest
+              This will save your progress and XP, but end your active enrollment
             </p>
           </div>
         )}
