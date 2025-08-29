@@ -110,7 +110,7 @@ const DiplomaPageV3 = () => {
     switch (evidence.evidence_type) {
       case 'text':
         return (
-          <div className="p-4 rounded-lg" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }>
+          <div className="p-4 rounded-lg" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }}>
             <p className="text-sm text-gray-700 whitespace-pre-wrap">
               {evidence.evidence_content}
             </p>
@@ -137,7 +137,7 @@ const DiplomaPageV3 = () => {
       
       case 'image':
         return (
-          <div className="p-4 rounded-lg" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }>
+          <div className="p-4 rounded-lg" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }}>
             <img 
               src={evidence.evidence_content}
               alt="Task evidence"
@@ -149,7 +149,7 @@ const DiplomaPageV3 = () => {
       
       case 'video':
         return (
-          <div className="p-4 rounded-lg" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }>
+          <div className="p-4 rounded-lg" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }}>
             <video 
               controls
               className="max-w-full rounded-lg"
