@@ -6,15 +6,25 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        'sans': ['Poppins', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+      },
       colors: {
-        primary: '#6A4C93',
+        primary: '#6d469b',
+        'primary-dark': '#5a3a82',
+        'primary-light': '#8058ac',
+        coral: '#ef597b',
+        'coral-dark': '#e73862',
+        'text-primary': '#003f5c',
+        'text-secondary': '#4a5568',
+        'text-muted': '#718096',
         secondary: '#FFCA3A',
         background: '#F8F9FA',
         text: '#212529',
         border: '#DEE2E6'
       },
-      fontFamily: {
-        sans: ['Inter', 'sans-serif'],
+      backgroundImage: {
+        'gradient-primary': 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)',
       },
       spacing: {
         '18': '4.5rem',

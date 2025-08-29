@@ -59,7 +59,7 @@ const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
 
   return (
     <div 
-      className="bg-white rounded-lg shadow-lg overflow-hidden cursor-pointer transform transition-all duration-300 hover:scale-105 hover:shadow-xl"
+      className="bg-white rounded-xl border border-gray-200 overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-md hover:-translate-y-1 relative before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-1 before:bg-gradient-primary"
       onClick={handleCardClick}
     >
       {/* Header Image Section */}
@@ -92,23 +92,23 @@ const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
         </div>
         
         {/* XP Badge */}
-        <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white px-3 py-1 rounded-full text-sm font-bold">
+        <div className="absolute top-2 right-2 bg-gradient-primary text-white px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wider shadow-lg">
           {totalXP} XP
         </div>
       </div>
 
       {/* Content Section */}
       <div className="p-4">
-        <h3 className="text-lg font-bold text-gray-800 mb-2 line-clamp-2">
+        <h3 className="text-lg font-bold text-text-primary mb-2 line-clamp-2">
           {quest.title}
         </h3>
         
-        <p className="text-gray-600 text-sm mb-4 line-clamp-2">
+        <p className="text-text-secondary text-sm mb-4 line-clamp-2">
           {quest.big_idea}
         </p>
 
         {/* Quest Stats */}
-        <div className="flex items-center justify-between text-sm text-gray-500 mb-4">
+        <div className="flex items-center justify-between text-sm text-text-muted mb-4">
           <div className="flex items-center">
             <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
               <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
@@ -133,7 +133,7 @@ const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
             {Object.entries(pillarBreakdown).map(([pillar, xp]) => (
               <span 
                 key={pillar}
-                className={`text-xs px-2 py-1 rounded-full bg-gradient-to-r ${pillarColors[pillar]} text-white`}
+                className={`text-xs px-3 py-1 rounded-full bg-purple-100 text-primary font-semibold uppercase tracking-wider`}
               >
                 {pillar.replace('_', ' ')}: {xp} XP
               </span>
@@ -148,14 +148,14 @@ const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
               <button
                 onClick={handleEnroll}
                 disabled={isEnrolling}
-                className="flex-1 bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+                className="flex-1 bg-gradient-primary text-white py-2 px-4 rounded-[20px] hover:shadow-[0_4px_15px_rgba(239,89,123,0.2)] hover:-translate-y-0.5 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-semibold"
               >
                 {isEnrolling ? 'Enrolling...' : 'Start Quest'}
               </button>
               
               <button
                 onClick={handleTeamUpClick}
-                className="bg-purple-600 text-white py-2 px-4 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                className="bg-primary text-white py-2 px-4 rounded-[20px] hover:bg-primary-dark hover:-translate-y-0.5 transition-all duration-300 text-sm font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)]"
                 title="Team up with a friend for 2x XP!"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -169,7 +169,7 @@ const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
                 e.stopPropagation();
                 navigate(`/quests/${quest.id}`);
               }}
-              className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+              className="flex-1 bg-emerald-500 text-white py-2 px-4 rounded-[20px] hover:bg-emerald-600 hover:-translate-y-0.5 transition-all duration-300 text-sm font-semibold"
             >
               Continue Quest →
             </button>

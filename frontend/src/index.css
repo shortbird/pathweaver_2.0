@@ -4,37 +4,72 @@
 
 @layer base {
   body {
-    @apply bg-background text-text;
-    font-family: 'Inter', sans-serif;
+    @apply font-sans text-text-primary;
   }
   
   h1 {
-    @apply text-4xl font-bold;
+    @apply text-5xl font-bold tracking-tight;
   }
   
   h2 {
-    @apply text-2xl font-semibold;
+    @apply text-3xl font-bold tracking-tight;
   }
   
   h3 {
-    @apply text-xl font-semibold;
+    @apply text-xl font-semibold tracking-tight;
   }
 }
 
 @layer components {
+  /* Button styles */
   .btn-primary {
-    @apply bg-primary text-white px-4 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-shadow duration-200;
+    @apply bg-gradient-primary text-white px-11 py-4 rounded-[30px] font-semibold 
+           shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] 
+           hover:-translate-y-0.5 transition-all duration-300;
   }
   
   .btn-secondary {
-    @apply bg-secondary text-text px-4 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-shadow duration-200;
+    @apply bg-primary text-white px-11 py-4 rounded-[30px] font-semibold 
+           shadow-[0_2px_10px_rgba(109,70,155,0.15)] hover:bg-primary-dark 
+           hover:-translate-y-0.5 transition-all duration-300;
   }
   
+  .btn-tertiary {
+    @apply bg-transparent text-primary px-11 py-4 rounded-[30px] font-semibold 
+           border-2 border-primary hover:bg-purple-50 transition-all duration-300;
+  }
+  
+  .btn-ghost {
+    @apply bg-transparent text-primary px-11 py-4 rounded-[30px] font-semibold 
+           hover:bg-purple-50 transition-all duration-300;
+  }
+  
+  /* Card styles */
   .card {
-    @apply bg-white border border-border rounded-xl p-4 shadow-card hover:shadow-card-hover transition-shadow duration-200;
+    @apply bg-white border border-gray-200 rounded-xl p-6 shadow-sm 
+           hover:shadow-md transition-shadow duration-300;
   }
   
-  .input-field {
-    @apply w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent;
+  .card-feature {
+    @apply bg-white border border-gray-200 rounded-xl p-0 shadow-sm 
+           hover:shadow-md transition-all duration-300 relative overflow-hidden
+           before:content-[''] before:absolute before:top-0 before:left-0 
+           before:right-0 before:h-1 before:bg-gradient-primary;
   }
+  
+  /* Input styles */
+  .input-field {
+    @apply w-full px-4 py-3 border border-gray-200 rounded-lg 
+           focus:outline-none focus:ring-2 focus:ring-primary focus:ring-opacity-20 
+           focus:border-primary transition-all duration-200;
+  }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
 }

@@ -151,7 +151,7 @@ const QuestDetailV3 = () => {
   if (isLoading) {
     return (
       <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
   }
@@ -163,7 +163,7 @@ const QuestDetailV3 = () => {
           <p className="text-red-700">{error || 'Quest not found'}</p>
           <button
             onClick={() => navigate('/quests')}
-            className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="mt-4 px-6 py-3 bg-gradient-primary text-white rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
           >
             Back to Quest Hub
           </button>
@@ -180,7 +180,7 @@ const QuestDetailV3 = () => {
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Quest Header */}
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
+        <div className="card-feature mb-8">
           {quest.header_image_url || quest.source ? (
             <img 
               src={quest.header_image_url || getQuestHeaderImage(quest)} 
@@ -206,25 +206,25 @@ const QuestDetailV3 = () => {
           <div className="p-6">
             <div className="flex justify-between items-start mb-4">
               <div className="flex-1">
-                <h1 className="text-3xl font-bold text-gray-800 mb-2">{quest.title}</h1>
-                <p className="text-gray-600 text-lg">{quest.big_idea}</p>
+                <h1 className="text-3xl font-bold text-text-primary mb-2">{quest.title}</h1>
+                <p className="text-text-secondary text-lg">{quest.big_idea}</p>
               </div>
               <div className="text-right ml-4">
-                <div className="text-3xl font-bold text-green-600">{totalXP} XP</div>
-                <div className="text-sm text-gray-500">Total Available</div>
+                <div className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">{totalXP} XP</div>
+                <div className="text-sm text-text-muted">Total Available</div>
               </div>
             </div>
 
             {/* Progress Bar */}
             {quest.user_enrollment && (
               <div className="mb-6">
-                <div className="flex justify-between text-sm text-gray-600 mb-2">
+                <div className="flex justify-between text-sm text-text-secondary mb-2">
                   <span>Progress: {completedTasks} / {totalTasks} tasks</span>
-                  <span>{Math.round(progressPercentage)}%</span>
+                  <span className="font-bold text-text-primary">{Math.round(progressPercentage)}%</span>
                 </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
+                <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
                   <div 
-                    className="bg-gradient-to-r from-blue-500 to-green-500 h-3 rounded-full transition-all duration-500"
+                    className="h-full bg-gradient-primary rounded-full transition-all duration-500 relative overflow-hidden"
                     style={{ width: `${progressPercentage}%` }}
                   />
                 </div>
@@ -255,13 +255,13 @@ const QuestDetailV3 = () => {
                 <>
                   <button
                     onClick={handleEnroll}
-                    className="flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                    className="flex-1 bg-gradient-primary text-white py-3 px-6 rounded-[30px] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300 font-semibold"
                   >
                     Start Quest
                   </button>
                   <button
                     onClick={() => setShowTeamUpModal(true)}
-                    className="bg-purple-600 text-white py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                    className="bg-primary text-white py-3 px-6 rounded-[30px] hover:bg-primary-dark hover:-translate-y-0.5 transition-all duration-300 font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)]"
                   >
                     Team Up First
                   </button>
@@ -269,7 +269,7 @@ const QuestDetailV3 = () => {
               ) : progressPercentage === 100 ? (
                 <button
                   onClick={() => navigate('/diploma')}
-                  className="flex-1 bg-green-600 text-white py-3 px-6 rounded-lg hover:bg-green-700 transition-colors font-medium"
+                  className="flex-1 bg-emerald-500 text-white py-3 px-6 rounded-[30px] hover:bg-emerald-600 hover:-translate-y-0.5 transition-all duration-300 font-semibold"
                 >
                   View Achievement 🏆
                 </button>
@@ -277,7 +277,7 @@ const QuestDetailV3 = () => {
                 !quest.collaboration && (
                   <button
                     onClick={() => setShowTeamUpModal(true)}
-                    className="flex-1 bg-purple-600 text-white py-3 px-6 rounded-lg hover:bg-purple-700 transition-colors font-medium"
+                    className="flex-1 bg-primary text-white py-3 px-6 rounded-[30px] hover:bg-primary-dark hover:-translate-y-0.5 transition-all duration-300 font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)]"
                   >
                     Team Up
                   </button>
@@ -288,8 +288,8 @@ const QuestDetailV3 = () => {
         </div>
 
         {/* Tasks Section */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">
+        <div className="card mb-8">
+          <h2 className="text-2xl font-bold text-text-primary mb-6">
             Tasks
           </h2>
 
@@ -307,7 +307,7 @@ const QuestDetailV3 = () => {
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center mb-2">
-                        <h3 className="text-lg font-medium text-gray-800">{task.title}</h3>
+                        <h3 className="text-lg font-medium text-text-primary">{task.title}</h3>
                         {task.is_completed && (
                           <svg className="w-5 h-5 text-green-600 ml-2" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -315,7 +315,7 @@ const QuestDetailV3 = () => {
                         )}
                       </div>
                       {task.description && (
-                        <p className="text-gray-600 text-sm mb-3">{task.description}</p>
+                        <p className="text-text-secondary text-sm mb-3">{task.description}</p>
                       )}
                       <div className="flex items-center gap-3">
                         <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium text-white bg-gradient-to-r
@@ -344,7 +344,7 @@ const QuestDetailV3 = () => {
                           setSelectedTask(task);
                           setShowTaskModal(true);
                         }}
-                        className="ml-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        className="ml-4 px-6 py-2 bg-gradient-primary text-white rounded-[20px] hover:shadow-[0_4px_15px_rgba(239,89,123,0.2)] hover:-translate-y-0.5 transition-all duration-300 font-semibold"
                       >
                         Complete
                       </button>
@@ -371,7 +371,7 @@ const QuestDetailV3 = () => {
           <div className="mt-8 text-center">
             <button
               onClick={handleCancelQuest}
-              className="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+              className="px-6 py-3 bg-red-500 text-white rounded-[30px] hover:bg-red-600 hover:-translate-y-0.5 transition-all duration-300 font-semibold"
             >
               Cancel Quest
             </button>

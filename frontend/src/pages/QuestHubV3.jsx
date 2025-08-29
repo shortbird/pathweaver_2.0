@@ -117,12 +117,12 @@ const QuestHubV3 = () => {
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Header */}
         <div className="mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Quest Hub</h1>
-          <p className="text-gray-600">Choose your adventure and start earning XP!</p>
+          <h1 className="text-5xl font-bold text-text-primary mb-2">Quest Hub</h1>
+          <p className="text-text-secondary">Choose your adventure and start earning XP!</p>
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <div className="card mb-8">
           <div className="flex flex-col md:flex-row gap-4">
             {/* Search */}
             <div className="flex-1">
@@ -134,7 +134,7 @@ const QuestHubV3 = () => {
                   setSearchTerm(e.target.value);
                   setPage(1);
                 }}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="input-field"
               />
             </div>
 
@@ -147,10 +147,10 @@ const QuestHubV3 = () => {
                     setSelectedPillar(pillar.value);
                     setPage(1);
                   }}
-                  className={`px-4 py-2 rounded-lg font-medium transition-all ${
+                  className={`px-6 py-3 rounded-[30px] font-semibold transition-all ${
                     selectedPillar === pillar.value
-                      ? `bg-gradient-to-r ${pillar.color} text-white shadow-lg`
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      ? `bg-gradient-primary text-white shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5`
+                      : 'bg-transparent text-primary border-2 border-primary hover:bg-purple-50'
                   }`}
                 >
                   {pillar.label}
@@ -170,16 +170,16 @@ const QuestHubV3 = () => {
         {/* Quest Grid */}
         {isLoading ? (
           <div className="flex justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
           </div>
         ) : quests.length === 0 ? (
-          <div className="text-center py-12 bg-white rounded-lg shadow-md">
+          <div className="text-center py-12 card">
             <svg className="mx-auto h-16 w-16 text-gray-400 mb-4" fill="currentColor" viewBox="0 0 20 20">
               <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
               <path fillRule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000 2H6a2 2 0 100 4h2a2 2 0 100-4h-.5a1 1 0 000-2H8a2 2 0 012-2z" clipRule="evenodd" />
             </svg>
-            <p className="text-gray-600 text-lg mb-2">No quests found</p>
-            <p className="text-gray-500">Try adjusting your filters or check back later for new quests!</p>
+            <p className="text-text-primary text-lg mb-2">No quests found</p>
+            <p className="text-text-secondary">Try adjusting your filters or check back later for new quests!</p>
           </div>
         ) : (
           <>
@@ -200,7 +200,7 @@ const QuestHubV3 = () => {
                 <button
                   onClick={() => setPage(Math.max(1, page - 1))}
                   disabled={page === 1}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-3 rounded-[30px] font-semibold border-2 border-primary text-primary hover:bg-purple-50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Previous
                 </button>
@@ -212,10 +212,10 @@ const QuestHubV3 = () => {
                       <button
                         key={pageNum}
                         onClick={() => setPage(pageNum)}
-                        className={`w-10 h-10 rounded-lg font-medium transition-colors ${
+                        className={`w-10 h-10 rounded-full font-semibold transition-all duration-300 ${
                           page === pageNum
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                            ? 'bg-gradient-primary text-white shadow-[0_4px_15px_rgba(239,89,123,0.2)]'
+                            : 'bg-white border-2 border-gray-200 text-text-secondary hover:border-primary hover:text-primary'
                         }`}
                       >
                         {pageNum}
@@ -227,7 +227,7 @@ const QuestHubV3 = () => {
                 <button
                   onClick={() => setPage(Math.min(totalPages, page + 1))}
                   disabled={page === totalPages}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="px-6 py-3 rounded-[30px] font-semibold border-2 border-primary text-primary hover:bg-purple-50 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
                 </button>

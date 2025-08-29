@@ -13,7 +13,7 @@ const ActiveQuests = memo(({ activeQuests }) => {
         <p className="text-gray-600 mb-4">No active quests yet.</p>
         <Link 
           to="/quests" 
-          className="inline-flex items-center px-4 py-2 bg-primary text-white rounded-lg hover:bg-purple-700 transition-colors"
+          className="inline-flex items-center px-6 py-3 bg-gradient-primary text-white rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
         >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -41,11 +41,11 @@ const ActiveQuests = memo(({ activeQuests }) => {
         return (
           <div
             key={quest.id}
-            className="bg-white border-2 border-green-400 rounded-xl p-4 shadow-sm hover:shadow-md transition-all"
+            className="card-feature p-6"
           >
             <div className="flex justify-between items-start mb-3">
               <div className="flex-1">
-                <h3 className="font-semibold text-lg text-gray-900">
+                <h3 className="font-semibold text-lg text-text-primary">
                   {quest.quests?.title || 'Untitled Quest'}
                 </h3>
                 <div className="flex items-center gap-3 mt-2">
@@ -63,7 +63,7 @@ const ActiveQuests = memo(({ activeQuests }) => {
                       ⏱ {quest.quests.estimated_hours}h
                     </span>
                   )}
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-text-muted">
                     Started {quest.started_at ? new Date(quest.started_at).toLocaleDateString() : 'Recently'}
                   </span>
                 </div>
@@ -73,12 +73,12 @@ const ActiveQuests = memo(({ activeQuests }) => {
             {/* Progress Bar */}
             <div className="mb-4">
               <div className="flex justify-between items-center mb-1">
-                <span className="text-xs font-medium text-gray-600">Progress</span>
-                <span className="text-xs font-bold text-gray-700">{progressPercent}%</span>
+                <span className="text-xs font-medium text-text-secondary">Progress</span>
+                <span className="text-xs font-bold text-text-primary">{progressPercent}%</span>
               </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
+              <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
                 <div 
-                  className="bg-gradient-to-r from-green-400 to-green-500 h-2 rounded-full transition-all duration-500"
+                  className="h-full bg-gradient-primary rounded-full transition-all duration-500 relative overflow-hidden"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
@@ -88,7 +88,7 @@ const ActiveQuests = memo(({ activeQuests }) => {
             {quest.quests?.quest_skill_xp && quest.quests.quest_skill_xp.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-4">
                 {quest.quests.quest_skill_xp.slice(0, 3).map((xp, idx) => (
-                  <span key={idx} className="text-xs px-2 py-1 bg-purple-50 text-purple-700 rounded-full">
+                  <span key={idx} className="text-xs px-3 py-1 bg-purple-100 text-primary rounded-full font-semibold uppercase tracking-wider">
                     +{xp.xp_amount} {getPillarName(xp.skill_category)}
                   </span>
                 ))}
@@ -98,7 +98,7 @@ const ActiveQuests = memo(({ activeQuests }) => {
             {/* Continue Button */}
             <Link
               to={`/quests/${questId}`}
-              className="w-full inline-flex justify-center items-center px-4 py-2.5 bg-green-500 text-white font-medium rounded-lg hover:bg-green-600 transition-colors shadow-sm"
+              className="w-full inline-flex justify-center items-center px-6 py-3 bg-gradient-primary text-white font-semibold rounded-[30px] shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
@@ -123,20 +123,20 @@ const RecentCompletions = memo(({ recentTasks }) => {
       {recentTasks.slice(0, 5).map((task, idx) => (
         <div
           key={task.id || idx}
-          className="p-3 bg-green-50 rounded-lg"
+          className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100"
         >
-          <h3 className="font-medium text-sm">{task.task_description || task.description || 'Task completed'}</h3>
-          <p className="text-xs text-gray-600 mt-1">
+          <h3 className="font-medium text-sm text-text-primary">{task.task_description || task.description || 'Task completed'}</h3>
+          <p className="text-xs text-text-secondary mt-1">
             From: {task.quest_title || 'Quest'}
           </p>
           <div className="flex gap-2 mt-1">
             {task.xp_awarded && (
-              <span className="text-xs text-green-700">
+              <span className="text-xs text-primary font-semibold">
                 +{task.xp_awarded} XP earned
               </span>
             )}
           </div>
-          <p className="text-xs text-gray-500 mt-1">
+          <p className="text-xs text-text-muted mt-1">
             Completed {task.completed_at ? new Date(task.completed_at).toLocaleDateString() : 'Recently'}
           </p>
         </div>

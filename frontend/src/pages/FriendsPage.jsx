@@ -155,7 +155,7 @@ const FriendsPage = () => {
         {returnToQuest && (
           <button
             onClick={handleBackToQuest}
-            className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+            className="bg-gradient-primary text-white px-6 py-3 rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2"
           >
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 17l-5-5m0 0l5-5m-5 5h12" />
@@ -212,7 +212,7 @@ const FriendsPage = () => {
                     fetchTeamInvitations();
                     toast.success('Refreshed invitations');
                   }}
-                  className="text-sm bg-purple-100 text-purple-700 px-3 py-1 rounded hover:bg-purple-200"
+                  className="text-sm bg-purple-100 text-primary px-3 py-1 rounded-full font-semibold hover:bg-purple-200 transition-colors"
                 >
                   Refresh
                 </button>
@@ -243,7 +243,7 @@ const FriendsPage = () => {
                       <div className="flex gap-2 ml-4">
                         <button
                           onClick={() => acceptTeamInvite(invite.id, invite.quest.id)}
-                          className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700"
+                          className="bg-primary text-white px-4 py-2 rounded-[20px] text-sm font-semibold hover:bg-primary-dark hover:-translate-y-0.5 transition-all duration-300"
                         >
                           Accept
                         </button>
@@ -279,13 +279,13 @@ const FriendsPage = () => {
                     <div className="flex gap-2">
                       <button
                         onClick={() => acceptRequest(request.friendship_id)}
-                        className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                        className="bg-emerald-500 text-white px-4 py-2 rounded-[20px] text-sm font-semibold hover:bg-emerald-600 hover:-translate-y-0.5 transition-all duration-300"
                       >
                         Accept
                       </button>
                       <button
                         onClick={() => declineRequest(request.friendship_id)}
-                        className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700"
+                        className="bg-red-500 text-white px-4 py-2 rounded-[20px] text-sm font-semibold hover:bg-red-600 hover:-translate-y-0.5 transition-all duration-300"
                       >
                         Decline
                       </button>
