@@ -6,7 +6,7 @@ from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
 from middleware.error_handler import ValidationError, AuthenticationError, ExternalServiceError, ConflictError
 from utils.retry_handler import retry_database_operation
-from config.legal_versions import CURRENT_TOS_VERSION, CURRENT_PRIVACY_POLICY_VERSION
+from legal_versions import CURRENT_TOS_VERSION, CURRENT_PRIVACY_POLICY_VERSION
 import re
 import os
 
