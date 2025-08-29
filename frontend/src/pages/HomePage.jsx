@@ -42,24 +42,24 @@ const HomePage = () => {
             {/* Left column - Value proposition */}
             <div className="text-center lg:text-left">
               <div className="inline-flex items-center bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 mb-6">
-                <span className="text-sm font-medium">Self-Validated Education Platform</span>
+                <span className="text-sm font-medium">Self-Directed Learning Platform</span>
               </div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-                Build a Portfolio-Ready 
+                Your Learning Journey
                 <span className="block sm:inline bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
-                  {" "}Diploma
+                  {" "}Starts Today
                 </span>
               </h1>
               <p className="text-lg sm:text-xl mb-8 leading-relaxed opacity-90 px-2 sm:px-0">
-                Complete real-world quests, document your achievements, and create a professional diploma 
-                that employers can verify. Your education, your responsibility, your success.
+                Complete real-world quests that spark your curiosity. Document your discoveries. 
+                Create a learning story that's uniquely yours. The process is the goal.
               </p>
               
               {/* Placeholder metrics - will be dynamic in Phase 2 */}
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 mb-8">
                 <div className="text-center">
                   <div className="text-2xl font-bold">100+</div>
-                  <div className="text-sm opacity-75">Active Quests</div>
+                  <div className="text-sm opacity-75">Adventures Await</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold">5</div>
@@ -77,15 +77,15 @@ const HomePage = () => {
                   <Link 
                     to="/register" 
                     className="btn-secondary text-lg px-8 py-4 inline-flex items-center group w-full sm:w-auto justify-center"
-                    aria-describedby="start-building-description"
+                    aria-describedby="start-journey-description"
                   >
-                    Start Building Your Diploma
+                    Begin Your Adventure
                     <svg className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
                     </svg>
                   </Link>
-                  <span id="start-building-description" className="sr-only">
-                    Create a free account to begin building your portfolio diploma
+                  <span id="start-journey-description" className="sr-only">
+                    Create a free account to begin your learning adventure
                   </span>
                   
                   <Link 
@@ -96,7 +96,7 @@ const HomePage = () => {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                     </svg>
-                    See It In Action
+                    Explore What's Possible
                   </Link>
                 </div>
               )}
@@ -113,29 +113,29 @@ const HomePage = () => {
                         <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
                       </svg>
                     </div>
-                    <h3 className="text-2xl font-bold text-primary mb-2">Portfolio Diploma</h3>
+                    <h3 className="text-2xl font-bold text-primary mb-2">Your Learning Story</h3>
                     <div className="h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent mb-4"></div>
                     <div className="space-y-2 text-gray-700">
-                      <p className="font-semibold text-lg">Example Student</p>
-                      <p className="text-sm text-gray-600">Diploma ID: #OPT-2025-DEMO</p>
+                      <p className="font-semibold text-lg">Example Learner</p>
+                      <p className="text-sm text-gray-600">Journey ID: #OPT-2025-DEMO</p>
                       <div className="flex flex-wrap justify-center gap-2 mt-4">
                         <span className="bg-gradient-to-r from-coral to-coral-dark text-white px-3 py-1 rounded-full text-xs font-medium">
-                          Creative Thinking
+                          Creative Explorer
                         </span>
                         <span className="bg-gradient-to-r from-primary to-primary-dark text-white px-3 py-1 rounded-full text-xs font-medium">
-                          Problem Solving
+                          Problem Solver
                         </span>
                         <span className="bg-gradient-to-r from-purple-500 to-purple-700 text-white px-3 py-1 rounded-full text-xs font-medium">
-                          Communication
+                          Community Builder
                         </span>
                       </div>
                       <div className="mt-6 pt-4 border-t border-gray-200">
                         <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Quests Completed</span>
+                          <span className="text-gray-600">Adventures Completed</span>
                           <span className="font-bold text-primary">12</span>
                         </div>
                         <div className="flex justify-between text-sm mt-2">
-                          <span className="text-gray-600">Total XP Earned</span>
+                          <span className="text-gray-600">Growth Points</span>
                           <span className="font-bold text-primary">1,450</span>
                         </div>
                       </div>
@@ -143,7 +143,7 @@ const HomePage = () => {
                   </div>
                 </div>
                 <p className="text-xs text-gray-500 text-center mt-4">
-                  * Example diploma preview - yours will be unique!
+                  * Example learning story - yours will be unique!
                 </p>
               </div>
               
@@ -152,7 +152,7 @@ const HomePage = () => {
                 <span className="text-sm font-bold">Quest Complete!</span>
               </div>
               <div className="absolute -bottom-4 -right-4 bg-gradient-to-r from-secondary to-yellow-400 text-primary rounded-full px-4 py-2 shadow-lg animate-pulse hidden sm:block">
-                <span className="text-sm font-bold">+100 XP</span>
+                <span className="text-sm font-bold">You're growing!</span>
               </div>
             </div>
           </div>
@@ -163,9 +163,9 @@ const HomePage = () => {
       <div id="demo" className="py-16 bg-gradient-to-br from-purple-50 to-blue-50" role="main">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">See It In Action</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Watch Your Growth Unfold</h2>
             <p className="text-lg sm:text-xl text-gray-700 mb-8 max-w-3xl mx-auto">
-              Explore what a completed portfolio looks like. Every quest you complete adds to your professional story.
+              Every quest you complete is a discovery about yourself. See how your learning journey creates something beautiful.
             </p>
             
             {/* Interactive portfolio preview */}
@@ -174,14 +174,14 @@ const HomePage = () => {
                 <div className="bg-gradient-to-r from-primary to-primary-dark text-white p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="text-left">
-                      <h3 className="text-xl font-semibold">Sample Student Portfolio</h3>
-                      <p className="text-sm opacity-90 mt-1">See how quests build into an impressive diploma</p>
+                      <h3 className="text-xl font-semibold">Sample Learning Journey</h3>
+                      <p className="text-sm opacity-90 mt-1">Watch how curiosity becomes capability</p>
                     </div>
                     <Link 
                       to="/register" 
                       className="bg-white/20 hover:bg-white/30 px-6 py-2 rounded-lg text-sm font-medium transition-colors w-full sm:w-auto text-center"
                     >
-                      Start Your Portfolio →
+                      Start Your Journey →
                     </Link>
                   </div>
                 </div>
@@ -189,7 +189,7 @@ const HomePage = () => {
                 <div className="p-6 sm:p-8">
                   <div className="grid md:grid-cols-2 gap-8">
                     <div>
-                      <h4 className="text-xl font-bold mb-4 text-gray-800">Completed Quests</h4>
+                      <h4 className="text-xl font-bold mb-4 text-gray-800">Recent Discoveries</h4>
                       <div className="space-y-3">
                         {/* Sample quest entries */}
                         <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
@@ -197,11 +197,11 @@ const HomePage = () => {
                             <span className="text-white text-sm font-bold">✓</span>
                           </div>
                           <div className="flex-grow text-left">
-                            <p className="font-medium text-gray-800">Finish a 1/2 marathon race</p>
-                            <p className="text-sm text-gray-600">Evidence: Finish line selfie with your medal</p>
+                            <p className="font-medium text-gray-800">Trained for a half marathon</p>
+                            <p className="text-sm text-gray-600">What I created: Training journal & finish line moment</p>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs bg-coral/10 text-coral px-2 py-0.5 rounded">Practical Skills</span>
-                              <span className="text-xs text-gray-500">150 XP</span>
+                              <span className="text-xs text-gray-500">Felt amazing!</span>
                             </div>
                           </div>
                         </div>
@@ -210,11 +210,11 @@ const HomePage = () => {
                             <span className="text-white text-sm font-bold">✓</span>
                           </div>
                           <div className="flex-grow text-left">
-                            <p className="font-medium text-gray-800">Data Analysis Project</p>
-                            <p className="text-sm text-gray-600">Evidence: Jupyter notebook + visualizations</p>
+                            <p className="font-medium text-gray-800">Explored data patterns</p>
+                            <p className="text-sm text-gray-600">What I created: Analysis notebook with visualizations</p>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">Critical Thinking</span>
-                              <span className="text-xs text-gray-500">200 XP</span>
+                              <span className="text-xs text-gray-500">Eye-opening insights</span>
                             </div>
                           </div>
                         </div>
@@ -223,11 +223,11 @@ const HomePage = () => {
                             <span className="text-white text-sm font-bold">✓</span>
                           </div>
                           <div className="flex-grow text-left">
-                            <p className="font-medium text-gray-800">Compose your own piano solo</p>
-                            <p className="text-sm text-gray-600">Evidence: Video recording + sheet music</p>
+                            <p className="font-medium text-gray-800">Composed original music</p>
+                            <p className="text-sm text-gray-600">What I created: Piano solo recording & sheet music</p>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs bg-purple-500/10 text-purple-700 px-2 py-0.5 rounded">Creativity</span>
-                              <span className="text-xs text-gray-500">100 XP</span>
+                              <span className="text-xs text-gray-500">Pure joy</span>
                             </div>
                           </div>
                         </div>
@@ -235,12 +235,12 @@ const HomePage = () => {
                     </div>
                     
                     <div>
-                      <h4 className="text-xl font-bold mb-4 text-gray-800">Skill Progress</h4>
+                      <h4 className="text-xl font-bold mb-4 text-gray-800">Your Growth Map</h4>
                       <div className="space-y-4">
                         <div>
                           <div className="flex justify-between mb-2">
                             <span className="text-sm font-medium text-gray-700">Critical Thinking</span>
-                            <span className="text-sm text-gray-600">450 XP</span>
+                            <span className="text-sm text-gray-600">Flourishing</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2.5">
                             <div className="bg-gradient-to-r from-primary to-primary-dark h-2.5 rounded-full transition-all duration-500" style={{width: '75%'}}></div>
@@ -249,7 +249,7 @@ const HomePage = () => {
                         <div>
                           <div className="flex justify-between mb-2">
                             <span className="text-sm font-medium text-gray-700">Practical Skills</span>
-                            <span className="text-sm text-gray-600">320 XP</span>
+                            <span className="text-sm text-gray-600">Taking shape</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2.5">
                             <div className="bg-gradient-to-r from-coral to-coral-dark h-2.5 rounded-full transition-all duration-500" style={{width: '60%'}}></div>
@@ -258,7 +258,7 @@ const HomePage = () => {
                         <div>
                           <div className="flex justify-between mb-2">
                             <span className="text-sm font-medium text-gray-700">Communication</span>
-                            <span className="text-sm text-gray-600">280 XP</span>
+                            <span className="text-sm text-gray-600">Discovering voice</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2.5">
                             <div className="bg-gradient-to-r from-purple-500 to-purple-700 h-2.5 rounded-full transition-all duration-500" style={{width: '50%'}}></div>
@@ -267,7 +267,7 @@ const HomePage = () => {
                         <div>
                           <div className="flex justify-between mb-2">
                             <span className="text-sm font-medium text-gray-700">Creativity</span>
-                            <span className="text-sm text-gray-600">400 XP</span>
+                            <span className="text-sm text-gray-600">Blooming</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2.5">
                             <div className="bg-gradient-to-r from-yellow-400 to-orange-500 h-2.5 rounded-full transition-all duration-500" style={{width: '70%'}}></div>
@@ -276,9 +276,9 @@ const HomePage = () => {
                       </div>
                       
                       <div className="mt-6 p-4 bg-gradient-to-r from-primary/5 to-purple-500/5 rounded-lg">
-                        <p className="text-sm text-gray-700 font-medium">Total Portfolio Value</p>
-                        <p className="text-2xl font-bold text-primary mt-1">1,450 XP</p>
-                        <p className="text-xs text-gray-600 mt-1">Across 12 completed quests</p>
+                        <p className="text-sm text-gray-700 font-medium">Your Learning Energy</p>
+                        <p className="text-2xl font-bold text-primary mt-1">Flowing Beautifully</p>
+                        <p className="text-xs text-gray-600 mt-1">12 adventures completed</p>
                       </div>
                     </div>
                   </div>
@@ -305,8 +305,8 @@ const HomePage = () => {
             </div>
             <h2 className="text-3xl sm:text-4xl font-bold mb-6">The Process Is The Goal</h2>
             <p className="text-lg sm:text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
-              Your diploma isn't just a piece of paper—it's a living document that grows with every quest you complete, 
-              every skill you develop, and every piece of evidence you contribute.
+              Your diploma isn't the destination—it's the beautiful byproduct of a meaningful learning journey. 
+              Every quest teaches you something valuable right now, not someday.
             </p>
           </div>
           
@@ -317,29 +317,29 @@ const HomePage = () => {
                 {[
                   {
                     step: "1",
-                    title: "Choose Your Quest",
-                    description: "Select from hundreds of real-world challenges aligned with your goals",
+                    title: "Follow Your Curiosity",
+                    description: "Pick something that sparks your interest and dive in",
                     icon: "🎯",
                     color: "from-primary to-primary-dark"
                   },
                   {
                     step: "2", 
-                    title: "Document Your Journey",
-                    description: "Capture evidence, reflections, and learnings as you progress",
+                    title: "Create & Discover",
+                    description: "Make something new and capture what you learn",
                     icon: "📝",
                     color: "from-purple-500 to-purple-700"
                   },
                   {
                     step: "3",
-                    title: "Build Your Portfolio", 
-                    description: "Each completion adds depth and credibility to your diploma",
+                    title: "Reflect & Grow", 
+                    description: "Notice how each experience changes your perspective",
                     icon: "🏗️",
                     color: "from-coral to-coral-dark"
                   },
                   {
                     step: "4",
-                    title: "Share Your Achievement",
-                    description: "Present a diploma backed by real evidence and verified skills",
+                    title: "Share Your Joy",
+                    description: "Celebrate your growth and inspire others to explore",
                     icon: "🎓",
                     color: "from-yellow-400 to-orange-500"
                   }
@@ -365,7 +365,7 @@ const HomePage = () => {
                   to="/register" 
                   className="btn-primary text-lg px-8 py-4 inline-flex items-center group"
                 >
-                  Begin Your Quest
+                  Start Exploring
                   <svg className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                   </svg>
@@ -380,32 +380,32 @@ const HomePage = () => {
       <div className="py-16 bg-gradient-to-br from-blue-50 to-purple-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Perfect For Every Learning Journey</h2>
-            <p className="text-lg sm:text-xl text-gray-700 mb-8">Choose the path that fits your goals</p>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Every Journey Is Unique</h2>
+            <p className="text-lg sm:text-xl text-gray-700 mb-8">Find your rhythm, at your pace</p>
           </div>
           
           <div className="grid lg:grid-cols-3 gap-8">
             {[
               {
-                title: "Students & Graduates",
-                description: "Stand out in college applications and job searches",
-                features: ["Portfolio-ready projects", "Skill verification", "Professional presentation", "Evidence-based achievements"],
-                cta: "Build My Portfolio",
+                title: "New Explorers",
+                description: "Discover what you're capable of creating",
+                features: ["Try new things safely", "Learn from mistakes joyfully", "Build confidence naturally", "Find your interests"],
+                cta: "Start Discovering",
                 highlight: "Most Popular",
                 icon: "👩‍🎓"
               },
               {
-                title: "Career Changers",
-                description: "Demonstrate new skills to potential employers",
-                features: ["Industry-relevant projects", "Evidence-based learning", "Professional credibility", "Skill transition proof"],
-                cta: "Change My Career",
+                title: "Skill Builders",
+                description: "Deepen abilities you're passionate about",
+                features: ["Focus on what excites you", "Create meaningful projects", "See your progress clearly", "Feel your growth daily"],
+                cta: "Keep Building",
                 icon: "🚀"
               },
               {
                 title: "Lifelong Learners",
-                description: "Document your continuous growth journey",
-                features: ["Personal development tracking", "Achievement documentation", "Learning accountability", "Growth visualization"],
-                cta: "Start Learning",
+                description: "Celebrate continuous curiosity",
+                features: ["Explore at your own pace", "Document your journey", "Connect with others", "Enjoy the process"],
+                cta: "Continue Growing",
                 icon: "🌱"
               }
             ].map((segment, index) => (
@@ -457,10 +457,10 @@ const HomePage = () => {
       <div className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Your Diploma, Your Responsibility</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Choose Your Learning Rhythm</h2>
             <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-              We award you your diploma on day one - but it's just a piece of paper until you make it meaningful. 
-              Choose your subscription level based on how serious you are about building an impressive portfolio.
+              We celebrate your commitment to growth with a diploma on day one. 
+              How you fill it with meaning is your beautiful journey to craft.
             </p>
           </div>
 
@@ -473,8 +473,8 @@ const HomePage = () => {
                 </svg>
               </div>
               <div>
-                <p className="font-semibold text-coral">Be Among Our First Success Stories</p>
-                <p className="text-sm text-gray-600">Join now and help shape the future of self-validated education. Early adopters get special recognition!</p>
+                <p className="font-semibold text-coral">Join Our Learning Community</p>
+                <p className="text-sm text-gray-600">Be part of something new. Help shape how people learn and grow together!</p>
               </div>
             </div>
           </div>
@@ -483,44 +483,44 @@ const HomePage = () => {
             <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 hover:shadow-lg transition-shadow">
               <h3 className="text-xl font-semibold mb-2">Explorer</h3>
               <p className="text-3xl font-bold mb-1">Free</p>
-              <p className="text-gray-600 mb-6">Perfect for enrichment and personal growth</p>
+              <p className="text-gray-600 mb-6">Perfect for curiosity and personal enrichment</p>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Access to quest library</span>
+                  <span className="text-gray-700">Explore all quests</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Track personal progress</span>
+                  <span className="text-gray-700">Track your discoveries</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Join the community</span>
+                  <span className="text-gray-700">Learn alongside others</span>
                 </li>
               </ul>
               <Link 
                 to="/register" 
                 className="block w-full bg-gray-100 text-gray-700 hover:bg-gray-200 py-3 px-6 rounded-lg font-semibold transition-colors text-center"
               >
-                Start Free
+                Start Exploring
               </Link>
             </div>
 
             <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 hover:shadow-lg transition-shadow border-2 border-primary relative">
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                 <span className="bg-primary text-white text-xs px-3 py-1 rounded-full inline-block">
-                  MOST POPULAR
+                  RECOMMENDED
                 </span>
               </div>
               <h3 className="text-xl font-semibold mb-2">Creator</h3>
               <p className="text-3xl font-bold mb-1">$20<span className="text-lg font-normal text-gray-600">/month</span></p>
-              <p className="text-gray-600 mb-6">For individuals seeking a quality education</p>
+              <p className="text-gray-600 mb-6">For dedicated learners ready to grow</p>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -532,19 +532,19 @@ const HomePage = () => {
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 font-medium">Quests count toward diploma</span>
+                  <span className="text-gray-700 font-medium">Build your learning story</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Educator support team</span>
+                  <span className="text-gray-700">Learning support team</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Community XP bonuses</span>
+                  <span className="text-gray-700">Celebrate with the community</span>
                 </li>
               </ul>
               <Link 
@@ -558,7 +558,7 @@ const HomePage = () => {
             <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 hover:shadow-lg transition-shadow">
               <h3 className="text-xl font-semibold mb-2">Visionary</h3>
               <p className="text-3xl font-bold mb-1">$200<span className="text-lg font-normal text-gray-600">/month</span></p>
-              <p className="text-gray-600 mb-6">Premium educational partnership</p>
+              <p className="text-gray-600 mb-6">Deep partnership in your growth</p>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -570,25 +570,25 @@ const HomePage = () => {
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 font-medium">Dedicated educator</span>
+                  <span className="text-gray-700 font-medium">Personal learning guide</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Custom learning plan</span>
+                  <span className="text-gray-700">Custom learning adventures</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Mentor network access</span>
+                  <span className="text-gray-700">Connect with mentors</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Priority support</span>
+                  <span className="text-gray-700">Priority inspiration</span>
                 </li>
               </ul>
               <Link 
@@ -606,25 +606,25 @@ const HomePage = () => {
       <div className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Be Part of Something New</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Create Something Meaningful</h2>
             <p className="text-lg text-gray-700 mb-8 max-w-3xl mx-auto">
-              Join a growing community of self-directed learners who are taking control of their education. 
-              Your success story could be featured here soon!
+              Join a community where learning is celebrated for its own sake. 
+              Your curiosity and creativity are about to flourish!
             </p>
             <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-8 max-w-2xl mx-auto">
               <div className="text-5xl mb-4">🌟</div>
               <p className="text-xl font-semibold text-gray-800 mb-4">
-                Early Adopter Opportunity
+                Your Journey Awaits
               </p>
               <p className="text-gray-600 leading-relaxed mb-6">
-                As one of our first students, you'll help shape the future of Optio while building an impressive portfolio 
-                that sets you apart. Your feedback and success will inspire others to follow.
+                Every adventure starts with a single step. Join us in discovering what you're capable of creating. 
+                Your growth will inspire others to begin their own journey.
               </p>
               <Link 
                 to="/register" 
                 className="btn-primary inline-flex items-center"
               >
-                Be a Pioneer
+                Take Your First Step
                 <svg className="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
@@ -642,7 +642,7 @@ const HomePage = () => {
             className="bg-gradient-to-r from-coral to-coral-dark hover:from-coral-dark hover:to-coral text-white px-6 py-3 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center"
           >
             <span className="mr-2">🚀</span>
-            Start Your Portfolio
+            Start Learning Today
           </Link>
         </div>
       )}

@@ -16,6 +16,8 @@
 
 Optio is an educational platform that allows students to create self-validated diplomas through completing quests. Students build impressive diplomas by documenting their learning journey, with accountability coming from public evidence of their achievements.
 
+This project has a core_philosophy.md file. Ensure all updates are in line with this philosophy.
+
 ## Architecture
 
 ### Tech Stack
