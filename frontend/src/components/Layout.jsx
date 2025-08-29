@@ -7,6 +7,7 @@ const Layout = () => {
   const { user, logout, isAuthenticated } = useAuth()
   const navigate = useNavigate()
   const [portfolioSlug, setPortfolioSlug] = React.useState(null)
+  const [siteSettings, setSiteSettings] = React.useState(null)
 
   const handleLogout = async () => {
     await logout()
@@ -18,6 +19,7 @@ const Layout = () => {
     if (user?.id && isAuthenticated) {
       fetchPortfolioSlug()
     }
+    fetchSiteSettings()
   }, [user, isAuthenticated])
 
   const fetchPortfolioSlug = async () => {
@@ -60,6 +62,17 @@ const Layout = () => {
     }
   }
 
+  const fetchSiteSettings = async () => {
+    try {
+      const response = await api.get('/settings')
+      if (response.data) {
+        setSiteSettings(response.data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch site settings:', error)
+    }
+  }
+
   return (
     <div className="min-h-screen bg-background">
       <nav className="bg-white shadow-sm border-b border-border">
@@ -67,7 +80,15 @@ const Layout = () => {
           <div className="flex justify-between h-16">
             <div className="flex">
               <Link to="/" className="flex items-center">
-                <span className="text-2xl font-bold text-primary">Optio</span>
+                {siteSettings?.logo_url ? (
+                  <img 
+                    src={siteSettings.logo_url} 
+                    alt={siteSettings.site_name || "Optio"}
+                    className="h-8 w-auto"
+                  />
+                ) : (
+                  <span className="text-2xl font-bold text-primary">{siteSettings?.site_name || "Optio"}</span>
+                )}
               </Link>
               
               {isAuthenticated && (

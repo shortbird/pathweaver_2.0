@@ -4,6 +4,7 @@ import api from '../services/api'
 import toast from 'react-hot-toast'
 import AdminQuestManagerV3 from './AdminQuestManagerV3'
 import SourcesManager from '../components/SourcesManager'
+import SiteSettings from '../components/admin/SiteSettings'
 
 const AdminDashboard = () => {
   const [analytics, setAnalytics] = useState(null)
@@ -1265,12 +1266,19 @@ const AdminPage = () => {
         >
           Users
         </Link>
+        <Link
+          to="/admin/settings"
+          className={`pb-2 px-1 ${currentPath === 'settings' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+        >
+          Site Settings
+        </Link>
       </div>
 
       <Routes>
         <Route index element={<AdminDashboard />} />
         <Route path="quests" element={<AdminQuests />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="settings" element={<SiteSettings />} />
       </Routes>
     </div>
   )
