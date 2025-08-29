@@ -142,12 +142,14 @@ CREATE POLICY "Users can update own learning logs" ON public.learning_logs
 CREATE POLICY "Users can delete own learning logs" ON public.learning_logs
   FOR DELETE USING (user_id = auth.uid());
 
+-- Note: This policy allows viewing learning logs for any quest that has been marked complete
+-- If user_quests.status column doesn't exist, comment out this policy
 CREATE POLICY "Public can view learning logs for completed quests" ON public.learning_logs
   FOR SELECT USING (
     EXISTS (
-      SELECT 1 FROM public.user_quests uq
-      WHERE uq.id = learning_logs.user_quest_id
-      AND uq.status = 'completed'
+      SELECT 1 FROM public.user_quests
+      WHERE user_quests.id = learning_logs.user_quest_id
+      AND user_quests.completed_at IS NOT NULL
     )
   );
 
