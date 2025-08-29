@@ -95,17 +95,26 @@ def list_quests():
                     .execute()
                 
                 if enrollment.data:
+                    # Debug logging
+                    print(f"[ENROLLMENT CHECK] Quest {quest['id'][:8]}... for user {user_id[:8]}...")
+                    print(f"  Found {len(enrollment.data)} enrollment(s)")
+                    
                     # Find the active enrollment ONLY
                     active_enrollment = None
                     for enr in enrollment.data:
+                        print(f"  - Enrollment: is_active={enr.get('is_active')}, completed_at={enr.get('completed_at')}")
                         if enr.get('is_active') and not enr.get('completed_at'):
                             active_enrollment = enr
+                            print(f"    ^ This is ACTIVE enrollment")
                             break
                     
                     # Only include active enrollments in the response
                     # This ensures the frontend shows correct button state
                     if active_enrollment:
                         quest['user_enrollment'] = active_enrollment
+                        print(f"  Added user_enrollment to quest")
+                    else:
+                        print(f"  No active enrollment found")
             
             # Apply pillar filter if specified
             if not pillar_filter or pillar_filter in pillar_xp:
@@ -162,14 +171,15 @@ def get_quest_detail(user_id: str, quest_id: str):
         if quest_data.get('quest_tasks'):
             quest_data['quest_tasks'].sort(key=lambda x: x.get('task_order', 0))
         
-        # Check if user is enrolled
+        # Check if user is actively enrolled
         user_quest = supabase.table('user_quests')\
             .select('*, user_quest_tasks(*)')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
+            .eq('is_active', True)\
             .execute()
         
-        if user_quest.data:
+        if user_quest.data and user_quest.data[0].get('is_active') and not user_quest.data[0].get('completed_at'):
             quest_data['user_enrollment'] = user_quest.data[0]
             
             # Calculate progress
