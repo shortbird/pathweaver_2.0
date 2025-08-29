@@ -379,7 +379,7 @@ const HomePage = () => {
                   },
                   {
                     step: "4",
-                    title: "Share Your Joy",
+                    title: "Share Your Progress",
                     description: "Celebrate your growth and inspire others to explore",
                     icon: "🎓",
                     color: "from-yellow-400 to-orange-500"
