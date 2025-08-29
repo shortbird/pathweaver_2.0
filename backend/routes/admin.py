@@ -844,11 +844,11 @@ def get_users_list(user_id):
             # Calculate total XP across all pillars
             try:
                 xp_response = supabase.table('user_skill_xp')\
-                    .select('total_xp')\
+                    .select('xp_amount')\
                     .eq('user_id', user['id'])\
                     .execute()
                 
-                user['total_xp'] = sum(x['total_xp'] for x in xp_response.data) if xp_response.data else 0
+                user['total_xp'] = sum(x['xp_amount'] for x in xp_response.data) if xp_response.data else 0
             except:
                 user['total_xp'] = 0
             
@@ -888,7 +888,7 @@ def get_user_details(admin_id, user_id):
         
         # Get XP by pillar
         xp_response = supabase.table('user_skill_xp')\
-            .select('skill_category, total_xp')\
+            .select('pillar, xp_amount')\
             .eq('user_id', user_id)\
             .execute()
         
@@ -896,7 +896,7 @@ def get_user_details(admin_id, user_id):
         total_xp = 0
         if xp_response.data:
             for xp in xp_response.data:
-                pillar = xp['skill_category']
+                pillar = xp['pillar']
                 # Map old categories to new pillars if needed
                 pillar_map = {
                     'reading_writing': 'communication',
@@ -910,8 +910,8 @@ def get_user_details(admin_id, user_id):
                 
                 if mapped_pillar not in xp_by_pillar:
                     xp_by_pillar[mapped_pillar] = 0
-                xp_by_pillar[mapped_pillar] += xp['total_xp']
-                total_xp += xp['total_xp']
+                xp_by_pillar[mapped_pillar] += xp['xp_amount']
+                total_xp += xp['xp_amount']
         
         # Get completed quests
         quests_response = supabase.table('user_quests')\
@@ -1395,10 +1395,10 @@ def send_bulk_email(admin_id):
                 # Get user's total XP if needed
                 if '{{total_xp}}' in personalized_message:
                     xp_response = supabase.table('user_skill_xp')\
-                        .select('total_xp')\
+                        .select('xp_amount')\
                         .eq('user_id', user['id'])\
                         .execute()
-                    total_xp = sum(x['total_xp'] for x in xp_response.data) if xp_response.data else 0
+                    total_xp = sum(x['xp_amount'] for x in xp_response.data) if xp_response.data else 0
                     personalized_message = personalized_message.replace('{{total_xp}}', str(total_xp))
                 
                 # TODO: Integrate with actual email service (SendGrid, AWS SES, etc.)
