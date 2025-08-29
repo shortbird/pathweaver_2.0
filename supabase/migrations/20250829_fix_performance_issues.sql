@@ -68,9 +68,33 @@ CREATE POLICY "advisor_group_members_select" ON public.advisor_group_members
         student_id = (SELECT auth.uid())
     );
 
--- Combined policy for INSERT/UPDATE/DELETE
-CREATE POLICY "advisor_group_members_modify" ON public.advisor_group_members
-    FOR ALL
+-- Combined policy for INSERT
+CREATE POLICY "advisor_group_members_insert" ON public.advisor_group_members
+    FOR INSERT
+    WITH CHECK (
+        is_admin() OR
+        EXISTS (
+            SELECT 1 FROM public.advisor_groups ag
+            WHERE ag.id = advisor_group_members.group_id
+            AND ag.advisor_id = (SELECT auth.uid())
+        )
+    );
+
+-- Combined policy for UPDATE
+CREATE POLICY "advisor_group_members_update" ON public.advisor_group_members
+    FOR UPDATE
+    USING (
+        is_admin() OR
+        EXISTS (
+            SELECT 1 FROM public.advisor_groups ag
+            WHERE ag.id = advisor_group_members.group_id
+            AND ag.advisor_id = (SELECT auth.uid())
+        )
+    );
+
+-- Combined policy for DELETE
+CREATE POLICY "advisor_group_members_delete" ON public.advisor_group_members
+    FOR DELETE
     USING (
         is_admin() OR
         EXISTS (
@@ -100,9 +124,25 @@ CREATE POLICY "advisor_groups_select" ON public.advisor_groups
         )
     );
 
--- Combined policy for INSERT/UPDATE/DELETE
-CREATE POLICY "advisor_groups_modify" ON public.advisor_groups
-    FOR ALL
+-- Combined policy for INSERT
+CREATE POLICY "advisor_groups_insert" ON public.advisor_groups
+    FOR INSERT
+    WITH CHECK (
+        is_admin() OR
+        advisor_id = (SELECT auth.uid())
+    );
+
+-- Combined policy for UPDATE
+CREATE POLICY "advisor_groups_update" ON public.advisor_groups
+    FOR UPDATE
+    USING (
+        is_admin() OR
+        advisor_id = (SELECT auth.uid())
+    );
+
+-- Combined policy for DELETE
+CREATE POLICY "advisor_groups_delete" ON public.advisor_groups
+    FOR DELETE
     USING (
         is_admin() OR
         advisor_id = (SELECT auth.uid())
@@ -170,9 +210,19 @@ CREATE POLICY "leaderboards_select" ON public.leaderboards
     FOR SELECT
     USING (true); -- Public view
 
--- Policy for INSERT/UPDATE/DELETE (admin only)
-CREATE POLICY "leaderboards_modify" ON public.leaderboards
-    FOR ALL
+-- Policy for INSERT (admin only)
+CREATE POLICY "leaderboards_insert" ON public.leaderboards
+    FOR INSERT
+    WITH CHECK (is_admin());
+
+-- Policy for UPDATE (admin only)
+CREATE POLICY "leaderboards_update" ON public.leaderboards
+    FOR UPDATE
+    USING (is_admin());
+
+-- Policy for DELETE (admin only)
+CREATE POLICY "leaderboards_delete" ON public.leaderboards
+    FOR DELETE
     USING (is_admin());
 
 -- ----------------------------------------------------
@@ -202,9 +252,25 @@ CREATE POLICY "parent_child_relationships_select" ON public.parent_child_relatio
         parent_id = (SELECT auth.uid())
     );
 
--- Policy for INSERT/UPDATE/DELETE
-CREATE POLICY "parent_child_relationships_modify" ON public.parent_child_relationships
-    FOR ALL
+-- Policy for INSERT
+CREATE POLICY "parent_child_relationships_insert" ON public.parent_child_relationships
+    FOR INSERT
+    WITH CHECK (
+        is_admin() OR
+        parent_id = (SELECT auth.uid())
+    );
+
+-- Policy for UPDATE
+CREATE POLICY "parent_child_relationships_update" ON public.parent_child_relationships
+    FOR UPDATE
+    USING (
+        is_admin() OR
+        parent_id = (SELECT auth.uid())
+    );
+
+-- Policy for DELETE
+CREATE POLICY "parent_child_relationships_delete" ON public.parent_child_relationships
+    FOR DELETE
     USING (
         is_admin() OR
         parent_id = (SELECT auth.uid())
