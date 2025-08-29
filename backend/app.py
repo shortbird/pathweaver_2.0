@@ -16,6 +16,7 @@ from routes import dev_utils
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
+from middleware.csrf_protection import init_csrf, get_csrf_token
 
 load_dotenv()
 
@@ -29,6 +30,10 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max request size
 
 # Configure security middleware
 security_middleware.init_app(app)
+
+# Configure CSRF protection (disabled by default for API compatibility)
+# Individual routes can enable it as needed
+# init_csrf(app)  # Uncomment to enable CSRF globally
 
 # Configure CORS with proper settings - MUST come before error handler
 configure_cors(app)
@@ -64,6 +69,20 @@ app.register_blueprint(dev_utils.bp, url_prefix='/api/dev')
 @app.route('/api/health')
 def health_check():
     return jsonify({'status': 'healthy'}), 200
+
+@app.route('/api/csrf-token', methods=['GET'])
+def get_csrf():
+    """
+    Get a CSRF token for the session.
+    Note: CSRF protection is currently disabled by default for API compatibility.
+    This endpoint is provided for future use when CSRF is enabled.
+    """
+    # If CSRF is enabled, return a token
+    # token = get_csrf_token()
+    # return jsonify({'csrf_token': token}), 200
+    
+    # For now, return a placeholder since CSRF is disabled
+    return jsonify({'csrf_token': None, 'csrf_enabled': False}), 200
 
 @app.route('/api/test-config')
 def test_config():
