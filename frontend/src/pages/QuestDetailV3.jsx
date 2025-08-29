@@ -42,8 +42,6 @@ const QuestDetailV3 = () => {
       }
 
       const data = await response.json();
-      console.log('[QuestDetailV3] Received quest data:', data.quest);
-      console.log('[QuestDetailV3] User enrollment:', data.quest?.user_enrollment);
       setQuest(data.quest);
     } catch (error) {
       console.error('Error fetching quest:', error);

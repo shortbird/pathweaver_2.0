@@ -95,17 +95,11 @@ def list_quests():
                     .execute()
                 
                 if enrollment.data:
-                    # Debug logging
-                    print(f"[ENROLLMENT CHECK] Quest {quest['id'][:8]}... for user {user_id[:8]}...")
-                    print(f"  Found {len(enrollment.data)} enrollment(s)")
-                    
                     # Find the active enrollment ONLY
                     active_enrollment = None
                     for enr in enrollment.data:
-                        print(f"  - Enrollment: is_active={enr.get('is_active')}, completed_at={enr.get('completed_at')}")
                         if enr.get('is_active') and not enr.get('completed_at'):
                             active_enrollment = enr
-                            print(f"    ^ This is ACTIVE enrollment")
                             break
                     
                     # Only include active enrollments in the response
@@ -128,10 +122,6 @@ def list_quests():
                             'total_tasks': total_tasks,
                             'percentage': (completed_task_count / total_tasks * 100) if total_tasks > 0 else 0
                         }
-                        
-                        print(f"  Added user_enrollment and progress to quest")
-                    else:
-                        print(f"  No active enrollment found")
             
             # Apply pillar filter if specified
             if not pillar_filter or pillar_filter in pillar_xp:
@@ -161,7 +151,6 @@ def get_quest_detail(user_id: str, quest_id: str):
     Includes user's progress if enrolled.
     """
     try:
-        print(f"[QUEST DETAIL] Getting quest {quest_id} for user {user_id}")
         supabase = get_supabase_client()
         
         # Get quest with tasks
@@ -190,17 +179,12 @@ def get_quest_detail(user_id: str, quest_id: str):
             quest_data['quest_tasks'].sort(key=lambda x: x.get('task_order', 0))
         
         # Check if user is actively enrolled
-        print(f"[QUEST DETAIL] Checking enrollment for user {user_id} on quest {quest_id}")
         user_quest = supabase.table('user_quests')\
             .select('*, user_quest_tasks(*)')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
             .eq('is_active', True)\
             .execute()
-        
-        print(f"[QUEST DETAIL] Found {len(user_quest.data) if user_quest.data else 0} enrollment(s)")
-        if user_quest.data:
-            print(f"[QUEST DETAIL] Enrollment data: is_active={user_quest.data[0].get('is_active')}, completed_at={user_quest.data[0].get('completed_at')}")
         
         if user_quest.data and user_quest.data[0].get('is_active') and not user_quest.data[0].get('completed_at'):
             quest_data['user_enrollment'] = user_quest.data[0]
