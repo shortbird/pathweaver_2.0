@@ -87,15 +87,27 @@ def list_quests():
             
             # Add user enrollment data if authenticated
             if user_id:
+                # Get ANY enrollment for this user and quest
                 enrollment = supabase.table('user_quests')\
                     .select('*')\
                     .eq('user_id', user_id)\
                     .eq('quest_id', quest['id'])\
-                    .eq('is_active', True)\
                     .execute()
                 
                 if enrollment.data:
-                    quest['user_enrollment'] = enrollment.data[0]
+                    # Find the active enrollment (or most recent if none active)
+                    active_enrollment = None
+                    for enr in enrollment.data:
+                        if enr.get('is_active') and not enr.get('completed_at'):
+                            active_enrollment = enr
+                            break
+                    
+                    # If no active enrollment, take the most recent one
+                    if not active_enrollment and enrollment.data:
+                        active_enrollment = enrollment.data[0]
+                    
+                    if active_enrollment:
+                        quest['user_enrollment'] = active_enrollment
             
             # Apply pillar filter if specified
             if not pillar_filter or pillar_filter in pillar_xp:
@@ -234,18 +246,40 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 'error': 'Quest is not active'
             }), 400
         
-        # Check if already enrolled
+        # Check if already enrolled (active enrollment only)
         existing = supabase.table('user_quests')\
-            .select('id')\
+            .select('id, is_active, completed_at')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
             .execute()
         
+        # Check if there's an active enrollment
         if existing.data:
-            return jsonify({
-                'success': False,
-                'error': 'Already enrolled in this quest'
-            }), 400
+            for enrollment in existing.data:
+                if enrollment.get('is_active') and not enrollment.get('completed_at'):
+                    return jsonify({
+                        'success': False,
+                        'error': 'Already enrolled in this quest'
+                    }), 400
+            
+            # If there's an inactive enrollment, we can reactivate it
+            if existing.data:
+                # Reactivate the most recent enrollment
+                enrollment_id = existing.data[0]['id']
+                updated = supabase.table('user_quests')\
+                    .update({
+                        'is_active': True,
+                        'started_at': datetime.utcnow().isoformat(),
+                        'completed_at': None
+                    })\
+                    .eq('id', enrollment_id)\
+                    .execute()
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'Re-enrolled in quest successfully',
+                    'enrollment': updated.data[0] if updated.data else None
+                }), 200
         
         # Create enrollment
         enrollment = supabase.table('user_quests')\

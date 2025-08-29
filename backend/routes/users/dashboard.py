@@ -88,43 +88,61 @@ def get_tasks_completed_count(supabase, user_id: str) -> int:
 def get_active_quests(supabase, user_id: str) -> list:
     """Get user's active quests with details"""
     print(f"Fetching active quests for user {user_id}")
+    
     try:
-        # Try with is_active field (V3 quests)
+        # Simple query that should work with current schema
+        # Get active enrollments with quest details and tasks
         active_quests = supabase.table('user_quests')\
-            .select('*, quests(*, quest_skill_xp(*), quest_xp_awards(*))')\
+            .select('*, quests(*, quest_tasks(*))')\
             .eq('user_id', user_id)\
             .eq('is_active', True)\
-            .is_('completed_at', 'null')\
             .execute()
-    except:
-        # Fallback to status field (older schema)
+        
+        print(f"Active quests query result: {len(active_quests.data) if active_quests.data else 0} quests found")
+        
+        if active_quests.data:
+            # Filter out any completed quests (belt and suspenders approach)
+            active_only = [q for q in active_quests.data if q.get('completed_at') is None]
+            
+            # Log the status of each quest for debugging
+            for quest in active_only:
+                quest_info = quest.get('quests', {})
+                print(f"  - Enrollment ID: {quest.get('id')}, Quest: {quest_info.get('title', 'Unknown')}, Completed: {quest.get('completed_at')}")
+            
+            return active_only
+        
+    except Exception as e:
+        print(f"Error fetching active quests: {str(e)}")
+        print(f"Error type: {type(e).__name__}")
+        
+        # Try simpler query without nested relations
         try:
             active_quests = supabase.table('user_quests')\
-                .select('*, quests(*)')\
+                .select('*')\
                 .eq('user_id', user_id)\
-                .eq('status', 'in_progress')\
+                .eq('is_active', True)\
                 .execute()
-        except:
-            # Final fallback without skill XP tables
-            try:
-                active_quests = supabase.table('user_quests')\
-                    .select('*, quests(*)')\
-                    .eq('user_id', user_id)\
-                    .eq('is_active', True)\
-                    .is_('completed_at', 'null')\
-                    .execute()
-            except Exception as e:
-                print(f"Error fetching active quests: {str(e)}")
-                return []
-    
-    print(f"Active quests query result: {len(active_quests.data) if active_quests.data else 0} quests found")
-    if active_quests.data:
-        # Log the status of each quest
-        for quest in active_quests.data:
-            print(f"  - Quest ID: {quest.get('id')}, Status: {quest.get('status')}, Quest ID ref: {quest.get('quest_id')}")
-        # Return the raw data with proper structure
-        # The frontend expects user_quest records with nested quest data
-        return active_quests.data
+            
+            if active_quests.data:
+                # Filter out completed
+                active_only = [q for q in active_quests.data if q.get('completed_at') is None]
+                
+                # Manually fetch quest details for each
+                for enrollment in active_only:
+                    try:
+                        quest = supabase.table('quests')\
+                            .select('*')\
+                            .eq('id', enrollment['quest_id'])\
+                            .single()\
+                            .execute()
+                        enrollment['quests'] = quest.data if quest.data else {}
+                    except:
+                        enrollment['quests'] = {}
+                
+                return active_only
+                
+        except Exception as fallback_error:
+            print(f"Fallback query also failed: {str(fallback_error)}")
     
     return []
 
