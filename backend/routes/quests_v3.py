@@ -95,11 +95,13 @@ def list_quests():
                     .execute()
                 
                 if enrollment.data:
+                    print(f"[DEBUG] Found enrollment for quest {quest['id'][:8]}: {enrollment.data[0]}")
                     # Find the active enrollment ONLY
                     active_enrollment = None
                     for enr in enrollment.data:
                         if enr.get('is_active') and not enr.get('completed_at'):
                             active_enrollment = enr
+                            print(f"[DEBUG] Found ACTIVE enrollment: is_active={enr.get('is_active')}")
                             break
                     
                     # Only include active enrollments in the response
@@ -179,12 +181,18 @@ def get_quest_detail(user_id: str, quest_id: str):
             quest_data['quest_tasks'].sort(key=lambda x: x.get('task_order', 0))
         
         # Check if user is actively enrolled
+        print(f"[QUEST DETAIL] Checking enrollment for user {user_id[:8]} on quest {quest_id[:8]}")
         user_quest = supabase.table('user_quests')\
             .select('*, user_quest_tasks(*)')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
             .eq('is_active', True)\
             .execute()
+        
+        if user_quest.data:
+            print(f"[QUEST DETAIL] Found enrollment: {user_quest.data[0]}")
+        else:
+            print(f"[QUEST DETAIL] No enrollment found")
         
         if user_quest.data and user_quest.data[0].get('is_active') and not user_quest.data[0].get('completed_at'):
             quest_data['user_enrollment'] = user_quest.data[0]
