@@ -88,19 +88,12 @@ def send_friend_request(user_id):
                 auth_users = admin_supabase.auth.admin.list_users()
                 print(f"[FRIEND_REQUEST] Found {len(auth_users) if auth_users else 0} total users")
                 
-                # Debug: print first few emails to understand the data structure
-                if auth_users and len(auth_users) > 0:
-                    print(f"[FRIEND_REQUEST] Sample user structure: {dir(auth_users[0])}")
-                    for i, auth_user in enumerate(auth_users[:3]):  # Print first 3 users for debugging
-                        print(f"[FRIEND_REQUEST] User {i}: email={getattr(auth_user, 'email', 'NO_EMAIL')}, id={getattr(auth_user, 'id', 'NO_ID')}")
-                
                 # Search through the users for matching email
                 for auth_user in auth_users:
                     user_email = getattr(auth_user, 'email', None)
-                    print(f"[FRIEND_REQUEST] Checking user: email={user_email} against {addressee_email}")
                     if user_email and user_email.lower() == addressee_email.lower():  # Case-insensitive comparison
                         addressee_id = auth_user.id
-                        print(f"[FRIEND_REQUEST] Found user ID: {addressee_id}")
+                        print(f"[FRIEND_REQUEST] Found user ID: {addressee_id} for email: {addressee_email}")
                         break
                 
             except Exception as e:
@@ -111,8 +104,8 @@ def send_friend_request(user_id):
                 print(f"[FRIEND_REQUEST] No user found with email: {addressee_email}")
                 return jsonify({'error': 'User not found'}), 404
                 
-            # Now get the user data from the users table
-            addressee_result = supabase.table('users').select('*').eq('id', addressee_id).execute()
+            # Now get the user data from the users table (use admin client to bypass RLS)
+            addressee_result = admin_supabase.table('users').select('*').eq('id', addressee_id).execute()
             print(f"[FRIEND_REQUEST] User query result: {addressee_result.data}")
             
             # If user doesn't exist in users table, create a basic entry
