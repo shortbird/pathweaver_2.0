@@ -1,7 +1,7 @@
 """User dashboard routes"""
 
 from flask import Blueprint, jsonify
-from database import get_authenticated_supabase_client
+from database import get_user_client
 from utils.auth.decorators import require_auth
 from middleware.error_handler import NotFoundError
 from .helpers import calculate_user_xp, get_user_level, format_skill_data, SKILL_CATEGORIES
@@ -12,7 +12,8 @@ dashboard_bp = Blueprint('dashboard', __name__)
 @require_auth
 def get_dashboard(user_id):
     """Get user dashboard data including active quests, recent completions, and XP stats"""
-    supabase = get_authenticated_supabase_client()
+    # Use user client with RLS enforcement
+    supabase = get_user_client()
     
     try:
         # Fetch user data

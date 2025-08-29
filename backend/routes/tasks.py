@@ -4,7 +4,7 @@ Handles task completion with evidence upload and XP awards.
 """
 
 from flask import Blueprint, request, jsonify
-from database import get_supabase_admin_client
+from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth
 from services.evidence_service import EvidenceService
 from services.xp_service import XPService
@@ -32,7 +32,10 @@ def complete_task(user_id: str, task_id: str):
     Handles file uploads and awards XP with collaboration bonus if applicable.
     """
     try:
-        supabase = get_supabase_admin_client()
+        # Use user client for user operations (RLS enforcement)
+        supabase = get_user_client()
+        # Admin client only for XP awards (requires elevated privileges)
+        admin_supabase = get_supabase_admin_client()
         
         # Get task details
         task = supabase.table('quest_tasks')\

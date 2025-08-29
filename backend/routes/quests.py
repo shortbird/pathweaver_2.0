@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from database import get_supabase_client, get_authenticated_supabase_client
+from database import get_supabase_client, get_user_client, get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from datetime import datetime
 from cache import cache, cached
@@ -12,8 +12,8 @@ def get_quests():
     Legacy endpoint - redirects to V3.
     Kept for backward compatibility but uses new schema.
     """
-    from database import get_supabase_admin_client
-    supabase = get_supabase_admin_client()
+    # Public endpoint - quests are visible to all users
+    supabase = get_supabase_client()
     
     try:
         page = request.args.get('page', 1, type=int)
@@ -74,8 +74,8 @@ def get_quests():
 @bp.route('/<quest_id>', methods=['GET'])
 def get_quest(quest_id):
     """Legacy endpoint - redirects to V3."""
-    from database import get_supabase_admin_client
-    supabase = get_supabase_admin_client()
+    # Public endpoint - quest details are visible to all users
+    supabase = get_supabase_client()
     
     try:
         # Get quest with tasks

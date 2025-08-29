@@ -1,7 +1,7 @@
 """Completed quests routes"""
 
 from flask import Blueprint, jsonify, request
-from database import get_authenticated_supabase_client
+from database import get_user_client
 from utils.auth.decorators import require_auth
 from middleware.error_handler import ValidationError
 
@@ -24,7 +24,8 @@ def get_completed_quests(user_id):
     
     offset = (page - 1) * per_page
     
-    supabase = get_authenticated_supabase_client()
+    # Use user client with RLS enforcement
+    supabase = get_user_client()
     
     try:
         # Get total count

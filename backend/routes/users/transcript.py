@@ -1,7 +1,7 @@
 """User transcript routes"""
 
 from flask import Blueprint, jsonify
-from database import get_authenticated_supabase_client
+from database import get_user_client
 from utils.auth.decorators import require_auth
 from middleware.error_handler import NotFoundError
 from datetime import datetime
@@ -13,7 +13,8 @@ transcript_bp = Blueprint('transcript', __name__)
 @require_auth
 def get_transcript(user_id):
     """Get user's learning transcript with all completed quests and achievements"""
-    supabase = get_authenticated_supabase_client()
+    # Use user client with RLS enforcement
+    supabase = get_user_client()
     
     try:
         # Fetch user data

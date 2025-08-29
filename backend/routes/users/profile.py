@@ -1,7 +1,7 @@
 """User profile routes"""
 
 from flask import Blueprint, request, jsonify
-from database import get_authenticated_supabase_client
+from database import get_user_client
 from utils.auth.decorators import require_auth
 from middleware.error_handler import NotFoundError, ValidationError
 from .helpers import calculate_user_xp, get_user_skills
@@ -12,7 +12,8 @@ profile_bp = Blueprint('profile', __name__)
 @require_auth
 def get_profile(user_id):
     """Get user profile with XP breakdown"""
-    supabase = get_authenticated_supabase_client()
+    # Use user client with RLS enforcement
+    supabase = get_user_client()
     
     try:
         user = supabase.table('users').select('*').eq('id', user_id).single().execute()
@@ -48,7 +49,8 @@ def update_profile(user_id):
     if not update_data:
         raise ValidationError('No valid fields to update')
     
-    supabase = get_authenticated_supabase_client()
+    # Use user client with RLS enforcement
+    supabase = get_user_client()
     
     try:
         result = supabase.table('users')\
