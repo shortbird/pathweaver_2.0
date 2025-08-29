@@ -98,11 +98,15 @@ def send_collaboration_invite(user_id: str):
                 }), 400
         
         # Get friend's name for notification
-        friend_info = supabase.table('users')\
+        friend_result = supabase.table('users')\
             .select('first_name, last_name')\
             .eq('id', friend_id)\
-            .single()\
             .execute()
+        
+        if friend_result.data and len(friend_result.data) > 0:
+            friend_info = {'data': friend_result.data[0]}
+        else:
+            friend_info = {'data': {'first_name': 'User', 'last_name': 'Account'}}
         
         # Create collaboration invitation
         try:
@@ -136,11 +140,15 @@ def send_collaboration_invite(user_id: str):
             }), 500
         
         # Get requester's name for response
-        requester_info = supabase.table('users')\
+        requester_result = supabase.table('users')\
             .select('first_name, last_name')\
             .eq('id', user_id)\
-            .single()\
             .execute()
+        
+        if requester_result.data and len(requester_result.data) > 0:
+            requester_info = {'data': requester_result.data[0]}
+        else:
+            requester_info = {'data': {'first_name': 'User', 'last_name': 'Account'}}
         
         friend_name = f"{friend_info.data['first_name']} {friend_info.data['last_name']}"
         requester_name = f"{requester_info.data['first_name']} {requester_info.data['last_name']}"
@@ -201,12 +209,23 @@ def get_pending_invites(user_id: str):
                 .single()\
                 .execute()
             
-            # Get requester details
-            requester = supabase.table('users')\
+            # Get requester details - use execute() without single() to handle missing users
+            requester_result = supabase.table('users')\
                 .select('id, first_name, last_name, avatar_url')\
                 .eq('id', invite['requester_id'])\
-                .single()\
                 .execute()
+            
+            # Handle case where user doesn't exist in users table
+            if requester_result.data and len(requester_result.data) > 0:
+                requester = {'data': requester_result.data[0]}
+            else:
+                # Create a placeholder for missing user
+                requester = {'data': {
+                    'id': invite['requester_id'],
+                    'first_name': 'User',
+                    'last_name': 'Account',
+                    'avatar_url': None
+                }}
             
             formatted_invites.append({
                 'id': invite['id'],
@@ -396,11 +415,20 @@ def get_active_collaborations(user_id: str):
             partner_id = collab['partner_id'] if collab['requester_id'] == user_id else collab['requester_id']
             
             # Get partner info
-            partner = supabase.table('users')\
+            partner_result = supabase.table('users')\
                 .select('id, first_name, last_name, avatar_url')\
                 .eq('id', partner_id)\
-                .single()\
                 .execute()
+            
+            if partner_result.data and len(partner_result.data) > 0:
+                partner = {'data': partner_result.data[0]}
+            else:
+                partner = {'data': {
+                    'id': partner_id,
+                    'first_name': 'User',
+                    'last_name': 'Account',
+                    'avatar_url': None
+                }}
             
             formatted_collabs.append({
                 'id': collab['id'],
