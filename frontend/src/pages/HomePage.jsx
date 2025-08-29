@@ -56,7 +56,7 @@ const HomePage = () => {
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 mb-8">
                 <div className="text-center">
                   <div className="text-2xl font-bold">100+</div>
-                  <div className="text-sm opacity-75">Adventures Await</div>
+                  <div className="text-sm opacity-75">Quests Await</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold">5</div>
