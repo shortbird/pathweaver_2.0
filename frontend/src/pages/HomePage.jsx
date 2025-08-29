@@ -48,8 +48,7 @@ const HomePage = () => {
                 </span>
               </h1>
               <p className="text-lg sm:text-xl mb-8 leading-relaxed opacity-90 px-2 sm:px-0">
-                Complete real-world quests that interest you. Document your process. 
-                Build skills through actual practice.
+                Real quests. Real evidence. Real growth.
               </p>
               
               {/* Placeholder metrics - will be dynamic in Phase 2 */}
@@ -174,8 +173,7 @@ const HomePage = () => {
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">A Diploma That Tells <u>Your</u> Story</h2>
             <p className="text-lg sm:text-xl text-gray-700 mb-8 max-w-3xl mx-auto">
-              Share your verified learning journey with employers, schools, and your community. 
-              Every quest you complete adds real evidence to your shareable portfolio.
+              Your verified achievements. Shareable with anyone.
             </p>
             
             {/* Interactive portfolio preview */}
@@ -355,8 +353,7 @@ const HomePage = () => {
             </div>
             <h2 className="text-3xl sm:text-4xl font-bold mb-6">The Process is the Goal</h2>
             <p className="text-lg sm:text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
-              Your Optio Portfolio Diploma isn't just a certificate; it's a living record of your real learning journey. 
-              Each quest you complete becomes verified evidence of skills that you can share with employers, colleges, and your community.
+              Not just a certificate. A living record of everything you've learned and created.
             </p>
           </div>
           
@@ -433,8 +430,7 @@ const HomePage = () => {
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">Choose Your Learning Rhythm</h2>
             <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-              We give you a diploma on day one. 
-              What makes it valuable is the real work you put in by completing quests and building skills.
+              Start with a diploma. Make it valuable through real work.
             </p>
           </div>
 
@@ -484,7 +480,7 @@ const HomePage = () => {
                 </span>
               </div>
               <h3 className="text-xl font-semibold mb-2">Creator</h3>
-              <p className="text-3xl font-bold mb-1">$50<span className="text-lg font-normal text-gray-600">/month</span></p>
+              <p className="text-3xl font-bold mb-1">$39.99<span className="text-lg font-normal text-gray-600">/month</span></p>
               <p className="text-gray-600 mb-4">For dedicated learners ready to grow</p>
               <p className="text-sm text-gray-500 mb-4">Creators get everything in Explorer, plus:</p>
               <ul className="space-y-3 mb-8">
@@ -529,7 +525,7 @@ const HomePage = () => {
 
             <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 hover:shadow-lg transition-shadow">
               <h3 className="text-xl font-semibold mb-2">Visionary</h3>
-              <p className="text-3xl font-bold mb-1">$500<span className="text-lg font-normal text-gray-600">/month</span></p>
+              <p className="text-3xl font-bold mb-1">$499.99<span className="text-lg font-normal text-gray-600">/month</span></p>
               <p className="text-gray-600 mb-4">A personalized private school experience</p>
               <p className="text-sm text-gray-500 mb-4">Visionaries get everything in Creator, plus:</p>
               <ul className="space-y-3 mb-8">
@@ -575,16 +571,14 @@ const HomePage = () => {
           <div className="text-center">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4">Create Something Meaningful</h2>
             <p className="text-lg text-gray-700 mb-8 max-w-3xl mx-auto">
-              Join a community where learning is celebrated for its own sake. 
-              Your curiosity and creativity are about to flourish!
+              Where curiosity leads and creativity flourishes.
             </p>
             <div className="bg-gradient-to-r from-purple-50 to-blue-50 rounded-xl p-8 max-w-2xl mx-auto">
               <p className="text-xl font-semibold text-gray-800 mb-4">
                 Your Journey Awaits
               </p>
               <p className="text-gray-600 leading-relaxed mb-6">
-                Take on quests that interest you. Build real skills. Document your progress. 
-                There's no right or wrong way - just your way.
+                No right or wrong way. Just your way.
               </p>
               <Link 
                 to="/register" 
