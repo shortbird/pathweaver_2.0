@@ -106,13 +106,18 @@ def send_friend_request(user_id):
                 
             # Now get the user data from the users table
             addressee_result = supabase.table('users').select('*').eq('id', addressee_id).execute()
+            print(f"[FRIEND_REQUEST] User query result: {addressee_result.data}")
             addressee = {'data': addressee_result.data[0] if addressee_result.data else None}
         else:
             # Fallback to username for backward compatibility
             addressee_result = supabase.table('users').select('*').eq('username', addressee_username).execute()
+            print(f"[FRIEND_REQUEST] Username query result: {addressee_result.data}")
             addressee = {'data': addressee_result.data[0] if addressee_result.data else None}
         
+        print(f"[FRIEND_REQUEST] Addressee data: {addressee}")
+        
         if not addressee['data']:
+            print(f"[FRIEND_REQUEST] User not found in users table")
             return jsonify({'error': 'User not found'}), 404
         
         if addressee['data']['id'] == user_id:
