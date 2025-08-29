@@ -110,7 +110,7 @@ const FriendsPage = () => {
 
   const acceptTeamInvite = async (inviteId, questId) => {
     try {
-      await api.post(`/v3/collaborations/${inviteId}/accept`)
+      await api.post(`/v3/collaborations/${inviteId}/accept`, {})
       toast.success('Team invitation accepted! You\'ll earn 2x XP together!')
       fetchTeamInvitations()
       fetchActiveCollaborations()
@@ -119,17 +119,19 @@ const FriendsPage = () => {
         navigate(`/quests/${questId}`)
       }, 1500)
     } catch (error) {
-      toast.error('Failed to accept team invitation')
+      console.error('Error accepting invitation:', error)
+      toast.error(error.response?.data?.error || 'Failed to accept team invitation')
     }
   }
 
   const declineTeamInvite = async (inviteId) => {
     try {
-      await api.post(`/v3/collaborations/${inviteId}/decline`)
+      await api.post(`/v3/collaborations/${inviteId}/decline`, {})
       toast.success('Team invitation declined')
       fetchTeamInvitations()
     } catch (error) {
-      toast.error('Failed to decline team invitation')
+      console.error('Error declining invitation:', error)
+      toast.error(error.response?.data?.error || 'Failed to decline team invitation')
     }
   }
 
