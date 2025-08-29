@@ -77,20 +77,34 @@ def send_friend_request(user_id):
     
     try:
         if addressee_email:
-            # First get the user ID from auth.users table by email
+            # Get the user ID from auth.users table by email
             from database import get_supabase_admin_client
             admin_supabase = get_supabase_admin_client()
-            auth_user = admin_supabase.auth.admin.list_users()
+            
+            print(f"[FRIEND_REQUEST] Looking for user with email: {addressee_email}")
             
             addressee_id = None
-            for user in auth_user:
-                if user.email == addressee_email:
-                    addressee_id = user.id
-                    break
+            try:
+                # list_users() returns a list of user objects
+                auth_users = admin_supabase.auth.admin.list_users()
+                print(f"[FRIEND_REQUEST] Found {len(auth_users) if auth_users else 0} total users")
+                
+                # Search through the users for matching email
+                for auth_user in auth_users:
+                    if hasattr(auth_user, 'email') and auth_user.email == addressee_email:
+                        addressee_id = auth_user.id
+                        print(f"[FRIEND_REQUEST] Found user ID: {addressee_id}")
+                        break
+                
+            except Exception as e:
+                print(f"[FRIEND_REQUEST] Error listing auth users: {e}")
+                return jsonify({'error': 'Failed to search users'}), 500
             
             if not addressee_id:
+                print(f"[FRIEND_REQUEST] No user found with email: {addressee_email}")
                 return jsonify({'error': 'User not found'}), 404
                 
+            # Now get the user data from the users table
             addressee_result = supabase.table('users').select('*').eq('id', addressee_id).execute()
             addressee = {'data': addressee_result.data[0] if addressee_result.data else None}
         else:
