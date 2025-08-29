@@ -215,7 +215,7 @@ const HomePage = () => {
                             <span className="text-white text-sm font-bold">✓</span>
                           </div>
                           <div className="flex-grow text-left">
-                            <p className="font-medium text-gray-800">Trained for a half marathon</p>
+                            <p className="font-medium text-gray-800">Trained for a 5K race</p>
                             <p className="text-sm text-gray-600">Evidence: Training journal & finish line photo</p>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs bg-coral/10 text-coral px-2 py-0.5 rounded">Practical Skills</span>
