@@ -240,21 +240,9 @@ def get_user_portfolio(user_id):
         # Initialize skill XP data
         skill_xp_data = []
         try:
-            # Initialize skill categories if they don't exist
-            skill_categories = ['creativity', 'critical_thinking', 'practical_skills',
-                              'communication', 'cultural_literacy']
-            
-            for pillar in skill_categories:
-                try:
-                    existing = supabase.table('user_skill_xp').select('id').eq('user_id', user_id).eq('pillar', pillar).execute()
-                    if not existing.data:
-                        supabase.table('user_skill_xp').insert({
-                            'user_id': user_id,
-                            'pillar': pillar,
-                            'xp_amount': 0
-                        }).execute()
-                except:
-                    pass  # Ignore errors in initialization
+            # Don't try to initialize skill categories in portfolio view
+            # This is a public read-only endpoint
+            # Skill categories should be initialized during user registration
             
             # Get skill XP
             skill_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()

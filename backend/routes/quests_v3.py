@@ -215,6 +215,57 @@ def get_quest_detail(user_id: str, quest_id: str):
             'error': 'Failed to fetch quest details'
         }), 500
 
+@bp.route('/<quest_id>/enrollment-status', methods=['GET'])
+@require_auth
+def check_enrollment_status(user_id: str, quest_id: str):
+    """
+    Check if user is enrolled in a specific quest.
+    Returns enrollment details if enrolled.
+    """
+    try:
+        supabase = get_supabase_client()
+        
+        # Check for any enrollment
+        enrollment = supabase.table('user_quests')\
+            .select('*')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .execute()
+        
+        if not enrollment.data:
+            return jsonify({
+                'enrolled': False,
+                'status': 'not_enrolled'
+            })
+        
+        # Check for active enrollment
+        for enr in enrollment.data:
+            if enr.get('is_active') and not enr.get('completed_at'):
+                return jsonify({
+                    'enrolled': True,
+                    'status': 'active',
+                    'enrollment': enr
+                })
+            elif enr.get('completed_at'):
+                return jsonify({
+                    'enrolled': True,
+                    'status': 'completed',
+                    'enrollment': enr
+                })
+        
+        # Has enrollment but it's inactive
+        return jsonify({
+            'enrolled': True,
+            'status': 'inactive',
+            'enrollment': enrollment.data[0]
+        })
+        
+    except Exception as e:
+        print(f"Error checking enrollment status: {str(e)}")
+        return jsonify({
+            'error': 'Failed to check enrollment status'
+        }), 500
+
 @bp.route('/<quest_id>/enroll', methods=['POST'])
 @require_auth
 def enroll_in_quest(user_id: str, quest_id: str):
