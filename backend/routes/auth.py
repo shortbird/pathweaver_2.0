@@ -149,19 +149,14 @@ def register():
             raise
         
         if auth_response.user:
-            # If no session, email verification is required
-            if not auth_response.session:
-                return jsonify({
-                    'message': 'Account created successfully! Please check your email to verify your account.',
-                    'email_verification_required': True
-                }), 201
-                
             # Sanitize names for database storage (prevent XSS)
             sanitized_first_name = sanitize_input(original_first_name)
             sanitized_last_name = sanitize_input(original_last_name)
             
             # Create user profile in our users table
             # All new users start with free tier, can upgrade later
+            # IMPORTANT: Create profile even if email verification is required
+            # so that ToS acceptance is recorded
             user_data = {
                 'id': auth_response.user.id,
                 'first_name': sanitized_first_name,
@@ -182,7 +177,15 @@ def register():
             
             # Ensure diploma and skills are initialized (backup to database trigger)
             # This is now optimized to use batch operations
+            # Do this for ALL users, even those requiring email verification
             ensure_user_diploma_and_skills(supabase, auth_response.user.id, sanitized_first_name, sanitized_last_name)
+            
+            # If no session, email verification is required
+            if not auth_response.session:
+                return jsonify({
+                    'message': 'Account created successfully! Please check your email to verify your account.',
+                    'email_verification_required': True
+                }), 201
             
             # Fetch the complete user profile data to return to frontend
             user_profile = supabase.table('users').select('*').eq('id', auth_response.user.id).single().execute()
@@ -264,14 +267,40 @@ def login():
                 error_str = str(e)
                 if 'rows' in error_str or 'single' in error_str:
                     # Create minimal user profile
-                    user_data = admin_client.table('users').insert({
+                    # Check if this is a recently created user (within last hour)
+                    # If so, they likely accepted ToS during registration
+                    user_created_at = auth_response.user.created_at if hasattr(auth_response.user, 'created_at') else None
+                    is_new_user = False
+                    if user_created_at:
+                        from datetime import datetime, timedelta, timezone
+                        try:
+                            # Parse the created_at timestamp
+                            if isinstance(user_created_at, str):
+                                created_time = datetime.fromisoformat(user_created_at.replace('Z', '+00:00'))
+                            else:
+                                created_time = user_created_at
+                            # Check if user was created within the last hour
+                            is_new_user = (datetime.now(timezone.utc) - created_time) < timedelta(hours=1)
+                        except:
+                            pass
+                    
+                    profile_data = {
                         'id': auth_response.user.id,
                         'first_name': auth_response.user.user_metadata.get('first_name', 'User'),
                         'last_name': auth_response.user.user_metadata.get('last_name', ''),
                         'subscription_tier': 'free',
                         'subscription_status': 'active',
                         'created_at': 'now()'
-                    }).execute()
+                    }
+                    
+                    # If this is a new user, assume they accepted ToS during registration
+                    if is_new_user:
+                        profile_data['tos_accepted_at'] = 'now()'
+                        profile_data['privacy_policy_accepted_at'] = 'now()'
+                        profile_data['tos_version'] = CURRENT_TOS_VERSION
+                        profile_data['privacy_policy_version'] = CURRENT_PRIVACY_POLICY_VERSION
+                    
+                    user_data = admin_client.table('users').insert(profile_data).execute()
                     
                     # Ensure diploma and skills
                     ensure_user_diploma_and_skills(
