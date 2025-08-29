@@ -314,6 +314,15 @@ const HomePage = () => {
                             <div className="bg-gradient-to-r from-yellow-400 to-orange-500 h-2.5 rounded-full transition-all duration-500" style={{width: '70%'}}></div>
                           </div>
                         </div>
+                        <div>
+                          <div className="flex justify-between mb-2">
+                            <span className="text-sm font-medium text-gray-700">Cultural Literacy</span>
+                            <span className="text-sm text-gray-600">Learning</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2.5">
+                            <div className="bg-gradient-to-r from-coral to-coral-dark h-2.5 rounded-full transition-all duration-500" style={{width: '70%'}}></div>
+                          </div>
+                        </div>
                       </div>
                       
                       <div className="mt-6 p-4 bg-gradient-to-r from-primary/5 to-purple-500/5 rounded-lg">
