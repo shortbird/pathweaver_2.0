@@ -16,9 +16,11 @@ def get_quests():
     supabase = get_supabase_client()
     
     try:
-        page = request.args.get('page', 1, type=int)
-        per_page = request.args.get('per_page', 20, type=int)
-        search = request.args.get('search', '')
+        from utils.validation.sanitizers import sanitize_search_input, sanitize_integer
+        
+        page = sanitize_integer(request.args.get('page', 1), default=1, min_val=1)
+        per_page = sanitize_integer(request.args.get('per_page', 20), default=20, min_val=1, max_val=100)
+        search = sanitize_search_input(request.args.get('search', ''))
         
         # Calculate offset
         offset = (page - 1) * per_page

@@ -33,11 +33,13 @@ def list_quests():
                 pass  # Continue without auth
         supabase = get_supabase_client()
         
-        # Get pagination parameters
-        page = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 12))
-        search = request.args.get('search', '')
-        pillar_filter = request.args.get('pillar', '')
+        # Get pagination parameters with sanitization
+        from utils.validation.sanitizers import sanitize_search_input, sanitize_integer
+        
+        page = sanitize_integer(request.args.get('page', 1), default=1, min_val=1)
+        per_page = sanitize_integer(request.args.get('per_page', 12), default=12, min_val=1, max_val=100)
+        search = sanitize_search_input(request.args.get('search', ''))
+        pillar_filter = sanitize_search_input(request.args.get('pillar', ''), max_length=50)
         
         # Calculate offset
         offset = (page - 1) * per_page

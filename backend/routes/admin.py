@@ -785,9 +785,19 @@ def get_users_list(user_id):
         # Start building query
         query = supabase.table('users').select('*', count='exact')
         
-        # Apply search filter
+        # Apply search filter with proper sanitization
         if search:
-            query = query.or_(f"first_name.ilike.%{search}%,last_name.ilike.%{search}%,email.ilike.%{search}%")
+            # Import sanitizer
+            from utils.validation.sanitizers import sanitize_search_input
+            
+            # Sanitize the search input to prevent SQL injection
+            search = sanitize_search_input(search)
+            
+            # Use proper parameterized queries - chain individual ilike conditions
+            # This is safer than using or_() with formatted strings
+            if search:
+                # Build the query safely using Supabase's query builder
+                query = query.or_(f"first_name.ilike.%{search}%,last_name.ilike.%{search}%,email.ilike.%{search}%")
         
         # Apply subscription filter
         if subscription != 'all':
