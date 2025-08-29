@@ -270,7 +270,7 @@ const HomePage = () => {
                           <svg className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                             <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                           </svg>
-                          Share this portfolio with employers, colleges, or anyone who wants to see your real learning journey
+                          Share this portfolio diploma with employers, colleges, or anyone who wants to see your real learning journey
                         </p>
                       </div>
                     </div>
@@ -413,83 +413,6 @@ const HomePage = () => {
                 </Link>
               )}
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* User Segmentation Section */}
-      <div className="py-16 bg-gradient-to-br from-blue-50 to-purple-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Every Journey Is Unique</h2>
-            <p className="text-lg sm:text-xl text-gray-700 mb-8">Find your rhythm, at your pace</p>
-          </div>
-          
-          <div className="grid lg:grid-cols-3 gap-8">
-            {[
-              {
-                title: "New Explorers",
-                description: "Discover what you're capable of creating",
-                features: ["Try new things safely", "Learn from mistakes joyfully", "Build confidence naturally", "Find your interests"],
-                cta: "Start Discovering",
-                highlight: "Most Popular",
-                icon: "👩‍🎓"
-              },
-              {
-                title: "Skill Builders",
-                description: "Deepen abilities you're passionate about",
-                features: ["Focus on what excites you", "Create meaningful projects", "See your progress clearly", "Feel your growth daily"],
-                cta: "Keep Building",
-                icon: "🚀"
-              },
-              {
-                title: "Lifelong Learners",
-                description: "Celebrate continuous curiosity",
-                features: ["Explore at your own pace", "Document your journey", "Connect with others", "Enjoy the process"],
-                cta: "Continue Growing",
-                icon: "🌱"
-              }
-            ].map((segment, index) => (
-              <div key={index} className={`bg-white rounded-xl shadow-sm hover:shadow-xl transition-all duration-300 relative ${segment.highlight ? 'ring-2 ring-primary transform scale-105' : ''}`}>
-                {segment.highlight && (
-                  <div className="absolute -top-3 left-1/2 transform -translate-x-1/2 z-10">
-                    <span className="bg-gradient-to-r from-coral to-coral-dark text-white px-4 py-1 rounded-full text-sm font-bold">
-                      {segment.highlight}
-                    </span>
-                  </div>
-                )}
-                
-                <div className="p-6 sm:p-8">
-                  <div className="text-4xl mb-4 text-center">{segment.icon}</div>
-                  <h3 className="text-xl sm:text-2xl font-bold mb-3 text-center">{segment.title}</h3>
-                  <p className="text-gray-600 mb-6 leading-relaxed text-center">{segment.description}</p>
-                  
-                  <ul className="space-y-3 mb-8">
-                    {segment.features.map((feature, idx) => (
-                      <li key={idx} className="flex items-center">
-                        <div className="w-5 h-5 bg-gradient-to-r from-primary to-primary-dark rounded-full flex items-center justify-center mr-3 flex-shrink-0">
-                          <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                          </svg>
-                        </div>
-                        <span className="text-gray-700 text-sm sm:text-base">{feature}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  
-                  <Link 
-                    to="/register"
-                    className={`block w-full py-3 px-6 rounded-lg font-semibold transition-all duration-300 text-center ${
-                      segment.highlight 
-                        ? 'bg-gradient-to-r from-primary to-primary-dark text-white hover:shadow-lg hover:-translate-y-0.5' 
-                        : 'bg-primary/10 text-primary hover:bg-primary hover:text-white'
-                    }`}
-                  >
-                    {segment.cta}
-                  </Link>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </div>
