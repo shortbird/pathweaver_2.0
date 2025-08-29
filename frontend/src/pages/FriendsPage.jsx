@@ -338,9 +338,6 @@ const FriendsPage = () => {
                     <p className="font-medium">
                       {friend.first_name} {friend.last_name}
                     </p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {friend.subscription_tier.toUpperCase()} member
-                    </p>
                   </div>
                 ))}
               </div>

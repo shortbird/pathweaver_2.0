@@ -241,8 +241,8 @@ const QuestDetailV3 = () => {
                   <span className="text-purple-700">
                     {quest.collaboration.status === 'accepted' 
                       ? quest.collaboration.collaborator_names?.length > 0
-                        ? `🎉 You're teamed up with ${quest.collaboration.collaborator_names.join(' and ')}! All tasks earn 2x XP`
-                        : '🎉 You\'re teamed up! All tasks earn 2x XP'
+                        ? `🎉 You're teamed up with ${quest.collaboration.collaborator_names.join(' and ')}! All tasks earn double XP`
+                        : '🎉 You\'re teamed up! All tasks earn double XP'
                       : '⏳ Team-up invitation pending'}
                   </span>
                 </div>
