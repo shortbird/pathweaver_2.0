@@ -40,7 +40,8 @@
       "Bash(cat:*)",
       "Bash(git log:*)",
       "Bash(git restore:*)",
-      "Bash(venv/Scripts/python:*)"
+      "Bash(venv/Scripts/python:*)",
+      "Bash(../venv/Scripts/python:*)"
     ],
     "deny": [],
     "ask": []

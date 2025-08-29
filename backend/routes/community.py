@@ -39,17 +39,17 @@ def get_friends(user_id):
             if friendship['status'] == 'accepted':
                 # Determine which user is the friend
                 friend_id = friendship['addressee_id'] if friendship['requester_id'] == user_id else friendship['requester_id']
-                # Fetch friend's user data
-                friend_data = supabase.table('users').select('*').eq('id', friend_id).single().execute()
-                if friend_data.data:
-                    friends.append(friend_data.data)
+                # Fetch friend's user data - use execute() without single() to handle missing users
+                friend_result = supabase.table('users').select('*').eq('id', friend_id).execute()
+                if friend_result.data and len(friend_result.data) > 0:
+                    friends.append(friend_result.data[0])
             elif friendship['status'] == 'pending' and friendship['addressee_id'] == user_id:
                 # Fetch requester's user data for pending requests
-                requester_data = supabase.table('users').select('*').eq('id', friendship['requester_id']).single().execute()
-                if requester_data.data:
+                requester_result = supabase.table('users').select('*').eq('id', friendship['requester_id']).execute()
+                if requester_result.data and len(requester_result.data) > 0:
                     pending_requests.append({
                         'friendship_id': friendship['id'],
-                        'requester': requester_data.data
+                        'requester': requester_result.data[0]
                     })
         
         print(f"[GET_FRIENDS] Returning {len(friends)} friends and {len(pending_requests)} pending requests")
@@ -91,28 +91,30 @@ def send_friend_request(user_id):
             if not addressee_id:
                 return jsonify({'error': 'User not found'}), 404
                 
-            addressee = supabase.table('users').select('*').eq('id', addressee_id).single().execute()
+            addressee_result = supabase.table('users').select('*').eq('id', addressee_id).execute()
+            addressee = {'data': addressee_result.data[0] if addressee_result.data else None}
         else:
             # Fallback to username for backward compatibility
-            addressee = supabase.table('users').select('*').eq('username', addressee_username).single().execute()
+            addressee_result = supabase.table('users').select('*').eq('username', addressee_username).execute()
+            addressee = {'data': addressee_result.data[0] if addressee_result.data else None}
         
-        if not addressee.data:
+        if not addressee['data']:
             return jsonify({'error': 'User not found'}), 404
         
-        if addressee.data['id'] == user_id:
+        if addressee['data']['id'] == user_id:
             return jsonify({'error': 'Cannot send friend request to yourself'}), 400
         
         # Check if friendship already exists (in either direction)
         # Need to check both directions of the friendship
-        print(f"[FRIEND_REQUEST] Checking for existing friendship between {user_id} and {addressee.data['id']}")
+        print(f"[FRIEND_REQUEST] Checking for existing friendship between {user_id} and {addressee['data']['id']}")
         
         existing_query1 = supabase.table('friendships').select('*')\
             .eq('requester_id', user_id)\
-            .eq('addressee_id', addressee.data['id'])\
+            .eq('addressee_id', addressee['data']['id'])\
             .execute()
         
         existing_query2 = supabase.table('friendships').select('*')\
-            .eq('requester_id', addressee.data['id'])\
+            .eq('requester_id', addressee['data']['id'])\
             .eq('addressee_id', user_id)\
             .execute()
         
@@ -124,7 +126,7 @@ def send_friend_request(user_id):
         
         friendship = {
             'requester_id': user_id,
-            'addressee_id': addressee.data['id'],
+            'addressee_id': addressee['data']['id'],
             'status': 'pending'
         }
         
@@ -143,7 +145,7 @@ def send_friend_request(user_id):
             supabase.table('activity_log').insert({
                 'user_id': user_id,
                 'event_type': 'friend_request_sent',
-                'event_details': {'addressee_id': addressee.data['id']}
+                'event_details': {'addressee_id': addressee['data']['id']}
             }).execute()
         except Exception as log_error:
             print(f"[FRIEND_REQUEST] Failed to log activity: {log_error}")
@@ -159,15 +161,16 @@ def accept_friend_request(user_id, friendship_id):
     supabase = get_supabase_client()
     
     try:
-        friendship = supabase.table('friendships').select('*').eq('id', friendship_id).single().execute()
+        friendship_result = supabase.table('friendships').select('*').eq('id', friendship_id).execute()
+        friendship = {'data': friendship_result.data[0] if friendship_result.data else None}
         
-        if not friendship.data:
+        if not friendship['data']:
             return jsonify({'error': 'Friend request not found'}), 404
         
-        if friendship.data['addressee_id'] != user_id:
+        if friendship['data']['addressee_id'] != user_id:
             return jsonify({'error': 'Unauthorized'}), 403
         
-        if friendship.data['status'] != 'pending':
+        if friendship['data']['status'] != 'pending':
             return jsonify({'error': 'Friend request already processed'}), 400
         
         response = supabase.table('friendships').update({
@@ -177,7 +180,7 @@ def accept_friend_request(user_id, friendship_id):
         supabase.table('activity_log').insert({
             'user_id': user_id,
             'event_type': 'friend_request_accepted',
-            'event_details': {'requester_id': friendship.data['requester_id']}
+            'event_details': {'requester_id': friendship['data']['requester_id']}
         }).execute()
         
         return jsonify(response.data[0]), 200
@@ -191,12 +194,13 @@ def decline_friend_request(user_id, friendship_id):
     supabase = get_supabase_client()
     
     try:
-        friendship = supabase.table('friendships').select('*').eq('id', friendship_id).single().execute()
+        friendship_result = supabase.table('friendships').select('*').eq('id', friendship_id).execute()
+        friendship = {'data': friendship_result.data[0] if friendship_result.data else None}
         
-        if not friendship.data:
+        if not friendship['data']:
             return jsonify({'error': 'Friend request not found'}), 404
         
-        if friendship.data['addressee_id'] != user_id and friendship.data['requester_id'] != user_id:
+        if friendship['data']['addressee_id'] != user_id and friendship['data']['requester_id'] != user_id:
             return jsonify({'error': 'Unauthorized'}), 403
         
         supabase.table('friendships').delete().eq('id', friendship_id).execute()
@@ -219,9 +223,10 @@ def invite_to_quest(user_id, quest_id):
     
     try:
         # In V3 schema, in-progress quests have completed_at null
-        user_quest = supabase.table('user_quests').select('*').eq('user_id', user_id).eq('quest_id', quest_id).is_('completed_at', 'null').single().execute()
+        user_quest_result = supabase.table('user_quests').select('*').eq('user_id', user_id).eq('quest_id', quest_id).is_('completed_at', 'null').execute()
+        user_quest = {'data': user_quest_result.data[0] if user_quest_result.data else None}
         
-        if not user_quest.data:
+        if not user_quest['data']:
             return jsonify({'error': 'Quest not in progress'}), 400
         
         for friend_id in friend_ids:
