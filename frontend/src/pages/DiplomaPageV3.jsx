@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams } from 'react-router-dom';
-import Layout from '../components/Layout';
 import api from '../services/api';
 
 const DiplomaPageV3 = () => {
@@ -165,31 +164,26 @@ const DiplomaPageV3 = () => {
 
   if (isLoading) {
     return (
-      <Layout>
-        <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: '#6d469b' }}></div>
-        </div>
-      </Layout>
+      <div className="flex justify-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: '#6d469b' }}></div>
+      </div>
     );
   }
 
   if (error) {
     return (
-      <Layout>
-        <div className="min-h-screen flex justify-center items-center">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-2" style={{ color: '#003f5c' }}>Diploma Not Available</h2>
-            <p style={{ color: '#003f5c', opacity: 0.7 }}>{error}</p>
-          </div>
+      <div className="min-h-screen flex justify-center items-center">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold mb-2" style={{ color: '#003f5c' }}>Diploma Not Available</h2>
+          <p style={{ color: '#003f5c', opacity: 0.7 }}>{error}</p>
         </div>
-      </Layout>
+      </div>
     );
   }
 
   // Single return statement with conditional rendering
   return (
-    <Layout>
-      <div className="max-w-7xl mx-auto px-4 py-10" style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
+    <div className="max-w-7xl mx-auto px-4 py-10" style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
         {diploma ? (
           // Public diploma view
           <>
@@ -406,7 +400,6 @@ const DiplomaPageV3 = () => {
           </>
         )}
       </div>
-    </Layout>
   );
 };
 
