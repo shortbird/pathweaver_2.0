@@ -1,14 +1,19 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useParams } from 'react-router-dom';
 import Layout from '../components/Layout';
+import api from '../services/api';
 
 const DiplomaPageV3 = () => {
   const { user } = useAuth();
+  const { slug, userId } = useParams();
   const [achievements, setAchievements] = useState([]);
   const [totalXP, setTotalXP] = useState({});
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAchievement, setSelectedAchievement] = useState(null);
   const [shareableLink, setShareableLink] = useState('');
+  const [diploma, setDiploma] = useState(null);
+  const [error, setError] = useState(null);
 
   const pillarColors = {
     creativity: 'from-[#ef597b] to-[#6d469b]',
@@ -19,11 +24,33 @@ const DiplomaPageV3 = () => {
   };
 
   useEffect(() => {
-    if (user) {
+    if (slug) {
+      // Portfolio route - public access
+      fetchPublicDiploma();
+    } else if (user) {
+      // Authenticated user viewing their own diploma
       fetchAchievements();
       generateShareableLink();
     }
-  }, [user]);
+  }, [user, slug, userId]);
+
+  const fetchPublicDiploma = async () => {
+    try {
+      const response = await api.get(`/portfolio/public/${slug}`);
+      setDiploma(response.data);
+      
+      // Transform the data to match achievements format if needed
+      // For now, we'll display the diploma data differently
+    } catch (error) {
+      if (error.response?.status === 404) {
+        setError('Diploma not found or is private');
+      } else {
+        setError('Failed to load diploma');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchAchievements = async () => {
     try {
@@ -140,7 +167,111 @@ const DiplomaPageV3 = () => {
     return (
       <Layout>
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: '#6d469b' }}></div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (error) {
+    return (
+      <Layout>
+        <div className="min-h-screen flex justify-center items-center">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold mb-2" style={{ color: '#003f5c' }}>Diploma Not Available</h2>
+            <p style={{ color: '#003f5c', opacity: 0.7 }}>{error}</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
+
+  // If we're showing public diploma data (from portfolio route)
+  if (diploma) {
+    return (
+      <Layout>
+        <div className="max-w-7xl mx-auto px-4 py-10" style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
+          {/* Header */}
+          <div className="rounded-xl shadow-lg overflow-hidden mb-8" style={{ background: 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)', boxShadow: '0 4px 20px rgba(239, 89, 123, 0.35)' }}>
+            <div className="p-12 text-white">
+              <div className="text-center">
+                <h1 className="text-5xl font-bold mb-3" style={{ letterSpacing: '-1px' }}>Learning Diploma</h1>
+                <p className="text-2xl text-white/90">
+                  {diploma.student?.first_name} {diploma.student?.last_name}
+                </p>
+                <div className="mt-4">
+                  <p className="text-sm text-white/70">Issued by Optio</p>
+                  <p className="text-lg font-semibold">{formatDate(diploma.diploma_issued)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Stats Overview */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+            <div className="bg-white rounded-xl p-6" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)', borderLeft: '4px solid #ef597b' }}>
+              <h3 className="text-4xl font-bold" style={{ color: '#6d469b' }}>
+                {diploma.total_xp || 0}
+              </h3>
+              <p className="font-semibold" style={{ color: '#003f5c' }}>Total Experience Points</p>
+              <p className="text-sm mt-1" style={{ color: '#003f5c', opacity: 0.6 }}>Earned through validated learning</p>
+            </div>
+            <div className="bg-white rounded-xl p-6" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)', borderLeft: '4px solid #6d469b' }}>
+              <h3 className="text-4xl font-bold" style={{ color: '#ef597b' }}>
+                {diploma.total_quests_completed || 0}
+              </h3>
+              <p className="font-semibold" style={{ color: '#003f5c' }}>Quests Completed</p>
+              <p className="text-sm mt-1" style={{ color: '#003f5c', opacity: 0.6 }}>Real-world challenges mastered</p>
+            </div>
+            <div className="bg-white rounded-xl p-6" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)', borderLeft: '4px solid #ef597b' }}>
+              <h3 className="text-4xl font-bold" style={{ color: '#6d469b' }}>
+                {diploma.skill_details?.length || 0}
+              </h3>
+              <p className="font-semibold" style={{ color: '#003f5c' }}>Skills Developed</p>
+              <p className="text-sm mt-1" style={{ color: '#003f5c', opacity: 0.6 }}>Unique competencies demonstrated</p>
+            </div>
+          </div>
+
+          {/* Diploma Statement */}
+          <div className="bg-white rounded-xl p-8 mb-8" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)', border: '2px solid rgba(109,70,155,0.2)' }}>
+            <h2 className="text-2xl font-bold text-center mb-4" style={{ color: '#003f5c' }}>Self-Validated Credential</h2>
+            <div className="text-center leading-relaxed space-y-4" style={{ color: '#003f5c' }}>
+              <p>
+                This is a <strong>self-validated diploma</strong> certifying that <strong>{diploma.student?.first_name} {diploma.student?.last_name}</strong> has
+                completed <strong>{diploma.total_quests_completed || 0} quests</strong> and earned <strong>{diploma.total_xp || 0} experience points</strong>.
+              </p>
+              <div className="p-4 rounded-xl" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.05) 0%, rgba(109,70,155,0.05) 100%)', border: '1px solid rgba(109,70,155,0.1)' }}>
+                <p className="text-sm">
+                  <strong style={{ color: '#6d469b' }}>What is a self-validated diploma?</strong> The quality and value of this diploma is determined entirely by the quality
+                  and authenticity of the work submitted by the student. Each quest completion includes evidence of real learning and skill
+                  development. Employers and institutions can review the submitted evidence below to assess the depth and authenticity of the
+                  learning demonstrated.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Share Section */}
+          <div className="mt-12 rounded-xl p-8 text-center" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.1) 0%, rgba(109,70,155,0.1) 100%)' }}>
+            <h3 className="text-xl font-bold mb-4" style={{ color: '#003f5c' }}>Share Your Achievement</h3>
+            <p className="mb-6" style={{ color: '#003f5c', opacity: 0.8 }}>This diploma represents your real learning journey. Share it with employers, colleges, or anyone evaluating your capabilities.</p>
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(window.location.href);
+                alert('Diploma link copied to clipboard!');
+              }}
+              className="px-8 py-3 rounded-full font-semibold transition-all"
+              style={{ 
+                background: 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)', 
+                color: 'white',
+                boxShadow: '0 4px 20px rgba(239, 89, 123, 0.35)'
+              }}
+              onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
+              onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+            >
+              Copy Diploma Link 🔗
+            </button>
+          </div>
         </div>
       </Layout>
     );
