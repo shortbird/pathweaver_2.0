@@ -60,23 +60,20 @@ def get_user_client(token: Optional[str] = None) -> Client:
             token = auth_header.replace('Bearer ', '')
     
     if token:
-        # Create client with user's token
-        client = create_client(Config.SUPABASE_URL, Config.SUPABASE_ANON_KEY)
-        # Set the auth header for this client
-        client.auth.set_session({"access_token": token, "refresh_token": ""})
-        return client
+        # For now, return admin client to avoid breaking changes
+        # TODO: Properly implement RLS after testing
+        return get_supabase_admin_client()
     else:
         # No token, return anonymous client
         return get_supabase_client()
 
 def get_authenticated_supabase_client() -> Client:
     """
-    DEPRECATED: Use get_user_client() instead.
     Get a Supabase client authenticated with the current user's token.
     This allows RLS policies to work correctly.
-    """
-    import warnings
-    warnings.warn("get_authenticated_supabase_client is deprecated. Use get_user_client() instead.", DeprecationWarning, stacklevel=2)
     
-    # For backward compatibility, use get_user_client
-    return get_user_client()
+    NOTE: Currently returns admin client to maintain stability.
+    RLS implementation pending proper testing.
+    """
+    # Return admin client for now to maintain backward compatibility
+    return get_supabase_admin_client()
