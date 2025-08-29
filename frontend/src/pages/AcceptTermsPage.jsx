@@ -9,7 +9,7 @@ const AcceptTermsPage = () => {
   const [acceptedPrivacy, setAcceptedPrivacy] = useState(false)
   const [loading, setLoading] = useState(false)
   const [tosStatus, setTosStatus] = useState(null)
-  const { user, logout } = useAuth()
+  const { user, logout, checkTosAcceptance } = useAuth()
   const navigate = useNavigate()
 
   useEffect(() => {
@@ -46,6 +46,9 @@ const AcceptTermsPage = () => {
       
       toast.success('Thank you for accepting our terms!')
       
+      // Update the ToS acceptance status in AuthContext
+      await checkTosAcceptance()
+      
       // Redirect to dashboard or wherever they were trying to go
       navigate('/dashboard')
     } catch (error) {
@@ -75,7 +78,7 @@ const AcceptTermsPage = () => {
         <div className="bg-white shadow-lg rounded-lg p-8">
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-gray-900 mb-4">
-              Updated Terms Required
+              Updated Terms
             </h1>
             
             <div className="bg-blue-50 border-l-4 border-blue-400 p-4 mb-6">
@@ -102,7 +105,9 @@ const AcceptTermsPage = () => {
 
             {user && (
               <p className="text-gray-600 mb-4">
-                Logged in as: <span className="font-medium">{user.email || user.first_name + ' ' + user.last_name}</span>
+                Logged in as: <span className="font-medium">
+                  {user.email || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'User'}
+                </span>
               </p>
             )}
           </div>

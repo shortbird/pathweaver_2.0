@@ -286,12 +286,19 @@ def login():
             # Ensure user has diploma and skills initialized (for existing users)
             # This is non-blocking - if it fails, we still allow login
             try:
-                ensure_user_diploma_and_skills(
-                    admin_client,
-                    auth_response.user.id,
-                    user_data.data.get('first_name', 'User'),
-                    user_data.data.get('last_name', '')
-                )
+                # Handle both single record and list response formats
+                if user_data.data:
+                    if isinstance(user_data.data, list):
+                        user_record = user_data.data[0] if user_data.data else {}
+                    else:
+                        user_record = user_data.data
+                    
+                    ensure_user_diploma_and_skills(
+                        admin_client,
+                        auth_response.user.id,
+                        user_record.get('first_name', 'User'),
+                        user_record.get('last_name', '')
+                    )
             except Exception as diploma_error:
                 print(f"Non-critical: Failed to ensure diploma/skills during login: {diploma_error}")
             
@@ -306,8 +313,13 @@ def login():
                 print(f"Failed to log activity: {log_error}")
             
             # Create response with user data
+            # Ensure user data is a single record, not a list
+            user_response_data = user_data.data
+            if isinstance(user_response_data, list):
+                user_response_data = user_response_data[0] if user_response_data else None
+            
             response_data = {
-                'user': user_data.data,
+                'user': user_response_data,
                 'session': auth_response.session.model_dump()
             }
             response = make_response(jsonify(response_data), 200)

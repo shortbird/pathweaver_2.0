@@ -12,6 +12,7 @@
 - Must be well-designed and reflect the Optio brand positively
 - This is often the first exposure to the brand - must clearly communicate self-validated diploma value
 - If you identify discrepancies with production code and this CLAUDE.md file, update this file. Specifically focus on keeping the database schema up to date.
+- Update CLAUDE.md before committing & pushing updates
 
 ## Project Overview
 
