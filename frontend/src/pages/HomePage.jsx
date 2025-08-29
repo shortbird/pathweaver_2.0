@@ -320,7 +320,7 @@ const HomePage = () => {
                             <span className="text-sm text-gray-600">Learning</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2.5">
-                            <div className="bg-gradient-to-r from-coral to-coral-dark h-2.5 rounded-full transition-all duration-500" style={{width: '70%'}}></div>
+                            <div className="bg-gradient-to-r from-coral to-coral-dark h-2.5 rounded-full transition-all duration-500" style={{width: '40%'}}></div>
                           </div>
                         </div>
                       </div>
