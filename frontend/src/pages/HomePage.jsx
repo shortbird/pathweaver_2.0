@@ -48,7 +48,7 @@ const HomePage = () => {
                 </span>
               </h1>
               <p className="text-lg sm:text-xl mb-8 leading-relaxed opacity-90 px-2 sm:px-0">
-                Real quests. Real evidence. Real growth.
+                Real-world quests. Real-world evidence. Real-world growth.
               </p>
               
               {/* Placeholder metrics - will be dynamic in Phase 2 */}

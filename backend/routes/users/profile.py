@@ -24,12 +24,24 @@ def get_profile(user_id):
         # Calculate total XP and get skill breakdown
         total_xp, skill_breakdown = calculate_user_xp(supabase, user_id)
         
-        # Add XP data to user profile
-        user_data = user.data
-        user_data['total_xp'] = total_xp
-        user_data['skill_breakdown'] = skill_breakdown
+        # Get completed quests count
+        completed_quests = supabase.table('user_quests')\
+            .select('id', count='exact')\
+            .eq('user_id', user_id)\
+            .not_.is_('completed_at', 'null')\
+            .execute()
         
-        return jsonify(user_data), 200
+        completed_count = completed_quests.count if hasattr(completed_quests, 'count') else 0
+        
+        # Structure response as expected by frontend
+        response_data = {
+            'user': user.data,
+            'total_xp': total_xp,
+            'skill_breakdown': skill_breakdown,
+            'completed_quests': completed_count
+        }
+        
+        return jsonify(response_data), 200
     except NotFoundError:
         raise
     except Exception as e:
