@@ -6,6 +6,7 @@ Handles team-up invitations and collaboration management.
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client, get_supabase_client
 from utils.auth.decorators import require_auth
+from utils.user_sync import ensure_user_exists, get_user_name
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -97,18 +98,9 @@ def send_collaboration_invite(user_id: str):
                     'error': 'A pending invitation already exists for this quest'
                 }), 400
         
-        # Get friend's name for notification
-        friend_info = supabase.table('users')\
-            .select('first_name, last_name')\
-            .eq('id', friend_id)\
-            .execute()
-        
-        print(f"[COLLABORATIONS] Friend query for {friend_id[:8]}: {friend_info.data}")
-        
-        # Provide fallback if user doesn't exist
-        if not friend_info.data or len(friend_info.data) == 0:
-            print(f"[COLLABORATIONS] No user data found for friend {friend_id[:8]}, using fallback")
-            friend_info.data = [{'first_name': 'User', 'last_name': 'Account'}]
+        # Get friend's name for notification (ensure user exists first)
+        ensure_user_exists(friend_id)
+        friend_first, friend_last = get_user_name(friend_id)
         
         # Create collaboration invitation
         try:
@@ -151,7 +143,7 @@ def send_collaboration_invite(user_id: str):
         if not requester_info.data or len(requester_info.data) == 0:
             requester_info.data = [{'first_name': 'User', 'last_name': 'Account'}]
         
-        friend_name = f"{friend_info.data[0]['first_name']} {friend_info.data[0]['last_name']}"
+        friend_name = f"{friend_first} {friend_last}"
         requester_name = f"{requester_info.data[0]['first_name']} {requester_info.data[0]['last_name']}"
         
         return jsonify({
@@ -413,27 +405,28 @@ def get_active_collaborations(user_id: str):
             # Determine the partner ID
             partner_id = collab['partner_id'] if collab['requester_id'] == user_id else collab['requester_id']
             
-            # Get partner info
-            partner = supabase.table('users')\
-                .select('id, first_name, last_name, avatar_url')\
-                .eq('id', partner_id)\
-                .execute()
+            # Get partner info (ensure user exists first)
+            user_data = ensure_user_exists(partner_id)
             
-            print(f"[COLLABORATIONS] Partner query for {partner_id[:8]}: {partner.data}")
-            
-            if not partner.data or len(partner.data) == 0:
-                print(f"[COLLABORATIONS] No user data found for partner {partner_id[:8]}, using fallback")
-                partner.data = [{
+            if user_data:
+                partner_data = {
+                    'id': partner_id,
+                    'first_name': user_data.get('first_name', 'User'),
+                    'last_name': user_data.get('last_name', 'Account'),
+                    'avatar_url': user_data.get('avatar_url')
+                }
+            else:
+                partner_data = {
                     'id': partner_id,
                     'first_name': 'User',
                     'last_name': 'Account',
                     'avatar_url': None
-                }]
+                }
             
             formatted_collabs.append({
                 'id': collab['id'],
                 'quest': collab['quests'],
-                'partner': partner.data[0] if partner.data else None,
+                'partner': partner_data,
                 'accepted_at': collab['accepted_at'],
                 'role': 'requester' if collab['requester_id'] == user_id else 'partner'
             })

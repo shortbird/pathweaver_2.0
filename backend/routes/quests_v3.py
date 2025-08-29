@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_client, get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from utils.source_utils import get_quest_header_image
+from utils.user_sync import ensure_user_exists, get_user_name
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -235,31 +236,19 @@ def get_quest_detail(user_id: str, quest_id: str):
             
             # Get requester name if not current user
             if collaboration_data['requester_id'] != user_id:
-                requester = supabase.table('users')\
-                    .select('first_name, last_name')\
-                    .eq('id', collaboration_data['requester_id'])\
-                    .execute()
-                print(f"[QUEST DETAIL] Requester query result: {requester.data}")
-                if requester.data and len(requester.data) > 0:
-                    name = f"{requester.data[0].get('first_name', 'Unknown')} {requester.data[0].get('last_name', 'User')}"
-                    collaborator_names.append(name)
-                    print(f"[QUEST DETAIL] Added requester name: {name}")
-                else:
-                    print(f"[QUEST DETAIL] No user data found for requester {collaboration_data['requester_id'][:8]}")
+                ensure_user_exists(collaboration_data['requester_id'])
+                first_name, last_name = get_user_name(collaboration_data['requester_id'])
+                name = f"{first_name} {last_name}"
+                collaborator_names.append(name)
+                print(f"[QUEST DETAIL] Added requester name: {name}")
             
             # Get partner name if not current user
             if collaboration_data['partner_id'] != user_id:
-                partner = supabase.table('users')\
-                    .select('first_name, last_name')\
-                    .eq('id', collaboration_data['partner_id'])\
-                    .execute()
-                print(f"[QUEST DETAIL] Partner query result: {partner.data}")
-                if partner.data and len(partner.data) > 0:
-                    name = f"{partner.data[0].get('first_name', 'Unknown')} {partner.data[0].get('last_name', 'User')}"
-                    collaborator_names.append(name)
-                    print(f"[QUEST DETAIL] Added partner name: {name}")
-                else:
-                    print(f"[QUEST DETAIL] No user data found for partner {collaboration_data['partner_id'][:8]}")
+                ensure_user_exists(collaboration_data['partner_id'])
+                first_name, last_name = get_user_name(collaboration_data['partner_id'])
+                name = f"{first_name} {last_name}"
+                collaborator_names.append(name)
+                print(f"[QUEST DETAIL] Added partner name: {name}")
             
             print(f"[QUEST DETAIL] Final collaborator_names: {collaborator_names}")
             collaboration_data['collaborator_names'] = collaborator_names
