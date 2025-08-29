@@ -68,10 +68,9 @@ def get_friends(user_id):
 def send_friend_request(user_id):
     data = request.json
     addressee_email = data.get('email')
-    addressee_username = data.get('username')  # Support both for backward compatibility
     
-    if not addressee_email and not addressee_username:
-        return jsonify({'error': 'Email or username required'}), 400
+    if not addressee_email:
+        return jsonify({'error': 'Email required'}), 400
     
     supabase = get_supabase_client()
     
@@ -130,18 +129,8 @@ def send_friend_request(user_id):
                     
                     if auth_user_details:
                         # Create a basic user entry
-                        # Extract username from email if not available
-                        username = addressee_email.split('@')[0]
-                        
-                        # Check if username already exists and make it unique if needed
-                        existing_username = supabase.table('users').select('id').eq('username', username).execute()
-                        if existing_username.data:
-                            import random
-                            username = f"{username}_{random.randint(1000, 9999)}"
-                        
                         new_user = {
                             'id': addressee_id,
-                            'username': username,
                             'first_name': 'User',  # Default values
                             'last_name': 'Account',
                             'role': 'student'
@@ -164,11 +153,6 @@ def send_friend_request(user_id):
             else:
                 addressee = {'data': addressee_result.data[0]}
                 
-        else:
-            # Fallback to username for backward compatibility
-            addressee_result = supabase.table('users').select('*').eq('username', addressee_username).execute()
-            print(f"[FRIEND_REQUEST] Username query result: {addressee_result.data}")
-            addressee = {'data': addressee_result.data[0] if addressee_result.data else None}
         
         print(f"[FRIEND_REQUEST] Addressee data: {addressee}")
         
