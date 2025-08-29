@@ -171,7 +171,7 @@ const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
               }}
               className="flex-1 bg-green-600 text-white py-2 px-4 rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
             >
-              {quest.progress?.completed_tasks > 0 ? 'Continue Quest →' : 'Start Quest'}
+              Continue Quest →
             </button>
           )}
         </div>
