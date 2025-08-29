@@ -347,7 +347,7 @@ const HomePage = () => {
             <h2 className="text-3xl sm:text-4xl font-bold mb-6">The Process is the Goal</h2>
             <p className="text-lg sm:text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
               Your Optio Portfolio Diploma isn't just a certificate; it's a living record of your real learning journey. 
-              Each quest you complete becomes verified evidence that you can share with employers, colleges, and your community.
+              Each quest you complete becomes verified evidence of skills that you can share with employers, colleges, and your community.
             </p>
           </div>
           
