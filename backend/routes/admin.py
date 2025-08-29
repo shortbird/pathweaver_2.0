@@ -778,6 +778,7 @@ def get_users_list(user_id):
         limit = request.args.get('limit', 20, type=int)
         search = request.args.get('search', '')
         subscription = request.args.get('subscription', 'all')
+        role = request.args.get('role', 'all')
         activity = request.args.get('activity', 'all')
         sort_by = request.args.get('sort_by', 'created_at')
         sort_order = request.args.get('sort_order', 'desc')
@@ -805,6 +806,10 @@ def get_users_list(user_id):
                 query = query.or_('subscription_tier.eq.free,subscription_tier.is.null')
             else:
                 query = query.eq('subscription_tier', subscription)
+        
+        # Apply role filter
+        if role != 'all':
+            query = query.eq('role', role)
         
         # Apply activity filter
         if activity != 'all':
@@ -1052,6 +1057,126 @@ def update_user_subscription(admin_id, user_id):
         
     except Exception as e:
         print(f"Error updating subscription: {str(e)}")
+        return jsonify({'error': str(e)}), 400
+
+@bp.route('/users/<user_id>/role', methods=['PUT'])
+@require_admin
+def update_user_role(admin_id, user_id):
+    """Update user role with audit logging"""
+    from utils.roles import validate_role, RolePermissions, ROLE_DISPLAY_NAMES
+    
+    supabase = get_supabase_admin_client()
+    data = request.json
+    
+    try:
+        new_role = data.get('role')
+        reason = data.get('reason', 'Role change requested by admin')
+        
+        # Validate the new role
+        if not validate_role(new_role):
+            return jsonify({'error': 'Invalid role specified'}), 400
+        
+        # Prevent admin from changing their own role
+        if user_id == admin_id:
+            return jsonify({'error': 'Cannot change your own role'}), 403
+        
+        # Get current user info
+        user_response = supabase.table('users')\
+            .select('role, username, email')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+        
+        if not user_response.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        old_role = user_response.data.get('role', 'student')
+        username = user_response.data.get('username', 'Unknown')
+        
+        # Don't update if role hasn't changed
+        if old_role == new_role:
+            return jsonify({'message': 'Role unchanged'}), 200
+        
+        # Update the user's role
+        update_response = supabase.table('users')\
+            .update({'role': new_role})\
+            .eq('id', user_id)\
+            .execute()
+        
+        # Log the role change in audit table
+        try:
+            supabase.table('role_change_log').insert({
+                'user_id': user_id,
+                'changed_by': admin_id,
+                'old_role': old_role,
+                'new_role': new_role,
+                'reason': reason
+            }).execute()
+        except Exception as e:
+            print(f"Warning: Could not log role change: {e}")
+        
+        # Log in activity log
+        try:
+            supabase.table('activity_log').insert({
+                'user_id': user_id,
+                'event_type': 'role_changed',
+                'event_details': {
+                    'old_role': old_role,
+                    'new_role': new_role,
+                    'changed_by': admin_id,
+                    'reason': reason
+                }
+            }).execute()
+        except:
+            pass  # Activity log is optional
+        
+        return jsonify({
+            'message': f'Role updated successfully',
+            'old_role': old_role,
+            'new_role': new_role,
+            'display_name': ROLE_DISPLAY_NAMES.get(new_role, new_role)
+        }), 200
+        
+    except Exception as e:
+        print(f"Error updating user role: {str(e)}")
+        return jsonify({'error': str(e)}), 400
+
+@bp.route('/users/<user_id>/permissions', methods=['GET'])
+@require_admin
+def get_user_permissions(admin_id, user_id):
+    """Get user's role and associated permissions"""
+    from utils.roles import RolePermissions, ROLE_DISPLAY_NAMES, ROLE_DESCRIPTIONS
+    
+    supabase = get_supabase_admin_client()
+    
+    try:
+        # Get user info
+        user_response = supabase.table('users')\
+            .select('role, username')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+        
+        if not user_response.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        user_role = user_response.data.get('role', 'student')
+        username = user_response.data.get('username')
+        
+        # Get permissions for the role
+        permissions = RolePermissions.get_permissions(user_role)
+        
+        return jsonify({
+            'user_id': user_id,
+            'username': username,
+            'role': user_role,
+            'role_display': ROLE_DISPLAY_NAMES.get(user_role, user_role),
+            'role_description': ROLE_DESCRIPTIONS.get(user_role, ''),
+            'permissions': permissions
+        }), 200
+        
+    except Exception as e:
+        print(f"Error getting user permissions: {str(e)}")
         return jsonify({'error': str(e)}), 400
 
 @bp.route('/users/<user_id>/reset-password', methods=['POST'])

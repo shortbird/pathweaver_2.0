@@ -367,6 +367,7 @@ const AdminUsers = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [filters, setFilters] = useState({
     subscription: 'all',
+    role: 'all',
     activity: 'all',
     sortBy: 'created_at',
     sortOrder: 'desc'
@@ -375,6 +376,10 @@ const AdminUsers = () => {
   const [showUserModal, setShowUserModal] = useState(false)
   const [showBulkEmailModal, setShowBulkEmailModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
+  const [showRoleModal, setShowRoleModal] = useState(false)
+  const [roleChangeUser, setRoleChangeUser] = useState(null)
+  const [newRole, setNewRole] = useState('')
+  const [roleChangeReason, setRoleChangeReason] = useState('')
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const usersPerPage = 20
@@ -390,6 +395,7 @@ const AdminUsers = () => {
         limit: usersPerPage,
         search: searchTerm,
         subscription: filters.subscription,
+        role: filters.role,
         activity: filters.activity,
         sort_by: filters.sortBy,
         sort_order: filters.sortOrder
@@ -467,6 +473,33 @@ const AdminUsers = () => {
     }
   }
 
+  const handleChangeRole = (user) => {
+    setRoleChangeUser(user)
+    setNewRole(user.role || 'student')
+    setRoleChangeReason('')
+    setShowRoleModal(true)
+  }
+
+  const handleSubmitRoleChange = async () => {
+    if (!roleChangeUser || !newRole) return
+
+    try {
+      const response = await api.put(`/admin/users/${roleChangeUser.id}/role`, {
+        role: newRole,
+        reason: roleChangeReason || 'Role change requested by admin'
+      })
+      
+      toast.success(`Role updated to ${response.data.display_name}`)
+      setShowRoleModal(false)
+      setRoleChangeUser(null)
+      setNewRole('')
+      setRoleChangeReason('')
+      fetchUsers() // Refresh the user list
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to update role')
+    }
+  }
+
   const handleResetPassword = async (userId, userEmail) => {
     if (window.confirm(`Send password reset email to ${userEmail}?`)) {
       try {
@@ -485,6 +518,26 @@ const AdminUsers = () => {
       visionary: 'bg-purple-100 text-purple-700'
     }
     return badges[tier] || badges.free
+  }
+
+  const getRoleBadge = (role) => {
+    const badges = {
+      student: 'bg-blue-100 text-blue-700',
+      parent: 'bg-green-100 text-green-700',
+      advisor: 'bg-purple-100 text-purple-700',
+      admin: 'bg-red-100 text-red-700'
+    }
+    return badges[role] || badges.student
+  }
+
+  const getRoleDisplayName = (role) => {
+    const names = {
+      student: 'Student',
+      parent: 'Parent',
+      advisor: 'Advisor',
+      admin: 'Admin'
+    }
+    return names[role] || 'Student'
   }
 
   const formatDate = (date) => {
@@ -519,7 +572,7 @@ const AdminUsers = () => {
 
       {/* Search and Filters */}
       <div className="bg-white p-4 rounded-lg shadow mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
           <div className="md:col-span-2">
             <form onSubmit={handleSearch}>
               <input
@@ -531,6 +584,17 @@ const AdminUsers = () => {
               />
             </form>
           </div>
+          <select
+            value={filters.role}
+            onChange={(e) => handleFilterChange('role', e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="all">All Roles</option>
+            <option value="student">Students</option>
+            <option value="parent">Parents</option>
+            <option value="advisor">Advisors</option>
+            <option value="admin">Admins</option>
+          </select>
           <select
             value={filters.subscription}
             onChange={(e) => handleFilterChange('subscription', e.target.value)}
@@ -581,6 +645,9 @@ const AdminUsers = () => {
                 User
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Role
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Subscription
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -620,6 +687,11 @@ const AdminUsers = () => {
                   </div>
                 </td>
                 <td className="px-6 py-4">
+                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadge(user.role || 'student')}`}>
+                    {getRoleDisplayName(user.role || 'student')}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getSubscriptionBadge(user.subscription_tier || 'free')}`}>
                     {(user.subscription_tier || 'free').charAt(0).toUpperCase() + (user.subscription_tier || 'free').slice(1)}
                   </span>
@@ -635,6 +707,13 @@ const AdminUsers = () => {
                       title="Edit User"
                     >
                       Edit
+                    </button>
+                    <button
+                      onClick={() => handleChangeRole(user)}
+                      className="text-purple-600 hover:text-purple-900"
+                      title="Change Role"
+                    >
+                      Role
                     </button>
                     <button
                       onClick={() => handleResetPassword(user.id, user.email)}
@@ -740,6 +819,91 @@ const AdminUsers = () => {
             setSelectedUsers(new Set())
           }}
         />
+      )}
+
+      {/* Role Change Modal */}
+      {showRoleModal && roleChangeUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold mb-4">Change User Role</h3>
+            
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">
+                Changing role for: <span className="font-semibold">{roleChangeUser.first_name} {roleChangeUser.last_name}</span>
+              </p>
+              <p className="text-sm text-gray-600">
+                Current role: <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getRoleBadge(roleChangeUser.role || 'student')}`}>
+                  {getRoleDisplayName(roleChangeUser.role || 'student')}
+                </span>
+              </p>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                New Role
+              </label>
+              <select
+                value={newRole}
+                onChange={(e) => setNewRole(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="student">Student</option>
+                <option value="parent">Parent</option>
+                <option value="advisor">Advisor</option>
+                <option value="admin">Administrator</option>
+              </select>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Reason for Change (Optional)
+              </label>
+              <textarea
+                value={roleChangeReason}
+                onChange={(e) => setRoleChangeReason(e.target.value)}
+                placeholder="Enter reason for role change..."
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows="3"
+              />
+            </div>
+
+            {/* Role Descriptions */}
+            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs font-semibold text-gray-700 mb-1">Role Descriptions:</p>
+              <ul className="text-xs text-gray-600 space-y-1">
+                <li><span className="font-semibold">Student:</span> Can complete quests and build diploma</li>
+                <li><span className="font-semibold">Parent:</span> Can view linked children's progress</li>
+                <li><span className="font-semibold">Advisor:</span> Can manage student groups</li>
+                <li><span className="font-semibold">Admin:</span> Full system access</li>
+              </ul>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                onClick={() => {
+                  setShowRoleModal(false)
+                  setRoleChangeUser(null)
+                  setNewRole('')
+                  setRoleChangeReason('')
+                }}
+                className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmitRoleChange}
+                disabled={newRole === (roleChangeUser.role || 'student')}
+                className={`px-4 py-2 rounded-lg ${
+                  newRole === (roleChangeUser.role || 'student')
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                }`}
+              >
+                Update Role
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )
