@@ -107,7 +107,55 @@ def send_friend_request(user_id):
             # Now get the user data from the users table
             addressee_result = supabase.table('users').select('*').eq('id', addressee_id).execute()
             print(f"[FRIEND_REQUEST] User query result: {addressee_result.data}")
-            addressee = {'data': addressee_result.data[0] if addressee_result.data else None}
+            
+            # If user doesn't exist in users table, create a basic entry
+            if not addressee_result.data:
+                print(f"[FRIEND_REQUEST] User not in users table, creating entry")
+                
+                # Get the auth user details to create the users table entry
+                try:
+                    auth_user_details = None
+                    for auth_user in auth_users:
+                        if auth_user.id == addressee_id:
+                            auth_user_details = auth_user
+                            break
+                    
+                    if auth_user_details:
+                        # Create a basic user entry
+                        # Extract username from email if not available
+                        username = addressee_email.split('@')[0]
+                        
+                        # Check if username already exists and make it unique if needed
+                        existing_username = supabase.table('users').select('id').eq('username', username).execute()
+                        if existing_username.data:
+                            import random
+                            username = f"{username}_{random.randint(1000, 9999)}"
+                        
+                        new_user = {
+                            'id': addressee_id,
+                            'username': username,
+                            'first_name': 'User',  # Default values
+                            'last_name': 'Account',
+                            'role': 'student'
+                        }
+                        
+                        print(f"[FRIEND_REQUEST] Creating user entry: {new_user}")
+                        create_result = supabase.table('users').insert(new_user).execute()
+                        
+                        if create_result.data:
+                            addressee = {'data': create_result.data[0]}
+                        else:
+                            print(f"[FRIEND_REQUEST] Failed to create user entry")
+                            addressee = {'data': None}
+                    else:
+                        addressee = {'data': None}
+                        
+                except Exception as e:
+                    print(f"[FRIEND_REQUEST] Error creating user entry: {e}")
+                    addressee = {'data': None}
+            else:
+                addressee = {'data': addressee_result.data[0]}
+                
         else:
             # Fallback to username for backward compatibility
             addressee_result = supabase.table('users').select('*').eq('username', addressee_username).execute()
@@ -117,8 +165,8 @@ def send_friend_request(user_id):
         print(f"[FRIEND_REQUEST] Addressee data: {addressee}")
         
         if not addressee['data']:
-            print(f"[FRIEND_REQUEST] User not found in users table")
-            return jsonify({'error': 'User not found'}), 404
+            print(f"[FRIEND_REQUEST] User not found and could not be created")
+            return jsonify({'error': 'User not found. The user may need to complete their profile first.'}), 404
         
         if addressee['data']['id'] == user_id:
             return jsonify({'error': 'Cannot send friend request to yourself'}), 400
