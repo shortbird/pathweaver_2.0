@@ -112,7 +112,24 @@ def list_quests():
                     # This ensures the frontend shows correct button state
                     if active_enrollment:
                         quest['user_enrollment'] = active_enrollment
-                        print(f"  Added user_enrollment to quest")
+                        
+                        # Add progress information
+                        completed_tasks_result = supabase.table('task_completions')\
+                            .select('task_id')\
+                            .eq('user_id', user_id)\
+                            .eq('quest_id', quest['id'])\
+                            .execute()
+                        
+                        completed_task_count = len(completed_tasks_result.data) if completed_tasks_result.data else 0
+                        total_tasks = len(quest.get('quest_tasks', []))
+                        
+                        quest['progress'] = {
+                            'completed_tasks': completed_task_count,
+                            'total_tasks': total_tasks,
+                            'percentage': (completed_task_count / total_tasks * 100) if total_tasks > 0 else 0
+                        }
+                        
+                        print(f"  Added user_enrollment and progress to quest")
                     else:
                         print(f"  No active enrollment found")
             
