@@ -42,7 +42,7 @@ const HomePage = () => {
             {/* Left column - Value proposition */}
             <div className="text-center lg:text-left">
               <div className="inline-flex items-center bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 mb-6">
-                <span className="text-sm font-medium">✨ Self-Validated Education Platform</span>
+                <span className="text-sm font-medium">Self-Validated Education Platform</span>
               </div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
                 Build a Portfolio-Ready 
@@ -117,7 +117,7 @@ const HomePage = () => {
                     <div className="h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent mb-4"></div>
                     <div className="space-y-2 text-gray-700">
                       <p className="font-semibold text-lg">Example Student</p>
-                      <p className="text-sm text-gray-600">Diploma ID: #OPT-2024-DEMO</p>
+                      <p className="text-sm text-gray-600">Diploma ID: #OPT-2025-DEMO</p>
                       <div className="flex flex-wrap justify-center gap-2 mt-4">
                         <span className="bg-gradient-to-r from-coral to-coral-dark text-white px-3 py-1 rounded-full text-xs font-medium">
                           Creative Thinking
@@ -197,10 +197,10 @@ const HomePage = () => {
                             <span className="text-white text-sm font-bold">✓</span>
                           </div>
                           <div className="flex-grow text-left">
-                            <p className="font-medium text-gray-800">Build a Personal Website</p>
-                            <p className="text-sm text-gray-600">Evidence: Live site + GitHub repository</p>
+                            <p className="font-medium text-gray-800">Finish a 1/2 marathon race</p>
+                            <p className="text-sm text-gray-600">Evidence: Finish line selfie with your medal</p>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs bg-coral/10 text-coral px-2 py-0.5 rounded">Creative</span>
+                              <span className="text-xs bg-coral/10 text-coral px-2 py-0.5 rounded">Practical Skills</span>
                               <span className="text-xs text-gray-500">150 XP</span>
                             </div>
                           </div>
@@ -223,10 +223,10 @@ const HomePage = () => {
                             <span className="text-white text-sm font-bold">✓</span>
                           </div>
                           <div className="flex-grow text-left">
-                            <p className="font-medium text-gray-800">Write Technical Documentation</p>
-                            <p className="text-sm text-gray-600">Evidence: Published documentation + peer review</p>
+                            <p className="font-medium text-gray-800">Compose your own piano solo</p>
+                            <p className="text-sm text-gray-600">Evidence: Video recording + sheet music</p>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs bg-purple-500/10 text-purple-700 px-2 py-0.5 rounded">Communication</span>
+                              <span className="text-xs bg-purple-500/10 text-purple-700 px-2 py-0.5 rounded">Creativity</span>
                               <span className="text-xs text-gray-500">100 XP</span>
                             </div>
                           </div>
@@ -313,9 +313,6 @@ const HomePage = () => {
           {/* Interactive process flow */}
           <div className="max-w-5xl mx-auto">
             <div className="relative">
-              {/* Process flow line - hidden on mobile */}
-              <div className="absolute top-1/2 left-0 right-0 h-1 bg-gradient-to-r from-primary via-purple-500 to-coral rounded-full transform -translate-y-1/2 hidden lg:block"></div>
-              
               <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8 relative">
                 {[
                   {
@@ -363,7 +360,6 @@ const HomePage = () => {
             
             {/* CTA after process */}
             <div className="text-center mt-12">
-              <p className="text-lg text-gray-700 mb-6">Ready to start your journey?</p>
               {!isAuthenticated && (
                 <Link 
                   to="/register" 
