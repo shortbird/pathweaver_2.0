@@ -1,7 +1,9 @@
 # Flask and Web Server
 Flask==3.0.0
 Flask-Cors==4.0.0
+Flask-WTF==1.2.2
 gunicorn==21.2.0
+WTForms==3.2.1
 
 # Database and Authentication
 supabase==2.18.1

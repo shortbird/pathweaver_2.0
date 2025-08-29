@@ -16,7 +16,14 @@ from routes import dev_utils
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
-from middleware.csrf_protection import init_csrf, get_csrf_token
+
+# Optional CSRF protection (not critical for JWT-based auth)
+try:
+    from middleware.csrf_protection import init_csrf, get_csrf_token
+    CSRF_AVAILABLE = True
+except ImportError:
+    CSRF_AVAILABLE = False
+    print("Warning: Flask-WTF not installed. CSRF protection unavailable.")
 
 load_dotenv()
 
@@ -77,12 +84,12 @@ def get_csrf():
     Note: CSRF protection is currently disabled by default for API compatibility.
     This endpoint is provided for future use when CSRF is enabled.
     """
-    # If CSRF is enabled, return a token
-    # token = get_csrf_token()
-    # return jsonify({'csrf_token': token}), 200
-    
-    # For now, return a placeholder since CSRF is disabled
-    return jsonify({'csrf_token': None, 'csrf_enabled': False}), 200
+    if CSRF_AVAILABLE:
+        # If CSRF is available but disabled, return status
+        return jsonify({'csrf_token': None, 'csrf_enabled': False}), 200
+    else:
+        # CSRF module not installed
+        return jsonify({'csrf_token': None, 'csrf_enabled': False, 'module_available': False}), 200
 
 @app.route('/api/test-config')
 def test_config():

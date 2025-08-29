@@ -1,13 +1,21 @@
 """
 CSRF Protection middleware for the Flask application.
 Uses Flask-WTF for CSRF token management.
+
+Note: This module is optional. The application will function without it
+since JWT-based authentication is inherently CSRF-resistant.
 """
 
-from flask_wtf.csrf import CSRFProtect
-from flask import current_app
 import os
 
-csrf = CSRFProtect()
+try:
+    from flask_wtf.csrf import CSRFProtect, generate_csrf, validate_csrf
+    CSRF_AVAILABLE = True
+    csrf = CSRFProtect()
+except ImportError:
+    CSRF_AVAILABLE = False
+    csrf = None
+    print("Flask-WTF not installed. CSRF protection will be disabled.")
 
 def init_csrf(app):
     """
@@ -16,6 +24,9 @@ def init_csrf(app):
     Args:
         app: Flask application instance
     """
+    if not CSRF_AVAILABLE:
+        print("Warning: CSRF protection not available - Flask-WTF not installed")
+        return None
     # Configure CSRF settings
     app.config['WTF_CSRF_ENABLED'] = True
     app.config['WTF_CSRF_TIME_LIMIT'] = None  # No time limit for tokens
@@ -53,9 +64,10 @@ def get_csrf_token():
     Generate a new CSRF token.
     
     Returns:
-        str: CSRF token
+        str: CSRF token or None if not available
     """
-    from flask_wtf.csrf import generate_csrf
+    if not CSRF_AVAILABLE:
+        return None
     return generate_csrf()
 
 def validate_csrf_token(token):
@@ -68,7 +80,8 @@ def validate_csrf_token(token):
     Returns:
         bool: True if valid, False otherwise
     """
-    from flask_wtf.csrf import validate_csrf
+    if not CSRF_AVAILABLE:
+        return False
     try:
         validate_csrf(token)
         return True

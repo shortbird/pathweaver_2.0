@@ -191,12 +191,11 @@ const DiplomaPageV3 = () => {
             <div className="rounded-xl shadow-lg overflow-hidden mb-8" style={{ background: 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)', boxShadow: '0 4px 20px rgba(239, 89, 123, 0.35)' }}>
               <div className="p-12 text-white">
                 <div className="text-center">
-                  <h1 className="text-5xl font-bold mb-3" style={{ letterSpacing: '-1px' }}>Learning Diploma</h1>
+                  <h1 className="text-5xl font-bold mb-3" style={{ letterSpacing: '-1px' }}>Optio Diploma</h1>
                   <p className="text-2xl text-white/90">
                     {diploma.student?.first_name} {diploma.student?.last_name}
                   </p>
                   <div className="mt-4">
-                    <p className="text-sm text-white/70">Issued by Optio</p>
                     <p className="text-lg font-semibold">{formatDate(diploma.diploma_issued)}</p>
                   </div>
                 </div>
