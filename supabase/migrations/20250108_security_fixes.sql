@@ -45,14 +45,41 @@ CREATE POLICY "Admins can manage learning_logs_backup" ON public.learning_logs_b
 
 -- Policies for submissions
 CREATE POLICY "Users can view own submissions" ON public.submissions
-  FOR SELECT USING (user_id = auth.uid());
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM public.user_quests
+      WHERE user_quests.id = submissions.user_quest_id
+      AND user_quests.user_id = auth.uid()
+    )
+  );
 
 CREATE POLICY "Users can create own submissions" ON public.submissions
-  FOR INSERT WITH CHECK (user_id = auth.uid());
+  FOR INSERT WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.user_quests
+      WHERE user_quests.id = submissions.user_quest_id
+      AND user_quests.user_id = auth.uid()
+    )
+  );
 
 CREATE POLICY "Users can update own submissions" ON public.submissions
-  FOR UPDATE USING (user_id = auth.uid())
-  WITH CHECK (user_id = auth.uid());
+  FOR UPDATE USING (
+    EXISTS (
+      SELECT 1 FROM public.user_quests
+      WHERE user_quests.id = submissions.user_quest_id
+      AND user_quests.user_id = auth.uid()
+    )
+  )
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.user_quests
+      WHERE user_quests.id = submissions.user_quest_id
+      AND user_quests.user_id = auth.uid()
+    )
+  );
+
+CREATE POLICY "Educators can manage submissions they review" ON public.submissions
+  FOR ALL USING (educator_id = auth.uid());
 
 CREATE POLICY "Admins can manage all submissions" ON public.submissions
   FOR ALL USING (
@@ -66,17 +93,17 @@ CREATE POLICY "Admins can manage all submissions" ON public.submissions
 -- Policies for friendships
 CREATE POLICY "Users can view own friendships" ON public.friendships
   FOR SELECT USING (
-    user_id = auth.uid() OR friend_id = auth.uid()
+    requester_id = auth.uid() OR addressee_id = auth.uid()
   );
 
 CREATE POLICY "Users can create friendships" ON public.friendships
-  FOR INSERT WITH CHECK (user_id = auth.uid());
+  FOR INSERT WITH CHECK (requester_id = auth.uid());
 
 CREATE POLICY "Users can update own friendships" ON public.friendships
-  FOR UPDATE USING (user_id = auth.uid() OR friend_id = auth.uid());
+  FOR UPDATE USING (requester_id = auth.uid() OR addressee_id = auth.uid());
 
 CREATE POLICY "Users can delete own friendships" ON public.friendships
-  FOR DELETE USING (user_id = auth.uid() OR friend_id = auth.uid());
+  FOR DELETE USING (requester_id = auth.uid() OR addressee_id = auth.uid());
 
 -- Policies for quest_collaborations
 CREATE POLICY "Users can view collaborations they're part of" ON public.quest_collaborations
@@ -115,11 +142,10 @@ CREATE POLICY "Users can update own learning logs" ON public.learning_logs
 CREATE POLICY "Users can delete own learning logs" ON public.learning_logs
   FOR DELETE USING (user_id = auth.uid());
 
-CREATE POLICY "Public can view learning logs for public quests" ON public.learning_logs
+CREATE POLICY "Public can view learning logs for completed quests" ON public.learning_logs
   FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM public.user_quests uq
-      JOIN public.quests q ON q.id = uq.quest_id
       WHERE uq.id = learning_logs.user_quest_id
       AND uq.status = 'completed'
     )
