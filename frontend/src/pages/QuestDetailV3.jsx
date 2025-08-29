@@ -114,11 +114,11 @@ const QuestDetailV3 = () => {
     }
   };
 
-  const handleTeamUpInviteSent = (result) => {
+  const handleTeamUpInviteSent = async (result) => {
     setShowTeamUpModal(false);
     toast.success(result.message || 'Team-up invitation sent!');
     // Refresh quest details to show collaboration status
-    fetchQuestDetails();
+    await fetchQuestDetails();
   };
 
   const handleCancelQuest = async () => {
@@ -240,7 +240,9 @@ const QuestDetailV3 = () => {
                   </svg>
                   <span className="text-purple-700">
                     {quest.collaboration.status === 'accepted' 
-                      ? '🎉 You\'re teamed up! All tasks earn 2x XP'
+                      ? quest.collaboration.collaborator_names?.length > 0
+                        ? `🎉 You're teamed up with ${quest.collaboration.collaborator_names.join(' and ')}! All tasks earn 2x XP`
+                        : '🎉 You\'re teamed up! All tasks earn 2x XP'
                       : '⏳ Team-up invitation pending'}
                   </span>
                 </div>

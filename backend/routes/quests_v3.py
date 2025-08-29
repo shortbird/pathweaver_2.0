@@ -225,7 +225,34 @@ def get_quest_detail(user_id: str, quest_id: str):
             .or_(f'requester_id.eq.{user_id},partner_id.eq.{user_id}')\
             .execute()
         
-        quest_data['collaboration'] = collab.data[0] if collab.data else None
+        if collab.data:
+            collaboration_data = collab.data[0]
+            
+            # Fetch user names for collaboration
+            collaborator_names = []
+            
+            # Get requester name if not current user
+            if collaboration_data['requester_id'] != user_id:
+                requester = supabase.table('users')\
+                    .select('first_name, last_name')\
+                    .eq('id', collaboration_data['requester_id'])\
+                    .execute()
+                if requester.data:
+                    collaborator_names.append(f"{requester.data[0]['first_name']} {requester.data[0]['last_name']}")
+            
+            # Get partner name if not current user
+            if collaboration_data['partner_id'] != user_id:
+                partner = supabase.table('users')\
+                    .select('first_name, last_name')\
+                    .eq('id', collaboration_data['partner_id'])\
+                    .execute()
+                if partner.data:
+                    collaborator_names.append(f"{partner.data[0]['first_name']} {partner.data[0]['last_name']}")
+            
+            collaboration_data['collaborator_names'] = collaborator_names
+            quest_data['collaboration'] = collaboration_data
+        else:
+            quest_data['collaboration'] = None
         
         return jsonify({
             'success': True,
