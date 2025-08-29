@@ -243,6 +243,7 @@ pw_v2/
 - Learning logs for reflection
 - Better progress tracking
 - AI-powered quest generation capabilities
+- **Completion Bonus**: Users who complete ALL tasks in a quest receive a 50% XP bonus (rounded up to nearest 50)
 
 ### 3. Diploma Page (CORE FEATURE)
 - **THIS IS THE MOST IMPORTANT FEATURE**

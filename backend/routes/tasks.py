@@ -10,6 +10,7 @@ from services.evidence_service import EvidenceService
 from services.xp_service import XPService
 from datetime import datetime
 import os
+import math
 from werkzeug.utils import secure_filename
 from typing import Dict, Any, Optional
 
@@ -203,10 +204,16 @@ def complete_task(user_id: str, task_id: str):
             print(f"Warning: Failed to award XP for task {task_id} to user {user_id}")
         
         # Check if all required tasks are completed
-        all_tasks = supabase.table('quest_tasks')\
+        all_required_tasks = supabase.table('quest_tasks')\
             .select('id')\
             .eq('quest_id', quest_id)\
             .eq('is_required', True)\
+            .execute()
+        
+        # Also get ALL tasks for completion bonus check
+        all_tasks = supabase.table('quest_tasks')\
+            .select('id, xp_amount, pillar')\
+            .eq('quest_id', quest_id)\
             .execute()
         
         completed_tasks = supabase.table('user_quest_tasks')\
@@ -215,8 +222,12 @@ def complete_task(user_id: str, task_id: str):
             .eq('user_quest_id', user_quest_id)\
             .execute()
         
-        required_task_ids = {t['id'] for t in all_tasks.data}
+        required_task_ids = {t['id'] for t in all_required_tasks.data}
+        all_task_ids = {t['id'] for t in all_tasks.data}
         completed_task_ids = {t['quest_task_id'] for t in completed_tasks.data}
+        
+        # Check if all tasks (required and optional) are completed for bonus
+        all_tasks_completed = all_task_ids.issubset(completed_task_ids)
         
         # If all required tasks completed, mark quest as complete
         if required_task_ids.issubset(completed_task_ids):
@@ -229,6 +240,52 @@ def complete_task(user_id: str, task_id: str):
                 .execute()
             
             quest_completed = True
+            
+            # Award completion bonus if ALL tasks are done (50% bonus, rounded up to nearest 50)
+            if all_tasks_completed and len(all_task_ids) == len(completed_task_ids):
+                # Calculate total base XP for the quest
+                total_base_xp = sum(task['xp_amount'] for task in all_tasks.data)
+                
+                # Calculate 50% bonus
+                bonus_xp = total_base_xp * 0.5
+                
+                # Round up to nearest multiple of 50
+                bonus_xp = math.ceil(bonus_xp / 50) * 50
+                
+                # Get the quest's primary pillar for the bonus
+                quest_info = supabase.table('quests')\
+                    .select('pillar')\
+                    .eq('id', quest_id)\
+                    .single()\
+                    .execute()
+                
+                quest_pillar = quest_info.data.get('pillar', 'creativity') if quest_info.data else 'creativity'
+                
+                # Award the completion bonus
+                print(f"=== QUEST COMPLETION BONUS ===")
+                print(f"User {user_id} completed ALL tasks for quest {quest_id}")
+                print(f"Total base XP: {total_base_xp}, Bonus XP: {bonus_xp}")
+                print("==============================")
+                
+                bonus_awarded = xp_service.award_xp(
+                    user_id,
+                    quest_pillar,
+                    bonus_xp,
+                    f'quest_completion_bonus:{quest_id}'
+                )
+                
+                if bonus_awarded:
+                    # Include bonus in response
+                    return jsonify({
+                        'success': True,
+                        'message': f'Task completed! Earned {final_xp} XP. 🎉 Quest fully completed! Bonus {bonus_xp} XP awarded!',
+                        'xp_awarded': final_xp,
+                        'completion_bonus': bonus_xp,
+                        'has_collaboration_bonus': has_collaboration,
+                        'quest_completed': quest_completed,
+                        'all_tasks_completed': True,
+                        'completion': completion.data[0]
+                    })
         else:
             quest_completed = False
         

@@ -68,9 +68,7 @@
   
   .card-feature {
     @apply bg-white border border-gray-200 rounded-xl p-0 shadow-sm 
-           hover:shadow-md transition-all duration-300 relative overflow-hidden
-           before:content-[''] before:absolute before:top-0 before:left-0 
-           before:right-0 before:h-1 before:bg-gradient-primary;
+           hover:shadow-md transition-all duration-300 relative overflow-hidden;
   }
   
   /* Input styles */
