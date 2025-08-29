@@ -10,14 +10,27 @@ load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
 class Config:
     """Base configuration class"""
     
-    # Flask Configuration
-    SECRET_KEY = os.getenv('FLASK_SECRET_KEY') or os.getenv('SECRET_KEY')
-    if not SECRET_KEY or SECRET_KEY == 'dev-secret-key':
-        print("WARNING: Using insecure SECRET_KEY. Set FLASK_SECRET_KEY in production!")
-        SECRET_KEY = 'dev-secret-key-change-in-production'
-    
-    # Application Settings
+    # Application Settings (define first as it's needed for validation)
     FLASK_ENV = os.getenv('FLASK_ENV', 'development')
+    
+    # Flask Configuration
+    import secrets
+    SECRET_KEY = os.getenv('FLASK_SECRET_KEY') or os.getenv('SECRET_KEY')
+    
+    # Validate secret key security
+    if not SECRET_KEY or SECRET_KEY in ['dev-secret-key', 'your-secret-key', 'dev-secret-key-change-in-production']:
+        if FLASK_ENV == 'production':
+            raise ValueError("FLASK_SECRET_KEY must be set to a secure value in production!")
+        else:
+            print("WARNING: Using insecure SECRET_KEY. Set FLASK_SECRET_KEY in production!")
+            SECRET_KEY = 'dev-secret-key-change-in-production'
+    
+    # Ensure minimum length for security
+    if len(SECRET_KEY) < 32:
+        if FLASK_ENV == 'production':
+            raise ValueError("FLASK_SECRET_KEY must be at least 32 characters in production!")
+        else:
+            print("WARNING: SECRET_KEY is too short. Use at least 32 characters in production!")
     DEBUG = FLASK_ENV == 'development'
     TESTING = False
     

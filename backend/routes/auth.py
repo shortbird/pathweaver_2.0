@@ -101,25 +101,6 @@ def register():
         
         print(f"[REGISTRATION] Processing registration for email: {email[:3]}***")
         
-        # TESTING BYPASS: Skip Supabase registration if TEST_MODE is enabled
-        if os.getenv('TEST_MODE') == 'true':
-            import uuid
-            from datetime import datetime
-            mock_user_id = str(uuid.uuid4())
-            print(f"TEST MODE: Bypassing Supabase registration for {email}")
-            return jsonify({
-                'user': {
-                    'id': mock_user_id,
-                    'email': email,
-                    'created_at': datetime.utcnow().isoformat()
-                },
-                'session': {
-                    'access_token': 'test-token-' + mock_user_id,
-                    'refresh_token': 'test-refresh-' + mock_user_id,
-                    'expires_at': (datetime.utcnow().timestamp() + 3600)
-                }
-            }), 201
-        
         # Log the registration attempt (without password or PII)
         # Only log in development mode
         if os.getenv('FLASK_ENV') == 'development':
