@@ -193,6 +193,49 @@ const RegisterPage = () => {
             </div>
           </div>
 
+          {/* Terms of Service and Privacy Policy checkboxes */}
+          <div className="space-y-3">
+            <div className="flex items-start">
+              <input
+                {...registerField('acceptedTerms', {
+                  required: 'You must accept the Terms of Service'
+                })}
+                type="checkbox"
+                id="acceptedTerms"
+                className="mt-1 h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+              />
+              <label htmlFor="acceptedTerms" className="ml-2 text-sm text-gray-700">
+                I agree to the{' '}
+                <Link to="/terms" target="_blank" className="text-primary hover:text-purple-600 underline">
+                  Terms of Service
+                </Link>
+              </label>
+            </div>
+            {errors.acceptedTerms && (
+              <p className="ml-6 text-sm text-red-600">{errors.acceptedTerms.message}</p>
+            )}
+
+            <div className="flex items-start">
+              <input
+                {...registerField('acceptedPrivacy', {
+                  required: 'You must accept the Privacy Policy'
+                })}
+                type="checkbox"
+                id="acceptedPrivacy"
+                className="mt-1 h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
+              />
+              <label htmlFor="acceptedPrivacy" className="ml-2 text-sm text-gray-700">
+                I agree to the{' '}
+                <Link to="/privacy" target="_blank" className="text-primary hover:text-purple-600 underline">
+                  Privacy Policy
+                </Link>
+              </label>
+            </div>
+            {errors.acceptedPrivacy && (
+              <p className="ml-6 text-sm text-red-600">{errors.acceptedPrivacy.message}</p>
+            )}
+          </div>
+
           <div>
             <button
               type="submit"

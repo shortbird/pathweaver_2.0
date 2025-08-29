@@ -11,6 +11,8 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import EmailVerificationPage from './pages/EmailVerificationPage'
 import DashboardPage from './pages/DashboardPage'
+import TermsOfService from './pages/TermsOfService'
+import PrivacyPolicy from './pages/PrivacyPolicy'
 // V3 Quest Pages
 import QuestHubV3 from './pages/QuestHubV3'
 import QuestDetailV3 from './pages/QuestDetailV3'
@@ -51,6 +53,8 @@ function App() {
               <Route path="login" element={<LoginPage />} />
               <Route path="register" element={<RegisterPage />} />
               <Route path="email-verification" element={<EmailVerificationPage />} />
+              <Route path="terms" element={<TermsOfService />} />
+              <Route path="privacy" element={<PrivacyPolicy />} />
               <Route path="portfolio/:slug" element={<DiplomaPageV3 />} />
               <Route path="diploma/:userId" element={<DiplomaPageV3 />} />
               

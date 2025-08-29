@@ -94,6 +94,13 @@ def register():
             print(f"[REGISTRATION] Validation failed: {error_message}")
             raise ValidationError(error_message)
         
+        # Check for Terms of Service and Privacy Policy acceptance
+        if not data.get('acceptedTerms'):
+            raise ValidationError("You must accept the Terms of Service to create an account")
+        
+        if not data.get('acceptedPrivacy'):
+            raise ValidationError("You must accept the Privacy Policy to create an account")
+        
         # Store original names for Supabase Auth (no HTML encoding)
         original_first_name = data['first_name'].strip()
         original_last_name = data['last_name'].strip()
@@ -160,6 +167,10 @@ def register():
                 'last_name': sanitized_last_name,
                 'subscription_tier': 'free',
                 'subscription_status': 'active',  # Free tier is always active
+                'tos_accepted_at': 'now()',
+                'privacy_policy_accepted_at': 'now()',
+                'tos_version': '1.0',
+                'privacy_policy_version': '1.0',
                 'created_at': 'now()'
             }
             
