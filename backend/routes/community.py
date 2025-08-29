@@ -137,7 +137,8 @@ def send_friend_request(user_id):
                         }
                         
                         print(f"[FRIEND_REQUEST] Creating user entry: {new_user}")
-                        create_result = supabase.table('users').insert(new_user).execute()
+                        # Use admin client to create user entry (bypasses RLS)
+                        create_result = admin_supabase.table('users').insert(new_user).execute()
                         
                         if create_result.data:
                             addressee = {'data': create_result.data[0]}
