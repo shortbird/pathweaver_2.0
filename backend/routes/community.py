@@ -8,6 +8,8 @@ bp = Blueprint('community', __name__)
 @require_auth
 def get_friends(user_id):
     supabase = get_supabase_client()
+    from database import get_supabase_admin_client
+    admin_supabase = get_supabase_admin_client()
     
     try:
         print(f"[GET_FRIENDS] Fetching friends for user: {user_id}")
@@ -36,16 +38,18 @@ def get_friends(user_id):
         
         # Now fetch user data for each friendship
         for friendship in all_friendships:
+            print(f"[GET_FRIENDS] Processing friendship: {friendship}")
             if friendship['status'] == 'accepted':
                 # Determine which user is the friend
                 friend_id = friendship['addressee_id'] if friendship['requester_id'] == user_id else friendship['requester_id']
-                # Fetch friend's user data - use execute() without single() to handle missing users
-                friend_result = supabase.table('users').select('*').eq('id', friend_id).execute()
+                print(f"[GET_FRIENDS] Looking up friend with ID: {friend_id}")
+                # Fetch friend's user data using admin client to bypass RLS
+                friend_result = admin_supabase.table('users').select('*').eq('id', friend_id).execute()
                 if friend_result.data and len(friend_result.data) > 0:
                     friends.append(friend_result.data[0])
             elif friendship['status'] == 'pending' and friendship['addressee_id'] == user_id:
-                # Fetch requester's user data for pending requests
-                requester_result = supabase.table('users').select('*').eq('id', friendship['requester_id']).execute()
+                # Fetch requester's user data for pending requests using admin client
+                requester_result = admin_supabase.table('users').select('*').eq('id', friendship['requester_id']).execute()
                 if requester_result.data and len(requester_result.data) > 0:
                     pending_requests.append({
                         'friendship_id': friendship['id'],
