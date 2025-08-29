@@ -79,7 +79,7 @@ def get_all_completed_quests(supabase, user_id: str) -> list:
         completed = supabase.table('user_quests')\
             .select('*, quests(*, quest_skill_xp(*), quest_xp_awards(*))')\
             .eq('user_id', user_id)\
-            .eq('status', 'completed')\
+            .not_.is_('completed_at', 'null')\
             .order('completed_at', desc=False)\
             .execute()
     except:
@@ -88,7 +88,7 @@ def get_all_completed_quests(supabase, user_id: str) -> list:
             completed = supabase.table('user_quests')\
                 .select('*, quests(*)')\
                 .eq('user_id', user_id)\
-                .eq('status', 'completed')\
+                .not_.is_('completed_at', 'null')\
                 .order('completed_at', desc=False)\
                 .execute()
         except Exception as e:
@@ -269,7 +269,7 @@ def get_user_achievements(supabase, user_id: str) -> list:
         completed_count = supabase.table('user_quests')\
             .select('id', count='exact')\
             .eq('user_id', user_id)\
-            .eq('status', 'completed')\
+            .not_.is_('completed_at', 'null')\
             .execute()
         
         count = completed_count.count if completed_count else 0

@@ -32,7 +32,7 @@ def get_completed_quests(user_id):
         count_result = supabase.table('user_quests')\
             .select('id', count='exact')\
             .eq('user_id', user_id)\
-            .eq('status', 'completed')\
+            .not_.is_('completed_at', 'null')\
             .execute()
         
         total_count = count_result.count if count_result else 0
@@ -42,7 +42,7 @@ def get_completed_quests(user_id):
             completed = supabase.table('user_quests')\
                 .select('*, quests(*, quest_skill_xp(*), quest_xp_awards(*))')\
                 .eq('user_id', user_id)\
-                .eq('status', 'completed')\
+                .not_.is_('completed_at', 'null')\
                 .order('completed_at', desc=True)\
                 .range(offset, offset + per_page - 1)\
                 .execute()
@@ -51,7 +51,7 @@ def get_completed_quests(user_id):
             completed = supabase.table('user_quests')\
                 .select('*, quests(*)')\
                 .eq('user_id', user_id)\
-                .eq('status', 'completed')\
+                .not_.is_('completed_at', 'null')\
                 .order('completed_at', desc=True)\
                 .range(offset, offset + per_page - 1)\
                 .execute()

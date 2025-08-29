@@ -200,7 +200,7 @@ def get_completion_stats(supabase, user_id: str) -> dict:
                 completed = supabase.table('user_quests')\
                     .select('id', count='exact')\
                     .eq('user_id', user_id)\
-                    .eq('status', 'completed')\
+                    .not_.is_('completed_at', 'null')\
                     .execute()
                 completed_count = completed.count if completed else 0
             except:
@@ -226,7 +226,7 @@ def calculate_streak(supabase, user_id: str) -> int:
         recent = supabase.table('user_quests')\
             .select('completed_at')\
             .eq('user_id', user_id)\
-            .eq('status', 'completed')\
+            .not_.is_('completed_at', 'null')\
             .order('completed_at', desc=True)\
             .limit(30)\
             .execute()

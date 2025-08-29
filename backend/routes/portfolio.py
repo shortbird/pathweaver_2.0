@@ -37,7 +37,7 @@ def get_public_portfolio(portfolio_slug):
             *,
             quests!inner(*)
             '''
-        ).eq('user_id', user_id).eq('status', 'completed').execute()
+        ).eq('user_id', user_id).not_.is_('completed_at', 'null').execute()
         
         # Calculate XP by skill category (same approach as dashboard)
         xp_by_category = {}

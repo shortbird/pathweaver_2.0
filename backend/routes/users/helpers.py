@@ -66,7 +66,7 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
         completed_count = supabase.table('user_quests')\
             .select('id', count='exact')\
             .eq('user_id', user_id)\
-            .eq('status', 'completed')\
+            .not_.is_('completed_at', 'null')\
             .execute()
         has_completed_quests = completed_count.count > 0 if hasattr(completed_count, 'count') else False
     except:
@@ -118,7 +118,7 @@ def calculate_xp_from_quests(supabase, user_id: str) -> Tuple[int, Dict[str, int
         completed_quests = supabase.table('user_quests')\
             .select('*, quests(id, title)')\
             .eq('user_id', user_id)\
-            .eq('status', 'completed')\
+            .not_.is_('completed_at', 'null')\
             .execute()
         
         if not completed_quests.data:
