@@ -110,7 +110,7 @@ const HomePage = () => {
                         <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
                       </svg>
                     </div>
-                    <h3 className="text-2xl font-bold text-primary mb-2">Your Learning Story</h3>
+                    <h3 className="text-2xl font-bold text-primary mb-2">Optio Portfolio Diploma</h3>
                     <div className="h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent mb-4"></div>
                     <div className="space-y-2 text-gray-700">
                       <p className="font-semibold text-lg">Example Learner</p>
@@ -139,9 +139,21 @@ const HomePage = () => {
                     </div>
                   </div>
                 </div>
-                <p className="text-xs text-gray-500 text-center mt-4">
-                  * Example learning story - yours will be unique!
-                </p>
+                {/* Share button and verification badge */}
+                <div className="mt-4 flex items-center justify-between px-2">
+                  <div className="flex items-center text-xs text-gray-600">
+                    <svg className="w-4 h-4 mr-1 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    Verified & Shareable
+                  </div>
+                  <button className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium hover:bg-primary hover:text-white transition-colors flex items-center">
+                    <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m9.032 4.026a9.001 9.001 0 01-7.432 0m9.032-4.026A9.001 9.001 0 0112 3c-4.474 0-8.268 2.943-9.543 7a9.97 9.97 0 011.827 3.342" />
+                    </svg>
+                    Share
+                  </button>
+                </div>
               </div>
               
               {/* Floating achievement indicators */}
@@ -149,7 +161,7 @@ const HomePage = () => {
                 <span className="text-sm font-bold">Quest Complete!</span>
               </div>
               <div className="absolute -bottom-4 -right-4 bg-gradient-to-r from-secondary to-yellow-400 text-primary rounded-full px-4 py-2 shadow-lg animate-pulse hidden sm:block">
-                <span className="text-sm font-bold">You're growing!</span>
+                <span className="text-sm font-bold">Show the world!</span>
               </div>
             </div>
           </div>
@@ -160,9 +172,10 @@ const HomePage = () => {
       <div id="demo" className="py-16 bg-gradient-to-br from-purple-50 to-blue-50" role="main">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">See Your Progress Take Shape</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">A Diploma That Tells Your Story</h2>
             <p className="text-lg sm:text-xl text-gray-700 mb-8 max-w-3xl mx-auto">
-              Every quest you complete adds value to your diploma. Watch how your efforts build into something substantial.
+              Share your verified learning journey with employers, schools, and your community. 
+              Every quest you complete adds real evidence to your shareable portfolio.
             </p>
             
             {/* Interactive portfolio preview */}
@@ -171,22 +184,30 @@ const HomePage = () => {
                 <div className="bg-gradient-to-r from-primary to-primary-dark text-white p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="text-left">
-                      <h3 className="text-xl font-semibold">Sample Learning Journey</h3>
-                      <p className="text-sm opacity-90 mt-1">Watch how curiosity becomes capability</p>
+                      <h3 className="text-xl font-semibold">Your Validated Learning Portfolio</h3>
+                      <p className="text-sm opacity-90 mt-1">Shareable link: optio.quest/learner/demo-2025</p>
                     </div>
-                    <Link 
-                      to="/register" 
-                      className="bg-white/20 hover:bg-white/30 px-6 py-2 rounded-lg text-sm font-medium transition-colors w-full sm:w-auto text-center"
-                    >
-                      Start Your Journey →
-                    </Link>
+                    <div className="flex gap-2">
+                      <button className="bg-white/20 hover:bg-white/30 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center">
+                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m9.032 4.026a9.001 9.001 0 01-7.432 0m9.032-4.026A9.001 9.001 0 0112 3c-4.474 0-8.268 2.943-9.543 7a9.97 9.97 0 011.827 3.342" />
+                        </svg>
+                        Share Portfolio
+                      </button>
+                      <button className="bg-green-500 hover:bg-green-600 px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center">
+                        <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        Verified
+                      </button>
+                    </div>
                   </div>
                 </div>
                 
                 <div className="p-6 sm:p-8">
                   <div className="grid md:grid-cols-2 gap-8">
                     <div>
-                      <h4 className="text-xl font-bold mb-4 text-gray-800">Recent Discoveries</h4>
+                      <h4 className="text-xl font-bold mb-4 text-gray-800">Verified Quest Evidence</h4>
                       <div className="space-y-3">
                         {/* Sample quest entries */}
                         <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
@@ -195,10 +216,15 @@ const HomePage = () => {
                           </div>
                           <div className="flex-grow text-left">
                             <p className="font-medium text-gray-800">Trained for a half marathon</p>
-                            <p className="text-sm text-gray-600">What I created: Training journal & finish line moment</p>
+                            <p className="text-sm text-gray-600">Evidence: Training journal & finish line photo</p>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs bg-coral/10 text-coral px-2 py-0.5 rounded">Practical Skills</span>
-                              <span className="text-xs text-gray-500">Felt accomplished</span>
+                              <span className="text-xs text-green-600 flex items-center">
+                                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                                Verified
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -208,10 +234,15 @@ const HomePage = () => {
                           </div>
                           <div className="flex-grow text-left">
                             <p className="font-medium text-gray-800">Explored data patterns</p>
-                            <p className="text-sm text-gray-600">What I created: Analysis notebook with visualizations</p>
+                            <p className="text-sm text-gray-600">Evidence: Analysis notebook with visualizations</p>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded">Critical Thinking</span>
-                              <span className="text-xs text-gray-500">Interesting findings</span>
+                              <span className="text-xs text-green-600 flex items-center">
+                                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                                Verified
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -221,13 +252,26 @@ const HomePage = () => {
                           </div>
                           <div className="flex-grow text-left">
                             <p className="font-medium text-gray-800">Composed original music</p>
-                            <p className="text-sm text-gray-600">What I created: Piano solo recording & sheet music</p>
+                            <p className="text-sm text-gray-600">Evidence: Piano solo recording & sheet music</p>
                             <div className="flex items-center gap-2 mt-1">
                               <span className="text-xs bg-purple-500/10 text-purple-700 px-2 py-0.5 rounded">Creativity</span>
-                              <span className="text-xs text-gray-500">Satisfying</span>
+                              <span className="text-xs text-green-600 flex items-center">
+                                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                                </svg>
+                                Verified
+                              </span>
                             </div>
                           </div>
                         </div>
+                      </div>
+                      <div className="mt-4 p-3 bg-blue-50 rounded-lg">
+                        <p className="text-sm text-blue-800 flex items-start">
+                          <svg className="w-4 h-4 mr-2 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                          </svg>
+                          Share this portfolio with employers, colleges, or anyone who wants to see your real learning journey
+                        </p>
                       </div>
                     </div>
                     
@@ -300,10 +344,10 @@ const HomePage = () => {
             <div className="inline-flex items-center bg-gradient-to-r from-primary to-primary-dark text-white rounded-full px-6 py-3 mb-6">
               <span className="text-sm font-semibold tracking-wide uppercase">Our Philosophy</span>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-bold mb-6">The Process Is The Goal</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-6">Build a Portfolio Worth Sharing</h2>
             <p className="text-lg sm:text-xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
-              Your diploma isn't the destination—it's the beautiful byproduct of a meaningful learning journey. Each piece of evidence adds depth.
-              Every skill you develop matters right now, not someday.
+              Your Optio Portfolio Diploma isn't just a certificate—it's a living document of your real learning journey. 
+              Each quest you complete becomes verified evidence that you can share with employers, colleges, and your community.
             </p>
           </div>
           
@@ -515,13 +559,13 @@ const HomePage = () => {
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700 font-medium">Validate your Optio Diploma</span>
+                  <span className="text-gray-700 font-medium">Shareable, verified Optio Portfolio Diploma</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Learning support team</span>
+                  <span className="text-gray-700">Public portfolio link to showcase your journey</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
