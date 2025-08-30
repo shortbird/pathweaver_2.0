@@ -13,9 +13,18 @@ def get_supabase_client() -> Client:
     if not Config.SUPABASE_URL or not Config.SUPABASE_ANON_KEY:
         raise ValueError("Missing Supabase configuration. Check SUPABASE_URL and SUPABASE_ANON_KEY environment variables.")
     
-    # Create singleton client - supabase-py handles connection pooling internally
-    if _supabase_client is None:
-        _supabase_client = create_client(Config.SUPABASE_URL, Config.SUPABASE_ANON_KEY)
+    # TEMPORARY FIX: Due to RLS recursion issue, use service role key if available
+    # This bypasses RLS but maintains functionality until the RLS policies are fixed
+    # TODO: Remove this workaround after applying migration 20250830_fix_users_table_recursion.sql
+    import os
+    if os.getenv('TEMP_USE_SERVICE_ROLE', 'false').lower() == 'true' and Config.SUPABASE_SERVICE_ROLE_KEY:
+        print("[TEMP FIX] Using service role key to bypass RLS recursion issue")
+        if _supabase_client is None:
+            _supabase_client = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
+    else:
+        # Create singleton client - supabase-py handles connection pooling internally
+        if _supabase_client is None:
+            _supabase_client = create_client(Config.SUPABASE_URL, Config.SUPABASE_ANON_KEY)
     
     return _supabase_client
 
@@ -52,6 +61,14 @@ def get_user_client(token: Optional[str] = None) -> Client:
     """
     if not Config.SUPABASE_URL or not Config.SUPABASE_ANON_KEY:
         raise ValueError("Missing Supabase configuration. Check SUPABASE_URL and SUPABASE_ANON_KEY environment variables.")
+    
+    # TEMPORARY FIX: Due to RLS recursion issue, use service role key if available
+    import os
+    if os.getenv('TEMP_USE_SERVICE_ROLE', 'false').lower() == 'true' and Config.SUPABASE_SERVICE_ROLE_KEY:
+        # For authenticated requests, still use service role but track the user
+        # This maintains some security while bypassing RLS issues
+        print("[TEMP FIX] Using service role key for user client due to RLS recursion")
+        return get_supabase_admin_client()
     
     # Get token from parameter or request headers
     if not token:

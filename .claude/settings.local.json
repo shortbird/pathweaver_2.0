@@ -51,7 +51,9 @@
       "Bash(pip freeze)",
       "Bash(set FLASK_DEBUG=1)",
       "Bash(del __pycache__cors_config.cpython-313.pyc)",
-      "Bash(del nixpacks.toml)"
+      "Bash(del nixpacks.toml)",
+      "Bash(chcp:*)",
+      "Bash(set TEMP_USE_SERVICE_ROLE=true)"
     ],
     "deny": [],
     "ask": []

@@ -538,6 +538,30 @@ The demo is production-ready but will show broken images until placeholder image
    - Removed nixpacks.toml as system dependencies are no longer needed
    - Railway can now deploy with standard Python buildpack without issues
 
+### RLS Recursion Fix (2025-08-30)
+
+**Critical Issue Fixed: Infinite Recursion in Users Table RLS Policy**
+
+**Problem**: After security updates, the users table RLS policy was causing infinite recursion by checking admin status through a self-referencing query.
+
+**Temporary Workaround** (for Railway deployment):
+1. Set environment variable: `TEMP_USE_SERVICE_ROLE=true`
+2. This bypasses RLS using service role key
+3. Application functions normally but with reduced security isolation
+
+**Permanent Fix**:
+1. Apply migration: `supabase/migrations/20250830_fix_users_table_recursion.sql`
+2. This fixes the recursion by:
+   - Simplifying users table policy (users see only their own records)
+   - Using JWT claims for admin checks instead of database queries
+   - Creating SECURITY DEFINER function for safe admin verification
+3. After applying, remove `TEMP_USE_SERVICE_ROLE` environment variable
+
+**Files Created**:
+- `supabase/migrations/20250830_fix_users_table_recursion.sql` - Permanent fix
+- `RAILWAY_RLS_FIX.md` - Deployment instructions
+- Modified `backend/database.py` - Temporary workaround code
+
 ### Recent Security Updates (2025-08-30)
 
 **Critical Security Fixes Applied:**
