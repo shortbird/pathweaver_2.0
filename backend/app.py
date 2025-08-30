@@ -120,7 +120,15 @@ def handle_cors_preflight():
             if not is_allowed and not origin.endswith('/'):
                 is_allowed = (origin + '/') in ALLOWED_ORIGINS
         
-        if is_allowed:
+        # Fallback for known good origins
+        known_good_origins = [
+            'https://www.optioeducation.com',
+            'https://optioeducation.com',
+            'https://www.optioed.org',
+            'https://optioed.org'
+        ]
+        
+        if is_allowed or origin in known_good_origins:
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
@@ -129,7 +137,8 @@ def handle_cors_preflight():
             print(f"[OPTIONS] CORS headers added for {origin}")
         else:
             print(f"[OPTIONS] Origin {origin} not in allowed list")
-            print(f"[OPTIONS] Allowed origins: {ALLOWED_ORIGINS[:3]}... (showing first 3)")
+            print(f"[OPTIONS] Check: '{origin}' in ALLOWED_ORIGINS = {origin in ALLOWED_ORIGINS}")
+            print(f"[OPTIONS] Check: '{origin}' in known_good = {origin in known_good_origins}")
         return response
 
 # Add CORS headers to all responses
@@ -149,25 +158,34 @@ def add_cors_headers(response):
         if not is_allowed and not origin.endswith('/'):
             is_allowed = (origin + '/') in ALLOWED_ORIGINS
     
-    print(f"CORS Debug - Origin: {origin}, Allowed: {is_allowed}, Path: {request.path}")
-    
     if is_allowed:
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
         response.headers['Access-Control-Max-Age'] = '86400'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
-        print(f"CORS headers added for {origin}")
+        print(f"CORS: Headers added for origin: {origin}")
     else:
-        print(f"CORS headers NOT added - origin '{origin}' not in allowed list")
-        if origin:
-            print(f"Origin: '{origin}' (length: {len(origin)})")
-            # Check if any allowed origin is similar
-            for allowed in ALLOWED_ORIGINS:
-                if origin.lower() == allowed.lower():
-                    print(f"  Note: Case mismatch with '{allowed}'")
-                elif origin.replace('www.', '') == allowed.replace('www.', ''):
-                    print(f"  Note: www mismatch with '{allowed}'")
+        # Always add CORS headers for specific domains even if check fails (temporary fix)
+        known_good_origins = [
+            'https://www.optioeducation.com',
+            'https://optioeducation.com',
+            'https://www.optioed.org',
+            'https://optioed.org'
+        ]
+        
+        if origin in known_good_origins:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+            response.headers['Access-Control-Max-Age'] = '86400'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            print(f"CORS: Headers added via fallback for known origin: {origin}")
+        else:
+            print(f"CORS: No headers added - origin '{origin}' not allowed")
+            if origin and origin != 'None':
+                print(f"  Origin details: '{origin}' (type: {type(origin).__name__}, length: {len(origin)})")
+                print(f"  First 5 allowed: {ALLOWED_ORIGINS[:5]}")
     
     return response
 
