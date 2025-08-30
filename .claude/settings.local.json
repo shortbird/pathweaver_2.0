@@ -50,7 +50,8 @@
       "Bash(find:*)",
       "Bash(pip freeze)",
       "Bash(set FLASK_DEBUG=1)",
-      "Bash(del __pycache__cors_config.cpython-313.pyc)"
+      "Bash(del __pycache__cors_config.cpython-313.pyc)",
+      "Bash(del nixpacks.toml)"
     ],
     "deny": [],
     "ask": []
