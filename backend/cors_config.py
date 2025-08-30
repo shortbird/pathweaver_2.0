@@ -34,6 +34,10 @@ def configure_cors(app):
         'https://www.optioed.com'
     ]
     
+    # Emergency CORS check - force Railway URL inclusion
+    if 'pathweaver20-production.up.railway.app' not in str(allowed_origins):
+        production_domains.append('https://pathweaver20-production.up.railway.app')
+    
     # Only add production domains if they're not already in the list
     for domain in production_domains:
         if domain not in allowed_origins:
