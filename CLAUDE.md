@@ -505,9 +505,16 @@ The demo is production-ready but will show broken images until placeholder image
 ### Railway Deployment Fix (2025-08-30)
 
 **Fixed Railway Deployment Failure:**
-- Changed `python-magic-bin==0.4.14` to `python-magic==0.4.27` in requirements.txt
-- `python-magic-bin` is Windows-specific and doesn't exist in Railway's Linux environment
-- `python-magic` is the correct cross-platform package for file type validation
+1. **Python-magic dependency issue resolved:**
+   - Changed `python-magic-bin==0.4.14` to `python-magic==0.4.27` in requirements.txt
+   - `python-magic-bin` is Windows-specific and doesn't exist in Railway's Linux environment
+   - `python-magic` requires `libmagic` system library which wasn't installed
+
+2. **Added Railway configuration files:**
+   - Created `railway.json` for Railway deployment configuration
+   - Created `nixpacks.toml` to install required system dependencies (libmagic1, libmagic-dev)
+   - Updated Procfile to use `$PORT` environment variable instead of hardcoded 5000
+   - These files ensure libmagic is installed before Python dependencies
 
 ### Recent Security Updates (2025-08-30)
 
