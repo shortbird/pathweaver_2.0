@@ -3,7 +3,7 @@ import {
   StarIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
-  QuoteIcon
+  ChatBubbleBottomCenterTextIcon
 } from '@heroicons/react/24/solid';
 import { DEMO_DATA } from '../../utils/demoData';
 
