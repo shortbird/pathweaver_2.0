@@ -26,11 +26,11 @@ app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', os.getenv('SECRET_KEY',
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
 
 # Import and configure CORS
-from cors_config import configure_cors
+from cors_production import configure_cors
 configure_cors(app)
 
 # Import database configuration
-from database import get_supabase_client, get_supabase_admin_client
+from database_production import get_supabase_client, get_supabase_admin_client
 
 # Health check endpoint
 @app.route('/api/health', methods=['GET'])
