@@ -60,7 +60,17 @@ if os.getenv('FLASK_ENV', 'production').lower() == 'development':
         'http://127.0.0.1:5173'
     ])
 
+# Startup diagnostics
+print("=" * 60)
+print("APP STARTUP DIAGNOSTICS")
+print("=" * 60)
 print(f"CORS: Allowed origins: {ALLOWED_ORIGINS}")
+print(f"PORT from environment: {os.getenv('PORT', 'Not set')}")
+print(f"Railway environment: {os.getenv('RAILWAY_ENVIRONMENT', 'Not on Railway')}")
+print(f"Railway static URL: {os.getenv('RAILWAY_STATIC_URL', 'Not set')}")
+print(f"Frontend URL: {os.getenv('FRONTEND_URL', 'Not set')}")
+print(f"Supabase configured: {'SUPABASE_URL' in os.environ}")
+print("=" * 60)
 
 # Handle ALL requests - add CORS headers to everything
 @app.before_request
@@ -140,12 +150,21 @@ app.register_blueprint(learning_logs_v3.bp)  # /api/v3/logs
 
 @app.route('/')
 def root():
-    """Root endpoint for health checks"""
+    """Root endpoint for health checks and deployment info"""
+    origin = request.headers.get('Origin')
     return jsonify({
         'name': 'Optio Quest Platform API',
         'status': 'healthy',
         'version': '3.0',
-        'health_check': '/api/health'
+        'health_check': '/api/health',
+        'deployment': {
+            'railway': 'RAILWAY_ENVIRONMENT' in os.environ,
+            'port': os.getenv('PORT', 'not set'),
+            'cors_test': '/api/cors-test',
+            'request_origin': origin,
+            'cors_configured': origin in ALLOWED_ORIGINS if origin else False
+        },
+        'timestamp': datetime.utcnow().isoformat()
     }), 200
 
 @app.route('/api/health')
