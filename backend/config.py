@@ -71,13 +71,20 @@ class Config:
         os.getenv('supabase_service_role_key')
     )
     
-    # Validate Supabase configuration
-    if not SUPABASE_URL:
-        raise ValueError("SUPABASE_URL is required. Set it in your .env file.")
-    if not SUPABASE_ANON_KEY:
-        raise ValueError("SUPABASE_ANON_KEY is required. Set it in your .env file.")
-    if not SUPABASE_SERVICE_ROLE_KEY:
-        print("WARNING: SUPABASE_SERVICE_ROLE_KEY not set. Some admin functions may not work.")
+    # Validate Supabase configuration (only in production)
+    if FLASK_ENV == 'production':
+        if not SUPABASE_URL:
+            raise ValueError("SUPABASE_URL is required. Set it in your environment variables.")
+        if not SUPABASE_ANON_KEY:
+            raise ValueError("SUPABASE_ANON_KEY is required. Set it in your environment variables.")
+        if not SUPABASE_SERVICE_ROLE_KEY:
+            print("WARNING: SUPABASE_SERVICE_ROLE_KEY not set. Some admin functions may not work.")
+    else:
+        # Development mode - just warn
+        if not SUPABASE_URL:
+            print("WARNING: SUPABASE_URL not set")
+        if not SUPABASE_ANON_KEY:
+            print("WARNING: SUPABASE_ANON_KEY not set")
     
     # OpenAI Configuration
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
