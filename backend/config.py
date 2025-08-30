@@ -73,9 +73,13 @@ class Config:
     
     # Validate Supabase configuration
     if not SUPABASE_URL:
-        raise ValueError("SUPABASE_URL is required. Set it in your .env file.")
+        print("ERROR: SUPABASE_URL is not set. Please set it as an environment variable.")
+        print("Using placeholder URL to prevent crash - app will not function properly!")
+        SUPABASE_URL = "https://placeholder.supabase.co"
     if not SUPABASE_ANON_KEY:
-        raise ValueError("SUPABASE_ANON_KEY is required. Set it in your .env file.")
+        print("ERROR: SUPABASE_ANON_KEY is not set. Please set it as an environment variable.")
+        print("Using placeholder key to prevent crash - app will not function properly!")
+        SUPABASE_ANON_KEY = "placeholder-key"
     if not SUPABASE_SERVICE_ROLE_KEY:
         print("WARNING: SUPABASE_SERVICE_ROLE_KEY not set. Some admin functions may not work.")
     
