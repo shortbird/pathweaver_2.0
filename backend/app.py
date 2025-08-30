@@ -68,6 +68,16 @@ app.register_blueprint(admin_v3.bp)   # /api/v3/admin
 app.register_blueprint(collaborations.bp)  # /api/v3/collaborations
 app.register_blueprint(learning_logs_v3.bp)  # /api/v3/logs
 
+@app.route('/')
+def root():
+    """Root endpoint for health checks"""
+    return jsonify({
+        'name': 'Optio Quest Platform API',
+        'status': 'healthy',
+        'version': '3.0',
+        'health_check': '/api/health'
+    }), 200
+
 @app.route('/api/health')
 def health_check():
     return jsonify({'status': 'healthy'}), 200
