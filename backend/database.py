@@ -62,8 +62,10 @@ def get_user_client(token: Optional[str] = None) -> Client:
     if token:
         # Create client with user's token for proper RLS enforcement
         client = create_client(Config.SUPABASE_URL, Config.SUPABASE_ANON_KEY)
-        # Set the auth header with the user's token
-        client.auth.set_session(access_token=token, refresh_token="")
+        # Set the auth header directly for RLS enforcement
+        client.headers["Authorization"] = f"Bearer {token}"
+        # Also set in postgrest client
+        client.postgrest.headers["Authorization"] = f"Bearer {token}"
         return client
     else:
         # No token, return anonymous client

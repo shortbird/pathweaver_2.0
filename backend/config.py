@@ -74,14 +74,17 @@ class Config:
     # Validate Supabase configuration
     if not SUPABASE_URL:
         print("ERROR: SUPABASE_URL is not set. Please set it as an environment variable.")
+        print("Railway users: Set SUPABASE_URL in your Railway variables")
         print("Using placeholder URL to prevent crash - app will not function properly!")
         SUPABASE_URL = "https://placeholder.supabase.co"
     if not SUPABASE_ANON_KEY:
-        print("ERROR: SUPABASE_ANON_KEY is not set. Please set it as an environment variable.")
+        print("ERROR: SUPABASE_ANON_KEY/SUPABASE_KEY is not set. Please set it as an environment variable.")
+        print("Railway users: Set SUPABASE_KEY in your Railway variables")
         print("Using placeholder key to prevent crash - app will not function properly!")
         SUPABASE_ANON_KEY = "placeholder-key"
     if not SUPABASE_SERVICE_ROLE_KEY:
-        print("WARNING: SUPABASE_SERVICE_ROLE_KEY not set. Some admin functions may not work.")
+        print("WARNING: SUPABASE_SERVICE_ROLE_KEY/SUPABASE_SERVICE_KEY not set. Some admin functions may not work.")
+        print("Railway users: Set SUPABASE_SERVICE_KEY in your Railway variables for full functionality")
     
     # OpenAI Configuration
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -146,11 +149,19 @@ class Config:
         
         missing = []
         for field in required_fields:
-            if not getattr(cls, field, None):
+            value = getattr(cls, field, None)
+            if not value or value in ['placeholder-key', 'https://placeholder.supabase.co']:
                 missing.append(field)
         
         if missing:
-            raise ValueError(f"Missing required configuration: {', '.join(missing)}")
+            error_msg = f"Missing or invalid required configuration: {', '.join(missing)}"
+            print(f"CRITICAL ERROR: {error_msg}")
+            print("\nFor Railway deployment, ensure these variables are set:")
+            print("  - SUPABASE_URL: Your Supabase project URL")
+            print("  - SUPABASE_KEY: Your Supabase anon/public key")
+            print("  - SUPABASE_SERVICE_KEY: Your Supabase service role key")
+            print("  - FLASK_SECRET_KEY or SECRET_KEY: A secure random string")
+            raise ValueError(error_msg)
     
     @classmethod
     def get_database_url(cls) -> Optional[str]:
