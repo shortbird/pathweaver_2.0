@@ -10,7 +10,7 @@ from legal_versions import CURRENT_TOS_VERSION, CURRENT_PRIVACY_POLICY_VERSION
 import re
 import os
 
-bp = Blueprint('auth', __name__)
+auth_auth_bp = Blueprint('auth', __name__)
 
 def generate_portfolio_slug(first_name, last_name):
     """Generate a unique portfolio slug from first and last name"""

@@ -57,7 +57,8 @@
       "Bash(set FRONTEND_URL=https://optioeducation.com)",
       "Bash(railway status:*)",
       "Bash(railway login:*)",
-      "Bash(pkill:*)"
+      "Bash(pkill:*)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []

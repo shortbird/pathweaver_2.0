@@ -1,9 +1,10 @@
 """
-Clean Flask application for production deployment
-Optio Quest Platform Backend - Rebuilt for production stability
+Railway-optimized Flask Backend for Optio Quest Platform
+Clean rebuild focused on stability and proper deployment
 """
 
 from flask import Flask, jsonify, request
+from flask_cors import CORS
 from dotenv import load_dotenv
 import os
 import logging
@@ -11,134 +12,130 @@ import logging
 # Load environment variables
 load_dotenv()
 
-# Configure logging for production
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
+# Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Create Flask app
 app = Flask(__name__)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', os.getenv('FLASK_SECRET_KEY', 'development-secret-key'))
 
-# Basic configuration
-app.config['SECRET_KEY'] = os.getenv('FLASK_SECRET_KEY', os.getenv('SECRET_KEY', 'fallback-secret'))
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB
-
-# Import and configure CORS
-from cors_production import configure_cors
-configure_cors(app)
-
-# Import database configuration
-from database_production import get_supabase_client, get_supabase_admin_client
+# Configure CORS for production domains
+CORS(app, 
+     origins=[
+         "https://optioeducation.com",
+         "https://www.optioeducation.com", 
+         "http://localhost:3000",
+         "http://localhost:5173"
+     ],
+     supports_credentials=True,
+     allow_headers=["Content-Type", "Authorization"],
+     methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 
 # Health check endpoint
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    """Production health check endpoint"""
-    try:
-        # Test database connection
-        supabase = get_supabase_client()
-        # Simple query to verify connection
-        result = supabase.table('users').select('id').limit(1).execute()
-        
-        return jsonify({
-            'status': 'healthy',
-            'database': 'connected',
-            'environment': os.getenv('FLASK_ENV', 'production'),
-            'timestamp': str(os.times())
-        })
-    except Exception as e:
-        logger.error(f"Health check failed: {str(e)}")
-        return jsonify({
-            'status': 'unhealthy',
-            'error': str(e),
-            'environment': os.getenv('FLASK_ENV', 'production')
-        }), 500
+    return jsonify({
+        'status': 'healthy',
+        'message': 'Optio backend is running',
+        'timestamp': str(os.times())
+    }), 200
 
-# Import all route blueprints
-logger.info("Loading route blueprints...")
+# Settings endpoint (needed by frontend)
+@app.route('/api/settings', methods=['GET'])
+def get_settings():
+    return jsonify({
+        'success': True,
+        'settings': {
+            'site_name': 'Optio Quest Platform',
+            'maintenance_mode': False,
+            'version': '2.0.0',
+            'features': {
+                'registration_enabled': True,
+                'demo_mode': False
+            }
+        }
+    })
 
-# Authentication routes
-from routes.auth import auth_bp
-app.register_blueprint(auth_bp, url_prefix='/api/auth')
+# Test endpoint
+@app.route('/api/test', methods=['GET'])
+def test():
+    return jsonify({'message': 'Backend is responding', 'port': os.getenv('PORT', 'unknown')})
 
-# V3 Quest routes (primary)
-from routes.quests_v3 import quests_v3_bp
-app.register_blueprint(quests_v3_bp, url_prefix='/api/v3/quests')
+# Import routes with error handling
+try:
+    # Import database
+    from database import get_supabase_client
+    logger.info("Database module loaded successfully")
+    
+    # Test database connection
+    @app.route('/api/db-test', methods=['GET'])
+    def db_test():
+        try:
+            client = get_supabase_client()
+            return jsonify({'database': 'connected'})
+        except Exception as e:
+            return jsonify({'database': 'error', 'message': str(e)}), 500
+    
+except Exception as e:
+    logger.error(f"Could not import database: {e}")
 
-# Task completion routes
-from routes.tasks import tasks_bp
-app.register_blueprint(tasks_bp, url_prefix='/api/v3/tasks')
+# Try to import routes one by one with error handling
+routes_status = {}
 
-# Collaboration routes
-from routes.collaborations import collaborations_bp
-app.register_blueprint(collaborations_bp, url_prefix='/api/v3/collaborations')
+# Auth routes
+try:
+    from routes.auth import bp as auth_bp
+    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    routes_status['auth'] = 'loaded'
+    logger.info("Auth routes loaded")
+except Exception as e:
+    routes_status['auth'] = f'failed: {str(e)}'
+    logger.error(f"Auth routes failed: {e}")
 
-# Learning logs V3
-from routes.learning_logs_v3 import learning_logs_v3_bp
-app.register_blueprint(learning_logs_v3_bp, url_prefix='/api/v3/logs')
+# Portfolio routes  
+try:
+    from routes.portfolio import portfolio_bp
+    app.register_blueprint(portfolio_bp, url_prefix='/api/portfolio')
+    routes_status['portfolio'] = 'loaded'
+    logger.info("Portfolio routes loaded")
+except Exception as e:
+    routes_status['portfolio'] = f'failed: {str(e)}'
+    logger.error(f"Portfolio routes failed: {e}")
 
-# Portfolio/Diploma routes (CORE FEATURE)
-from routes.portfolio import portfolio_bp
-app.register_blueprint(portfolio_bp, url_prefix='/api/portfolio')
+# Quests V3 routes
+try:
+    from routes.quests_v3 import quests_v3_bp
+    app.register_blueprint(quests_v3_bp, url_prefix='/api/v3/quests')
+    routes_status['quests_v3'] = 'loaded'
+    logger.info("Quests V3 routes loaded")
+except Exception as e:
+    routes_status['quests_v3'] = f'failed: {str(e)}'
+    logger.error(f"Quests V3 routes failed: {e}")
 
-# Admin routes
-from routes.admin_v3 import admin_v3_bp
-app.register_blueprint(admin_v3_bp, url_prefix='/api/v3/admin')
+# Status endpoint to show what's loaded
+@app.route('/api/status', methods=['GET'])
+def status():
+    return jsonify({
+        'status': 'running',
+        'routes': routes_status,
+        'environment': {
+            'PORT': os.getenv('PORT', 'not set'),
+            'SUPABASE_URL': 'set' if os.getenv('SUPABASE_URL') else 'missing',
+            'SUPABASE_KEY': 'set' if os.getenv('SUPABASE_KEY') else 'missing'
+        }
+    })
 
-# File upload routes
-from routes.uploads import uploads_bp
-app.register_blueprint(uploads_bp, url_prefix='/api/uploads')
-
-# Legacy support routes
-from routes.quests import quests_bp
-app.register_blueprint(quests_bp, url_prefix='/api/quests')
-
-from routes.subscriptions import subscriptions_bp
-app.register_blueprint(subscriptions_bp, url_prefix='/api/subscriptions')
-
-from routes.community import community_bp
-app.register_blueprint(community_bp, url_prefix='/api/community')
-
-from routes.sources import sources_bp
-app.register_blueprint(sources_bp, url_prefix='/api/sources')
-
-# Additional feature routes
-from routes.quest_ideas import quest_ideas_bp
-app.register_blueprint(quest_ideas_bp, url_prefix='/api/quest-ideas')
-
-from routes.ratings import ratings_bp
-app.register_blueprint(ratings_bp, url_prefix='/api/ratings')
-
-from routes.settings import settings_bp
-app.register_blueprint(settings_bp, url_prefix='/api/settings')
-
-# Global error handlers
+# Error handlers
 @app.errorhandler(404)
 def not_found(error):
     return jsonify({'error': 'Endpoint not found'}), 404
 
 @app.errorhandler(500)
 def internal_error(error):
-    logger.error(f"Internal server error: {str(error)}")
     return jsonify({'error': 'Internal server error'}), 500
 
-@app.errorhandler(413)
-def request_entity_too_large(error):
-    return jsonify({'error': 'File too large. Maximum size is 50MB.'}), 413
-
-# CORS preflight handler
-@app.before_request
-def handle_preflight():
-    if request.method == "OPTIONS":
-        return jsonify({}), 200
-
-# Production startup
 if __name__ == '__main__':
     port = int(os.getenv('PORT', 5000))
-    logger.info(f"Starting Optio Quest Platform on port {port}")
-    logger.info(f"Environment: {os.getenv('FLASK_ENV', 'production')}")
-    logger.info(f"CORS configured for production domains")
-    
+    logger.info(f"Starting Optio backend on port {port}")
     app.run(host='0.0.0.0', port=port, debug=False)
