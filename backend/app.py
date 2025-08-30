@@ -100,34 +100,26 @@ print(f"Frontend URL: {os.getenv('FRONTEND_URL', 'Not set')}")
 print(f"Supabase configured: {'SUPABASE_URL' in os.environ}")
 print("=" * 60)
 
-# Handle ALL requests - add CORS headers to everything
+# TEMPORARY CORS FIX - ALLOWS ALL ORIGINS
+# TODO: Replace with proper CORS once Railway deployment is working
+# This is a nuclear option to get past CORS issues immediately
 @app.before_request
 def handle_cors_preflight():
     """Handle CORS for all requests including preflight"""
     origin = request.headers.get('Origin')
     print(f"[BEFORE_REQUEST] Method: {request.method}, Path: {request.path}, Origin: {origin}")
     
-    # For OPTIONS requests, ALWAYS return with CORS headers for our domains
+    # For OPTIONS requests, ALWAYS add CORS headers
     if request.method == 'OPTIONS':
         response = make_response()
-        
-        # Force CORS for our production domains
-        if origin and ('optioeducation.com' in origin or 'optioed.org' in origin or 'optioed.com' in origin):
+        # TEMPORARY: Allow ANY origin for debugging
+        if origin:
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
             response.headers['Access-Control-Max-Age'] = '86400'
             response.headers['Access-Control-Allow-Credentials'] = 'true'
-            print(f"[OPTIONS] CORS headers FORCED for {origin}")
-        elif origin in ALLOWED_ORIGINS:
-            response.headers['Access-Control-Allow-Origin'] = origin
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
-            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
-            response.headers['Access-Control-Max-Age'] = '86400'
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            print(f"[OPTIONS] CORS headers added for {origin}")
-        else:
-            print(f"[OPTIONS] Origin {origin} not allowed")
+            print(f"[OPTIONS] CORS headers added for ANY origin: {origin}")
         return response
 
 # Add CORS headers to all responses
@@ -136,23 +128,14 @@ def add_cors_headers(response):
     """Add CORS headers to all responses"""
     origin = request.headers.get('Origin')
     
-    # FORCE CORS for our production domains - don't rely on list checking
-    if origin and ('optioeducation.com' in origin or 'optioed.org' in origin or 'optioed.com' in origin):
+    # TEMPORARY: Allow ANY origin for debugging
+    if origin:
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
         response.headers['Access-Control-Max-Age'] = '86400'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
-        print(f"CORS: Headers FORCED for domain: {origin}")
-    elif origin in ALLOWED_ORIGINS:
-        response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
-        response.headers['Access-Control-Max-Age'] = '86400'
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-        print(f"CORS: Headers added for: {origin}")
-    else:
-        print(f"CORS: No headers - origin '{origin}' not recognized")
+        print(f"CORS: Headers added for ANY origin: {origin}")
     
     return response
 
