@@ -502,6 +502,15 @@ The interactive demo feature at `/demo` route has been fully implemented with th
 
 The demo is production-ready but will show broken images until placeholder images are added.
 
+### CORS Fix for Production Domains (2025-08-30)
+
+**Fixed CORS Issues for optioeducation.com:**
+- Updated OPTIONS preflight handler in app.py to properly handle CORS headers
+- Changed from wildcard (*) to explicit allowed origins list
+- Ensured www.optioeducation.com and optioeducation.com are in allowed origins
+- Fixed preflight requests to return proper Access-Control-Allow-Origin header
+- CORS now properly validates origin against whitelist before setting headers
+
 ### Railway Deployment Fix (2025-08-30)
 
 **Fixed Railway Deployment Failure:**
