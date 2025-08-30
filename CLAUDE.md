@@ -518,6 +518,13 @@ The demo is production-ready but will show broken images until placeholder image
 
 ### Railway Deployment Fix (2025-08-30)
 
+**Fixed PostCSS Configuration Issue:**
+- Changed postcss.config.js from ES module syntax to CommonJS syntax
+- Issue: `export default` was causing "Unexpected token 'export'" error
+- Solution: Changed to `module.exports` for Node.js compatibility in Railway environment
+
+### Railway Deployment Fix (2025-08-30)
+
 **Fixed Railway Deployment Failure:**
 1. **Removed python-magic dependency completely:**
    - Initially changed `python-magic-bin` to `python-magic` but libmagic system library issues persisted
