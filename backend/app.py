@@ -88,8 +88,10 @@ ALLOWED_ORIGINS = list(dict.fromkeys(ALLOWED_ORIGINS))
 
 # Startup diagnostics
 print("=" * 60)
-print("APP STARTUP DIAGNOSTICS - EMERGENCY CORS ENABLED")
+print("APP STARTUP DIAGNOSTICS")
 print("=" * 60)
+emergency_mode = os.getenv('EMERGENCY_CORS', 'false').lower() == 'true'
+print(f"EMERGENCY CORS: {'ENABLED - ALL ORIGINS ALLOWED' if emergency_mode else 'DISABLED'}")
 print(f"CORS: Total allowed origins: {len(ALLOWED_ORIGINS)}")
 print(f"CORS: Allowed origins: {ALLOWED_ORIGINS}")
 print(f"CORS: www.optioeducation.com in list: {'https://www.optioeducation.com' in ALLOWED_ORIGINS}")
@@ -98,28 +100,42 @@ print(f"Railway environment: {os.getenv('RAILWAY_ENVIRONMENT', 'Not on Railway')
 print(f"Railway static URL: {os.getenv('RAILWAY_STATIC_URL', 'Not set')}")
 print(f"Frontend URL: {os.getenv('FRONTEND_URL', 'Not set')}")
 print(f"Supabase configured: {'SUPABASE_URL' in os.environ}")
+if emergency_mode:
+    print("WARNING: Emergency CORS is enabled - this allows ANY origin!")
 print("=" * 60)
 
-# TEMPORARY CORS FIX - ALLOWS ALL ORIGINS
-# TODO: Replace with proper CORS once Railway deployment is working
-# This is a nuclear option to get past CORS issues immediately
+# CORS FIX - Check environment variable for emergency override
 @app.before_request
 def handle_cors_preflight():
     """Handle CORS for all requests including preflight"""
     origin = request.headers.get('Origin')
     print(f"[BEFORE_REQUEST] Method: {request.method}, Path: {request.path}, Origin: {origin}")
     
-    # For OPTIONS requests, ALWAYS add CORS headers
+    # Check for emergency CORS override
+    emergency_cors = os.getenv('EMERGENCY_CORS', 'false').lower() == 'true'
+    
+    # For OPTIONS requests, handle CORS
     if request.method == 'OPTIONS':
         response = make_response()
-        # TEMPORARY: Allow ANY origin for debugging
-        if origin:
+        
+        # If emergency CORS is enabled OR origin is in allowed list
+        if emergency_cors and origin:
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
             response.headers['Access-Control-Max-Age'] = '86400'
             response.headers['Access-Control-Allow-Credentials'] = 'true'
-            print(f"[OPTIONS] CORS headers added for ANY origin: {origin}")
+            print(f"[OPTIONS] EMERGENCY CORS enabled - headers added for: {origin}")
+        elif origin in ALLOWED_ORIGINS:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+            response.headers['Access-Control-Max-Age'] = '86400'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            print(f"[OPTIONS] CORS headers added for allowed origin: {origin}")
+        else:
+            print(f"[OPTIONS] No CORS headers - origin not allowed: {origin}")
+            print(f"[OPTIONS] Set EMERGENCY_CORS=true to bypass")
         return response
 
 # Add CORS headers to all responses
@@ -127,15 +143,27 @@ def handle_cors_preflight():
 def add_cors_headers(response):
     """Add CORS headers to all responses"""
     origin = request.headers.get('Origin')
+    emergency_cors = os.getenv('EMERGENCY_CORS', 'false').lower() == 'true'
     
-    # TEMPORARY: Allow ANY origin for debugging
-    if origin:
+    # If emergency CORS is enabled, allow any origin
+    if emergency_cors and origin:
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
         response.headers['Access-Control-Max-Age'] = '86400'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
-        print(f"CORS: Headers added for ANY origin: {origin}")
+        print(f"CORS: EMERGENCY mode - headers added for: {origin}")
+    elif origin in ALLOWED_ORIGINS:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+        response.headers['Access-Control-Max-Age'] = '86400'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        print(f"CORS: Headers added for allowed origin: {origin}")
+    else:
+        print(f"CORS: No headers - origin not allowed: {origin}")
+        if origin:
+            print(f"CORS: Set EMERGENCY_CORS=true in Railway to bypass")
     
     return response
 
