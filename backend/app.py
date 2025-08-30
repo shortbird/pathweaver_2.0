@@ -85,8 +85,8 @@ routes_status = {}
 
 # Auth routes
 try:
-    from routes.auth import bp as auth_bp
-    app.register_blueprint(auth_bp, url_prefix='/api/auth')
+    from routes.auth import bp
+    app.register_blueprint(bp, url_prefix='/api/auth')
     routes_status['auth'] = 'loaded'
     logger.info("Auth routes loaded")
 except Exception as e:
@@ -95,7 +95,7 @@ except Exception as e:
 
 # Portfolio routes  
 try:
-    from routes.portfolio import portfolio_bp
+    from routes.portfolio import bp as portfolio_bp
     app.register_blueprint(portfolio_bp, url_prefix='/api/portfolio')
     routes_status['portfolio'] = 'loaded'
     logger.info("Portfolio routes loaded")
@@ -105,7 +105,7 @@ except Exception as e:
 
 # Quests V3 routes
 try:
-    from routes.quests_v3 import quests_v3_bp
+    from routes.quests_v3 import bp as quests_v3_bp
     app.register_blueprint(quests_v3_bp, url_prefix='/api/v3/quests')
     routes_status['quests_v3'] = 'loaded'
     logger.info("Quests V3 routes loaded")
