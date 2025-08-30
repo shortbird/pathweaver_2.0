@@ -29,6 +29,18 @@ load_dotenv()
 if not os.getenv('FLASK_ENV'):
     os.environ['FLASK_ENV'] = 'development'  # Default to development for local
 
+# Import config and validate early
+try:
+    from config import Config
+    print(f"[STARTUP] Loading configuration...")
+    print(f"[STARTUP] SUPABASE_URL configured: {bool(Config.SUPABASE_URL and Config.SUPABASE_URL != 'https://placeholder.supabase.co')}")
+    print(f"[STARTUP] SUPABASE_KEY configured: {bool(Config.SUPABASE_ANON_KEY and Config.SUPABASE_ANON_KEY != 'placeholder-key')}")
+    print(f"[STARTUP] Running on port: {os.getenv('PORT', '5001')}")
+except Exception as e:
+    print(f"[STARTUP ERROR] Failed to load config: {e}")
+    import traceback
+    traceback.print_exc()
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max request size
@@ -174,7 +186,22 @@ def root():
 @app.route('/api/health')
 def health_check():
     """Simple health check endpoint that Railway will hit"""
-    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()}), 200
+    try:
+        from config import Config
+        has_supabase = bool(Config.SUPABASE_URL and Config.SUPABASE_URL != 'https://placeholder.supabase.co')
+        has_key = bool(Config.SUPABASE_ANON_KEY and Config.SUPABASE_ANON_KEY != 'placeholder-key')
+        
+        health_status = {
+            'status': 'healthy' if (has_supabase and has_key) else 'degraded',
+            'timestamp': datetime.utcnow().isoformat(),
+            'supabase_configured': has_supabase and has_key
+        }
+        
+        print(f"[HEALTH CHECK] {health_status}")
+        return jsonify(health_status), 200
+    except Exception as e:
+        print(f"[HEALTH CHECK ERROR] {str(e)}")
+        return jsonify({'status': 'unhealthy', 'error': str(e)}), 503
 
 @app.route('/')
 def root():
@@ -235,4 +262,6 @@ def test_config():
 # Error handlers are now managed by error_handler middleware
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5001)
+    port = int(os.getenv('PORT', 5001))
+    print(f"[STARTUP] Starting Flask app on port {port}")
+    app.run(debug=True, port=port, host='0.0.0.0')
