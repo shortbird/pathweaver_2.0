@@ -60,13 +60,13 @@ class Config:
         os.getenv('supabase_url')
     )
     SUPABASE_ANON_KEY = (
-        os.getenv('SUPABASE_KEY') or  # Your Railway uses SUPABASE_KEY
+        os.getenv('SUPABASE_KEY') or  # Railway uses SUPABASE_KEY
         os.getenv('SUPABASE_ANON_KEY') or 
         os.getenv('VITE_SUPABASE_ANON_KEY') or
         os.getenv('supabase_anon_key')
     )
     SUPABASE_SERVICE_ROLE_KEY = (
-        os.getenv('SUPABASE_SERVICE_KEY') or  # Your Railway uses SUPABASE_SERVICE_KEY
+        os.getenv('SUPABASE_SERVICE_KEY') or  # Railway uses SUPABASE_SERVICE_KEY
         os.getenv('SUPABASE_SERVICE_ROLE_KEY') or 
         os.getenv('supabase_service_role_key')
     )
