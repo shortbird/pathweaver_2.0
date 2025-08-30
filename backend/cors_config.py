@@ -59,9 +59,9 @@ def configure_cors(app):
     
     CORS(app,
          resources={r"/api/*": {"origins": allowed_origins}},
-         allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
+         allow_headers=["Content-Type", "Authorization", "X-Requested-With", "Accept"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-         supports_credentials=False,  # Disable credentials for better security unless strictly needed
+         supports_credentials=True,  # Enable credentials to support cookies/auth
          max_age=86400)  # Increase max age to 24 hours to reduce preflight requests
     
     return app
