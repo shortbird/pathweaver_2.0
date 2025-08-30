@@ -107,28 +107,19 @@ def handle_cors_preflight():
     origin = request.headers.get('Origin')
     print(f"[BEFORE_REQUEST] Method: {request.method}, Path: {request.path}, Origin: {origin}")
     
-    # For OPTIONS requests, return early with CORS headers
+    # For OPTIONS requests, ALWAYS return with CORS headers for our domains
     if request.method == 'OPTIONS':
         response = make_response()
-        is_allowed = False
-        if origin:
-            is_allowed = origin in ALLOWED_ORIGINS
-            # Also check without trailing slash
-            if not is_allowed and origin.endswith('/'):
-                is_allowed = origin[:-1] in ALLOWED_ORIGINS
-            # Also check with trailing slash
-            if not is_allowed and not origin.endswith('/'):
-                is_allowed = (origin + '/') in ALLOWED_ORIGINS
         
-        # Fallback for known good origins
-        known_good_origins = [
-            'https://www.optioeducation.com',
-            'https://optioeducation.com',
-            'https://www.optioed.org',
-            'https://optioed.org'
-        ]
-        
-        if is_allowed or origin in known_good_origins:
+        # Force CORS for our production domains
+        if origin and ('optioeducation.com' in origin or 'optioed.org' in origin or 'optioed.com' in origin):
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+            response.headers['Access-Control-Max-Age'] = '86400'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            print(f"[OPTIONS] CORS headers FORCED for {origin}")
+        elif origin in ALLOWED_ORIGINS:
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
@@ -136,9 +127,7 @@ def handle_cors_preflight():
             response.headers['Access-Control-Allow-Credentials'] = 'true'
             print(f"[OPTIONS] CORS headers added for {origin}")
         else:
-            print(f"[OPTIONS] Origin {origin} not in allowed list")
-            print(f"[OPTIONS] Check: '{origin}' in ALLOWED_ORIGINS = {origin in ALLOWED_ORIGINS}")
-            print(f"[OPTIONS] Check: '{origin}' in known_good = {origin in known_good_origins}")
+            print(f"[OPTIONS] Origin {origin} not allowed")
         return response
 
 # Add CORS headers to all responses
@@ -147,45 +136,23 @@ def add_cors_headers(response):
     """Add CORS headers to all responses"""
     origin = request.headers.get('Origin')
     
-    # Check if origin is in allowed list
-    is_allowed = False
-    if origin:
-        is_allowed = origin in ALLOWED_ORIGINS
-        # Also check without trailing slash
-        if not is_allowed and origin.endswith('/'):
-            is_allowed = origin[:-1] in ALLOWED_ORIGINS
-        # Also check with trailing slash
-        if not is_allowed and not origin.endswith('/'):
-            is_allowed = (origin + '/') in ALLOWED_ORIGINS
-    
-    if is_allowed:
+    # FORCE CORS for our production domains - don't rely on list checking
+    if origin and ('optioeducation.com' in origin or 'optioed.org' in origin or 'optioed.com' in origin):
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
         response.headers['Access-Control-Max-Age'] = '86400'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
-        print(f"CORS: Headers added for origin: {origin}")
+        print(f"CORS: Headers FORCED for domain: {origin}")
+    elif origin in ALLOWED_ORIGINS:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+        response.headers['Access-Control-Max-Age'] = '86400'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        print(f"CORS: Headers added for: {origin}")
     else:
-        # Always add CORS headers for specific domains even if check fails (temporary fix)
-        known_good_origins = [
-            'https://www.optioeducation.com',
-            'https://optioeducation.com',
-            'https://www.optioed.org',
-            'https://optioed.org'
-        ]
-        
-        if origin in known_good_origins:
-            response.headers['Access-Control-Allow-Origin'] = origin
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
-            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
-            response.headers['Access-Control-Max-Age'] = '86400'
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            print(f"CORS: Headers added via fallback for known origin: {origin}")
-        else:
-            print(f"CORS: No headers added - origin '{origin}' not allowed")
-            if origin and origin != 'None':
-                print(f"  Origin details: '{origin}' (type: {type(origin).__name__}, length: {len(origin)})")
-                print(f"  First 5 allowed: {ALLOWED_ORIGINS[:5]}")
+        print(f"CORS: No headers - origin '{origin}' not recognized")
     
     return response
 
