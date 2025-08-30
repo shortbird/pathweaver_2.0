@@ -1,8 +1,17 @@
 [phases.setup]
-nixPkgs = ["python311"]
+nixPkgs = ["python311", "gcc"]
+aptPkgs = ["python3-pip"]
 
 [phases.install]
-cmds = ["pip install -r requirements.txt"]
+cmds = ["python -m pip install --upgrade pip", "python -m pip install -r requirements.txt"]
+
+[phases.build]
+# Skip any Deno build
+cmds = ["echo 'Skipping build phase'"]
 
 [start]
-cmd = "cd backend && gunicorn app_wrapper:application -c gunicorn_config.py"
+cmd = "cd backend && python -m gunicorn app_wrapper:application -c gunicorn_config.py"
+
+[providers]
+# Force Python provider only
+python = true

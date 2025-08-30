@@ -1,0 +1,8 @@
+supabase/
+frontend/
+node_modules/
+*.md
+.git/
+.github/
+docs/
+tests/
