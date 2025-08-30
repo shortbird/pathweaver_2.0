@@ -43,8 +43,9 @@ security_middleware.init_app(app)
 error_handler.init_app(app)
 
 # Configure CORS - MUST be after other middleware to ensure headers aren't overwritten
-from cors_config import configure_cors
-configure_cors(app)
+# Temporarily disabling Flask-CORS to test manual CORS handling
+# from cors_config import configure_cors
+# configure_cors(app)
 
 # Register existing routes (will be deprecated)
 app.register_blueprint(auth.bp, url_prefix='/api/auth')
@@ -121,6 +122,94 @@ def test_config():
     return jsonify(config_status), 200
 
 # CORS is now handled by Flask-CORS via cors_config.py
+
+# Handle OPTIONS requests explicitly
+@app.before_request
+def handle_preflight():
+    """Handle preflight OPTIONS requests"""
+    if request.method == 'OPTIONS':
+        origin = request.headers.get('Origin')
+        
+        # List of allowed origins
+        allowed_origins = [
+            'https://pathweaver-2-0.vercel.app',
+            'https://pathweaver20-production.up.railway.app',
+            'https://optioed.org',
+            'https://www.optioed.org',
+            'https://optioeducation.com',
+            'https://www.optioeducation.com',
+            'https://optioed.com',
+            'https://www.optioed.com'
+        ]
+        
+        # Add FRONTEND_URL from environment if available
+        if os.getenv('FRONTEND_URL'):
+            allowed_origins.append(os.getenv('FRONTEND_URL'))
+        
+        # Also allow localhost in development
+        if os.getenv('FLASK_ENV', 'production').lower() == 'development':
+            allowed_origins.extend([
+                'http://localhost:3000',
+                'http://localhost:3001',
+                'http://localhost:5173',
+                'http://127.0.0.1:3000',
+                'http://127.0.0.1:3001',
+                'http://127.0.0.1:5173'
+            ])
+        
+        response = make_response()
+        if origin and origin in allowed_origins:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+            response.headers['Access-Control-Max-Age'] = '86400'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+        return response
+
+# Failsafe: Add CORS headers if Flask-CORS didn't add them
+@app.after_request
+def ensure_cors_headers(response):
+    """Ensure CORS headers are present as a failsafe"""
+    origin = request.headers.get('Origin')
+    
+    # Only add headers if they're not already present
+    if not response.headers.get('Access-Control-Allow-Origin'):
+        # List of allowed origins
+        allowed_origins = [
+            'https://pathweaver-2-0.vercel.app',
+            'https://pathweaver20-production.up.railway.app',
+            'https://optioed.org',
+            'https://www.optioed.org',
+            'https://optioeducation.com',
+            'https://www.optioeducation.com',
+            'https://optioed.com',
+            'https://www.optioed.com'
+        ]
+        
+        # Add FRONTEND_URL from environment if available
+        if os.getenv('FRONTEND_URL'):
+            allowed_origins.append(os.getenv('FRONTEND_URL'))
+        
+        # Also allow localhost in development
+        if os.getenv('FLASK_ENV', 'production').lower() == 'development':
+            allowed_origins.extend([
+                'http://localhost:3000',
+                'http://localhost:3001',
+                'http://localhost:5173',
+                'http://127.0.0.1:3000',
+                'http://127.0.0.1:3001',
+                'http://127.0.0.1:5173'
+            ])
+        
+        if origin and origin in allowed_origins:
+            response.headers['Access-Control-Allow-Origin'] = origin
+            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
+            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+            response.headers['Access-Control-Max-Age'] = '86400'
+            response.headers['Access-Control-Allow-Credentials'] = 'true'
+            print(f"CORS failsafe: Added headers for {origin}")
+    
+    return response
 
 # Error handlers are now managed by error_handler middleware
 
