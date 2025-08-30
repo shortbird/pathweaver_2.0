@@ -88,7 +88,7 @@ ALLOWED_ORIGINS = list(dict.fromkeys(ALLOWED_ORIGINS))
 
 # Startup diagnostics
 print("=" * 60)
-print("APP STARTUP DIAGNOSTICS")
+print("APP STARTUP DIAGNOSTICS - EMERGENCY CORS ENABLED")
 print("=" * 60)
 print(f"CORS: Total allowed origins: {len(ALLOWED_ORIGINS)}")
 print(f"CORS: Allowed origins: {ALLOWED_ORIGINS}")
