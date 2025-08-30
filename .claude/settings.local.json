@@ -46,7 +46,9 @@
       "Bash(../venv/Scripts/pip show flask-wtf)",
       "Bash(npm install:*)",
       "Bash(npm outdated)",
-      "Bash(npm uninstall:*)"
+      "Bash(npm uninstall:*)",
+      "Bash(find:*)",
+      "Bash(pip freeze)"
     ],
     "deny": [],
     "ask": []

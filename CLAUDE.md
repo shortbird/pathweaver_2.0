@@ -510,11 +510,11 @@ The demo is production-ready but will show broken images until placeholder image
    - `python-magic-bin` is Windows-specific and doesn't exist in Railway's Linux environment
    - `python-magic` requires `libmagic` system library which wasn't installed
 
-2. **Added Railway configuration files:**
-   - Created `railway.json` for Railway deployment configuration
+2. **Added Railway configuration:**
    - Created `nixpacks.toml` to install required system dependencies (libmagic1, libmagic-dev)
    - Updated Procfile to use `$PORT` environment variable instead of hardcoded 5000
-   - These files ensure libmagic is installed before Python dependencies
+   - Simplified configuration to let Railway auto-detect Python and handle pip installation
+   - These changes ensure libmagic is installed before Python dependencies
 
 ### Recent Security Updates (2025-08-30)
 
