@@ -29,7 +29,7 @@ h2==4.3.0
 hpack==4.1.0
 httpcore==1.0.9
 httplib2==0.22.0
-httpx==0.28.1
+httpx==0.27.2
 huggingface-hub==0.34.4
 hyperframe==6.1.0
 idna==3.10
