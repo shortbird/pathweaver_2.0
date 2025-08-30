@@ -454,6 +454,46 @@ Standard error response:
 - AI_imp_plan.md - AI implementation roadmap
 - supabase_issues.md - Current security/performance issues from Supabase dashboard
 
+### Recent Security Updates (2025-08-30)
+
+**Critical Security Fixes Applied:**
+
+1. **Removed Dangerous Dev Utils**:
+   - Deleted dev_utils.py which contained hardcoded admin password "Test123!"
+   - Removed secret endpoint `/api/dev/emergency-reset-Test123` that bypassed all authentication
+   - Eliminated critical security vulnerability allowing complete rate limit bypass
+
+2. **Secured Portfolio Endpoints**:
+   - Added authentication requirement to `/api/portfolio/user/<user_id>` endpoint
+   - Users can now only view their own portfolio data via authenticated endpoint
+   - Public portfolios still accessible via `/api/portfolio/public/<slug>` without auth
+   - Added authorization checks to prevent unauthorized access to other users' data
+
+3. **Enhanced File Upload Security**:
+   - Implemented whitelist-based file extension validation
+   - Added MIME type validation to prevent file type spoofing
+   - Implemented magic byte (file signature) validation
+   - Reduced file size limit from 50MB to 10MB for better security
+   - Added filename sanitization to prevent path traversal attacks
+   - Added file hash generation for integrity verification
+   - Prevented upload of executable files and malicious content
+
+4. **Strengthened CORS Configuration**:
+   - Removed HTTP versions of production domains (HTTPS only)
+   - Disabled credentials support unless strictly needed
+   - Increased max age to 24 hours to reduce preflight requests
+
+5. **Fixed React Memory Leaks**:
+   - Fixed useEffect cleanup functions in DiplomaPageV3 component
+   - Added proper subscription handling to prevent state updates on unmounted components
+   - Implemented useCallback hooks to prevent unnecessary re-renders
+   - Fixed stale closure issues in async operations
+
+6. **Upgraded Frontend Dependencies**:
+   - Upgraded from deprecated react-query v3 to @tanstack/react-query v5
+   - Improved performance and security with latest query library
+   - Added python-magic-bin for enhanced file validation
+
 ### Recent Security Updates (2025-08-29)
 
 **Latest Security and Performance Fixes Applied:**

@@ -21,24 +21,17 @@ def configure_cors(app):
     if os.getenv('FRONTEND_URL'):
         allowed_origins.append(os.getenv('FRONTEND_URL'))
     
-    # Production domains
+    # Production domains - HTTPS only for security
     production_domains = [
         'https://pathweaver-2-0.vercel.app',
         'https://pathweaver20-production.up.railway.app',
-        # Optio Education domains
+        # Optio Education domains - HTTPS only
         'https://optioed.org',
         'https://www.optioed.org',
         'https://optioeducation.com',
         'https://www.optioeducation.com',
         'https://optioed.com',
-        'https://www.optioed.com',
-        # HTTP versions (if needed during transition)
-        'http://optioed.org',
-        'http://www.optioed.org',
-        'http://optioeducation.com',
-        'http://www.optioeducation.com',
-        'http://optioed.com',
-        'http://www.optioed.com'
+        'https://www.optioed.com'
     ]
     
     # Only add production domains if they're not already in the list
@@ -68,7 +61,7 @@ def configure_cors(app):
          resources={r"/api/*": {"origins": allowed_origins}},
          allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
-         supports_credentials=True,
-         max_age=3600)
+         supports_credentials=False,  # Disable credentials for better security unless strictly needed
+         max_age=86400)  # Increase max age to 24 hours to reduce preflight requests
     
     return app

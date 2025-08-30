@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify
 from database import get_supabase_client
+from utils.auth.decorators import require_auth
 
 bp = Blueprint('portfolio', __name__)
 
@@ -140,10 +141,15 @@ def get_public_portfolio(portfolio_slug):
         return jsonify({'error': 'Failed to fetch portfolio'}), 500
 
 @bp.route('/user/<user_id>', methods=['GET'])
-def get_user_portfolio(user_id):
+@require_auth
+def get_user_portfolio(authenticated_user_id, user_id):
     """
     Get portfolio data for a specific user
+    Requires authentication - users can only view their own portfolio data
     """
+    # Only allow users to view their own portfolio via this endpoint
+    if authenticated_user_id != user_id:
+        return jsonify({'error': 'Unauthorized: Can only view your own portfolio'}), 403
     try:
         print(f"Getting portfolio for user_id: {user_id}")
         supabase = get_supabase_client()
@@ -289,10 +295,15 @@ def get_user_portfolio(user_id):
         }), 200  # Return 200 with default data instead of 500
 
 @bp.route('/user/<user_id>/privacy', methods=['PUT'])
-def update_portfolio_privacy(user_id):
+@require_auth
+def update_portfolio_privacy(authenticated_user_id, user_id):
     """
     Toggle portfolio privacy setting
+    Requires authentication - users can only update their own privacy settings
     """
+    # Only allow users to update their own privacy settings
+    if authenticated_user_id != user_id:
+        return jsonify({'error': 'Unauthorized: Can only update your own privacy settings'}), 403
     try:
         from flask import request
         supabase = get_supabase_client()
