@@ -1,1 +1,1 @@
-web: cd backend && gunicorn app_wrapper:application --bind 0.0.0.0:$PORT --workers 1 --worker-class sync --worker-connections 1000 --timeout 120 --keep-alive 5 --preload --log-level debug --access-logfile - --error-logfile - --capture-output
+web: cd backend && gunicorn app_wrapper:application --bind 0.0.0.0:$PORT --workers 1 --timeout 30 --log-level info --access-logfile - --error-logfile -
