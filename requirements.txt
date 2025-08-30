@@ -22,7 +22,6 @@ stripe==7.8.0
 python-dateutil==2.9.0.post0
 requests==2.32.5
 bleach==6.2.0
-python-magic==0.4.27  # For file type validation
 
 # Dependencies (auto-installed)
 annotated-types==0.7.0

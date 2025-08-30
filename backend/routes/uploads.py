@@ -4,9 +4,16 @@ from database import get_supabase_admin_client
 import base64
 import uuid
 import mimetypes
-import magic
 import hashlib
 from datetime import datetime
+
+# Try to import magic, but don't fail if it's not available
+try:
+    import magic
+    HAS_MAGIC = True
+except ImportError:
+    HAS_MAGIC = False
+    print("Warning: python-magic not available, using fallback file validation")
 
 bp = Blueprint('uploads', __name__)
 
@@ -104,31 +111,33 @@ def validate_mime_type(content_type, extension):
 
 def validate_file_content(file_data, extension):
     """Validate file content using magic bytes (file signature)"""
-    try:
-        # Try to use python-magic if available
-        mime = magic.from_buffer(file_data[:1024], mime=True)
-        
-        # For text/code files, magic might return text/plain which is ok
-        if mime == 'text/plain' and extension in ALLOWED_EXTENSIONS.get('code', []):
-            return True, "Valid code/text file"
-        
-        # For other files, check if the detected MIME matches allowed types
-        if mime not in ALLOWED_MIME_TYPES and not mime.startswith('text/'):
-            return False, f"File content detected as {mime}, which is not allowed"
+    if HAS_MAGIC:
+        try:
+            # Try to use python-magic if available
+            mime = magic.from_buffer(file_data[:1024], mime=True)
             
-    except:
-        # python-magic not available, do basic validation
-        # Check for common malicious patterns
-        header = file_data[:16] if len(file_data) >= 16 else file_data
-        
-        # Check for executable file signatures
-        if header.startswith(b'MZ'):  # Windows PE executable
-            return False, "Executable files are not allowed"
-        if header.startswith(b'\x7fELF'):  # Linux ELF executable
-            return False, "Executable files are not allowed"
-        if header.startswith(b'#!/'):  # Shell script with shebang
-            if extension not in ['sh', 'bash', 'py', 'rb']:
-                return False, "Script files must have appropriate extension"
+            # For text/code files, magic might return text/plain which is ok
+            if mime == 'text/plain' and extension in ALLOWED_EXTENSIONS.get('code', []):
+                return True, "Valid code/text file"
+            
+            # For other files, check if the detected MIME matches allowed types
+            if mime not in ALLOWED_MIME_TYPES and not mime.startswith('text/'):
+                return False, f"File content detected as {mime}, which is not allowed"
+        except Exception as e:
+            print(f"Magic validation error: {e}, falling back to basic validation")
+    
+    # Fallback: python-magic not available or failed, do basic validation
+    # Check for common malicious patterns
+    header = file_data[:16] if len(file_data) >= 16 else file_data
+    
+    # Check for executable file signatures
+    if header.startswith(b'MZ'):  # Windows PE executable
+        return False, "Executable files are not allowed"
+    if header.startswith(b'\x7fELF'):  # Linux ELF executable
+        return False, "Executable files are not allowed"
+    if header.startswith(b'#!/'):  # Shell script with shebang
+        if extension not in ['sh', 'bash', 'py', 'rb']:
+            return False, "Script files must have appropriate extension"
     
     return True, "File content validation passed"
 

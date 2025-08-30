@@ -505,16 +505,17 @@ The demo is production-ready but will show broken images until placeholder image
 ### Railway Deployment Fix (2025-08-30)
 
 **Fixed Railway Deployment Failure:**
-1. **Python-magic dependency issue resolved:**
-   - Changed `python-magic-bin==0.4.14` to `python-magic==0.4.27` in requirements.txt
-   - `python-magic-bin` is Windows-specific and doesn't exist in Railway's Linux environment
-   - `python-magic` requires `libmagic` system library which wasn't installed
+1. **Removed python-magic dependency completely:**
+   - Initially changed `python-magic-bin` to `python-magic` but libmagic system library issues persisted
+   - Made python-magic import optional in `backend/routes/uploads.py` with try/except
+   - Removed python-magic from requirements.txt entirely
+   - Application now uses fallback file validation when python-magic is not available
+   - Fallback validation checks file headers for executable signatures and validates extensions
 
-2. **Added Railway configuration:**
-   - Created `nixpacks.toml` to install required system dependencies (libmagic1, libmagic-dev)
+2. **Updated configuration:**
    - Updated Procfile to use `$PORT` environment variable instead of hardcoded 5000
-   - Simplified configuration to let Railway auto-detect Python and handle pip installation
-   - These changes ensure libmagic is installed before Python dependencies
+   - Removed nixpacks.toml as system dependencies are no longer needed
+   - Railway can now deploy with standard Python buildpack without issues
 
 ### Recent Security Updates (2025-08-30)
 
