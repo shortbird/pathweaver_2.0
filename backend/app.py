@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request, make_response
 from dotenv import load_dotenv
 import os
+from datetime import datetime
 
 from routes import auth, quests, subscriptions, users, admin, community, portfolio, learning_log, sources
 from routes.quest_ideas import quest_ideas_bp
@@ -65,16 +66,21 @@ print(f"CORS: Allowed origins: {ALLOWED_ORIGINS}")
 @app.before_request
 def handle_cors_preflight():
     """Handle CORS for all requests including preflight"""
+    origin = request.headers.get('Origin')
+    print(f"[BEFORE_REQUEST] Method: {request.method}, Path: {request.path}, Origin: {origin}")
+    
     # For OPTIONS requests, return early with CORS headers
     if request.method == 'OPTIONS':
         response = make_response()
-        origin = request.headers.get('Origin')
         if origin in ALLOWED_ORIGINS:
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
             response.headers['Access-Control-Max-Age'] = '86400'
             response.headers['Access-Control-Allow-Credentials'] = 'true'
+            print(f"[OPTIONS] CORS headers added for {origin}")
+        else:
+            print(f"[OPTIONS] Origin {origin} not in allowed list")
         return response
 
 # Add CORS headers to all responses
@@ -145,6 +151,17 @@ def root():
 @app.route('/api/health')
 def health_check():
     return jsonify({'status': 'healthy'}), 200
+
+@app.route('/api/cors-test')
+def cors_test():
+    """Simple endpoint to test CORS"""
+    origin = request.headers.get('Origin')
+    return jsonify({
+        'message': 'CORS test successful',
+        'origin_received': origin,
+        'cors_configured': True,
+        'timestamp': datetime.utcnow().isoformat()
+    }), 200
 
 @app.route('/api/csrf-token', methods=['GET'])
 def get_csrf():

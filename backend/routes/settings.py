@@ -8,15 +8,18 @@ settings_bp = Blueprint('settings', __name__)
 
 @settings_bp.route('/api/settings', methods=['GET'])
 def get_settings():
+    print(f"[SETTINGS] GET /api/settings called")
     try:
         # Get public settings (logo, site name, etc.)
         supabase = get_supabase_admin_client()
         response = supabase.table('site_settings').select('*').single().execute()
         
         if response.data:
+            print(f"[SETTINGS] Found settings in database")
             return jsonify(response.data), 200
         else:
             # Return default settings if none exist
+            print(f"[SETTINGS] No settings found, returning defaults")
             return jsonify({
                 'logo_url': None,
                 'site_name': 'Optio',
@@ -25,6 +28,7 @@ def get_settings():
             
     except Exception as e:
         # If table doesn't exist or no settings, return defaults
+        print(f"[SETTINGS] Error fetching settings: {str(e)}, returning defaults")
         return jsonify({
             'logo_url': None,
             'site_name': 'Optio',
