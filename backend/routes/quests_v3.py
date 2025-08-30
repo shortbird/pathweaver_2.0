@@ -48,7 +48,6 @@ def list_quests():
         # Build query
         query = supabase.table('quests')\
             .select('*, quest_tasks(*)', count='exact')\
-            .eq('is_active', True)\
             .order('created_at', desc=True)
         
         # Apply search filter if provided
@@ -100,9 +99,9 @@ def list_quests():
                     # Find the active enrollment ONLY
                     active_enrollment = None
                     for enr in enrollment.data:
-                        if enr.get('is_active') and not enr.get('completed_at'):
+                        if enr.get('status') == 'in_progress' and not enr.get('completed_at'):
                             active_enrollment = enr
-                            print(f"[DEBUG] Found ACTIVE enrollment: is_active={enr.get('is_active')}")
+                            print(f"[DEBUG] Found ACTIVE enrollment: status={enr.get('status')}")
                             break
                     
                     # Only include active enrollments in the response
@@ -186,7 +185,7 @@ def get_quest_detail(user_id: str, quest_id: str):
             .select('*, user_quest_tasks(*)')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
-            .eq('is_active', True)\
+            .eq('status', 'in_progress')\
             .execute()
         
         if user_quest.data:
@@ -194,7 +193,7 @@ def get_quest_detail(user_id: str, quest_id: str):
         else:
             print(f"[QUEST DETAIL] No enrollment found")
         
-        if user_quest.data and user_quest.data[0].get('is_active') and not user_quest.data[0].get('completed_at'):
+        if user_quest.data and user_quest.data[0].get('status') == 'in_progress' and not user_quest.data[0].get('completed_at'):
             quest_data['user_enrollment'] = user_quest.data[0]
             
             # Calculate progress
@@ -293,7 +292,7 @@ def check_enrollment_status(user_id: str, quest_id: str):
         
         # Check for active enrollment
         for enr in enrollment.data:
-            if enr.get('is_active') and not enr.get('completed_at'):
+            if enr.get('status') == 'in_progress' and not enr.get('completed_at'):
                 return jsonify({
                     'enrolled': True,
                     'status': 'active',
@@ -331,7 +330,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
         
         # Check if quest exists and is active
         quest = supabase.table('quests')\
-            .select('id, title, is_active')\
+            .select('id, title')\
             .eq('id', quest_id)\
             .single()\
             .execute()
@@ -342,15 +341,11 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 'error': 'Quest not found'
             }), 404
         
-        if not quest.data.get('is_active'):
-            return jsonify({
-                'success': False,
-                'error': 'Quest is not active'
-            }), 400
+        # Quest validation removed - quests don't have is_active field
         
         # Check if already enrolled (active enrollment only)
         existing = supabase.table('user_quests')\
-            .select('id, is_active, completed_at')\
+            .select('id, status, completed_at')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
             .execute()
@@ -358,7 +353,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
         # Check if there's an active enrollment
         if existing.data:
             for enrollment in existing.data:
-                if enrollment.get('is_active') and not enrollment.get('completed_at'):
+                if enrollment.get('status') == 'in_progress' and not enrollment.get('completed_at'):
                     return jsonify({
                         'success': False,
                         'error': 'Already enrolled in this quest'
@@ -370,7 +365,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 enrollment_id = existing.data[0]['id']
                 updated = supabase.table('user_quests')\
                     .update({
-                        'is_active': True,
+                        'status': 'in_progress',
                         'started_at': datetime.utcnow().isoformat(),
                         'completed_at': None
                     })\
@@ -389,7 +384,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 'user_id': user_id,
                 'quest_id': quest_id,
                 'started_at': datetime.utcnow().isoformat(),
-                'is_active': True
+                'status': 'in_progress'
             })\
             .execute()
         
@@ -426,7 +421,7 @@ def get_user_active_quests(user_id: str):
         user_quests = supabase.table('user_quests')\
             .select('*, quests(*, quest_tasks(*)), user_quest_tasks(*)')\
             .eq('user_id', user_id)\
-            .eq('is_active', True)\
+            .eq('status', 'in_progress')\
             .is_('completed_at', 'null')\
             .order('started_at', desc=True)\
             .execute()
@@ -559,7 +554,7 @@ def end_quest(user_id: str, quest_id: str):
             .select('*')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
-            .eq('is_active', True)\
+            .eq('status', 'in_progress')\
             .execute()
         
         if not enrollment.data:
@@ -570,11 +565,11 @@ def end_quest(user_id: str, quest_id: str):
         
         user_quest_id = enrollment.data[0]['id']
         
-        # Mark the quest as inactive (ended) but keep all data
+        # Mark the quest as completed
         result = supabase.table('user_quests')\
             .update({
-                'is_active': False,
-                'ended_at': datetime.utcnow().isoformat()
+                'status': 'completed',
+                'completed_at': datetime.utcnow().isoformat()
             })\
             .eq('id', user_quest_id)\
             .execute()
