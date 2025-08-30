@@ -39,12 +39,12 @@ security_middleware.init_app(app)
 # Individual routes can enable it as needed
 # init_csrf(app)  # Uncomment to enable CSRF globally
 
-# Configure CORS
-from cors_config import configure_cors
-configure_cors(app)
-
 # Configure error handling middleware
 error_handler.init_app(app)
+
+# Configure CORS - MUST be after other middleware to ensure headers aren't overwritten
+from cors_config import configure_cors
+configure_cors(app)
 
 # Register existing routes (will be deprecated)
 app.register_blueprint(auth.bp, url_prefix='/api/auth')

@@ -75,7 +75,7 @@ class SecurityMiddleware:
     
     def after_request(self, response):
         """Add security headers to response"""
-        # Security headers
+        # Security headers - don't override CORS headers if they exist
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['X-XSS-Protection'] = '1; mode=block'
