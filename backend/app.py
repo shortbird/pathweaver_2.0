@@ -203,11 +203,6 @@ def health_check():
         print(f"[HEALTH CHECK ERROR] {str(e)}")
         return jsonify({'status': 'unhealthy', 'error': str(e)}), 503
 
-@app.route('/')
-def root():
-    """Root endpoint for basic connectivity test"""
-    return jsonify({'message': 'Optio Quest Platform API', 'status': 'running'}), 200
-
 @app.route('/api/cors-test')
 def cors_test():
     """Simple endpoint to test CORS"""
