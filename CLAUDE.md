@@ -502,6 +502,13 @@ The interactive demo feature at `/demo` route has been fully implemented with th
 
 The demo is production-ready but will show broken images until placeholder images are added.
 
+### Railway Deployment Fix (2025-08-30)
+
+**Fixed Railway Deployment Failure:**
+- Changed `python-magic-bin==0.4.14` to `python-magic==0.4.27` in requirements.txt
+- `python-magic-bin` is Windows-specific and doesn't exist in Railway's Linux environment
+- `python-magic` is the correct cross-platform package for file type validation
+
 ### Recent Security Updates (2025-08-30)
 
 **Critical Security Fixes Applied:**
