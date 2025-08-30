@@ -11,7 +11,6 @@ from routes.settings import settings_bp
 # Import V3 routes
 from routes import quests_v3, tasks, collaborations, learning_logs_v3, admin_v3
 
-from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
 
@@ -40,10 +39,10 @@ security_middleware.init_app(app)
 # Individual routes can enable it as needed
 # init_csrf(app)  # Uncomment to enable CSRF globally
 
-# Configure CORS with proper settings - MUST come before error handler
-configure_cors(app)
+# Note: CORS is now handled by the after_request handler below
+# Removed Flask-CORS to avoid conflicts
 
-# Configure error handling middleware - MUST come after CORS
+# Configure error handling middleware
 error_handler.init_app(app)
 
 # Register existing routes (will be deprecated)
@@ -125,7 +124,7 @@ def after_request(response):
     """Add CORS headers to all responses"""
     origin = request.headers.get('Origin')
     
-    # List of allowed origins (same as in cors_config.py)
+    # List of allowed origins
     allowed_origins = [
         'https://pathweaver-2-0.vercel.app',
         'https://pathweaver20-production.up.railway.app',
@@ -152,12 +151,19 @@ def after_request(response):
             'http://127.0.0.1:5173'
         ])
     
-    # Only set the origin if it's in our allowed list
-    if origin in allowed_origins:
+    # Debug logging
+    print(f"CORS Debug - Origin: {origin}, Path: {request.path}, Method: {request.method}")
+    
+    # Set CORS headers for allowed origins
+    if origin and origin in allowed_origins:
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
         response.headers['Access-Control-Max-Age'] = '86400'
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        print(f"CORS headers added for {origin}")
+    else:
+        print(f"CORS headers NOT added - origin {origin} not in allowed list")
     
     return response
 
