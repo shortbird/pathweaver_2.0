@@ -173,7 +173,13 @@ def root():
 
 @app.route('/api/health')
 def health_check():
-    return jsonify({'status': 'healthy'}), 200
+    """Simple health check endpoint that Railway will hit"""
+    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()}), 200
+
+@app.route('/')
+def root():
+    """Root endpoint for basic connectivity test"""
+    return jsonify({'message': 'Optio Quest Platform API', 'status': 'running'}), 200
 
 @app.route('/api/cors-test')
 def cors_test():
