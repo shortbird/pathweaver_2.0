@@ -1,1 +1,1 @@
-web: cd backend && gunicorn app_wrapper:application --bind 0.0.0.0:$PORT --workers 1 --timeout 30 --log-level info --access-logfile - --error-logfile -
+web: cd backend && gunicorn app_wrapper:application -c gunicorn_config.py

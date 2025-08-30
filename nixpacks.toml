@@ -5,4 +5,4 @@ nixPkgs = ["python311"]
 cmds = ["pip install -r requirements.txt"]
 
 [start]
-cmd = "cd backend && gunicorn app_wrapper:application --bind 0.0.0.0:${PORT:-8080} --workers 1 --timeout 30 --log-level info --access-logfile - --error-logfile -"
+cmd = "cd backend && gunicorn app_wrapper:application -c gunicorn_config.py"
