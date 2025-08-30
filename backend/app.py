@@ -41,10 +41,19 @@ def get_settings():
         }
     })
 
-# Simple CORS for emergency
+# CORS configuration for production domains
 @app.after_request
 def add_cors_headers(response):
-    response.headers['Access-Control-Allow-Origin'] = 'https://optioeducation.com'
+    from flask import request
+    origin = request.headers.get('Origin')
+    allowed_origins = [
+        'https://optioeducation.com',
+        'https://www.optioeducation.com',
+        'https://pathweaver-2-0.vercel.app'
+    ]
+    
+    if origin in allowed_origins:
+        response.headers['Access-Control-Allow-Origin'] = origin
     response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
     response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
     response.headers['Access-Control-Allow-Credentials'] = 'true'
@@ -54,8 +63,16 @@ def add_cors_headers(response):
 def handle_preflight():
     from flask import request
     if request.method == "OPTIONS":
+        origin = request.headers.get('Origin')
+        allowed_origins = [
+            'https://optioeducation.com',
+            'https://www.optioeducation.com',
+            'https://pathweaver-2-0.vercel.app'
+        ]
+        
         response = jsonify({})
-        response.headers['Access-Control-Allow-Origin'] = 'https://optioeducation.com'
+        if origin in allowed_origins:
+            response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
         response.headers['Access-Control-Allow-Credentials'] = 'true'
