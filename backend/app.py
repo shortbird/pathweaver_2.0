@@ -59,7 +59,14 @@ ALLOWED_ORIGINS = [
 
 # Add environment-specific origins
 if os.getenv('FRONTEND_URL'):
-    ALLOWED_ORIGINS.append(os.getenv('FRONTEND_URL'))
+    frontend_url = os.getenv('FRONTEND_URL')
+    if frontend_url not in ALLOWED_ORIGINS:
+        ALLOWED_ORIGINS.append(frontend_url)
+    # Also add www version if it's not already there
+    if frontend_url.startswith('https://') and not frontend_url.startswith('https://www.'):
+        www_version = frontend_url.replace('https://', 'https://www.')
+        if www_version not in ALLOWED_ORIGINS:
+            ALLOWED_ORIGINS.append(www_version)
 
 # Add localhost in development
 if os.getenv('FLASK_ENV', 'production').lower() == 'development':
@@ -76,11 +83,16 @@ if os.getenv('FLASK_ENV', 'production').lower() == 'development':
         'http://127.0.0.1:5173'
     ])
 
+# Remove duplicates while preserving order
+ALLOWED_ORIGINS = list(dict.fromkeys(ALLOWED_ORIGINS))
+
 # Startup diagnostics
 print("=" * 60)
 print("APP STARTUP DIAGNOSTICS")
 print("=" * 60)
+print(f"CORS: Total allowed origins: {len(ALLOWED_ORIGINS)}")
 print(f"CORS: Allowed origins: {ALLOWED_ORIGINS}")
+print(f"CORS: www.optioeducation.com in list: {'https://www.optioeducation.com' in ALLOWED_ORIGINS}")
 print(f"PORT from environment: {os.getenv('PORT', 'Not set')}")
 print(f"Railway environment: {os.getenv('RAILWAY_ENVIRONMENT', 'Not on Railway')}")
 print(f"Railway static URL: {os.getenv('RAILWAY_STATIC_URL', 'Not set')}")
@@ -98,7 +110,17 @@ def handle_cors_preflight():
     # For OPTIONS requests, return early with CORS headers
     if request.method == 'OPTIONS':
         response = make_response()
-        if origin in ALLOWED_ORIGINS:
+        is_allowed = False
+        if origin:
+            is_allowed = origin in ALLOWED_ORIGINS
+            # Also check without trailing slash
+            if not is_allowed and origin.endswith('/'):
+                is_allowed = origin[:-1] in ALLOWED_ORIGINS
+            # Also check with trailing slash
+            if not is_allowed and not origin.endswith('/'):
+                is_allowed = (origin + '/') in ALLOWED_ORIGINS
+        
+        if is_allowed:
             response.headers['Access-Control-Allow-Origin'] = origin
             response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
             response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
@@ -107,6 +129,7 @@ def handle_cors_preflight():
             print(f"[OPTIONS] CORS headers added for {origin}")
         else:
             print(f"[OPTIONS] Origin {origin} not in allowed list")
+            print(f"[OPTIONS] Allowed origins: {ALLOWED_ORIGINS[:3]}... (showing first 3)")
         return response
 
 # Add CORS headers to all responses
@@ -114,9 +137,21 @@ def handle_cors_preflight():
 def add_cors_headers(response):
     """Add CORS headers to all responses"""
     origin = request.headers.get('Origin')
-    print(f"CORS Debug - Request from origin: {origin}, Path: {request.path}, Method: {request.method}")
     
-    if origin in ALLOWED_ORIGINS:
+    # Check if origin is in allowed list
+    is_allowed = False
+    if origin:
+        is_allowed = origin in ALLOWED_ORIGINS
+        # Also check without trailing slash
+        if not is_allowed and origin.endswith('/'):
+            is_allowed = origin[:-1] in ALLOWED_ORIGINS
+        # Also check with trailing slash
+        if not is_allowed and not origin.endswith('/'):
+            is_allowed = (origin + '/') in ALLOWED_ORIGINS
+    
+    print(f"CORS Debug - Origin: {origin}, Allowed: {is_allowed}, Path: {request.path}")
+    
+    if is_allowed:
         response.headers['Access-Control-Allow-Origin'] = origin
         response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, Accept'
         response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
@@ -125,7 +160,14 @@ def add_cors_headers(response):
         print(f"CORS headers added for {origin}")
     else:
         print(f"CORS headers NOT added - origin '{origin}' not in allowed list")
-        print(f"Allowed origins: {ALLOWED_ORIGINS}")
+        if origin:
+            print(f"Origin: '{origin}' (length: {len(origin)})")
+            # Check if any allowed origin is similar
+            for allowed in ALLOWED_ORIGINS:
+                if origin.lower() == allowed.lower():
+                    print(f"  Note: Case mismatch with '{allowed}'")
+                elif origin.replace('www.', '') == allowed.replace('www.', ''):
+                    print(f"  Note: www mismatch with '{allowed}'")
     
     return response
 

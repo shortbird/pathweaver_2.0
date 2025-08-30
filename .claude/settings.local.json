@@ -53,7 +53,8 @@
       "Bash(del __pycache__cors_config.cpython-313.pyc)",
       "Bash(del nixpacks.toml)",
       "Bash(chcp:*)",
-      "Bash(set TEMP_USE_SERVICE_ROLE=true)"
+      "Bash(set TEMP_USE_SERVICE_ROLE=true)",
+      "Bash(set FRONTEND_URL=https://optioeducation.com)"
     ],
     "deny": [],
     "ask": []
