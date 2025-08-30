@@ -25,6 +25,22 @@ def health_check():
 def test():
     return jsonify({'message': 'Emergency backend responding'})
 
+# Essential settings endpoint - no auth required
+@app.route('/api/settings', methods=['GET'])
+def get_settings():
+    return jsonify({
+        'success': True,
+        'settings': {
+            'site_name': 'Optio Quest Platform',
+            'maintenance_mode': False,
+            'version': '2.0.0',
+            'features': {
+                'registration_enabled': True,
+                'demo_mode': False
+            }
+        }
+    })
+
 # Simple CORS for emergency
 @app.after_request
 def add_cors_headers(response):
