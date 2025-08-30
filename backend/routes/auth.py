@@ -10,7 +10,7 @@ from legal_versions import CURRENT_TOS_VERSION, CURRENT_PRIVACY_POLICY_VERSION
 import re
 import os
 
-bp = Blueprint('auth', __name__)
+auth_auth_bp = Blueprint('auth', __name__)
 
 def generate_portfolio_slug(first_name, last_name):
     """Generate a unique portfolio slug from first and last name"""
@@ -82,7 +82,7 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
         print(f"Error ensuring diploma and skills: {str(e)}")
         # Don't fail registration if this fails - the database trigger should handle it
 
-@bp.route('/register', methods=['POST'])
+@auth_bp.route('/register', methods=['POST'])
 @rate_limit(max_requests=5, window_seconds=300)  # 5 registrations per 5 minutes
 def register():
     try:
@@ -238,7 +238,7 @@ def register():
             print(f"Registration error: {str(e)}")
         raise ExternalServiceError('Supabase', 'Registration service is currently unavailable. Please try again later.', e)
 
-@bp.route('/login', methods=['POST'])
+@auth_bp.route('/login', methods=['POST'])
 @rate_limit(max_requests=5, window_seconds=60)  # 5 login attempts per minute
 def login():
     data = request.json
@@ -392,7 +392,7 @@ def login():
             # Generic error but still informative
             return jsonify({'error': 'Login failed. Please try again or contact support if the problem persists.'}), 400
 
-@bp.route('/logout', methods=['POST'])
+@auth_bp.route('/logout', methods=['POST'])
 def logout():
     # Get token from cookie or header
     token = request.cookies.get('access_token')
@@ -413,7 +413,7 @@ def logout():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-@bp.route('/refresh', methods=['POST'])
+@auth_bp.route('/refresh', methods=['POST'])
 def refresh_token():
     data = request.json
     refresh_token = data.get('refresh_token')
@@ -436,7 +436,7 @@ def refresh_token():
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
-@bp.route('/resend-verification', methods=['POST'])
+@auth_bp.route('/resend-verification', methods=['POST'])
 @rate_limit(max_requests=3, window_seconds=600)  # 3 resends per 10 minutes
 def resend_verification():
     """Resend verification email to user"""
@@ -479,7 +479,7 @@ def resend_verification():
         print(f"[RESEND_VERIFICATION] Error: {str(e)}")
         return jsonify({'error': 'Failed to resend verification email'}), 500
 
-@bp.route('/check-tos-acceptance', methods=['GET'])
+@auth_bp.route('/check-tos-acceptance', methods=['GET'])
 def check_tos_acceptance():
     """Check if the current user has accepted the latest ToS and Privacy Policy"""
     try:
@@ -543,7 +543,7 @@ def check_tos_acceptance():
         print(f"[CHECK_TOS] Error: {str(e)}")
         return jsonify({'error': 'Failed to check ToS acceptance status'}), 500
 
-@bp.route('/accept-tos', methods=['POST'])
+@auth_bp.route('/accept-tos', methods=['POST'])
 @rate_limit(max_requests=10, window_seconds=60)
 def accept_tos():
     """Accept the current Terms of Service and Privacy Policy"""
