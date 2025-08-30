@@ -54,7 +54,10 @@
       "Bash(del nixpacks.toml)",
       "Bash(chcp:*)",
       "Bash(set TEMP_USE_SERVICE_ROLE=true)",
-      "Bash(set FRONTEND_URL=https://optioeducation.com)"
+      "Bash(set FRONTEND_URL=https://optioeducation.com)",
+      "Bash(railway status:*)",
+      "Bash(railway login:*)",
+      "Bash(pkill:*)"
     ],
     "deny": [],
     "ask": []
