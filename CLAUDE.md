@@ -12,7 +12,7 @@
 - Must be well-designed and reflect the Optio brand positively
 - This is often the first exposure to the brand - must clearly communicate self-validated diploma value
 - If you identify discrepancies with production code and this CLAUDE.md file, update this file. Specifically focus on keeping the database schema up to date.
-- Update CLAUDE.md before committing & pushing updates
+- Update CLAUDE.md before committing & pushing updates. Focus on keeping accurate information.
 
 ## Project Overview
 
@@ -502,16 +502,19 @@ The interactive demo feature at `/demo` route has been fully implemented with th
 
 The demo is production-ready but will show broken images until placeholder images are added.
 
-### CORS Fix for Production Domains (2025-08-30)
+### CORS Fix for Production Domains and Dynamic Ports (2025-08-30)
 
-**Fixed CORS Issues for optioeducation.com:**
+**Fixed CORS Issues for optioeducation.com and dynamic development ports:**
 - Removed conflicting duplicate CORS configuration (after_request handler vs Flask-CORS)
 - Properly integrated Flask-CORS via cors_config.py module
 - CORS configuration now centralized in cors_config.py
 - Ensured www.optioeducation.com and optioeducation.com are in allowed origins
+- Added support for dynamic development ports (3000, 3001, 3002, 3003, 5173)
+- Fixed app.py hardcoded CORS list to include all development ports
 - Enabled credentials support for authentication cookies
 - Added Accept header to allowed headers list
 - Fixes both preflight and actual request CORS issues
+- Production frontend URL configured in .env.production file
 
 ### Railway Deployment Fix (2025-08-30)
 

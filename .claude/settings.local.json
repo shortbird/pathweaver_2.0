@@ -48,7 +48,9 @@
       "Bash(npm outdated)",
       "Bash(npm uninstall:*)",
       "Bash(find:*)",
-      "Bash(pip freeze)"
+      "Bash(pip freeze)",
+      "Bash(set FLASK_DEBUG=1)",
+      "Bash(del __pycache__cors_config.cpython-313.pyc)"
     ],
     "deny": [],
     "ask": []
