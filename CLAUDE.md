@@ -505,11 +505,12 @@ The demo is production-ready but will show broken images until placeholder image
 ### CORS Fix for Production Domains (2025-08-30)
 
 **Fixed CORS Issues for optioeducation.com:**
-- Updated OPTIONS preflight handler in app.py to properly handle CORS headers
+- Changed from @before_request OPTIONS handler to @after_request for all responses
+- CORS headers now added to ALL responses, not just OPTIONS preflight requests
 - Changed from wildcard (*) to explicit allowed origins list
 - Ensured www.optioeducation.com and optioeducation.com are in allowed origins
-- Fixed preflight requests to return proper Access-Control-Allow-Origin header
 - CORS now properly validates origin against whitelist before setting headers
+- Fixes both preflight and actual request CORS issues
 
 ### Railway Deployment Fix (2025-08-30)
 

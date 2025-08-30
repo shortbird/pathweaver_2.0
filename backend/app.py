@@ -120,49 +120,46 @@ def test_config():
     
     return jsonify(config_status), 200
 
-@app.before_request
-def handle_preflight():
-    if request.method == "OPTIONS":
-        # Get the origin from the request
-        origin = request.headers.get('Origin')
-        
-        # List of allowed origins (same as in cors_config.py)
-        allowed_origins = [
-            'https://pathweaver-2-0.vercel.app',
-            'https://pathweaver20-production.up.railway.app',
-            'https://optioed.org',
-            'https://www.optioed.org',
-            'https://optioeducation.com',
-            'https://www.optioeducation.com',
-            'https://optioed.com',
-            'https://www.optioed.com'
-        ]
-        
-        # Add FRONTEND_URL from environment if available
-        if os.getenv('FRONTEND_URL'):
-            allowed_origins.append(os.getenv('FRONTEND_URL'))
-        
-        # Also allow localhost in development
-        if os.getenv('FLASK_ENV', 'production').lower() == 'development':
-            allowed_origins.extend([
-                'http://localhost:3000',
-                'http://localhost:3001',
-                'http://localhost:5173',
-                'http://127.0.0.1:3000',
-                'http://127.0.0.1:3001',
-                'http://127.0.0.1:5173'
-            ])
-        
-        response = make_response()
-        
-        # Only set the origin if it's in our allowed list
-        if origin in allowed_origins:
-            response.headers.add("Access-Control-Allow-Origin", origin)
-            response.headers.add('Access-Control-Allow-Headers', "Content-Type, Authorization, X-Requested-With")
-            response.headers.add('Access-Control-Allow-Methods', "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-            response.headers.add('Access-Control-Max-Age', '86400')
-        
-        return response
+@app.after_request
+def after_request(response):
+    """Add CORS headers to all responses"""
+    origin = request.headers.get('Origin')
+    
+    # List of allowed origins (same as in cors_config.py)
+    allowed_origins = [
+        'https://pathweaver-2-0.vercel.app',
+        'https://pathweaver20-production.up.railway.app',
+        'https://optioed.org',
+        'https://www.optioed.org',
+        'https://optioeducation.com',
+        'https://www.optioeducation.com',
+        'https://optioed.com',
+        'https://www.optioed.com'
+    ]
+    
+    # Add FRONTEND_URL from environment if available
+    if os.getenv('FRONTEND_URL'):
+        allowed_origins.append(os.getenv('FRONTEND_URL'))
+    
+    # Also allow localhost in development
+    if os.getenv('FLASK_ENV', 'production').lower() == 'development':
+        allowed_origins.extend([
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'http://localhost:5173',
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:3001',
+            'http://127.0.0.1:5173'
+        ])
+    
+    # Only set the origin if it's in our allowed list
+    if origin in allowed_origins:
+        response.headers['Access-Control-Allow-Origin'] = origin
+        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With'
+        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH'
+        response.headers['Access-Control-Max-Age'] = '86400'
+    
+    return response
 
 # Error handlers are now managed by error_handler middleware
 
