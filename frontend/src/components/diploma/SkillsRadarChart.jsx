@@ -2,6 +2,15 @@ import React from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
 const SkillsRadarChart = ({ skillsXP }) => {
+  // Reordered for better visual balance - alternating between high and low values
+  const competencyOrder = [
+    'creativity',
+    'practical_skills', 
+    'critical_thinking',
+    'cultural_literacy',
+    'communication'
+  ];
+  
   const competencyInfo = {
     creativity: {
       label: 'Creativity',
@@ -36,10 +45,12 @@ const SkillsRadarChart = ({ skillsXP }) => {
   };
 
   const totalXP = Object.values(skillsXP || {}).reduce((sum, xp) => sum + xp, 0);
-  const maxXP = Math.max(...Object.values(skillsXP || {}), 1000);
+  // Scale to highest XP + 250 buffer for better visualization
+  const highestXP = Math.max(...Object.values(skillsXP || {}), 0);
+  const maxXP = highestXP > 0 ? highestXP + 250 : 1000;
 
-  // Prepare data for radar chart
-  const radarData = Object.keys(competencyInfo).map(key => ({
+  // Prepare data for radar chart using the reordered sequence
+  const radarData = competencyOrder.map(key => ({
     competency: competencyInfo[key].label,
     value: skillsXP[key] || 0,
     fullMark: maxXP
@@ -108,14 +119,15 @@ const SkillsRadarChart = ({ skillsXP }) => {
               />
               <PolarAngleAxis 
                 dataKey="competency" 
-                tick={{ fill: '#374151', fontSize: 12 }}
-                className="font-medium"
+                tick={{ fill: '#374151', fontSize: 14, fontWeight: 600 }}
+                className="font-semibold"
               />
               <PolarRadiusAxis 
                 angle={90}
                 domain={[0, maxXP]}
-                tick={{ fill: '#9ca3af', fontSize: 10 }}
+                tick={{ fill: '#9ca3af', fontSize: 11 }}
                 tickFormatter={(value) => value >= 1000 ? `${value/1000}k` : value}
+                tickCount={6}
               />
               <Radar 
                 name="XP" 
@@ -141,7 +153,8 @@ const SkillsRadarChart = ({ skillsXP }) => {
           <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-4">
             Competency Breakdown
           </h3>
-          {Object.entries(competencyInfo).map(([key, info]) => {
+          {competencyOrder.map(key => {
+            const info = competencyInfo[key];
             const xp = skillsXP[key] || 0;
             const percentage = maxXP > 0 ? (xp / maxXP) * 100 : 0;
             

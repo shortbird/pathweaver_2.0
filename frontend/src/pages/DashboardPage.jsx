@@ -303,7 +303,7 @@ const DashboardPage = () => {
 
   // Transform skill XP data for charts using memoization
   // IMPORTANT: All hooks must be called before any conditional returns
-  const { skillXPData, totalXP } = useMemo(() => {
+  const { skillXPData, totalXP, maxCategoryXP } = useMemo(() => {
     // Start with all categories initialized to 0
     const xpByCategory = {}
     Object.keys(skillCategoryNames).forEach(key => {
@@ -311,6 +311,7 @@ const DashboardPage = () => {
     })
     
     let totalXP = 0
+    let maxCategoryXP = 0
     let dataSource = null
     
     console.log('=== DASHBOARD XP PROCESSING ===')
@@ -359,17 +360,21 @@ const DashboardPage = () => {
       }
     }
     
+    // Calculate max XP for scaling
+    maxCategoryXP = Math.max(...Object.values(xpByCategory), 100)
+    
     // Convert to chart data format - include ALL categories
     const skillXPData = Object.entries(xpByCategory).map(([category, xp]) => ({
       category: skillCategoryNames[category] || category,
       xp: xp,
-      fullMark: 1000
+      fullMark: maxCategoryXP + 100  // Add buffer for better visualization
     }))
     
     console.log('Final skillXPData:', skillXPData)
     console.log('Total XP:', totalXP)
+    console.log('Max Category XP:', maxCategoryXP)
     
-    return { skillXPData, totalXP }
+    return { skillXPData, totalXP, maxCategoryXP }
   }, [dashboardData, portfolioData, skillCategoryNames])
 
   // Get least developed skills for recommendations
@@ -499,6 +504,7 @@ const DashboardPage = () => {
                 />
                 <YAxis 
                   tick={{ fontSize: 12, fill: '#374151' }}
+                  domain={[0, maxCategoryXP + 100]}
                   label={{ value: 'XP', angle: -90, position: 'insideLeft', style: { fontSize: 14, fill: '#374151', fontWeight: 500 } }}
                 />
                 <Tooltip 
@@ -530,7 +536,7 @@ const DashboardPage = () => {
                 />
                 <PolarRadiusAxis 
                   angle={90} 
-                  domain={[0, 'dataMax + 100']} 
+                  domain={[0, maxCategoryXP + 100]} 
                   tick={false}
                   axisLine={false}
                 />
