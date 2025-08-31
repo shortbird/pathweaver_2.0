@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
@@ -8,6 +8,7 @@ const Layout = () => {
   const navigate = useNavigate()
   const [portfolioSlug, setPortfolioSlug] = React.useState(null)
   const [siteSettings, setSiteSettings] = React.useState(null)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   const handleLogout = async () => {
     await logout()
@@ -130,8 +131,24 @@ const Layout = () => {
             </div>
             
             <div className="flex items-center">
+              {/* Mobile menu button */}
+              {isAuthenticated && (
+                <button
+                  className="sm:hidden p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                >
+                  <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {mobileMenuOpen ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                    )}
+                  </svg>
+                </button>
+              )}
+              
               {isAuthenticated ? (
-                <div className="flex items-center space-x-4">
+                <div className="hidden sm:flex items-center space-x-4">
                   <Link
                     to="/profile"
                     className="text-sm font-medium text-text-secondary hover:text-primary transition-colors"
@@ -167,6 +184,69 @@ const Layout = () => {
             </div>
           </div>
         </div>
+        
+        {/* Mobile menu dropdown */}
+        {isAuthenticated && mobileMenuOpen && (
+          <div className="sm:hidden border-t border-gray-200">
+            <div className="pt-2 pb-3 space-y-1">
+              <Link
+                to="/dashboard"
+                className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Dashboard
+              </Link>
+              <Link
+                to="/quests"
+                className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Quests
+              </Link>
+              <Link
+                to="/friends"
+                className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Friends
+              </Link>
+              <Link
+                to="/diploma"
+                className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                My Diploma
+              </Link>
+              {user?.role === 'admin' && (
+                <Link
+                  to="/admin"
+                  className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Admin
+                </Link>
+              )}
+              <div className="border-t border-gray-200 mt-2 pt-2">
+                <Link
+                  to="/profile"
+                  className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  {user?.first_name} {user?.last_name}
+                </Link>
+                <button
+                  onClick={() => {
+                    handleLogout()
+                    setMobileMenuOpen(false)
+                  }}
+                  className="block w-full text-left px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </nav>
       
       <main className="flex-1">
