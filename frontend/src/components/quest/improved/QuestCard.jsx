@@ -85,17 +85,32 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
           </div>
         </div>
 
-        {/* Tags Row - Simplified */}
-        <div className="flex items-center gap-2 mb-5">
-          {/* XP Badge - More prominent */}
-          <div className={`px-3 py-1 rounded-full bg-gradient-to-r ${pillarColors[dominantPillar].gradient} text-white text-sm font-semibold`}>
-            {totalXP} XP
+        {/* Pillars with XP - Show all pillars */}
+        <div className="mb-5">
+          {/* Total XP Badge */}
+          <div className="flex items-center gap-2 mb-3">
+            <div className={`px-3 py-1.5 rounded-full bg-gradient-to-r ${pillarColors[dominantPillar].gradient} text-white text-sm font-bold shadow-md`}>
+              {totalXP} Total XP
+            </div>
           </div>
           
-          {/* Main Pillar Badge */}
-          <div className={`px-3 py-1 rounded-full ${pillarColors[dominantPillar].bg} ${pillarColors[dominantPillar].text} text-xs font-medium capitalize`}>
-            {dominantPillar.replace('_', ' ')}
-          </div>
+          {/* Individual Pillar XP Breakdown */}
+          {Object.keys(pillarBreakdown).length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {Object.entries(pillarBreakdown)
+                .filter(([_, xp]) => xp > 0)
+                .sort(([_, a], [__, b]) => b - a)
+                .map(([pillar, xp]) => (
+                  <div 
+                    key={pillar}
+                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${pillarColors[pillar]?.bg || 'bg-gray-100'} ${pillarColors[pillar]?.text || 'text-gray-700'} text-xs font-medium`}
+                  >
+                    <span className="capitalize">{pillar.replace('_', ' ')}</span>
+                    <span className="font-bold">+{xp}</span>
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
 
         {/* Action Buttons - Cleaner design */}

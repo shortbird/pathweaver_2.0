@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import EvidenceUploader from '../evidence/EvidenceUploader';
+import ImprovedEvidenceUploader from '../evidence/ImprovedEvidenceUploader';
 import { handleApiResponse } from '../../utils/errorHandling';
 
 const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
@@ -32,7 +32,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
       } else if (evidenceType === 'link') {
         formData.append('text_content', evidenceData.url);
         formData.append('link_title', evidenceData.title || '');
-      } else if (evidenceType === 'image') {
+      } else if (['image', 'video', 'document'].includes(evidenceType)) {
         if (evidenceData.file) {
           formData.append('file', evidenceData.file);
         } else {
@@ -134,63 +134,14 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
             )}
           </div>
 
-          {/* Evidence Type Selection */}
+          {/* Evidence Upload Component with integrated type selector */}
           <div className="mb-6">
-            <label className="block text-sm font-medium text-gray-700 mb-3">
-              How will you verify you completed this task?
-            </label>
-            <div className="grid grid-cols-3 gap-2">
-              <button
-                onClick={() => setEvidenceType('text')}
-                className={`p-3 rounded-lg border-2 transition-all ${
-                  evidenceType === 'text'
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <svg className="w-6 h-6 mx-auto mb-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h8a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 0h8v12H6V4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-xs">Text</span>
-              </button>
-
-              <button
-                onClick={() => setEvidenceType('link')}
-                className={`p-3 rounded-lg border-2 transition-all ${
-                  evidenceType === 'link'
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <svg className="w-6 h-6 mx-auto mb-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5zm-5 5a2 2 0 012.828 0 1 1 0 101.414-1.414 4 4 0 00-5.656 0l-3 3a4 4 0 105.656 5.656l1.5-1.5a1 1 0 10-1.414-1.414l-1.5 1.5a2 2 0 11-2.828-2.828l3-3z" clipRule="evenodd" />
-                </svg>
-                <span className="text-xs">Link</span>
-              </button>
-
-              <button
-                onClick={() => setEvidenceType('image')}
-                className={`p-3 rounded-lg border-2 transition-all ${
-                  evidenceType === 'image'
-                    ? 'border-blue-500 bg-blue-50 text-blue-700'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <svg className="w-6 h-6 mx-auto mb-1" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
-                </svg>
-                <span className="text-xs">Image</span>
-              </button>
-
-            </div>
-          </div>
-
-          {/* Evidence Upload Component */}
-          <div className="mb-6">
-            <EvidenceUploader 
+            <ImprovedEvidenceUploader 
               evidenceType={evidenceType}
               onChange={handleEvidenceChange}
+              onTypeChange={setEvidenceType}
               error={error}
+              taskDescription={task.description}
             />
           </div>
 
