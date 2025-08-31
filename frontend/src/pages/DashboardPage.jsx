@@ -49,20 +49,6 @@ const ActiveQuests = memo(({ activeQuests }) => {
                   {quest.quests?.title || 'Untitled Quest'}
                 </h3>
                 <div className="flex items-center gap-3 mt-2">
-                  {quest.quests?.difficulty_level && (
-                    <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                      quest.quests.difficulty_level === 'beginner' ? 'bg-green-100 text-green-700' :
-                      quest.quests.difficulty_level === 'intermediate' ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
-                      {quest.quests.difficulty_level.charAt(0).toUpperCase() + quest.quests.difficulty_level.slice(1)}
-                    </span>
-                  )}
-                  {quest.quests?.estimated_hours && (
-                    <span className="text-xs px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-medium">
-                      ⏱ {quest.quests.estimated_hours}h
-                    </span>
-                  )}
                   <span className="text-xs text-text-muted">
                     Started {quest.started_at ? new Date(quest.started_at).toLocaleDateString() : 'Recently'}
                   </span>
@@ -146,7 +132,7 @@ const RecentCompletions = memo(({ recentTasks }) => {
 })
 
 const DashboardPage = () => {
-  const { user } = useAuth()
+  const { user, loginTimestamp } = useAuth()
   const [dashboardData, setDashboardData] = useState(null)
   const [portfolioData, setPortfolioData] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -300,10 +286,15 @@ const DashboardPage = () => {
   // useEffect must be called after all other hooks
   useEffect(() => {
     if (user?.id) {
+      // Clear old data when login changes
+      setDashboardData(null)
+      setPortfolioData(null)
+      setLoading(true)
+      
       fetchDashboardData()
       fetchPortfolioData()
     }
-  }, [user?.id, fetchDashboardData, fetchPortfolioData])
+  }, [user?.id, loginTimestamp, fetchDashboardData, fetchPortfolioData])
   
   // Refresh dashboard data every 30 seconds to reflect task completions
   useEffect(() => {

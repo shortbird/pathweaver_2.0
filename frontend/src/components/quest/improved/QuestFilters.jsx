@@ -174,29 +174,6 @@ const FilterContent = ({
           ))}
         </div>
       </div>
-
-      {/* Difficulty Level */}
-      <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Difficulty Level</h3>
-        <div className={`${mobile ? 'grid grid-cols-2 gap-2' : 'flex gap-2'}`}>
-          {difficulties.map(difficulty => (
-            <button
-              key={difficulty.value}
-              onClick={() => onDifficultyChange(difficulty.value)}
-              className={`
-                ${mobile ? 'px-3 py-2' : 'px-4 py-2'} 
-                rounded-lg font-medium transition-all ${buttonClass}
-                ${selectedDifficulty === difficulty.value 
-                  ? difficulty.color || 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }
-              `}
-            >
-              {difficulty.label}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   );
 };

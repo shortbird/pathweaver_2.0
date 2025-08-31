@@ -11,7 +11,7 @@ import Button from '../components/ui/Button';
 import { formatErrorMessage } from '../utils/errorMessages';
 
 const DiplomaPageV3 = () => {
-  const { user } = useAuth();
+  const { user, loginTimestamp } = useAuth();
   const { slug, userId } = useParams();
   const [achievements, setAchievements] = useState([]);
   const [totalXP, setTotalXP] = useState({});
@@ -40,13 +40,18 @@ const DiplomaPageV3 = () => {
       fetchPublicDiplomaByUserId();
     } else if (user) {
       // Authenticated user viewing their own diploma (no params)
+      // Clear old data on login change
+      setAchievements([]);
+      setTotalXP({});
+      setTotalXPCount(0);
+      
       fetchAchievements();
       generateShareableLink();
     } else {
       // No user and no params - show loading
       setIsLoading(true);
     }
-  }, [user, slug, userId]);
+  }, [user, slug, userId, loginTimestamp]);
 
   const fetchPublicDiploma = async () => {
     try {

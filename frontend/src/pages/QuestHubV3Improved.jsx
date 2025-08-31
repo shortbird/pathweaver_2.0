@@ -8,14 +8,13 @@ import { SkeletonCard } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 
 const QuestHubV3Improved = () => {
-  const { user } = useAuth();
+  const { user, loginTimestamp } = useAuth();
   const [quests, setQuests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPillar, setSelectedPillar] = useState('all');
-  const [selectedDifficulty, setSelectedDifficulty] = useState('all');
   const [showTeamUpModal, setShowTeamUpModal] = useState(false);
   const [selectedQuestForTeamUp, setSelectedQuestForTeamUp] = useState(null);
   const [page, setPage] = useState(1);
@@ -40,7 +39,7 @@ const QuestHubV3Improved = () => {
     setQuests([]);
     setPage(1);
     setHasMore(true);
-  }, [searchTerm, selectedPillar, selectedDifficulty]);
+  }, [searchTerm, selectedPillar]);
 
   // Fetch quests
   useEffect(() => {
@@ -49,7 +48,17 @@ const QuestHubV3Improved = () => {
     } else {
       fetchQuests(false);
     }
-  }, [page, searchTerm, selectedPillar, selectedDifficulty]);
+  }, [page, searchTerm, selectedPillar]);
+
+  // Reset and refetch on login change
+  useEffect(() => {
+    if (loginTimestamp) {
+      setQuests([]);
+      setPage(1);
+      setHasMore(true);
+      fetchQuests(true);
+    }
+  }, [loginTimestamp]);
 
   const fetchQuests = async (isInitial = true) => {
     if (isInitial) {
@@ -64,8 +73,7 @@ const QuestHubV3Improved = () => {
         page,
         per_page: 12,
         ...(searchTerm && { search: searchTerm }),
-        ...(selectedPillar !== 'all' && { pillar: selectedPillar }),
-        ...(selectedDifficulty !== 'all' && { difficulty: selectedDifficulty })
+        ...(selectedPillar !== 'all' && { pillar: selectedPillar })
       });
 
       const apiBase = import.meta.env.VITE_API_URL || '/api';
@@ -163,7 +171,7 @@ const QuestHubV3Improved = () => {
         </div>
 
         {/* Featured Section - Only show when not searching */}
-        {!searchTerm && selectedPillar === 'all' && selectedDifficulty === 'all' && featuredQuests.length > 0 && (
+        {!searchTerm && selectedPillar === 'all' && featuredQuests.length > 0 && (
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 mb-4">Featured Quests</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
@@ -189,8 +197,6 @@ const QuestHubV3Improved = () => {
           onSearchChange={setSearchTerm}
           selectedPillar={selectedPillar}
           onPillarChange={setSelectedPillar}
-          selectedDifficulty={selectedDifficulty}
-          onDifficultyChange={setSelectedDifficulty}
           totalResults={totalResults}
         />
 
@@ -223,7 +229,6 @@ const QuestHubV3Improved = () => {
               onClick={() => {
                 setSearchTerm('');
                 setSelectedPillar('all');
-                setSelectedDifficulty('all');
               }}
             >
               Clear Filters

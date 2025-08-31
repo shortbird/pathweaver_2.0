@@ -19,6 +19,7 @@ export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null)
   const [needsTosAcceptance, setNeedsTosAcceptance] = useState(false)
   const [tosCheckLoading, setTosCheckLoading] = useState(false)
+  const [loginTimestamp, setLoginTimestamp] = useState(null)
   const navigate = useNavigate()
 
   // Check if user needs to accept ToS
@@ -51,6 +52,7 @@ export const AuthProvider = ({ children }) => {
       setSession({ access_token: token })
       const parsedUser = JSON.parse(userData)
       setUser(parsedUser)
+      setLoginTimestamp(Date.now()) // Set timestamp when restoring session
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`
       
       // Check ToS acceptance for non-admin users
@@ -69,6 +71,7 @@ export const AuthProvider = ({ children }) => {
       
       setUser(user)
       setSession(session)
+      setLoginTimestamp(Date.now()) // Force refresh of data
       
       localStorage.setItem('access_token', session.access_token)
       localStorage.setItem('refresh_token', session.refresh_token)
@@ -145,6 +148,7 @@ export const AuthProvider = ({ children }) => {
       if (session) {
         setUser(user)
         setSession(session)
+        setLoginTimestamp(Date.now()) // Force refresh of data
         
         localStorage.setItem('access_token', session.access_token)
         localStorage.setItem('refresh_token', session.refresh_token)
@@ -183,6 +187,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setUser(null)
       setSession(null)
+      setLoginTimestamp(null) // Clear timestamp on logout
       
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
@@ -238,6 +243,7 @@ export const AuthProvider = ({ children }) => {
     checkTosAcceptance,
     needsTosAcceptance,
     tosCheckLoading,
+    loginTimestamp, // Expose timestamp to trigger data refresh
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin' || user?.role === 'educator',
     isCreator: user?.subscription_tier === 'creator' || user?.subscription_tier === 'visionary',

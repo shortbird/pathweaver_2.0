@@ -12,8 +12,6 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   const totalXP = quest.total_xp || 0;
   const taskCount = quest.task_count || 0;
   const isEnrolled = quest.user_enrollment;
-  const estimatedTime = quest.estimated_time || '2-3 hours';
-  const difficulty = quest.difficulty || 'intermediate';
 
   // Get dominant pillar for visual accent
   const pillarBreakdown = quest.pillar_breakdown || {};
@@ -28,11 +26,6 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
     cultural_literacy: { gradient: 'from-red-500 to-rose-500', bg: 'bg-red-100', text: 'text-red-700' }
   };
 
-  const difficultyColors = {
-    beginner: { bg: 'bg-green-100', text: 'text-green-700', label: 'Beginner' },
-    intermediate: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Intermediate' },
-    advanced: { bg: 'bg-red-100', text: 'text-red-700', label: 'Advanced' }
-  };
 
   const handleEnroll = async (e) => {
     e.stopPropagation();
@@ -86,13 +79,6 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
         <div className="flex items-center gap-4 mb-4 text-sm">
           <div className="flex items-center gap-1.5">
             <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-gray-600">{estimatedTime}</span>
-          </div>
-          
-          <div className="flex items-center gap-1.5">
-            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
             <span className="text-gray-600">{taskCount} {taskCount === 1 ? 'Task' : 'Tasks'}</span>
@@ -106,11 +92,6 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
             {totalXP} XP
           </div>
           
-          {/* Difficulty Badge */}
-          <div className={`px-3 py-1 rounded-full ${difficultyColors[difficulty].bg} ${difficultyColors[difficulty].text} text-xs font-medium`}>
-            {difficultyColors[difficulty].label}
-          </div>
-
           {/* Main Pillar Badge */}
           <div className={`px-3 py-1 rounded-full ${pillarColors[dominantPillar].bg} ${pillarColors[dominantPillar].text} text-xs font-medium capitalize`}>
             {dominantPillar.replace('_', ' ')}
