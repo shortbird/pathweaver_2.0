@@ -11,7 +11,7 @@ const RegisterPage = () => {
   
   // Password validation checks - Updated to match Supabase requirements
   const passwordChecks = {
-    length: password?.length >= 19,
+    length: password?.length >= 6,
     uppercase: password && /[A-Z]/.test(password),
     lowercase: password && /[a-z]/.test(password),
     number: password && /[0-9]/.test(password)
@@ -108,7 +108,7 @@ const RegisterPage = () => {
                 {...registerField('password', {
                   required: 'Password is required',
                   validate: value => {
-                    if (value.length < 19) return 'Password must be at least 19 characters'
+                    if (value.length < 6) return 'Password must be at least 6 characters'
                     if (!/[A-Z]/.test(value)) return 'Password must contain at least one uppercase letter'
                     if (!/[a-z]/.test(value)) return 'Password must contain at least one lowercase letter'
                     if (!/[0-9]/.test(value)) return 'Password must contain at least one number'
@@ -133,7 +133,7 @@ const RegisterPage = () => {
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                         )}
                       </svg>
-                      At least 19 characters
+                      At least 6 characters
                     </div>
                     <div className={`text-xs flex items-center ${passwordChecks.uppercase ? 'text-green-600' : 'text-gray-400'}`}>
                       <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">

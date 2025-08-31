@@ -123,7 +123,7 @@ class Config:
     MAX_QUEST_XP = 1000
     
     # User Settings - Match Supabase requirements
-    MIN_PASSWORD_LENGTH = 19  # Supabase requirement
+    MIN_PASSWORD_LENGTH = 6  # Supabase requirement
     MAX_PASSWORD_LENGTH = 128
     PASSWORD_REQUIRE_UPPERCASE = True
     PASSWORD_REQUIRE_LOWERCASE = True
