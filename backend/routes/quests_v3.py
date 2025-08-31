@@ -502,7 +502,7 @@ def get_user_completed_quests(user_id: str):
         completed_quests = supabase.table('user_quests')\
             .select('*, quests(*, quest_tasks(*)), user_quest_tasks(*, quest_tasks(*))')\
             .eq('user_id', user_id)\
-            .not_('completed_at', 'is', 'null')\
+            .not_.is_('completed_at', 'null')\
             .order('completed_at', desc=True)\
             .execute()
         

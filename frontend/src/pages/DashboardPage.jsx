@@ -176,29 +176,58 @@ const RecentCompletions = memo(({ recentTasks }) => {
     return <p className="text-gray-600">No completed tasks yet. Keep going!</p>
   }
   
+  const pillarColors = {
+    creativity: { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200' },
+    critical_thinking: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200' },
+    practical_skills: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-200' },
+    communication: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-200' },
+    cultural_literacy: { bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-200' }
+  }
+  
   return (
     <div className="space-y-3">
-      {recentTasks.slice(0, 5).map((task, idx) => (
-        <div
-          key={task.id || idx}
-          className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl border border-purple-100"
-        >
-          <h3 className="font-medium text-sm text-text-primary">{task.task_description || task.description || 'Task completed'}</h3>
-          <p className="text-xs text-text-secondary mt-1">
-            From: {task.quest_title || 'Quest'}
-          </p>
-          <div className="flex gap-2 mt-1">
-            {task.xp_awarded && (
-              <span className="text-xs text-primary font-semibold">
-                +{task.xp_awarded} XP earned
+      {recentTasks.slice(0, 5).map((task, idx) => {
+        const pillarStyle = pillarColors[task.pillar] || { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-200' }
+        
+        return (
+          <div
+            key={task.id || idx}
+            className={`p-4 rounded-xl border ${pillarStyle.bg} ${pillarStyle.border}`}
+          >
+            <div className="flex justify-between items-start">
+              <div className="flex-1">
+                <h3 className="font-medium text-sm text-gray-900">
+                  {task.task_description || task.description || 'Task completed'}
+                </h3>
+                <p className="text-xs text-gray-600 mt-1">
+                  Quest: <span className="font-medium">{task.quest_title || 'Unknown Quest'}</span>
+                </p>
+              </div>
+              {task.pillar && (
+                <span className={`px-2 py-1 text-xs font-medium rounded-full ${pillarStyle.bg} ${pillarStyle.text} ml-2`}>
+                  {task.pillar.replace('_', ' ')}
+                </span>
+              )}
+            </div>
+            
+            <div className="flex items-center gap-3 mt-2">
+              {task.xp_awarded > 0 && (
+                <span className="text-sm font-bold text-green-600">
+                  +{task.xp_awarded} XP
+                </span>
+              )}
+              {task.evidence_type && (
+                <span className="text-xs text-gray-500">
+                  Evidence: {task.evidence_type}
+                </span>
+              )}
+              <span className="text-xs text-gray-500 ml-auto">
+                {task.completed_at ? new Date(task.completed_at).toLocaleDateString() : 'Recently'}
               </span>
-            )}
+            </div>
           </div>
-          <p className="text-xs text-text-muted mt-1">
-            Completed {task.completed_at ? new Date(task.completed_at).toLocaleDateString() : 'Recently'}
-          </p>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 })

@@ -25,8 +25,8 @@ def get_dashboard(user_id):
         # Get active quests
         active_quests = get_active_quests(supabase, user_id)
         
-        # Get recent completions
-        recent_completions = get_recent_completions(supabase, user_id)
+        # Get recent task completions (not quest completions)
+        recent_completions = get_recent_task_completions(supabase, user_id)
         
         # Calculate XP stats
         total_xp, skill_breakdown = calculate_user_xp(supabase, user_id)
@@ -222,6 +222,69 @@ def get_active_quests(supabase, user_id: str) -> list:
                         enrollment['quests'] = {}
                 
                 return active_only
+                
+        except Exception as fallback_error:
+            print(f"Fallback query also failed: {str(fallback_error)}")
+    
+    return []
+
+def get_recent_task_completions(supabase, user_id: str, limit: int = 5) -> list:
+    """Get user's recent task completions with detailed information"""
+    try:
+        # Get recent task completions with quest and task details
+        completions = supabase.table('user_quest_tasks')\
+            .select('*, quest_tasks(title, description, pillar, xp_amount), user_quests(quest_id, quests(title))')\
+            .eq('user_id', user_id)\
+            .order('completed_at', desc=True)\
+            .limit(limit)\
+            .execute()
+        
+        if completions.data:
+            # Format the data for frontend
+            formatted_completions = []
+            for completion in completions.data:
+                task_info = completion.get('quest_tasks', {})
+                quest_info = completion.get('user_quests', {}).get('quests', {}) if completion.get('user_quests') else {}
+                
+                formatted_completions.append({
+                    'id': completion.get('id'),
+                    'task_description': task_info.get('title', 'Task completed'),
+                    'description': task_info.get('description', ''),
+                    'quest_title': quest_info.get('title', 'Unknown Quest'),
+                    'xp_awarded': completion.get('xp_awarded', 0),
+                    'pillar': task_info.get('pillar', 'general'),
+                    'completed_at': completion.get('completed_at'),
+                    'evidence_type': completion.get('evidence_type'),
+                    'evidence_content': completion.get('evidence_content')
+                })
+            
+            return formatted_completions
+            
+    except Exception as e:
+        print(f"Error fetching recent task completions: {str(e)}")
+        
+        # Fallback: try simpler query
+        try:
+            completions = supabase.table('user_quest_tasks')\
+                .select('*, quest_tasks(title, pillar, xp_amount)')\
+                .eq('user_id', user_id)\
+                .order('completed_at', desc=True)\
+                .limit(limit)\
+                .execute()
+            
+            if completions.data:
+                formatted_completions = []
+                for completion in completions.data:
+                    task_info = completion.get('quest_tasks', {})
+                    formatted_completions.append({
+                        'id': completion.get('id'),
+                        'task_description': task_info.get('title', 'Task completed'),
+                        'quest_title': 'Quest',
+                        'xp_awarded': completion.get('xp_awarded', 0),
+                        'pillar': task_info.get('pillar', 'general'),
+                        'completed_at': completion.get('completed_at')
+                    })
+                return formatted_completions
                 
         except Exception as fallback_error:
             print(f"Fallback query also failed: {str(fallback_error)}")
