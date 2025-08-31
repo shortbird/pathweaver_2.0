@@ -424,6 +424,11 @@ python create_sources_table.py
    - Check SUPABASE_URL format
    - Verify service role key for admin operations
 
+6. **XP Not Showing After Task Completion**:
+   - Run `python fix_xp_calculation.py` in backend/ to recalculate XP from task completions
+   - XP is stored in `user_skill_xp` table with columns: `user_id`, `pillar`, `xp_amount`
+   - Enhanced XP service logging helps debug award issues
+
 ## API Response Format
 
 Standard success response:

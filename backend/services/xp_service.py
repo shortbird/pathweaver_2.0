@@ -76,17 +76,37 @@ class XPService:
             
             if current_xp.data:
                 # Update existing XP record - use 'xp_amount' column
-                new_total = current_xp.data[0].get('xp_amount', 0) + xp_amount
-                result = self.supabase.table('user_skill_xp')\
-                    .update({
-                        'xp_amount': new_total,
-                        'updated_at': datetime.utcnow().isoformat()
-                    })\
-                    .eq('user_id', user_id)\
-                    .eq('pillar', pillar)\
-                    .execute()
+                existing_record = current_xp.data[0]
+                existing_xp = existing_record.get('xp_amount', 0)
+                new_total = existing_xp + xp_amount
+                
+                print(f"Updating XP: {existing_xp} + {xp_amount} = {new_total}")
+                
+                # Use the record ID for a more reliable update
+                record_id = existing_record.get('id')
+                if record_id:
+                    result = self.supabase.table('user_skill_xp')\
+                        .update({
+                            'xp_amount': new_total,
+                            'updated_at': datetime.utcnow().isoformat()
+                        })\
+                        .eq('id', record_id)\
+                        .execute()
+                else:
+                    # Fallback to composite key update
+                    result = self.supabase.table('user_skill_xp')\
+                        .update({
+                            'xp_amount': new_total,
+                            'updated_at': datetime.utcnow().isoformat()
+                        })\
+                        .eq('user_id', user_id)\
+                        .eq('pillar', pillar)\
+                        .execute()
+                
+                print(f"Update result: {result.data}")
             else:
                 # Create new XP record - use 'pillar' and 'xp_amount' columns
+                print(f"Creating new XP record for {pillar} with {xp_amount} XP")
                 result = self.supabase.table('user_skill_xp')\
                     .insert({
                         'user_id': user_id,
@@ -95,17 +115,21 @@ class XPService:
                         'updated_at': datetime.utcnow().isoformat()
                     })\
                     .execute()
+                print(f"Insert result: {result.data}")
             
             # Create audit log entry
             self._create_xp_audit_log(user_id, pillar, xp_amount, source)
             
-            print(f"XP award result: {result.data if result.data else 'Failed'}")
+            print(f"XP award success: {bool(result.data)}")
             print("===============================")
             
             return bool(result.data)
             
         except Exception as e:
             print(f"Error awarding XP: {str(e)}")
+            print(f"Error type: {type(e).__name__}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
             return False
     
     def get_user_total_xp(self, user_id: str) -> Dict[str, int]:
