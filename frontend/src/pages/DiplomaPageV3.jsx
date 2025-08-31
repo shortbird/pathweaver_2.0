@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom';
 import api from '../services/api';
 import DiplomaHeader from '../components/diploma/DiplomaHeader';
 import DiplomaStats from '../components/diploma/DiplomaStats';
-import SkillsBreakdown from '../components/diploma/SkillsBreakdown';
+import SkillsRadarChart from '../components/diploma/SkillsRadarChart';
 import AchievementCard from '../components/diploma/AchievementCard';
 import { SkeletonDiplomaHeader, SkeletonStats, SkeletonAchievementGrid } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
@@ -312,8 +312,8 @@ const DiplomaPageV3 = () => {
           achievements={achievements}
         />
 
-        {/* Skills Breakdown */}
-        <SkillsBreakdown skillsXP={totalXP} />
+        {/* Skills Radar Chart */}
+        <SkillsRadarChart skillsXP={totalXP} />
 
         {/* Achievements Section */}
         <div className="mb-8">

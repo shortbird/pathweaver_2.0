@@ -27,7 +27,7 @@ const DiplomaStats = ({ totalXP, questsCompleted, skillsCount, achievements }) =
     {
       value: skillsCount || 5,
       label: 'Core Competencies',
-      sublabel: 'Academic pillars mastered',
+      sublabel: 'Skills demonstrated',
       color: '#ef597b',
       icon: (
         <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">

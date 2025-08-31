@@ -246,7 +246,7 @@ const DiplomaHeader = ({
           {/* Optio Branding */}
           <div className="mb-6">
             <div className="inline-block px-6 py-2 rounded-full bg-white/10 backdrop-blur-sm">
-              <span className="text-sm font-bold tracking-wider uppercase">Optio Education Platform</span>
+              <span className="text-sm font-bold tracking-wider uppercase">Optio Education</span>
             </div>
           </div>
 
@@ -282,7 +282,7 @@ const DiplomaHeader = ({
               <svg className="w-5 h-5 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span className="text-white/90">Verified Achievement</span>
+              <span className="text-white/90">Self-Validated Achievement</span>
             </div>
           </div>
 
