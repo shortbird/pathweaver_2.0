@@ -11,9 +11,8 @@ const CustomizeQuestPage = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    suggested_tasks: [{ title: '', description: '' }],
+    suggested_tasks: [{ title: '', description: '', pillar: 'creativity' }],
     suggested_xp: '',
-    pillar: 'creativity',
     make_public: false
   });
 
@@ -34,7 +33,7 @@ const CustomizeQuestPage = () => {
   const addTask = () => {
     setFormData({
       ...formData,
-      suggested_tasks: [...formData.suggested_tasks, { title: '', description: '' }]
+      suggested_tasks: [...formData.suggested_tasks, { title: '', description: '', pillar: 'creativity' }]
     });
   };
 
@@ -67,7 +66,6 @@ const CustomizeQuestPage = () => {
         description: formData.description,
         suggested_tasks: filteredTasks.length > 0 ? filteredTasks : null,
         suggested_xp: formData.suggested_xp ? parseInt(formData.suggested_xp) : null,
-        pillar: formData.pillar,
         make_public: formData.make_public
       };
 
@@ -166,24 +164,6 @@ const CustomizeQuestPage = () => {
               />
             </div>
 
-            {/* Skill Pillar */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Skill Pillar
-              </label>
-              <select
-                value={formData.pillar}
-                onChange={(e) => setFormData({ ...formData, pillar: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {pillars.map(pillar => (
-                  <option key={pillar.value} value={pillar.value}>
-                    {pillar.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* Suggested Tasks */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -219,8 +199,20 @@ const CustomizeQuestPage = () => {
                     onChange={(e) => handleTaskChange(index, 'description', e.target.value)}
                     placeholder="Task description"
                     rows={2}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 mb-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  <select
+                    value={task.pillar || ''}
+                    onChange={(e) => handleTaskChange(index, 'pillar', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Select skill pillar for this task</option>
+                    {pillars.map(pillar => (
+                      <option key={pillar.value} value={pillar.value}>
+                        {pillar.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               ))}
               

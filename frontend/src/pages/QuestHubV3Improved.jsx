@@ -175,7 +175,7 @@ const QuestHubV3Improved = () => {
           {user ? (
             <Button
               onClick={() => navigate('/quests/customize')}
-              className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white px-6 py-3 rounded-full font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
+              className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white px-6 py-3 rounded-full font-semibold shadow-lg hover:shadow-xl hover:opacity-90 transform hover:-translate-y-0.5 transition-all"
             >
               Customize Your Quest
             </Button>

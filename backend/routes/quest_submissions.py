@@ -29,7 +29,6 @@ def submit_quest(user_id):
             'description': data['description'],
             'suggested_tasks': data.get('suggested_tasks'),
             'suggested_xp': data.get('suggested_xp'),
-            'pillar': data.get('pillar', 'creativity'),
             'make_public': data.get('make_public', False),
             'status': 'pending'
         }
@@ -125,11 +124,10 @@ def approve_submission(submission_id, admin_id):
         if submission['status'] != 'pending':
             return jsonify({'error': 'Submission already processed'}), 400
         
-        # Create the quest
+        # Create the quest (without pillar since it's now per-task)
         quest_data = {
             'title': data.get('title', submission['title']),
             'description': data.get('description', submission['description']),
-            'pillar': data.get('pillar', submission['pillar']),
             'xp_value': data.get('xp_value', submission.get('suggested_xp', 100)),
             'is_active': True,
             'is_v3': True,
@@ -150,7 +148,7 @@ def approve_submission(submission_id, admin_id):
         
         quest_id = quest_result.data[0]['id']
         
-        # Add tasks if provided
+        # Add tasks if provided (now with pillar per task)
         tasks = data.get('tasks', submission.get('suggested_tasks', []))
         if tasks:
             task_data = []
@@ -160,6 +158,7 @@ def approve_submission(submission_id, admin_id):
                         'quest_id': quest_id,
                         'title': task['title'],
                         'description': task.get('description', ''),
+                        'pillar': task.get('pillar', 'creativity'),  # Each task has its own pillar
                         'order_index': i,
                         'is_required': True
                     })

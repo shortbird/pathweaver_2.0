@@ -157,6 +157,7 @@ pw_v2/
 - id (UUID, PK)
 - quest_id
 - title, description
+- pillar (skill category for this task)
 - order_index
 - is_required
 
@@ -196,15 +197,15 @@ pw_v2/
 - id (UUID, PK)
 - user_id (references users(id))
 - title, description
-- suggested_tasks (JSONB)
+- suggested_tasks (JSONB - includes pillar per task)
 - suggested_xp (INTEGER)
-- pillar (TEXT)
 - make_public (BOOLEAN, default false)
 - status (pending/approved/rejected)
 - created_at, reviewed_at
 - reviewed_by (references users(id))
 - approved_quest_id (references quests(id))
 - rejection_reason (TEXT)
+- Note: pillar field removed - now stored per task in suggested_tasks
 
 ### Supporting Tables
 - quest_ratings
