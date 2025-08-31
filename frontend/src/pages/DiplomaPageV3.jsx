@@ -33,12 +33,18 @@ const DiplomaPageV3 = () => {
 
   useEffect(() => {
     if (slug) {
-      // Portfolio route - public access
+      // Portfolio route - public access via slug
       fetchPublicDiploma();
+    } else if (userId) {
+      // Public diploma route via userId
+      fetchPublicDiplomaByUserId();
     } else if (user) {
-      // Authenticated user viewing their own diploma
+      // Authenticated user viewing their own diploma (no params)
       fetchAchievements();
       generateShareableLink();
+    } else {
+      // No user and no params - show loading
+      setIsLoading(true);
     }
   }, [user, slug, userId]);
 
@@ -59,6 +65,27 @@ const DiplomaPageV3 = () => {
     }
   };
 
+  const fetchPublicDiplomaByUserId = async () => {
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const response = await fetch(`${apiBase}/portfolio/diploma/${userId}`);
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch diploma');
+      }
+      
+      const data = await response.json();
+      setDiploma(data);
+    } catch (error) {
+      const errorInfo = formatErrorMessage(
+        error.response?.status === 404 ? 'diploma/not-found' : 'diploma/private'
+      );
+      setError(errorInfo);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const fetchAchievements = async () => {
     try {
       const apiBase = import.meta.env.VITE_API_URL || '/api';
@@ -69,6 +96,14 @@ const DiplomaPageV3 = () => {
       });
 
       if (!response.ok) {
+        // If no achievements, that's okay - show empty state
+        if (response.status === 404) {
+          setAchievements([]);
+          setTotalXP({});
+          setTotalXPCount(0);
+          setIsLoading(false);
+          return;
+        }
         throw new Error('Failed to fetch achievements');
       }
 
@@ -92,6 +127,10 @@ const DiplomaPageV3 = () => {
 
     } catch (error) {
       console.error('Error fetching achievements:', error);
+      // Don't show error for authenticated users, just show empty achievements
+      setAchievements([]);
+      setTotalXP({});
+      setTotalXPCount(0);
     } finally {
       setIsLoading(false);
     }
@@ -121,7 +160,8 @@ const DiplomaPageV3 = () => {
   };
 
   // Determine if current user is the owner
-  const isOwner = user && (user.id === userId || (!slug && !userId));
+  // Owner when: viewing /diploma (no params) OR viewing their own userId
+  const isOwner = user && (!slug && (!userId || user.id === userId));
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {

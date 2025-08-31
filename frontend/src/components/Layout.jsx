@@ -111,14 +111,12 @@ const Layout = () => {
                   >
                     Friends
                   </Link>
-                  {portfolioSlug && (
-                    <Link
-                      to={`/portfolio/${portfolioSlug}`}
-                      className="inline-flex items-center px-1 pt-1 text-sm font-medium text-text-secondary hover:text-primary transition-colors"
-                    >
-                      My Diploma
-                    </Link>
-                  )}
+                  <Link
+                    to="/diploma"
+                    className="inline-flex items-center px-1 pt-1 text-sm font-medium text-text-secondary hover:text-primary transition-colors"
+                  >
+                    My Diploma
+                  </Link>
                   {user?.role === 'admin' && (
                     <Link
                       to="/admin"
