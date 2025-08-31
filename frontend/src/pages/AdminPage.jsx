@@ -691,38 +691,38 @@ const AdminQuests = () => {
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold">Manage Quests</h2>
             <div className="flex gap-2">
-          <button
-            onClick={() => {
-              if (collapsedQuests.size === quests.length) {
-                // All collapsed, so expand all
-                setCollapsedQuests(new Set())
-              } else {
-                // Some or all expanded, so collapse all
-                const allQuestIds = new Set(quests.map(quest => quest.id))
-                setCollapsedQuests(allQuestIds)
-              }
-            }}
-            className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
-          >
+              <button
+                onClick={() => {
+                  if (collapsedQuests.size === quests.length) {
+                    // All collapsed, so expand all
+                    setCollapsedQuests(new Set())
+                  } else {
+                    // Some or all expanded, so collapse all
+                    const allQuestIds = new Set(quests.map(quest => quest.id))
+                    setCollapsedQuests(allQuestIds)
+                  }
+                }}
+                className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
+              >
             {collapsedQuests.size === quests.length ? 'Expand All' : 'Collapse All'}
-          </button>
-          <button
-            onClick={() => setShowSourcesManager(true)}
-            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
-          >
+              </button>
+              <button
+                onClick={() => setShowSourcesManager(true)}
+                className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+              >
             Manage Source Images
-          </button>
-          <button
-            onClick={() => {
-              setEditingQuest(null)
-              setShowManager(true)
-            }}
-            className="btn-primary"
-          >
+              </button>
+              <button
+                onClick={() => {
+                  setEditingQuest(null)
+                  setShowManager(true)
+                }}
+                className="btn-primary"
+              >
             Create Quest
-          </button>
-        </div>
-      </div>
+              </button>
+            </div>
+          </div>
 
 
       {showManager && (
