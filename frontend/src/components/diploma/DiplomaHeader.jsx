@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 // Info Modal Component
 const InfoModal = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [expandedSection, setExpandedSection] = useState('philosophy');
 
   return (
     <>
@@ -19,9 +20,9 @@ const InfoModal = () => {
 
       {/* Modal */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsOpen(false)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm overflow-y-auto" onClick={() => setIsOpen(false)}>
           <div 
-            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 relative"
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 sm:p-8 relative my-8 max-h-[90vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close Button */}
@@ -102,6 +103,42 @@ const InfoModal = () => {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       <span className="text-base text-gray-700">Students build a detailed, evidence-based record of their capabilities</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <h3 className="font-semibold text-xl" style={{ color: '#003f5c' }}>Accountability & Quality</h3>
+                  </div>
+                  <div className="ml-9 space-y-3">
+                    <div className="p-4 bg-orange-50 rounded-lg border border-orange-200">
+                      <p className="text-sm font-medium text-orange-900 mb-2">What prevents gaming the system?</p>
+                      <p className="text-base text-gray-700 leading-relaxed">
+                        <strong>Public accountability.</strong> All evidence submitted becomes part of the student's public portfolio. 
+                        Poor quality work reflects directly on them—this is what employers, colleges, and peers will see.
+                      </p>
+                    </div>
+                    <div className="space-y-2 text-base text-gray-700">
+                      <p className="flex items-start gap-2">
+                        <span className="text-purple-600 mt-1">•</span>
+                        <span>Optio does not verify or validate submissions—the public nature of the portfolio creates natural accountability</span>
+                      </p>
+                      <p className="flex items-start gap-2">
+                        <span className="text-purple-600 mt-1">•</span>
+                        <span>Students motivated by genuine learning will naturally produce quality work they're proud to display</span>
+                      </p>
+                      <p className="flex items-start gap-2">
+                        <span className="text-purple-600 mt-1">•</span>
+                        <span>Blatant system gaming may result in account removal, but authentic effort is self-evident</span>
+                      </p>
+                      <p className="flex items-start gap-2">
+                        <span className="text-purple-600 mt-1">•</span>
+                        <span>The portfolio's value comes from demonstrating real capabilities—shortcuts only diminish their own credential</span>
+                      </p>
                     </div>
                   </div>
                 </div>

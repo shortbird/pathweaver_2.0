@@ -394,7 +394,7 @@ const DashboardPage = () => {
       setLoading(true)
       
       fetchDashboardData()
-      fetchPortfolioData()
+      // Removed fetchPortfolioData() to prevent data conflicts
     }
   }, [user?.id, loginTimestamp, fetchDashboardData, fetchPortfolioData])
   
@@ -404,7 +404,7 @@ const DashboardPage = () => {
     
     const interval = setInterval(() => {
       fetchDashboardData()
-      fetchPortfolioData()
+      // Removed fetchPortfolioData() to prevent data conflicts
     }, 30000) // 30 seconds
     
     return () => clearInterval(interval)
@@ -415,7 +415,7 @@ const DashboardPage = () => {
     const handleTaskComplete = () => {
       // Refresh data when a task is completed
       fetchDashboardData()
-      fetchPortfolioData()
+      // Removed fetchPortfolioData() to prevent data conflicts
     }
     
     // Listen for custom event that could be triggered from task completion

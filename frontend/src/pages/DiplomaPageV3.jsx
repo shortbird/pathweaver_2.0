@@ -318,7 +318,7 @@ const DiplomaPageV3 = () => {
         {/* Achievements Section */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold" style={{ color: '#003f5c' }}>Academic Achievements</h2>
+            <h2 className="text-2xl font-bold" style={{ color: '#003f5c' }}>Life Achievements</h2>
             {achievements.length > 0 && (
               <span className="text-sm text-gray-600">
                 {achievements.length} Validated {achievements.length === 1 ? 'Achievement' : 'Achievements'}
