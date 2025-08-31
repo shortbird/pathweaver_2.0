@@ -1,4 +1,96 @@
-import React from 'react';
+import React, { useState } from 'react';
+
+// Info Modal Component
+const InfoModal = () => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  return (
+    <>
+      {/* Info Icon Button */}
+      <button
+        onClick={() => setIsOpen(true)}
+        className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+        title="What is a Portfolio Diploma?"
+      >
+        <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </button>
+
+      {/* Modal */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm" onClick={() => setIsOpen(false)}>
+          <div 
+            className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-8 relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={() => setIsOpen(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Content */}
+            <div className="prose prose-lg max-w-none">
+              <h2 className="text-2xl font-bold mb-4" style={{ color: '#003f5c' }}>
+                What is a Portfolio Diploma?
+              </h2>
+              
+              <div className="space-y-4 text-gray-700">
+                <p>
+                  A Portfolio Diploma represents a revolutionary approach to education where students receive their diploma on day one, 
+                  not as a reward for completion, but as a <strong>responsibility to make valuable</strong>.
+                </p>
+
+                <div className="bg-gradient-to-r from-purple-50 to-pink-50 p-5 rounded-xl border border-purple-100">
+                  <h3 className="font-semibold text-lg mb-2" style={{ color: '#6d469b' }}>The Philosophy</h3>
+                  <p className="text-sm leading-relaxed">
+                    Traditional education validates learning through institutional approval. The Portfolio Diploma empowers students to 
+                    create their own comprehensive record of learning—one that demonstrates real skills, completed challenges, and 
+                    documented growth in ways that transcend traditional transcripts.
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <h3 className="font-semibold text-lg" style={{ color: '#003f5c' }}>How It Works</h3>
+                  <ul className="space-y-2 text-sm">
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-500 mt-1">✓</span>
+                      <span>Students accept responsibility for their own education from the start</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-500 mt-1">✓</span>
+                      <span>Each completed quest and task adds evidence to their portfolio</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-500 mt-1">✓</span>
+                      <span>The diploma's value grows with each authentic challenge overcome</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-green-500 mt-1">✓</span>
+                      <span>Students build a detailed, evidence-based record of their capabilities</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-sm italic text-blue-900">
+                    "This approach recognizes that true learning happens when students take ownership of their education. 
+                    The portfolio becomes a living document of growth, far more meaningful than any traditional credential."
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
 
 const DiplomaHeader = ({ 
   user, 
@@ -85,10 +177,13 @@ const DiplomaHeader = ({
             </div>
           </div>
 
-          {/* Main Title */}
-          <h1 className="text-5xl font-bold mb-3">
-            Academic Diploma
-          </h1>
+          {/* Main Title with Info Icon */}
+          <div className="flex items-center justify-center gap-3 mb-3">
+            <h1 className="text-5xl font-bold">
+              Portfolio Diploma
+            </h1>
+            <InfoModal />
+          </div>
           
           {/* Student Name */}
           <p className="text-3xl text-white/95 mb-4 font-light">
@@ -98,10 +193,10 @@ const DiplomaHeader = ({
           {/* Certification Line */}
           <div className="mt-6 mb-4">
             <p className="text-lg text-white/80">
-              has successfully completed the requirements for
+              has accepted the responsibility to self-validate their education.
             </p>
-            <p className="text-2xl font-semibold mt-2">
-              Self-Directed Educational Achievement
+            <p className="text-xl font-semibold mt-2 text-white/90">
+              This diploma is a record of their learning journey.
             </p>
           </div>
 
