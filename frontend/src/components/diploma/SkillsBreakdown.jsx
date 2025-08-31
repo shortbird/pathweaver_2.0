@@ -53,36 +53,58 @@ const SkillsBreakdown = ({ skillsXP }) => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {Object.entries(pillarInfo).map(([pillar, info]) => {
           const xp = skillsXP[pillar] || 0;
-          const percentage = totalXP > 0 ? (xp / totalXP) * 100 : 0;
+          const hasXP = xp > 0;
           
           return (
             <div 
               key={pillar}
-              className="group hover:scale-105 transition-transform duration-300"
+              className="group"
             >
-              <div className="bg-gradient-to-br from-gray-50 to-white rounded-lg p-4 border border-gray-100 hover:shadow-md transition-shadow">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <span className="text-2xl">{info.icon}</span>
-                    <div>
-                      <h3 className="font-semibold capitalize text-gray-800">
+              <div className={`relative overflow-hidden rounded-xl border transition-all duration-300 ${
+                hasXP 
+                  ? 'bg-white border-gray-200 hover:shadow-lg hover:border-purple-200' 
+                  : 'bg-gray-50 border-gray-100'
+              }`}>
+                {/* Gradient accent bar at top */}
+                {hasXP && (
+                  <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${info.gradient}`} />
+                )}
+                
+                <div className="p-5 pt-6">
+                  {/* Header with icon and title */}
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className={`p-2 rounded-lg ${
+                      hasXP 
+                        ? `bg-gradient-to-br ${info.gradient} bg-opacity-10` 
+                        : 'bg-gray-100'
+                    }`}>
+                      <span className="text-2xl">{info.icon}</span>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900 capitalize">
                         {pillar.replace('_', ' ')}
                       </h3>
-                      <p className="text-xs text-gray-500">{info.description}</p>
+                      <p className="text-xs text-gray-600 mt-0.5">{info.description}</p>
                     </div>
                   </div>
-                </div>
-                
-                <div className="mt-3">
-                  <div className="flex justify-between items-center mb-1">
-                    <span className="text-sm font-medium text-gray-700">{xp.toLocaleString()} XP</span>
-                    <span className="text-xs text-gray-500">Demonstrated</span>
-                  </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                    <div 
-                      className={`h-full bg-gradient-to-r ${info.gradient} transition-all duration-500`}
-                      style={{ width: `${percentage}%` }}
-                    />
+                  
+                  {/* XP Display */}
+                  <div className="mt-4">
+                    {hasXP ? (
+                      <div className="flex items-baseline justify-between">
+                        <div>
+                          <span className="text-2xl font-bold text-gray-900">{xp.toLocaleString()}</span>
+                          <span className="text-sm text-gray-600 ml-1">XP</span>
+                        </div>
+                        <span className="text-xs font-medium text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                          Validated
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="text-sm text-gray-500">
+                        Not yet demonstrated
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -91,28 +113,34 @@ const SkillsBreakdown = ({ skillsXP }) => {
         })}
       </div>
 
-      {/* Visual Chart Alternative */}
-      <div className="mt-6 p-4 bg-gradient-to-br from-gray-50 to-white rounded-lg">
-        <div className="flex justify-center items-center gap-2 flex-wrap">
-          {Object.entries(skillsXP).map(([pillar, xp]) => {
-            const percentage = totalXP > 0 ? (xp / totalXP) * 100 : 0;
-            const info = pillarInfo[pillar];
-            
-            if (xp === 0) return null;
-            
-            return (
-              <div 
-                key={pillar}
-                className={`px-3 py-1 rounded-full text-white text-xs font-semibold bg-gradient-to-r ${info.gradient}`}
-                style={{ 
-                  minWidth: `${Math.max(percentage, 15)}%`,
-                  opacity: Math.max(0.7, percentage / 100)
-                }}
-              >
-                {pillar.replace('_', ' ')}
-              </div>
-            );
-          })}
+      {/* Summary Section */}
+      <div className="mt-6 p-5 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border border-purple-100">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div>
+            <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-1">Portfolio Value</h3>
+            <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+              {totalXP.toLocaleString()} XP
+            </p>
+            <p className="text-xs text-gray-600 mt-1">Across {Object.values(skillsXP).filter(xp => xp > 0).length} competencies</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {Object.entries(skillsXP).map(([pillar, xp]) => {
+              if (xp === 0) return null;
+              const info = pillarInfo[pillar];
+              
+              return (
+                <div 
+                  key={pillar}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white rounded-full border border-purple-200"
+                >
+                  <span className="text-sm">{info.icon}</span>
+                  <span className="text-xs font-medium text-gray-700 capitalize">
+                    {pillar.replace('_', ' ')}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>
