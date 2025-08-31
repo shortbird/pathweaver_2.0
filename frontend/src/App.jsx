@@ -65,8 +65,8 @@ function App() {
                 <Route path="dashboard" element={<DashboardPage />} />
                 {/* V3 Quest Routes */}
                 <Route path="quests" element={<QuestHubV3 />} />
-                <Route path="quests/:id" element={<QuestDetailV3 />} />
                 <Route path="quests/customize" element={<CustomizeQuestPage />} />
+                <Route path="quests/:id" element={<QuestDetailV3 />} />
                 <Route path="diploma" element={<DiplomaPageV3 />} />
                 {/* Legacy routes - keeping for now */}
                 <Route path="quests-old" element={<QuestsPage />} />
