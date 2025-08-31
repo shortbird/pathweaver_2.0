@@ -724,28 +724,27 @@ const AdminQuests = () => {
             </div>
           </div>
 
+          {showManager && (
+            <AdminQuestManagerV3
+              quest={editingQuest}
+              onClose={() => {
+                setShowManager(false)
+                setEditingQuest(null)
+              }}
+              onSave={handleQuestSave}
+            />
+          )}
 
-      {showManager && (
-        <AdminQuestManagerV3
-          quest={editingQuest}
-          onClose={() => {
-            setShowManager(false)
-            setEditingQuest(null)
-          }}
-          onSave={handleQuestSave}
-        />
-      )}
+          {showSourcesManager && (
+            <SourcesManager
+              onClose={() => setShowSourcesManager(false)}
+            />
+          )}
 
-      {showSourcesManager && (
-        <SourcesManager
-          onClose={() => setShowSourcesManager(false)}
-        />
-      )}
-
-      {loading ? (
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-      ) : (
-        <div>
+          {loading ? (
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+          ) : (
+            <div>
           {quests.length === 0 ? (
             <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
               <p className="text-lg">No quests found</p>
@@ -906,7 +905,8 @@ const AdminQuests = () => {
               })}
             </div>
           )}
-        </div>
+            </div>
+          )}
         </>
       )}
     </div>
