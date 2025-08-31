@@ -125,50 +125,76 @@ const DiplomaPageV3 = () => {
       const token = localStorage.getItem('access_token');
       console.log('Fetching achievements with token:', token ? 'present' : 'missing');
       
-      // Force fresh data by adding timestamp to prevent caching
-      const response = await fetch(`${apiBase}/v3/quests/completed?t=${Date.now()}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'no-cache'
-        }
-      });
+      // Fetch both completed quests and user XP data
+      const [questsResponse, dashboardResponse] = await Promise.all([
+        fetch(`${apiBase}/v3/quests/completed?t=${Date.now()}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Cache-Control': 'no-cache'
+          }
+        }),
+        fetch(`${apiBase}/users/dashboard?t=${Date.now()}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Cache-Control': 'no-cache'
+          }
+        })
+      ]);
 
-      if (!response.ok) {
+      if (!questsResponse.ok) {
         // If no achievements, that's okay - show empty state
-        if (response.status === 404) {
+        if (questsResponse.status === 404) {
+          // Still try to get XP from dashboard
+          if (dashboardResponse.ok) {
+            const dashboardData = await dashboardResponse.json();
+            console.log('Dashboard XP data:', dashboardData.xp_by_category);
+            setTotalXP(dashboardData.xp_by_category || {});
+            setTotalXPCount(dashboardData.stats?.total_xp || 0);
+          } else {
+            setTotalXP({});
+            setTotalXPCount(0);
+          }
           setAchievements([]);
-          setTotalXP({});
-          setTotalXPCount(0);
           setIsLoading(false);
           return;
         }
         throw new Error('Failed to fetch achievements');
       }
 
-      const data = await response.json();
-      console.log('Completed quests response:', data);
-      console.log('Number of achievements:', data.achievements?.length || 0);
-      setAchievements(data.achievements || []);
+      const questsData = await questsResponse.json();
+      const dashboardData = dashboardResponse.ok ? await dashboardResponse.json() : null;
+      
+      console.log('Completed quests response:', questsData);
+      console.log('Dashboard response:', dashboardData);
+      console.log('Number of achievements:', questsData.achievements?.length || 0);
+      setAchievements(questsData.achievements || []);
 
-      // Calculate total XP by pillar
-      const xpByPillar = {};
-      let totalXPSum = 0;
-      console.log('Processing achievements for XP calculation...');
-      data.achievements?.forEach((achievement, idx) => {
-        console.log(`Achievement ${idx + 1}:`, achievement.quest?.title);
-        Object.entries(achievement.task_evidence || {}).forEach(([taskName, evidence]) => {
-          console.log(`  Task: ${taskName}, Pillar: ${evidence.pillar}, XP: ${evidence.xp_awarded}`);
-          const pillar = evidence.pillar;
-          if (pillar) {
-            xpByPillar[pillar] = (xpByPillar[pillar] || 0) + evidence.xp_awarded;
-            totalXPSum += evidence.xp_awarded;
-          }
+      // Use XP from dashboard if available (most reliable source)
+      if (dashboardData?.xp_by_category) {
+        console.log('Using dashboard XP data:', dashboardData.xp_by_category);
+        setTotalXP(dashboardData.xp_by_category);
+        setTotalXPCount(dashboardData.stats?.total_xp || 0);
+      } else {
+        // Fallback: Calculate total XP by pillar from achievements
+        const xpByPillar = {};
+        let totalXPSum = 0;
+        console.log('Calculating XP from achievements...');
+        questsData.achievements?.forEach((achievement, idx) => {
+          console.log(`Achievement ${idx + 1}:`, achievement.quest?.title);
+          Object.entries(achievement.task_evidence || {}).forEach(([taskName, evidence]) => {
+            console.log(`  Task: ${taskName}, Pillar: ${evidence.pillar}, XP: ${evidence.xp_awarded}`);
+            const pillar = evidence.pillar;
+            if (pillar) {
+              xpByPillar[pillar] = (xpByPillar[pillar] || 0) + evidence.xp_awarded;
+              totalXPSum += evidence.xp_awarded;
+            }
+          });
         });
-      });
-      console.log('Final XP by pillar:', xpByPillar);
-      console.log('Total XP sum:', totalXPSum);
-      setTotalXP(xpByPillar);
-      setTotalXPCount(totalXPSum);
+        console.log('Final XP by pillar:', xpByPillar);
+        console.log('Total XP sum:', totalXPSum);
+        setTotalXP(xpByPillar);
+        setTotalXPCount(totalXPSum);
+      }
 
     } catch (error) {
       console.error('Error fetching achievements:', error);

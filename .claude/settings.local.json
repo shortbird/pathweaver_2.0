@@ -48,7 +48,8 @@
       "Bash(find:*)",
       "Bash(npx prettier:*)",
       "Bash(../venv/Scripts/pip show supabase)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(start http://localhost:5173/diploma)"
     ],
     "deny": [],
     "ask": []

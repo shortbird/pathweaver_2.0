@@ -313,7 +313,10 @@ const DashboardPage = () => {
     let totalXP = 0
     let dataSource = null
     
+    console.log('=== DASHBOARD XP PROCESSING ===')
     console.log('Dashboard data:', dashboardData)
+    console.log('Dashboard xp_by_category:', dashboardData?.xp_by_category)
+    console.log('Dashboard stats.total_xp:', dashboardData?.stats?.total_xp)
     console.log('Portfolio data:', portfolioData)
     
     // Always use dashboard xp_by_category if available - it's the most reliable
@@ -482,7 +485,7 @@ const DashboardPage = () => {
         {/* Bar Chart */}
         <div className="card">
           <h2 className="text-xl font-semibold mb-4">Skill Category Progress</h2>
-          {skillXPData.length > 0 ? (
+          {totalXP > 0 ? (
             <ResponsiveContainer width="100%" height={420}>
               <BarChart data={skillXPData} margin={{ top: 10, right: 10, bottom: 70, left: 50 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
@@ -513,7 +516,7 @@ const DashboardPage = () => {
         {/* Radar Chart */}
         <div className="card">
           <h2 className="text-xl font-semibold mb-4">Skill Balance</h2>
-          {skillXPData.length > 0 ? (
+          {totalXP > 0 ? (
             <ResponsiveContainer width="100%" height={420}>
               <RadarChart data={skillXPData} margin={{ top: 30, right: 50, bottom: 30, left: 50 }}>
                 <PolarGrid 

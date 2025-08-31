@@ -125,7 +125,7 @@ const InfoModal = () => {
                     <div className="space-y-2 text-base text-gray-700">
                       <p className="flex items-start gap-2">
                         <span className="text-purple-600 mt-1">•</span>
-                        <span>Optio does not verify or validate submissions—the public nature of the portfolio creates natural accountability</span>
+                        <span>Optio does not verify or validate submissions. The public nature of the portfolio creates natural accountability</span>
                       </p>
                       <p className="flex items-start gap-2">
                         <span className="text-purple-600 mt-1">•</span>
