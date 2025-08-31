@@ -111,7 +111,7 @@ const SkillsRadarChart = ({ skillsXP }) => {
         {/* Radar Chart */}
         <div className="flex items-center justify-center">
           <ResponsiveContainer width="100%" height={400}>
-            <RadarChart data={radarData}>
+            <RadarChart data={radarData} margin={{ top: 20, right: 30, bottom: 20, left: 30 }}>
               <PolarGrid 
                 stroke="#e5e7eb"
                 strokeDasharray="3 3"
@@ -119,7 +119,7 @@ const SkillsRadarChart = ({ skillsXP }) => {
               />
               <PolarAngleAxis 
                 dataKey="competency" 
-                tick={{ fill: '#374151', fontSize: 14, fontWeight: 600 }}
+                tick={{ fill: '#374151', fontSize: 14, fontWeight: 600, dy: 5 }}
                 className="font-semibold"
               />
               <PolarRadiusAxis 

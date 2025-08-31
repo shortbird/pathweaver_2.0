@@ -531,7 +531,7 @@ const DashboardPage = () => {
                 />
                 <PolarAngleAxis 
                   dataKey="category" 
-                  tick={{ fontSize: 14, fill: '#374151', fontWeight: 500 }}
+                  tick={{ fontSize: 14, fill: '#374151', fontWeight: 500, dy: 5 }}
                   className="text-gray-700"
                 />
                 <PolarRadiusAxis 

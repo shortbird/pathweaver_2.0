@@ -73,8 +73,9 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
         has_completed_quests = False
         
     # If user has completed quests but no XP, recalculate and save
-    if has_completed_quests and total_xp == 0:
-        print(f"User {user_id} has completed quests but no XP - recalculating...")
+    # Skip recalculation if we already have records (even if they're 0, they might be getting updated)
+    if has_completed_quests and total_xp == 0 and not has_skill_xp_records:
+        print(f"User {user_id} has completed quests but no XP records - recalculating...")
         total_xp, skill_breakdown = calculate_xp_from_quests(supabase, user_id)
         
         # Save the calculated XP to the database
