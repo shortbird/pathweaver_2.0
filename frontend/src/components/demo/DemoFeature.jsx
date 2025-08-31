@@ -1,0 +1,137 @@
+import React, { useEffect } from 'react';
+import { useDemo } from '../../contexts/DemoContext';
+import DemoHero from './DemoHero';
+import PersonaSelector from './PersonaSelector';
+import QuestSimulator from './QuestSimulator';
+import DiplomaGenerator from './DiplomaGenerator';
+import ComparisonView from './ComparisonView';
+import ConversionPanel from './ConversionPanel';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+
+const DemoFeature = () => {
+  const { demoState, actions } = useDemo();
+  const { currentStep, persona } = demoState;
+
+  useEffect(() => {
+    // Track demo start
+    if (currentStep === 0) {
+      actions.trackInteraction('demo_started');
+    }
+  }, []);
+
+  const renderStep = () => {
+    switch (currentStep) {
+      case 0:
+        return <DemoHero onStart={() => actions.nextStep()} />;
+      case 1:
+        return <PersonaSelector />;
+      case 2:
+        return <QuestSimulator />;
+      case 3:
+        return <DiplomaGenerator />;
+      case 4:
+        return <ComparisonView />;
+      case 5:
+        return <ConversionPanel />;
+      default:
+        return <DemoHero onStart={() => actions.nextStep()} />;
+    }
+  };
+
+  const getStepTitle = () => {
+    const titles = [
+      'Welcome to Optio',
+      'Who are you?',
+      'Experience a Quest',
+      'Your Achievement',
+      'See the Difference',
+      'Start Your Journey'
+    ];
+    return titles[currentStep] || '';
+  };
+
+  const canGoBack = currentStep > 0 && currentStep < 5;
+  const canGoForward = currentStep > 1 && currentStep < 5 && 
+    (currentStep !== 2 || demoState.completedTasks.length > 0);
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-[#6d469b]/5 via-white to-[#ef597b]/5">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Progress Indicator */}
+        {currentStep > 0 && currentStep < 5 && (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold text-[#003f5c]">{getStepTitle()}</h2>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Step {currentStep} of 5</span>
+                <button
+                  onClick={actions.resetDemo}
+                  className="text-sm text-[#6d469b] hover:underline"
+                >
+                  Restart Demo
+                </button>
+              </div>
+            </div>
+            
+            {/* Progress Bar */}
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div 
+                className="h-full bg-gradient-to-r from-[#6d469b] to-[#ef597b] transition-all duration-500"
+                style={{ width: `${(currentStep / 5) * 100}%` }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Main Content */}
+        <div className="relative">
+          <div className="bg-white rounded-2xl shadow-xl p-8 min-h-[500px]">
+            {renderStep()}
+          </div>
+
+          {/* Navigation */}
+          {(canGoBack || canGoForward) && (
+            <div className="flex justify-between mt-6">
+              <button
+                onClick={actions.previousStep}
+                disabled={!canGoBack}
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all
+                  ${canGoBack 
+                    ? 'bg-gray-100 hover:bg-gray-200 text-gray-700' 
+                    : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}
+              >
+                <ChevronLeft className="w-5 h-5" />
+                Back
+              </button>
+
+              <button
+                onClick={actions.nextStep}
+                disabled={!canGoForward}
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all
+                  ${canGoForward 
+                    ? 'bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white hover:shadow-lg' 
+                    : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}
+              >
+                Next
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Demo Timer */}
+        {currentStep > 0 && currentStep < 5 && (
+          <div className="mt-4 text-center">
+            <p className="text-sm text-gray-500">
+              {persona === 'parent' 
+                ? "See how Optio can engage your child and prepare them for their future"
+                : "Discover how your real-world learning becomes academic credit"}
+            </p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default DemoFeature;

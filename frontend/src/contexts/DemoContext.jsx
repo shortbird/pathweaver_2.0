@@ -1,0 +1,222 @@
+import React, { createContext, useContext, useState, useCallback } from 'react';
+
+const DemoContext = createContext();
+
+export const useDemo = () => {
+  const context = useContext(DemoContext);
+  if (!context) {
+    throw new Error('useDemo must be used within a DemoProvider');
+  }
+  return context;
+};
+
+const DEMO_QUESTS = [
+  {
+    id: 'music-composition',
+    title: 'Create an Original Music Composition',
+    description: 'Compose and perform your own original piece of music',
+    tasks: [
+      { id: 'theory', title: 'Learn music theory basics', pillar: 'cultural_literacy', xp: 75 },
+      { id: 'compose', title: 'Compose your piece', pillar: 'creativity', xp: 100 },
+      { id: 'record', title: 'Record your performance', pillar: 'practical_skills', xp: 75 },
+      { id: 'share', title: 'Share with community', pillar: 'communication', xp: 50 },
+    ],
+    totalXP: 300,
+    appeal: 'Perfect for homeschoolers already taking music lessons'
+  },
+  {
+    id: 'family-recipes',
+    title: "Build Your Family's Recipe Book",
+    description: 'Document and preserve your family culinary traditions',
+    tasks: [
+      { id: 'interview', title: 'Interview family members', pillar: 'communication', xp: 75 },
+      { id: 'document', title: 'Document recipes', pillar: 'cultural_literacy', xp: 100 },
+      { id: 'test', title: 'Test cooking recipes', pillar: 'practical_skills', xp: 100 },
+      { id: 'design', title: 'Design digital book', pillar: 'creativity', xp: 75 },
+    ],
+    totalXP: 350,
+    appeal: 'Turns family activities into academic credit'
+  },
+  {
+    id: 'small-business',
+    title: 'Start a Small Business',
+    description: 'Launch your own entrepreneurial venture',
+    tasks: [
+      { id: 'research', title: 'Market research', pillar: 'critical_thinking', xp: 100 },
+      { id: 'plan', title: 'Create business plan', pillar: 'communication', xp: 100 },
+      { id: 'build', title: 'Build product/service', pillar: 'practical_skills', xp: 100 },
+      { id: 'customer', title: 'Get first customer', pillar: 'creativity', xp: 100 },
+    ],
+    totalXP: 400,
+    appeal: 'Many homeschoolers already run small businesses'
+  },
+  {
+    id: 'volunteer-impact',
+    title: 'Document Your Volunteer Impact',
+    description: 'Showcase your community service and its real impact',
+    tasks: [
+      { id: 'choose', title: 'Choose your cause', pillar: 'critical_thinking', xp: 75 },
+      { id: 'serve', title: 'Complete 20 hours service', pillar: 'practical_skills', xp: 100 },
+      { id: 'interview', title: 'Interview beneficiaries', pillar: 'communication', xp: 100 },
+      { id: 'report', title: 'Create impact report', pillar: 'cultural_literacy', xp: 75 },
+    ],
+    totalXP: 350,
+    appeal: 'Validates community service already being done'
+  }
+];
+
+const initialState = {
+  persona: null,
+  showAccreditedOption: false,
+  currentStep: 0,
+  selectedQuest: null,
+  completedTasks: [],
+  earnedXP: {
+    creativity: 0,
+    critical_thinking: 0,
+    practical_skills: 0,
+    communication: 0,
+    cultural_literacy: 0
+  },
+  userInputs: {
+    name: '',
+    childName: '',
+    interests: []
+  },
+  generatedDiploma: null,
+  subscriptionTier: 'explorer',
+  demoStartTime: null,
+  interactions: []
+};
+
+export const DemoProvider = ({ children }) => {
+  const [demoState, setDemoState] = useState(initialState);
+
+  const selectPersona = useCallback((persona) => {
+    setDemoState(prev => ({
+      ...prev,
+      persona,
+      showAccreditedOption: persona === 'parent',
+      currentStep: 1,
+      demoStartTime: Date.now()
+    }));
+  }, []);
+
+  const selectQuest = useCallback((questId) => {
+    const quest = DEMO_QUESTS.find(q => q.id === questId);
+    setDemoState(prev => ({
+      ...prev,
+      selectedQuest: quest,
+      currentStep: 2
+    }));
+  }, []);
+
+  const completeTask = useCallback((taskId, evidence) => {
+    setDemoState(prev => {
+      const task = prev.selectedQuest?.tasks.find(t => t.id === taskId);
+      if (!task) return prev;
+
+      const newCompletedTasks = [...prev.completedTasks, { taskId, evidence, timestamp: Date.now() }];
+      const newEarnedXP = { ...prev.earnedXP };
+      newEarnedXP[task.pillar] += task.xp;
+
+      // Check if all tasks completed for bonus
+      const allTasksCompleted = prev.selectedQuest.tasks.every(t => 
+        newCompletedTasks.some(ct => ct.taskId === t.id)
+      );
+
+      if (allTasksCompleted) {
+        // Add 50% completion bonus distributed across pillars
+        const bonusXP = Math.round(prev.selectedQuest.totalXP * 0.5);
+        const pillarsUsed = [...new Set(prev.selectedQuest.tasks.map(t => t.pillar))];
+        const bonusPerPillar = Math.round(bonusXP / pillarsUsed.length);
+        
+        pillarsUsed.forEach(pillar => {
+          newEarnedXP[pillar] += bonusPerPillar;
+        });
+      }
+
+      return {
+        ...prev,
+        completedTasks: newCompletedTasks,
+        earnedXP: newEarnedXP,
+        currentStep: allTasksCompleted ? 3 : prev.currentStep
+      };
+    });
+  }, []);
+
+  const generateDiploma = useCallback(() => {
+    const diploma = {
+      name: demoState.userInputs.name || demoState.userInputs.childName || 'Demo Student',
+      completedQuest: demoState.selectedQuest,
+      earnedXP: demoState.earnedXP,
+      totalXP: Object.values(demoState.earnedXP).reduce((sum, xp) => sum + xp, 0),
+      timestamp: Date.now(),
+      isAccredited: demoState.subscriptionTier === 'visionary'
+    };
+
+    setDemoState(prev => ({
+      ...prev,
+      generatedDiploma: diploma,
+      currentStep: 4
+    }));
+
+    return diploma;
+  }, [demoState]);
+
+  const showVisionaryTier = useCallback(() => {
+    setDemoState(prev => ({
+      ...prev,
+      subscriptionTier: 'visionary',
+      showAccreditedOption: true
+    }));
+  }, []);
+
+  const nextStep = useCallback(() => {
+    setDemoState(prev => ({
+      ...prev,
+      currentStep: Math.min(prev.currentStep + 1, 5)
+    }));
+  }, []);
+
+  const previousStep = useCallback(() => {
+    setDemoState(prev => ({
+      ...prev,
+      currentStep: Math.max(prev.currentStep - 1, 0)
+    }));
+  }, []);
+
+  const resetDemo = useCallback(() => {
+    setDemoState(initialState);
+  }, []);
+
+  const trackInteraction = useCallback((action, data = {}) => {
+    setDemoState(prev => ({
+      ...prev,
+      interactions: [...prev.interactions, {
+        action,
+        data,
+        timestamp: Date.now(),
+        step: prev.currentStep
+      }]
+    }));
+  }, []);
+
+  const value = {
+    demoState,
+    demoQuests: DEMO_QUESTS,
+    actions: {
+      selectPersona,
+      selectQuest,
+      completeTask,
+      generateDiploma,
+      showVisionaryTier,
+      nextStep,
+      previousStep,
+      resetDemo,
+      trackInteraction
+    }
+  };
+
+  return <DemoContext.Provider value={value}>{children}</DemoContext.Provider>;
+};
