@@ -121,6 +121,7 @@ def register():
         # Sign up with Supabase Auth (use original names without HTML encoding)
         from config import Config
         try:
+            # Supabase Python client v2.x API
             auth_response = supabase.auth.sign_up({
                 'email': email,
                 'password': data['password'],
@@ -202,8 +203,11 @@ def register():
     except ValidationError:
         raise  # Re-raise validation errors
     except Exception as e:
-        # Log the full error for debugging
-        print(f"Supabase registration error: {str(e)}")
+        # Log the full error for debugging (handle encoding issues)
+        try:
+            print(f"Supabase registration error: {str(e)}")
+        except:
+            print("Supabase registration error occurred but could not be printed")
         
         # Parse error message for specific cases
         error_str = str(e).lower()

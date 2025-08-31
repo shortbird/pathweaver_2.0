@@ -46,7 +46,9 @@
       "Bash(../venv/Scripts/pip show flask-wtf)",
       "Bash(npm install:*)",
       "Bash(find:*)",
-      "Bash(npx prettier:*)"
+      "Bash(npx prettier:*)",
+      "Bash(../venv/Scripts/pip show supabase)",
+      "WebSearch"
     ],
     "deny": [],
     "ask": []
