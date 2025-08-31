@@ -85,7 +85,7 @@ const PersonaSelector = () => {
               onMouseLeave={() => setHoveredPersona(null)}
               className={`relative group text-left p-8 rounded-2xl border-2 transition-all duration-300
                 ${isHovered 
-                  ? 'border-[#6d469b] shadow-2xl transform -translate-y-2 bg-gradient-to-br from-[#6d469b] to-[#ef597b]' 
+                  ? 'border-[#6d469b] shadow-2xl transform -translate-y-2 bg-gradient-to-br from-[#ef597b] to-[#6d469b]' 
                   : 'border-gray-200 shadow-lg hover:shadow-xl bg-white'}`}
             >
               {/* Icon */}

@@ -270,7 +270,7 @@ const EvidenceSubmission = ({ task, onSubmit, onBack }) => {
           disabled={!canSubmit || isSubmitting}
           className={`px-8 py-3 font-semibold rounded-lg transition-all duration-300 flex items-center gap-2
             ${canSubmit 
-              ? 'bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white hover:shadow-lg' 
+              ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg' 
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
         >
           {isSubmitting ? (

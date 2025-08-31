@@ -90,7 +90,7 @@ const DiplomaGenerator = () => {
       <div className="bg-white rounded-2xl shadow-2xl overflow-hidden">
         {/* Accreditation Banner */}
         {isAccredited && (
-          <div className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] p-3 text-white text-center">
+          <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] p-3 text-white text-center">
             <div className="flex items-center justify-center gap-2">
               <Shield className="w-5 h-5" />
               <span className="font-semibold">ACCREDITED HIGH SCHOOL DIPLOMA</span>
@@ -112,7 +112,7 @@ const DiplomaGenerator = () => {
           {/* Student Name */}
           <div className="text-center mb-8">
             <p className="text-gray-600 mb-2">This certifies that</p>
-            <h2 className="text-3xl font-bold bg-gradient-to-r from-[#6d469b] to-[#ef597b] bg-clip-text text-transparent">
+            <h2 className="text-3xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
               {userName || diploma.name}
             </h2>
             <p className="text-gray-600 mt-2">has successfully completed</p>
@@ -155,7 +155,7 @@ const DiplomaGenerator = () => {
             <div>
               <h4 className="font-semibold text-[#003f5c] mb-4">Skills Developed</h4>
               <div className="h-64">
-                <SkillsRadarChart data={diploma.earnedXP} />
+                <SkillsRadarChart skillsXP={diploma.earnedXP} />
               </div>
             </div>
             
@@ -170,7 +170,7 @@ const DiplomaGenerator = () => {
                     <div className="flex items-center gap-2">
                       <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
                         <div 
-                          className="h-full bg-gradient-to-r from-[#6d469b] to-[#ef597b]"
+                          className="h-full bg-gradient-to-r from-[#ef597b] to-[#6d469b]"
                           style={{ width: `${Math.min((xp / 100) * 100, 100)}%` }}
                         />
                       </div>
@@ -209,7 +209,7 @@ const DiplomaGenerator = () => {
       <div className="flex flex-col md:flex-row gap-4 justify-center">
         <button
           onClick={() => setShowShareOptions(!showShareOptions)}
-          className="flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-300"
+          className="flex items-center justify-center gap-2 px-8 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-300"
         >
           <Share2 className="w-5 h-5" />
           Share Portfolio

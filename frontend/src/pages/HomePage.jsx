@@ -52,7 +52,7 @@ const HomePage = () => {
                 Real-world quests. Real-world evidence. Real-world growth.
               </p>
               
-              {/* Placeholder metrics - will be dynamic in Phase 2 */}
+              {/* Placeholder metrics - will be dynamic in Phase 2
               <div className="flex flex-wrap items-center justify-center lg:justify-start gap-6 mb-8">
                 <div className="text-center">
                   <div className="text-2xl font-bold">100+</div>
@@ -66,7 +66,7 @@ const HomePage = () => {
                   <div className="text-2xl font-bold">∞</div>
                   <div className="text-sm opacity-75">Growth Potential</div>
                 </div>
-              </div>
+              </div> */}
 
               {/* Enhanced CTAs */}
               {!isAuthenticated && (

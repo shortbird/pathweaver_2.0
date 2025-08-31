@@ -6,7 +6,7 @@ const VisionaryTierModal = ({ onClose }) => {
     <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" style={{ margin: 0, padding: '1rem' }}>
       <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* Header */}
-        <div className="relative bg-gradient-to-r from-[#6d469b] to-[#ef597b] p-8 text-white">
+        <div className="relative bg-gradient-to-r from-[#ef597b] to-[#6d469b] p-8 text-white">
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 bg-white/20 rounded-full hover:bg-white/30 transition-colors"
@@ -20,7 +20,7 @@ const VisionaryTierModal = ({ onClose }) => {
             </div>
             <div>
               <h2 className="text-3xl font-bold mb-1">Visionary Tier - $499.99/month</h2>
-              <p className="text-white/90">The Best of Both Worlds</p>
+              <p className="text-white/90">A personalized private school experience</p>
             </div>
           </div>
           
@@ -82,7 +82,7 @@ const VisionaryTierModal = ({ onClose }) => {
               {[
                 'Accredited high school diploma',
                 'Regular 1-on-1 teacher sessions',
-                'Dashboard for parent progress reports',
+                'Parent Dashboard to view live student progress',
                 'College application support',
                 'SAT/ACT prep resources',
                 'Transcript management',
@@ -148,7 +148,7 @@ const VisionaryTierModal = ({ onClose }) => {
             </p>
             <button
               onClick={onClose}
-              className="px-8 py-3 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white font-semibold rounded-full hover:shadow-lg transition-all duration-300"
+              className="px-8 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white font-semibold rounded-full hover:shadow-lg transition-all duration-300"
             >
               Continue Demo
             </button>

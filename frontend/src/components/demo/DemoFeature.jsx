@@ -76,7 +76,7 @@ const DemoFeature = () => {
             {/* Progress Bar */}
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
               <div 
-                className="h-full bg-gradient-to-r from-[#6d469b] to-[#ef597b] transition-all duration-500"
+                className="h-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] transition-all duration-500"
                 style={{ width: `${(currentStep / 5) * 100}%` }}
               />
             </div>
@@ -109,7 +109,7 @@ const DemoFeature = () => {
                 disabled={!canGoForward}
                 className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all
                   ${canGoForward 
-                    ? 'bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white hover:shadow-lg' 
+                    ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg' 
                     : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}
               >
                 Next

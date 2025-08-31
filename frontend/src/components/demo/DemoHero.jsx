@@ -40,7 +40,7 @@ const DemoHero = ({ onStart }) => {
         <div className="space-y-4">
           <h1 className="text-5xl md:text-6xl font-bold text-[#003f5c] leading-tight">
             See How Alex Built Their
-            <span className="block bg-gradient-to-r from-[#6d469b] to-[#ef597b] bg-clip-text text-transparent">
+            <span className="block bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
               Dream Portfolio
             </span>
           </h1>
@@ -84,7 +84,7 @@ const DemoHero = ({ onStart }) => {
             onClick={onStart}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
-            className="group relative px-12 py-6 bg-gradient-to-r from-[#6d469b] to-[#ef597b] 
+            className="group relative px-12 py-6 bg-gradient-to-r from-[#ef597b] to-[#6d469b] 
                      text-white font-bold text-xl rounded-full shadow-xl 
                      hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
           >

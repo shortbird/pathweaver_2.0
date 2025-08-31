@@ -2,14 +2,24 @@ import React from 'react';
 import { Award, Trophy, Star, Shield, GraduationCap } from 'lucide-react';
 import SkillsRadarChart from '../diploma/SkillsRadarChart';
 
-const DiplomaDisplay = ({ userName, allQuests, earnedXP, isAccredited }) => {
-  const totalXP = Object.values(earnedXP).reduce((sum, xp) => sum + xp, 0);
+const DiplomaDisplay = ({ userName, allQuests, earnedXP = {}, isAccredited }) => {
+  // Ensure earnedXP has all required skills
+  const safeEarnedXP = {
+    creativity: 0,
+    critical_thinking: 0,
+    practical_skills: 0,
+    communication: 0,
+    cultural_literacy: 0,
+    ...earnedXP
+  };
+  
+  const totalXP = Object.values(safeEarnedXP).reduce((sum, xp) => sum + xp, 0);
   
   return (
     <div className="bg-white rounded-2xl shadow-2xl overflow-hidden max-w-5xl mx-auto">
       {/* Accreditation Banner */}
       {isAccredited && (
-        <div className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] p-3 text-white text-center">
+        <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] p-3 text-white text-center">
           <div className="flex items-center justify-center gap-2">
             <Shield className="w-5 h-5" />
             <span className="font-semibold">ACCREDITED HIGH SCHOOL DIPLOMA</span>
@@ -31,7 +41,7 @@ const DiplomaDisplay = ({ userName, allQuests, earnedXP, isAccredited }) => {
         {/* Student Name */}
         <div className="text-center mb-8">
           <p className="text-gray-600 mb-2">This certifies that</p>
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-[#6d469b] to-[#ef597b] bg-clip-text text-transparent">
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
             {userName}
           </h2>
           <p className="text-gray-600 mt-2">has demonstrated mastery through evidence-based learning</p>
@@ -70,14 +80,14 @@ const DiplomaDisplay = ({ userName, allQuests, earnedXP, isAccredited }) => {
           <div>
             <h4 className="font-semibold text-[#003f5c] mb-4">Skills Developed</h4>
             <div className="h-64">
-              <SkillsRadarChart data={earnedXP} />
+              <SkillsRadarChart skillsXP={safeEarnedXP} />
             </div>
           </div>
           
           <div>
             <h4 className="font-semibold text-[#003f5c] mb-4">Experience Points</h4>
             <div className="space-y-3">
-              {Object.entries(earnedXP).map(([skill, xp]) => (
+              {Object.entries(safeEarnedXP).map(([skill, xp]) => (
                 <div key={skill} className="flex items-center justify-between">
                   <span className="text-gray-700 capitalize">
                     {skill.replace('_', ' ')}
@@ -85,7 +95,7 @@ const DiplomaDisplay = ({ userName, allQuests, earnedXP, isAccredited }) => {
                   <div className="flex items-center gap-2">
                     <div className="w-32 h-2 bg-gray-200 rounded-full overflow-hidden">
                       <div 
-                        className="h-full bg-gradient-to-r from-[#6d469b] to-[#ef597b]"
+                        className="h-full bg-gradient-to-r from-[#ef597b] to-[#6d469b]"
                         style={{ width: `${Math.min((xp / 500) * 100, 100)}%` }}
                       />
                     </div>

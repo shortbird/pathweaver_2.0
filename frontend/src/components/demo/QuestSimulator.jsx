@@ -86,7 +86,7 @@ const QuestSimulator = () => {
           {isParent && demoState.showAccreditedOption && (
             <button
               onClick={() => setShowVisionaryModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-full animate-pulse hover:animate-none hover:shadow-lg transition-all"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full animate-pulse hover:animate-none hover:shadow-lg transition-all"
             >
               <Shield className="w-5 h-5" />
               <span className="font-semibold">Accredited Diploma Available</span>
@@ -187,7 +187,7 @@ const QuestSimulator = () => {
           </div>
           <div className="h-3 bg-white/50 rounded-full overflow-hidden">
             <div 
-              className="h-full bg-gradient-to-r from-[#6d469b] to-[#ef597b] transition-all duration-500"
+              className="h-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] transition-all duration-500"
               style={{ width: `${progress}%` }}
             />
           </div>
@@ -222,7 +222,7 @@ const QuestSimulator = () => {
 
           <button
             onClick={() => setShowEvidence(true)}
-            className="w-full py-3 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
+            className="w-full py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-300 flex items-center justify-center gap-2"
           >
             <Upload className="w-5 h-5" />
             Submit Evidence

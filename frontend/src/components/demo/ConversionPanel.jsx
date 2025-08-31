@@ -128,7 +128,7 @@ const ConversionPanel = () => {
             {/* Recommended Badge */}
             {tier.recommended && (
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <span className="px-4 py-1 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white text-xs font-bold rounded-full">
+                <span className="px-4 py-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs font-bold rounded-full">
                   RECOMMENDED FOR YOU
                 </span>
               </div>
@@ -213,7 +213,7 @@ const ConversionPanel = () => {
             disabled={!email}
             className={`w-full py-4 font-bold text-lg rounded-lg transition-all duration-300 flex items-center justify-center gap-3
               ${email 
-                ? 'bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white hover:shadow-xl transform hover:scale-[1.02]' 
+                ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-xl transform hover:scale-[1.02]' 
                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
           >
             <Rocket className="w-6 h-6" />
