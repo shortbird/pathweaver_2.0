@@ -1,3 +1,5 @@
+import React from 'react';
+
 // Standardized user-friendly error messages
 const errorMessages = {
   // Authentication errors
