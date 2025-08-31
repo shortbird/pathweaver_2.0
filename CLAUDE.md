@@ -147,8 +147,9 @@ pw_v2/
 **user_quests** (tracks progress)
 - id (SERIAL, PK)
 - user_id, quest_id
-- status (in_progress/pending_review/completed/needs_changes)
+- is_active (boolean - false means quest was ended/abandoned)
 - started_at, completed_at
+- Note: No status or ended_at columns exist
 
 **quest_tasks** (V3 feature)
 - id (UUID, PK)
@@ -183,9 +184,11 @@ pw_v2/
 - public_visibility
 
 **user_skill_xp**
+- id (UUID, PK)
 - user_id (references users(id))
-- pillar (skill category name)
+- pillar (skill category name: creativity/critical_thinking/practical_skills/communication/cultural_literacy)
 - xp_amount (total XP for that pillar)
+- updated_at (timestamp)
 
 ### Supporting Tables
 - quest_ratings

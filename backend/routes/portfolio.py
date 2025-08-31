@@ -57,9 +57,16 @@ def get_public_portfolio(portfolio_slug):
             
             if skill_xp.data:
                 for record in skill_xp.data:
-                    xp_by_category[record['skill_category']] = record['total_xp']
-                    total_xp += record['total_xp']
-                    skill_xp_data.append(record)
+                    # Handle both old (skill_category/total_xp) and new (pillar/xp_amount) column names
+                    category = record.get('pillar', record.get('skill_category'))
+                    xp = record.get('xp_amount', record.get('total_xp', 0))
+                    if category:
+                        xp_by_category[category] = xp
+                        total_xp += xp
+                        skill_xp_data.append({
+                            'skill_category': category,  # Keep consistent output format
+                            'total_xp': xp
+                        })
         except Exception as e:
             print(f"Error fetching skill XP: {str(e)}")
         
@@ -256,7 +263,12 @@ def get_user_portfolio(user_id):
             pass
         
         # Calculate total XP (V3 uses xp_amount, old uses total_xp)
-        total_xp = sum(s.get('xp_amount', s.get('total_xp', 0)) for s in skill_xp_data) if skill_xp_data else 0
+        total_xp = 0
+        if skill_xp_data:
+            for s in skill_xp_data:
+                # Handle both column name formats
+                xp = s.get('xp_amount', s.get('total_xp', 0))
+                total_xp += xp
         
         # Prepare response
         response_data = {
