@@ -137,13 +137,20 @@ def get_active_quests(supabase, user_id: str) -> list:
                 
                 # Get completed tasks count for progress
                 try:
-                    completed_tasks = supabase.table('quest_task_completions')\
-                        .select('id', count='exact')\
-                        .eq('user_id', user_id)\
-                        .eq('quest_id', enrollment['quest_id'])\
-                        .execute()
-                    enrollment['completed_tasks'] = completed_tasks.count if hasattr(completed_tasks, 'count') else 0
-                except:
+                    # V3 uses user_quest_tasks table, not quest_task_completions
+                    # Get task IDs for this quest
+                    quest_task_ids = [t['id'] for t in tasks]
+                    if quest_task_ids:
+                        completed_tasks = supabase.table('user_quest_tasks')\
+                            .select('id', count='exact')\
+                            .eq('user_id', user_id)\
+                            .in_('quest_task_id', quest_task_ids)\
+                            .execute()
+                        enrollment['completed_tasks'] = completed_tasks.count if hasattr(completed_tasks, 'count') else 0
+                    else:
+                        enrollment['completed_tasks'] = 0
+                except Exception as e:
+                    print(f"Error getting completed tasks: {str(e)}")
                     enrollment['completed_tasks'] = 0
                 
                 print(f"    Tasks: {enrollment['completed_tasks']}/{task_count}, Total XP: {total_xp}")
@@ -197,13 +204,19 @@ def get_active_quests(supabase, user_id: str) -> list:
                         
                         # Get completed tasks count
                         try:
-                            completed_tasks = supabase.table('quest_task_completions')\
-                                .select('id', count='exact')\
-                                .eq('user_id', user_id)\
-                                .eq('quest_id', enrollment['quest_id'])\
-                                .execute()
-                            enrollment['completed_tasks'] = completed_tasks.count if hasattr(completed_tasks, 'count') else 0
-                        except:
+                            # V3 uses user_quest_tasks table
+                            quest_task_ids = [t['id'] for t in tasks]
+                            if quest_task_ids:
+                                completed_tasks = supabase.table('user_quest_tasks')\
+                                    .select('id', count='exact')\
+                                    .eq('user_id', user_id)\
+                                    .in_('quest_task_id', quest_task_ids)\
+                                    .execute()
+                                enrollment['completed_tasks'] = completed_tasks.count if hasattr(completed_tasks, 'count') else 0
+                            else:
+                                enrollment['completed_tasks'] = 0
+                        except Exception as e:
+                            print(f"Error getting completed tasks fallback: {str(e)}")
                             enrollment['completed_tasks'] = 0
                     except:
                         enrollment['quests'] = {}
