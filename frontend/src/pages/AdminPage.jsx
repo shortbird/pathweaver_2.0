@@ -899,7 +899,6 @@ const AdminQuests = () => {
                         <span className="font-semibold">Quest ID:</span> {quest.id.slice(0, 8)}...
                       </div>
                     </div>
-                      </>
                     )}
                   </div>
                 );
