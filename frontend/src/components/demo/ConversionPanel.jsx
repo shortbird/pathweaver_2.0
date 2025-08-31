@@ -5,9 +5,10 @@ import {
   Rocket, Gift, Shield, Star, ArrowRight, CheckCircle,
   Users, Calendar, Trophy, Sparkles, Lock
 } from 'lucide-react';
+import DiplomaDisplay from './DiplomaDisplay';
 
 const ConversionPanel = () => {
-  const { demoState, actions } = useDemo();
+  const { demoState, demoQuests, actions } = useDemo();
   const navigate = useNavigate();
   const [selectedTier, setSelectedTier] = useState('explorer');
   const [email, setEmail] = useState('');
@@ -32,7 +33,7 @@ const ConversionPanel = () => {
     {
       id: 'creator',
       name: 'Creator',
-      price: '$99/mo',
+      price: '$39.99/mo',
       description: 'For serious learners',
       features: [
         'Unlimited active quests',
@@ -47,7 +48,7 @@ const ConversionPanel = () => {
     {
       id: 'visionary',
       name: 'Visionary',
-      price: '$299/mo',
+      price: '$499.99/mo',
       description: 'Accredited education with support',
       features: [
         'ACCREDITED HIGH SCHOOL DIPLOMA',
@@ -102,10 +103,18 @@ const ConversionPanel = () => {
         
         <p className="text-lg text-gray-600">
           {isParent 
-            ? "Imagine your child building a portfolio full of achievements like this"
-            : "This is just the beginning of your learning journey"}
+            ? "Your child's Optio diploma would look like this:"
+            : "Your Optio diploma would look like this:"}
         </p>
       </div>
+
+      {/* Full Diploma Display */}
+      <DiplomaDisplay 
+        userName={demoState.userInputs.name || demoState.userInputs.childName || 'Demo Student'}
+        allQuests={demoQuests}
+        earnedXP={demoState.earnedXP}
+        isAccredited={selectedTier === 'visionary'}
+      />
 
       {/* Pricing Tiers */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
@@ -230,45 +239,11 @@ const ConversionPanel = () => {
         </div>
         <div className="text-center">
           <Users className="w-10 h-10 text-[#ef597b] mx-auto mb-2" />
-          <p className="font-semibold text-gray-700">Join 10,000+ Students</p>
-          <p className="text-sm text-gray-600">Thriving community of learners</p>
+          <p className="font-semibold text-gray-700">Growing Community</p>
+          <p className="text-sm text-gray-600">Join families choosing a new path</p>
         </div>
       </div>
 
-      {/* Urgency Message */}
-      <div className="text-center p-6 bg-gradient-to-r from-[#FFCA3A]/20 to-[#FFCA3A]/10 rounded-xl">
-        <Sparkles className="w-8 h-8 text-[#FFCA3A] mx-auto mb-3" />
-        <p className="text-lg font-semibold text-[#003f5c] mb-2">
-          Special Demo Offer
-        </p>
-        <p className="text-gray-700">
-          Sign up today and get your first month 20% off any paid tier!
-        </p>
-        <p className="text-sm text-gray-500 mt-2">
-          Offer expires in 24 hours • Code: DEMO20
-        </p>
-      </div>
-
-      {/* Alternative Actions */}
-      <div className="text-center space-y-3">
-        <p className="text-gray-600">Not ready to sign up?</p>
-        <div className="flex justify-center gap-4">
-          <button 
-            onClick={() => actions.resetDemo()}
-            className="text-[#6d469b] hover:underline"
-          >
-            Try Demo Again
-          </button>
-          <span className="text-gray-400">|</span>
-          <button className="text-[#6d469b] hover:underline">
-            Schedule a Call
-          </button>
-          <span className="text-gray-400">|</span>
-          <button className="text-[#6d469b] hover:underline">
-            Download Info Pack
-          </button>
-        </div>
-      </div>
     </div>
   );
 };

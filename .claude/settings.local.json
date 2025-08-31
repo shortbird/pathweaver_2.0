@@ -49,7 +49,9 @@
       "Bash(npx prettier:*)",
       "Bash(../venv/Scripts/pip show supabase)",
       "WebSearch",
-      "Bash(start http://localhost:5173/diploma)"
+      "Bash(start http://localhost:5173/diploma)",
+      "Bash(git checkout:*)",
+      "Bash(git merge:*)"
     ],
     "deny": [],
     "ask": []

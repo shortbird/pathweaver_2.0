@@ -56,8 +56,8 @@ const ComparisonView = () => {
     },
     optio: {
       explorer: 'Free (limited features)',
-      creator: '$99/month',
-      visionary: '$299/month (accredited)'
+      creator: '$39.99/month',
+      visionary: '$499.99/month (accredited)'
     }
   };
 
@@ -192,11 +192,11 @@ const ComparisonView = () => {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Creator</span>
-                  <span className="font-semibold">$99/month</span>
+                  <span className="font-semibold">$39.99/month</span>
                 </div>
                 <div className="flex justify-between text-sm bg-[#6d469b]/10 px-2 py-1 rounded">
                   <span className="font-semibold">Visionary (Accredited)</span>
-                  <span className="font-bold text-[#6d469b]">$299/month</span>
+                  <span className="font-bold text-[#6d469b]">$499.99/month</span>
                 </div>
               </div>
             </div>
@@ -204,11 +204,12 @@ const ComparisonView = () => {
         </div>
       </div>
 
-      {/* Real Impact Stories */}
-      <div className="bg-white rounded-xl p-8 border-2 border-[#6d469b]/20">
-        <h3 className="text-2xl font-bold text-[#003f5c] mb-6 text-center">
-          Real Student Transformations
-        </h3>
+      {/* Real Impact Stories - Only for Parents */}
+      {isParent && (
+        <div className="bg-white rounded-xl p-8 border-2 border-[#6d469b]/20">
+          <h3 className="text-2xl font-bold text-[#003f5c] mb-6 text-center">
+            The Optio Difference
+          </h3>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center">
@@ -235,6 +236,7 @@ const ComparisonView = () => {
           </p>
         </div>
       </div>
+      )}
 
       {/* CTA */}
       <div className="text-center">

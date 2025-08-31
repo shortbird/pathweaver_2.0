@@ -25,8 +25,8 @@ const VisionaryTierModal = ({ onClose }) => {
           </div>
           
           <p className="text-lg text-white/95">
-            Get an accredited high school diploma through our innovative quest framework, 
-            with dedicated teacher support and college counseling.
+            Optio offers TWO types of diplomas: Our signature portfolio-based diploma that showcases 
+            real achievements, AND a fully accredited high school diploma for those who want traditional credentials.
           </p>
         </div>
 
@@ -130,7 +130,7 @@ const VisionaryTierModal = ({ onClose }) => {
               <div className="p-4 border-2 border-[#6d469b] bg-[#6d469b]/5 rounded-lg">
                 <h4 className="font-semibold text-[#6d469b] mb-2">Optio Visionary</h4>
                 <ul className="space-y-2 text-sm text-gray-700">
-                  <li className="font-semibold">• $299/month</li>
+                  <li className="font-semibold">• $499.99/month</li>
                   <li>• Learn anytime</li>
                   <li>• Personalized quests</li>
                   <li>• 1-on-1 teacher support</li>

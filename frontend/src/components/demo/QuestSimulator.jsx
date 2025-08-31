@@ -84,11 +84,14 @@ const QuestSimulator = () => {
           
           {/* Visionary Tier Badge for Parents */}
           {isParent && demoState.showAccreditedOption && (
-            <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-full">
+            <button
+              onClick={() => setShowVisionaryModal(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-full animate-pulse hover:animate-none hover:shadow-lg transition-all"
+            >
               <Shield className="w-5 h-5" />
               <span className="font-semibold">Accredited Diploma Available</span>
               <GraduationCap className="w-5 h-5" />
-            </div>
+            </button>
           )}
         </div>
 

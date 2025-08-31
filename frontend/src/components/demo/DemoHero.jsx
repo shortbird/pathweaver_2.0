@@ -63,9 +63,9 @@ const DemoHero = ({ onStart }) => {
           
           <div className="bg-white/80 backdrop-blur rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
             <Users className="w-10 h-10 text-[#6d469b] mx-auto mb-3" />
-            <h3 className="font-semibold text-[#003f5c] mb-2">For Parents Too</h3>
+            <h3 className="font-semibold text-[#003f5c] mb-2">Parent-Approved</h3>
             <p className="text-sm text-gray-600">
-              Accredited option with teacher support available
+              Accredited diploma & teacher support options
             </p>
           </div>
           
@@ -95,7 +95,7 @@ const DemoHero = ({ onStart }) => {
             </span>
             
             {/* Pulse Effect */}
-            <span className="absolute inset-0 rounded-full bg-white/20 animate-ping" />
+            <span className="absolute inset-0 rounded-full bg-white/20 animate-pulse" />
           </button>
           
           <p className="mt-4 text-sm text-gray-500">
@@ -103,27 +103,9 @@ const DemoHero = ({ onStart }) => {
           </p>
         </div>
 
-        {/* Social Proof */}
+        {/* Social Proof - Testimonial Only */}
         <div className="mt-12 p-6 bg-gradient-to-r from-[#6d469b]/5 to-[#ef597b]/5 rounded-2xl">
-          <div className="flex items-center justify-center gap-8 mb-4">
-            <div className="text-center">
-              <div className="text-3xl font-bold text-[#6d469b]">10,000+</div>
-              <div className="text-sm text-gray-600">Active Students</div>
-            </div>
-            <div className="w-px h-12 bg-gray-300" />
-            <div className="text-center">
-              <div className="text-3xl font-bold text-[#ef597b]">500+</div>
-              <div className="text-sm text-gray-600">Unique Quests</div>
-            </div>
-            <div className="w-px h-12 bg-gray-300" />
-            <div className="text-center">
-              <div className="text-3xl font-bold text-[#FFCA3A]">95%</div>
-              <div className="text-sm text-gray-600">Parent Satisfaction</div>
-            </div>
-          </div>
-          
-          {/* Rotating Testimonial */}
-          <div className="text-center mt-6">
+          <div className="text-center">
             <p className="text-lg italic text-gray-700 mb-2">
               "{testimonials[currentTestimonial].text}"
             </p>

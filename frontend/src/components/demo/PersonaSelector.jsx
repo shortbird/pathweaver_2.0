@@ -21,15 +21,15 @@ const PersonaSelector = () => {
       ],
       painPoints: [
         "My child is disengaged at school",
-        "Worried about college readiness",
-        "Want more personalized learning",
-        "Need proven educational outcomes"
+        "Want them prepared for adulthood",
+        "Need more personalized learning",
+        "Looking for real-world skills"
       ],
       message: "Finally, an education that engages your child AND prepares them for college"
     },
     {
       id: 'student',
-      title: "I'm a Student",
+      title: "I'm a Student", 
       subtitle: "Ready to make my learning count",
       icon: GraduationCap,
       color: 'from-[#ef597b] to-[#ff7a9a]',
@@ -85,13 +85,8 @@ const PersonaSelector = () => {
               onMouseLeave={() => setHoveredPersona(null)}
               className={`relative group text-left p-8 rounded-2xl border-2 transition-all duration-300
                 ${isHovered 
-                  ? 'border-transparent shadow-2xl transform -translate-y-2' 
-                  : 'border-gray-200 shadow-lg hover:shadow-xl'}`}
-              style={{
-                background: isHovered 
-                  ? `linear-gradient(135deg, ${persona.color.split(' ')[1]} 0%, ${persona.color.split(' ')[3]} 100%)`
-                  : 'white'
-              }}
+                  ? 'border-[#6d469b] shadow-2xl transform -translate-y-2 bg-gradient-to-br from-[#6d469b] to-[#ef597b]' 
+                  : 'border-gray-200 shadow-lg hover:shadow-xl bg-white'}`}
             >
               {/* Icon */}
               <div className={`mb-6 inline-flex p-4 rounded-full transition-colors
@@ -177,7 +172,7 @@ const PersonaSelector = () => {
         </div>
         <div className="flex items-center gap-2 text-gray-600">
           <Users className="w-5 h-5 text-[#6d469b]" />
-          <span className="text-sm">Join 10,000+ Families</span>
+          <span className="text-sm">Join 10,000+ families in this new educational direction</span>
         </div>
       </div>
     </div>

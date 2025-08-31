@@ -22,7 +22,7 @@ const DEMO_QUESTS = [
       { id: 'share', title: 'Share with community', pillar: 'communication', xp: 50 },
     ],
     totalXP: 300,
-    appeal: 'Perfect for homeschoolers already taking music lessons'
+    appeal: 'Perfect for students with creative passions'
   },
   {
     id: 'family-recipes',
@@ -48,7 +48,7 @@ const DEMO_QUESTS = [
       { id: 'customer', title: 'Get first customer', pillar: 'creativity', xp: 100 },
     ],
     totalXP: 400,
-    appeal: 'Many homeschoolers already run small businesses'
+    appeal: 'Real entrepreneurship experience'
   },
   {
     id: 'volunteer-impact',
