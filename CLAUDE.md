@@ -1,4 +1,4 @@
-# Optio Quest Platform - Technical Documentation
+# Optio Platform - Technical Documentation
 
 ## User Preferences & Guidelines
 
@@ -91,17 +91,27 @@ pw_v2/
 │   │   │   ├── HomePage.jsx
 │   │   │   ├── QuestHubV3.jsx      # Quest hub (V3)
 │   │   │   ├── QuestDetailV3.jsx   # Quest detail (V3)
-│   │   │   ├── DiplomaPageV3.jsx   # Diploma/portfolio page (CORE FEATURE)
+│   │   │   ├── DiplomaPageV3.jsx   # Diploma/portfolio page (CORE FEATURE - Enhanced with unified layout)
 │   │   │   ├── DashboardPage.jsx   # User dashboard
 │   │   │   └── AdminPage.jsx       # Admin dashboard
 │   │   ├── components/        # Reusable components
 │   │   │   ├── quest/        # Quest-related components
 │   │   │   ├── evidence/     # Evidence upload components
-│   │   │   └── admin/        # Admin components
+│   │   │   ├── admin/        # Admin components
+│   │   │   ├── diploma/      # Diploma page components (NEW)
+│   │   │   │   ├── DiplomaHeader.jsx    # Professional diploma header
+│   │   │   │   ├── DiplomaStats.jsx     # Stats overview cards
+│   │   │   │   ├── SkillsBreakdown.jsx  # Skills XP visualization
+│   │   │   │   └── AchievementCard.jsx  # Quest achievement cards
+│   │   │   └── ui/           # UI library components (NEW)
+│   │   │       ├── Button.jsx          # Standardized button component
+│   │   │       └── Skeleton.jsx        # Loading skeleton components
 │   │   ├── contexts/         # React contexts
 │   │   │   └── AuthContext.jsx
-│   │   └── services/         # API service layer
-│   │       └── api.js
+│   │   ├── services/         # API service layer
+│   │   │   └── api.js
+│   │   └── utils/            # Utility functions (NEW)
+│   │       └── errorMessages.js  # Standardized error messages
 │   └── public/
 └── supabase/
     ├── migrations/           # SQL migrations

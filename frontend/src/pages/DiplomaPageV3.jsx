@@ -2,6 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams } from 'react-router-dom';
 import api from '../services/api';
+import DiplomaHeader from '../components/diploma/DiplomaHeader';
+import DiplomaStats from '../components/diploma/DiplomaStats';
+import SkillsBreakdown from '../components/diploma/SkillsBreakdown';
+import AchievementCard from '../components/diploma/AchievementCard';
+import { SkeletonDiplomaHeader, SkeletonStats, SkeletonAchievementGrid } from '../components/ui/Skeleton';
+import Button from '../components/ui/Button';
+import { formatErrorMessage } from '../utils/errorMessages';
 
 const DiplomaPageV3 = () => {
   const { user } = useAuth();
@@ -13,6 +20,8 @@ const DiplomaPageV3 = () => {
   const [shareableLink, setShareableLink] = useState('');
   const [diploma, setDiploma] = useState(null);
   const [error, setError] = useState(null);
+  const [previewMode, setPreviewMode] = useState(false);
+  const [totalXPCount, setTotalXPCount] = useState(0);
 
   const pillarColors = {
     creativity: 'from-[#ef597b] to-[#6d469b]',
@@ -41,11 +50,10 @@ const DiplomaPageV3 = () => {
       // Transform the data to match achievements format if needed
       // For now, we'll display the diploma data differently
     } catch (error) {
-      if (error.response?.status === 404) {
-        setError('Diploma not found or is private');
-      } else {
-        setError('Failed to load diploma');
-      }
+      const errorInfo = formatErrorMessage(
+        error.response?.status === 404 ? 'diploma/not-found' : 'diploma/private'
+      );
+      setError(errorInfo);
     } finally {
       setIsLoading(false);
     }
@@ -69,15 +77,18 @@ const DiplomaPageV3 = () => {
 
       // Calculate total XP by pillar
       const xpByPillar = {};
+      let totalXPSum = 0;
       data.achievements?.forEach(achievement => {
         Object.entries(achievement.task_evidence || {}).forEach(([_, evidence]) => {
           const pillar = evidence.pillar;
           if (pillar) {
             xpByPillar[pillar] = (xpByPillar[pillar] || 0) + evidence.xp_awarded;
+            totalXPSum += evidence.xp_awarded;
           }
         });
       });
       setTotalXP(xpByPillar);
+      setTotalXPCount(totalXPSum);
 
     } catch (error) {
       console.error('Error fetching achievements:', error);
@@ -94,8 +105,23 @@ const DiplomaPageV3 = () => {
 
   const copyShareLink = () => {
     navigator.clipboard.writeText(shareableLink);
-    alert('Diploma link copied to clipboard!');
+    // Better feedback than alert
+    const button = document.activeElement;
+    const originalText = button?.innerText;
+    if (button) {
+      button.innerText = 'Copied!';
+      setTimeout(() => {
+        button.innerText = originalText;
+      }, 2000);
+    }
   };
+
+  const handleTogglePreview = () => {
+    setPreviewMode(!previewMode);
+  };
+
+  // Determine if current user is the owner
+  const isOwner = user && (user.id === userId || (!slug && !userId));
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
@@ -164,174 +190,114 @@ const DiplomaPageV3 = () => {
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2" style={{ borderColor: '#6d469b' }}></div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+        <div className="max-w-7xl mx-auto px-4 py-10">
+          <SkeletonDiplomaHeader />
+          <SkeletonStats />
+          <div className="bg-white rounded-xl p-8 mb-8 shadow-sm">
+            <div className="h-6 w-48 bg-gray-200 rounded mb-4 animate-pulse" />
+            <div className="h-32 bg-gray-100 rounded-lg animate-pulse" />
+          </div>
+          <div className="mb-8">
+            <div className="h-6 w-48 bg-gray-200 rounded mb-6 animate-pulse" />
+            <SkeletonAchievementGrid />
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen flex justify-center items-center">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-2" style={{ color: '#003f5c' }}>Diploma Not Available</h2>
-          <p style={{ color: '#003f5c', opacity: 0.7 }}>{error}</p>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white flex justify-center items-center px-4">
+        <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
+          <div className="mb-4">
+            <svg className="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold mb-2" style={{ color: '#003f5c' }}>
+            {error.message || 'Diploma Not Available'}
+          </h2>
+          <p className="text-gray-600 mb-6">
+            {error.suggestion || 'This diploma may be private or does not exist.'}
+          </p>
+          <Button 
+            variant="primary"
+            onClick={() => window.location.href = '/'}
+          >
+            Return to Home
+          </Button>
         </div>
       </div>
     );
   }
 
-  // Single return statement with conditional rendering
+  // Unified view - show same layout for both public and owner, with conditional elements
+  const viewMode = isOwner && !previewMode ? 'owner' : 'public';
+  const displayData = diploma || {
+    student: user,
+    total_xp: totalXPCount,
+    total_quests_completed: achievements.length,
+    skill_details: Object.keys(totalXP)
+  };
+
   return (
-    <div className="max-w-7xl mx-auto px-4 py-10" style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
-        {diploma ? (
-          // Public diploma view
-          <>
-            {/* Header */}
-            <div className="rounded-xl shadow-lg overflow-hidden mb-8" style={{ background: 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)', boxShadow: '0 4px 20px rgba(239, 89, 123, 0.35)' }}>
-              <div className="p-12 text-white">
-                <div className="text-center">
-                  <h1 className="text-5xl font-bold mb-3" style={{ letterSpacing: '-1px' }}>Optio Diploma</h1>
-                  <p className="text-2xl text-white/90">
-                    {diploma.student?.first_name} {diploma.student?.last_name}
-                  </p>
-                  <div className="mt-4">
-                    <p className="text-lg font-semibold">{formatDate(diploma.diploma_issued)}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
+      <div className="max-w-7xl mx-auto px-4 py-10" style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
+        {
+        {/* Unified Diploma Header */}
+        <DiplomaHeader 
+          user={user}
+          isOwner={isOwner}
+          previewMode={previewMode}
+          onTogglePreview={handleTogglePreview}
+          onShare={copyShareLink}
+          diploma={diploma}
+        />
 
-            {/* Stats Overview */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="bg-white rounded-xl p-6" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)', borderLeft: '4px solid #ef597b' }}>
-                <h3 className="text-4xl font-bold" style={{ color: '#6d469b' }}>
-                  {diploma.total_xp || 0}
-                </h3>
-                <p className="font-semibold" style={{ color: '#003f5c' }}>Total Experience Points</p>
-                <p className="text-sm mt-1" style={{ color: '#003f5c', opacity: 0.6 }}>Earned through validated learning</p>
-              </div>
-              <div className="bg-white rounded-xl p-6" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)', borderLeft: '4px solid #6d469b' }}>
-                <h3 className="text-4xl font-bold" style={{ color: '#ef597b' }}>
-                  {diploma.total_quests_completed || 0}
-                </h3>
-                <p className="font-semibold" style={{ color: '#003f5c' }}>Quests Completed</p>
-                <p className="text-sm mt-1" style={{ color: '#003f5c', opacity: 0.6 }}>Real-world challenges mastered</p>
-              </div>
-              <div className="bg-white rounded-xl p-6" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)', borderLeft: '4px solid #ef597b' }}>
-                <h3 className="text-4xl font-bold" style={{ color: '#6d469b' }}>
-                  {diploma.skill_details?.length || 0}
-                </h3>
-                <p className="font-semibold" style={{ color: '#003f5c' }}>Skills Developed</p>
-                <p className="text-sm mt-1" style={{ color: '#003f5c', opacity: 0.6 }}>Unique competencies demonstrated</p>
-              </div>
-            </div>
-          </>
-        ) : (
-          // Authenticated user diploma view
-          <>
-            {/* Header */}
-            <div className="rounded-xl shadow-lg overflow-hidden mb-8" style={{ background: 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)', boxShadow: '0 4px 20px rgba(239, 89, 123, 0.35)' }}>
-              <div className="p-12 text-white">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h1 className="text-5xl font-bold mb-3" style={{ letterSpacing: '-1px' }}>My Learning Diploma</h1>
-                    <p className="text-white/90 text-lg">
-                      A showcase of my completed quests and earned achievements
-                    </p>
-                  </div>
-                  <button
-                    onClick={copyShareLink}
-                    className="px-6 py-3 rounded-full transition-all font-semibold text-sm"
-                    style={{ 
-                      background: 'white', 
-                      color: '#6d469b',
-                      boxShadow: '0 4px 15px rgba(0,0,0,0.1)'
-                    }}
-                    onMouseEnter={(e) => e.target.style.transform = 'translateY(-2px)'}
-                    onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
-                  >
-                    Share Diploma 🔗
-                  </button>
-                </div>
+        {/* Stats Overview */}
+        <DiplomaStats 
+          totalXP={displayData.total_xp || totalXPCount}
+          questsCompleted={displayData.total_quests_completed || achievements.length}
+          skillsCount={displayData.skill_details?.length || Object.keys(totalXP).length}
+          achievements={achievements}
+        />
 
-                {/* XP Summary */}
-                <div className="mt-10 grid grid-cols-2 md:grid-cols-5 gap-4">
-                  {Object.entries(pillarColors).map(([pillar, gradient]) => {
-                    const xp = totalXP[pillar] || 0;
-                    return (
-                      <div key={pillar} className="bg-white/15 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                        <div className="text-xs font-semibold mb-2 capitalize text-white/80">
-                          {pillar.replace('_', ' ')}
-                        </div>
-                        <div className="text-2xl font-bold text-white">
-                          {xp.toLocaleString()} XP
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+        {/* Skills Breakdown */}
+        <SkillsBreakdown skillsXP={totalXP} />
 
-            {/* Achievements Grid */}
-            {achievements.length === 0 ? (
+        {/* Achievements Section */}
+        <div className="mb-8">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold" style={{ color: '#003f5c' }}>Completed Quests</h2>
+            {achievements.length > 0 && (
+              <span className="text-sm text-gray-600">
+                {achievements.length} {achievements.length === 1 ? 'achievement' : 'achievements'}
+              </span>
+            )}
+          </div>
+
+          {achievements.length === 0 ? (
               <div className="bg-white rounded-xl p-12 text-center" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}>
             <svg className="mx-auto h-16 w-16 mb-4" fill="currentColor" viewBox="0 0 20 20" style={{ color: '#6d469b', opacity: 0.3 }}>
               <path fillRule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
             </svg>
             <p className="text-lg mb-2 font-semibold" style={{ color: '#003f5c' }}>No completed quests yet</p>
             <p style={{ color: '#003f5c', opacity: 0.7 }}>Complete quests to showcase your achievements here!</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {achievements.map((achievement) => (
-              <div 
-                key={achievement.quest.id}
-                className="bg-white rounded-xl overflow-hidden transition-all cursor-pointer hover:transform hover:-translate-y-1"
-                style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}
-                onClick={() => setSelectedAchievement(achievement)}
-                onMouseEnter={(e) => e.currentTarget.style.boxShadow = '0 8px 20px rgba(109,70,155,0.15)'}
-                onMouseLeave={(e) => e.currentTarget.style.boxShadow = '0 4px 6px rgba(0,0,0,0.07)'}
-              >
-                {/* Quest Header Image */}
-                {achievement.quest.header_image_url ? (
-                  <img 
-                    src={achievement.quest.header_image_url}
-                    alt={achievement.quest.title}
-                    className="w-full h-32 object-cover"
-                  />
-                ) : (
-                  <div className="h-32 flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)' }}>
-                    <div className="text-white text-4xl">🏆</div>
-                  </div>
-                )}
-
-                <div className="p-5">
-                  <h3 className="font-bold mb-2" style={{ color: '#003f5c', fontSize: '18px' }}>{achievement.quest.title}</h3>
-                  <p className="text-sm mb-3 line-clamp-2" style={{ color: '#003f5c', opacity: 0.8, lineHeight: 1.6 }}>
-                    {achievement.quest.big_idea}
-                  </p>
-                  
-                  <div className="flex justify-between items-center text-sm">
-                    <span style={{ color: '#003f5c', opacity: 0.6 }}>
-                      Completed {formatDate(achievement.completed_at)}
-                    </span>
-                    <span className="font-bold" style={{ color: '#6d469b' }}>
-                      {achievement.total_xp_earned} XP
-                    </span>
-                  </div>
-
-                  <div className="mt-3 px-3 py-1 rounded-full inline-block" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.1) 0%, rgba(109,70,155,0.1) 100%)', border: '1px solid rgba(109,70,155,0.2)' }}>
-                    <span className="text-xs font-semibold" style={{ color: '#6d469b' }}>
-                      {Object.keys(achievement.task_evidence).length} tasks completed
-                    </span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {achievements.map((achievement) => (
+                <AchievementCard 
+                  key={achievement.quest.id}
+                  achievement={achievement}
+                  onClick={setSelectedAchievement}
+                />
+              ))}
+            </div>
+          )}
+        </div>
 
             {/* Achievement Detail Modal */}
             {selectedAchievement && (
@@ -396,9 +362,8 @@ const DiplomaPageV3 = () => {
           </div>
         </div>
       )}
-          </>
-        )}
       </div>
+    </div>
   );
 };
 
