@@ -135,12 +135,11 @@ def register():
             })
         except Exception as auth_error:
             # Log error without exposing sensitive data
-            if os.getenv('FLASK_ENV') == 'development':
-                print(f"[DEBUG] Full Supabase auth error: {auth_error}")
-                print(f"[DEBUG] Error type: {type(auth_error)}")
-                print(f"[DEBUG] Error attributes: {dir(auth_error)}")
-                if hasattr(auth_error, 'args'):
-                    print(f"[DEBUG] Error args: {auth_error.args}")
+            import sys
+            print(f"[DEBUG] Full Supabase auth error: {auth_error}", file=sys.stderr)
+            print(f"[DEBUG] Error type: {type(auth_error)}", file=sys.stderr)
+            if hasattr(auth_error, 'args'):
+                print(f"[DEBUG] Error args: {auth_error.args}", file=sys.stderr)
             
             # Check if the error is about rate limiting
             error_str = str(auth_error).lower()
@@ -227,10 +226,10 @@ def register():
             # Supabase might be rejecting certain email domains
             raise ValidationError('This email address cannot be used for registration. Please use a different email.')
         elif 'weak' in error_str and 'password' in error_str:
-            raise ValidationError('Password is too weak. Please use at least 19 characters with a mix of letters, numbers, and avoid common patterns')
+            raise ValidationError('Password is too common or easy to guess. Please choose a more unique password (6+ characters with mix of letters and numbers, avoiding common words like "password", "test", "123456")')
         elif 'password' in error_str:
             # If Supabase rejects the password for any reason, provide our requirement message
-            raise ValidationError('Password must be at least 19 characters and contain uppercase, lowercase, and numbers')
+            raise ValidationError('Password must be at least 6 characters with uppercase, lowercase, and numbers. Avoid common passwords like "Test123" or "Password1"')
         elif 'rate limit' in error_str or 'too many requests' in error_str or 'security purposes' in error_str:
             # Extract wait time if available
             import re

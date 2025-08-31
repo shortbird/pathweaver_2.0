@@ -43,7 +43,7 @@ def validate_password(password: str) -> tuple[bool, Optional[str]]:
     has_digit = any(c.isdigit() for c in password)
     
     if not (has_upper and has_lower and has_digit):
-        return False, "Password must contain at least one uppercase letter, one lowercase letter, and one number"
+        return False, "Password must contain at least one uppercase letter, one lowercase letter, and one number. Example: Abc123"
     
     # Skip weak pattern check for short passwords
     # With only 6 characters required, weak pattern checking is less relevant
