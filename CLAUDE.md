@@ -3,525 +3,192 @@
 ## User Preferences & Guidelines
 
 **IMPORTANT INSTRUCTIONS:**
-- Always test in production, not locally. Never provide local testing instructions.
-- Always commit and push changes automatically unless explicitly told otherwise.
-- Core philosophy: "The Process Is The Goal."
+- Always test in production, not locally
+- Always commit and push changes automatically unless explicitly told otherwise
+- Core philosophy: "The Process Is The Goal"
 - The diploma page is the CORE offering - students use it on resumes to showcase education
-- Accountability comes from public evidence availability
-- Diplomas reflect student effort - poor documentation reflects poorly on them
-- Must be well-designed and reflect the Optio brand positively
-- This is often the first exposure to the brand - must clearly communicate self-validated diploma value
-- If you identify discrepancies with production code and this CLAUDE.md file, update this file. Specifically focus on keeping the database schema up to date.
-- Update CLAUDE.md before committing & pushing updates
+- Keep this documentation up to date with code changes
+- Follow core_philosophy.md for all updates
 
 ## Project Overview
 
-Optio is an educational platform that allows students to create self-validated diplomas through completing quests. Students build impressive diplomas by documenting their learning journey, with accountability coming from public evidence of their achievements.
+Optio is an educational platform where students create self-validated diplomas through completing quests. Students build impressive portfolios by documenting their learning journey with public evidence.
 
-This project has a core_philosophy.md file. Ensure all updates are in line with this philosophy.
-
-## Architecture
-
-### Tech Stack
+## Tech Stack
 
 **Backend:**
-- Flask 3.0.0 (Python web framework)
-- Supabase (PostgreSQL database with real-time features and auth)
-- Gunicorn (Production WSGI server)
+- Flask 3.0.0 + Supabase (PostgreSQL)
 - JWT authentication
-- OpenAI/Google Gemini APIs for AI features
-- Stripe for payment processing
+- OpenAI/Gemini APIs for AI features
+- Stripe for payments
 
 **Frontend:**
-- React 18.3.1 with React Router v6
-- Vite (Build tool)
-- TailwindCSS (Styling)
-- React Query (Data fetching)
-- React Hook Form (Form management)
-- Axios (HTTP client)
-- Recharts (Data visualization)
+- React 18.3.1 + Vite + TailwindCSS
+- React Router v6, React Query, Axios
 
-**Infrastructure:**
-- Railway/Render (Backend hosting)
-- Netlify/Vercel (Frontend hosting)
-- Supabase (Database & Auth)
+**Hosting:**
+- Backend: Railway/Render
+- Frontend: Netlify/Vercel
+- Database: Supabase
 
-## Directory Structure
+## Key Directory Structure
 
 ```
-pw_v2/
-├── backend/
-│   ├── app.py                    # Main Flask application
-│   ├── config.py                  # Configuration management
-│   ├── database.py                # Supabase client management
-│   ├── cors_config.py             # CORS configuration
-│   ├── routes/                    # API endpoints
-│   │   ├── auth.py               # Authentication endpoints
-│   │   ├── quests.py             # Quest management (legacy)
-│   │   ├── quests_v3.py          # Quest management (V3)
-│   │   ├── tasks.py              # Task completion
-│   │   ├── collaborations.py    # Team-up functionality
-│   │   ├── learning_logs_v3.py  # Learning logs
-│   │   ├── admin.py              # Admin endpoints
-│   │   ├── admin_v3.py           # Admin V3 endpoints
-│   │   ├── portfolio.py         # Portfolio/diploma endpoints
-│   │   ├── subscriptions.py     # Stripe subscription management
-│   │   ├── community.py         # Social features
-│   │   ├── sources.py           # Quest source management
-│   │   ├── quest_submissions.py # Custom quest submissions
-│   │   └── uploads.py           # File upload handling
-│   ├── middleware/               # Request/response middleware
-│   │   ├── security.py          # Security middleware
-│   │   ├── error_handler.py    # Global error handling
-│   │   ├── rate_limiter.py     # Rate limiting
-│   │   └── csrf_protection.py  # CSRF protection
-│   ├── services/                # Business logic services
-│   │   ├── email_service.py    # Email notifications
-│   │   ├── evidence_service.py # Evidence upload to Supabase
-│   │   ├── quest_completion_service.py
-│   │   └── xp_service.py       # XP calculation
-│   ├── utils/                   # Utility functions
-│   │   ├── auth/               # Authentication utilities
-│   │   ├── validation/         # Input validation
-│   │   └── session_manager.py # Session management
-│   └── migrations/             # Database migrations
-├── frontend/
-│   ├── src/
-│   │   ├── App.jsx            # Main React component
-│   │   ├── pages/             # Page components
-│   │   │   ├── HomePage.jsx
-│   │   │   ├── QuestHubV3.jsx      # Quest hub (V3)
-│   │   │   ├── QuestDetailV3.jsx   # Quest detail (V3)
-│   │   │   ├── DiplomaPageV3.jsx   # Diploma/portfolio page (CORE FEATURE - Enhanced with unified layout)
-│   │   │   ├── DashboardPage.jsx   # User dashboard
-│   │   │   ├── AdminPage.jsx       # Admin dashboard
-│   │   │   └── CustomizeQuestPage.jsx # Student quest submission page
-│   │   ├── components/        # Reusable components
-│   │   │   ├── quest/        # Quest-related components
-│   │   │   ├── evidence/     # Evidence upload components
-│   │   │   ├── admin/        # Admin components
-│   │   │   ├── diploma/      # Diploma page components (NEW)
-│   │   │   │   ├── DiplomaHeader.jsx    # Professional diploma header
-│   │   │   │   ├── DiplomaStats.jsx     # Stats overview cards
-│   │   │   │   ├── SkillsBreakdown.jsx  # Skills XP visualization
-│   │   │   │   └── AchievementCard.jsx  # Quest achievement cards
-│   │   │   └── ui/           # UI library components (NEW)
-│   │   │       ├── Button.jsx          # Standardized button component
-│   │   │       └── Skeleton.jsx        # Loading skeleton components
-│   │   ├── contexts/         # React contexts
-│   │   │   └── AuthContext.jsx
-│   │   ├── services/         # API service layer
-│   │   │   └── api.js
-│   │   └── utils/            # Utility functions (NEW)
-│   │       └── errorMessages.js  # Standardized error messages
-│   └── public/
-└── supabase/
-    ├── migrations/           # SQL migrations
-    └── functions/           # Edge functions
+backend/
+├── routes/           # API endpoints
+│   ├── quests_v3.py         # V3 quest system
+│   ├── tasks.py             # Task completions
+│   ├── quest_submissions.py # Custom quests
+│   ├── portfolio.py         # Diploma/portfolio
+│   └── admin_v3.py          # Admin functions
+├── services/         # Business logic
+└── middleware/       # Security, rate limiting
 
+frontend/src/
+├── pages/
+│   ├── QuestHubV3Improved.jsx  # Quest hub
+│   ├── DiplomaPageV3.jsx       # CORE FEATURE
+│   ├── CustomizeQuestPage.jsx  # Quest submissions
+│   └── AdminPage.jsx           # Admin dashboard
+└── components/
+    ├── diploma/      # Diploma components
+    └── ui/          # Reusable UI components
 ```
 
-## Database Schema
+## Database Schema (Current State)
 
 ### Core Tables
 
-**users** (extends auth.users)
-- id (UUID, PK, references auth.users(id))
-- username (unique)
-- first_name, last_name  
-- subscription_tier (explorer/creator/visionary)
-- stripe_customer_id
+**users**
+- id (UUID, PK, references auth.users)
+- username, first_name, last_name
 - role (student/parent/advisor/admin)
-- created_at
-- Note: email is stored in auth.users table, not users table
+- subscription_tier (explorer/creator/visionary)
 
 **quests**
 - id (UUID, PK)
 - title, description
-- evidence_requirements
-- pillar (legacy - V3 quests use pillar per task)
-- xp_value (legacy - V3 quests calculate XP from tasks)
-- source (khan_academy/brilliant/code_academy/custom)
-- source_url
+- source (khan_academy/brilliant/custom)
+- is_v3 (boolean - true for current system)
 - is_active
-- is_v3 (flag for V3 quests)
+- Note: pillar and xp_value are legacy fields (V3 uses task-level)
 
-**user_quests** (tracks progress)
-- id (SERIAL, PK)
-- user_id, quest_id
-- is_active (boolean - false means quest was ended/abandoned)
-- started_at, completed_at
-- Note: No status or ended_at columns exist
-
-**quest_tasks** (V3 feature)
+**quest_tasks** (V3 - stores task details)
 - id (UUID, PK)
 - quest_id
 - title, description
-- pillar (skill category for this task)
-- xp_value (XP reward for completing this task)
-- order_index
-- is_required
+- pillar (creativity/critical_thinking/practical_skills/communication/cultural_literacy)
+- xp_value (XP for completing this task)
+- order_index, is_required
 
-**quest_task_completions** (V3 feature)
+**quest_task_completions** (V3 - tracks completion)
 - id (UUID, PK)
 - user_id, quest_id, task_id
 - evidence_url, evidence_text
 - completed_at
 
-**quest_collaborations** (Team-up feature)
-- id (UUID, PK)
-- quest_id
-- requester_id, partner_id
-- status (pending/accepted/declined/completed/cancelled)
+**user_skill_xp** (XP tracking)
+- user_id, pillar, xp_amount
+- Updated when tasks are completed
 
-**learning_logs**
-- id (UUID, PK)
-- user_id, quest_id
-- content
-- reflection_prompt
-- created_at
-
-**diplomas**
+**quest_submissions** (Custom quest requests)
 - id (UUID, PK)
 - user_id
-- portfolio_slug (unique URL slug for public access)
-- public_visibility
-
-**user_skill_xp**
-- id (UUID, PK)
-- user_id (references users(id))
-- pillar (skill category name: creativity/critical_thinking/practical_skills/communication/cultural_literacy)
-- xp_amount (total XP for that pillar)
-- updated_at (timestamp)
-
-**quest_submissions** (Student-created custom quests)
-- id (UUID, PK)
-- user_id (references users(id))
 - title, description
 - suggested_tasks (JSONB - includes pillar and xp per task)
-- make_public (BOOLEAN, default false)
+- make_public (boolean)
 - status (pending/approved/rejected)
-- created_at, reviewed_at
-- reviewed_by (references users(id))
-- approved_quest_id (references quests(id))
-- rejection_reason (TEXT)
-- Note: pillar and suggested_xp fields removed - now stored per task in suggested_tasks
+- approved_quest_id (if approved)
 
-### Supporting Tables
-- quest_ratings
-- quest_ideas
-- site_settings
-- activity_log
-- friendships
-- submission_evidence
-- submissions
+**user_quests** (Quest enrollment)
+- user_id, quest_id
+- is_active (false = abandoned)
+- started_at, completed_at
 
-## API Endpoints
+## Key API Endpoints
 
-### Authentication
-- POST /api/auth/register - User registration
-- POST /api/auth/login - User login
-- POST /api/auth/logout - User logout
-- GET /api/auth/me - Get current user
-- POST /api/auth/refresh - Refresh JWT token
+### Quests & Tasks
+- GET /api/v3/quests - List quests
+- POST /api/v3/quests/:id/start - Start quest
+- POST /api/v3/tasks/:taskId/complete - Submit evidence
+- GET /api/v3/quests/:id/progress - Check progress
 
-### Quests (V3)
-- GET /api/v3/quests - List all quests
-- GET /api/v3/quests/:id - Get quest details
-- POST /api/v3/quests/:id/start - Start a quest
-- GET /api/v3/quests/:id/progress - Get user's progress
+### Custom Quest Submissions
+- POST /api/v3/quests/submissions - Submit custom quest
+- GET /api/v3/admin/submissions - View submissions (admin)
+- PUT /api/v3/admin/submissions/:id/approve - Approve quest
 
-### Tasks (V3)
-- POST /api/v3/tasks/:taskId/complete - Complete a task with evidence
-- GET /api/v3/tasks/quest/:questId - Get tasks for a quest
-
-### Collaborations
-- POST /api/v3/collaborations/invite - Send team-up invitation
-- POST /api/v3/collaborations/:id/accept - Accept invitation
-- POST /api/v3/collaborations/:id/decline - Decline invitation
-- GET /api/v3/collaborations/pending - Get pending invitations
-
-### Portfolio/Diploma (CORE FEATURE)
-- GET /api/portfolio/:slug - Get public portfolio by slug
-- GET /api/portfolio/diploma/:userId - Get diploma by user ID
-- PUT /api/portfolio/settings - Update portfolio settings
-
-### Admin (V3)
-- GET /api/v3/admin/quests - List all quests (admin)
-- POST /api/v3/admin/quests - Create new quest
-- PUT /api/v3/admin/quests/:id - Update quest
-- DELETE /api/v3/admin/quests/:id - Delete quest
-- POST /api/v3/admin/quests/:id/tasks - Add tasks to quest
-
-### Learning Logs
-- POST /api/v3/logs - Create learning log
-- GET /api/v3/logs/quest/:questId - Get logs for quest
-- PUT /api/v3/logs/:id - Update log
-- DELETE /api/v3/logs/:id - Delete log
-
-### Quest Submissions (Student Custom Quests)
-- POST /api/v3/quests/submissions - Submit custom quest for approval
-- GET /api/v3/quests/submissions/:userId - Get user's submissions
-- GET /api/v3/admin/submissions - Get all submissions (admin)
-- PUT /api/v3/admin/submissions/:id/approve - Approve submission (admin)
-- PUT /api/v3/admin/submissions/:id/reject - Reject submission (admin)
+### Portfolio/Diploma (CORE)
+- GET /api/portfolio/:slug - Public portfolio view
+- GET /api/portfolio/diploma/:userId - Get diploma data
 
 ## Key Features
 
-### 1. Quest System
-- Students complete quests to earn XP in 5 skill pillars
-- Each quest has tasks that must be completed with evidence
-- Evidence can be text, images, videos, or documents
-- Quests can be sourced from external platforms (Khan Academy, Brilliant, etc.)
+### V3 Quest System
+- **Task-based structure**: Each quest has multiple tasks
+- **Per-task configuration**: Each task has its own pillar and XP value
+- **Evidence submission**: Text, images, videos, documents
+- **Completion bonus**: 50% XP bonus for completing all tasks (rounded to nearest 50)
+- **Custom quests**: Students can submit quest ideas for approval
 
-### 2. V3 Quest System (Current)
-- Modular task-based quests
-- Team-up functionality for collaborative learning
-- Learning logs for reflection
-- Better progress tracking
-- AI-powered quest generation capabilities
-- **Completion Bonus**: Users who complete ALL tasks in a quest receive a 50% XP bonus (rounded up to nearest 50)
-- **Custom Quest Submissions**: Students can submit their own quest ideas for admin approval
-
-### 3. Diploma Page (CORE FEATURE)
-- **THIS IS THE MOST IMPORTANT FEATURE**
-- Public-facing page showcasing student achievements
+### Diploma Page (MOST IMPORTANT)
+- Public-facing portfolio at /diploma/:userId or /portfolio/:slug
 - Displays completed quests with evidence
 - Shows XP breakdown by skill pillar
-- Customizable portfolio slug for easy sharing
-- Used for resume/portfolio purposes
-- Must be beautifully designed and professional
-- Routes: /diploma/:userId and /portfolio/:slug
+- Professional design for resume use
+- Must reflect Optio brand positively
 
-### 4. Authentication & Security
-- JWT-based authentication with Supabase Auth
-- Row Level Security (RLS) policies in database
-- Rate limiting on sensitive endpoints
-- Input sanitization and validation
-- CSRF protection available (disabled by default for API compatibility)
-- Security headers (XSS, clickjacking protection)
+### XP Calculation
+- XP awarded per task completion, not per quest
+- Stored in user_skill_xp table by pillar
+- Completion bonus applied when all tasks done
+- Run `python fix_xp_calculation.py` if XP issues occur
 
-### 5. File Uploads
-- Evidence upload to Supabase Storage
-- Support for images, videos, documents
-- 10MB file size limit per upload
-- Automatic file type validation
-- Storage in backend/uploads/evidence/
-
-### 6. Subscription Tiers
-- Explorer (free tier)
-- Creator (paid tier)
-- Visionary (premium tier)
-- Stripe integration for payments
-- Webhook handling for subscription events
-
-## Configuration
-
-### Environment Variables
+## Environment Variables
 
 **Required:**
-- SUPABASE_URL - Supabase project URL
-- SUPABASE_KEY / SUPABASE_ANON_KEY - Anon/public key
-- SUPABASE_SERVICE_KEY / SUPABASE_SERVICE_ROLE_KEY - Service role key
-- FLASK_SECRET_KEY / SECRET_KEY - Flask session secret (32+ chars in production)
+- SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY
+- FLASK_SECRET_KEY
 
 **Optional:**
-- OPENAI_API_KEY - For AI features
-- GOOGLE_API_KEY / GEMINI_API_KEY - For Gemini AI
-- STRIPE_SECRET_KEY - Payment processing
-- STRIPE_WEBHOOK_SECRET - Stripe webhooks
-- FRONTEND_URL - Frontend URL for CORS (default: http://localhost:5173)
+- OPENAI_API_KEY, GEMINI_API_KEY (AI features)
+- STRIPE_SECRET_KEY (payments)
+- FRONTEND_URL (CORS config)
 
-### Security Configuration
-- MAX_CONTENT_LENGTH: 50MB (configurable)
-- Password requirements: 8+ chars, uppercase, lowercase, number
-- Rate limiting: 100 requests/hour default
-- CORS: Configured for specific origins (localhost, optioed.org)
-- Session cookies: Secure in production, HttpOnly, SameSite=Lax
+## Production Deployment
 
-## Production Commands
-
-### Deploy Backend (Railway/Render)
+**Backend:**
 ```bash
-git add .
-git commit -m "Deploy message"
-git push origin main
+git push origin main  # Auto-deploys to Railway/Render
 ```
 
-### Deploy Frontend (Netlify/Vercel)
+**Frontend:**
 ```bash
-cd frontend
-npm run build
-# Automatic deployment via Git integration
+npm run build  # Auto-deploys via Git integration
 ```
 
-### Database Migrations
-```bash
-cd backend
-python run_quest_v3_migration.py
-python run_source_migration.py
-python create_sources_table.py
-```
+**Key Files:**
+- Procfile: `web: gunicorn app:app`
+- _redirects: `/* /index.html 200`
 
-## Testing Strategy
+## Common Issues
 
-### Backend Testing
-- Unit tests in backend/tests/unit/
-- Integration tests in backend/tests/integration/
-- Test files: test_auth.py, test_xp_calculation.py, test_api_endpoints.py
-- Run with: `pytest`
+1. **XP Not Showing**: Run `python fix_xp_calculation.py`
+2. **CORS Errors**: Check FRONTEND_URL in config.py
+3. **Auth Issues**: Verify Supabase keys match
+4. **Upload Limits**: 10MB per file default
 
-### Frontend Testing
-- Component testing with React Testing Library
-- E2E testing for critical user flows
-- Focus on diploma page functionality
+## Development Guidelines
 
-## Production Deployment Checklist
+- Follow PEP 8 for Python
+- Use functional React components with hooks
+- TailwindCSS for styling
+- Test in production environment
+- Update this doc when making schema changes
 
-### Backend (Railway/Render)
-1. Set all required environment variables
-2. Ensure Procfile exists: `web: gunicorn app:app`
-3. Verify requirements.txt is complete
-4. Check database migrations are applied
-5. Deploy via Git push to main branch
+## Critical Notes
 
-### Frontend (Netlify/Vercel)
-1. Build command: `npm run build`
-2. Publish directory: `frontend/dist`
-3. Configure _redirects for SPA: `/* /index.html 200`
-4. Set environment variables (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY)
-5. Verify custom domain configuration
-
-## Security Best Practices
-
-1. **Authentication**: All protected routes require valid JWT token
-2. **Authorization**: RLS policies enforce data access at database level
-3. **Input Validation**: All inputs sanitized using bleach and custom validators
-4. **Rate Limiting**: Prevents abuse (5/min for auth, 60/min for API)
-5. **File Uploads**: Type validation, size limits, Supabase Storage
-6. **XSS Protection**: CSP headers, input sanitization
-7. **SQL Injection**: Prevented by Supabase query builder and parameterized queries
-
-## Performance Optimizations
-
-1. **Database**: 
-   - Indexes on user_id, quest_id, status columns
-   - Connection pooling via Supabase client
-   - Optimized queries with select() projections
-
-2. **Caching**: 
-   - Simple in-memory caching
-   - 5-minute default timeout
-   - Upgradeable to Redis
-
-3. **Frontend**:
-   - React code splitting
-   - Lazy loading for routes
-   - React Query for data caching
-
-4. **File Handling**:
-   - Direct upload to Supabase Storage
-   - CDN delivery for static assets
-
-## Monitoring & Logging
-
-- Flask logging: INFO level in dev, WARNING in production
-- Error tracking via global error handler middleware
-- Activity logging in database for user actions
-- Consider Sentry integration for production error tracking
-
-## Common Issues & Solutions
-
-1. **CORS Errors**: 
-   - Check FRONTEND_URL in backend/config.py
-   - Verify allowed origins include your domain
-
-2. **Auth Failures**: 
-   - Verify Supabase keys match between frontend and backend
-   - Check JWT token expiration
-
-3. **File Upload Issues**: 
-   - Check Supabase Storage bucket policies
-   - Verify file size limits (10MB default)
-
-4. **Rate Limiting**: 
-   - Adjust limits in middleware/rate_limiter.py
-   - Consider Redis for distributed rate limiting
-
-5. **Database Connection**:
-   - Check SUPABASE_URL format
-   - Verify service role key for admin operations
-
-6. **XP Not Showing After Task Completion**:
-   - Run `python fix_xp_calculation.py` in backend/ to recalculate XP from task completions
-   - XP is stored in `user_skill_xp` table with columns: `user_id`, `pillar`, `xp_amount`
-   - Enhanced XP service logging helps debug award issues
-
-## API Response Format
-
-Standard success response:
-```json
-{
-  "success": true,
-  "data": {...},
-  "message": "Operation successful"
-}
-```
-
-Standard error response:
-```json
-{
-  "error": "Error message",
-  "details": "Detailed error information",
-  "code": "ERROR_CODE"
-}
-```
-
-## Development Notes
-
-### Git Workflow
-- Main branch for production
-- Feature branches for development
-- Automatic deployment on push to main
-
-### Code Style
-- Python: PEP 8 compliance
-- JavaScript: ES6+ syntax
-- React: Functional components with hooks
-- CSS: TailwindCSS utility classes
-
-### Important Files
-- PRD.md - Product requirements document
-- design_implementation.md - Design decisions
-- SECURITY_FIX_CHANGELOG.md - Security updates log
-- AI_imp_plan.md - AI implementation roadmap
-
-## Future Enhancements
-
-1. **Core Improvements**:
-   - Enhanced diploma page design with themes
-   - Portfolio customization options
-   - Public profile SEO optimization
-
-2. **Features**:
-   - Badge/achievement system
-   - Parent/educator oversight dashboard
-   - Advanced analytics for students
-   - Peer review system
-   - AI-powered learning recommendations
-
-3. **Technical**:
-   - WebSocket support for real-time collaboration
-   - Redis caching layer
-   - Elasticsearch for quest search
-   - CDN integration for media files
-   - Comprehensive test coverage (target 80%)
-
-## Contact & Support
-
-For technical issues or questions:
-1. Check existing documentation (PRD.md, design_implementation.md)
-2. Review security changelog for recent changes
-3. Consult AI implementation plan for upcoming features
-
-Remember: The diploma page is the heart of Optio - it must always be exceptional.
+- The diploma page is the core product - prioritize its quality
+- XP and pillars are now per-task, not per-quest (V3)
+- Custom quests allow student-generated content
+- Always maintain backwards compatibility with existing data
