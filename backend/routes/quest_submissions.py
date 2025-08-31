@@ -22,13 +22,12 @@ def submit_quest(user_id):
         if not data.get('title') or not data.get('description'):
             return jsonify({'error': 'Title and description are required'}), 400
         
-        # Create submission
+        # Create submission (XP is now per task, not per quest)
         submission_data = {
             'user_id': user_id,
             'title': data['title'],
             'description': data['description'],
             'suggested_tasks': data.get('suggested_tasks'),
-            'suggested_xp': data.get('suggested_xp'),
             'make_public': data.get('make_public', False),
             'status': 'pending'
         }
@@ -124,11 +123,10 @@ def approve_submission(submission_id, admin_id):
         if submission['status'] != 'pending':
             return jsonify({'error': 'Submission already processed'}), 400
         
-        # Create the quest (without pillar since it's now per-task)
+        # Create the quest (XP is now calculated from tasks)
         quest_data = {
             'title': data.get('title', submission['title']),
             'description': data.get('description', submission['description']),
-            'xp_value': data.get('xp_value', submission.get('suggested_xp', 100)),
             'is_active': True,
             'is_v3': True,
             'is_custom': True,
@@ -148,7 +146,7 @@ def approve_submission(submission_id, admin_id):
         
         quest_id = quest_result.data[0]['id']
         
-        # Add tasks if provided (now with pillar per task)
+        # Add tasks if provided (now with pillar and XP per task)
         tasks = data.get('tasks', submission.get('suggested_tasks', []))
         if tasks:
             task_data = []
@@ -159,6 +157,7 @@ def approve_submission(submission_id, admin_id):
                         'title': task['title'],
                         'description': task.get('description', ''),
                         'pillar': task.get('pillar', 'creativity'),  # Each task has its own pillar
+                        'xp_value': task.get('xp', 50),  # Each task has its own XP value
                         'order_index': i,
                         'is_required': True
                     })

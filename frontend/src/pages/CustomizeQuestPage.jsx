@@ -11,8 +11,7 @@ const CustomizeQuestPage = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    suggested_tasks: [{ title: '', description: '', pillar: 'creativity' }],
-    suggested_xp: '',
+    suggested_tasks: [{ title: '', description: '', pillar: 'creativity', xp: '' }],
     make_public: false
   });
 
@@ -33,7 +32,7 @@ const CustomizeQuestPage = () => {
   const addTask = () => {
     setFormData({
       ...formData,
-      suggested_tasks: [...formData.suggested_tasks, { title: '', description: '', pillar: 'creativity' }]
+      suggested_tasks: [...formData.suggested_tasks, { title: '', description: '', pillar: 'creativity', xp: '' }]
     });
   };
 
@@ -61,11 +60,16 @@ const CustomizeQuestPage = () => {
         task => task.title.trim() || task.description.trim()
       );
 
+      // Process tasks to include XP values
+      const processedTasks = filteredTasks.map(task => ({
+        ...task,
+        xp: task.xp ? parseInt(task.xp) : null
+      }));
+
       const submissionData = {
         title: formData.title,
         description: formData.description,
-        suggested_tasks: filteredTasks.length > 0 ? filteredTasks : null,
-        suggested_xp: formData.suggested_xp ? parseInt(formData.suggested_xp) : null,
+        suggested_tasks: processedTasks.length > 0 ? processedTasks : null,
         make_public: formData.make_public
       };
 
@@ -201,18 +205,29 @@ const CustomizeQuestPage = () => {
                     rows={2}
                     className="w-full px-3 py-2 mb-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
-                  <select
-                    value={task.pillar || ''}
-                    onChange={(e) => handleTaskChange(index, 'pillar', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select skill pillar for this task</option>
-                    {pillars.map(pillar => (
-                      <option key={pillar.value} value={pillar.value}>
-                        {pillar.label}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={task.pillar || ''}
+                      onChange={(e) => handleTaskChange(index, 'pillar', e.target.value)}
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select skill pillar</option>
+                      {pillars.map(pillar => (
+                        <option key={pillar.value} value={pillar.value}>
+                          {pillar.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      type="number"
+                      value={task.xp || ''}
+                      onChange={(e) => handleTaskChange(index, 'xp', e.target.value)}
+                      placeholder="XP (e.g., 50)"
+                      min="10"
+                      step="10"
+                      className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
                 </div>
               ))}
               
@@ -223,25 +238,6 @@ const CustomizeQuestPage = () => {
               >
                 + Add Task
               </button>
-            </div>
-
-            {/* Suggested XP */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Suggested XP Reward (Optional)
-              </label>
-              <input
-                type="number"
-                value={formData.suggested_xp}
-                onChange={(e) => setFormData({ ...formData, suggested_xp: e.target.value })}
-                min="50"
-                step="50"
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                placeholder="e.g., 100"
-              />
-              <p className="text-sm text-gray-500 mt-1">
-                Leave blank to let the admin decide
-              </p>
             </div>
 
             {/* Make Public */}

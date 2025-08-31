@@ -139,8 +139,8 @@ pw_v2/
 - id (UUID, PK)
 - title, description
 - evidence_requirements
-- pillar (creativity/critical_thinking/practical_skills/communication/cultural_literacy)
-- xp_value (default 100)
+- pillar (legacy - V3 quests use pillar per task)
+- xp_value (legacy - V3 quests calculate XP from tasks)
 - source (khan_academy/brilliant/code_academy/custom)
 - source_url
 - is_active
@@ -158,6 +158,7 @@ pw_v2/
 - quest_id
 - title, description
 - pillar (skill category for this task)
+- xp_value (XP reward for completing this task)
 - order_index
 - is_required
 
@@ -197,15 +198,14 @@ pw_v2/
 - id (UUID, PK)
 - user_id (references users(id))
 - title, description
-- suggested_tasks (JSONB - includes pillar per task)
-- suggested_xp (INTEGER)
+- suggested_tasks (JSONB - includes pillar and xp per task)
 - make_public (BOOLEAN, default false)
 - status (pending/approved/rejected)
 - created_at, reviewed_at
 - reviewed_by (references users(id))
 - approved_quest_id (references quests(id))
 - rejection_reason (TEXT)
-- Note: pillar field removed - now stored per task in suggested_tasks
+- Note: pillar and suggested_xp fields removed - now stored per task in suggested_tasks
 
 ### Supporting Tables
 - quest_ratings
