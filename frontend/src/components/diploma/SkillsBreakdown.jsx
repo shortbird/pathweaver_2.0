@@ -5,27 +5,27 @@ const SkillsBreakdown = ({ skillsXP }) => {
     creativity: {
       gradient: 'from-[#ef597b] to-[#ff8fa3]',
       icon: '🎨',
-      description: 'Innovation and artistic expression'
+      description: 'Creative problem-solving and innovation'
     },
     critical_thinking: {
       gradient: 'from-[#6d469b] to-[#8b5cf6]',
       icon: '🧠',
-      description: 'Analysis and problem solving'
+      description: 'Analytical reasoning and evaluation'
     },
     practical_skills: {
       gradient: 'from-[#ef597b] to-[#f97316]',
       icon: '🛠️',
-      description: 'Hands-on technical abilities'
+      description: 'Applied knowledge and technical skills'
     },
     communication: {
       gradient: 'from-[#6d469b] to-[#3b82f6]',
       icon: '💬',
-      description: 'Expression and collaboration'
+      description: 'Effective communication and teamwork'
     },
     cultural_literacy: {
       gradient: 'from-[#ef597b] to-[#ec4899]',
       icon: '🌍',
-      description: 'Global awareness and understanding'
+      description: 'Cultural awareness and global perspective'
     }
   };
 
@@ -34,7 +34,7 @@ const SkillsBreakdown = ({ skillsXP }) => {
   if (!skillsXP || Object.keys(skillsXP).length === 0) {
     return (
       <div className="bg-white rounded-xl p-8 mb-8" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}>
-        <h2 className="text-2xl font-bold mb-4" style={{ color: '#003f5c' }}>Skills Development</h2>
+        <h2 className="text-2xl font-bold mb-4" style={{ color: '#003f5c' }}>Core Competencies</h2>
         <p className="text-gray-600">Complete quests to develop skills across different pillars.</p>
       </div>
     );
@@ -43,7 +43,7 @@ const SkillsBreakdown = ({ skillsXP }) => {
   return (
     <div className="bg-white rounded-xl p-8 mb-8" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-bold" style={{ color: '#003f5c' }}>Skills Development</h2>
+        <h2 className="text-2xl font-bold" style={{ color: '#003f5c' }}>Core Competencies</h2>
         <div className="text-right">
           <p className="text-sm text-gray-600">Total XP</p>
           <p className="text-2xl font-bold" style={{ color: '#6d469b' }}>{totalXP.toLocaleString()}</p>
@@ -76,7 +76,7 @@ const SkillsBreakdown = ({ skillsXP }) => {
                 <div className="mt-3">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-sm font-medium text-gray-700">{xp.toLocaleString()} XP</span>
-                    <span className="text-xs text-gray-500">{percentage.toFixed(1)}%</span>
+                    <span className="text-xs text-gray-500">Demonstrated</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                     <div 
@@ -109,7 +109,7 @@ const SkillsBreakdown = ({ skillsXP }) => {
                   opacity: Math.max(0.7, percentage / 100)
                 }}
               >
-                {pillar.replace('_', ' ')} • {percentage.toFixed(0)}%
+                {pillar.replace('_', ' ')}
               </div>
             );
           })}

@@ -293,7 +293,7 @@ const DiplomaPageV3 = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
-      <div className="max-w-7xl mx-auto px-4 py-10" style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
+      <div className="max-w-7xl mx-auto px-4 py-10">
         {/* Unified Diploma Header */}
         <DiplomaHeader 
           user={user}
@@ -318,10 +318,10 @@ const DiplomaPageV3 = () => {
         {/* Achievements Section */}
         <div className="mb-8">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold" style={{ color: '#003f5c' }}>Completed Quests</h2>
+            <h2 className="text-2xl font-bold" style={{ color: '#003f5c' }}>Academic Achievements</h2>
             {achievements.length > 0 && (
               <span className="text-sm text-gray-600">
-                {achievements.length} {achievements.length === 1 ? 'achievement' : 'achievements'}
+                {achievements.length} Validated {achievements.length === 1 ? 'Achievement' : 'Achievements'}
               </span>
             )}
           </div>
@@ -332,7 +332,7 @@ const DiplomaPageV3 = () => {
               <path fillRule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
             </svg>
             <p className="text-lg mb-2 font-semibold" style={{ color: '#003f5c' }}>No completed quests yet</p>
-            <p style={{ color: '#003f5c', opacity: 0.7 }}>Complete quests to showcase your achievements here!</p>
+            <p style={{ color: '#003f5c', opacity: 0.7 }}>Your validated academic achievements will appear here.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

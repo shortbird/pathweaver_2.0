@@ -81,13 +81,13 @@ const DiplomaHeader = ({
           {/* Optio Branding */}
           <div className="mb-6">
             <div className="inline-block px-6 py-2 rounded-full bg-white/10 backdrop-blur-sm">
-              <span className="text-sm font-semibold tracking-wider uppercase">Optio Education</span>
+              <span className="text-sm font-bold tracking-wider uppercase">Optio Education Platform</span>
             </div>
           </div>
 
           {/* Main Title */}
-          <h1 className="text-5xl font-bold mb-3" style={{ letterSpacing: '-1px' }}>
-            Certificate of Achievement
+          <h1 className="text-5xl font-bold mb-3">
+            Academic Diploma
           </h1>
           
           {/* Student Name */}
@@ -101,7 +101,7 @@ const DiplomaHeader = ({
               has successfully completed the requirements for
             </p>
             <p className="text-2xl font-semibold mt-2">
-              Self-Validated Learning Diploma
+              Self-Directed Educational Achievement
             </p>
           </div>
 

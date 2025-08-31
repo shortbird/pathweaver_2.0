@@ -4,8 +4,8 @@ const DiplomaStats = ({ totalXP, questsCompleted, skillsCount, achievements }) =
   const stats = [
     {
       value: totalXP || 0,
-      label: 'Total Experience Points',
-      sublabel: 'Earned through validated learning',
+      label: 'Experience Points',
+      sublabel: 'Validated competency achievements',
       color: '#ef597b',
       icon: (
         <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -15,8 +15,8 @@ const DiplomaStats = ({ totalXP, questsCompleted, skillsCount, achievements }) =
     },
     {
       value: questsCompleted || achievements?.length || 0,
-      label: 'Quests Completed',
-      sublabel: 'Real-world challenges mastered',
+      label: 'Learning Modules',
+      sublabel: 'Completed with evidence',
       color: '#6d469b',
       icon: (
         <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -26,8 +26,8 @@ const DiplomaStats = ({ totalXP, questsCompleted, skillsCount, achievements }) =
     },
     {
       value: skillsCount || 5,
-      label: 'Skills Developed',
-      sublabel: 'Unique competencies demonstrated',
+      label: 'Core Competencies',
+      sublabel: 'Academic pillars mastered',
       color: '#ef597b',
       icon: (
         <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
