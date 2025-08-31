@@ -186,7 +186,7 @@ const RecentCompletions = memo(({ recentTasks }) => {
   
   return (
     <div className="space-y-3">
-      {recentTasks.slice(0, 5).map((task, idx) => {
+      {recentTasks.slice(0, 3).map((task, idx) => {
         const pillarStyle = pillarColors[task.pillar] || { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-200' }
         
         return (

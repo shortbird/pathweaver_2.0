@@ -94,9 +94,12 @@ const DiplomaPageV3 = () => {
   const fetchAchievements = async () => {
     try {
       const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const token = localStorage.getItem('access_token');
+      console.log('Fetching achievements with token:', token ? 'present' : 'missing');
+      
       const response = await fetch(`${apiBase}/v3/quests/completed`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          'Authorization': `Bearer ${token}`
         }
       });
 
@@ -113,6 +116,7 @@ const DiplomaPageV3 = () => {
       }
 
       const data = await response.json();
+      console.log('Completed quests response:', data);
       setAchievements(data.achievements || []);
 
       // Calculate total XP by pillar

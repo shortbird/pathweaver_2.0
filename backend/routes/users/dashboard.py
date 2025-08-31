@@ -25,8 +25,8 @@ def get_dashboard(user_id):
         # Get active quests
         active_quests = get_active_quests(supabase, user_id)
         
-        # Get recent task completions (not quest completions)
-        recent_completions = get_recent_task_completions(supabase, user_id)
+        # Get recent task completions (not quest completions) - limit to 3
+        recent_completions = get_recent_task_completions(supabase, user_id, limit=3)
         
         # Calculate XP stats
         total_xp, skill_breakdown = calculate_user_xp(supabase, user_id)
