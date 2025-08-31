@@ -44,7 +44,8 @@
       "Bash(../venv/Scripts/python:*)",
       "Bash(npm run build:*)",
       "Bash(../venv/Scripts/pip show flask-wtf)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": []

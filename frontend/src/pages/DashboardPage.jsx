@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useCallback, memo } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
@@ -7,13 +7,24 @@ import { DIPLOMA_PILLARS, getPillarName } from '../utils/pillarMappings'
 
 // Memoized component for Active Quests section
 const ActiveQuests = memo(({ activeQuests }) => {
+  const navigate = useNavigate()
+  
+  // Define pillar colors to match QuestCard
+  const pillarColors = {
+    creativity: { gradient: 'from-purple-500 to-pink-500', bg: 'bg-purple-100', text: 'text-purple-700' },
+    critical_thinking: { gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-100', text: 'text-blue-700' },
+    practical_skills: { gradient: 'from-green-500 to-emerald-500', bg: 'bg-green-100', text: 'text-green-700' },
+    communication: { gradient: 'from-orange-500 to-yellow-500', bg: 'bg-orange-100', text: 'text-orange-700' },
+    cultural_literacy: { gradient: 'from-red-500 to-rose-500', bg: 'bg-red-100', text: 'text-red-700' }
+  }
+  
   if (!activeQuests || activeQuests.length === 0) {
     return (
       <div className="text-center py-8">
         <p className="text-gray-600 mb-4">No active quests yet.</p>
         <Link 
           to="/quests" 
-          className="inline-flex items-center px-6 py-3 bg-gradient-primary text-white rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
+          className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
         >
           <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
@@ -25,72 +36,133 @@ const ActiveQuests = memo(({ activeQuests }) => {
   }
   
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {activeQuests.map(quest => {
         const questId = quest.quest_id || quest.quests?.id
+        const questData = quest.quests || quest
         
         if (!questId) {
           return null
         }
         
-        // Calculate progress percentage (placeholder - will need backend support)
-        const tasksCompleted = quest.tasks_completed || 0
-        const totalTasks = quest.quests?.total_tasks || quest.total_tasks || 5
+        // Calculate progress
+        const tasksCompleted = quest.tasks_completed || quest.completed_tasks || 0
+        const totalTasks = questData.task_count || questData.total_tasks || 1
         const progressPercent = totalTasks > 0 ? Math.round((tasksCompleted / totalTasks) * 100) : 0
+        
+        // Get pillar breakdown
+        const pillarBreakdown = questData.pillar_breakdown || {}
+        const totalXP = questData.total_xp || 0
+        
+        // Get dominant pillar for visual accent
+        const dominantPillar = Object.entries(pillarBreakdown).reduce((max, [pillar, xp]) => 
+          xp > (max.xp || 0) ? { pillar, xp } : max, {}).pillar || 'creativity'
+        
+        const handleCardClick = () => {
+          navigate(`/quests/${questId}`)
+        }
         
         return (
           <div
             key={quest.id}
-            className="card-feature p-6"
+            className="group bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100"
+            onClick={handleCardClick}
           >
-            <div className="flex justify-between items-start mb-3">
-              <div className="flex-1">
-                <h3 className="font-semibold text-lg text-text-primary">
-                  {quest.quests?.title || 'Untitled Quest'}
+            {/* Visual Header - Colored bar at top */}
+            <div className={`h-2 bg-gradient-to-r ${pillarColors[dominantPillar].gradient}`} />
+            
+            {/* Content Section */}
+            <div className="p-6">
+              {/* Title and Description */}
+              <div className="mb-4">
+                <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-[#6d469b] transition-colors line-clamp-2">
+                  {questData.title || 'Untitled Quest'}
                 </h3>
-                <div className="flex items-center gap-3 mt-2">
-                  <span className="text-xs text-text-muted">
-                    Started {quest.started_at ? new Date(quest.started_at).toLocaleDateString() : 'Recently'}
+                <p className="text-gray-600 text-sm line-clamp-3 leading-relaxed">
+                  {questData.big_idea || questData.description || 'Continue your learning journey'}
+                </p>
+              </div>
+
+              {/* Meta Information */}
+              <div className="flex items-center gap-4 mb-4 text-sm">
+                <div className="flex items-center gap-1.5">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                  <span className="text-gray-600">{tasksCompleted}/{totalTasks} Tasks</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="text-gray-600">
+                    {quest.started_at ? new Date(quest.started_at).toLocaleDateString() : 'Recently'}
                   </span>
                 </div>
               </div>
+
+              {/* Progress Bar */}
+              <div className="mb-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-xs font-medium text-gray-600">Progress</span>
+                  <span className="text-sm font-bold text-gray-900">{progressPercent}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                  <div 
+                    className={`h-full bg-gradient-to-r ${pillarColors[dominantPillar].gradient} rounded-full transition-all duration-500`}
+                    style={{ width: `${progressPercent}%` }}
+                  />
+                </div>
+              </div>
+
+              {/* Pillars with XP */}
+              <div className="mb-5">
+                {/* Total XP Badge */}
+                <div className="flex items-center gap-2 mb-3">
+                  <div className={`px-3 py-1.5 rounded-full bg-gradient-to-r ${pillarColors[dominantPillar].gradient} text-white text-sm font-bold shadow-md`}>
+                    {totalXP} Total XP
+                  </div>
+                </div>
+                
+                {/* Individual Pillar XP Breakdown */}
+                {Object.keys(pillarBreakdown).length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {Object.entries(pillarBreakdown)
+                      .filter(([_, xp]) => xp > 0)
+                      .sort(([_, a], [__, b]) => b - a)
+                      .map(([pillar, xp]) => (
+                        <div 
+                          key={pillar}
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${pillarColors[pillar]?.bg || 'bg-gray-100'} ${pillarColors[pillar]?.text || 'text-gray-700'} text-xs font-medium`}
+                        >
+                          <span className="capitalize">{pillar.replace('_', ' ')}</span>
+                          <span className="font-bold">+{xp}</span>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Continue Button */}
+              <button
+                className="w-full px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  navigate(`/quests/${questId}`)
+                }}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Continue Quest
+              </button>
+
+              {/* In Progress Indicator */}
+              <div className="mt-3 flex items-center gap-2 text-xs text-green-600">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                <span>In Progress</span>
+              </div>
             </div>
-            
-            {/* Progress Bar */}
-            <div className="mb-4">
-              <div className="flex justify-between items-center mb-1">
-                <span className="text-xs font-medium text-text-secondary">Progress</span>
-                <span className="text-xs font-bold text-text-primary">{progressPercent}%</span>
-              </div>
-              <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                <div 
-                  className="h-full bg-gradient-primary rounded-full transition-all duration-500 relative overflow-hidden"
-                  style={{ width: `${progressPercent}%` }}
-                />
-              </div>
-            </div>
-            
-            {/* XP Preview */}
-            {quest.quests?.quest_skill_xp && quest.quests.quest_skill_xp.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-4">
-                {quest.quests.quest_skill_xp.slice(0, 3).map((xp, idx) => (
-                  <span key={idx} className="text-xs px-3 py-1 bg-purple-100 text-primary rounded-full font-semibold uppercase tracking-wider">
-                    +{xp.xp_amount} {getPillarName(xp.skill_category)}
-                  </span>
-                ))}
-              </div>
-            )}
-            
-            {/* Continue Button */}
-            <Link
-              to={`/quests/${questId}`}
-              className="w-full inline-flex justify-center items-center px-6 py-3 bg-gradient-primary text-white font-semibold rounded-[30px] shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
-            >
-              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-              </svg>
-              Continue Quest
-            </Link>
           </div>
         )
       })}
