@@ -3,7 +3,7 @@ import { X, Shield, GraduationCap, Users, Calendar, Award, CheckCircle, Star } f
 
 const VisionaryTierModal = ({ onClose }) => {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+    <div className="fixed top-0 left-0 right-0 bottom-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4" style={{ margin: 0, padding: '1rem' }}>
       <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* Header */}
         <div className="relative bg-gradient-to-r from-[#6d469b] to-[#ef597b] p-8 text-white">
@@ -19,7 +19,7 @@ const VisionaryTierModal = ({ onClose }) => {
               <Shield className="w-10 h-10" />
             </div>
             <div>
-              <h2 className="text-3xl font-bold mb-1">Visionary Tier</h2>
+              <h2 className="text-3xl font-bold mb-1">Visionary Tier - $499.99/month</h2>
               <p className="text-white/90">The Best of Both Worlds</p>
             </div>
           </div>
@@ -82,7 +82,7 @@ const VisionaryTierModal = ({ onClose }) => {
               {[
                 'Accredited high school diploma',
                 'Regular 1-on-1 teacher sessions',
-                'Monthly parent progress reports',
+                'Dashboard for parent progress reports',
                 'College application support',
                 'SAT/ACT prep resources',
                 'Transcript management',
@@ -90,7 +90,7 @@ const VisionaryTierModal = ({ onClose }) => {
                 'Priority support',
                 'All Creator tier features',
                 'Unlimited custom quests',
-                'Network access to business leaders & mentors'
+                'Access to Optio\'s network of business leaders & mentors'
               ].map((feature, index) => (
                 <div key={index} className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />

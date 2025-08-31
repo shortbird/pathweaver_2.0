@@ -50,8 +50,8 @@ const DemoFeature = () => {
     return titles[currentStep] || '';
   };
 
-  const canGoBack = currentStep > 0 && currentStep <= 5;
-  const canGoForward = currentStep > 1 && currentStep <= 5 && 
+  const canGoBack = currentStep > 0 && currentStep < 6;
+  const canGoForward = currentStep > 1 && currentStep < 5 && 
     (currentStep !== 2 || demoState.completedTasks.length > 0);
 
   return (

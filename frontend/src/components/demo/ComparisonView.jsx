@@ -229,12 +229,11 @@ const ComparisonView = () => {
         <div className="mt-6 p-4 bg-gradient-to-r from-[#6d469b]/5 to-[#ef597b]/5 rounded-lg">
           <h4 className="text-center font-bold text-[#003f5c] mb-3">The Process Is The Goal</h4>
           <p className="text-center text-gray-700">
-            At Optio, we believe learning is not about reaching a destination or impressing others. 
-            It's about who you become through the journey of discovery, creation, and growth. 
-            Every quest, every piece of evidence is valuable because of what it teaches you RIGHT NOW.
+            Learning is about who you become, not what you prove. 
+            Every quest matters because of what it teaches you right now.
           </p>
           <p className="text-center text-sm text-[#6d469b] font-semibold mt-3">
-            The diploma is not the goal - it's the beautiful byproduct of a meaningful learning journey.
+            The diploma is the byproduct, not the goal.
           </p>
         </div>
       </div>
