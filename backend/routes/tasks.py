@@ -229,8 +229,13 @@ def complete_task(user_id: str, task_id: str):
         # Check if all tasks (required and optional) are completed for bonus
         all_tasks_completed = all_task_ids.issubset(completed_task_ids)
         
+        # If no required tasks are specified, treat all tasks as required
+        # This ensures quests are marked complete when all tasks are done
+        if not required_task_ids:
+            required_task_ids = all_task_ids
+            
         # If all required tasks completed, mark quest as complete
-        if required_task_ids.issubset(completed_task_ids):
+        if required_task_ids and required_task_ids.issubset(completed_task_ids):
             supabase.table('user_quests')\
                 .update({
                     'completed_at': datetime.utcnow().isoformat(),
