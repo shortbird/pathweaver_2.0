@@ -224,11 +224,12 @@ const DashboardPage = () => {
     try {
       const response = await api.get('/users/dashboard')
       console.log('=== DASHBOARD DEBUG ===')
-      console.log('Dashboard API response:', response.data)
+      console.log('Full Dashboard API response:', response.data)
+      console.log('Stats object:', response.data.stats)
+      console.log('Stats total_xp:', response.data.stats?.total_xp)
       console.log('xp_by_category:', response.data.xp_by_category)
-      console.log('total_xp:', response.data.total_xp)
-      console.log('skill_xp:', response.data.skill_xp)
-      console.log('xp_by_subject:', response.data.xp_by_subject)
+      console.log('skill_xp_data:', response.data.skill_xp_data)
+      console.log('active_quests:', response.data.active_quests)
       console.log('======================')
       setDashboardData(response.data)
     } catch (error) {

@@ -97,10 +97,11 @@ def list_quests():
                 
                 if enrollment.data:
                     print(f"[DEBUG] Found enrollment for quest {quest['id'][:8]}: {enrollment.data[0]}")
-                    # Find the active enrollment ONLY
+                    # Find the active enrollment - consider is_active=None as active
                     active_enrollment = None
                     for enr in enrollment.data:
-                        if enr.get('is_active') and not enr.get('completed_at'):
+                        # Check if not completed and is_active is not explicitly False
+                        if not enr.get('completed_at') and enr.get('is_active') is not False:
                             active_enrollment = enr
                             print(f"[DEBUG] Found ACTIVE enrollment: is_active={enr.get('is_active')}")
                             break
@@ -194,22 +195,33 @@ def get_quest_detail(user_id: str, quest_id: str):
         else:
             print(f"[QUEST DETAIL] No enrollment found")
         
-        if user_quest.data and user_quest.data[0].get('is_active') and not user_quest.data[0].get('completed_at'):
-            quest_data['user_enrollment'] = user_quest.data[0]
-            
-            # Calculate progress
-            total_tasks = len(quest_data.get('quest_tasks', []))
-            completed_tasks = len(user_quest.data[0].get('user_quest_tasks', []))
-            quest_data['progress'] = {
-                'completed_tasks': completed_tasks,
-                'total_tasks': total_tasks,
-                'percentage': (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
-            }
-            
-            # Mark completed tasks
-            completed_task_ids = {t['quest_task_id'] for t in user_quest.data[0].get('user_quest_tasks', [])}
-            for task in quest_data.get('quest_tasks', []):
-                task['is_completed'] = task['id'] in completed_task_ids
+        # Check for any active enrollment (is_active might be None in some cases)
+        if user_quest.data and not user_quest.data[0].get('completed_at'):
+            # Consider enrollment active if is_active is True or None (not explicitly False)
+            is_active = user_quest.data[0].get('is_active')
+            if is_active is not False:  # True or None are both considered active
+                quest_data['user_enrollment'] = user_quest.data[0]
+                
+                # Calculate progress
+                total_tasks = len(quest_data.get('quest_tasks', []))
+                completed_tasks = len(user_quest.data[0].get('user_quest_tasks', []))
+                quest_data['progress'] = {
+                    'completed_tasks': completed_tasks,
+                    'total_tasks': total_tasks,
+                    'percentage': (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+                }
+                
+                # Mark completed tasks
+                completed_task_ids = {t['quest_task_id'] for t in user_quest.data[0].get('user_quest_tasks', [])}
+                for task in quest_data.get('quest_tasks', []):
+                    task['is_completed'] = task['id'] in completed_task_ids
+            else:
+                quest_data['user_enrollment'] = None
+                quest_data['progress'] = {
+                    'completed_tasks': 0,
+                    'total_tasks': len(quest_data.get('quest_tasks', [])),
+                    'percentage': 0
+                }
         else:
             quest_data['user_enrollment'] = None
             quest_data['progress'] = {

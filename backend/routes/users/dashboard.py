@@ -65,6 +65,13 @@ def get_dashboard(user_id):
             'recent_completions': recent_completions
         }
         
+        print(f"=== DASHBOARD RESPONSE DEBUG ===")
+        print(f"Total XP being sent: {total_xp}")
+        print(f"XP by category: {skill_breakdown}")
+        print(f"Stats object: {dashboard_data['stats']}")
+        print(f"Tasks completed: {tasks_completed}")
+        print(f"================================")
+        
         return jsonify(dashboard_data), 200
         
     except NotFoundError:
