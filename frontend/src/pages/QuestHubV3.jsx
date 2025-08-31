@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { handleApiResponse } from '../utils/errorHandling';
+import { useNavigate } from 'react-router-dom';
 import QuestCardV3 from '../components/quest/QuestCardV3';
 import TeamUpModal from '../components/quest/TeamUpModal';
 
 const QuestHubV3 = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [quests, setQuests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -116,9 +118,19 @@ const QuestHubV3 = () => {
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-5xl font-bold text-text-primary mb-2">Quest Hub</h1>
-          <p className="text-text-secondary">Choose your adventure and start earning XP!</p>
+        <div className="mb-8 flex justify-between items-start">
+          <div>
+            <h1 className="text-5xl font-bold text-text-primary mb-2">Quest Hub</h1>
+            <p className="text-text-secondary">Choose your adventure and start earning XP!</p>
+          </div>
+          {user && (
+            <button
+              onClick={() => navigate('/quests/customize')}
+              className="px-6 py-3 bg-gradient-primary text-white rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all"
+            >
+              Customize Your Quest
+            </button>
+          )}
         </div>
 
         {/* Filters */}

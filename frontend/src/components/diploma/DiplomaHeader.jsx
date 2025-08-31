@@ -65,7 +65,7 @@ const InfoModal = () => {
                       <h3 className="font-semibold text-xl mb-2" style={{ color: '#6d469b' }}>The Philosophy</h3>
                       <p className="text-base leading-relaxed text-gray-700">
                         Traditional education validates learning through institutional approval. The Portfolio Diploma empowers students to 
-                        create their own comprehensive record of learning—one that demonstrates real skills, completed challenges, and 
+                        create their own comprehensive record of learning that demonstrates real skills, completed challenges, and 
                         documented growth in ways that transcend traditional transcripts.
                       </p>
                     </div>
@@ -119,7 +119,7 @@ const InfoModal = () => {
                       <p className="text-sm font-medium text-orange-900 mb-2">What prevents gaming the system?</p>
                       <p className="text-base text-gray-700 leading-relaxed">
                         <strong>Public accountability.</strong> All evidence submitted becomes part of the student's public portfolio. 
-                        Poor quality work reflects directly on them—this is what employers, colleges, and peers will see.
+                        Poor quality work reflects poorly on them, as this is what employers, colleges, and peers will see.
                       </p>
                     </div>
                     <div className="space-y-2 text-base text-gray-700">
@@ -133,11 +133,7 @@ const InfoModal = () => {
                       </p>
                       <p className="flex items-start gap-2">
                         <span className="text-purple-600 mt-1">•</span>
-                        <span>Blatant system gaming may result in account removal, but authentic effort is self-evident</span>
-                      </p>
-                      <p className="flex items-start gap-2">
-                        <span className="text-purple-600 mt-1">•</span>
-                        <span>The portfolio's value comes from demonstrating real capabilities—shortcuts only diminish their own credential</span>
+                        <span>The portfolio's value comes from demonstrating real capabilities. Shortcuts only diminish their own credential</span>
                       </p>
                     </div>
                   </div>

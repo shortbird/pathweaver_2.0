@@ -68,6 +68,7 @@ pw_v2/
 │   │   ├── subscriptions.py     # Stripe subscription management
 │   │   ├── community.py         # Social features
 │   │   ├── sources.py           # Quest source management
+│   │   ├── quest_submissions.py # Custom quest submissions
 │   │   └── uploads.py           # File upload handling
 │   ├── middleware/               # Request/response middleware
 │   │   ├── security.py          # Security middleware
@@ -93,7 +94,8 @@ pw_v2/
 │   │   │   ├── QuestDetailV3.jsx   # Quest detail (V3)
 │   │   │   ├── DiplomaPageV3.jsx   # Diploma/portfolio page (CORE FEATURE - Enhanced with unified layout)
 │   │   │   ├── DashboardPage.jsx   # User dashboard
-│   │   │   └── AdminPage.jsx       # Admin dashboard
+│   │   │   ├── AdminPage.jsx       # Admin dashboard
+│   │   │   └── CustomizeQuestPage.jsx # Student quest submission page
 │   │   ├── components/        # Reusable components
 │   │   │   ├── quest/        # Quest-related components
 │   │   │   ├── evidence/     # Evidence upload components
@@ -190,6 +192,20 @@ pw_v2/
 - xp_amount (total XP for that pillar)
 - updated_at (timestamp)
 
+**quest_submissions** (Student-created custom quests)
+- id (UUID, PK)
+- user_id (references users(id))
+- title, description
+- suggested_tasks (JSONB)
+- suggested_xp (INTEGER)
+- pillar (TEXT)
+- make_public (BOOLEAN, default false)
+- status (pending/approved/rejected)
+- created_at, reviewed_at
+- reviewed_by (references users(id))
+- approved_quest_id (references quests(id))
+- rejection_reason (TEXT)
+
 ### Supporting Tables
 - quest_ratings
 - quest_ideas
@@ -242,6 +258,13 @@ pw_v2/
 - PUT /api/v3/logs/:id - Update log
 - DELETE /api/v3/logs/:id - Delete log
 
+### Quest Submissions (Student Custom Quests)
+- POST /api/v3/quests/submissions - Submit custom quest for approval
+- GET /api/v3/quests/submissions/:userId - Get user's submissions
+- GET /api/v3/admin/submissions - Get all submissions (admin)
+- PUT /api/v3/admin/submissions/:id/approve - Approve submission (admin)
+- PUT /api/v3/admin/submissions/:id/reject - Reject submission (admin)
+
 ## Key Features
 
 ### 1. Quest System
@@ -257,6 +280,7 @@ pw_v2/
 - Better progress tracking
 - AI-powered quest generation capabilities
 - **Completion Bonus**: Users who complete ALL tasks in a quest receive a 50% XP bonus (rounded up to nearest 50)
+- **Custom Quest Submissions**: Students can submit their own quest ideas for admin approval
 
 ### 3. Diploma Page (CORE FEATURE)
 - **THIS IS THE MOST IMPORTANT FEATURE**
