@@ -20,45 +20,43 @@ const ConversionPanel = () => {
       id: 'explorer',
       name: 'Explorer',
       price: 'Free',
-      description: 'Perfect for trying out Optio',
+      description: 'Perfect for curiosity and personal enrichment',
       features: [
-        '3 active quests at a time',
-        'Basic portfolio features',
-        'Community support',
-        'Public diploma page'
+        'Access quest library',
+        'Track ongoing quests',
+        'Earn XP for completing quests',
+        'Shareable, verified Optio Portfolio Diploma'
       ],
-      cta: 'Start Free',
+      cta: 'Start Exploring',
       recommended: false
     },
     {
       id: 'creator',
       name: 'Creator',
       price: '$39.99/mo',
-      description: 'For serious learners',
+      description: 'For dedicated learners ready to grow',
       features: [
-        'Unlimited active quests',
-        'Custom quest submissions',
-        'Priority support',
-        'Advanced portfolio features',
-        'Progress analytics'
+        'Everything in Explorer, plus:',
+        'Access to a support team of Optio educators',
+        'Team up with other Creators for XP bonuses',
+        'Earn an accredited high school diploma'
       ],
-      cta: 'Start 7-Day Trial',
+      cta: 'Start Creating',
       recommended: !isParent
     },
     {
       id: 'visionary',
       name: 'Visionary',
       price: '$499.99/mo',
-      description: 'Accredited education with support',
+      description: 'A personalized private school experience',
       features: [
-        'ACCREDITED HIGH SCHOOL DIPLOMA',
-        'Weekly 1-on-1 teacher sessions',
-        'College prep & counseling',
-        'Parent progress reports',
-        'All Creator features',
-        'Transcript management'
+        'Everything in Creator, plus:',
+        'Personal learning guide',
+        'Regular check-ins with an Optio licensed educator',
+        'Earn an accredited high school diploma',
+        "Connect with Optio's network of business leaders and industry experts"
       ],
-      cta: 'Schedule Consultation',
+      cta: 'Become a Visionary',
       recommended: isParent,
       badge: 'ACCREDITED'
     }

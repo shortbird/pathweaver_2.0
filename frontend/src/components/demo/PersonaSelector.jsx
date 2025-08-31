@@ -43,7 +43,7 @@ const PersonaSelector = () => {
         "Bored with traditional schoolwork",
         "My real learning goes unrecognized",
         "Want to pursue my passions",
-        "Need to stand out for college"
+        "Need learning that prepares me for a successful future"
       ],
       message: "Your real life IS your education - we just help you prove it"
     }
@@ -138,14 +138,7 @@ const PersonaSelector = () => {
                 </ul>
               </div>
 
-              {/* Hover Message */}
-              {isHovered && (
-                <div className="absolute inset-x-0 bottom-0 p-6 text-center">
-                  <p className="text-white font-medium italic">
-                    "{persona.message}"
-                  </p>
-                </div>
-              )}
+              {/* Hover Message - removed to prevent text overlap */}
 
               {/* Selection Indicator */}
               <div className={`absolute top-4 right-4 transition-all duration-300
@@ -172,7 +165,7 @@ const PersonaSelector = () => {
         </div>
         <div className="flex items-center gap-2 text-gray-600">
           <Users className="w-5 h-5 text-[#6d469b]" />
-          <span className="text-sm">Join 10,000+ families in this new educational direction</span>
+          <span className="text-sm">Join 10,000+ families embracing this new philosophy</span>
         </div>
       </div>
     </div>

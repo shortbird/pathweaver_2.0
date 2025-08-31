@@ -25,15 +25,6 @@ const HomePage = () => {
         Skip to main content
       </a>
 
-      {/* Demo Banner */}
-      <div className="bg-gradient-to-r from-[#FFCA3A] to-[#FFD966] text-[#003f5c] py-3 px-4 text-center">
-        <Link to="/demo" className="inline-flex items-center gap-2 font-semibold hover:underline">
-          <Sparkles className="w-5 h-5" />
-          <span>New: Try our interactive demo - See how students build real portfolios!</span>
-          <Play className="w-5 h-5" />
-        </Link>
-      </div>
-
       {/* Enhanced Hero Section with Diploma Preview */}
       <div 
         className="bg-gradient-to-br from-primary to-purple-700 text-white relative overflow-hidden"

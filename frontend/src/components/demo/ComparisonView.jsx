@@ -107,7 +107,7 @@ const ComparisonView = () => {
                 </div>
               </div>
               <p className="text-xs text-gray-500 mt-3 italic">
-                "What does this really tell you about the student?"
+                What does this really tell you about the student?
               </p>
             </div>
 
@@ -164,7 +164,7 @@ const ComparisonView = () => {
                 </div>
               </div>
               <p className="text-xs text-[#6d469b] mt-3 italic font-semibold">
-                "This shows WHO they are and WHAT they can do!"
+                This shows WHO they are and WHAT they can do!
               </p>
             </div>
 
@@ -213,26 +213,28 @@ const ComparisonView = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center">
-            <div className="text-4xl font-bold text-[#6d469b] mb-2">2.3 → 3.8</div>
-            <p className="text-sm text-gray-600">Average GPA improvement</p>
+            <div className="text-3xl font-bold text-[#6d469b] mb-2">Process-Focused</div>
+            <p className="text-sm text-gray-600">Learning is valuable for its own sake</p>
           </div>
           <div className="text-center">
-            <div className="text-4xl font-bold text-[#ef597b] mb-2">87%</div>
-            <p className="text-sm text-gray-600">Got into first-choice college</p>
+            <div className="text-3xl font-bold text-[#ef597b] mb-2">Growth Mindset</div>
+            <p className="text-sm text-gray-600">Every step is celebrated</p>
           </div>
           <div className="text-center">
-            <div className="text-4xl font-bold text-[#FFCA3A] mb-2">95%</div>
-            <p className="text-sm text-gray-600">Parent satisfaction rate</p>
+            <div className="text-3xl font-bold text-[#FFCA3A] mb-2">Internal Motivation</div>
+            <p className="text-sm text-gray-600">Driven by curiosity, not grades</p>
           </div>
         </div>
 
         <div className="mt-6 p-4 bg-gradient-to-r from-[#6d469b]/5 to-[#ef597b]/5 rounded-lg">
-          <p className="text-center text-gray-700 italic">
-            "My son went from a C student who hated school to launching his own business 
-            and getting accepted to MIT. Optio changed everything."
+          <h4 className="text-center font-bold text-[#003f5c] mb-3">The Process Is The Goal</h4>
+          <p className="text-center text-gray-700">
+            At Optio, we believe learning is not about reaching a destination or impressing others. 
+            It's about who you become through the journey of discovery, creation, and growth. 
+            Every quest, every piece of evidence is valuable because of what it teaches you RIGHT NOW.
           </p>
-          <p className="text-center text-sm text-gray-500 mt-2">
-            — Maria S., Visionary Tier Parent
+          <p className="text-center text-sm text-[#6d469b] font-semibold mt-3">
+            The diploma is not the goal - it's the beautiful byproduct of a meaningful learning journey.
           </p>
         </div>
       </div>

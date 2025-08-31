@@ -3,7 +3,7 @@ import { X, Shield, GraduationCap, Users, Calendar, Award, CheckCircle, Star } f
 
 const VisionaryTierModal = ({ onClose }) => {
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* Header */}
         <div className="relative bg-gradient-to-r from-[#6d469b] to-[#ef597b] p-8 text-white">
@@ -49,7 +49,7 @@ const VisionaryTierModal = ({ onClose }) => {
               <div>
                 <h3 className="font-bold text-[#003f5c] mb-1">1-on-1 Teacher Support</h3>
                 <p className="text-sm text-gray-600">
-                  Weekly check-ins with certified teachers who provide guidance and accountability.
+                  Daily check-ins with certified teachers who provide guidance and accountability.
                 </p>
               </div>
             </div>
@@ -81,7 +81,7 @@ const VisionaryTierModal = ({ onClose }) => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {[
                 'Accredited high school diploma',
-                'Weekly 1-on-1 teacher sessions',
+                'Regular 1-on-1 teacher sessions',
                 'Monthly parent progress reports',
                 'College application support',
                 'SAT/ACT prep resources',
@@ -89,7 +89,8 @@ const VisionaryTierModal = ({ onClose }) => {
                 'Letter of recommendation',
                 'Priority support',
                 'All Creator tier features',
-                'Unlimited custom quests'
+                'Unlimited custom quests',
+                'Network access to business leaders & mentors'
               ].map((feature, index) => (
                 <div key={index} className="flex items-center gap-2">
                   <CheckCircle className="w-4 h-4 text-green-500 flex-shrink-0" />
@@ -131,7 +132,7 @@ const VisionaryTierModal = ({ onClose }) => {
                 <h4 className="font-semibold text-[#6d469b] mb-2">Optio Visionary</h4>
                 <ul className="space-y-2 text-sm text-gray-700">
                   <li className="font-semibold">• $499.99/month</li>
-                  <li>• Learn anytime</li>
+                  <li>• Learn on your own schedule</li>
                   <li>• Personalized quests</li>
                   <li>• 1-on-1 teacher support</li>
                 </ul>

@@ -50,15 +50,15 @@ const DemoFeature = () => {
     return titles[currentStep] || '';
   };
 
-  const canGoBack = currentStep > 0 && currentStep < 5;
-  const canGoForward = currentStep > 1 && currentStep < 5 && 
+  const canGoBack = currentStep > 0 && currentStep <= 5;
+  const canGoForward = currentStep > 1 && currentStep <= 5 && 
     (currentStep !== 2 || demoState.completedTasks.length > 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#6d469b]/5 via-white to-[#ef597b]/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Progress Indicator */}
-        {currentStep > 0 && currentStep < 5 && (
+        {currentStep > 0 && currentStep <= 5 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-[#003f5c]">{getStepTitle()}</h2>
@@ -120,7 +120,7 @@ const DemoFeature = () => {
         </div>
 
         {/* Demo Timer */}
-        {currentStep > 0 && currentStep < 5 && (
+        {currentStep > 0 && currentStep <= 5 && (
           <div className="mt-4 text-center">
             <p className="text-sm text-gray-500">
               {persona === 'parent' 
