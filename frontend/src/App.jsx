@@ -15,7 +15,7 @@ import TermsOfService from './pages/TermsOfService'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 import AcceptTermsPage from './pages/AcceptTermsPage'
 // V3 Quest Pages
-import QuestHubV3 from './pages/QuestHubV3'
+import QuestHubV3 from './pages/QuestHubV3Improved'
 import QuestDetailV3 from './pages/QuestDetailV3'
 import DiplomaPageV3 from './pages/DiplomaPageV3'
 // Legacy pages (to be removed)
