@@ -285,7 +285,6 @@ const DiplomaPageV3 = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
       <div className="max-w-7xl mx-auto px-4 py-10" style={{ fontFamily: "'Helvetica Neue', Helvetica, Arial, sans-serif" }}>
-        {
         {/* Unified Diploma Header */}
         <DiplomaHeader 
           user={user}
