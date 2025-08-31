@@ -122,8 +122,8 @@ class Config:
     DEFAULT_QUEST_XP = 100
     MAX_QUEST_XP = 1000
     
-    # User Settings
-    MIN_PASSWORD_LENGTH = 8
+    # User Settings - Match Supabase requirements
+    MIN_PASSWORD_LENGTH = 19  # Supabase requirement
     MAX_PASSWORD_LENGTH = 128
     PASSWORD_REQUIRE_UPPERCASE = True
     PASSWORD_REQUIRE_LOWERCASE = True

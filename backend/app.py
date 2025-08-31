@@ -100,7 +100,7 @@ def test_config():
     
     config_status = {
         'has_supabase_url': bool(Config.SUPABASE_URL),
-        'has_supabase_key': bool(Config.SUPABASE_ANON_KEY),
+        'has_supabase_anon_key': bool(Config.SUPABASE_ANON_KEY),
         'has_supabase_service_key': bool(Config.SUPABASE_SERVICE_ROLE_KEY),
         'has_stripe_key': bool(Config.STRIPE_SECRET_KEY),
         'frontend_url': Config.FRONTEND_URL,

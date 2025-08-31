@@ -25,14 +25,14 @@ def validate_email(email: str) -> tuple[bool, Optional[str]]:
 
 def validate_password(password: str) -> tuple[bool, Optional[str]]:
     """
-    Validate password strength
+    Validate password strength to match Supabase requirements
     Returns: (is_valid, error_message)
     """
     if not password:
         return False, "Password is required"
     
-    if len(password) < 8:
-        return False, "Password must be at least 8 characters long"
+    if len(password) < 19:
+        return False, "Password must be at least 19 characters long"
     
     if len(password) > 128:
         return False, "Password is too long (max 128 characters)"
@@ -44,6 +44,17 @@ def validate_password(password: str) -> tuple[bool, Optional[str]]:
     
     if not (has_upper and has_lower and has_digit):
         return False, "Password must contain at least one uppercase letter, one lowercase letter, and one number"
+    
+    # Check for common weak patterns
+    password_lower = password.lower()
+    weak_patterns = [
+        'password', '12345', 'qwerty', 'abc123', 'admin', 'test', 
+        'user', 'login', 'welcome', 'hello', 'simple'
+    ]
+    
+    for pattern in weak_patterns:
+        if pattern in password_lower:
+            return False, "Password contains common patterns and may be considered weak. Please choose a more unique password"
     
     return True, None
 

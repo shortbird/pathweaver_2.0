@@ -136,7 +136,11 @@ def register():
         except Exception as auth_error:
             # Log error without exposing sensitive data
             if os.getenv('FLASK_ENV') == 'development':
-                print(f"Supabase auth error: {auth_error}")
+                print(f"[DEBUG] Full Supabase auth error: {auth_error}")
+                print(f"[DEBUG] Error type: {type(auth_error)}")
+                print(f"[DEBUG] Error attributes: {dir(auth_error)}")
+                if hasattr(auth_error, 'args'):
+                    print(f"[DEBUG] Error args: {auth_error.args}")
             
             # Check if the error is about rate limiting
             error_str = str(auth_error).lower()
@@ -223,10 +227,10 @@ def register():
             # Supabase might be rejecting certain email domains
             raise ValidationError('This email address cannot be used for registration. Please use a different email.')
         elif 'weak' in error_str and 'password' in error_str:
-            raise ValidationError('Password is too weak. Please use at least 8 characters with a mix of letters and numbers')
+            raise ValidationError('Password is too weak. Please use at least 19 characters with a mix of letters, numbers, and avoid common patterns')
         elif 'password' in error_str:
             # If Supabase rejects the password for any reason, provide our requirement message
-            raise ValidationError('Password must be at least 8 characters and contain uppercase, lowercase, and numbers')
+            raise ValidationError('Password must be at least 19 characters and contain uppercase, lowercase, and numbers')
         elif 'rate limit' in error_str or 'too many requests' in error_str or 'security purposes' in error_str:
             # Extract wait time if available
             import re
