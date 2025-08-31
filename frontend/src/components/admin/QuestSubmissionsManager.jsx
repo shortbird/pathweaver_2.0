@@ -19,7 +19,7 @@ const QuestSubmissionsManager = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.get(
-        `${import.meta.env.VITE_API_URL}/api/v3/admin/submissions?status=${statusFilter}`,
+        `${import.meta.env.VITE_API_URL}/v3/admin/submissions?status=${statusFilter}`,
         {
           headers: { 'Authorization': `Bearer ${token}` }
         }
@@ -52,7 +52,7 @@ const QuestSubmissionsManager = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.put(
-        `${import.meta.env.VITE_API_URL}/api/v3/admin/submissions/${selectedSubmission.id}/approve`,
+        `${import.meta.env.VITE_API_URL}/v3/admin/submissions/${selectedSubmission.id}/approve`,
         editedQuest,
         {
           headers: { 
@@ -78,7 +78,7 @@ const QuestSubmissionsManager = () => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.put(
-        `${import.meta.env.VITE_API_URL}/api/v3/admin/submissions/${submissionId}/reject`,
+        `${import.meta.env.VITE_API_URL}/v3/admin/submissions/${submissionId}/reject`,
         { reason: reason || 'Does not meet requirements' },
         {
           headers: { 
