@@ -182,30 +182,6 @@ const SkillsRadarChart = ({ skillsXP }) => {
         </div>
       </div>
 
-      {/* Summary Stats */}
-      <div className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-4">
-        {Object.entries(competencyInfo).map(([key, info]) => {
-          const xp = skillsXP[key] || 0;
-          const isActive = xp > 0;
-          
-          return (
-            <div 
-              key={key}
-              className={`text-center p-3 rounded-lg transition-all ${
-                isActive 
-                  ? 'bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-100' 
-                  : 'bg-gray-50 border border-gray-100'
-              }`}
-            >
-              <span className="text-xl mb-1 block">{info.icon}</span>
-              <p className="text-xs font-medium text-gray-700">{info.label}</p>
-              {isActive && (
-                <p className="text-xs mt-1 text-green-600 font-semibold">Validated</p>
-              )}
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 };

@@ -32,6 +32,12 @@ const DiplomaPageV3 = () => {
   };
 
   useEffect(() => {
+    // Clear previous data when component mounts or dependencies change
+    setAchievements([]);
+    setTotalXP({});
+    setTotalXPCount(0);
+    setIsLoading(true);
+    
     if (slug) {
       // Portfolio route - public access via slug
       fetchPublicDiploma();
@@ -40,11 +46,6 @@ const DiplomaPageV3 = () => {
       fetchPublicDiplomaByUserId();
     } else if (user) {
       // Authenticated user viewing their own diploma (no params)
-      // Clear old data on login change
-      setAchievements([]);
-      setTotalXP({});
-      setTotalXPCount(0);
-      
       fetchAchievements();
       generateShareableLink();
     } else {
@@ -52,6 +53,33 @@ const DiplomaPageV3 = () => {
       setIsLoading(true);
     }
   }, [user, slug, userId, loginTimestamp]);
+
+  // Refresh data when page becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && user && !slug && !userId) {
+        console.log('Page became visible, refreshing achievements...');
+        fetchAchievements();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Also refresh on focus
+    const handleFocus = () => {
+      if (user && !slug && !userId) {
+        console.log('Window focused, refreshing achievements...');
+        fetchAchievements();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [user, slug, userId]);
 
   const fetchPublicDiploma = async () => {
     try {
@@ -97,9 +125,11 @@ const DiplomaPageV3 = () => {
       const token = localStorage.getItem('access_token');
       console.log('Fetching achievements with token:', token ? 'present' : 'missing');
       
-      const response = await fetch(`${apiBase}/v3/quests/completed`, {
+      // Force fresh data by adding timestamp to prevent caching
+      const response = await fetch(`${apiBase}/v3/quests/completed?t=${Date.now()}`, {
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Cache-Control': 'no-cache'
         }
       });
 
@@ -117,13 +147,17 @@ const DiplomaPageV3 = () => {
 
       const data = await response.json();
       console.log('Completed quests response:', data);
+      console.log('Number of achievements:', data.achievements?.length || 0);
       setAchievements(data.achievements || []);
 
       // Calculate total XP by pillar
       const xpByPillar = {};
       let totalXPSum = 0;
-      data.achievements?.forEach(achievement => {
-        Object.entries(achievement.task_evidence || {}).forEach(([_, evidence]) => {
+      console.log('Processing achievements for XP calculation...');
+      data.achievements?.forEach((achievement, idx) => {
+        console.log(`Achievement ${idx + 1}:`, achievement.quest?.title);
+        Object.entries(achievement.task_evidence || {}).forEach(([taskName, evidence]) => {
+          console.log(`  Task: ${taskName}, Pillar: ${evidence.pillar}, XP: ${evidence.xp_awarded}`);
           const pillar = evidence.pillar;
           if (pillar) {
             xpByPillar[pillar] = (xpByPillar[pillar] || 0) + evidence.xp_awarded;
@@ -131,6 +165,8 @@ const DiplomaPageV3 = () => {
           }
         });
       });
+      console.log('Final XP by pillar:', xpByPillar);
+      console.log('Total XP sum:', totalXPSum);
       setTotalXP(xpByPillar);
       setTotalXPCount(totalXPSum);
 
@@ -336,13 +372,16 @@ const DiplomaPageV3 = () => {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {achievements.map((achievement) => (
-                <AchievementCard 
-                  key={achievement.quest.id}
-                  achievement={achievement}
-                  onClick={setSelectedAchievement}
-                />
-              ))}
+              {achievements.map((achievement, index) => {
+                console.log(`Rendering achievement ${index + 1}/${achievements.length}:`, achievement.quest?.title);
+                return (
+                  <AchievementCard 
+                    key={`${achievement.quest.id}-${index}`}
+                    achievement={achievement}
+                    onClick={setSelectedAchievement}
+                  />
+                );
+              })}
             </div>
           )}
         </div>

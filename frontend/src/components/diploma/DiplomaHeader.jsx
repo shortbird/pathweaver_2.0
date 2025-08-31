@@ -246,7 +246,7 @@ const DiplomaHeader = ({
           {/* Optio Branding */}
           <div className="mb-6">
             <div className="inline-block px-6 py-2 rounded-full bg-white/10 backdrop-blur-sm">
-              <span className="text-sm font-bold tracking-wider uppercase">Optio Education</span>
+              <span className="text-sm font-bold tracking-wider uppercase">Optio Academy</span>
             </div>
           </div>
 
