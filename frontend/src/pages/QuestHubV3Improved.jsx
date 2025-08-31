@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import { handleApiResponse } from '../utils/errorHandling';
 import QuestCard from '../components/quest/improved/QuestCard';
 import QuestFilters from '../components/quest/improved/QuestFilters';
@@ -9,6 +10,7 @@ import Button from '../components/ui/Button';
 
 const QuestHubV3Improved = () => {
   const { user, loginTimestamp } = useAuth();
+  const navigate = useNavigate();
   const [quests, setQuests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -161,13 +163,23 @@ const QuestHubV3Improved = () => {
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-5xl font-bold bg-gradient-to-r from-[#6d469b] to-[#ef597b] bg-clip-text text-transparent mb-3">
-            Quest Hub
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Choose your adventure and start earning XP!
-          </p>
+        <div className="mb-8 flex justify-between items-start">
+          <div>
+            <h1 className="text-5xl font-bold bg-gradient-to-r from-[#6d469b] to-[#ef597b] bg-clip-text text-transparent mb-3">
+              Quest Hub
+            </h1>
+            <p className="text-gray-600 text-lg">
+              Choose your adventure and start earning XP!
+            </p>
+          </div>
+          {user && (
+            <Button
+              onClick={() => navigate('/quests/customize')}
+              className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white px-6 py-3 rounded-full font-semibold shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
+            >
+              Customize Your Quest
+            </Button>
+          )}
         </div>
 
         {/* Featured Section - Only show when not searching */}
