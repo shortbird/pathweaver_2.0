@@ -75,6 +75,10 @@ app.register_blueprint(quest_submissions_bp)  # /api/v3/quests/submissions
 # Register development utilities (password protected in production)
 app.register_blueprint(dev_utils.bp, url_prefix='/api/dev')
 
+# Register user fix endpoint (temporary)
+from routes import user_fix
+app.register_blueprint(user_fix.bp, url_prefix='/api/user')
+
 @app.route('/api/health')
 def health_check():
     return jsonify({'status': 'healthy'}), 200
