@@ -40,6 +40,8 @@ const QuestExperience = () => {
     setSelectedQuest(quest);
     actions.selectQuest(quest.id);
     actions.trackInteraction('quest_selected', { questId: quest.id });
+    // Scroll to top when quest is selected
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleTaskSubmit = (task) => {
@@ -242,6 +244,8 @@ const QuestExperience = () => {
               setSelectedQuest(null);
               setCompletedTasks([]);
               setShowCompletionBonus(false);
+              // Scroll to top when going back to quest selection
+              window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
             className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-all duration-300"
           >
@@ -386,6 +390,8 @@ const QuestExperience = () => {
                     setSelectedQuest(null);
                     setCompletedTasks([]);
                     setShowCompletionBonus(false);
+                    // Scroll to top when going back to quest selection
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
                   className="w-full py-3 bg-white border-2 border-[#6d469b] text-[#6d469b] font-semibold rounded-lg hover:bg-[#6d469b]/5 transition-all duration-300"
                 >
