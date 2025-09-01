@@ -139,8 +139,7 @@ export const DemoProvider = ({ children }) => {
       return {
         ...prev,
         completedTasks: newCompletedTasks,
-        earnedXP: newEarnedXP,
-        currentStep: allTasksCompleted ? 3 : prev.currentStep
+        earnedXP: newEarnedXP
       };
     });
   }, []);

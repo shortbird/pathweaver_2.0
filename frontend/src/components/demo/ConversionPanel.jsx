@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Rocket, Gift, Shield, Star, ArrowRight, CheckCircle,
+  Rocket, Gift, Shield, Star, ArrowRight, CheckCircle, X,
   Users, Calendar, Trophy, Sparkles, Lock
 } from 'lucide-react';
 
@@ -39,7 +39,8 @@ const ConversionPanel = () => {
         'Everything in Free, plus:',
         'Access to a support team of Optio educators',
         'Team up with other Supported learners for XP bonuses',
-        'Optio Portfolio Diploma (non-accredited)'
+        'Optio Portfolio Diploma',
+        'Traditionally-accredited Diploma'
       ],
       cta: 'Get Supported',
       recommended: true
@@ -142,11 +143,18 @@ const ConversionPanel = () => {
                   ? 'Optio Portfolio Diploma'
                   : feature;
                 
+                const isTraditionallyAccredited = tier.id === 'supported' && feature === 'Traditionally-accredited Diploma';
+                const shouldCrossOut = isStrikethrough || isTraditionallyAccredited;
+                
                 return (
                   <div key={index} className="flex items-start gap-2">
-                    <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5
-                      ${isStrikethrough ? 'text-gray-400' : feature.includes('ACCREDITED') ? 'text-green-500' : 'text-[#6d469b]'}`} />
-                    <span className={`text-sm ${feature.includes('ACCREDITED') ? 'font-bold text-gray-800' : isStrikethrough ? 'text-gray-500 line-through' : 'text-gray-700'}`}>
+                    {shouldCrossOut ? (
+                      <X className="w-5 h-5 flex-shrink-0 mt-0.5 text-gray-400" />
+                    ) : (
+                      <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5
+                        ${feature.includes('ACCREDITED') ? 'text-green-500' : 'text-[#6d469b]'}`} />
+                    )}
+                    <span className={`text-sm ${feature.includes('ACCREDITED') ? 'font-bold text-gray-800' : shouldCrossOut ? 'text-gray-500 line-through' : 'text-gray-700'}`}>
                       {displayFeature}
                     </span>
                   </div>
@@ -186,15 +194,6 @@ const ConversionPanel = () => {
             />
           </div>
 
-          {isParent && (
-            <div className="bg-[#6d469b]/5 rounded-lg p-4">
-              <p className="text-sm text-gray-700">
-                <Lock className="w-4 h-4 inline mr-1 text-[#6d469b]" />
-                We'll send you information about setting up your child's account and 
-                {selectedTier === 'academy' && ' schedule a consultation call for the Academy tier.'}
-              </p>
-            </div>
-          )}
 
           <button
             onClick={handleSignup}
