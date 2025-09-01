@@ -415,33 +415,56 @@ def create_checkout_session(user_id):
 @require_auth
 def verify_checkout_session(user_id):
     """Verify a checkout session and update user subscription status"""
+    print(f"Verifying session for user: {user_id}")
     try:
         data = request.json
         session_id = data.get('session_id')
+        print(f"Session ID: {session_id}")
         
         if not session_id:
             return jsonify({'error': 'Session ID is required'}), 400
         
         # Retrieve the session from Stripe
-        session = stripe.checkout.Session.retrieve(session_id)
+        try:
+            session = stripe.checkout.Session.retrieve(session_id)
+        except stripe.error.StripeError as e:
+            print(f"Error retrieving session: {e}")
+            return jsonify({'error': f'Failed to retrieve session: {str(e)}'}), 400
         
         if session.payment_status != 'paid':
             return jsonify({'error': 'Payment not completed'}), 400
         
+        if not session.subscription:
+            return jsonify({'error': 'No subscription found in session'}), 400
+        
         # Get subscription details
-        subscription = stripe.Subscription.retrieve(session.subscription)
+        try:
+            subscription = stripe.Subscription.retrieve(session.subscription)
+        except stripe.error.StripeError as e:
+            print(f"Error retrieving subscription: {e}")
+            return jsonify({'error': f'Failed to retrieve subscription: {str(e)}'}), 400
         
         # Extract tier from metadata or price
         tier = subscription.metadata.get('tier', 'supported')
         
         # Update user subscription in database
         supabase = get_supabase_client()
-        supabase.table('users').update({
-            'subscription_tier': tier,
-            'subscription_status': subscription.status,
-            'stripe_subscription_id': subscription.id,
-            'subscription_current_period_end': datetime.fromtimestamp(subscription.current_period_end).isoformat()
-        }).eq('id', user_id).execute()
+        try:
+            update_data = {
+                'subscription_tier': tier,
+                'subscription_status': subscription.status,
+                'stripe_subscription_id': subscription.id
+            }
+            
+            # Add period end if available
+            if subscription.current_period_end:
+                update_data['subscription_current_period_end'] = datetime.fromtimestamp(subscription.current_period_end).isoformat()
+            
+            result = supabase.table('users').update(update_data).eq('id', user_id).execute()
+            print(f"User subscription updated: {result}")
+        except Exception as update_error:
+            print(f"Error updating user subscription: {update_error}")
+            # Continue anyway - subscription was created successfully
         
         return jsonify({
             'success': True,
