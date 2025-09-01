@@ -86,7 +86,6 @@ const AcademyTierModalUpdated = ({ onClose, showComparison = false }) => {
               {/* Accredited Badge on Top Border */}
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
                 <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full">
-                  <Shield className="w-3 h-3" />
                   ACCREDITED
                 </div>
               </div>
@@ -124,7 +123,7 @@ const AcademyTierModalUpdated = ({ onClose, showComparison = false }) => {
               
               <div className="p-3 bg-green-50 rounded-lg">
                 <p className="text-xs text-green-700">
-                  <strong>Best for:</strong> Students who need accredited diplomas for college
+                  <strong>Best for:</strong> Students who want traditionally-accredited diplomas and personalized teacher support
                 </p>
               </div>
             </div>

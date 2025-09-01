@@ -45,7 +45,7 @@ const LoginPage = () => {
             </div>
           )}
           
-          <div className="rounded-md shadow-sm -space-y-px">
+          <div className="rounded-md shadow-sm space-y-2">
             <div>
               <label htmlFor="email" className="sr-only">
                 Email address
@@ -68,7 +68,7 @@ const LoginPage = () => {
               )}
             </div>
             
-            <div className="mt-4">
+            <div>
               <label htmlFor="password" className="sr-only">
                 Password
               </label>
