@@ -155,9 +155,22 @@ const Layout = () => {
                   >
                     {user?.first_name} {user?.last_name}
                   </Link>
-                  <span className="text-xs bg-purple-100 text-primary px-3 py-1 rounded-full font-semibold uppercase tracking-wider">
-                    {user?.subscription_tier?.toUpperCase()}
-                  </span>
+                  <Link 
+                    to="/subscription"
+                    className={`text-xs px-3 py-1 rounded-full font-semibold uppercase tracking-wider transition-all hover:scale-105 ${
+                      user?.subscription_tier === 'academy' 
+                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-white shadow-md' 
+                        : user?.subscription_tier === 'supported'
+                        ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                    title="Manage subscription"
+                  >
+                    {user?.subscription_tier === 'free' ? 'Free' : 
+                     user?.subscription_tier === 'supported' ? 'Supported' :
+                     user?.subscription_tier === 'academy' ? 'Academy' :
+                     user?.subscription_tier?.toUpperCase() || 'Free'}
+                  </Link>
                   <button
                     onClick={handleLogout}
                     className="text-sm font-medium text-text-secondary hover:text-primary transition-colors"
@@ -227,6 +240,24 @@ const Layout = () => {
                 </Link>
               )}
               <div className="border-t border-gray-200 mt-2 pt-2">
+                <Link
+                  to="/subscription"
+                  className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold uppercase ${
+                    user?.subscription_tier === 'academy' 
+                      ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-white' 
+                      : user?.subscription_tier === 'supported'
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    {user?.subscription_tier === 'free' ? 'Free' : 
+                     user?.subscription_tier === 'supported' ? 'Supported' :
+                     user?.subscription_tier === 'academy' ? 'Academy' :
+                     user?.subscription_tier?.toUpperCase() || 'Free'} Tier
+                  </span>
+                </Link>
                 <Link
                   to="/profile"
                   className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
