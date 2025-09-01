@@ -7,14 +7,15 @@ import {
   BookOpen, 
   Target, 
   Users, 
-  Heart, 
   CheckCircle, 
   ArrowRight,
   Sparkles,
   Trophy,
   FileText,
   Camera,
-  Lightbulb
+  Lightbulb,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 const DiplomaIntroduction = () => {
@@ -23,13 +24,7 @@ const DiplomaIntroduction = () => {
   const [currentCard, setCurrentCard] = useState(0);
   const [animatedElements, setAnimatedElements] = useState({});
 
-  // Auto-advance cards every 4 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentCard(prev => (prev + 1) % 3);
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
+  // Removed auto-advance for better user control
 
   // Animate elements on mount
   useEffect(() => {
@@ -48,8 +43,8 @@ const DiplomaIntroduction = () => {
           description: "Unlike traditional diplomas that reduce your child's learning to letter grades, the Optio Portfolio Diploma validates their real achievements through documented evidence of academic and real-world accomplishments.",
           benefits: [
             "Shows colleges who your child really is beyond test scores",
+            "Fosters healthy development through meaningful choice and responsibility",
             "Documents real-world skills and practical experience",
-            "Creates an impressive portfolio for college applications",
             "Validates learning that happens outside traditional classrooms"
           ],
           callToAction: "See how your child's achievements become academic credit"
@@ -61,7 +56,7 @@ const DiplomaIntroduction = () => {
           description: "Your Optio Portfolio Diploma isn't just another certificate - it's a living document that validates your actual achievements. Unlike traditional diplomas with letter grades, yours tells the meaningful story of your learning journey.",
           benefits: [
             "Turn your passions and projects into academic credit",
-            "Build an impressive portfolio that stands out to colleges",
+            "Develop independence through meaningful educational choices",
             "Document real skills and meaningful experiences",
             "Show your authentic learning story, not just test scores"
           ],
@@ -74,7 +69,7 @@ const DiplomaIntroduction = () => {
           description: "The Optio Portfolio Diploma represents a paradigm shift from traditional letter-grade diplomas to evidence-based validation of real learning and achievement.",
           benefits: [
             "Documents authentic learning experiences",
-            "Creates impressive portfolios for future opportunities",
+            "Builds healthy responsibility and educational ownership",
             "Validates practical skills and real-world applications",
             "Tells a meaningful story beyond standardized assessments"
           ],
@@ -136,11 +131,6 @@ const DiplomaIntroduction = () => {
         animatedElements.showMainContent ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
       }`}>
         <div className="relative">
-          {/* Background decoration */}
-          <div className="absolute inset-0 flex items-center justify-center opacity-10">
-            <GraduationCap className="w-64 h-64 text-[#6d469b]" />
-          </div>
-          
           {/* Main content */}
           <div className="relative z-10">
             <div className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-[#ef597b]/20 to-[#6d469b]/20 rounded-full mb-4">
@@ -175,23 +165,41 @@ const DiplomaIntroduction = () => {
           </p>
         </div>
 
-        {/* Card Navigation Dots */}
-        <div className="flex justify-center gap-2 mb-6">
-          {comparisonCards.map((_, index) => (
-            <button
-              key={index}
-              onClick={() => setCurrentCard(index)}
-              className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                currentCard === index 
-                  ? 'bg-[#6d469b] scale-125' 
-                  : 'bg-gray-300 hover:bg-gray-400'
-              }`}
-            />
-          ))}
-        </div>
+        {/* Card Navigation */}
+        <div className="relative">
+          {/* Navigation Arrows */}
+          <button
+            onClick={() => setCurrentCard(prev => prev > 0 ? prev - 1 : 2)}
+            className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white/90 hover:bg-white text-[#6d469b] p-3 rounded-full shadow-lg hover:shadow-xl transition-all"
+            aria-label="Previous card"
+          >
+            <ChevronLeft className="w-6 h-6" />
+          </button>
+          <button
+            onClick={() => setCurrentCard(prev => (prev + 1) % 3)}
+            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-white/90 hover:bg-white text-[#6d469b] p-3 rounded-full shadow-lg hover:shadow-xl transition-all"
+            aria-label="Next card"
+          >
+            <ChevronRight className="w-6 h-6" />
+          </button>
 
-        {/* Comparison Card Display */}
-        <div className="relative h-80 overflow-hidden rounded-2xl">
+          {/* Card Navigation Dots */}
+          <div className="flex justify-center gap-2 mb-6">
+            {comparisonCards.map((_, index) => (
+              <button
+                key={index}
+                onClick={() => setCurrentCard(index)}
+                className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                  currentCard === index 
+                    ? 'bg-[#6d469b] scale-125' 
+                    : 'bg-gray-300 hover:bg-gray-400'
+                }`}
+              />
+            ))}
+          </div>
+
+          {/* Comparison Card Display */}
+          <div className="relative h-80 overflow-x-auto md:overflow-hidden rounded-2xl">
           {comparisonCards.map((card, index) => {
             const Icon = card.icon;
             const isActive = currentCard === index;
@@ -225,6 +233,7 @@ const DiplomaIntroduction = () => {
               </div>
             );
           })}
+        </div>
         </div>
       </div>
 
@@ -269,10 +278,9 @@ const DiplomaIntroduction = () => {
                 : "Your Optio Portfolio Diploma comes with the responsibility to self-validate your learning. You'll document real achievements and provide evidence of your work - creating authentic academic validation."
               }
             </p>
-            <div className="flex items-center gap-2 text-yellow-800">
-              <Heart className="w-5 h-5" />
-              <span className="font-semibold">This builds character, integrity, and real-world accountability</span>
-            </div>
+            <p className="text-yellow-800 font-semibold">
+              This builds character, integrity, and real-world accountability
+            </p>
           </div>
         </div>
       </div>
@@ -287,7 +295,7 @@ const DiplomaIntroduction = () => {
           onClick={handleContinue}
           className="inline-flex items-center gap-3 px-8 py-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white font-bold text-lg rounded-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
         >
-          <span>Experience a Quest</span>
+          <span>Start Quest Now</span>
           <ArrowRight className="w-6 h-6" />
         </button>
       </div>
