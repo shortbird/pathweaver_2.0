@@ -181,7 +181,7 @@ const SubscriptionPage = () => {
         </div>
 
         {/* Pricing Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16 items-stretch">
           {plans.map((plan, index) => {
             const pricing = getPriceForPeriod(plan)
             const Icon = plan.icon
@@ -189,9 +189,9 @@ const SubscriptionPage = () => {
             return (
               <div
                 key={plan.tier}
-                className={`relative bg-white rounded-3xl overflow-hidden transform transition-all hover:scale-105 hover:shadow-2xl ${
+                className={`relative bg-white rounded-3xl overflow-hidden transform transition-all hover:scale-105 hover:shadow-2xl flex flex-col h-full ${
                   plan.popular ? 'shadow-xl' : 'shadow-lg'
-                } ${plan.current ? 'ring-4 ring-green-400 ring-opacity-50' : ''}`}
+                } ${plan.current && plan.tier !== 'free' ? 'ring-4 ring-green-400 ring-opacity-50' : ''}`}
               >
                 {/* Popular/Premium Badge */}
                 {plan.popular && (
@@ -206,8 +206,8 @@ const SubscriptionPage = () => {
                 )}
                 
                 {plan.premium && (
-                  <div className="absolute -top-1 -left-1 z-10">
-                    <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-6 py-2 rounded-br-2xl rounded-tl-2xl">
+                  <div className="absolute -top-1 -right-1 z-10">
+                    <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-6 py-2 rounded-bl-2xl rounded-tr-2xl">
                       <div className="flex items-center gap-1">
                         <AcademicCapIcon className="w-4 h-4" />
                         <span className="text-xs font-bold uppercase tracking-wider">ACCREDITED</span>
@@ -220,7 +220,7 @@ const SubscriptionPage = () => {
                 <div className={`h-2 bg-gradient-to-r ${plan.gradient}`}></div>
 
                 {/* Card Content */}
-                <div className="p-8">
+                <div className="p-8 flex flex-col h-full">
                   {/* Plan Name */}
                   <div className="text-center mb-6">
                     <h2 className="text-3xl font-bold text-gray-900 mb-2">{plan.name}</h2>
@@ -282,9 +282,9 @@ const SubscriptionPage = () => {
                       )
                     })}
                     {plan.limitations?.map((limitation, idx) => (
-                      <li key={`limit-${idx}`} className="flex items-start opacity-60">
+                      <li key={`limit-${idx}`} className="flex items-start">
                         <XIcon className="w-5 h-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" />
-                        <span className="text-sm text-gray-500">{limitation}</span>
+                        <span className="text-sm text-gray-700">{limitation}</span>
                       </li>
                     ))}
                   </ul>
