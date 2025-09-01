@@ -55,6 +55,19 @@ const DiplomaCertificate = () => {
 
   return (
     <div className="space-y-8">
+      {/* Narrative Header */}
+      <div className="text-center space-y-4">
+        <h2 className="text-3xl font-bold text-[#003f5c]">
+          {isParent ? "Your Child's Learning Portfolio" : "Your Learning Portfolio"}
+        </h2>
+        <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+          This Optio diploma shows real achievements and skills gained through self-directed learning. 
+          {isParent 
+            ? " With Visionary tier, your child earns BOTH this portfolio diploma AND a traditional accredited high school diploma."
+            : " Visionary students earn TWO diplomas - this portfolio showing your real work, plus a traditional accredited high school diploma."}
+        </p>
+      </div>
+
       {/* Accredited Badge for Parents */}
       {isParent && demoState.showAccreditedOption && (
         <div className="text-center">
@@ -63,7 +76,7 @@ const DiplomaCertificate = () => {
             className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full animate-pulse hover:animate-none hover:shadow-lg transition-all"
           >
             <Shield className="w-5 h-5" />
-            <span className="font-semibold">Accredited Diploma Available with Visionary Tier</span>
+            <span className="font-semibold">Learn About Getting TWO Diplomas with Visionary Tier</span>
             <GraduationCap className="w-5 h-5" />
           </button>
         </div>
@@ -106,37 +119,52 @@ const DiplomaCertificate = () => {
             </p>
           </div>
 
-          {/* Quest Achievement */}
-          <div className="bg-white rounded-xl p-6 mb-8 border border-gray-200">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-2xl font-bold text-[#003f5c]">
-                  {demoState.selectedQuest?.title || 'Quest Achievement'}
-                </h3>
-                <p className="text-gray-600">
-                  {demoState.selectedQuest?.description || 'Demonstrated mastery through evidence-based learning'}
-                </p>
-              </div>
-              <div className="text-center">
-                <Trophy className="w-10 h-10 text-[#FFCA3A] mx-auto mb-1" />
-                <div className="text-2xl font-bold text-[#6d469b]">
-                  {Object.values(demoState.earnedXP).reduce((sum, xp) => sum + xp, 0)}
-                </div>
-                <div className="text-sm text-gray-600">Total XP</div>
-              </div>
-            </div>
-
-            {/* Completed Tasks */}
-            <div className="space-y-2">
-              <p className="text-sm font-semibold text-gray-700 mb-2">Tasks Completed:</p>
-              <div className="grid grid-cols-2 gap-2">
-                {demoState.selectedQuest?.tasks.map((task, index) => (
-                  <div key={index} className="flex items-center gap-2 text-sm">
-                    <Star className="w-4 h-4 text-[#FFCA3A]" />
-                    <span className="text-gray-700">{task.title}</span>
+          {/* Quest Achievements */}
+          <div className="space-y-4 mb-8">
+            <h3 className="text-xl font-bold text-[#003f5c]">Quest Achievements</h3>
+            
+            {/* Show selected quest if available */}
+            {demoState.selectedQuest && (
+              <div className="bg-white rounded-xl p-6 border border-gray-200">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="text-lg font-bold text-[#003f5c]">
+                      {demoState.selectedQuest.title}
+                    </h4>
+                    <p className="text-sm text-gray-600">
+                      {demoState.selectedQuest.description}
+                    </p>
                   </div>
-                ))}
+                  <div className="text-center">
+                    <Trophy className="w-8 h-8 text-[#FFCA3A] mx-auto" />
+                    <div className="text-lg font-bold text-[#6d469b]">
+                      {Math.round(demoState.selectedQuest.totalXP * 1.5)}
+                    </div>
+                    <div className="text-xs text-gray-600">XP</div>
+                  </div>
+                </div>
+
+                {/* Completed Tasks */}
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-gray-700">Tasks Completed:</p>
+                  <div className="grid grid-cols-2 gap-1">
+                    {demoState.selectedQuest.tasks.map((task, index) => (
+                      <div key={index} className="flex items-center gap-1 text-xs">
+                        <Star className="w-3 h-3 text-[#FFCA3A]" />
+                        <span className="text-gray-600">{task.title}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
+            )}
+            
+            {/* Total XP Summary */}
+            <div className="text-center">
+              <div className="text-3xl font-bold text-[#6d469b]">
+                {Object.values(demoState.earnedXP).reduce((sum, xp) => sum + xp, 0)}
+              </div>
+              <div className="text-sm text-gray-600">Total XP Earned</div>
             </div>
           </div>
 

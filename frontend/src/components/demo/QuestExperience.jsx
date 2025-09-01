@@ -360,15 +360,27 @@ const QuestExperience = () => {
               <p className="text-sm text-gray-500">
                 Total XP earned: {Math.round(selectedQuest.totalXP * 1.5)}
               </p>
-              <button
-                onClick={() => {
-                  actions.generateDiploma();
-                  actions.nextStep();
-                }}
-                className="w-full py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-300"
-              >
-                Finish Quest
-              </button>
+              <div className="space-y-3">
+                <button
+                  onClick={() => {
+                    actions.generateDiploma();
+                    actions.nextStep();
+                  }}
+                  className="w-full py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-300"
+                >
+                  View Your Diploma
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedQuest(null);
+                    setCompletedTasks([]);
+                    setShowCompletionBonus(false);
+                  }}
+                  className="w-full py-3 bg-white border-2 border-[#6d469b] text-[#6d469b] font-semibold rounded-lg hover:bg-[#6d469b]/5 transition-all duration-300"
+                >
+                  Complete Another Quest
+                </button>
+              </div>
             </div>
           </div>
         </div>

@@ -5,7 +5,6 @@ import {
   Rocket, Gift, Shield, Star, ArrowRight, CheckCircle,
   Users, Calendar, Trophy, Sparkles, Lock
 } from 'lucide-react';
-import DiplomaDisplay from './DiplomaDisplay';
 
 const ConversionPanel = () => {
   const { demoState, demoQuests, actions } = useDemo();
@@ -84,13 +83,17 @@ const ConversionPanel = () => {
 
   return (
     <div className="space-y-8">
-      {/* Full Diploma Display */}
-      <DiplomaDisplay 
-        userName={demoState.userInputs.name || demoState.userInputs.childName || 'Demo Student'}
-        allQuests={demoQuests}
-        earnedXP={demoState.earnedXP}
-        isAccredited={selectedTier === 'visionary'}
-      />
+      {/* Header */}
+      <div className="text-center space-y-4">
+        <h2 className="text-3xl font-bold text-[#003f5c]">
+          Choose Your Learning Path
+        </h2>
+        <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+          {isParent 
+            ? "Select the plan that best fits your child's educational journey"
+            : "Pick the plan that matches your learning goals"}
+        </p>
+      </div>
 
       {/* Pricing Tiers */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
