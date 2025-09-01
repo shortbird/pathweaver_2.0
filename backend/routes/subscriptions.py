@@ -411,6 +411,51 @@ def create_checkout_session(user_id):
                 'debug': str(e)
             }), 500
 
+@bp.route('/verify-session', methods=['POST'])
+@require_auth
+def verify_checkout_session(user_id):
+    """Verify a checkout session and update user subscription status"""
+    try:
+        data = request.json
+        session_id = data.get('session_id')
+        
+        if not session_id:
+            return jsonify({'error': 'Session ID is required'}), 400
+        
+        # Retrieve the session from Stripe
+        session = stripe.checkout.Session.retrieve(session_id)
+        
+        if session.payment_status != 'paid':
+            return jsonify({'error': 'Payment not completed'}), 400
+        
+        # Get subscription details
+        subscription = stripe.Subscription.retrieve(session.subscription)
+        
+        # Extract tier from metadata or price
+        tier = subscription.metadata.get('tier', 'supported')
+        
+        # Update user subscription in database
+        supabase = get_supabase_client()
+        supabase.table('users').update({
+            'subscription_tier': tier,
+            'subscription_status': subscription.status,
+            'stripe_subscription_id': subscription.id,
+            'subscription_current_period_end': datetime.fromtimestamp(subscription.current_period_end).isoformat()
+        }).eq('id', user_id).execute()
+        
+        return jsonify({
+            'success': True,
+            'tier': tier,
+            'status': subscription.status,
+            'period_end': subscription.current_period_end
+        }), 200
+        
+    except Exception as e:
+        print(f"Error verifying session: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': str(e)}), 500
+
 @bp.route('/status', methods=['GET'])
 @require_auth
 def get_subscription_status(user_id):

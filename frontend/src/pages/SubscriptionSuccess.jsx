@@ -8,7 +8,7 @@ import toast from 'react-hot-toast'
 const SubscriptionSuccess = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { refreshUser } = useAuth()
+  const { updateUser, user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [subscriptionDetails, setSubscriptionDetails] = useState(null)
   
@@ -19,16 +19,22 @@ const SubscriptionSuccess = () => {
         const sessionId = searchParams.get('session_id')
         
         if (sessionId) {
-          // Optionally verify the session with backend
-          console.log('Subscription session:', sessionId)
+          // Verify the session and update subscription
+          await api.post('/subscriptions/verify-session', { session_id: sessionId })
         }
         
         // Fetch updated subscription status
         const response = await api.get('/subscriptions/status')
         setSubscriptionDetails(response.data)
         
-        // Refresh user data to get updated tier
-        await refreshUser()
+        // Update user data with new subscription tier
+        if (response.data.tier) {
+          updateUser({
+            ...user,
+            subscription_tier: response.data.tier,
+            subscription_status: response.data.status || 'active'
+          })
+        }
         
         toast.success('Welcome to your new subscription plan!')
       } catch (error) {
@@ -40,7 +46,7 @@ const SubscriptionSuccess = () => {
     }
     
     verifySubscription()
-  }, [searchParams, refreshUser])
+  }, [searchParams, updateUser, user])
   
   const handleContinue = () => {
     navigate('/quest-hub')
