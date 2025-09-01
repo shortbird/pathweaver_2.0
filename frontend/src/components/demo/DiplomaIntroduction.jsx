@@ -118,7 +118,7 @@ const DiplomaIntroduction = () => {
       <div className="max-w-5xl mx-auto">
         <div className="text-center mb-8">
           <h3 className="text-2xl font-bold text-[#003f5c] mb-4">
-            How {persona === 'parent' ? 'Your Learner' : 'You'} Learn{persona === 'parent' ? 's' : ''} with Optio
+            How {persona === 'parent' ? 'Your Learner' : 'You'} Grow{persona === 'parent' ? 's' : ''} with Optio
           </h3>
           <p className="text-gray-600">
             A journey where every step is celebrated

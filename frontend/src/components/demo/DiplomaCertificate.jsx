@@ -73,7 +73,7 @@ const DiplomaCertificate = () => {
             onClick={() => setShowAcademyModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full hover:shadow-lg transition-all"
           >
-            <span className="font-semibold">Learn About Getting TWO Diplomas with Academy Tier</span>
+            <span className="font-semibold">Academy Tier Students Get TWO Diplomas</span>
           </button>
         </div>
       )}

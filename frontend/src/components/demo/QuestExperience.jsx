@@ -66,7 +66,7 @@ const QuestExperience = () => {
         {/* Header */}
         <div className="text-center space-y-4">
           <h2 className="text-3xl font-bold text-[#003f5c]">
-            {isParent ? "See How Your Learner Would Learn" : "Choose Your First Quest"}
+            {isParent ? "Learners Choose Their Quests" : "Choose Your First Quest"}
           </h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             {isParent 
