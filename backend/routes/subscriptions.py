@@ -7,7 +7,12 @@ from utils.auth.decorators import require_auth
 from config import Config
 
 bp = Blueprint('subscriptions', __name__)
-stripe.api_key = Config.STRIPE_SECRET_KEY
+
+# Initialize Stripe with the API key
+if Config.STRIPE_SECRET_KEY:
+    stripe.api_key = Config.STRIPE_SECRET_KEY
+else:
+    print("WARNING: Stripe API key not configured")
 
 # Get tier prices from config
 SUBSCRIPTION_PRICES = Config.STRIPE_TIER_PRICES
@@ -307,12 +312,31 @@ def create_checkout_session(user_id):
                 if not customer_name:
                     customer_name = user.get('username', 'User')
                 
+                # Ensure Stripe is properly initialized
+                if not stripe.api_key:
+                    print("ERROR: Stripe API key is not set")
+                    return jsonify({'error': 'Payment system not configured'}), 500
+                
                 customer = stripe.Customer.create(
-                    email=email,
+                    email=email or user.get('email'),  # Use user email as fallback
                     metadata={'user_id': user_id},
-                    name=customer_name
+                    name=customer_name or 'Customer'
                 )
                 print(f"Debug - Stripe customer created: {customer.id}")
+            except AttributeError as ae:
+                print(f"Debug - Stripe initialization error: {ae}")
+                # Try re-initializing Stripe
+                stripe.api_key = Config.STRIPE_SECRET_KEY
+                try:
+                    customer = stripe.Customer.create(
+                        email=email or user.get('email'),
+                        metadata={'user_id': user_id},
+                        name=customer_name or 'Customer'
+                    )
+                    print(f"Debug - Stripe customer created after re-init: {customer.id}")
+                except Exception as retry_error:
+                    print(f"Debug - Retry failed: {retry_error}")
+                    raise
             except Exception as stripe_error:
                 print(f"Debug - Error creating Stripe customer: {stripe_error}")
                 raise

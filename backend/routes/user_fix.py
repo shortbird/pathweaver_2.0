@@ -21,6 +21,7 @@ def fix_user_profile(user_id):
         if existing.data and len(existing.data) > 0:
             return jsonify({
                 'message': 'User profile already exists',
+                'user': existing.data[0],
                 'user_id': user_id
             }), 200
         
