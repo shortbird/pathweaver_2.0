@@ -3,7 +3,7 @@ import { useDemo } from '../../contexts/DemoContext';
 import { 
   Music, Book, Briefcase, Heart, CheckCircle, Upload, 
   Star, Trophy, Sparkles, GraduationCap, Shield, Users,
-  ArrowRight, FileText, Camera, PenTool, Info, X
+  ArrowRight, FileText, Camera, PenTool, Info, X, ArrowLeft
 } from 'lucide-react';
 import EvidenceSubmission from './EvidenceSubmission';
 import VisionaryTierModal from './VisionaryTierModal';
@@ -58,6 +58,14 @@ const QuestSimulatorRedesigned = () => {
         actions.nextStep();
       }, 1500);
     }
+  };
+
+  const handleBackToQuestSelection = () => {
+    setSelectedQuest(null);
+    setCurrentTaskIndex(0);
+    setShowEvidence(false);
+    // Reset demo state for quest selection
+    actions.trackInteraction('returned_to_quest_selection');
   };
 
   const currentTask = selectedQuest?.tasks[currentTaskIndex];
@@ -239,6 +247,15 @@ const QuestSimulatorRedesigned = () => {
   // Quest in Progress View
   return (
     <div className="space-y-6">
+      {/* Back Button */}
+      <button
+        onClick={handleBackToQuestSelection}
+        className="inline-flex items-center gap-2 px-4 py-2 text-gray-600 hover:text-[#6d469b] transition-colors group"
+      >
+        <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+        <span className="font-medium">Back to Quest Selection</span>
+      </button>
+
       {/* Quest Header with Clear Structure */}
       <div className="bg-gradient-to-r from-[#6d469b]/10 to-[#ef597b]/10 rounded-xl p-6">
         <div className="mb-4">

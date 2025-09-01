@@ -70,7 +70,6 @@ const DiplomaCertificate = () => {
                   onClick={() => setShowVisionaryModal(true)}
                   className="text-[#6d469b] font-bold underline hover:text-[#8b5fbf] transition-colors"
                 >
-                  BOTH this portfolio diploma AND a traditional accredited high school diploma
                 </button>.
               </>
             : <>
