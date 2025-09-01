@@ -24,8 +24,11 @@ def test_checkout_debug(user_id):
     # Step 1: Get user data
     try:
         supabase = get_supabase_client()
-        user_response = supabase.table('users').select('*').eq('id', user_id).single().execute()
-        user = user_response.data
+        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
+        if not user_response.data or len(user_response.data) == 0:
+            print(f"Debug - No user found for id: {user_id}")
+            return jsonify({'error': 'User not found'}), 404
+        user = user_response.data[0] if user_response.data else None
         results['steps'].append({
             'step': 'get_user_data',
             'status': 'success',
@@ -208,8 +211,11 @@ def create_checkout_session(user_id):
     try:
         # Get user data
         print(f"Debug - Getting user data for user_id: {user_id}")
-        user_response = supabase.table('users').select('*').eq('id', user_id).single().execute()
-        user = user_response.data
+        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
+        if not user_response.data or len(user_response.data) == 0:
+            print(f"Debug - No user found for id: {user_id}")
+            return jsonify({'error': 'User not found'}), 404
+        user = user_response.data[0]
         print(f"Debug - User data retrieved: {user}")
         
         # Create or retrieve Stripe customer
@@ -317,8 +323,11 @@ def get_subscription_status(user_id):
     
     try:
         # Get user data
-        user_response = supabase.table('users').select('*').eq('id', user_id).single().execute()
-        user = user_response.data
+        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
+        if not user_response.data or len(user_response.data) == 0:
+            print(f"Debug - No user found for id: {user_id}")
+            return jsonify({'error': 'User not found'}), 404
+        user = user_response.data[0] if user_response.data else None
         
         # Basic response for users without Stripe customer
         if not user.get('stripe_customer_id'):
@@ -372,8 +381,10 @@ def create_billing_portal_session(user_id):
     
     try:
         # Get user's Stripe customer ID
-        user_response = supabase.table('users').select('stripe_customer_id').eq('id', user_id).single().execute()
-        user = user_response.data
+        user_response = supabase.table('users').select('stripe_customer_id').eq('id', user_id).execute()
+        if not user_response.data or len(user_response.data) == 0:
+            return jsonify({'error': 'User not found'}), 404
+        user = user_response.data[0]
         
         if not user.get('stripe_customer_id'):
             return jsonify({'error': 'No billing history found'}), 404
@@ -404,8 +415,11 @@ def update_subscription(user_id):
     
     try:
         # Get user data
-        user_response = supabase.table('users').select('*').eq('id', user_id).single().execute()
-        user = user_response.data
+        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
+        if not user_response.data or len(user_response.data) == 0:
+            print(f"Debug - No user found for id: {user_id}")
+            return jsonify({'error': 'User not found'}), 404
+        user = user_response.data[0] if user_response.data else None
         
         if not user.get('stripe_customer_id'):
             # If upgrading from free, create checkout session
@@ -487,8 +501,11 @@ def cancel_subscription(user_id):
     
     try:
         # Get user data
-        user_response = supabase.table('users').select('*').eq('id', user_id).single().execute()
-        user = user_response.data
+        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
+        if not user_response.data or len(user_response.data) == 0:
+            print(f"Debug - No user found for id: {user_id}")
+            return jsonify({'error': 'User not found'}), 404
+        user = user_response.data[0] if user_response.data else None
         
         if not user.get('stripe_customer_id'):
             return jsonify({'error': 'No active subscription'}), 400
@@ -588,10 +605,10 @@ def stripe_webhook():
             customer_id = subscription['customer']
             
             # Get user by Stripe customer ID
-            user_response = supabase.table('users').select('*').eq('stripe_customer_id', customer_id).single().execute()
+            user_response = supabase.table('users').select('*').eq('stripe_customer_id', customer_id).execute()
             
-            if user_response.data:
-                user = user_response.data
+            if user_response.data and len(user_response.data) > 0:
+                user = user_response.data[0]
                 
                 # Determine tier from price ID
                 price_id = subscription['items']['data'][0]['price']['id']
@@ -626,10 +643,10 @@ def stripe_webhook():
             customer_id = subscription['customer']
             
             # Get user by Stripe customer ID
-            user_response = supabase.table('users').select('*').eq('stripe_customer_id', customer_id).single().execute()
+            user_response = supabase.table('users').select('*').eq('stripe_customer_id', customer_id).execute()
             
-            if user_response.data:
-                user = user_response.data
+            if user_response.data and len(user_response.data) > 0:
+                user = user_response.data[0]
                 
                 # Downgrade to free tier
                 supabase.table('users').update({
@@ -663,10 +680,10 @@ def stripe_webhook():
             customer_id = invoice['customer']
             
             # Get user by Stripe customer ID
-            user_response = supabase.table('users').select('*').eq('stripe_customer_id', customer_id).single().execute()
+            user_response = supabase.table('users').select('*').eq('stripe_customer_id', customer_id).execute()
             
-            if user_response.data:
-                user = user_response.data
+            if user_response.data and len(user_response.data) > 0:
+                user = user_response.data[0]
                 
                 # Update subscription status
                 supabase.table('users').update({
@@ -686,10 +703,10 @@ def stripe_webhook():
             customer_id = invoice['customer']
             
             # Get user by Stripe customer ID
-            user_response = supabase.table('users').select('*').eq('stripe_customer_id', customer_id).single().execute()
+            user_response = supabase.table('users').select('*').eq('stripe_customer_id', customer_id).execute()
             
-            if user_response.data:
-                user = user_response.data
+            if user_response.data and len(user_response.data) > 0:
+                user = user_response.data[0]
                 
                 # Update subscription status if it was past due
                 if user.get('subscription_status') == 'past_due':
