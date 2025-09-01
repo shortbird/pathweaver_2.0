@@ -204,11 +204,11 @@ The system is configured with `proration_behavior: 'create_prorations'` to handl
 
 ## Testing Checklist
 
-- [ ] Webhook endpoint created in Stripe Dashboard
-- [ ] Webhook signing secret added to .env
-- [ ] Monthly price IDs created and added to .env
-- [ ] Yearly price IDs created and added to .env
-- [ ] Test webhook with Stripe CLI locally
-- [ ] Test upgrade from Supported to Academy
-- [ ] Test switching from monthly to yearly billing
-- [ ] Verify proration is working correctly
+- [x] Webhook endpoint created in Stripe Dashboard
+- [x] Webhook signing secret added to .env
+- [x] Monthly price IDs created and added to .env
+- [x] Yearly price IDs created and added to .env
+- [] Test webhook with Stripe CLI locally
+- [] Test upgrade from Supported to Academy
+- [] Test switching from monthly to yearly billing
+- [] Verify proration is working correctly
