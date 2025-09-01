@@ -81,6 +81,53 @@ def test_checkout_debug(user_id):
     
     return jsonify(results), 200
 
+@bp.route('/test-user/<user_id>', methods=['GET'])
+def test_user_existence(user_id):
+    """Test if user exists in both auth and public tables"""
+    results = {
+        'user_id': user_id,
+        'auth_user': None,
+        'public_user': None
+    }
+    
+    try:
+        # Check public.users table
+        supabase = get_supabase_client()
+        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
+        results['public_user'] = {
+            'exists': bool(user_response.data and len(user_response.data) > 0),
+            'data': user_response.data[0] if user_response.data else None
+        }
+    except Exception as e:
+        results['public_user'] = {'error': str(e)}
+    
+    try:
+        # Check auth.users table
+        admin_supabase = get_supabase_admin_client()
+        auth_user = admin_supabase.auth.admin.get_user_by_id(user_id)
+        results['auth_user'] = {
+            'exists': bool(auth_user and auth_user.user),
+            'email': auth_user.user.email if auth_user and auth_user.user else None,
+            'created_at': str(auth_user.user.created_at) if auth_user and auth_user.user else None
+        }
+    except Exception as e:
+        if 'not found' in str(e).lower():
+            results['auth_user'] = {'exists': False}
+        else:
+            results['auth_user'] = {'error': str(e)}
+    
+    # Diagnosis
+    if results['auth_user'].get('exists') and not results['public_user'].get('exists'):
+        results['diagnosis'] = 'User exists in auth but not in public.users table - profile setup incomplete'
+    elif not results['auth_user'].get('exists') and results['public_user'].get('exists'):
+        results['diagnosis'] = 'Data inconsistency - user in public table but not in auth'
+    elif results['auth_user'].get('exists') and results['public_user'].get('exists'):
+        results['diagnosis'] = 'User exists in both tables - should work fine'
+    else:
+        results['diagnosis'] = 'User does not exist in either table'
+    
+    return jsonify(results), 200
+
 @bp.route('/test-supabase', methods=['GET'])
 def test_supabase_admin():
     """Test Supabase admin access (temporary debug endpoint)"""
