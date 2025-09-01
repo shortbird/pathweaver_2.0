@@ -25,19 +25,16 @@ export const TIER_FEATURES = {
     monthlyPrice: 0,
     yearlyPrice: 0,
     features: [
-      'Access to starter quests',
-      'Public diploma page',
-      'Build your portfolio',
-      'Track learning progress',
-      'Community support forum'
+      'Access quest library',
+      'Track ongoing quests',
+      'Mark tasks complete (no evidence submission)',
+      'No XP earned',
+      'No Optio Portfolio Diploma'
     ],
-    limitations: [
-      'Limited to 5 active quests',
-      'Basic diploma design'
-    ],
+    limitations: [],
     buttonText: 'Start Free',
     buttonDisabled: false,
-    description: 'Perfect for exploring self-directed learning'
+    description: 'Perfect for exploring the platform'
   },
   supported: {
     name: 'Supported',
@@ -48,20 +45,17 @@ export const TIER_FEATURES = {
     yearlyPrice: 429.88,  // Save $50/year
     yearlySavings: 50,
     features: [
-      'Everything in Free tier',
-      'Unlimited active quests',
-      'Priority quest access', 
-      'Enhanced diploma customization',
-      'Priority email support',
-      'Custom quest submissions',
-      'Advanced analytics dashboard',
-      'Share portfolio with colleges'
+      'Everything in Free, plus:',
+      'Access to a support team of Optio educators',
+      'Team up with other Supported learners for XP bonuses',
+      'Optio Portfolio Diploma',
+      'Traditionally-accredited Diploma'
     ],
     limitations: [],
     buttonText: 'Get Supported',
     buttonDisabled: false,
     popular: true,
-    description: 'Perfect for serious learners building their portfolio'
+    description: 'For dedicated learners ready to grow'
   },
   academy: {
     name: 'Academy',
@@ -72,21 +66,17 @@ export const TIER_FEATURES = {
     yearlyPrice: 5499.88,  // Save $500/year
     yearlySavings: 500,
     features: [
-      'Everything in Supported tier',
-      'Accredited high school diploma',
-      '1-on-1 teacher support',
-      'Personalized learning paths',
-      'Weekly accountability check-ins',
-      'College application assistance',
-      'Parent progress reports',
-      'Priority phone support',
-      'Verified certificates'
+      'Everything in Supported, plus:',
+      'TWO diplomas: Optio Portfolio + Accredited HS Diploma',
+      'Personal learning guide & 1-on-1 teacher support',
+      'Regular check-ins with licensed educators',
+      'Connect with Optio\'s network of business leaders and mentors'
     ],
     limitations: [],
     buttonText: 'Join Academy',
     buttonDisabled: false,
     premium: true,
-    description: 'Private school experience with self-directed learning'
+    description: 'A personalized private school experience'
   }
 };
 

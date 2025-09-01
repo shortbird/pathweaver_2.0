@@ -199,7 +199,7 @@ const SubscriptionPage = () => {
                     <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-6 py-2 rounded-bl-2xl rounded-tr-2xl">
                       <div className="flex items-center gap-1">
                         <StarIcon className="w-4 h-4" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Most Popular</span>
+                        <span className="text-xs font-bold uppercase tracking-wider">RECOMMENDED</span>
                       </div>
                     </div>
                   </div>
@@ -210,7 +210,7 @@ const SubscriptionPage = () => {
                     <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-6 py-2 rounded-br-2xl rounded-tl-2xl">
                       <div className="flex items-center gap-1">
                         <AcademicCapIcon className="w-4 h-4" />
-                        <span className="text-xs font-bold uppercase tracking-wider">Accredited</span>
+                        <span className="text-xs font-bold uppercase tracking-wider">ACCREDITED</span>
                       </div>
                     </div>
                   </div>
@@ -243,13 +243,16 @@ const SubscriptionPage = () => {
                   <div className="text-center mb-6">
                     <div className="mb-2">
                       {plan.price === 0 ? (
-                        <span className="text-5xl font-bold text-gray-900">Free</span>
+                        <>
+                          <span className="text-5xl font-bold text-gray-900">$0</span>
+                          <div className="text-gray-600 mt-2">Free</div>
+                        </>
                       ) : (
                         <>
                           <span className="text-5xl font-bold text-gray-900">
-                            ${pricing.price.toFixed(0)}
+                            ${pricing.price.toFixed(2)}
                           </span>
-                          <span className="text-gray-500 ml-2">/{pricing.period}</span>
+                          <span className="text-gray-500 ml-2">/{pricing.period === 'year' ? 'year' : 'mo'}</span>
                         </>
                       )}
                     </div>
@@ -274,20 +277,22 @@ const SubscriptionPage = () => {
 
                   {/* Features */}
                   <ul className="space-y-3 mb-8">
-                    {plan.features.slice(0, 6).map((feature, idx) => (
-                      <li key={idx} className="flex items-start">
-                        <CheckIcon className="w-5 h-5 text-green-500 mr-3 flex-shrink-0 mt-0.5" />
-                        <span className="text-sm text-gray-700">{feature}</span>
-                      </li>
-                    ))}
-                    {plan.features.length > 6 && (
-                      <li className="flex items-start">
-                        <CheckIcon className="w-5 h-5 text-green-500 mr-3 flex-shrink-0 mt-0.5" />
-                        <span className="text-sm text-gray-700 font-semibold">
-                          +{plan.features.length - 6} more features
-                        </span>
-                      </li>
-                    )}
+                    {plan.features.map((feature, idx) => {
+                      const isNegativeFeature = feature.includes('No XP') || feature.includes('No Optio Portfolio');
+                      const isPlusFeature = feature.includes('Everything in');
+                      return (
+                        <li key={idx} className="flex items-start">
+                          {isNegativeFeature ? (
+                            <XIcon className="w-5 h-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" />
+                          ) : (
+                            <CheckIcon className="w-5 h-5 text-green-500 mr-3 flex-shrink-0 mt-0.5" />
+                          )}
+                          <span className={`text-sm ${isPlusFeature ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
+                            {feature}
+                          </span>
+                        </li>
+                      )
+                    })}
                     {plan.limitations?.map((limitation, idx) => (
                       <li key={`limit-${idx}`} className="flex items-start opacity-60">
                         <XIcon className="w-5 h-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" />
