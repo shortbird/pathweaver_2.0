@@ -153,7 +153,7 @@ const SubscriptionPage = () => {
                 <h2 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h2>
                 <div className="mb-4">
                   <span className="text-4xl font-bold text-gray-900">
-                    {plan.price === 0 ? 'Free' : `$${plan.monthlyPrice}`}
+                    {plan.price === 0 ? 'Free' : `$${plan.monthlyPrice.toFixed(2)}`}
                   </span>
                   {plan.price > 0 && (
                     <span className="text-gray-500">/month</span>
@@ -161,7 +161,7 @@ const SubscriptionPage = () => {
                 </div>
                 {plan.yearlyPrice && (
                   <p className="text-sm text-gray-500">
-                    Or ${plan.yearlyPrice}/year (save ${(plan.monthlyPrice * 12 - plan.yearlyPrice)})
+                    Or ${plan.yearlyPrice.toFixed(2)}/year (save ${(plan.monthlyPrice * 12 - plan.yearlyPrice).toFixed(2)})
                   </p>
                 )}
               </div>

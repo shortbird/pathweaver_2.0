@@ -9,8 +9,8 @@ This guide documents the Stripe payments integration for the Optio platform, inc
 | Tier | Price | Features | Stripe Product Required |
 |------|-------|----------|------------------------|
 | **Free** | $0/month | • 5 basic quests<br>• Public diploma page<br>• Community support | No (handled in-app) |
-| **Supported** | $10/month | • Unlimited quests<br>• Priority support<br>• Custom quest submissions<br>• Advanced analytics | Yes - Create in Stripe |
-| **Academy** | $25/month | • Everything in Supported<br>• 1-on-1 mentorship<br>• Custom learning paths<br>• Verified certificates | Yes - Create in Stripe |
+| **Supported** | $39.99/month | • Unlimited quests<br>• Priority support<br>• Custom quest submissions<br>• Advanced analytics | Yes - Create in Stripe |
+| **Academy** | $499.99/month | • Everything in Supported<br>• 1-on-1 mentorship<br>• Custom learning paths<br>• Verified certificates | Yes - Create in Stripe |
 
 ## Implementation Status ✅
 
@@ -61,14 +61,14 @@ psql -h your-host -U your-user -d your-database -f backend/migrations/add_stripe
 **Supported Tier:**
 - Name: "Optio Supported Subscription"
 - Description: "Unlimited quests, priority support, and custom submissions"
-- Price: $10.00 USD / month
+- Price: $39.99 USD / month
 - Billing period: Monthly
 - Copy the `price_xxx` ID
 
 **Academy Tier:**
 - Name: "Optio Academy Subscription"
 - Description: "Premium learning with 1-on-1 mentorship and verified certificates"
-- Price: $25.00 USD / month
+- Price: $499.99 USD / month
 - Billing period: Monthly
 - Copy the `price_xxx` ID
 

@@ -124,13 +124,13 @@ class Config:
         },
         'supported': {
             'name': 'Supported',
-            'price_monthly': 10,
+            'price_monthly': 39.99,
             'max_quests': None,  # Unlimited
             'features': ['Unlimited quests', 'Priority support', 'Advanced analytics', 'Custom quest submissions']
         },
         'academy': {
             'name': 'Academy',
-            'price_monthly': 25,
+            'price_monthly': 499.99,
             'max_quests': None,  # Unlimited
             'features': ['Everything in Supported', '1-on-1 mentorship', 'Custom learning paths', 'Verified certificates']
         }

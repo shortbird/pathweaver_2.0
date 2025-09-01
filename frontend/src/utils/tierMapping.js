@@ -40,9 +40,9 @@ export const TIER_FEATURES = {
     name: 'Supported',
     backendValue: 'supported',  // Updated to use new tier name
     stripeValue: 'supported',  // Used for Stripe checkout
-    price: 10,
-    monthlyPrice: 10,
-    yearlyPrice: 100,  // Optional yearly discount
+    price: 39.99,
+    monthlyPrice: 39.99,
+    yearlyPrice: 399.99,  // Optional yearly discount (~17% off)
     features: [
       'Everything in Free tier',
       'Unlimited active quests',
@@ -61,9 +61,9 @@ export const TIER_FEATURES = {
     name: 'Academy',
     backendValue: 'academy',  // Updated to use new tier name
     stripeValue: 'academy',  // Used for Stripe checkout
-    price: 25,
-    monthlyPrice: 25,
-    yearlyPrice: 250,  // Optional yearly discount
+    price: 499.99,
+    monthlyPrice: 499.99,
+    yearlyPrice: 4999.99,  // Optional yearly discount (~17% off)
     features: [
       'Everything in Supported tier',
       '1-on-1 mentorship sessions',
