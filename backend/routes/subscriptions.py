@@ -36,9 +36,18 @@ def create_checkout_session(user_id):
         # Backwards compatibility for old config format
         price_id = tier_prices if billing_period == 'monthly' else None
     
+    # Debug logging
+    print(f"Debug - Tier: {tier}, Billing: {billing_period}")
+    print(f"Debug - Tier prices config: {tier_prices}")
+    print(f"Debug - Selected price_id: {price_id}")
+    print(f"Debug - All subscription prices: {SUBSCRIPTION_PRICES}")
+    
     if not price_id:
+        error_msg = f'Stripe price ID not configured for {tier} tier ({billing_period}). Please contact support.'
+        print(f"Error: {error_msg}")
+        print(f"Available prices: {SUBSCRIPTION_PRICES}")
         return jsonify({
-            'error': f'Stripe price ID not configured for {tier} tier ({billing_period}). Please contact support.'
+            'error': error_msg
         }), 500
     
     supabase = get_supabase_client()
