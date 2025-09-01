@@ -212,9 +212,12 @@ def create_checkout_session(user_id):
         # Get user data
         print(f"Debug - Getting user data for user_id: {user_id}")
         user_response = supabase.table('users').select('*').eq('id', user_id).execute()
+        print(f"Debug - User query raw response: data={user_response.data}, count={len(user_response.data) if user_response.data else 0}")
+        
         if not user_response.data or len(user_response.data) == 0:
             print(f"Debug - No user found for id: {user_id}")
-            return jsonify({'error': 'User not found'}), 404
+            print(f"Debug - This might be a new user who hasn't been added to users table yet")
+            return jsonify({'error': 'User profile not found. Please complete your profile setup first.'}), 404
         user = user_response.data[0]
         print(f"Debug - User data retrieved: {user}")
         
@@ -323,11 +326,19 @@ def get_subscription_status(user_id):
     
     try:
         # Get user data
+        print(f"Debug - Getting subscription status for user_id: {user_id}")
         user_response = supabase.table('users').select('*').eq('id', user_id).execute()
+        print(f"Debug - User query response: {user_response.data}")
+        
         if not user_response.data or len(user_response.data) == 0:
-            print(f"Debug - No user found for id: {user_id}")
-            return jsonify({'error': 'User not found'}), 404
-        user = user_response.data[0] if user_response.data else None
+            print(f"Debug - No user found for id: {user_id}, returning default free tier")
+            # Return default free tier status if user not in database yet
+            return jsonify({
+                'tier': 'free',
+                'status': 'inactive',
+                'stripe_customer': False
+            }), 200
+        user = user_response.data[0]
         
         # Basic response for users without Stripe customer
         if not user.get('stripe_customer_id'):
