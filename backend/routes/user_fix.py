@@ -51,7 +51,8 @@ def fix_user_profile(user_id):
             'onboarding_completed': False
         }
         
-        result = supabase.table('users').insert(new_user).execute()
+        # Use upsert to handle potential conflicts
+        result = supabase.table('users').upsert(new_user, on_conflict='id').execute()
         
         if result.data:
             return jsonify({
@@ -62,6 +63,23 @@ def fix_user_profile(user_id):
             return jsonify({'error': 'Failed to create user profile'}), 500
             
     except Exception as e:
+        print(f"Error fixing user profile: {e}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        
+        # Check if it's a unique constraint violation
+        if 'duplicate key' in str(e).lower() or 'already exists' in str(e).lower():
+            # Try to fetch the existing user
+            try:
+                existing = supabase.table('users').select('*').eq('id', user_id).execute()
+                if existing.data:
+                    return jsonify({
+                        'message': 'User profile already exists',
+                        'user': existing.data[0]
+                    }), 200
+            except:
+                pass
+        
         return jsonify({
             'error': 'Failed to fix user profile',
             'details': str(e)

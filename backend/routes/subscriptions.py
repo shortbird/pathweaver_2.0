@@ -191,7 +191,7 @@ def get_stripe_config():
     
     return jsonify(config_status), 200
 
-@bp.route('/create-checkout', methods=['POST'])
+@bp.route('/create-checkout', methods=['POST', 'OPTIONS'])
 @require_auth
 def create_checkout_session(user_id):
     """Create a Stripe checkout session for subscription upgrade"""
