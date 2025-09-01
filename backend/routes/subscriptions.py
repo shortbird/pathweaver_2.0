@@ -270,32 +270,36 @@ def create_checkout_session(user_id):
         
         # Create or retrieve Stripe customer
         if not user.get('stripe_customer_id'):
-            # Get email from auth.users table using admin client
-            print(f"Debug - Getting email from auth.users for user_id: {user_id}")
-            try:
-                auth_user_response = admin_supabase.auth.admin.get_user_by_id(user_id)
-                print(f"Debug - Auth user response type: {type(auth_user_response)}")
-                print(f"Debug - Auth user response: {auth_user_response}")
-                
-                # Handle different response structures
-                if hasattr(auth_user_response, 'user') and auth_user_response.user:
-                    email = auth_user_response.user.email
-                elif hasattr(auth_user_response, 'email'):
-                    email = auth_user_response.email
-                elif isinstance(auth_user_response, dict) and 'email' in auth_user_response:
-                    email = auth_user_response['email']
-                elif isinstance(auth_user_response, dict) and 'user' in auth_user_response:
-                    email = auth_user_response['user'].get('email')
-                else:
-                    print(f"Debug - Unexpected auth response structure: {auth_user_response}")
-                    email = None
+            # Use email from user data if available
+            email = user.get('email')
+            
+            if not email:
+                # Get email from auth.users table using admin client as fallback
+                print(f"Debug - No email in user data, getting from auth.users for user_id: {user_id}")
+                try:
+                    auth_user_response = admin_supabase.auth.admin.get_user_by_id(user_id)
+                    print(f"Debug - Auth user response type: {type(auth_user_response)}")
+                    print(f"Debug - Auth user response: {auth_user_response}")
                     
-                print(f"Debug - Email retrieved: {email}")
-            except Exception as auth_error:
-                print(f"Debug - Error getting auth user: {auth_error}")
-                import traceback
-                print(f"Debug - Traceback: {traceback.format_exc()}")
-                email = None
+                    # Handle different response structures
+                    if hasattr(auth_user_response, 'user') and auth_user_response.user:
+                        email = auth_user_response.user.email
+                    elif hasattr(auth_user_response, 'email'):
+                        email = auth_user_response.email
+                    elif isinstance(auth_user_response, dict) and 'email' in auth_user_response:
+                        email = auth_user_response['email']
+                    elif isinstance(auth_user_response, dict) and 'user' in auth_user_response:
+                        email = auth_user_response['user'].get('email')
+                    else:
+                        print(f"Debug - Unexpected auth response structure: {auth_user_response}")
+                        email = None
+                        
+                    print(f"Debug - Email retrieved: {email}")
+                except Exception as auth_error:
+                    print(f"Debug - Error getting auth user: {auth_error}")
+                    import traceback
+                    print(f"Debug - Traceback: {traceback.format_exc()}")
+                    email = None
             
             print(f"Debug - Creating Stripe customer with email: {email}")
             try:
