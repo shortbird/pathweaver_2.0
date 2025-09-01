@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
 import DemoHero from './DemoHero';
 import PersonaSelector from './PersonaSelector';
+import DiplomaIntroduction from './DiplomaIntroduction';
 import QuestExperience from './QuestExperience';
 import DiplomaCertificate from './DiplomaCertificate';
 import ComparisonView from './ComparisonView';
@@ -31,12 +32,14 @@ const DemoFeature = () => {
       case 1:
         return <PersonaSelector />;
       case 2:
-        return <QuestExperience />;
+        return <DiplomaIntroduction />;
       case 3:
-        return <DiplomaCertificate />;
+        return <QuestExperience />;
       case 4:
-        return <ComparisonView />;
+        return <DiplomaCertificate />;
       case 5:
+        return <ComparisonView />;
+      case 6:
         return <ConversionPanel />;
       default:
         return <DemoHero onStart={() => actions.nextStep()} />;
@@ -47,6 +50,7 @@ const DemoFeature = () => {
     const titles = [
       'Welcome to Optio',
       'Who are you?',
+      'Your Optio Portfolio Diploma',
       'Experience a Quest',
       'Your Achievement',
       'See the Difference',
@@ -55,20 +59,20 @@ const DemoFeature = () => {
     return titles[currentStep] || '';
   };
 
-  const canGoBack = currentStep > 0 && currentStep < 6;
-  const canGoForward = currentStep > 1 && currentStep < 5 && 
-    (currentStep !== 2 || demoState.completedTasks.length > 0);
+  const canGoBack = currentStep > 0 && currentStep < 7;
+  const canGoForward = currentStep > 1 && currentStep < 6 && 
+    (currentStep !== 3 || demoState.completedTasks.length > 0);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#6d469b]/5 via-white to-[#ef597b]/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Progress Indicator */}
-        {currentStep > 0 && currentStep <= 5 && (
+        {currentStep > 0 && currentStep <= 6 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-bold text-[#003f5c]">{getStepTitle()}</h2>
               <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Step {currentStep} of 5</span>
+                <span className="text-sm text-gray-600">Step {currentStep} of 6</span>
                 <button
                   onClick={actions.resetDemo}
                   className="text-sm text-[#6d469b] hover:underline"
@@ -82,7 +86,7 @@ const DemoFeature = () => {
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] transition-all duration-500"
-                style={{ width: `${(currentStep / 5) * 100}%` }}
+                style={{ width: `${(currentStep / 6) * 100}%` }}
               />
             </div>
           </div>
@@ -110,14 +114,14 @@ const DemoFeature = () => {
               </button>
 
               <button
-                onClick={currentStep === 5 ? actions.resetDemo : actions.nextStep}
-                disabled={currentStep === 5 ? false : !canGoForward}
+                onClick={currentStep === 6 ? actions.resetDemo : actions.nextStep}
+                disabled={currentStep === 6 ? false : !canGoForward}
                 className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all
-                  ${(currentStep === 5 || canGoForward) 
+                  ${(currentStep === 6 || canGoForward) 
                     ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg' 
                     : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}
               >
-                {currentStep === 5 ? 'Exit Demo' : 'Next'}
+                {currentStep === 6 ? 'Exit Demo' : 'Next'}
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>

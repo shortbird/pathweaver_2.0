@@ -173,7 +173,7 @@ export const DemoProvider = ({ children }) => {
   const nextStep = useCallback(() => {
     setDemoState(prev => ({
       ...prev,
-      currentStep: Math.min(prev.currentStep + 1, 5)
+      currentStep: Math.min(prev.currentStep + 1, 6)
     }));
   }, []);
 
