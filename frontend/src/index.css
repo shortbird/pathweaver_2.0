@@ -128,10 +128,10 @@
 .text-shimmer {
   background: linear-gradient(
     90deg,
-    #ef597b 0%,
-    #f8b3c5 25%,
+    #6d469b 0%,
+    #b794d6 20%,
     #ffffff 50%,
-    #b794d6 75%,
+    #b794d6 80%,
     #6d469b 100%
   );
   background-size: 200% auto;
