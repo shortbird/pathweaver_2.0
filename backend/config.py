@@ -97,8 +97,44 @@ class Config:
     # Stripe Configuration
     STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
     STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
+    
+    # Subscription tier price IDs
+    STRIPE_FREE_PRICE_ID = None  # Free tier has no Stripe price
+    STRIPE_SUPPORTED_PRICE_ID = os.getenv('STRIPE_SUPPORTED_PRICE_ID')  # $10/month
+    STRIPE_ACADEMY_PRICE_ID = os.getenv('STRIPE_ACADEMY_PRICE_ID')  # $25/month
+    
+    # Legacy price IDs (kept for backwards compatibility)
     STRIPE_PRICE_ID_MONTHLY = os.getenv('STRIPE_PRICE_ID_MONTHLY')
     STRIPE_PRICE_ID_YEARLY = os.getenv('STRIPE_PRICE_ID_YEARLY')
+    
+    # Stripe configuration mapping
+    STRIPE_TIER_PRICES = {
+        'free': None,
+        'supported': STRIPE_SUPPORTED_PRICE_ID,
+        'academy': STRIPE_ACADEMY_PRICE_ID
+    }
+    
+    # Tier features and limits
+    TIER_FEATURES = {
+        'free': {
+            'name': 'Free',
+            'price_monthly': 0,
+            'max_quests': 5,
+            'features': ['Basic quest access', 'Public diploma page', 'Community support']
+        },
+        'supported': {
+            'name': 'Supported',
+            'price_monthly': 10,
+            'max_quests': None,  # Unlimited
+            'features': ['Unlimited quests', 'Priority support', 'Advanced analytics', 'Custom quest submissions']
+        },
+        'academy': {
+            'name': 'Academy',
+            'price_monthly': 25,
+            'max_quests': None,  # Unlimited
+            'features': ['Everything in Supported', '1-on-1 mentorship', 'Custom learning paths', 'Verified certificates']
+        }
+    }
     
     # Rate Limiting
     RATE_LIMIT_ENABLED = os.getenv('RATE_LIMIT_ENABLED', 'true').lower() == 'true'

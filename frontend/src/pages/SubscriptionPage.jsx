@@ -1,13 +1,41 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import { getTierDisplayName } from '../utils/tierMapping'
+import { 
+  TIER_FEATURES, 
+  getTierDisplayName, 
+  formatPrice,
+  getTierBadgeColor,
+  convertLegacyTier 
+} from '../utils/tierMapping'
+import { CheckIcon, XIcon } from '@heroicons/react/solid'
+import { StarIcon } from '@heroicons/react/outline'
 
 const SubscriptionPage = () => {
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [canceling, setCanceling] = useState(false)
+  const [subscriptionStatus, setSubscriptionStatus] = useState(null)
+  const [loadingStatus, setLoadingStatus] = useState(true)
+
+  // Convert legacy tier to new tier for comparison
+  const currentTier = convertLegacyTier(user?.subscription_tier) || 'free'
+
+  useEffect(() => {
+    fetchSubscriptionStatus()
+  }, [])
+
+  const fetchSubscriptionStatus = async () => {
+    try {
+      const response = await api.get('/subscriptions/status')
+      setSubscriptionStatus(response.data)
+    } catch (error) {
+      console.error('Failed to fetch subscription status:', error)
+    } finally {
+      setLoadingStatus(false)
+    }
+  }
 
   const handleUpgrade = async (tier) => {
     setLoading(true)
@@ -21,7 +49,7 @@ const SubscriptionPage = () => {
   }
 
   const handleCancel = async () => {
-    if (!window.confirm('Are you sure you want to cancel your subscription?')) {
+    if (!window.confirm('Are you sure you want to cancel your subscription? You will retain access until the end of your billing period.')) {
       return
     }
 
@@ -29,6 +57,7 @@ const SubscriptionPage = () => {
     try {
       await api.post('/subscriptions/cancel')
       toast.success('Subscription will be cancelled at the end of the billing period')
+      await fetchSubscriptionStatus() // Refresh status
     } catch (error) {
       toast.error('Failed to cancel subscription')
     } finally {
@@ -36,170 +65,244 @@ const SubscriptionPage = () => {
     }
   }
 
+  const handleBillingPortal = async () => {
+    setLoading(true)
+    try {
+      const response = await api.post('/subscriptions/billing-portal')
+      window.location.href = response.data.portal_url
+    } catch (error) {
+      toast.error('Failed to access billing portal')
+      setLoading(false)
+    }
+  }
+
   const plans = [
     {
-      tier: 'explorer',
-      name: 'Free',
-      price: 'Free',
-      description: 'Perfect for enrichment and personal growth',
-      features: [
-        'Access to quest library',
-        'Track personal progress',
-        'Join the community',
-        'Basic progress dashboard'
-      ],
-      current: user?.subscription_tier === 'explorer'
+      ...TIER_FEATURES.free,
+      tier: 'free',
+      current: currentTier === 'free'
     },
     {
-      tier: 'creator',
-      name: 'Supported',
-      price: '$10/month',
-      description: 'For serious learners seeking credit',
-      features: [
-        'Everything in Free tier',
-        'Official credit banking',
-        'Transcript generation',
-        'Community XP bonuses',
-        'Priority support',
-        'Advanced analytics'
-      ],
-      current: user?.subscription_tier === 'creator',
-      popular: true
+      ...TIER_FEATURES.supported,
+      tier: 'supported',
+      current: currentTier === 'supported'
     },
     {
-      tier: 'visionary',
-      name: 'Academy',
-      price: '$25/month',
-      description: 'Complete educational solution',
-      features: [
-        'Everything in Supported tier',
-        'Dedicated educator support',
-        'Personalized learning plan',
-        'Priority review',
-        'Custom quest creation',
-        'Family account management'
-      ],
-      current: user?.subscription_tier === 'visionary'
+      ...TIER_FEATURES.academy,
+      tier: 'academy',
+      current: currentTier === 'academy'
     }
   ]
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      {/* Header */}
       <div className="text-center mb-12">
-        <h1 className="text-4xl font-bold mb-4">Choose Your Learning Path</h1>
-        <p className="text-xl text-gray-600">
-          Unlock your full potential with the right subscription
+        <h1 className="text-4xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent mb-4">
+          Choose Your Learning Path
+        </h1>
+        <p className="text-xl text-gray-600 max-w-2xl mx-auto">
+          Unlock your full potential with the right subscription. Start free, upgrade anytime.
         </p>
+        
+        {/* Current Status Badge */}
+        {!loadingStatus && subscriptionStatus && (
+          <div className="mt-6 inline-flex items-center">
+            <span className="text-sm text-gray-500 mr-2">Current Plan:</span>
+            <span className={`px-3 py-1 rounded-full text-sm font-medium ${getTierBadgeColor(currentTier)}`}>
+              {getTierDisplayName(currentTier)}
+            </span>
+            {subscriptionStatus.cancel_at_period_end && (
+              <span className="ml-2 px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">
+                Cancels at period end
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
+      {/* Pricing Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
         {plans.map(plan => (
           <div
             key={plan.tier}
-            className={`card relative ${plan.popular ? 'border-2 border-primary' : ''} ${
-              plan.current ? 'bg-gray-50' : ''
-            }`}
+            className={`relative bg-white rounded-2xl shadow-lg overflow-hidden transform transition-all hover:scale-105 ${
+              plan.popular ? 'ring-2 ring-blue-500' : ''
+            } ${plan.current ? 'ring-2 ring-green-500' : ''}`}
           >
+            {/* Popular Badge */}
             {plan.popular && (
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <span className="bg-primary text-white text-xs px-3 py-1 rounded-full">
-                  MOST POPULAR
-                </span>
+              <div className="absolute top-0 right-0 bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-1 rounded-bl-lg">
+                <div className="flex items-center space-x-1">
+                  <StarIcon className="w-4 h-4" />
+                  <span className="text-xs font-semibold">RECOMMENDED</span>
+                </div>
               </div>
             )}
 
+            {/* Current Plan Badge */}
             {plan.current && (
-              <div className="absolute -top-3 right-4">
-                <span className="bg-green-600 text-white text-xs px-3 py-1 rounded-full">
-                  CURRENT PLAN
-                </span>
+              <div className="absolute top-0 left-0 bg-green-500 text-white px-4 py-1 rounded-br-lg">
+                <span className="text-xs font-semibold">CURRENT PLAN</span>
               </div>
             )}
 
-            <div className="text-center mb-6">
-              <h2 className="text-2xl font-bold mb-2">{plan.name}</h2>
-              <p className="text-3xl font-bold text-primary mb-2">{plan.price}</p>
-              <p className="text-gray-600 text-sm">{plan.description}</p>
-            </div>
+            <div className="p-8">
+              {/* Plan Header */}
+              <div className="text-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">{plan.name}</h2>
+                <div className="mb-4">
+                  <span className="text-4xl font-bold text-gray-900">
+                    {plan.price === 0 ? 'Free' : `$${plan.monthlyPrice}`}
+                  </span>
+                  {plan.price > 0 && (
+                    <span className="text-gray-500">/month</span>
+                  )}
+                </div>
+                {plan.yearlyPrice && (
+                  <p className="text-sm text-gray-500">
+                    Or ${plan.yearlyPrice}/year (save ${(plan.monthlyPrice * 12 - plan.yearlyPrice)})
+                  </p>
+                )}
+              </div>
 
-            <ul className="space-y-3 mb-8">
-              {plan.features.map((feature, index) => (
-                <li key={index} className="flex items-start">
-                  <svg
-                    className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5"
-                    fill="currentColor"
-                    viewBox="0 0 20 20"
+              {/* Features List */}
+              <ul className="space-y-3 mb-8">
+                {plan.features.map((feature, index) => (
+                  <li key={index} className="flex items-start">
+                    <CheckIcon className="w-5 h-5 text-green-500 mr-3 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-gray-700">{feature}</span>
+                  </li>
+                ))}
+                {plan.limitations && plan.limitations.map((limitation, index) => (
+                  <li key={`limit-${index}`} className="flex items-start opacity-60">
+                    <XIcon className="w-5 h-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" />
+                    <span className="text-sm text-gray-600">{limitation}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {/* Action Button */}
+              <div className="mt-auto">
+                {plan.current ? (
+                  plan.tier === 'free' ? (
+                    <button 
+                      className="w-full py-3 px-4 bg-gray-200 text-gray-500 rounded-lg font-medium cursor-not-allowed" 
+                      disabled
+                    >
+                      Current Plan
+                    </button>
+                  ) : (
+                    <div className="space-y-2">
+                      <button
+                        onClick={handleBillingPortal}
+                        disabled={loading}
+                        className="w-full py-3 px-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
+                      >
+                        {loading ? 'Loading...' : 'Manage Billing'}
+                      </button>
+                      {!subscriptionStatus?.cancel_at_period_end && (
+                        <button
+                          onClick={handleCancel}
+                          disabled={canceling}
+                          className="w-full py-2 px-4 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
+                        >
+                          {canceling ? 'Canceling...' : 'Cancel Subscription'}
+                        </button>
+                      )}
+                    </div>
+                  )
+                ) : plan.tier === 'free' ? (
+                  <button 
+                    className="w-full py-3 px-4 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-colors" 
+                    disabled
                   >
-                    <path
-                      fillRule="evenodd"
-                      d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                      clipRule="evenodd"
-                    />
-                  </svg>
-                  <span className="text-sm">{feature}</span>
-                </li>
-              ))}
-            </ul>
-
-            <div className="mt-auto">
-              {plan.current ? (
-                plan.tier === 'explorer' ? (
-                  <button className="w-full btn-primary opacity-50 cursor-not-allowed" disabled>
-                    Current Plan
+                    No Payment Required
                   </button>
                 ) : (
                   <button
-                    onClick={handleCancel}
-                    disabled={canceling}
-                    className="w-full bg-red-600 text-white px-4 py-3 rounded-lg font-medium hover:bg-red-700 disabled:opacity-50"
+                    onClick={() => handleUpgrade(plan.tier)}
+                    disabled={loading}
+                    className="w-full py-3 px-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50"
                   >
-                    {canceling ? 'Canceling...' : 'Cancel Subscription'}
+                    {loading ? 'Processing...' : `Upgrade to ${plan.name}`}
                   </button>
-                )
-              ) : plan.tier === 'explorer' ? (
-                <button className="w-full btn-primary opacity-50 cursor-not-allowed" disabled>
-                  Free Plan
-                </button>
-              ) : (
-                <button
-                  onClick={() => handleUpgrade(plan.tier)}
-                  disabled={loading}
-                  className="w-full btn-primary disabled:opacity-50"
-                >
-                  {loading ? 'Processing...' : `Upgrade to ${plan.name}`}
-                </button>
-              )}
+                )}
+              </div>
             </div>
           </div>
         ))}
       </div>
 
-      <div className="card">
-        <h2 className="text-2xl font-bold mb-4">Frequently Asked Questions</h2>
-        <div className="space-y-4">
+      {/* Billing Portal Access for Existing Customers */}
+      {subscriptionStatus?.stripe_customer && (
+        <div className="text-center mb-12">
+          <button
+            onClick={handleBillingPortal}
+            disabled={loading}
+            className="inline-flex items-center px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Loading...' : 'Access Billing Portal'}
+          </button>
+          <p className="mt-2 text-sm text-gray-500">
+            View invoices, update payment methods, and manage your subscription
+          </p>
+        </div>
+      )}
+
+      {/* FAQ Section */}
+      <div className="bg-white rounded-2xl shadow-lg p-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-6">Frequently Asked Questions</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <h3 className="font-semibold mb-1">Can I change my plan anytime?</h3>
+            <h3 className="font-semibold text-gray-900 mb-2">Can I change my plan anytime?</h3>
             <p className="text-gray-600">
-              Yes! You can upgrade or downgrade your subscription at any time. Changes take effect immediately.
+              Yes! You can upgrade or downgrade your subscription at any time. Changes are prorated and take effect immediately.
             </p>
           </div>
           <div>
-            <h3 className="font-semibold mb-1">What payment methods do you accept?</h3>
+            <h3 className="font-semibold text-gray-900 mb-2">What payment methods do you accept?</h3>
             <p className="text-gray-600">
-              We accept all major credit cards and debit cards through our secure payment processor, Stripe.
+              We accept all major credit and debit cards through our secure payment processor, Stripe.
             </p>
           </div>
           <div>
-            <h3 className="font-semibold mb-1">Is my data safe?</h3>
+            <h3 className="font-semibold text-gray-900 mb-2">Is there a free trial?</h3>
             <p className="text-gray-600">
-              Absolutely! We use industry-standard encryption and security measures to protect your data.
+              Start with our Free tier to explore the platform. No credit card required. Upgrade when you're ready for more features.
             </p>
           </div>
           <div>
-            <h3 className="font-semibold mb-1">Can I get a refund?</h3>
+            <h3 className="font-semibold text-gray-900 mb-2">Can I get a refund?</h3>
             <p className="text-gray-600">
-              We offer a 30-day money-back guarantee for first-time subscribers. Contact support for assistance.
+              We offer a 30-day money-back guarantee for first-time subscribers. Contact support@optioed.org for assistance.
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Trust Badges */}
+      <div className="mt-12 text-center">
+        <p className="text-sm text-gray-500 mb-4">Trusted by educators and learners worldwide</p>
+        <div className="flex justify-center items-center space-x-8">
+          <div className="flex items-center space-x-2">
+            <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M2.166 4.999A11.954 11.954 0 0010 1.944 11.954 11.954 0 0017.834 5c.11.65.166 1.32.166 2.001 0 5.225-3.34 9.67-8 11.317C5.34 16.67 2 12.225 2 7c0-.682.057-1.35.166-2.001zm11.541 3.708a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+            </svg>
+            <span className="text-sm text-gray-600">SSL Encrypted</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+              <path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z" />
+              <path fillRule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clipRule="evenodd" />
+            </svg>
+            <span className="text-sm text-gray-600">Secure Payments via Stripe</span>
+          </div>
+          <div className="flex items-center space-x-2">
+            <svg className="w-5 h-5 text-purple-500" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+            <span className="text-sm text-gray-600">Cancel Anytime</span>
           </div>
         </div>
       </div>

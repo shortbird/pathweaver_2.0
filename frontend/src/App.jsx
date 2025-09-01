@@ -27,6 +27,8 @@ import QuestDetailPage from './pages/QuestDetailPage'
 import ProfilePage from './pages/ProfilePage'
 import FriendsPage from './pages/FriendsPage'
 import SubscriptionPage from './pages/SubscriptionPage'
+import SubscriptionSuccess from './pages/SubscriptionSuccess'
+import SubscriptionCancel from './pages/SubscriptionCancel'
 import AdminPage from './pages/AdminPage'
 import PrivateRoute from './components/PrivateRoute'
 
@@ -77,6 +79,8 @@ function App() {
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="friends" element={<FriendsPage />} />
                 <Route path="subscription" element={<SubscriptionPage />} />
+                <Route path="subscription/success" element={<SubscriptionSuccess />} />
+                <Route path="subscription/cancel" element={<SubscriptionCancel />} />
               </Route>
               
               <Route element={<PrivateRoute requiredRole="admin" />}>
