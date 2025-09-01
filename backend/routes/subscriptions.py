@@ -297,11 +297,21 @@ def create_checkout_session(user_id):
                 print(f"Debug - Traceback: {traceback.format_exc()}")
                 email = None
             
-            customer = stripe.Customer.create(
-                email=email,
-                metadata={'user_id': user_id},
-                name=f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
-            )
+            print(f"Debug - Creating Stripe customer with email: {email}")
+            try:
+                customer_name = f"{user.get('first_name', '')} {user.get('last_name', '')}".strip()
+                if not customer_name:
+                    customer_name = user.get('username', 'User')
+                
+                customer = stripe.Customer.create(
+                    email=email,
+                    metadata={'user_id': user_id},
+                    name=customer_name
+                )
+                print(f"Debug - Stripe customer created: {customer.id}")
+            except Exception as stripe_error:
+                print(f"Debug - Error creating Stripe customer: {stripe_error}")
+                raise
             
             # Update user with Stripe customer ID
             supabase.table('users').update({
