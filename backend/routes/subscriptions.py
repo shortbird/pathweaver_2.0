@@ -379,8 +379,8 @@ def create_checkout_session(user_id):
                     'user_id': user_id,
                     'tier': tier,
                     'billing_period': billing_period
-                },
-                'proration_behavior': 'create_prorations'  # Automatically prorate when upgrading
+                }
+                # Removed proration_behavior - only valid for existing subscriptions
             },
             allow_promotion_codes=True  # Allow coupon codes
         )
