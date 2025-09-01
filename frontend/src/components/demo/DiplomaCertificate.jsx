@@ -52,14 +52,14 @@ const DiplomaCertificate = () => {
     );
   }
 
-  const userName = demoState.userInputs.name || demoState.userInputs.childName || 'Demo Student';
+  const userName = demoState.userInputs.name || demoState.userInputs.learnerName || 'Demo Learner';
 
   return (
     <div className="space-y-8">
       {/* Narrative Header */}
       <div className="text-center space-y-4">
         <h2 className="text-3xl font-bold text-[#003f5c]">
-          {isParent ? "Your Child's Learning Portfolio" : "Your Learning Portfolio"}
+          {isParent ? "Your Learner's Portfolio" : "Your Learning Portfolio"}
         </h2>
         <p className="text-lg text-gray-600 max-w-3xl mx-auto">
           This Optio Portfolio Diploma shows real achievements and skills gained through self-directed learning. 
@@ -101,7 +101,7 @@ const DiplomaCertificate = () => {
             <p className="text-lg text-gray-600">Certificate of Achievement</p>
           </div>
 
-          {/* Student Name */}
+          {/* Learner Name */}
           <div className="text-center mb-8">
             <p className="text-gray-600 mb-2">This certifies that</p>
             <h2 className="text-3xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">

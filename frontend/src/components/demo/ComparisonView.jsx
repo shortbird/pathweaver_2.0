@@ -70,8 +70,8 @@ const ComparisonView = () => {
         </h2>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
           {isParent 
-            ? "Compare how your child's education could transform with Optio"
-            : "See why students are choosing Optio over traditional education"}
+            ? "Compare how your learner's education could transform with Optio"
+            : "See why learners are choosing Optio over traditional education"}
         </p>
       </div>
 
@@ -107,7 +107,7 @@ const ComparisonView = () => {
                 </div>
               </div>
               <p className="text-xs text-gray-500 mt-3 italic">
-                What does this really tell you about the student?
+                What does this really tell you about the learner?
               </p>
             </div>
 

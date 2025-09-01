@@ -140,7 +140,7 @@ const AcademyTierModalUpdated = ({ onClose, showComparison = false }) => {
                   <Star className="w-5 h-5 text-[#6d469b] flex-shrink-0" />
                   <div>
                     <p className="font-semibold text-sm">Try Before Committing</p>
-                    <p className="text-xs text-gray-600">Test if Optio works for your child</p>
+                    <p className="text-xs text-gray-600">Test if Optio works for your learner</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
@@ -182,7 +182,7 @@ const AcademyTierModalUpdated = ({ onClose, showComparison = false }) => {
                   <Users className="w-5 h-5 text-[#6d469b] flex-shrink-0" />
                   <div>
                     <p className="font-semibold text-sm">Personal Support</p>
-                    <p className="text-xs text-gray-600">Licensed teachers guide your child</p>
+                    <p className="text-xs text-gray-600">Licensed teachers guide your learner</p>
                   </div>
                 </div>
                 <div className="flex items-start gap-3">

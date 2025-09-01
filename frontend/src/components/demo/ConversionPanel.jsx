@@ -92,7 +92,7 @@ const ConversionPanel = () => {
         </h2>
         <p className="text-lg text-gray-600 max-w-2xl mx-auto">
           {isParent 
-            ? "Select the plan that best fits your child's educational journey"
+            ? "Select the plan that best fits your learner's educational journey"
             : "Pick the plan that matches your learning goals"}
         </p>
       </div>

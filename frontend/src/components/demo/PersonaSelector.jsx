@@ -10,11 +10,11 @@ const PersonaSelector = () => {
     {
       id: 'parent',
       title: "I'm a Parent",
-      subtitle: "Looking for the best education for my child",
+      subtitle: "Looking for the best education for my learner",
       icon: Users,
       color: 'from-[#6d469b] to-[#8b5fbf]',
       benefits: [
-        "See how to re-engage your unmotivated student",
+        "See how to re-engage your unmotivated learner",
         "Explore accredited diploma options",
         "Learn about teacher support & accountability",
         "Understand college preparation features"
@@ -22,13 +22,13 @@ const PersonaSelector = () => {
       painPoints: [
         "Want them prepared for adulthood",
         "Need more personalized learning",
-        "My child is disengaged at school",
+        "My learner is disengaged at school",
         "Looking for real-world skills"
       ],
     },
     {
-      id: 'student',
-      title: "I'm a Student", 
+      id: 'learner',
+      title: "I'm a Learner", 
       subtitle: "Ready to make my learning count",
       icon: GraduationCap,
       color: 'from-[#ef597b] to-[#ff7a9a]',

@@ -80,7 +80,7 @@ const initialState = {
   },
   userInputs: {
     name: '',
-    childName: '',
+    learnerName: '',
     interests: []
   },
   generatedDiploma: null,
@@ -146,7 +146,7 @@ export const DemoProvider = ({ children }) => {
 
   const generateDiploma = useCallback(() => {
     const diploma = {
-      name: demoState.userInputs.name || demoState.userInputs.childName || 'Demo Student',
+      name: demoState.userInputs.name || demoState.userInputs.learnerName || 'Demo Learner',
       completedQuest: demoState.selectedQuest,
       earnedXP: demoState.earnedXP,
       totalXP: Object.values(demoState.earnedXP).reduce((sum, xp) => sum + xp, 0),
