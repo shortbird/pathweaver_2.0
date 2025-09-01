@@ -18,13 +18,14 @@ const ConversionPanel = () => {
     {
       id: 'free',
       name: 'Free',
-      price: 'Free',
-      description: 'Perfect for curiosity and personal enrichment',
+      price: '$0.00',
+      description: 'Perfect for exploring the platform',
       features: [
         'Access quest library',
         'Track ongoing quests',
-        'Earn XP for completing quests',
-        'Optio Portfolio Diploma'
+        'Mark tasks complete (no evidence submission)',
+        'No XP earned',
+        'No Optio Portfolio Diploma'
       ],
       cta: 'Start Free',
       recommended: false
@@ -143,11 +144,9 @@ const ConversionPanel = () => {
 
             {/* Selection Indicator */}
             {selectedTier === tier.id && (
-              <div className="absolute inset-0 border-2 border-[#6d469b] rounded-2xl pointer-events-none">
-                <div className="absolute top-2 right-2">
-                  <div className="w-8 h-8 bg-[#6d469b] rounded-full flex items-center justify-center">
-                    <CheckCircle className="w-5 h-5 text-white" />
-                  </div>
+              <div className="absolute top-2 right-2">
+                <div className="w-8 h-8 bg-[#6d469b] rounded-full flex items-center justify-center">
+                  <CheckCircle className="w-5 h-5 text-white" />
                 </div>
               </div>
             )}
