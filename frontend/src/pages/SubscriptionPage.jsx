@@ -44,8 +44,33 @@ const SubscriptionPage = () => {
       })
       window.location.href = response.data.checkout_url
     } catch (error) {
-      toast.error('Failed to create checkout session. Please ensure Stripe is configured.')
+      // Check if it's a profile missing error
+      if (error.response?.status === 404 || error.response?.data?.error?.includes('profile')) {
+        const shouldFix = window.confirm(
+          'Your user profile is missing from the database. Would you like to create it now? This is required for checkout.'
+        )
+        if (shouldFix) {
+          await fixUserProfile()
+        }
+      } else {
+        toast.error('Failed to create checkout session. Please ensure Stripe is configured.')
+      }
       setLoading(false)
+    }
+  }
+  
+  const fixUserProfile = async () => {
+    try {
+      const response = await api.post('/user/fix-profile')
+      if (response.data.user) {
+        toast.success('Profile created successfully! Please try checkout again.')
+        // Refresh user data
+        await fetchSubscriptionStatus()
+      } else {
+        toast.info('Profile already exists.')
+      }
+    } catch (error) {
+      toast.error('Failed to create profile: ' + (error.response?.data?.error || error.message))
     }
   }
 
