@@ -54,7 +54,9 @@
       "Bash(git merge:*)",
       "Bash(stripe:*)",
       "Bash(where stripe)",
-      "Bash(del:*)"
+      "Bash(del:*)",
+      "WebFetch(domain:optioeducation.com)",
+      "WebFetch(domain:optio-8ibe.onrender.com)"
     ],
     "deny": [],
     "ask": []
