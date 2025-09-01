@@ -12,7 +12,7 @@ import {
 import { CheckIcon, XIcon } from '@heroicons/react/solid'
 import { StarIcon, SparklesIcon } from '@heroicons/react/outline'
 
-const SubscriptionPage = () => {
+const SubscriptionPageWithYearly = () => {
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [canceling, setCanceling] = useState(false)
@@ -394,4 +394,4 @@ const SubscriptionPage = () => {
   )
 }
 
-export default SubscriptionPage
+export default SubscriptionPageWithYearly

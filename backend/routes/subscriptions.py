@@ -18,16 +18,27 @@ def create_checkout_session(user_id):
     """Create a Stripe checkout session for subscription upgrade"""
     data = request.json
     tier = data.get('tier', 'supported')
+    billing_period = data.get('billing_period', 'monthly')  # 'monthly' or 'yearly'
     
     # Validate tier
     if tier not in ['supported', 'academy']:
         return jsonify({'error': 'Invalid subscription tier. Choose "supported" or "academy".'}), 400
     
-    # Get price ID from config
-    price_id = SUBSCRIPTION_PRICES.get(tier)
+    # Validate billing period
+    if billing_period not in ['monthly', 'yearly']:
+        return jsonify({'error': 'Invalid billing period. Choose "monthly" or "yearly".'}), 400
+    
+    # Get price ID from config based on tier and billing period
+    tier_prices = SUBSCRIPTION_PRICES.get(tier)
+    if isinstance(tier_prices, dict):
+        price_id = tier_prices.get(billing_period)
+    else:
+        # Backwards compatibility for old config format
+        price_id = tier_prices if billing_period == 'monthly' else None
+    
     if not price_id:
         return jsonify({
-            'error': f'Stripe price ID not configured for {tier} tier. Please contact support.'
+            'error': f'Stripe price ID not configured for {tier} tier ({billing_period}). Please contact support.'
         }), 500
     
     supabase = get_supabase_client()
@@ -58,7 +69,7 @@ def create_checkout_session(user_id):
         else:
             stripe_customer_id = user['stripe_customer_id']
         
-        # Create checkout session
+        # Create checkout session with proration for upgrades
         checkout_session = stripe.checkout.Session.create(
             customer=stripe_customer_id,
             payment_method_types=['card'],
@@ -71,13 +82,16 @@ def create_checkout_session(user_id):
             cancel_url=f"{Config.FRONTEND_URL}/subscription/cancel",
             metadata={
                 'user_id': user_id,
-                'tier': tier
+                'tier': tier,
+                'billing_period': billing_period
             },
             subscription_data={
                 'metadata': {
                     'user_id': user_id,
-                    'tier': tier
-                }
+                    'tier': tier,
+                    'billing_period': billing_period
+                },
+                'proration_behavior': 'create_prorations'  # Automatically prorate when upgrading
             },
             allow_promotion_codes=True  # Allow coupon codes
         )

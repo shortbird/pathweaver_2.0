@@ -98,20 +98,32 @@ class Config:
     STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
     STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
     
-    # Subscription tier price IDs
+    # Subscription tier price IDs - Monthly
     STRIPE_FREE_PRICE_ID = None  # Free tier has no Stripe price
-    STRIPE_SUPPORTED_PRICE_ID = os.getenv('STRIPE_SUPPORTED_PRICE_ID')  # $10/month
-    STRIPE_ACADEMY_PRICE_ID = os.getenv('STRIPE_ACADEMY_PRICE_ID')  # $25/month
+    STRIPE_SUPPORTED_MONTHLY_PRICE_ID = os.getenv('STRIPE_SUPPORTED_MONTHLY_PRICE_ID', os.getenv('STRIPE_SUPPORTED_PRICE_ID'))  # $39.99/month
+    STRIPE_ACADEMY_MONTHLY_PRICE_ID = os.getenv('STRIPE_ACADEMY_MONTHLY_PRICE_ID', os.getenv('STRIPE_ACADEMY_PRICE_ID'))  # $499.99/month
+    
+    # Subscription tier price IDs - Yearly (with discount)
+    STRIPE_SUPPORTED_YEARLY_PRICE_ID = os.getenv('STRIPE_SUPPORTED_YEARLY_PRICE_ID')  # $399.99/year (~17% off)
+    STRIPE_ACADEMY_YEARLY_PRICE_ID = os.getenv('STRIPE_ACADEMY_YEARLY_PRICE_ID')  # $4999.99/year (~17% off)
     
     # Legacy price IDs (kept for backwards compatibility)
     STRIPE_PRICE_ID_MONTHLY = os.getenv('STRIPE_PRICE_ID_MONTHLY')
     STRIPE_PRICE_ID_YEARLY = os.getenv('STRIPE_PRICE_ID_YEARLY')
+    STRIPE_SUPPORTED_PRICE_ID = STRIPE_SUPPORTED_MONTHLY_PRICE_ID  # Backwards compatibility
+    STRIPE_ACADEMY_PRICE_ID = STRIPE_ACADEMY_MONTHLY_PRICE_ID  # Backwards compatibility
     
-    # Stripe configuration mapping
+    # Stripe configuration mapping with billing periods
     STRIPE_TIER_PRICES = {
-        'free': None,
-        'supported': STRIPE_SUPPORTED_PRICE_ID,
-        'academy': STRIPE_ACADEMY_PRICE_ID
+        'free': {'monthly': None, 'yearly': None},
+        'supported': {
+            'monthly': STRIPE_SUPPORTED_MONTHLY_PRICE_ID,
+            'yearly': STRIPE_SUPPORTED_YEARLY_PRICE_ID
+        },
+        'academy': {
+            'monthly': STRIPE_ACADEMY_MONTHLY_PRICE_ID,
+            'yearly': STRIPE_ACADEMY_YEARLY_PRICE_ID
+        }
     }
     
     # Tier features and limits
