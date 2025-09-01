@@ -217,11 +217,28 @@ def create_checkout_session(user_id):
             # Get email from auth.users table using admin client
             print(f"Debug - Getting email from auth.users for user_id: {user_id}")
             try:
-                auth_user = admin_supabase.auth.admin.get_user_by_id(user_id)
-                email = auth_user.user.email if auth_user and auth_user.user else None
+                auth_user_response = admin_supabase.auth.admin.get_user_by_id(user_id)
+                print(f"Debug - Auth user response type: {type(auth_user_response)}")
+                print(f"Debug - Auth user response: {auth_user_response}")
+                
+                # Handle different response structures
+                if hasattr(auth_user_response, 'user') and auth_user_response.user:
+                    email = auth_user_response.user.email
+                elif hasattr(auth_user_response, 'email'):
+                    email = auth_user_response.email
+                elif isinstance(auth_user_response, dict) and 'email' in auth_user_response:
+                    email = auth_user_response['email']
+                elif isinstance(auth_user_response, dict) and 'user' in auth_user_response:
+                    email = auth_user_response['user'].get('email')
+                else:
+                    print(f"Debug - Unexpected auth response structure: {auth_user_response}")
+                    email = None
+                    
                 print(f"Debug - Email retrieved: {email}")
             except Exception as auth_error:
                 print(f"Debug - Error getting auth user: {auth_error}")
+                import traceback
+                print(f"Debug - Traceback: {traceback.format_exc()}")
                 email = None
             
             customer = stripe.Customer.create(
