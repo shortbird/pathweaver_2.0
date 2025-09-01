@@ -12,6 +12,31 @@ stripe.api_key = Config.STRIPE_SECRET_KEY
 # Get tier prices from config
 SUBSCRIPTION_PRICES = Config.STRIPE_TIER_PRICES
 
+@bp.route('/config', methods=['GET'])
+def get_stripe_config():
+    """Get Stripe configuration status (for debugging)"""
+    config_status = {
+        'stripe_configured': bool(Config.STRIPE_SECRET_KEY) and Config.STRIPE_SECRET_KEY not in ['sk_test_your-key', 'your-key'],
+        'stripe_key_prefix': Config.STRIPE_SECRET_KEY[:7] if Config.STRIPE_SECRET_KEY else None,
+        'price_ids_configured': {},
+        'webhook_configured': bool(Config.STRIPE_WEBHOOK_SECRET) and Config.STRIPE_WEBHOOK_SECRET != 'whsec_your-webhook-secret'
+    }
+    
+    # Check which price IDs are configured
+    for tier, prices in SUBSCRIPTION_PRICES.items():
+        if isinstance(prices, dict):
+            config_status['price_ids_configured'][tier] = {
+                'monthly': bool(prices.get('monthly')) and not prices.get('monthly', '').endswith('placeholder'),
+                'yearly': bool(prices.get('yearly')) and not prices.get('yearly', '').endswith('placeholder')
+            }
+        else:
+            config_status['price_ids_configured'][tier] = {
+                'monthly': bool(prices) and not str(prices).endswith('placeholder'),
+                'yearly': False
+            }
+    
+    return jsonify(config_status), 200
+
 @bp.route('/create-checkout', methods=['POST'])
 @require_auth
 def create_checkout_session(user_id):
@@ -19,6 +44,14 @@ def create_checkout_session(user_id):
     data = request.json
     tier = data.get('tier', 'supported')
     billing_period = data.get('billing_period', 'monthly')  # 'monthly' or 'yearly'
+    
+    # Validate Stripe configuration first
+    if not Config.STRIPE_SECRET_KEY or Config.STRIPE_SECRET_KEY in ['sk_test_your-key', 'your-key']:
+        print(f"ERROR: Stripe secret key not configured properly. Current value: {Config.STRIPE_SECRET_KEY}")
+        return jsonify({
+            'error': 'Stripe payments are not configured on the server. Please contact support.',
+            'debug': 'STRIPE_SECRET_KEY not set or using placeholder value'
+        }), 500
     
     # Validate tier
     if tier not in ['supported', 'academy']:
@@ -41,13 +74,16 @@ def create_checkout_session(user_id):
     print(f"Debug - Tier prices config: {tier_prices}")
     print(f"Debug - Selected price_id: {price_id}")
     print(f"Debug - All subscription prices: {SUBSCRIPTION_PRICES}")
+    print(f"Debug - Stripe key present: {bool(Config.STRIPE_SECRET_KEY)}")
+    print(f"Debug - Stripe key prefix: {Config.STRIPE_SECRET_KEY[:7] if Config.STRIPE_SECRET_KEY else 'None'}...")
     
     if not price_id:
         error_msg = f'Stripe price ID not configured for {tier} tier ({billing_period}). Please contact support.'
         print(f"Error: {error_msg}")
         print(f"Available prices: {SUBSCRIPTION_PRICES}")
         return jsonify({
-            'error': error_msg
+            'error': error_msg,
+            'debug': f'Missing environment variable: STRIPE_{tier.upper()}_{billing_period.upper()}_PRICE_ID'
         }), 500
     
     supabase = get_supabase_client()
@@ -109,7 +145,25 @@ def create_checkout_session(user_id):
         
     except Exception as e:
         print(f"Error creating checkout session: {str(e)}")
-        return jsonify({'error': 'Failed to create checkout session'}), 500
+        print(f"Error type: {type(e).__name__}")
+        
+        # Provide more specific error messages based on the exception type
+        if 'stripe' in str(e).lower():
+            if 'invalid api key' in str(e).lower() or 'no such price' in str(e).lower():
+                return jsonify({
+                    'error': 'Stripe configuration error. Please ensure Stripe is configured properly.',
+                    'debug': f'Stripe API error: {str(e)}'
+                }), 500
+            else:
+                return jsonify({
+                    'error': 'Payment processing error. Please try again.',
+                    'debug': f'Stripe error: {str(e)}'
+                }), 500
+        else:
+            return jsonify({
+                'error': 'Failed to create checkout session. Please try again.',
+                'debug': str(e)
+            }), 500
 
 @bp.route('/status', methods=['GET'])
 @require_auth
