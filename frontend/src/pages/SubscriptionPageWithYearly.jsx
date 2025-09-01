@@ -9,8 +9,8 @@ import {
   getTierBadgeColor,
   convertLegacyTier 
 } from '../utils/tierMapping'
-import { CheckIcon, XIcon } from '@heroicons/react/solid'
-import { StarIcon, SparklesIcon } from '@heroicons/react/outline'
+import { CheckIcon, XMarkIcon } from '@heroicons/react/24/solid'
+import { StarIcon, SparklesIcon } from '@heroicons/react/24/outline'
 
 const SubscriptionPageWithYearly = () => {
   const { user } = useAuth()
@@ -248,7 +248,7 @@ const SubscriptionPageWithYearly = () => {
                   ))}
                   {plan.limitations && plan.limitations.map((limitation, index) => (
                     <li key={`limit-${index}`} className="flex items-start opacity-60">
-                      <XIcon className="w-5 h-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" />
+                      <XMarkIcon className="w-5 h-5 text-red-500 mr-3 flex-shrink-0 mt-0.5" />
                       <span className="text-sm text-gray-600">{limitation}</span>
                     </li>
                   ))}
