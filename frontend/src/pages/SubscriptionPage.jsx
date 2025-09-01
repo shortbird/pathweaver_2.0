@@ -45,53 +45,17 @@ const SubscriptionPage = () => {
       window.location.href = response.data.checkout_url
     } catch (error) {
       // Check if it's a profile missing error
-      if (error.response?.status === 404 || error.response?.data?.error?.includes('profile')) {
-        const shouldFix = window.confirm(
-          'Your user profile is missing from the database. Would you like to create it now? This is required for checkout.'
-        )
-        if (shouldFix) {
-          const fixed = await fixUserProfile()
-          if (fixed) {
-            // Retry checkout after profile is created
-            setLoading(true)
-            try {
-              const retryResponse = await api.post('/subscriptions/create-checkout', { 
-                tier,
-                billing_period: period 
-              })
-              window.location.href = retryResponse.data.checkout_url
-            } catch (retryError) {
-              toast.error('Checkout still failed. Please refresh the page and try again.')
-              setLoading(false)
-            }
-          }
-        }
+      if (error.response?.status === 404 && error.response?.data?.error?.includes('profile')) {
+        toast.error('User profile not found. Please contact support.')
+        console.error('User profile missing:', error.response?.data)
       } else {
-        toast.error('Failed to create checkout session. Please ensure Stripe is configured.')
+        toast.error('Failed to create checkout session. Please try again.')
+        console.error('Checkout error:', error)
       }
       setLoading(false)
     }
   }
   
-  const fixUserProfile = async () => {
-    try {
-      const response = await api.post('/user/fix-profile', {})  // Send empty object to ensure Content-Type is set
-      if (response.data.user) {
-        toast.success('Profile created successfully! Please try checkout again.')
-        // Refresh user data
-        await fetchSubscriptionStatus()
-        // Try checkout again automatically
-        return true
-      } else {
-        toast.info('Profile already exists.')
-        return false
-      }
-    } catch (error) {
-      console.error('Profile fix error:', error)
-      toast.error('Failed to create profile: ' + (error.response?.data?.error || error.response?.data?.message || error.message))
-      return false
-    }
-  }
 
   const handleCancel = async () => {
     if (!window.confirm('Are you sure you want to cancel your subscription? You will retain access until the end of your billing period.')) {
