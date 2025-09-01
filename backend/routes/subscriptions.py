@@ -272,6 +272,8 @@ def create_checkout_session(user_id):
             return jsonify({'error': 'User profile not found. Please complete your profile setup first.'}), 404
         user = user_response.data[0]
         print(f"Debug - User data retrieved: {user}")
+        print(f"Debug - User data type: {type(user)}")
+        print(f"Debug - User keys: {user.keys() if hasattr(user, 'keys') else 'Not a dict'}")
         
         # Create or retrieve Stripe customer
         if not user.get('stripe_customer_id'):
@@ -342,13 +344,19 @@ def create_checkout_session(user_id):
                 raise
             
             # Update user with Stripe customer ID
-            supabase.table('users').update({
-                'stripe_customer_id': customer.id
-            }).eq('id', user_id).execute()
+            try:
+                update_result = supabase.table('users').update({
+                    'stripe_customer_id': customer.id
+                }).eq('id', user_id).execute()
+                print(f"Debug - Update result: {update_result}")
+            except Exception as update_error:
+                print(f"Debug - Error updating user with Stripe customer ID: {update_error}")
+                # Continue anyway - we have the customer ID
+                pass
             
             stripe_customer_id = customer.id
         else:
-            stripe_customer_id = user['stripe_customer_id']
+            stripe_customer_id = user.get('stripe_customer_id')
         
         # Create checkout session with proration for upgrades
         checkout_session = stripe.checkout.Session.create(
