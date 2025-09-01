@@ -42,10 +42,10 @@ const DEMO_QUESTS = [
     title: 'Start a Small Business',
     description: 'Launch your own entrepreneurial venture',
     tasks: [
-      { id: 'research', title: 'Market research', pillar: 'critical_thinking', xp: 100 },
+      { id: 'research', title: 'Market research', pillar: 'cultural_literacy', xp: 100 },
       { id: 'plan', title: 'Create business plan', pillar: 'communication', xp: 100 },
       { id: 'build', title: 'Build product/service', pillar: 'practical_skills', xp: 100 },
-      { id: 'customer', title: 'Get first customer', pillar: 'creativity', xp: 100 },
+      { id: 'customer', title: 'Get first customer', pillar: 'cultural_literacy', xp: 100 },
     ],
     totalXP: 400,
     appeal: 'Real entrepreneurship experience'

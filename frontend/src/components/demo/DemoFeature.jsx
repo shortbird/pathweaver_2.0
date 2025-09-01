@@ -19,6 +19,11 @@ const DemoFeature = () => {
     }
   }, []);
 
+  useEffect(() => {
+    // Scroll to top when step changes
+    window.scrollTo(0, 0);
+  }, [currentStep]);
+
   const renderStep = () => {
     switch (currentStep) {
       case 0:
@@ -106,9 +111,9 @@ const DemoFeature = () => {
 
               <button
                 onClick={currentStep === 5 ? actions.resetDemo : actions.nextStep}
-                disabled={!canGoForward}
+                disabled={currentStep === 5 ? false : !canGoForward}
                 className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all
-                  ${canGoForward 
+                  ${(currentStep === 5 || canGoForward) 
                     ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg' 
                     : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}
               >

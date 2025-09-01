@@ -140,37 +140,27 @@ const DiplomaCertificate = () => {
             </div>
           </div>
 
-          {/* Skills Breakdown - Fixed to prevent overflow */}
-          <div className="grid grid-cols-1 gap-4 mb-8">
-            <div>
-              <h4 className="font-semibold text-[#003f5c] mb-4">Experience Points by Skill</h4>
-              <div className="space-y-3">
-                {Object.entries(demoState.earnedXP).map(([skill, xp]) => (
-                  <div key={skill} className="flex items-center gap-3">
-                    <span className="text-gray-700 capitalize w-32">
-                      {skill.replace('_', ' ')}
-                    </span>
-                    <div className="flex-1 flex items-center gap-2">
-                      <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-gradient-to-r from-[#ef597b] to-[#6d469b]"
-                          style={{ width: `${Math.min((xp / 100) * 100, 100)}%` }}
-                        />
-                      </div>
-                      <span className="text-sm font-semibold text-[#6d469b] w-12 text-right">
-                        {xp}
-                      </span>
-                    </div>
-                  </div>
-                ))}
-                <div className="pt-3 border-t border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <span className="font-bold text-[#003f5c]">Total XP</span>
-                    <span className="text-xl font-bold text-[#6d469b]">
-                      {Object.values(demoState.earnedXP).reduce((sum, xp) => sum + xp, 0)}
-                    </span>
-                  </div>
+          {/* Skills Breakdown - Compact to prevent overflow */}
+          <div className="mb-6">
+            <h4 className="font-semibold text-[#003f5c] mb-3 text-sm">Experience Points by Skill</h4>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(demoState.earnedXP).map(([skill, xp]) => (
+                <div key={skill} className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
+                  <span className="text-xs text-gray-700 capitalize">
+                    {skill.replace('_', ' ')}
+                  </span>
+                  <span className="text-sm font-bold text-[#6d469b]">
+                    {xp} XP
+                  </span>
                 </div>
+              ))}
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-[#003f5c]">Total XP</span>
+                <span className="text-xl font-bold text-[#6d469b]">
+                  {Object.values(demoState.earnedXP).reduce((sum, xp) => sum + xp, 0)}
+                </span>
               </div>
             </div>
           </div>

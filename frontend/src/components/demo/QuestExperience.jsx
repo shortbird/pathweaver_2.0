@@ -13,6 +13,7 @@ const QuestExperience = () => {
   const [showVisionaryModal, setShowVisionaryModal] = useState(false);
   const [currentSubmittingTask, setCurrentSubmittingTask] = useState(null);
   const [xpAnimation, setXpAnimation] = useState(null);
+  const [showCompletionBonus, setShowCompletionBonus] = useState(false);
   
   const isParent = demoState.persona === 'parent';
 
@@ -54,12 +55,11 @@ const QuestExperience = () => {
       setXpAnimation({ taskId: task.id, xp: task.xp });
       setTimeout(() => setXpAnimation(null), 2000);
       
-      // If all tasks completed, generate diploma and move to next step
+      // If all tasks completed, show bonus alert
       if (completedTasks.length + 1 === selectedQuest.tasks.length) {
         setTimeout(() => {
-          actions.generateDiploma();
-          actions.nextStep();
-        }, 1500);
+          setShowCompletionBonus(true);
+        }, 2000);
       }
     }, 1000);
   };
@@ -340,6 +340,36 @@ const QuestExperience = () => {
         <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
           <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-8 py-4 rounded-full shadow-2xl animate-bounce">
             <span className="text-3xl font-bold">+{xpAnimation.xp} XP!</span>
+          </div>
+        </div>
+      )}
+      
+      {/* Completion Bonus Alert */}
+      {showCompletionBonus && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-8 max-w-md shadow-2xl">
+            <div className="text-center space-y-4">
+              <Trophy className="w-16 h-16 text-[#FFCA3A] mx-auto" />
+              <h3 className="text-2xl font-bold text-[#003f5c]">Quest Complete!</h3>
+              <p className="text-gray-600">
+                Congratulations! You've completed all tasks and earned a
+              </p>
+              <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-3 px-6 rounded-lg inline-block">
+                <span className="text-xl font-bold">50% XP BONUS!</span>
+              </div>
+              <p className="text-sm text-gray-500">
+                Total XP earned: {Math.round(selectedQuest.totalXP * 1.5)}
+              </p>
+              <button
+                onClick={() => {
+                  actions.generateDiploma();
+                  actions.nextStep();
+                }}
+                className="w-full py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-300"
+              >
+                Finish Quest
+              </button>
+            </div>
           </div>
         </div>
       )}

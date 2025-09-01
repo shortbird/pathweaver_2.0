@@ -39,9 +39,9 @@ const DemoHero = ({ onStart }) => {
         {/* Main Headline */}
         <div className="space-y-4">
           <h1 className="text-5xl md:text-6xl font-bold text-[#003f5c] leading-tight">
-            See How Our Students Show Their
-            <span className="block bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
-              Learning
+            Turn Real-World Projects Into
+            <span className="block bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent pb-2">
+              Academic Credit
             </span>
           </h1>
           

@@ -84,28 +84,6 @@ const ConversionPanel = () => {
 
   return (
     <div className="space-y-8">
-      {/* Congratulations Header */}
-      <div className="text-center space-y-4">
-        <div className="inline-flex p-4 bg-gradient-to-r from-[#6d469b]/10 to-[#ef597b]/10 rounded-full mb-4">
-          <Trophy className="w-16 h-16 text-[#FFCA3A]" />
-        </div>
-        
-        <h2 className="text-4xl font-bold text-[#003f5c]">
-          Congratulations! 🎉
-        </h2>
-        
-        <p className="text-xl text-gray-700 max-w-2xl mx-auto">
-          You just completed <span className="font-semibold text-[#6d469b]">{completedQuest}</span> and 
-          earned <span className="font-semibold text-[#ef597b]">{earnedXP} XP</span>!
-        </p>
-        
-        <p className="text-lg text-gray-600">
-          {isParent 
-            ? "Your child's Optio diploma would look like this:"
-            : "Your Optio diploma would look like this:"}
-        </p>
-      </div>
-
       {/* Full Diploma Display */}
       <DiplomaDisplay 
         userName={demoState.userInputs.name || demoState.userInputs.childName || 'Demo Student'}
