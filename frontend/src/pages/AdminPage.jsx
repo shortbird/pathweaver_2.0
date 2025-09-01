@@ -6,6 +6,7 @@ import AdminQuestManagerV3 from './AdminQuestManagerV3'
 import SourcesManager from '../components/SourcesManager'
 import SiteSettings from '../components/admin/SiteSettings'
 import QuestSubmissionsManager from '../components/admin/QuestSubmissionsManager'
+import { getTierDisplayName } from '../utils/tierMapping'
 
 const AdminDashboard = () => {
   const [analytics, setAnalytics] = useState(null)
@@ -178,6 +179,7 @@ const AdminDashboard = () => {
   const getSubscriptionBadge = (tier) => {
     const badges = {
       free: 'bg-gray-100 text-gray-700',
+      explorer: 'bg-gray-100 text-gray-700',
       creator: 'bg-blue-100 text-blue-700',
       visionary: 'bg-purple-100 text-purple-700'
     }
@@ -293,8 +295,8 @@ const AdminDashboard = () => {
             >
               <option value="all">All Subscriptions</option>
               <option value="free">Free</option>
-              <option value="creator">Creator</option>
-              <option value="visionary">Visionary</option>
+              <option value="creator">Supported</option>
+              <option value="visionary">Academy</option>
             </select>
             <select
               value={filters.activity}
@@ -386,8 +388,8 @@ const AdminDashboard = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4">
-                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getSubscriptionBadge(user.subscription_tier || 'free')}`}>
-                        {(user.subscription_tier || 'free').charAt(0).toUpperCase() + (user.subscription_tier || 'free').slice(1)}
+                      <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getSubscriptionBadge(user.subscription_tier || 'explorer')}`}>
+                        {getTierDisplayName(user.subscription_tier || 'explorer')}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-500">
@@ -1066,6 +1068,7 @@ const AdminUsers = () => {
   const getSubscriptionBadge = (tier) => {
     const badges = {
       free: 'bg-gray-100 text-gray-700',
+      explorer: 'bg-gray-100 text-gray-700',
       creator: 'bg-blue-100 text-blue-700',
       visionary: 'bg-purple-100 text-purple-700'
     }
@@ -1658,8 +1661,8 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="free">Free</option>
-                  <option value="creator">Creator ($5/month)</option>
-                  <option value="visionary">Visionary ($10/month)</option>
+                  <option value="creator">Supported ($10/month)</option>
+                  <option value="visionary">Academy ($25/month)</option>
                 </select>
               </div>
               <div>

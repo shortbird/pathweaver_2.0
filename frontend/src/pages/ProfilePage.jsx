@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import toast from 'react-hot-toast'
+import { getTierDisplayName } from '../utils/tierMapping'
 
 const ProfilePage = () => {
   const { user, updateUser, isCreator } = useAuth()
@@ -188,7 +189,7 @@ const ProfilePage = () => {
             <h2 className="text-xl font-semibold mb-4">Subscription</h2>
             <div className="mb-4">
               <span className="bg-secondary text-text px-3 py-1 rounded-full text-sm font-medium">
-                {user?.subscription_tier?.toUpperCase()}
+                {getTierDisplayName(user?.subscription_tier).toUpperCase()}
               </span>
             </div>
             {isCreator && (
@@ -201,7 +202,7 @@ const ProfilePage = () => {
             )}
             {!isCreator && (
               <p className="text-sm text-gray-600">
-                Upgrade to Creator to download your transcript
+                Upgrade to Supported tier to download your transcript
               </p>
             )}
           </div>

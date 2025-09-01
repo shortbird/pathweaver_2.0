@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import toast from 'react-hot-toast'
+import { getTierDisplayName } from '../utils/tierMapping'
 
 const SubscriptionPage = () => {
   const { user } = useAuth()
@@ -38,7 +39,7 @@ const SubscriptionPage = () => {
   const plans = [
     {
       tier: 'explorer',
-      name: 'Explorer',
+      name: 'Free',
       price: 'Free',
       description: 'Perfect for enrichment and personal growth',
       features: [
@@ -51,11 +52,11 @@ const SubscriptionPage = () => {
     },
     {
       tier: 'creator',
-      name: 'Creator',
-      price: '$15/month',
+      name: 'Supported',
+      price: '$10/month',
       description: 'For serious learners seeking credit',
       features: [
-        'Everything in Explorer',
+        'Everything in Free tier',
         'Official credit banking',
         'Transcript generation',
         'Community XP bonuses',
@@ -67,11 +68,11 @@ const SubscriptionPage = () => {
     },
     {
       tier: 'visionary',
-      name: 'Visionary',
-      price: '$50/month',
+      name: 'Academy',
+      price: '$25/month',
       description: 'Complete educational solution',
       features: [
-        'Everything in Creator',
+        'Everything in Supported tier',
         'Dedicated educator support',
         'Personalized learning plan',
         'Priority review',

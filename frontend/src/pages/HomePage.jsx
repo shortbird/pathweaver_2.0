@@ -436,7 +436,7 @@ const HomePage = () => {
 
           <div className="grid md:grid-cols-3 gap-8">
             <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 hover:shadow-lg transition-shadow">
-              <h3 className="text-xl font-semibold mb-2">Explorer</h3>
+              <h3 className="text-xl font-semibold mb-2">Free</h3>
               <p className="text-3xl font-bold mb-1">Free</p>
               <p className="text-gray-600 mb-6">Perfect for curiosity and personal enrichment</p>
               <ul className="space-y-3 mb-8">
@@ -479,10 +479,10 @@ const HomePage = () => {
                   RECOMMENDED
                 </span>
               </div>
-              <h3 className="text-xl font-semibold mb-2">Creator</h3>
-              <p className="text-3xl font-bold mb-1">$39.99<span className="text-lg font-normal text-gray-600">/month</span></p>
+              <h3 className="text-xl font-semibold mb-2">Supported</h3>
+              <p className="text-3xl font-bold mb-1">$10<span className="text-lg font-normal text-gray-600">/month</span></p>
               <p className="text-gray-600 mb-4">For dedicated learners ready to grow</p>
-              <p className="text-sm text-gray-500 mb-4">Creators get everything in Explorer, plus:</p>
+              <p className="text-sm text-gray-500 mb-4">Supported tier includes everything in Free, plus:</p>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -506,7 +506,7 @@ const HomePage = () => {
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="text-gray-700">Team up with other Creators for XP bonuses</span>
+                  <span className="text-gray-700">Team up with other Supported members for XP bonuses</span>
                 </li>
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-gray-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -524,10 +524,10 @@ const HomePage = () => {
             </div>
 
             <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 hover:shadow-lg transition-shadow">
-              <h3 className="text-xl font-semibold mb-2">Visionary</h3>
-              <p className="text-3xl font-bold mb-1">$499.99<span className="text-lg font-normal text-gray-600">/month</span></p>
+              <h3 className="text-xl font-semibold mb-2">Academy</h3>
+              <p className="text-3xl font-bold mb-1">$25<span className="text-lg font-normal text-gray-600">/month</span></p>
               <p className="text-gray-600 mb-4">A personalized private school experience</p>
-              <p className="text-sm text-gray-500 mb-4">Visionaries get everything in Creator, plus:</p>
+              <p className="text-sm text-gray-500 mb-4">Academy tier includes everything in Supported, plus:</p>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -558,7 +558,7 @@ const HomePage = () => {
                 to="/register" 
                 className="block w-full bg-purple-600 text-white hover:bg-purple-700 py-3 px-6 rounded-lg font-semibold transition-colors text-center"
               >
-                Become a Visionary
+                Join the Academy
               </Link>
             </div>
           </div>

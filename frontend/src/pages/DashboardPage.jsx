@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
 import { DIPLOMA_PILLARS, getPillarName } from '../utils/pillarMappings'
+import { getTierDisplayName } from '../utils/tierMapping'
 
 // Memoized component for Active Quests section
 const ActiveQuests = memo(({ activeQuests }) => {
@@ -596,7 +597,7 @@ const DashboardPage = () => {
 
       {user?.subscription_tier === 'explorer' && (
         <div className="mt-8 bg-gradient-to-r from-primary to-purple-700 text-white rounded-xl p-6">
-          <h2 className="text-xl font-semibold mb-2">Upgrade to Creator</h2>
+          <h2 className="text-xl font-semibold mb-2">Upgrade to Supported</h2>
           <p className="mb-4">
             Get unlimited quest attempts, priority educator reviews, and exclusive content!
           </p>
