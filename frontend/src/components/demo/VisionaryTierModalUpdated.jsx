@@ -22,7 +22,7 @@ const VisionaryTierModalUpdated = ({ onClose, showComparison = false }) => {
           </div>
           
           <div className="bg-white/20 rounded-lg p-4 mt-4">
-            <p className="text-lg text-white font-semibold mb-2">🎓 The Key Difference:</p>
+            <p className="text-2xl text-white font-semibold mb-2">The Key Difference:</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="bg-white/10 rounded p-3">
                 <p className="font-bold mb-1">Creator: ONE Diploma</p>
@@ -41,10 +41,9 @@ const VisionaryTierModalUpdated = ({ onClose, showComparison = false }) => {
           {/* Tier Comparison */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {/* Creator Tier */}
-            <div className="border-2 border-gray-200 rounded-xl p-6">
+            <div className="relative border-2 border-gray-200 rounded-xl p-6">
               <div className="text-center mb-4">
-                <h3 className="text-2xl font-bold text-[#003f5c]">Creator</h3>
-                <div className="text-3xl font-bold text-[#6d469b] mt-2">$39.99/mo</div>
+                <h3 className="text-3xl font-bold text-[#003f5c]">Creator</h3>
                 <p className="text-sm text-gray-600">For dedicated learners</p>
               </div>
               
@@ -55,11 +54,11 @@ const VisionaryTierModalUpdated = ({ onClose, showComparison = false }) => {
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">Access to support team</span>
+                  <span className="text-sm">Access to support team of certified teachers</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm">Team up for XP bonuses</span>
+                  <span className="text-sm">Team up with friends for XP bonuses</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
@@ -67,7 +66,7 @@ const VisionaryTierModalUpdated = ({ onClose, showComparison = false }) => {
                 </div>
                 <div className="flex items-start gap-2">
                   <XCircle className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
-                  <span className="text-sm text-gray-400">No accredited diploma</span>
+                  <span className="text-sm text-gray-400">No traditionally-accredited diploma</span>
                 </div>
                 <div className="flex items-start gap-2">
                   <XCircle className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
@@ -83,14 +82,16 @@ const VisionaryTierModalUpdated = ({ onClose, showComparison = false }) => {
             </div>
 
             {/* Visionary Tier */}
-            <div className="border-2 border-[#6d469b] rounded-xl p-6 bg-gradient-to-br from-[#6d469b]/5 to-[#ef597b]/5">
-              <div className="text-center mb-4">
-                <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full mb-2">
+            <div className="relative border-2 border-[#6d469b] rounded-xl p-6 bg-gradient-to-br from-[#6d469b]/5 to-[#ef597b]/5">
+              {/* Accredited Badge on Top Border */}
+              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                <div className="inline-flex items-center gap-2 px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full">
                   <Shield className="w-3 h-3" />
                   ACCREDITED
                 </div>
-                <h3 className="text-2xl font-bold text-[#003f5c]">Visionary</h3>
-                <div className="text-3xl font-bold text-[#6d469b] mt-2">$499.99/mo</div>
+              </div>
+              <div className="text-center mb-4">
+                <h3 className="text-3xl font-bold text-[#003f5c]">Visionary</h3>
                 <p className="text-sm text-gray-600">Personalized private school</p>
               </div>
               
@@ -129,36 +130,74 @@ const VisionaryTierModalUpdated = ({ onClose, showComparison = false }) => {
             </div>
           </div>
 
-          {/* Key Benefits Section */}
-          <div className="bg-gradient-to-r from-[#6d469b]/10 to-[#ef597b]/10 rounded-xl p-6">
-            <h3 className="font-bold text-[#003f5c] mb-4">Why Parents Choose Visionary:</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="flex items-start gap-3">
-                <GraduationCap className="w-6 h-6 text-[#6d469b] flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-sm">College Ready</p>
-                  <p className="text-xs text-gray-600">Accredited diploma accepted everywhere</p>
+          {/* Key Benefits Sections */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Why Choose Creator */}
+            <div className="bg-gradient-to-r from-[#6d469b]/10 to-[#ef597b]/10 rounded-xl p-6">
+              <h3 className="font-bold text-[#003f5c] mb-4">Why Parents Choose Creator:</h3>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <Star className="w-5 h-5 text-[#6d469b] flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-sm">Try Before Committing</p>
+                    <p className="text-xs text-gray-600">Test if Optio works for your child</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Award className="w-5 h-5 text-[#6d469b] flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-sm">Portfolio Building</p>
+                    <p className="text-xs text-gray-600">Create impressive achievement records</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Users className="w-5 h-5 text-[#6d469b] flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-sm">Teacher Support</p>
+                    <p className="text-xs text-gray-600">Access to certified educators</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Calendar className="w-5 h-5 text-[#6d469b] flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-sm">Upgrade Anytime</p>
+                    <p className="text-xs text-gray-600">Move to Visionary when ready</p>
+                  </div>
                 </div>
               </div>
-              <div className="flex items-start gap-3">
-                <Users className="w-6 h-6 text-[#6d469b] flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-sm">Personal Support</p>
-                  <p className="text-xs text-gray-600">Licensed teachers guide your child</p>
+            </div>
+            
+            {/* Why Choose Visionary */}
+            <div className="bg-gradient-to-r from-[#6d469b]/10 to-[#ef597b]/10 rounded-xl p-6">
+              <h3 className="font-bold text-[#003f5c] mb-4">Why Parents Choose Visionary:</h3>
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <GraduationCap className="w-5 h-5 text-[#6d469b] flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-sm">College Ready</p>
+                    <p className="text-xs text-gray-600">Accredited diploma accepted everywhere</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Calendar className="w-6 h-6 text-[#6d469b] flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-sm">Flexible Schedule</p>
-                  <p className="text-xs text-gray-600">Learn at your own pace</p>
+                <div className="flex items-start gap-3">
+                  <Users className="w-5 h-5 text-[#6d469b] flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-sm">Personal Support</p>
+                    <p className="text-xs text-gray-600">Licensed teachers guide your child</p>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <Award className="w-6 h-6 text-[#6d469b] flex-shrink-0" />
-                <div>
-                  <p className="font-semibold text-sm">Double Recognition</p>
-                  <p className="text-xs text-gray-600">Portfolio + traditional credentials</p>
+                <div className="flex items-start gap-3">
+                  <Calendar className="w-5 h-5 text-[#6d469b] flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-sm">Flexible Schedule</p>
+                    <p className="text-xs text-gray-600">Learn at your own pace</p>
+                  </div>
+                </div>
+                <div className="flex items-start gap-3">
+                  <Award className="w-5 h-5 text-[#6d469b] flex-shrink-0" />
+                  <div>
+                    <p className="font-semibold text-sm">Double Recognition</p>
+                    <p className="text-xs text-gray-600">Portfolio + traditional credentials</p>
+                  </div>
                 </div>
               </div>
             </div>
