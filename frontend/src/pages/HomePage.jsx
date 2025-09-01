@@ -43,13 +43,11 @@ const HomePage = () => {
             {/* Left column - Value proposition */}
             <div className="text-center lg:text-left">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-                Your Learning Journey
-                <span className="block sm:inline text-shimmer">
-                  {" "}Starts Today
-                </span>
+                <span className="text-shimmer">Learning That Counts,</span>
+                <span className="block">Documented Forever</span>
               </h1>
               <p className="text-lg sm:text-xl mb-8 leading-relaxed opacity-90 px-2 sm:px-0">
-                Real-world quests. Real-world evidence. Real-world growth.
+                Transform your curiosity into a shareable, verified portfolio.
               </p>
               
               {/* Placeholder metrics - will be dynamic in Phase 2
