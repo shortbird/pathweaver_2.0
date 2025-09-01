@@ -159,7 +159,7 @@ const HomePage = () => {
               <div className="absolute -top-4 -left-4 bg-gradient-to-r from-[#ef597b] to-[#f8b3c5] text-white rounded-full px-4 py-2 shadow-lg animate-bounce hidden sm:block">
                 <span className="text-sm font-bold">Quest Complete!</span>
               </div>
-              <div className="absolute -bottom-4 -right-4 bg-gradient-to-r from-[#f8b3c5] to-[#b794d6] text-white rounded-full px-4 py-2 shadow-lg animate-pulse hidden sm:block"
+              <div className="absolute -bottom-4 -right-4 bg-gradient-to-r from-[#f8b3c5] to-[#b794d6] text-white rounded-full px-4 py-2 shadow-lg animate-pulse hidden sm:block">
                 <span className="text-sm font-bold">Show the world!</span>
               </div>
             </div>
@@ -533,7 +533,7 @@ const HomePage = () => {
 
             <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 hover:shadow-lg transition-shadow relative">
               <div className="absolute -top-3 right-4">
-                <span className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs px-3 py-1 rounded-full inline-block font-bold"
+                <span className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs px-3 py-1 rounded-full inline-block font-bold">
                   ACCREDITED
                 </span>
               </div>
