@@ -10,6 +10,12 @@
 - Keep this documentation up to date with code changes
 - Follow core_philosophy.md for all updates
 
+**DESIGN GUIDELINES:**
+- **Optio Brand Gradient**: Always use `from-[#ef597b] to-[#6d469b]` (pink to purple)
+- **Gradient Direction**: ALWAYS pink on the left (#ef597b), purple on the right (#6d469b) - NEVER swap
+- **Complementary Colors**: Use lighter tints like `#f8b3c5` (light pink) and `#b794d6` (light purple)
+- **Avoid**: Yellow and orange colors - they clash with the brand gradient
+
 ## Project Overview
 
 Optio is an educational platform where students create self-validated diplomas through completing quests. Students build impressive portfolios by documenting their learning journey with public evidence.

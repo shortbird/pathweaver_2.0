@@ -44,7 +44,7 @@ const HomePage = () => {
             <div className="text-center lg:text-left">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
                 Your Learning Journey
-                <span className="block sm:inline bg-gradient-to-r from-yellow-300 to-orange-300 bg-clip-text text-transparent">
+                <span className="block sm:inline bg-gradient-to-r from-[#f8b3c5] to-[#b794d6] bg-clip-text text-transparent">
                   {" "}Starts Today
                 </span>
               </h1>
@@ -73,7 +73,7 @@ const HomePage = () => {
                 <div className="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start items-center">
                   <Link 
                     to="/demo" 
-                    className="bg-[#FFCA3A] hover:bg-[#FFD966] text-[#003f5c] text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center"
+                    className="bg-gradient-to-r from-[#f8b3c5] to-[#b794d6] hover:from-[#f5a0b8] hover:to-[#a683cc] text-white text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center"
                     aria-describedby="demo-description"
                   >
                     <Play className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform" />
@@ -115,7 +115,7 @@ const HomePage = () => {
                       <p className="font-semibold text-lg">Example Learner</p>
                       <p className="text-sm text-gray-600">Journey ID: #OPT-2025-DEMO</p>
                       <div className="flex flex-wrap justify-center gap-2 mt-4">
-                        <span className="bg-gradient-to-r from-coral to-coral-dark text-white px-3 py-1 rounded-full text-xs font-medium">
+                        <span className="bg-gradient-to-r from-[#f8b3c5] to-[#b794d6] text-white px-3 py-1 rounded-full text-xs font-medium">
                           Creative Explorer
                         </span>
                         <span className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-3 py-1 rounded-full text-xs font-medium">
@@ -156,10 +156,10 @@ const HomePage = () => {
               </div>
               
               {/* Floating achievement indicators */}
-              <div className="absolute -top-4 -left-4 bg-coral text-white rounded-full px-4 py-2 shadow-lg animate-bounce hidden sm:block">
+              <div className="absolute -top-4 -left-4 bg-gradient-to-r from-[#ef597b] to-[#f8b3c5] text-white rounded-full px-4 py-2 shadow-lg animate-bounce hidden sm:block">
                 <span className="text-sm font-bold">Quest Complete!</span>
               </div>
-              <div className="absolute -bottom-4 -right-4 bg-gradient-to-r from-[#FFCA3A] to-[#FFD966] text-[#ef597b] rounded-full px-4 py-2 shadow-lg animate-pulse hidden sm:block">
+              <div className="absolute -bottom-4 -right-4 bg-gradient-to-r from-[#f8b3c5] to-[#b794d6] text-white rounded-full px-4 py-2 shadow-lg animate-pulse hidden sm:block"
                 <span className="text-sm font-bold">Show the world!</span>
               </div>
             </div>
@@ -209,14 +209,14 @@ const HomePage = () => {
                       <div className="space-y-3">
                         {/* Sample quest entries */}
                         <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                          <div className="w-10 h-10 bg-gradient-to-r from-coral to-coral-dark rounded-full flex items-center justify-center flex-shrink-0">
+                          <div className="w-10 h-10 bg-gradient-to-r from-[#f8b3c5] to-[#b794d6] rounded-full flex items-center justify-center flex-shrink-0">
                             <span className="text-white text-sm font-bold">✓</span>
                           </div>
                           <div className="flex-grow text-left">
                             <p className="font-medium text-gray-800">Trained for a 5K race</p>
                             <p className="text-sm text-gray-600">Evidence: Training journal & finish line photo</p>
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs bg-coral/10 text-coral px-2 py-0.5 rounded">Practical Skills</span>
+                              <span className="text-xs bg-[#ef597b]/10 text-[#ef597b] px-2 py-0.5 rounded">Practical Skills</span>
                               <span className="text-xs text-green-600 flex items-center">
                                 <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
                                   <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
@@ -291,7 +291,7 @@ const HomePage = () => {
                             <span className="text-sm text-gray-600">Taking shape</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2.5">
-                            <div className="bg-gradient-to-r from-coral to-coral-dark h-2.5 rounded-full transition-all duration-500" style={{width: '60%'}}></div>
+                            <div className="bg-gradient-to-r from-[#f8b3c5] to-[#b794d6] h-2.5 rounded-full transition-all duration-500" style={{width: '60%'}}></div>
                           </div>
                         </div>
                         <div>
@@ -309,7 +309,7 @@ const HomePage = () => {
                             <span className="text-sm text-gray-600">Blooming</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2.5">
-                            <div className="bg-gradient-to-r from-yellow-400 to-orange-500 h-2.5 rounded-full transition-all duration-500" style={{width: '70%'}}></div>
+                            <div className="bg-gradient-to-r from-[#ef597b] to-[#f8b3c5] h-2.5 rounded-full transition-all duration-500" style={{width: '70%'}}></div>
                           </div>
                         </div>
                         <div>
@@ -318,7 +318,7 @@ const HomePage = () => {
                             <span className="text-sm text-gray-600">Learning</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2.5">
-                            <div className="bg-gradient-to-r from-coral to-coral-dark h-2.5 rounded-full transition-all duration-500" style={{width: '40%'}}></div>
+                            <div className="bg-gradient-to-r from-[#b794d6] to-[#6d469b] h-2.5 rounded-full transition-all duration-500" style={{width: '40%'}}></div>
                           </div>
                         </div>
                       </div>
@@ -387,7 +387,7 @@ const HomePage = () => {
                     icon: <svg className="w-8 h-8 text-[#ef597b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>,
-                    color: "from-coral to-coral-dark"
+                    color: "from-[#f8b3c5] to-[#b794d6]"
                   },
                   {
                     step: "4",
@@ -396,7 +396,7 @@ const HomePage = () => {
                     icon: <svg className="w-8 h-8 text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>,
-                    color: "from-yellow-400 to-orange-500"
+                    color: "from-[#ef597b] to-[#f8b3c5]"
                   }
                 ].map((item, index) => (
                   <div key={index} className="text-center relative group">
@@ -533,7 +533,7 @@ const HomePage = () => {
 
             <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 hover:shadow-lg transition-shadow relative">
               <div className="absolute -top-3 right-4">
-                <span className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white text-xs px-3 py-1 rounded-full inline-block font-bold">
+                <span className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs px-3 py-1 rounded-full inline-block font-bold"
                   ACCREDITED
                 </span>
               </div>
@@ -569,7 +569,7 @@ const HomePage = () => {
               </ul>
               <Link 
                 to="/register" 
-                className="block w-full bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-colors text-center"
+                className="block w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-colors text-center"
               >
                 Join Academy
               </Link>
@@ -612,7 +612,7 @@ const HomePage = () => {
         <div className="fixed bottom-6 right-6 z-50 hidden lg:block animate-fade-in">
           <Link 
             to="/register" 
-            className="bg-gradient-to-r from-coral to-coral-dark hover:from-coral-dark hover:to-coral text-white px-6 py-3 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center"
+            className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] hover:from-[#e54469] hover:to-[#5d3689] text-white px-6 py-3 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center"
           >
             <span className="mr-2">🚀</span>
             Start Learning Today
