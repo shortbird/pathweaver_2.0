@@ -52,20 +52,25 @@ const DiplomaDisplay = ({ userName, allQuests, earnedXP = {}, isAccredited }) =>
           <h3 className="text-xl font-bold text-[#003f5c] mb-4">Completed Quests</h3>
           <div className="grid grid-cols-2 gap-4">
             {allQuests.map((quest) => (
-              <div key={quest.id} className="bg-white rounded-lg p-4 border border-gray-200">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h4 className="font-semibold text-[#003f5c]">{quest.title}</h4>
-                    <p className="text-sm text-gray-600 mt-1">{quest.description}</p>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {quest.tasks.map((task, idx) => (
-                        <span key={idx} className="text-xs px-2 py-1 bg-gray-100 rounded-full">
+              <div key={quest.id} className="bg-white rounded-lg p-4 border border-gray-200 overflow-hidden">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-semibold text-[#003f5c] truncate">{quest.title}</h4>
+                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">{quest.description}</p>
+                    <div className="flex flex-wrap gap-1 mt-2 max-h-16 overflow-hidden">
+                      {quest.tasks.slice(0, 3).map((task, idx) => (
+                        <span key={idx} className="text-xs px-2 py-1 bg-gray-100 rounded-full truncate max-w-[120px]">
                           {task.title}
                         </span>
                       ))}
+                      {quest.tasks.length > 3 && (
+                        <span className="text-xs px-2 py-1 bg-gray-200 rounded-full">
+                          +{quest.tasks.length - 3} more
+                        </span>
+                      )}
                     </div>
                   </div>
-                  <div className="text-center ml-4">
+                  <div className="text-center flex-shrink-0">
                     <Trophy className="w-6 h-6 text-[#FFCA3A] mx-auto" />
                     <div className="text-sm font-bold text-[#6d469b]">{quest.totalXP} XP</div>
                   </div>

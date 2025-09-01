@@ -25,7 +25,7 @@ const ConversionPanel = () => {
         'Access quest library',
         'Track ongoing quests',
         'Earn XP for completing quests',
-        'Shareable, verified Optio Portfolio Diploma'
+        'Optio Portfolio Diploma (non-accredited)'
       ],
       cta: 'Start Exploring',
       recommended: false
@@ -39,7 +39,7 @@ const ConversionPanel = () => {
         'Everything in Explorer, plus:',
         'Access to a support team of Optio educators',
         'Team up with other Creators for XP bonuses',
-        'Earn an accredited high school diploma'
+        'Optio Portfolio Diploma (non-accredited)'
       ],
       cta: 'Start Creating',
       recommended: !isParent
@@ -51,10 +51,10 @@ const ConversionPanel = () => {
       description: 'A personalized private school experience',
       features: [
         'Everything in Creator, plus:',
-        'Personal learning guide',
-        'Regular check-ins with an Optio licensed educator',
-        'Earn an accredited high school diploma',
-        "Connect with Optio's network of business leaders and industry experts"
+        'TWO diplomas: Optio Portfolio + Accredited HS Diploma',
+        'Personal learning guide & 1-on-1 teacher support',
+        'Regular check-ins with licensed educators',
+        "Connect with Optio's network of business leaders"
       ],
       cta: 'Become a Visionary',
       recommended: isParent,
@@ -125,24 +125,20 @@ const ConversionPanel = () => {
                 ? 'bg-gradient-to-br from-[#6d469b]/10 to-[#ef597b]/10 border-2 border-[#6d469b] shadow-xl transform -translate-y-2' 
                 : 'bg-white border-2 border-gray-200 hover:border-gray-300 hover:shadow-lg'}`}
           >
-            {/* Recommended Badge */}
-            {tier.recommended && (
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <span className="px-4 py-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs font-bold rounded-full">
-                  RECOMMENDED FOR YOU
+            {/* Badges - positioned to not overlap */}
+            <div className="absolute -top-3 left-0 right-0 flex justify-between px-4">
+              {tier.recommended && (
+                <span className="px-3 py-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs font-bold rounded-full">
+                  RECOMMENDED
                 </span>
-              </div>
-            )}
-
-            {/* Accredited Badge */}
-            {tier.badge && (
-              <div className="absolute -top-3 right-4">
+              )}
+              {tier.badge && (
                 <div className="flex items-center gap-1 px-3 py-1 bg-green-500 text-white text-xs font-bold rounded-full">
                   <Shield className="w-3 h-3" />
                   {tier.badge}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Tier Header */}
             <div className="text-center mb-6">

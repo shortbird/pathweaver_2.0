@@ -49,8 +49,7 @@ const DiplomaGenerator = () => {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] space-y-6">
         <div className="relative">
-          <div className="w-32 h-32 rounded-full border-4 border-[#6d469b]/20 border-t-[#6d469b] animate-spin" />
-          <Sparkles className="absolute inset-0 w-32 h-32 text-[#FFCA3A] animate-pulse" />
+          <Sparkles className="w-32 h-32 text-[#FFCA3A] animate-spin" />
         </div>
         <div className="text-center">
           <h3 className="text-2xl font-bold text-[#003f5c] mb-2">Generating Your Diploma...</h3>

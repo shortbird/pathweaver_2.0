@@ -24,10 +24,19 @@ const VisionaryTierModal = ({ onClose }) => {
             </div>
           </div>
           
-          <p className="text-lg text-white/95">
-            Optio offers TWO types of diplomas: Our signature portfolio-based diploma that showcases 
-            real achievements, AND a fully accredited high school diploma for those who want traditional credentials.
-          </p>
+          <div className="bg-white/20 rounded-lg p-4 mt-4">
+            <p className="text-lg text-white font-semibold mb-2">🎓 Two Diplomas with Visionary:</p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-white/10 rounded p-3">
+                <p className="font-bold mb-1">1. Optio Portfolio Diploma</p>
+                <p className="text-sm">Shows real projects & achievements</p>
+              </div>
+              <div className="bg-white/10 rounded p-3">
+                <p className="font-bold mb-1">2. Accredited HS Diploma</p>
+                <p className="text-sm">Traditional credential for college</p>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Content */}
@@ -77,7 +86,7 @@ const VisionaryTierModal = ({ onClose }) => {
 
           {/* What's Included */}
           <div className="bg-gradient-to-r from-[#6d469b]/5 to-[#ef597b]/5 rounded-xl p-6">
-            <h3 className="font-bold text-[#003f5c] mb-4">Everything in Visionary Tier:</h3>
+            <h3 className="font-bold text-[#003f5c] mb-4">What You Get with Visionary ($499.99/mo):</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {[
                 'Accredited high school diploma',

@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
 import DemoHero from './DemoHero';
 import PersonaSelector from './PersonaSelector';
-import QuestSimulator from './QuestSimulator';
+import QuestSimulatorRedesigned from './QuestSimulatorRedesigned';
 import DiplomaGenerator from './DiplomaGenerator';
 import ComparisonView from './ComparisonView';
 import ConversionPanel from './ConversionPanel';
@@ -26,7 +26,7 @@ const DemoFeature = () => {
       case 1:
         return <PersonaSelector />;
       case 2:
-        return <QuestSimulator />;
+        return <QuestSimulatorRedesigned />;
       case 3:
         return <DiplomaGenerator />;
       case 4:
