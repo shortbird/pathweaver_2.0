@@ -12,6 +12,38 @@ stripe.api_key = Config.STRIPE_SECRET_KEY
 # Get tier prices from config
 SUBSCRIPTION_PRICES = Config.STRIPE_TIER_PRICES
 
+@bp.route('/test-supabase', methods=['GET'])
+def test_supabase_admin():
+    """Test Supabase admin access (temporary debug endpoint)"""
+    supabase = get_supabase_client()
+    results = {}
+    
+    try:
+        # Test 1: Can we access users table?
+        users_response = supabase.table('users').select('id').limit(1).execute()
+        results['users_table_access'] = 'OK' if users_response.data is not None else 'FAILED'
+    except Exception as e:
+        results['users_table_access'] = f'ERROR: {str(e)}'
+    
+    try:
+        # Test 2: Can we use admin auth?
+        # Try to get a user (using a dummy ID that probably doesn't exist)
+        test_user_id = '00000000-0000-0000-0000-000000000000'
+        auth_response = supabase.auth.admin.get_user_by_id(test_user_id)
+        results['admin_auth_access'] = 'OK - admin auth works'
+    except Exception as e:
+        error_msg = str(e)
+        if 'not found' in error_msg.lower():
+            results['admin_auth_access'] = 'OK - admin auth works (user not found as expected)'
+        else:
+            results['admin_auth_access'] = f'ERROR: {error_msg}'
+    
+    # Test 3: Check service key configuration
+    results['service_key_configured'] = bool(Config.SUPABASE_SERVICE_ROLE_KEY)
+    results['service_key_prefix'] = Config.SUPABASE_SERVICE_ROLE_KEY[:20] + '...' if Config.SUPABASE_SERVICE_ROLE_KEY else None
+    
+    return jsonify(results), 200
+
 @bp.route('/config', methods=['GET'])
 def get_stripe_config():
     """Get Stripe configuration status (for debugging)"""
