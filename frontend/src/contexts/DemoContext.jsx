@@ -16,7 +16,7 @@ const DEMO_QUESTS = [
     title: 'Create an Original Music Composition',
     description: 'Compose and perform your own original piece of music',
     tasks: [
-      { id: 'theory', title: 'Learn music theory basics', pillar: 'cultural_literacy', xp: 75 },
+      { id: 'theory', title: 'Learn music theory basics', pillar: 'critical_thinking', xp: 75 },
       { id: 'compose', title: 'Compose your piece', pillar: 'creativity', xp: 100 },
       { id: 'record', title: 'Record your performance', pillar: 'practical_skills', xp: 75 },
       { id: 'share', title: 'Share with community', pillar: 'communication', xp: 50 },

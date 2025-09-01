@@ -39,14 +39,14 @@ const DemoHero = ({ onStart }) => {
         {/* Main Headline */}
         <div className="space-y-4">
           <h1 className="text-5xl md:text-6xl font-bold text-[#003f5c] leading-tight">
-            See How Optio Students Demonstrate Their
+            See How Our Students Show Their
             <span className="block bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
-              Learning Process
+              Learning
             </span>
           </h1>
           
           <p className="text-xl text-gray-700 max-w-3xl mx-auto">
-            Watch how our students transform their passions into an impressive diploma 
+            Watch how Optio students transform their passions into an impressive diploma 
             that shows genuine skills & achievements.
           </p>
         </div>

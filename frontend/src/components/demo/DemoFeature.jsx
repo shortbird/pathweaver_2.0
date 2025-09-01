@@ -30,9 +30,9 @@ const DemoFeature = () => {
       case 3:
         return <DiplomaCertificate />;
       case 4:
-        return <ComparisonView />;
-      case 5:
         return <ConversionPanel />;
+      case 5:
+        return <ComparisonView />;
       default:
         return <DemoHero onStart={() => actions.nextStep()} />;
     }
@@ -44,8 +44,8 @@ const DemoFeature = () => {
       'Who are you?',
       'Experience a Quest',
       'Your Achievement',
-      'See the Difference',
-      'Start Your Journey'
+      'Start Your Journey',
+      'See the Difference'
     ];
     return titles[currentStep] || '';
   };
@@ -105,14 +105,14 @@ const DemoFeature = () => {
               </button>
 
               <button
-                onClick={currentStep === 4 ? actions.resetDemo : actions.nextStep}
+                onClick={currentStep === 5 ? actions.resetDemo : actions.nextStep}
                 disabled={!canGoForward}
                 className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all
                   ${canGoForward 
                     ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg' 
                     : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}
               >
-                {currentStep === 4 ? 'Exit Demo' : 'Next'}
+                {currentStep === 5 ? 'Exit Demo' : 'Next'}
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>

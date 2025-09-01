@@ -12,6 +12,7 @@ const QuestExperience = () => {
   const [completedTasks, setCompletedTasks] = useState([]);
   const [showVisionaryModal, setShowVisionaryModal] = useState(false);
   const [currentSubmittingTask, setCurrentSubmittingTask] = useState(null);
+  const [xpAnimation, setXpAnimation] = useState(null);
   
   const isParent = demoState.persona === 'parent';
 
@@ -49,12 +50,16 @@ const QuestExperience = () => {
       actions.completeTask(task.id, { type: 'demo', text: 'Sample evidence provided' });
       setCurrentSubmittingTask(null);
       
+      // Show XP animation
+      setXpAnimation({ taskId: task.id, xp: task.xp });
+      setTimeout(() => setXpAnimation(null), 2000);
+      
       // If all tasks completed, generate diploma and move to next step
       if (completedTasks.length + 1 === selectedQuest.tasks.length) {
         setTimeout(() => {
           actions.generateDiploma();
           actions.nextStep();
-        }, 500);
+        }, 1500);
       }
     }, 1000);
   };
@@ -73,18 +78,6 @@ const QuestExperience = () => {
               ? "These are real quests that turn everyday activities into academic achievements"
               : "Pick something you're already passionate about - we'll show you how it becomes academic credit"}
           </p>
-          
-          {/* Visionary Tier Badge for Parents */}
-          {isParent && demoState.showAccreditedOption && (
-            <button
-              onClick={() => setShowVisionaryModal(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full animate-pulse hover:animate-none hover:shadow-lg transition-all"
-            >
-              <Shield className="w-5 h-5" />
-              <span className="font-semibold">Accredited Diploma Available</span>
-              <GraduationCap className="w-5 h-5" />
-            </button>
-          )}
         </div>
 
         {/* Quest Cards */}
@@ -325,14 +318,31 @@ const QuestExperience = () => {
               {completedTasks.length} of {selectedQuest.tasks.length} tasks completed
             </span>
           </div>
-          {completedTasks.length === selectedQuest.tasks.length && (
-            <div className="flex items-center gap-2 text-green-600">
-              <Sparkles className="w-5 h-5" />
-              <span className="font-semibold">Quest Complete!</span>
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <div className="text-2xl font-bold text-[#6d469b]">
+                {Object.values(demoState.earnedXP).reduce((sum, xp) => sum + xp, 0)}
+              </div>
+              <div className="text-xs text-gray-600">Total XP</div>
             </div>
-          )}
+            {completedTasks.length === selectedQuest.tasks.length && (
+              <div className="flex items-center gap-2 text-green-600">
+                <Sparkles className="w-5 h-5" />
+                <span className="font-semibold">Quest Complete!</span>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+      
+      {/* XP Animation Overlay */}
+      {xpAnimation && (
+        <div className="fixed inset-0 pointer-events-none flex items-center justify-center z-50">
+          <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-8 py-4 rounded-full shadow-2xl animate-bounce">
+            <span className="text-3xl font-bold">+{xpAnimation.xp} XP!</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
