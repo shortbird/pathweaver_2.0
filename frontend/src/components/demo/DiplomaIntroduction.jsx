@@ -37,85 +37,47 @@ const DiplomaIntroduction = () => {
       case 'parent':
         return {
           headline: "Your Child's Optio Portfolio Diploma",
-          subtitle: "A Revolutionary Approach to Academic Achievement",
-          description: "Unlike traditional diplomas that reduce your child's learning to letter grades, the Optio Portfolio Diploma validates their real achievements through documented evidence of academic and real-world accomplishments.",
+          subtitle: "Where Learning Is The Adventure, Not The Destination",
+          description: "Your child receives their Optio Portfolio Diploma on day one - not as something to earn, but as a living document of their learning journey. They'll discover what they're capable of through real creation and exploration.",
           benefits: [
-            "Shows colleges who your child really is beyond test scores",
-            "Fosters healthy development through meaningful choice and responsibility",
-            "Documents real-world skills and practical experience",
-            "Validates learning that happens outside traditional classrooms"
+            "Your child discovers their true capabilities through actual creation",
+            "They develop genuine confidence from mastering real skills",
+            "Learning becomes joyful exploration, not stressful performance",
+            "They grow at their perfect pace with celebration at every step"
           ],
-          callToAction: "See how your child's achievements become academic credit"
+          callToAction: "Experience how learning becomes an adventure"
         };
       case 'student':
         return {
           headline: "Your Optio Portfolio Diploma",
-          subtitle: "Make Your Real Learning Count",
-          description: "Your Optio Portfolio Diploma isn't just another certificate - it's a living document that validates your actual achievements. Unlike traditional diplomas with letter grades, yours tells the meaningful story of your learning journey.",
+          subtitle: "Where Your Curiosity Leads The Way",
+          description: "You receive your Optio Portfolio Diploma on day one - it's yours to fill with real creations, discoveries, and growth. This is about who you're becoming through the journey, not what you need to prove.",
           benefits: [
-            "Turn your passions and projects into academic credit",
-            "Develop independence through meaningful educational choices",
-            "Document real skills and meaningful experiences",
-            "Show your authentic learning story, not just test scores"
+            "You're discovering what you're truly capable of creating",
+            "Every quest is an adventure in becoming more yourself",
+            "Your creativity flourishes when learning feels like play",
+            "You're building skills and confidence that matter to YOU"
           ],
-          callToAction: "Experience how your achievements become your diploma"
+          callToAction: "Start your learning adventure"
         };
       default:
         return {
           headline: "The Optio Portfolio Diploma",
-          subtitle: "Education That Validates Real Achievement",
-          description: "The Optio Portfolio Diploma represents a paradigm shift from traditional letter-grade diplomas to evidence-based validation of real learning and achievement.",
+          subtitle: "Where The Process Is The Goal",
+          description: "Students receive their Optio Portfolio Diploma on enrollment day - a living document that grows with their journey. Learning isn't about reaching a destination, but about who they become through discovery and creation.",
           benefits: [
-            "Documents authentic learning experiences",
-            "Builds healthy responsibility and educational ownership",
-            "Validates practical skills and real-world applications",
-            "Tells a meaningful story beyond standardized assessments"
+            "Students explore at their own pace with joy, not pressure",
+            "Every attempt and mistake is celebrated as growth",
+            "Learning flows from genuine curiosity and interest",
+            "Growth happens naturally when the process is valued"
           ],
-          callToAction: "Discover how real achievements become academic credit"
+          callToAction: "See how learning becomes an adventure"
         };
     }
   };
 
   const content = getPersonaContent();
 
-  const comparisonCards = [
-    {
-      icon: FileText,
-      title: "Traditional Diploma",
-      subtitle: "Letter grades and test scores",
-      features: [
-        "Shows grades: A, B, C, D, F",
-        "Standardized test scores",
-        "Course completion records",
-        "No evidence of actual work"
-      ],
-      color: "from-gray-400 to-gray-500"
-    },
-    {
-      icon: Award,
-      title: "Optio Portfolio Diploma",
-      subtitle: "Evidence-based validation",
-      features: [
-        "Documents actual achievements",
-        "Shows evidence of real work",
-        "Validates practical skills",
-        "Tells your learning story"
-      ],
-      color: "from-[#ef597b] to-[#6d469b]"
-    },
-    {
-      icon: Trophy,
-      title: "The Result",
-      subtitle: "Meaningful achievement recognition",
-      features: [
-        "Impresses colleges & employers",
-        "Shows real-world readiness",
-        "Validates unique talents",
-        "Creates lasting portfolios"
-      ],
-      color: "from-[#f8b3c5] to-[#b794d6]"
-    }
-  ];
 
   const handleContinue = () => {
     actions.trackInteraction('diploma_intro_completed', { persona });
@@ -152,47 +114,47 @@ const DiplomaIntroduction = () => {
         </div>
       </div>
 
-      {/* Comparison Cards - Static Grid */}
-      <div className="max-w-6xl mx-auto">
+      {/* How Optio Works */}
+      <div className="max-w-5xl mx-auto">
         <div className="text-center mb-8">
           <h3 className="text-2xl font-bold text-[#003f5c] mb-4">
-            See the Difference
+            How {persona === 'parent' ? 'Your Child' : 'You'} Learn{persona === 'parent' ? 's' : ''} with Optio
           </h3>
           <p className="text-gray-600">
-            Discover how Optio transforms traditional education validation
+            A journey where every step is celebrated
           </p>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {comparisonCards.map((card, index) => {
-            const Icon = card.icon;
-            const isResult = card.title === "The Result";
-            
-            return (
-              <div
-                key={index}
-                className="relative group hover:scale-105 transition-all duration-300"
-              >
-                <div className={`h-full bg-gradient-to-br ${card.color} p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all`}>
-                  <div className="flex flex-col items-center text-white">
-                    <Icon className="w-14 h-14 mb-4 opacity-90" />
-                    
-                    <h4 className="text-2xl font-bold mb-2 text-center">{card.title}</h4>
-                    <p className="text-sm opacity-90 mb-6 text-center">{card.subtitle}</p>
-                    
-                    <div className="space-y-2 w-full">
-                      {card.features.map((feature, idx) => (
-                        <div key={idx} className="flex items-start gap-2">
-                          <CheckCircle className="w-4 h-4 mt-0.5 opacity-80 flex-shrink-0" />
-                          <span className={`text-sm ${isResult ? 'text-gray-700' : 'text-white/90'}`}>{feature}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+          <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all">
+            <div className="w-12 h-12 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mb-4">
+              <Sparkles className="w-6 h-6 text-white" />
+            </div>
+            <h4 className="text-lg font-bold text-[#003f5c] mb-2">Choose Your Adventure</h4>
+            <p className="text-gray-600">
+              Pick quests that spark {persona === 'parent' ? 'their' : 'your'} curiosity. No prerequisites, no restrictions - just pure exploration.
+            </p>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all">
+            <div className="w-12 h-12 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mb-4">
+              <BookOpen className="w-6 h-6 text-white" />
+            </div>
+            <h4 className="text-lg font-bold text-[#003f5c] mb-2">Create & Document</h4>
+            <p className="text-gray-600">
+              Make real things, solve real problems. Every creation adds to {persona === 'parent' ? 'their' : 'your'} growing portfolio.
+            </p>
+          </div>
+          
+          <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-all">
+            <div className="w-12 h-12 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mb-4">
+              <Trophy className="w-6 h-6 text-white" />
+            </div>
+            <h4 className="text-lg font-bold text-[#003f5c] mb-2">Grow Naturally</h4>
+            <p className="text-gray-600">
+              Progress happens at {persona === 'parent' ? 'their' : 'your'} perfect pace. Every step forward is celebrated, never rushed.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -229,16 +191,16 @@ const DiplomaIntroduction = () => {
           </div>
           <div>
             <h4 className="text-lg font-bold text-yellow-800 mb-2">
-              With Great Recognition Comes Great Responsibility
+              A Beautiful Responsibility
             </h4>
             <p className="text-yellow-700 mb-4">
               {persona === 'parent' 
-                ? "Your child's Optio Portfolio Diploma comes with the responsibility to self-validate their learning. They'll document real achievements and provide evidence of their work - creating authentic academic validation."
-                : "Your Optio Portfolio Diploma comes with the responsibility to self-validate your learning. You'll document real achievements and provide evidence of your work - creating authentic academic validation."
+                ? "Your child's diploma is theirs from day one. They'll fill it with real creations, discoveries, and growth - not to prove themselves to others, but to celebrate their journey of becoming."
+                : "Your diploma is yours from day one. You'll fill it with real creations, discoveries, and growth - not to prove yourself to others, but to celebrate your journey of becoming."
               }
             </p>
             <p className="text-yellow-800 font-semibold">
-              This builds character, integrity, and real-world accountability
+              The diploma isn't the goal - it's the beautiful byproduct of a meaningful learning journey
             </p>
           </div>
         </div>
