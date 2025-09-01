@@ -2,8 +2,8 @@ import React, { useEffect } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
 import DemoHero from './DemoHero';
 import PersonaSelector from './PersonaSelector';
-import QuestSimulatorRedesigned from './QuestSimulatorRedesigned';
-import DiplomaGenerator from './DiplomaGenerator';
+import QuestExperience from './QuestExperience';
+import DiplomaCertificate from './DiplomaCertificate';
 import ComparisonView from './ComparisonView';
 import ConversionPanel from './ConversionPanel';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
@@ -26,9 +26,9 @@ const DemoFeature = () => {
       case 1:
         return <PersonaSelector />;
       case 2:
-        return <QuestSimulatorRedesigned />;
+        return <QuestExperience />;
       case 3:
-        return <DiplomaGenerator />;
+        return <DiplomaCertificate />;
       case 4:
         return <ComparisonView />;
       case 5:
@@ -105,14 +105,14 @@ const DemoFeature = () => {
               </button>
 
               <button
-                onClick={actions.nextStep}
+                onClick={currentStep === 4 ? actions.resetDemo : actions.nextStep}
                 disabled={!canGoForward}
                 className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all
                   ${canGoForward 
                     ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg' 
                     : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}
               >
-                Next
+                {currentStep === 4 ? 'Exit Demo' : 'Next'}
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>

@@ -90,8 +90,8 @@ const PersonaSelector = () => {
             >
               {/* Icon */}
               <div className={`mb-6 inline-flex p-4 rounded-full transition-colors
-                ${isHovered ? 'bg-white/20' : `bg-gradient-to-r ${persona.color} bg-opacity-10`}`}>
-                <Icon className={`w-8 h-8 ${isHovered ? 'text-white' : 'text-[#6d469b]'}`} />
+                ${isHovered ? 'bg-white/20' : persona.id === 'parent' ? 'bg-purple-100' : 'bg-pink-100'}`}>
+                <Icon className={`w-8 h-8 ${isHovered ? 'text-white' : persona.id === 'parent' ? 'text-[#6d469b]' : 'text-[#ef597b]'}`} />
               </div>
 
               {/* Title & Subtitle */}

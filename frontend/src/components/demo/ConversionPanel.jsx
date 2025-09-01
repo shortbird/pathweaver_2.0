@@ -25,7 +25,7 @@ const ConversionPanel = () => {
         'Access quest library',
         'Track ongoing quests',
         'Earn XP for completing quests',
-        'Optio Portfolio Diploma (non-accredited)'
+        'Optio Portfolio Diploma'
       ],
       cta: 'Start Exploring',
       recommended: false
@@ -42,7 +42,7 @@ const ConversionPanel = () => {
         'Optio Portfolio Diploma (non-accredited)'
       ],
       cta: 'Start Creating',
-      recommended: !isParent
+      recommended: true
     },
     {
       id: 'visionary',
@@ -54,10 +54,10 @@ const ConversionPanel = () => {
         'TWO diplomas: Optio Portfolio + Accredited HS Diploma',
         'Personal learning guide & 1-on-1 teacher support',
         'Regular check-ins with licensed educators',
-        "Connect with Optio's network of business leaders"
+        "Connect with Optio's network of business leaders and mentors"
       ],
       cta: 'Become a Visionary',
-      recommended: isParent,
+      recommended: false,
       badge: 'ACCREDITED'
     }
   ];

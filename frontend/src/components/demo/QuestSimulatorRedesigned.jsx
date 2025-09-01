@@ -100,7 +100,7 @@ const QuestSimulatorRedesigned = () => {
                 </div>
                 <div>
                   <h4 className="font-semibold text-blue-900">Complete Tasks</h4>
-                  <p className="text-sm text-blue-700">Each quest has 3-5 tasks to complete</p>
+                  <p className="text-sm text-blue-700">Each quest has multiple tasks to complete across different subjects</p>
                 </div>
               </div>
               
