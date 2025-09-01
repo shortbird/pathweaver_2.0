@@ -90,14 +90,22 @@ def create_checkout_session(user_id):
     
     try:
         # Get user data
+        print(f"Debug - Getting user data for user_id: {user_id}")
         user_response = supabase.table('users').select('*').eq('id', user_id).single().execute()
         user = user_response.data
+        print(f"Debug - User data retrieved: {user}")
         
         # Create or retrieve Stripe customer
         if not user.get('stripe_customer_id'):
             # Get email from auth.users table
-            auth_user = supabase.auth.admin.get_user_by_id(user_id)
-            email = auth_user.user.email if auth_user else None
+            print(f"Debug - Getting email from auth.users for user_id: {user_id}")
+            try:
+                auth_user = supabase.auth.admin.get_user_by_id(user_id)
+                email = auth_user.user.email if auth_user and auth_user.user else None
+                print(f"Debug - Email retrieved: {email}")
+            except Exception as auth_error:
+                print(f"Debug - Error getting auth user: {auth_error}")
+                email = None
             
             customer = stripe.Customer.create(
                 email=email,
@@ -144,8 +152,10 @@ def create_checkout_session(user_id):
         return jsonify({'checkout_url': checkout_session.url}), 200
         
     except Exception as e:
+        import traceback
         print(f"Error creating checkout session: {str(e)}")
         print(f"Error type: {type(e).__name__}")
+        print(f"Full traceback:\n{traceback.format_exc()}")
         
         # Provide more specific error messages based on the exception type
         if 'stripe' in str(e).lower():
