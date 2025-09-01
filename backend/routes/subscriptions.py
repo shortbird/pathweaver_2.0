@@ -440,12 +440,40 @@ def verify_checkout_session(user_id):
         # Get subscription details
         try:
             subscription = stripe.Subscription.retrieve(session.subscription)
+            print(f"Subscription retrieved: {subscription.id}")
+            print(f"Subscription metadata: {subscription.metadata}")
         except stripe.error.StripeError as e:
             print(f"Error retrieving subscription: {e}")
             return jsonify({'error': f'Failed to retrieve subscription: {str(e)}'}), 400
         
-        # Extract tier from metadata or price
-        tier = subscription.metadata.get('tier', 'supported')
+        # Extract tier from multiple sources
+        tier = None
+        
+        # First try subscription metadata
+        if subscription.metadata and 'tier' in subscription.metadata:
+            tier = subscription.metadata.get('tier')
+            print(f"Tier from subscription metadata: {tier}")
+        
+        # Then try session metadata
+        if not tier and session.metadata and 'tier' in session.metadata:
+            tier = session.metadata.get('tier')
+            print(f"Tier from session metadata: {tier}")
+        
+        # Finally, map from price ID if no metadata
+        if not tier:
+            price_id = subscription.items.data[0].price.id if subscription.items.data else None
+            print(f"Price ID: {price_id}")
+            
+            # Map price IDs to tiers
+            price_to_tier = {
+                'price_1S0Q8lGvmfT5TPrJCgvCew2Q': 'supported',  # Monthly supported
+                'price_1S2QfmGvmfT5TPrJ57QkOpji': 'supported',  # Yearly supported
+                'price_1S2QgAGvmfT5TPrJKZCHLh5C': 'academy',    # Monthly academy
+                'price_1S0QDFGvmfT5TPrJnuzLSTFd': 'academy',    # Yearly academy
+            }
+            
+            tier = price_to_tier.get(price_id, 'supported')
+            print(f"Tier from price mapping: {tier}")
         
         # Update user subscription in database - only update tier for now
         supabase = get_supabase_client()
@@ -520,12 +548,33 @@ def get_subscription_status(user_id):
         if subscriptions.data:
             subscription = subscriptions.data[0]
             
-            # Map subscription to tier based on price ID
-            current_tier = 'free'
-            for tier, price_id in SUBSCRIPTION_PRICES.items():
-                if price_id and subscription['items']['data'][0]['price']['id'] == price_id:
-                    current_tier = tier
-                    break
+            # Get price ID from subscription
+            price_id = subscription['items']['data'][0]['price']['id'] if subscription['items']['data'] else None
+            
+            # Map price IDs to tiers (same mapping as verify-session)
+            price_to_tier = {
+                'price_1S0Q8lGvmfT5TPrJCgvCew2Q': 'supported',  # Monthly supported
+                'price_1S2QfmGvmfT5TPrJ57QkOpji': 'supported',  # Yearly supported
+                'price_1S2QgAGvmfT5TPrJKZCHLh5C': 'academy',    # Monthly academy
+                'price_1S0QDFGvmfT5TPrJnuzLSTFd': 'academy',    # Yearly academy
+            }
+            
+            # Get tier from price mapping or metadata
+            current_tier = price_to_tier.get(price_id, 'free')
+            
+            # Also check subscription metadata as fallback
+            if subscription.get('metadata') and subscription['metadata'].get('tier'):
+                current_tier = subscription['metadata']['tier']
+            
+            # Update user's tier in database if different
+            if user.get('subscription_tier') != current_tier:
+                try:
+                    supabase.table('users').update({
+                        'subscription_tier': current_tier
+                    }).eq('id', user_id).execute()
+                    print(f"Updated user {user_id} tier to {current_tier}")
+                except Exception as e:
+                    print(f"Error updating user tier: {e}")
             
             return jsonify({
                 'tier': current_tier,
