@@ -44,7 +44,7 @@ const HomePage = () => {
             <div className="text-center lg:text-left">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
                 Your Learning Journey
-                <span className="block sm:inline bg-gradient-to-r from-[#f8b3c5] to-[#b794d6] bg-clip-text text-transparent">
+                <span className="block sm:inline text-shimmer">
                   {" "}Starts Today
                 </span>
               </h1>
@@ -155,12 +155,9 @@ const HomePage = () => {
                 </div>
               </div>
               
-              {/* Floating achievement indicators */}
+              {/* Floating achievement indicator */}
               <div className="absolute -top-4 -left-4 bg-gradient-to-r from-[#ef597b] to-[#f8b3c5] text-white rounded-full px-4 py-2 shadow-lg animate-bounce hidden sm:block">
                 <span className="text-sm font-bold">Quest Complete!</span>
-              </div>
-              <div className="absolute -bottom-4 -right-4 bg-gradient-to-r from-[#f8b3c5] to-[#b794d6] text-white rounded-full px-4 py-2 shadow-lg animate-pulse hidden sm:block">
-                <span className="text-sm font-bold">Show the world!</span>
               </div>
             </div>
           </div>
