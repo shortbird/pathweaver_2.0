@@ -12,6 +12,72 @@ stripe.api_key = Config.STRIPE_SECRET_KEY
 # Get tier prices from config
 SUBSCRIPTION_PRICES = Config.STRIPE_TIER_PRICES
 
+@bp.route('/test-checkout-debug', methods=['POST'])
+@require_auth
+def test_checkout_debug(user_id):
+    """Debug endpoint to test checkout flow step by step"""
+    results = {
+        'user_id': user_id,
+        'steps': []
+    }
+    
+    # Step 1: Get user data
+    try:
+        supabase = get_supabase_client()
+        user_response = supabase.table('users').select('*').eq('id', user_id).single().execute()
+        user = user_response.data
+        results['steps'].append({
+            'step': 'get_user_data',
+            'status': 'success',
+            'has_stripe_customer': bool(user.get('stripe_customer_id')),
+            'stripe_customer_id': user.get('stripe_customer_id')
+        })
+    except Exception as e:
+        results['steps'].append({
+            'step': 'get_user_data',
+            'status': 'error',
+            'error': str(e)
+        })
+        return jsonify(results), 500
+    
+    # Step 2: Get email if no Stripe customer
+    if not user.get('stripe_customer_id'):
+        try:
+            admin_supabase = get_supabase_admin_client()
+            auth_user = admin_supabase.auth.admin.get_user_by_id(user_id)
+            email = auth_user.user.email if auth_user and auth_user.user else None
+            results['steps'].append({
+                'step': 'get_email',
+                'status': 'success',
+                'email_found': bool(email)
+            })
+        except Exception as e:
+            results['steps'].append({
+                'step': 'get_email',
+                'status': 'error',
+                'error': str(e)
+            })
+            # Don't fail here, continue with no email
+    
+    # Step 3: Test Stripe connection
+    try:
+        import stripe
+        stripe.api_key = Config.STRIPE_SECRET_KEY
+        account = stripe.Account.retrieve()
+        results['steps'].append({
+            'step': 'stripe_connection',
+            'status': 'success',
+            'account_id': account.id
+        })
+    except Exception as e:
+        results['steps'].append({
+            'step': 'stripe_connection',
+            'status': 'error',
+            'error': str(e)
+        })
+    
+    return jsonify(results), 200
+
 @bp.route('/test-supabase', methods=['GET'])
 def test_supabase_admin():
     """Test Supabase admin access (temporary debug endpoint)"""
