@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { CheckCircleIcon } from '@heroicons/react/solid'
+import { CheckCircleIcon } from '@heroicons/react/24/solid'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 

@@ -1,6 +1,6 @@
 import React from 'react'
 import { useNavigate } from 'react-router-dom'
-import { XCircleIcon } from '@heroicons/react/solid'
+import { XCircleIcon } from '@heroicons/react/24/solid'
 
 const SubscriptionCancel = () => {
   const navigate = useNavigate()
