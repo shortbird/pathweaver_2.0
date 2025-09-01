@@ -186,8 +186,24 @@ def create_checkout_session(user_id):
         }), 500
     
     # Use regular client for user data, admin client for auth operations
-    supabase = get_supabase_client()
-    admin_supabase = get_supabase_admin_client()
+    try:
+        supabase = get_supabase_client()
+    except Exception as e:
+        print(f"Error getting regular Supabase client: {e}")
+        return jsonify({
+            'error': 'Database connection error',
+            'debug': f'Failed to get Supabase client: {str(e)}'
+        }), 500
+    
+    try:
+        admin_supabase = get_supabase_admin_client()
+    except Exception as e:
+        print(f"Error getting admin Supabase client: {e}")
+        print(f"SUPABASE_SERVICE_KEY configured: {bool(Config.SUPABASE_SERVICE_ROLE_KEY)}")
+        return jsonify({
+            'error': 'Database admin connection error',
+            'debug': f'Failed to get admin Supabase client: {str(e)}'
+        }), 500
     
     try:
         # Get user data
