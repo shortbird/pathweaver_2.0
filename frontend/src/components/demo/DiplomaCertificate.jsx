@@ -62,7 +62,7 @@ const DiplomaCertificate = () => {
           {isParent ? "Your Child's Learning Portfolio" : "Your Learning Portfolio"}
         </h2>
         <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-          This Optio diploma shows real achievements and skills gained through self-directed learning. 
+          This Optio Portfolio Diploma shows real achievements and skills gained through self-directed learning. 
         </p>
       </div>
 
@@ -97,7 +97,7 @@ const DiplomaCertificate = () => {
             <div className="inline-flex p-4 bg-gradient-to-r from-[#6d469b]/10 to-[#ef597b]/10 rounded-full mb-4">
               <Award className="w-12 h-12 text-[#6d469b]" />
             </div>
-            <h1 className="text-4xl font-bold text-[#003f5c] mb-2">Optio Learning Portfolio</h1>
+            <h1 className="text-4xl font-bold text-[#003f5c] mb-2">Optio Portfolio Diploma</h1>
             <p className="text-lg text-gray-600">Certificate of Achievement</p>
           </div>
 

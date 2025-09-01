@@ -50,9 +50,9 @@ const DemoFeature = () => {
     const titles = [
       'Welcome to Optio',
       'Who are you?',
-      'Your Optio Portfolio Diploma',
+      'Understanding Your Diploma',
       'Experience a Quest',
-      'Your Achievement',
+      'Your Optio Portfolio Diploma',
       'See the Difference',
       'Start Your Journey'
     ];
