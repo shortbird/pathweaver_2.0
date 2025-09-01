@@ -55,9 +55,9 @@ const ComparisonView = () => {
       total: '$20,000+ annually'
     },
     optio: {
-      explorer: 'Free (limited features)',
-      creator: '$39.99/month',
-      visionary: '$499.99/month (accredited)'
+      free: 'Free (limited features)',
+      supported: '$39.99/month',
+      academy: '$499.99/month (accredited)'
     }
   };
 
@@ -187,15 +187,15 @@ const ComparisonView = () => {
               <p className="font-semibold text-gray-700">Optio Pricing:</p>
               <div className="space-y-2 mt-2">
                 <div className="flex justify-between text-sm">
-                  <span>Explorer (Free)</span>
+                  <span>Free</span>
                   <span className="font-semibold">$0/month</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Creator</span>
+                  <span>Supported</span>
                   <span className="font-semibold">$39.99/month</span>
                 </div>
                 <div className="flex justify-between text-sm bg-[#6d469b]/10 px-2 py-1 rounded">
-                  <span className="font-semibold">Visionary (Accredited)</span>
+                  <span className="font-semibold">Academy (Accredited)</span>
                   <span className="font-bold text-[#6d469b]">$499.99/month</span>
                 </div>
               </div>

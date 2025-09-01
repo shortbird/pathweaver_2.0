@@ -5,16 +5,16 @@ import {
   Star, Trophy, Sparkles
 } from 'lucide-react';
 import DiplomaDisplay from './DiplomaDisplay';
-import VisionaryTierModalUpdated from './VisionaryTierModalUpdated';
+import AcademyTierModalUpdated from './VisionaryTierModalUpdated';
 
 const DiplomaCertificate = () => {
   const { demoState, demoQuests, actions } = useDemo();
   const [isGenerating, setIsGenerating] = useState(true);
-  const [showVisionaryModal, setShowVisionaryModal] = useState(false);
+  const [showAcademyModal, setShowAcademyModal] = useState(false);
   const [showCreatorComparison, setShowCreatorComparison] = useState(false);
   
   const isParent = demoState.persona === 'parent';
-  const isAccredited = demoState.subscriptionTier === 'visionary';
+  const isAccredited = demoState.subscriptionTier === 'academy';
 
   useEffect(() => {
     // Simulate diploma generation
@@ -28,10 +28,10 @@ const DiplomaCertificate = () => {
   }, []);
 
   useEffect(() => {
-    // Show Visionary modal for parents after generation
+    // Show Academy modal for parents after generation
     if (isParent && !isGenerating && !demoState.showAccreditedOption) {
       const timer = setTimeout(() => {
-        setShowVisionaryModal(true);
+        setShowAcademyModal(true);
         actions.showVisionaryTier();
       }, 2000);
       return () => clearTimeout(timer);
@@ -70,10 +70,10 @@ const DiplomaCertificate = () => {
       {isParent && demoState.showAccreditedOption && (
         <div className="text-center">
           <button
-            onClick={() => setShowVisionaryModal(true)}
+            onClick={() => setShowAcademyModal(true)}
             className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full hover:shadow-lg transition-all"
           >
-            <span className="font-semibold">Learn About Getting TWO Diplomas with Visionary Tier</span>
+            <span className="font-semibold">Learn About Getting TWO Diplomas with Academy Tier</span>
           </button>
         </div>
       )}
@@ -210,10 +210,10 @@ const DiplomaCertificate = () => {
         </div>
       </div>
 
-      {/* Visionary Modal */}
-      {showVisionaryModal && (
-        <VisionaryTierModalUpdated 
-          onClose={() => setShowVisionaryModal(false)} 
+      {/* Academy Modal */}
+      {showAcademyModal && (
+        <AcademyTierModalUpdated 
+          onClose={() => setShowAcademyModal(false)} 
           showComparison={true}
         />
       )}

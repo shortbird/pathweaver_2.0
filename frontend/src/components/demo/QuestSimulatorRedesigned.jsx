@@ -6,23 +6,23 @@ import {
   ArrowRight, FileText, Camera, PenTool, Info, X, ArrowLeft
 } from 'lucide-react';
 import EvidenceSubmission from './EvidenceSubmission';
-import VisionaryTierModal from './VisionaryTierModal';
+import AcademyTierModal from './VisionaryTierModal';
 
 const QuestSimulatorRedesigned = () => {
   const { demoState, demoQuests, actions } = useDemo();
   const [selectedQuest, setSelectedQuest] = useState(null);
   const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
   const [showEvidence, setShowEvidence] = useState(false);
-  const [showVisionaryModal, setShowVisionaryModal] = useState(false);
+  const [showAcademyModal, setShowAcademyModal] = useState(false);
   const [showInstructions, setShowInstructions] = useState(true);
   
   const isParent = demoState.persona === 'parent';
 
   useEffect(() => {
-    // Show Visionary modal for parents after 2 seconds
+    // Show Academy modal for parents after 2 seconds
     if (isParent && !demoState.showAccreditedOption) {
       const timer = setTimeout(() => {
-        setShowVisionaryModal(true);
+        setShowAcademyModal(true);
         actions.showVisionaryTier();
       }, 2000);
       return () => clearTimeout(timer);
@@ -140,10 +140,10 @@ const QuestSimulatorRedesigned = () => {
               : "Pick something you're already passionate about - we'll show you how it becomes academic credit"}
           </p>
           
-          {/* Visionary Tier Badge for Parents */}
+          {/* Academy Tier Badge for Parents */}
           {isParent && demoState.showAccreditedOption && (
             <button
-              onClick={() => setShowVisionaryModal(true)}
+              onClick={() => setShowAcademyModal(true)}
               className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full animate-pulse hover:animate-none hover:shadow-lg transition-all"
             >
               <Shield className="w-5 h-5" />
@@ -236,9 +236,9 @@ const QuestSimulatorRedesigned = () => {
           })}
         </div>
 
-        {/* Visionary Modal */}
-        {showVisionaryModal && (
-          <VisionaryTierModal onClose={() => setShowVisionaryModal(false)} />
+        {/* Academy Modal */}
+        {showAcademyModal && (
+          <AcademyTierModal onClose={() => setShowAcademyModal(false)} />
         )}
       </div>
     );

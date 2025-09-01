@@ -13,7 +13,7 @@ const DiplomaGenerator = () => {
   const [showShareOptions, setShowShareOptions] = useState(false);
   
   const isParent = demoState.persona === 'parent';
-  const isAccredited = demoState.subscriptionTier === 'visionary';
+  const isAccredited = demoState.subscriptionTier === 'academy';
 
   useEffect(() => {
     // Simulate diploma generation
@@ -252,7 +252,7 @@ const DiplomaGenerator = () => {
             Imagine your child earning diplomas like this for their real passions
           </p>
           <p className="text-gray-600">
-            With Visionary tier, these become accredited high school credits
+            With Academy tier, these become accredited high school credits
           </p>
         </div>
       )}

@@ -84,7 +84,7 @@ const initialState = {
     interests: []
   },
   generatedDiploma: null,
-  subscriptionTier: 'explorer',
+  subscriptionTier: 'free',
   demoStartTime: null,
   interactions: []
 };
@@ -152,7 +152,7 @@ export const DemoProvider = ({ children }) => {
       earnedXP: demoState.earnedXP,
       totalXP: Object.values(demoState.earnedXP).reduce((sum, xp) => sum + xp, 0),
       timestamp: Date.now(),
-      isAccredited: demoState.subscriptionTier === 'visionary'
+      isAccredited: demoState.subscriptionTier === 'academy'
     };
 
     setDemoState(prev => ({
@@ -166,7 +166,7 @@ export const DemoProvider = ({ children }) => {
   const showVisionaryTier = useCallback(() => {
     setDemoState(prev => ({
       ...prev,
-      subscriptionTier: 'visionary',
+      subscriptionTier: 'academy',
       showAccreditedOption: true
     }));
   }, []);

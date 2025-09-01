@@ -4,13 +4,13 @@ import {
   CheckCircle, Upload, Star, Trophy, Sparkles, GraduationCap, Shield,
   ArrowRight, FileText, Camera, PenTool, Info, X, AlertCircle
 } from 'lucide-react';
-import VisionaryTierModal from './VisionaryTierModal';
+import AcademyTierModal from './VisionaryTierModal';
 
 const QuestExperience = () => {
   const { demoState, demoQuests, actions } = useDemo();
   const [selectedQuest, setSelectedQuest] = useState(null);
   const [completedTasks, setCompletedTasks] = useState([]);
-  const [showVisionaryModal, setShowVisionaryModal] = useState(false);
+  const [showAcademyModal, setShowAcademyModal] = useState(false);
   const [currentSubmittingTask, setCurrentSubmittingTask] = useState(null);
   const [xpAnimation, setXpAnimation] = useState(null);
   const [showCompletionBonus, setShowCompletionBonus] = useState(false);
@@ -18,10 +18,10 @@ const QuestExperience = () => {
   const isParent = demoState.persona === 'parent';
 
   useEffect(() => {
-    // Show Visionary modal for parents after 2 seconds
+    // Show Academy modal for parents after 2 seconds
     if (isParent && !demoState.showAccreditedOption) {
       const timer = setTimeout(() => {
-        setShowVisionaryModal(true);
+        setShowAcademyModal(true);
         actions.showVisionaryTier();
       }, 2000);
       return () => clearTimeout(timer);
@@ -162,9 +162,9 @@ const QuestExperience = () => {
           })}
         </div>
 
-        {/* Visionary Modal */}
-        {showVisionaryModal && (
-          <VisionaryTierModal onClose={() => setShowVisionaryModal(false)} />
+        {/* Academy Modal */}
+        {showAcademyModal && (
+          <AcademyTierModal onClose={() => setShowAcademyModal(false)} />
         )}
       </div>
     );

@@ -9,15 +9,15 @@ import {
 const ConversionPanel = () => {
   const { demoState, demoQuests, actions } = useDemo();
   const navigate = useNavigate();
-  const [selectedTier, setSelectedTier] = useState('explorer');
+  const [selectedTier, setSelectedTier] = useState('free');
   const [email, setEmail] = useState('');
   
   const isParent = demoState.persona === 'parent';
 
   const tiers = [
     {
-      id: 'explorer',
-      name: 'Explorer',
+      id: 'free',
+      name: 'Free',
       price: 'Free',
       description: 'Perfect for curiosity and personal enrichment',
       features: [
@@ -26,36 +26,36 @@ const ConversionPanel = () => {
         'Earn XP for completing quests',
         'Optio Portfolio Diploma'
       ],
-      cta: 'Start Exploring',
+      cta: 'Start Free',
       recommended: false
     },
     {
-      id: 'creator',
-      name: 'Creator',
+      id: 'supported',
+      name: 'Supported',
       price: '$39.99/mo',
       description: 'For dedicated learners ready to grow',
       features: [
-        'Everything in Explorer, plus:',
+        'Everything in Free, plus:',
         'Access to a support team of Optio educators',
-        'Team up with other Creators for XP bonuses',
+        'Team up with other Supported learners for XP bonuses',
         'Optio Portfolio Diploma (non-accredited)'
       ],
-      cta: 'Start Creating',
+      cta: 'Get Supported',
       recommended: true
     },
     {
-      id: 'visionary',
-      name: 'Visionary',
+      id: 'academy',
+      name: 'Academy',
       price: '$499.99/mo',
       description: 'A personalized private school experience',
       features: [
-        'Everything in Creator, plus:',
+        'Everything in Supported, plus:',
         'TWO diplomas: Optio Portfolio + Accredited HS Diploma',
         'Personal learning guide & 1-on-1 teacher support',
         'Regular check-ins with licensed educators',
         "Connect with Optio's network of business leaders and mentors"
       ],
-      cta: 'Become a Visionary',
+      cta: 'Join Academy',
       recommended: false,
       badge: 'ACCREDITED'
     }
@@ -180,7 +180,7 @@ const ConversionPanel = () => {
               <p className="text-sm text-gray-700">
                 <Lock className="w-4 h-4 inline mr-1 text-[#6d469b]" />
                 We'll send you information about setting up your child's account and 
-                {selectedTier === 'visionary' && ' schedule a consultation call for the Visionary tier.'}
+                {selectedTier === 'academy' && ' schedule a consultation call for the Academy tier.'}
               </p>
             </div>
           )}
