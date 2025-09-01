@@ -11,7 +11,7 @@ import {
 import { CheckIcon, XMarkIcon as XIcon, SparklesIcon } from '@heroicons/react/24/solid'
 import { StarIcon, AcademicCapIcon, RocketLaunchIcon, ShieldCheckIcon } from '@heroicons/react/24/outline'
 
-const SubscriptionPage = () => {
+const SubscriptionPageRedesigned = () => {
   const { user } = useAuth()
   const [loading, setLoading] = useState(false)
   const [canceling, setCanceling] = useState(false)
@@ -449,4 +449,4 @@ const SubscriptionPage = () => {
   )
 }
 
-export default SubscriptionPage
+export default SubscriptionPageRedesigned

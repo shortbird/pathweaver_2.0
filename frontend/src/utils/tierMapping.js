@@ -19,64 +19,74 @@ export const getTierDisplayName = (backendTier) => {
 export const TIER_FEATURES = {
   free: {
     name: 'Free',
-    backendValue: 'free',  // Updated to use new tier name
-    stripeValue: null,  // No Stripe price for free tier
+    backendValue: 'free',
+    stripeValue: null,
     price: 0,
     monthlyPrice: 0,
+    yearlyPrice: 0,
     features: [
-      'Access to 5 basic quests',
+      'Access to starter quests',
       'Public diploma page',
-      'Community support',
-      'Track your learning progress'
+      'Build your portfolio',
+      'Track learning progress',
+      'Community support forum'
     ],
     limitations: [
       'Limited to 5 active quests',
-      'Basic diploma customization'
+      'Basic diploma design'
     ],
-    buttonText: 'Current Plan',
-    buttonDisabled: true
+    buttonText: 'Start Free',
+    buttonDisabled: false,
+    description: 'Perfect for exploring self-directed learning'
   },
   supported: {
     name: 'Supported',
-    backendValue: 'supported',  // Updated to use new tier name
-    stripeValue: 'supported',  // Used for Stripe checkout
+    backendValue: 'supported',
+    stripeValue: 'supported',
     price: 39.99,
     monthlyPrice: 39.99,
-    yearlyPrice: 399.99,  // Optional yearly discount (~17% off)
+    yearlyPrice: 429.88,  // Save $50/year
+    yearlySavings: 50,
     features: [
       'Everything in Free tier',
       'Unlimited active quests',
-      'Priority quest access',
+      'Priority quest access', 
       'Enhanced diploma customization',
-      'Priority support',
+      'Priority email support',
       'Custom quest submissions',
-      'Advanced analytics'
+      'Advanced analytics dashboard',
+      'Share portfolio with colleges'
     ],
     limitations: [],
-    buttonText: 'Upgrade to Supported',
+    buttonText: 'Get Supported',
     buttonDisabled: false,
-    popular: true  // Mark as popular/recommended
+    popular: true,
+    description: 'Perfect for serious learners building their portfolio'
   },
   academy: {
     name: 'Academy',
-    backendValue: 'academy',  // Updated to use new tier name
-    stripeValue: 'academy',  // Used for Stripe checkout
+    backendValue: 'academy',
+    stripeValue: 'academy',
     price: 499.99,
     monthlyPrice: 499.99,
-    yearlyPrice: 4999.99,  // Optional yearly discount (~17% off)
+    yearlyPrice: 5499.88,  // Save $500/year
+    yearlySavings: 500,
     features: [
       'Everything in Supported tier',
-      '1-on-1 mentorship sessions',
-      'Custom learning paths',
-      'Verified certificates',
-      'Quarterly progress reviews',
-      'College application support',
-      'Exclusive academy content',
-      'Direct advisor access'
+      'Accredited high school diploma',
+      '1-on-1 teacher support',
+      'Personalized learning paths',
+      'Weekly accountability check-ins',
+      'College application assistance',
+      'Parent progress reports',
+      'Priority phone support',
+      'Verified certificates'
     ],
     limitations: [],
-    buttonText: 'Upgrade to Academy',
-    buttonDisabled: false
+    buttonText: 'Join Academy',
+    buttonDisabled: false,
+    premium: true,
+    description: 'Private school experience with self-directed learning'
   }
 };
 
