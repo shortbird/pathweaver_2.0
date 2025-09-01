@@ -55,12 +55,7 @@ const QuestExperience = () => {
       setXpAnimation({ taskId: task.id, xp: task.xp });
       setTimeout(() => setXpAnimation(null), 2000);
       
-      // If all tasks completed, show bonus alert
-      if (completedTasks.length + 1 === selectedQuest.tasks.length) {
-        setTimeout(() => {
-          setShowCompletionBonus(true);
-        }, 2000);
-      }
+      // Don't automatically show bonus alert - user controls navigation
     }, 1000);
   };
 
@@ -240,7 +235,20 @@ const QuestExperience = () => {
 
       {/* Task List */}
       <div className="space-y-4">
-        <h3 className="text-xl font-bold text-[#003f5c]">Quest Tasks</h3>
+        <div className="flex items-center justify-between">
+          <h3 className="text-xl font-bold text-[#003f5c]">Quest Tasks</h3>
+          <button
+            onClick={() => {
+              setSelectedQuest(null);
+              setCompletedTasks([]);
+              setShowCompletionBonus(false);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium rounded-lg transition-all duration-300"
+          >
+            <ArrowRight className="w-4 h-4 rotate-180" />
+            Back to Quest Selection
+          </button>
+        </div>
         
         {selectedQuest.tasks.map((task, index) => {
           const isCompleted = completedTasks.includes(task.id);
@@ -325,10 +333,14 @@ const QuestExperience = () => {
               <div className="text-xs text-gray-600">Total XP</div>
             </div>
             {completedTasks.length === selectedQuest.tasks.length && (
-              <div className="flex items-center gap-2 text-green-600">
+              <button
+                onClick={() => setShowCompletionBonus(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white font-semibold rounded-lg hover:shadow-lg transition-all duration-300"
+              >
                 <Sparkles className="w-5 h-5" />
-                <span className="font-semibold">Quest Complete!</span>
-              </div>
+                <span>View Completion Bonus</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
             )}
           </div>
         </div>

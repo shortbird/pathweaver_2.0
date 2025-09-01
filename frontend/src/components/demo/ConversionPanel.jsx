@@ -131,15 +131,27 @@ const ConversionPanel = () => {
 
             {/* Features */}
             <div className="space-y-3 mb-6">
-              {tier.features.map((feature, index) => (
-                <div key={index} className="flex items-start gap-2">
-                  <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5
-                    ${feature.includes('ACCREDITED') ? 'text-green-500' : 'text-[#6d469b]'}`} />
-                  <span className={`text-sm ${feature.includes('ACCREDITED') ? 'font-bold text-gray-800' : 'text-gray-700'}`}>
-                    {feature}
-                  </span>
-                </div>
-              ))}
+              {tier.features.map((feature, index) => {
+                const isStrikethrough = tier.id === 'free' && (
+                  feature.includes('XP') || 
+                  feature.includes('Diploma')
+                );
+                const displayFeature = tier.id === 'free' && feature === 'No XP earned' 
+                  ? 'Earn XP for completing quests' 
+                  : tier.id === 'free' && feature === 'No Optio Portfolio Diploma'
+                  ? 'Optio Portfolio Diploma'
+                  : feature;
+                
+                return (
+                  <div key={index} className="flex items-start gap-2">
+                    <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5
+                      ${isStrikethrough ? 'text-gray-400' : feature.includes('ACCREDITED') ? 'text-green-500' : 'text-[#6d469b]'}`} />
+                    <span className={`text-sm ${feature.includes('ACCREDITED') ? 'font-bold text-gray-800' : isStrikethrough ? 'text-gray-500 line-through' : 'text-gray-700'}`}>
+                      {displayFeature}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
 
             {/* Selection Indicator */}
