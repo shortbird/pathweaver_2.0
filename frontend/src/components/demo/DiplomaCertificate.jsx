@@ -63,26 +63,6 @@ const DiplomaCertificate = () => {
         </h2>
         <p className="text-lg text-gray-600 max-w-3xl mx-auto">
           This Optio diploma shows real achievements and skills gained through self-directed learning. 
-          {isParent 
-            ? <>
-                With Visionary tier, your child earns{' '}
-                <button 
-                  onClick={() => setShowVisionaryModal(true)}
-                  className="text-[#6d469b] font-bold underline hover:text-[#8b5fbf] transition-colors"
-                >
-                </button>.
-              </>
-            : <>
-                Visionary students earn{' '}
-                <button 
-                  onClick={() => setShowVisionaryModal(true)}
-                  className="text-[#6d469b] font-bold underline hover:text-[#8b5fbf] transition-colors"
-                >
-                  TWO diplomas
-                </button>
-                {' '}- this portfolio showing your real work, plus a traditional accredited high school diploma.
-              </>
-          }
         </p>
       </div>
 
@@ -91,11 +71,9 @@ const DiplomaCertificate = () => {
         <div className="text-center">
           <button
             onClick={() => setShowVisionaryModal(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full animate-pulse hover:animate-none hover:shadow-lg transition-all"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full hover:shadow-lg transition-all"
           >
-            <Shield className="w-5 h-5" />
             <span className="font-semibold">Learn About Getting TWO Diplomas with Visionary Tier</span>
-            <GraduationCap className="w-5 h-5" />
           </button>
         </div>
       )}

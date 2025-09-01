@@ -176,7 +176,6 @@ const QuestExperience = () => {
       {/* Instructions Panel at the top */}
       <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-6">
         <h3 className="text-lg font-bold text-blue-900 mb-4 flex items-center gap-2">
-          <Info className="w-5 h-5" />
           How to Complete This Quest
         </h3>
         

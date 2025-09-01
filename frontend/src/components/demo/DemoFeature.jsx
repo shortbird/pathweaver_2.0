@@ -125,15 +125,6 @@ const DemoFeature = () => {
         </div>
 
         {/* Demo Timer */}
-        {currentStep > 0 && currentStep <= 5 && (
-          <div className="mt-4 text-center">
-            <p className="text-sm text-gray-500">
-              {persona === 'parent' 
-                ? "See how Optio can engage your child and prepare them for their future"
-                : "Discover how your real-world learning becomes academic credit"}
-            </p>
-          </div>
-        )}
       </div>
     </div>
   );

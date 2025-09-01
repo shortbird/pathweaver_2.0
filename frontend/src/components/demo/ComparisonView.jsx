@@ -240,19 +240,6 @@ const ComparisonView = () => {
       )}
 
       {/* CTA */}
-      <div className="text-center">
-        <button
-          onClick={() => actions.nextStep()}
-          className="inline-flex items-center gap-3 px-10 py-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white font-bold text-lg rounded-full hover:shadow-xl transform hover:scale-105 transition-all duration-300"
-        >
-          {isParent ? "Start Your Child's Transformation" : "Start Your Journey"}
-          <ArrowRight className="w-6 h-6" />
-        </button>
-        
-        <p className="mt-4 text-sm text-gray-500">
-          Join 10,000+ students already building their future
-        </p>
-      </div>
     </div>
   );
 };
