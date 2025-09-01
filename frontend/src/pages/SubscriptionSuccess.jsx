@@ -46,7 +46,7 @@ const SubscriptionSuccess = () => {
     }
     
     verifySubscription()
-  }, [searchParams, updateUser, user])
+  }, [searchParams]) // Removed updateUser and user to prevent infinite loop
   
   const handleContinue = () => {
     navigate('/quest-hub')

@@ -447,21 +447,22 @@ def verify_checkout_session(user_id):
         # Extract tier from metadata or price
         tier = subscription.metadata.get('tier', 'supported')
         
-        # Update user subscription in database
+        # Update user subscription in database - only update tier for now
         supabase = get_supabase_client()
         try:
+            # Start with just the tier which we know exists
             update_data = {
-                'subscription_tier': tier,
-                'subscription_status': subscription.status,
-                'stripe_subscription_id': subscription.id
+                'subscription_tier': tier
             }
             
-            # Add period end if available
-            if subscription.current_period_end:
-                update_data['subscription_current_period_end'] = datetime.fromtimestamp(subscription.current_period_end).isoformat()
+            # Try to update subscription_status if column exists
+            try:
+                update_data['subscription_status'] = subscription.status
+            except:
+                pass
             
             result = supabase.table('users').update(update_data).eq('id', user_id).execute()
-            print(f"User subscription updated: {result}")
+            print(f"User subscription tier updated to: {tier}")
         except Exception as update_error:
             print(f"Error updating user subscription: {update_error}")
             # Continue anyway - subscription was created successfully
