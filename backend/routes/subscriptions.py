@@ -2,7 +2,7 @@ from flask import Blueprint, request, jsonify
 import stripe
 import os
 from datetime import datetime
-from database import get_supabase_client
+from database import get_supabase_client, get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from config import Config
 
@@ -15,21 +15,22 @@ SUBSCRIPTION_PRICES = Config.STRIPE_TIER_PRICES
 @bp.route('/test-supabase', methods=['GET'])
 def test_supabase_admin():
     """Test Supabase admin access (temporary debug endpoint)"""
-    supabase = get_supabase_client()
     results = {}
     
     try:
-        # Test 1: Can we access users table?
+        # Test 1: Can we access users table with regular client?
+        supabase = get_supabase_client()
         users_response = supabase.table('users').select('id').limit(1).execute()
         results['users_table_access'] = 'OK' if users_response.data is not None else 'FAILED'
     except Exception as e:
         results['users_table_access'] = f'ERROR: {str(e)}'
     
     try:
-        # Test 2: Can we use admin auth?
+        # Test 2: Can we use admin auth with admin client?
+        admin_supabase = get_supabase_admin_client()
         # Try to get a user (using a dummy ID that probably doesn't exist)
         test_user_id = '00000000-0000-0000-0000-000000000000'
-        auth_response = supabase.auth.admin.get_user_by_id(test_user_id)
+        auth_response = admin_supabase.auth.admin.get_user_by_id(test_user_id)
         results['admin_auth_access'] = 'OK - admin auth works'
     except Exception as e:
         error_msg = str(e)
@@ -118,7 +119,9 @@ def create_checkout_session(user_id):
             'debug': f'Missing environment variable: STRIPE_{tier.upper()}_{billing_period.upper()}_PRICE_ID'
         }), 500
     
+    # Use regular client for user data, admin client for auth operations
     supabase = get_supabase_client()
+    admin_supabase = get_supabase_admin_client()
     
     try:
         # Get user data
@@ -129,10 +132,10 @@ def create_checkout_session(user_id):
         
         # Create or retrieve Stripe customer
         if not user.get('stripe_customer_id'):
-            # Get email from auth.users table
+            # Get email from auth.users table using admin client
             print(f"Debug - Getting email from auth.users for user_id: {user_id}")
             try:
-                auth_user = supabase.auth.admin.get_user_by_id(user_id)
+                auth_user = admin_supabase.auth.admin.get_user_by_id(user_id)
                 email = auth_user.user.email if auth_user and auth_user.user else None
                 print(f"Debug - Email retrieved: {email}")
             except Exception as auth_error:
