@@ -27,7 +27,7 @@ const HomePage = () => {
 
       {/* Enhanced Hero Section with Diploma Preview */}
       <div 
-        className="bg-gradient-to-br from-primary to-purple-700 text-white relative overflow-hidden"
+        className="bg-gradient-to-br from-[#ef597b] to-[#6d469b] text-white relative overflow-hidden"
         role="banner"
         aria-label="Hero section introducing Optio Quest Platform"
       >
@@ -109,8 +109,8 @@ const HomePage = () => {
                         <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
                       </svg>
                     </div>
-                    <h3 className="text-2xl font-bold text-primary mb-2">Optio Portfolio Diploma</h3>
-                    <div className="h-px bg-gradient-to-r from-transparent via-primary/30 to-transparent mb-4"></div>
+                    <h3 className="text-2xl font-bold text-[#ef597b] mb-2">Optio Portfolio Diploma</h3>
+                    <div className="h-px bg-gradient-to-r from-transparent via-[#ef597b]/30 to-transparent mb-4"></div>
                     <div className="space-y-2 text-gray-700">
                       <p className="font-semibold text-lg">Example Learner</p>
                       <p className="text-sm text-gray-600">Journey ID: #OPT-2025-DEMO</p>
@@ -118,7 +118,7 @@ const HomePage = () => {
                         <span className="bg-gradient-to-r from-coral to-coral-dark text-white px-3 py-1 rounded-full text-xs font-medium">
                           Creative Explorer
                         </span>
-                        <span className="bg-gradient-to-r from-primary to-primary-dark text-white px-3 py-1 rounded-full text-xs font-medium">
+                        <span className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-3 py-1 rounded-full text-xs font-medium">
                           Problem Solver
                         </span>
                         <span className="bg-gradient-to-r from-purple-500 to-purple-700 text-white px-3 py-1 rounded-full text-xs font-medium">
@@ -128,11 +128,11 @@ const HomePage = () => {
                       <div className="mt-6 pt-4 border-t border-gray-200">
                         <div className="flex justify-between text-sm">
                           <span className="text-gray-600">Quests Completed</span>
-                          <span className="font-bold text-primary">12</span>
+                          <span className="font-bold text-[#ef597b]">12</span>
                         </div>
                         <div className="flex justify-between text-sm mt-2">
                           <span className="text-gray-600">XP Earned</span>
-                          <span className="font-bold text-primary">1,450</span>
+                          <span className="font-bold text-[#ef597b]">1,450</span>
                         </div>
                       </div>
                     </div>
@@ -146,7 +146,7 @@ const HomePage = () => {
                     </svg>
                     Verified & Shareable
                   </div>
-                  <div className="bg-primary/10 text-primary px-3 py-1 rounded-full text-xs font-medium flex items-center">
+                  <div className="bg-[#ef597b]/10 text-[#ef597b] px-3 py-1 rounded-full text-xs font-medium flex items-center">
                     <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m9.032 4.026a9.001 9.001 0 01-7.432 0m9.032-4.026A9.001 9.001 0 0112 3c-4.474 0-8.268 2.943-9.543 7a9.97 9.97 0 011.827 3.342" />
                     </svg>
@@ -159,7 +159,7 @@ const HomePage = () => {
               <div className="absolute -top-4 -left-4 bg-coral text-white rounded-full px-4 py-2 shadow-lg animate-bounce hidden sm:block">
                 <span className="text-sm font-bold">Quest Complete!</span>
               </div>
-              <div className="absolute -bottom-4 -right-4 bg-gradient-to-r from-secondary to-yellow-400 text-primary rounded-full px-4 py-2 shadow-lg animate-pulse hidden sm:block">
+              <div className="absolute -bottom-4 -right-4 bg-gradient-to-r from-[#FFCA3A] to-[#FFD966] text-[#ef597b] rounded-full px-4 py-2 shadow-lg animate-pulse hidden sm:block">
                 <span className="text-sm font-bold">Show the world!</span>
               </div>
             </div>
@@ -179,7 +179,7 @@ const HomePage = () => {
             {/* Interactive portfolio preview */}
             <div className="max-w-4xl mx-auto">
               <div className="bg-white rounded-xl shadow-xl overflow-hidden">
-                <div className="bg-gradient-to-r from-primary to-primary-dark text-white p-4 sm:p-6">
+                <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                     <div className="text-left">
                       <h3 className="text-xl font-semibold">Your Validated Optio Portfolio Diploma</h3>
@@ -227,7 +227,7 @@ const HomePage = () => {
                           </div>
                         </div>
                         <div className="flex items-start space-x-3 p-3 bg-gray-50 rounded-lg">
-                          <div className="w-10 h-10 bg-gradient-to-r from-primary to-primary-dark rounded-full flex items-center justify-center flex-shrink-0">
+                          <div className="w-10 h-10 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center flex-shrink-0">
                             <span className="text-white text-sm font-bold">✓</span>
                           </div>
                           <div className="flex-grow text-left">
@@ -282,7 +282,7 @@ const HomePage = () => {
                             <span className="text-sm text-gray-600">Flourishing</span>
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2.5">
-                            <div className="bg-gradient-to-r from-primary to-primary-dark h-2.5 rounded-full transition-all duration-500" style={{width: '75%'}}></div>
+                            <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] h-2.5 rounded-full transition-all duration-500" style={{width: '75%'}}></div>
                           </div>
                         </div>
                         <div>
@@ -323,9 +323,9 @@ const HomePage = () => {
                         </div>
                       </div>
                       
-                      <div className="mt-6 p-4 bg-gradient-to-r from-primary/5 to-purple-500/5 rounded-lg">
+                      <div className="mt-6 p-4 bg-gradient-to-r from-[#ef597b]/5 to-[#6d469b]/5 rounded-lg">
                         <p className="text-sm text-gray-700 font-medium">Current Progress</p>
-                        <p className="text-2xl font-bold text-primary mt-1">1,450 XP</p>
+                        <p className="text-2xl font-bold text-[#ef597b] mt-1">1,450 XP</p>
                         <p className="text-xs text-gray-600 mt-1">12 quests completed</p>
                       </div>
                     </div>
@@ -348,7 +348,7 @@ const HomePage = () => {
         
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="text-center mb-12 sm:mb-16">
-            <div className="inline-flex items-center bg-gradient-to-r from-primary to-primary-dark text-white rounded-full px-6 py-3 mb-6">
+            <div className="inline-flex items-center bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full px-6 py-3 mb-6">
               <span className="text-sm font-semibold tracking-wide uppercase">Our Philosophy</span>
             </div>
             <h2 className="text-3xl sm:text-4xl font-bold mb-6">The Process is the Goal</h2>
@@ -366,16 +366,16 @@ const HomePage = () => {
                     step: "1",
                     title: "Follow Your Curiosity",
                     description: "Pick something that sparks your interest and dive in",
-                    icon: <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    icon: <svg className="w-8 h-8 text-[#ef597b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                     </svg>,
-                    color: "from-primary to-primary-dark"
+                    color: "from-[#ef597b] to-[#6d469b]"
                   },
                   {
                     step: "2", 
                     title: "Create & Discover",
                     description: "Make something new and capture what you learn",
-                    icon: <svg className="w-8 h-8 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    icon: <svg className="w-8 h-8 text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                     </svg>,
                     color: "from-purple-500 to-purple-700"
@@ -384,7 +384,7 @@ const HomePage = () => {
                     step: "3",
                     title: "Reflect & Grow", 
                     description: "Notice how each experience changes your perspective",
-                    icon: <svg className="w-8 h-8 text-coral" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    icon: <svg className="w-8 h-8 text-[#ef597b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                     </svg>,
                     color: "from-coral to-coral-dark"
@@ -393,14 +393,14 @@ const HomePage = () => {
                     step: "4",
                     title: "Share Your Progress",
                     description: "Celebrate your growth and inspire others to explore",
-                    icon: <svg className="w-8 h-8 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    icon: <svg className="w-8 h-8 text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
                     </svg>,
                     color: "from-yellow-400 to-orange-500"
                   }
                 ].map((item, index) => (
                   <div key={index} className="text-center relative group">
-                    <div className={`bg-white border-4 border-gray-200 group-hover:border-primary/30 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 shadow-lg relative z-10 transition-all duration-300 group-hover:scale-110`}>
+                    <div className={`bg-white border-4 border-gray-200 group-hover:border-[#ef597b]/30 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 shadow-lg relative z-10 transition-all duration-300 group-hover:scale-110`}>
                       {item.icon}
                     </div>
                     <div className={`absolute top-6 left-1/2 transform -translate-x-1/2 bg-gradient-to-r ${item.color} text-white text-xs font-bold px-2 py-1 rounded-full`}>
@@ -418,7 +418,7 @@ const HomePage = () => {
               {!isAuthenticated && (
                 <Link 
                   to="/register" 
-                  className="bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 text-white text-lg px-8 py-4 rounded-lg font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center"
+                  className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] hover:from-[#e54469] hover:to-[#5d3689] text-white text-lg px-8 py-4 rounded-lg font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center"
                   aria-describedby="start-journey-description"
                 >
                   Begin Your Adventure
@@ -487,16 +487,16 @@ const HomePage = () => {
               </Link>
             </div>
 
-            <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 hover:shadow-xl transition-shadow border-2 border-primary relative transform scale-105">
+            <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 hover:shadow-xl transition-shadow border-2 border-[#ef597b] relative transform scale-105">
               <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <span className="bg-gradient-to-r from-primary to-purple-600 text-white text-xs px-4 py-1 rounded-full inline-block font-bold">
+                <span className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs px-4 py-1 rounded-full inline-block font-bold">
                   RECOMMENDED
                 </span>
               </div>
               <h3 className="text-2xl font-bold mb-2">Supported</h3>
               <p className="text-3xl font-bold mb-1">$39.99<span className="text-lg font-normal text-gray-600">/mo</span></p>
               <p className="text-gray-600 mb-6">For dedicated learners ready to grow</p>
-              <div className="text-sm font-semibold text-primary mb-3">Everything in Free, plus:</div>
+              <div className="text-sm font-semibold text-[#ef597b] mb-3">Everything in Free, plus:</div>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -525,7 +525,7 @@ const HomePage = () => {
               </ul>
               <Link 
                 to="/register" 
-                className="block w-full bg-gradient-to-r from-primary to-primary-dark text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-all text-center transform hover:scale-105"
+                className="block w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-all text-center transform hover:scale-105"
               >
                 Get Supported
               </Link>
@@ -533,14 +533,14 @@ const HomePage = () => {
 
             <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 hover:shadow-lg transition-shadow relative">
               <div className="absolute -top-3 right-4">
-                <span className="bg-gradient-to-r from-purple-600 to-pink-600 text-white text-xs px-3 py-1 rounded-full inline-block font-bold">
+                <span className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white text-xs px-3 py-1 rounded-full inline-block font-bold">
                   ACCREDITED
                 </span>
               </div>
               <h3 className="text-2xl font-bold mb-2">Academy</h3>
               <p className="text-3xl font-bold mb-1">$499.99<span className="text-lg font-normal text-gray-600">/mo</span></p>
               <p className="text-gray-600 mb-6">A personalized private school experience</p>
-              <div className="text-sm font-semibold text-purple-600 mb-3">Everything in Supported, plus:</div>
+              <div className="text-sm font-semibold text-[#6d469b] mb-3">Everything in Supported, plus:</div>
               <ul className="space-y-3 mb-8">
                 <li className="flex items-start">
                   <svg className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
@@ -569,7 +569,7 @@ const HomePage = () => {
               </ul>
               <Link 
                 to="/register" 
-                className="block w-full bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-colors text-center"
+                className="block w-full bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-colors text-center"
               >
                 Join Academy
               </Link>
