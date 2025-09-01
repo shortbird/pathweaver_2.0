@@ -21,10 +21,8 @@ import {
 const DiplomaIntroduction = () => {
   const { demoState, actions } = useDemo();
   const { persona } = demoState;
-  const [currentCard, setCurrentCard] = useState(0);
   const [animatedElements, setAnimatedElements] = useState({});
 
-  // Removed auto-advance for better user control
 
   // Animate elements on mount
   useEffect(() => {
@@ -115,7 +113,7 @@ const DiplomaIntroduction = () => {
         "Validates unique talents",
         "Creates lasting portfolios"
       ],
-      color: "from-[#FFCA3A] to-[#FF8500]"
+      color: "from-[#f8b3c5] to-[#b794d6]"
     }
   ];
 
@@ -135,7 +133,7 @@ const DiplomaIntroduction = () => {
           <div className="relative z-10">
             <div className="inline-flex items-center gap-3 px-6 py-3 bg-gradient-to-r from-[#ef597b]/20 to-[#6d469b]/20 rounded-full mb-4">
               <Sparkles className="w-5 h-5 text-[#ef597b]" />
-              <span className="text-[#6d469b] font-semibold">Enrollment Day Gift</span>
+              <span className="text-[#6d469b] font-semibold">Every Student Gets Their Diploma on Day One</span>
               <Sparkles className="w-5 h-5 text-[#6d469b]" />
             </div>
             
@@ -154,7 +152,7 @@ const DiplomaIntroduction = () => {
         </div>
       </div>
 
-      {/* Interactive Comparison Cards */}
+      {/* Comparison Cards - Static Grid */}
       <div className="max-w-6xl mx-auto">
         <div className="text-center mb-8">
           <h3 className="text-2xl font-bold text-[#003f5c] mb-4">
@@ -165,75 +163,36 @@ const DiplomaIntroduction = () => {
           </p>
         </div>
 
-        {/* Card Navigation */}
-        <div className="relative">
-          {/* Navigation Arrows */}
-          <button
-            onClick={() => setCurrentCard(prev => prev > 0 ? prev - 1 : 2)}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-20 bg-white/90 hover:bg-white text-[#6d469b] p-3 rounded-full shadow-lg hover:shadow-xl transition-all"
-            aria-label="Previous card"
-          >
-            <ChevronLeft className="w-6 h-6" />
-          </button>
-          <button
-            onClick={() => setCurrentCard(prev => (prev + 1) % 3)}
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 bg-white/90 hover:bg-white text-[#6d469b] p-3 rounded-full shadow-lg hover:shadow-xl transition-all"
-            aria-label="Next card"
-          >
-            <ChevronRight className="w-6 h-6" />
-          </button>
-
-          {/* Card Navigation Dots */}
-          <div className="flex justify-center gap-2 mb-6">
-            {comparisonCards.map((_, index) => (
-              <button
-                key={index}
-                onClick={() => setCurrentCard(index)}
-                className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                  currentCard === index 
-                    ? 'bg-[#6d469b] scale-125' 
-                    : 'bg-gray-300 hover:bg-gray-400'
-                }`}
-              />
-            ))}
-          </div>
-
-          {/* Comparison Card Display */}
-          <div className="relative h-80 overflow-x-auto md:overflow-hidden rounded-2xl">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {comparisonCards.map((card, index) => {
             const Icon = card.icon;
-            const isActive = currentCard === index;
+            const isResult = card.title === "The Result";
             
             return (
               <div
                 key={index}
-                className={`absolute inset-0 transition-all duration-500 transform ${
-                  isActive 
-                    ? 'opacity-100 translate-x-0' 
-                    : index < currentCard 
-                      ? 'opacity-0 -translate-x-full' 
-                      : 'opacity-0 translate-x-full'
-                }`}
+                className="relative group hover:scale-105 transition-all duration-300"
               >
-                <div className={`h-full bg-gradient-to-br ${card.color} p-8 flex flex-col justify-center items-center text-white rounded-2xl shadow-2xl`}>
-                  <Icon className="w-16 h-16 mb-6 opacity-90" />
-                  
-                  <h4 className="text-3xl font-bold mb-2">{card.title}</h4>
-                  <p className="text-xl opacity-90 mb-8">{card.subtitle}</p>
-                  
-                  <div className="space-y-3 w-full max-w-md">
-                    {card.features.map((feature, idx) => (
-                      <div key={idx} className="flex items-start gap-3">
-                        <CheckCircle className="w-5 h-5 mt-0.5 opacity-80" />
-                        <span className="text-white/90">{feature}</span>
-                      </div>
-                    ))}
+                <div className={`h-full bg-gradient-to-br ${card.color} p-6 rounded-2xl shadow-xl hover:shadow-2xl transition-all`}>
+                  <div className="flex flex-col items-center text-white">
+                    <Icon className="w-14 h-14 mb-4 opacity-90" />
+                    
+                    <h4 className="text-2xl font-bold mb-2 text-center">{card.title}</h4>
+                    <p className="text-sm opacity-90 mb-6 text-center">{card.subtitle}</p>
+                    
+                    <div className="space-y-2 w-full">
+                      {card.features.map((feature, idx) => (
+                        <div key={idx} className="flex items-start gap-2">
+                          <CheckCircle className="w-4 h-4 mt-0.5 opacity-80 flex-shrink-0" />
+                          <span className={`text-sm ${isResult ? 'text-gray-700' : 'text-white/90'}`}>{feature}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
               </div>
             );
           })}
-        </div>
         </div>
       </div>
 

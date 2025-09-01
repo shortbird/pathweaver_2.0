@@ -107,7 +107,7 @@ export const DemoProvider = ({ children }) => {
     setDemoState(prev => ({
       ...prev,
       selectedQuest: quest,
-      currentStep: 2
+      currentStep: 3
     }));
   }, []);
 
