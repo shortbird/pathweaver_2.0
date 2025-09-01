@@ -157,8 +157,7 @@ export const DemoProvider = ({ children }) => {
 
     setDemoState(prev => ({
       ...prev,
-      generatedDiploma: diploma,
-      currentStep: 4
+      generatedDiploma: diploma
     }));
 
     return diploma;

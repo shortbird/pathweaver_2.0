@@ -20,12 +20,11 @@ const PersonaSelector = () => {
         "Understand college preparation features"
       ],
       painPoints: [
-        "My child is disengaged at school",
         "Want them prepared for adulthood",
         "Need more personalized learning",
+        "My child is disengaged at school",
         "Looking for real-world skills"
       ],
-      message: "Finally, an education that engages your child AND prepares them for college"
     },
     {
       id: 'student',
@@ -40,12 +39,11 @@ const PersonaSelector = () => {
         "Show colleges who you really are"
       ],
       painPoints: [
-        "Bored with traditional schoolwork",
+        "Need learning that prepares me for a successful future",
         "My real learning goes unrecognized",
         "Want to pursue my passions",
-        "Need learning that prepares me for a successful future"
+        "Bored with traditional schoolwork"
       ],
-      message: "Your real life IS your education - we just help you prove it"
     }
   ];
 
@@ -165,7 +163,7 @@ const PersonaSelector = () => {
         </div>
         <div className="flex items-center gap-2 text-gray-600">
           <Users className="w-5 h-5 text-[#6d469b]" />
-          <span className="text-sm">Join 10,000+ families embracing this new philosophy</span>
+          <span className="text-sm">Join thousands of families choosing a new path</span>
         </div>
       </div>
     </div>

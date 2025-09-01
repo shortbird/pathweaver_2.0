@@ -5,12 +5,13 @@ import {
   Star, Trophy, Sparkles
 } from 'lucide-react';
 import DiplomaDisplay from './DiplomaDisplay';
-import VisionaryTierModal from './VisionaryTierModal';
+import VisionaryTierModalUpdated from './VisionaryTierModalUpdated';
 
 const DiplomaCertificate = () => {
   const { demoState, demoQuests, actions } = useDemo();
   const [isGenerating, setIsGenerating] = useState(true);
   const [showVisionaryModal, setShowVisionaryModal] = useState(false);
+  const [showCreatorComparison, setShowCreatorComparison] = useState(false);
   
   const isParent = demoState.persona === 'parent';
   const isAccredited = demoState.subscriptionTier === 'visionary';
@@ -63,8 +64,26 @@ const DiplomaCertificate = () => {
         <p className="text-lg text-gray-600 max-w-3xl mx-auto">
           This Optio diploma shows real achievements and skills gained through self-directed learning. 
           {isParent 
-            ? " With Visionary tier, your child earns BOTH this portfolio diploma AND a traditional accredited high school diploma."
-            : " Visionary students earn TWO diplomas - this portfolio showing your real work, plus a traditional accredited high school diploma."}
+            ? <>
+                With Visionary tier, your child earns{' '}
+                <button 
+                  onClick={() => setShowVisionaryModal(true)}
+                  className="text-[#6d469b] font-bold underline hover:text-[#8b5fbf] transition-colors"
+                >
+                  BOTH this portfolio diploma AND a traditional accredited high school diploma
+                </button>.
+              </>
+            : <>
+                Visionary students earn{' '}
+                <button 
+                  onClick={() => setShowVisionaryModal(true)}
+                  className="text-[#6d469b] font-bold underline hover:text-[#8b5fbf] transition-colors"
+                >
+                  TWO diplomas
+                </button>
+                {' '}- this portfolio showing your real work, plus a traditional accredited high school diploma.
+              </>
+          }
         </p>
       </div>
 
@@ -216,7 +235,10 @@ const DiplomaCertificate = () => {
 
       {/* Visionary Modal */}
       {showVisionaryModal && (
-        <VisionaryTierModal onClose={() => setShowVisionaryModal(false)} />
+        <VisionaryTierModalUpdated 
+          onClose={() => setShowVisionaryModal(false)} 
+          showComparison={true}
+        />
       )}
     </div>
   );

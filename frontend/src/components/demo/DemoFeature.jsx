@@ -35,9 +35,9 @@ const DemoFeature = () => {
       case 3:
         return <DiplomaCertificate />;
       case 4:
-        return <ConversionPanel />;
-      case 5:
         return <ComparisonView />;
+      case 5:
+        return <ConversionPanel />;
       default:
         return <DemoHero onStart={() => actions.nextStep()} />;
     }
@@ -49,8 +49,8 @@ const DemoFeature = () => {
       'Who are you?',
       'Experience a Quest',
       'Your Achievement',
-      'Start Your Journey',
-      'See the Difference'
+      'See the Difference',
+      'Start Your Journey'
     ];
     return titles[currentStep] || '';
   };
