@@ -15,6 +15,8 @@
 - **Gradient Direction**: ALWAYS pink on the left (#ef597b), purple on the right (#6d469b) - NEVER swap
 - **Complementary Colors**: Use lighter tints like `#f8b3c5` (light pink) and `#b794d6` (light purple)
 - **Avoid**: Yellow and orange colors - they clash with the brand gradient
+- **Tier Styling**: Academy tier "ACCREDITED" badge uses `bg-green-500`, centered at top
+- **Tier Layout**: All tier cards use flexbox with buttons aligned at bottom
 
 ## Project Overview
 
@@ -55,9 +57,11 @@ frontend/src/
 │   ├── QuestHubV3Improved.jsx  # Quest hub
 │   ├── DiplomaPageV3.jsx       # CORE FEATURE
 │   ├── CustomizeQuestPage.jsx  # Quest submissions
-│   └── AdminPage.jsx           # Admin dashboard
+│   ├── AdminPage.jsx           # Admin dashboard
+│   └── DemoPage.jsx            # Interactive demo experience
 └── components/
     ├── diploma/      # Diploma components
+    ├── demo/        # Demo feature components
     └── ui/          # Reusable UI components
 ```
 
@@ -130,6 +134,12 @@ frontend/src/
 
 ## Key Features
 
+### Demo Experience
+- Interactive demo at /demo for prospective users
+- Persona-based experience (student/parent)
+- Sample quest completion workflow
+- Auto-scroll navigation between steps
+
 ### V3 Quest System
 - **Task-based structure**: Each quest has multiple tasks
 - **Per-task configuration**: Each task has its own pillar and XP value
@@ -140,9 +150,10 @@ frontend/src/
 ### Diploma Page (MOST IMPORTANT)
 - Public-facing portfolio at /diploma/:userId or /portfolio/:slug
 - Displays completed quests with evidence
-- Shows XP breakdown by skill pillar
+- Shows XP breakdown by skill pillar with radar chart visualization
 - Professional design for resume use
 - Must reflect Optio brand positively
+- Auto-scrolls to top when navigating between sections
 
 ### XP Calculation
 - XP awarded per task completion, not per quest
