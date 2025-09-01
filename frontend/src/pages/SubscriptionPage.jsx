@@ -221,20 +221,8 @@ const SubscriptionPage = () => {
 
                 {/* Card Content */}
                 <div className="p-8">
-                  {/* Plan Icon & Name */}
+                  {/* Plan Name */}
                   <div className="text-center mb-6">
-                    <div className={`inline-flex p-3 rounded-2xl bg-gradient-to-r ${plan.gradient} bg-opacity-10 mb-4`}>
-                      <Icon className={`w-8 h-8 bg-gradient-to-r ${plan.gradient} text-transparent bg-clip-text`} 
-                           style={{ stroke: `url(#gradient-${plan.tier})`, fill: 'none' }} />
-                      <svg width="0" height="0">
-                        <defs>
-                          <linearGradient id={`gradient-${plan.tier}`}>
-                            <stop offset="0%" stopColor={plan.tier === 'free' ? '#9CA3AF' : plan.tier === 'supported' ? '#3B82F6' : '#ef597b'} />
-                            <stop offset="100%" stopColor={plan.tier === 'free' ? '#4B5563' : plan.tier === 'supported' ? '#9333EA' : '#6d469b'} />
-                          </linearGradient>
-                        </defs>
-                      </svg>
-                    </div>
                     <h2 className="text-3xl font-bold text-gray-900 mb-2">{plan.name}</h2>
                     <p className="text-sm text-gray-600">{plan.description}</p>
                   </div>

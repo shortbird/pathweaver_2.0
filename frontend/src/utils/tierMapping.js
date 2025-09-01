@@ -42,16 +42,17 @@ export const TIER_FEATURES = {
     stripeValue: 'supported',
     price: 39.99,
     monthlyPrice: 39.99,
-    yearlyPrice: 429.88,  // Save $50/year
-    yearlySavings: 50,
+    yearlyPrice: 449.99,  // Save ~$30/year
+    yearlySavings: 30,
     features: [
       'Everything in Free, plus:',
       'Access to a support team of Optio educators',
       'Team up with other Supported learners for XP bonuses',
-      'Optio Portfolio Diploma',
+      'Optio Portfolio Diploma'
+    ],
+    limitations: [
       'Traditionally-accredited Diploma'
     ],
-    limitations: [],
     buttonText: 'Get Supported',
     buttonDisabled: false,
     popular: true,
@@ -63,7 +64,7 @@ export const TIER_FEATURES = {
     stripeValue: 'academy',
     price: 499.99,
     monthlyPrice: 499.99,
-    yearlyPrice: 5499.88,  // Save $500/year
+    yearlyPrice: 5499.99,  // Save ~$500/year
     yearlySavings: 500,
     features: [
       'Everything in Supported, plus:',
