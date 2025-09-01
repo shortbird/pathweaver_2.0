@@ -12,7 +12,7 @@ import {
 
 const SubscriptionPage = () => {
   const { user } = useAuth()
-  const [loading, setLoading] = useState(false)
+  const [loadingTier, setLoadingTier] = useState(null) // Track which tier is being processed
   const [canceling, setCanceling] = useState(false)
   const [subscriptionStatus, setSubscriptionStatus] = useState(null)
   const [loadingStatus, setLoadingStatus] = useState(true)
@@ -36,7 +36,7 @@ const SubscriptionPage = () => {
   }
 
   const handleUpgrade = async (tier, period = billingPeriod) => {
-    setLoading(true)
+    setLoadingTier(tier) // Set which tier is loading
     try {
       const response = await api.post('/subscriptions/create-checkout', { 
         tier,
@@ -52,7 +52,7 @@ const SubscriptionPage = () => {
         toast.error('Failed to create checkout session. Please try again.')
         console.error('Checkout error:', error)
       }
-      setLoading(false)
+      setLoadingTier(null) // Clear loading state
     }
   }
   
@@ -215,10 +215,10 @@ const SubscriptionPage = () => {
             ) : (
               <button
                 onClick={() => handleUpgrade('supported', 'monthly')}
-                disabled={loading}
-                className="block w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-all text-center transform hover:scale-105"
+                disabled={loadingTier !== null}
+                className="block w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-all text-center transform hover:scale-105 disabled:opacity-75"
               >
-                {loading ? 'Processing...' : 'Get Supported'}
+                {loadingTier === 'supported' ? 'Processing...' : 'Get Supported'}
               </button>
             )}
           </div>
@@ -282,10 +282,10 @@ const SubscriptionPage = () => {
             ) : (
               <button
                 onClick={() => handleUpgrade('academy', 'monthly')}
-                disabled={loading}
-                className="block w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-colors text-center"
+                disabled={loadingTier !== null}
+                className="block w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-all text-center transform hover:scale-105 disabled:opacity-75"
               >
-                {loading ? 'Processing...' : 'Join Academy'}
+                {loadingTier === 'academy' ? 'Processing...' : 'Join Academy'}
               </button>
             )}
           </div>
