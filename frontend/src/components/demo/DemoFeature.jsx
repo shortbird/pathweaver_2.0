@@ -56,8 +56,9 @@ const DemoFeature = () => {
   };
 
   const canGoBack = currentStep > 0 && currentStep < 5;
-  const canGoForward = currentStep > 0 && currentStep < 4 && 
-    (currentStep !== 1 || demoState.selectedQuests.length > 0);
+  const canGoForward = currentStep > 0 && currentStep < 5 && 
+    (currentStep !== 1 || demoState.selectedQuests.length > 0) &&
+    (currentStep !== 2 || demoState.submittedWork.length > 0 || currentStep > 2);
 
   const stepInfo = getStepInfo();
 

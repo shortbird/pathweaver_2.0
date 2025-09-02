@@ -71,16 +71,16 @@ const DemoHero = ({ onStart }) => {
             <div className="border-2 border-red-200 rounded-lg p-4 bg-red-50">
               <h4 className="font-semibold text-red-800 mb-2">Teacher Validation</h4>
               <ul className="space-y-1 text-sm text-gray-700">
-                <li>• Hidden assignments</li>
-                <li>• Private grades</li>
+                <li>• Work gets discarded</li>
+                <li>• Abstract letter grades (A, B, C)</li>
                 <li>• Trust the institution</li>
               </ul>
             </div>
             <div className="border-2 border-green-200 rounded-lg p-4 bg-green-50">
               <h4 className="font-semibold text-green-800 mb-2">Student Validation</h4>
               <ul className="space-y-1 text-sm text-gray-700">
-                <li>• Public portfolio</li>
-                <li>• Visible quality</li>
+                <li>• Publicly verifiable quality work</li>
+                <li>• Pride in real creation</li>
                 <li>• Trust the work</li>
               </ul>
             </div>
@@ -132,7 +132,7 @@ const DemoHero = ({ onStart }) => {
             <div className="flex items-start gap-3">
               <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] flex items-center justify-center text-white font-bold">1</div>
               <div>
-                <h4 className="font-semibold">Choose from 100+ Quests</h4>
+                <h4 className="font-semibold">Choose from Hundreds of Quests</h4>
                 <p className="text-sm text-gray-600">Pick projects that match your interests</p>
               </div>
             </div>
@@ -175,7 +175,7 @@ const DemoHero = ({ onStart }) => {
           </h1>
           
           <p className="text-xl text-gray-700">
-            You validate it through public work
+            You validate it through publicly-shared work
           </p>
           
           <button

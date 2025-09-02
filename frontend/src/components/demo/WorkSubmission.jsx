@@ -19,6 +19,38 @@ const WorkSubmission = () => {
   const currentQuest = selectedQuests[activeQuest];
   const currentTask = currentQuest?.tasks[activeTask];
 
+  // Pre-filled demo responses based on task
+  const getDemoResponse = () => {
+    if (!currentTask) return '';
+    
+    const responses = {
+      'interview': 'I interviewed my grandmother about our family recipes. She shared stories about cooking during the Great Depression and how recipes were passed down through generations. I recorded 2 hours of video and transcribed the most meaningful parts.',
+      'document': 'I documented 25 traditional family recipes with step-by-step photos. Each recipe includes the origin story, cultural significance, and tips passed down through generations. The cookbook is organized by meal type and includes a family tree showing which relative contributed each recipe.',
+      'test': 'I tested and refined 15 recipes, adjusting ingredients for modern kitchens while preserving authentic flavors. Created video tutorials for complex techniques and documented common mistakes to avoid.',
+      'design': 'I designed a 60-page digital cookbook using Canva with custom illustrations and family photos. The book includes QR codes linking to video interviews and a searchable index.',
+      'theory': 'I studied music theory fundamentals through Khan Academy and YouTube tutorials. Learned scales, chord progressions, and basic composition techniques. Created flashcards for key concepts.',
+      'compose': 'I composed a 3-minute piano piece inspired by my favorite video game soundtrack. Used GarageBand to layer different instruments and experimented with various melodies until I found one that expressed my intended emotion.',
+      'record': 'I recorded my composition using my phone and a USB microphone. Did multiple takes to get the timing right and added basic mixing to balance the audio levels.',
+      'share': 'I shared my composition on SoundCloud and in our family WhatsApp group. Received feedback from 12 people and incorporated suggestions into a revised version.',
+      'research': 'I researched the local dog walking market by surveying 20 neighbors and analyzing 5 competitor services. Found that reliability and trust are the top concerns for pet owners.',
+      'plan': 'I created a business plan including pricing strategy ($15 per 30-min walk), service area (2-mile radius), and safety protocols. Projected break-even after 10 regular clients.',
+      'build': 'I built a simple booking system using Google Forms and Calendar. Created business cards and flyers with QR codes linking to my booking page.',
+      'customer': 'I got my first paying customer through a neighborhood Facebook group. Successfully completed 5 walks and received a 5-star review and a referral.',
+      'choose': 'I chose to volunteer at the local food bank after researching various causes. This aligned with my interest in addressing food insecurity in our community.',
+      'serve': 'I completed 22 hours of service over 6 weeks, helping sort donations, pack food boxes, and assist with distribution to 200+ families.',
+      'report': 'I created a visual impact report showing how my 22 hours helped provide 1,100 meals. Included photos, volunteer testimonials, and suggestions for improving operations.'
+    };
+    
+    return responses[currentTask.id] || 'I completed this task by putting in genuine effort and documenting my process thoroughly. The experience taught me valuable skills that I can apply in future projects.';
+  };
+
+  // Set demo response when task changes
+  React.useEffect(() => {
+    if (currentTask && !workText) {
+      setWorkText(getDemoResponse());
+    }
+  }, [currentTask?.id]);
+
   const handleSubmit = () => {
     if (!workText.trim()) return;
 
@@ -119,31 +151,44 @@ const WorkSubmission = () => {
             </p>
 
             {/* Submission Type Selector */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-              {submissionTypes.map((type, idx) => (
-                <div
-                  key={idx}
-                  className="flex flex-col items-center gap-2 p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
-                >
-                  <div className="text-[#6d469b]">{type.icon}</div>
-                  <span className="text-xs text-gray-600">{type.label}</span>
-                </div>
-              ))}
+            <div className="mb-6">
+              <p className="text-xs font-semibold text-gray-500 uppercase mb-3">Submission Types (Full Version Only)</p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                {submissionTypes.map((type, idx) => (
+                  <div
+                    key={idx}
+                    className="flex flex-col items-center gap-2 p-3 bg-gray-100 rounded-lg opacity-50 cursor-not-allowed relative"
+                  >
+                    <div className="text-gray-400">{type.icon}</div>
+                    <span className="text-xs text-gray-500">{type.label}</span>
+                    {idx === 0 && (
+                      <div className="absolute top-1 right-1 bg-[#6d469b] text-white text-[10px] px-2 py-0.5 rounded-full">
+                        Demo
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-600 mt-2 italic">
+                Demo uses text descriptions only. Full version supports images, videos, and documents.
+              </p>
             </div>
 
             {/* Work Input */}
             <div className="space-y-4">
               <label className="block">
                 <span className="text-sm font-medium text-gray-700 mb-1 block">
-                  Describe your work
+                  Your work description (pre-filled for demo)
                 </span>
                 <textarea
                   value={workText}
                   onChange={(e) => setWorkText(e.target.value)}
-                  placeholder="Example: I created a family recipe book with 25 traditional recipes, including photos and stories from my grandparents..."
-                  className="w-full p-4 border-2 border-gray-200 rounded-lg focus:border-[#6d469b] focus:outline-none transition-colors"
-                  rows="4"
+                  className="w-full p-4 border-2 border-gray-200 rounded-lg focus:border-[#6d469b] focus:outline-none transition-colors bg-blue-50"
+                  rows="5"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  This is a demo response. In the full version, you'll write your own.
+                </p>
               </label>
 
               {/* Visibility Toggle */}
@@ -230,7 +275,7 @@ const WorkSubmission = () => {
                       <p className="text-gray-600 mt-1">
                         {visibility === 'public'
                           ? 'Anyone viewing your diploma can see this work. Make it impressive!'
-                          : 'Viewers will see: "📁 Student chose to keep this work confidential. Contact them directly."'}
+                          : 'Viewers will see: "Student chose to keep this work confidential. Contact them directly."'}
                       </p>
                     </div>
                   </div>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
 import { 
   Award, Globe, Lock, Eye, EyeOff, User, 
-  Calendar, Trophy, Target, Info, ExternalLink
+  Calendar, Trophy, Target, Info, ExternalLink, CheckCircle
 } from 'lucide-react';
 import InfoModal from './InfoModal';
 // Chart imports - using dynamic import to avoid build issues
@@ -224,7 +224,7 @@ const DiplomaDemoDisplay = () => {
                                   <Lock className="w-4 h-4 text-orange-600 mt-0.5" />
                                   <div className="flex-1">
                                     <p className="text-sm text-gray-700 italic">
-                                      📁 Student chose to keep this work confidential.
+                                      Student chose to keep this work confidential.
                                     </p>
                                     <p className="text-xs text-orange-600 mt-1">
                                       Contact student for details
@@ -293,12 +293,27 @@ const DiplomaDemoDisplay = () => {
           
           <div className="space-y-2">
             <h4 className="font-semibold">What others see:</h4>
-            <ul className="space-y-1 text-sm text-gray-700">
-              <li>✅ All your completed quests</li>
-              <li>✅ Public submitted work</li>
-              <li>✅ Your skills radar chart</li>
-              <li>✅ Total XP and achievements</li>
-              <li>🔒 "Contact for details" on confidential work</li>
+            <ul className="space-y-2 text-sm text-gray-700">
+              <li className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span>All your completed quests</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span>Public submitted work</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span>Your skills radar chart</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle className="w-4 h-4 text-green-500" />
+                <span>Total XP and achievements</span>
+              </li>
+              <li className="flex items-center gap-2">
+                <Lock className="w-4 h-4 text-orange-500" />
+                <span>"Contact for details" on confidential work</span>
+              </li>
             </ul>
           </div>
           

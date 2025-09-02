@@ -20,8 +20,8 @@ const ValidationComparison = () => {
           "2 presentations",
           "1 final exam"
         ],
-        visibility: "All work hidden",
-        validation: "Teacher decides grade",
+        visibility: "Work not preserved",
+        validation: "Single evaluator",
         evidence: "Grade on transcript"
       },
       optio: {
@@ -48,8 +48,8 @@ const ValidationComparison = () => {
           "Test results",
           "Class participation"
         ],
-        visibility: "Scores private",
-        validation: "Teacher grades tests",
+        visibility: "Work discarded",
+        validation: "One perspective only",
         evidence: "Letter grade only"
       },
       optio: {
@@ -257,7 +257,7 @@ const ValidationComparison = () => {
       >
         <div className="space-y-4">
           <p className="text-lg font-medium text-gray-800">
-            At Optio, we believe learning happens through the process, not the grade.
+            At Optio, we believe learning is a journey, not a destination.
           </p>
           
           <div className="space-y-3">
@@ -274,15 +274,6 @@ const ValidationComparison = () => {
                 Focus on creation → Students build real things → Learning happens naturally
               </p>
             </div>
-          </div>
-          
-          <div className="border-l-4 border-[#6d469b] pl-4">
-            <p className="text-sm text-gray-700 italic">
-              "When students know their work will be public, they engage differently. 
-              They create things they're proud of. They learn because they want their 
-              work to be excellent, not because they need a grade."
-            </p>
-            <p className="text-xs text-gray-500 mt-2">- Optio Philosophy</p>
           </div>
           
           <p className="text-sm text-gray-600">

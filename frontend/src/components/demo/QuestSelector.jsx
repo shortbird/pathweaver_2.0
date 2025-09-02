@@ -50,7 +50,7 @@ const QuestSelector = () => {
       {/* Header */}
       <div className="text-center space-y-2">
         <h2 className="text-3xl font-bold text-[#003f5c]">
-          Start Multiple Quests
+          Start Your Quest
         </h2>
         <p className="text-gray-600">
           Choose up to 4 quests to begin your learning journey
