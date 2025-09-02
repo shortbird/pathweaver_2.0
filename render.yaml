@@ -19,6 +19,6 @@ services:
       - key: VITE_API_URL
         value: https://optio-8ibe.onrender.com
       - key: VITE_SUPABASE_URL
-        value: https://yzdrqaookkehgkxwdmroz.supabase.co
+        value: https://vvfgxcykxjybtvpfzwyx.supabase.co
       - key: VITE_SUPABASE_ANON_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl6ZHJxYW9va2toZ2t4d2Rtcm96Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTM5ODAwNzAsImV4cCI6MjA2OTU1NjA3MH0.duf67ubt-yZK4Xj1_Nod_z3S3r74w3_udEV5cR7GhAg
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2Zmd4Y3lreGp5YnR2cGZ6d3l4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU5ODQ2NTAsImV4cCI6MjA3MTU2MDY1MH0.Bh00lJuio6mYbAaJDd7BXsdRkm8azGw2A8djCq7cmO0
