@@ -6,6 +6,7 @@ import AdminQuestManagerV3 from './AdminQuestManagerV3'
 import SourcesManager from '../components/SourcesManager'
 import SiteSettings from '../components/admin/SiteSettings'
 import QuestSubmissionsManager from '../components/admin/QuestSubmissionsManager'
+import CreateQuestPage from './admin/CreateQuestPage'
 import { getTierDisplayName } from '../utils/tierMapping'
 
 const AdminDashboard = () => {
@@ -1990,6 +1991,7 @@ const AdminPage = () => {
       <Routes>
         <Route index element={<AdminDashboard />} />
         <Route path="quests" element={<AdminQuests />} />
+        <Route path="create-quest" element={<CreateQuestPage />} />
         <Route path="settings" element={<SiteSettings />} />
       </Routes>
     </div>
