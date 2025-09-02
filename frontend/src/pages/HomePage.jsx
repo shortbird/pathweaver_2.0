@@ -278,10 +278,10 @@ const HomePage = () => {
               </div>
               <h3 className="text-2xl font-bold mb-2">Academy</h3>
               <p className="text-3xl font-bold mb-1">$499.99<span className="text-lg font-normal text-gray-600">/mo</span></p>
-              <p className="text-gray-600 mb-6">Full private school</p>
+              <p className="text-gray-600 mb-6">Personalized, online private school</p>
               <div className="flex-grow">
                 <p className="text-gray-700 font-semibold mb-4">✓ Accredited diploma</p>
-                <p className="text-gray-700 mb-4">✓ 1-on-1 teachers</p>
+                <p className="text-gray-700 mb-4">✓ 1-on-1 teacher support</p>
               </div>
               <Link 
                 to="/register" 

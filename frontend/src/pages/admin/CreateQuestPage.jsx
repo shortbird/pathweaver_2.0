@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
-import { PILLAR_KEYS, getPillarData, getAllPillars } from '../../utils/pillarMappings';
-import { ChevronDown, ChevronUp, Plus, Trash2, MapPin, Calendar, Users, Sparkles, Save, X } from 'lucide-react';
+import { PILLAR_KEYS, getPillarData } from '../../utils/pillarMappings';
+import { ChevronDown, ChevronUp, Plus, Trash2, MapPin, Calendar, Save, X } from 'lucide-react';
 
 const CreateQuestPage = () => {
   const navigate = useNavigate();
@@ -18,16 +18,11 @@ const CreateQuestPage = () => {
   // Quest basic info
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Life Skills');
-  const [difficultyTier, setDifficultyTier] = useState(2);
-  const [tags, setTags] = useState([]);
-  const [tagInput, setTagInput] = useState('');
   
   // Location features
   const [locationType, setLocationType] = useState('anywhere');
   const [locationAddress, setLocationAddress] = useState('');
   const [venueName, setVenueName] = useState('');
-  const [locationRadius, setLocationRadius] = useState(5);
   
   // Time and requirements
   const [estimatedHours, setEstimatedHours] = useState('');
@@ -40,11 +35,6 @@ const CreateQuestPage = () => {
   const [seasonalStart, setSeasonalStart] = useState('');
   const [seasonalEnd, setSeasonalEnd] = useState('');
   
-  // Collaboration
-  const [teamSizeLimit, setTeamSizeLimit] = useState(5);
-  const [collaborationPrompts, setCollaborationPrompts] = useState([]);
-  const [promptInput, setPromptInput] = useState('');
-  
   // Tasks
   const [tasks, setTasks] = useState([{
     title: '',
@@ -53,10 +43,6 @@ const CreateQuestPage = () => {
     subcategory: '',
     xp_value: 100,
     evidence_prompt: '',
-    evidence_types: ['text', 'image'],
-    collaboration_eligible: true,
-    location_required: false,
-    is_optional: false,
     order_index: 1
   }]);
   
@@ -66,28 +52,10 @@ const CreateQuestPage = () => {
     tasks: true,
     location: false,
     time: false,
-    collaboration: false,
     advanced: false
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState({});
-
-  const categories = [
-    'Creative Arts',
-    'STEM',
-    'Life Skills',
-    'Social Impact',
-    'Entrepreneurship',
-    'Sports & Wellness'
-  ];
-
-  const evidenceTypes = [
-    { value: 'text', label: 'Text', icon: '📝' },
-    { value: 'image', label: 'Image', icon: '📷' },
-    { value: 'video_link', label: 'Video Link', icon: '🎥' },
-    { value: 'document', label: 'Document', icon: '📄' },
-    { value: 'link', label: 'Link', icon: '🔗' }
-  ];
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({
@@ -104,10 +72,6 @@ const CreateQuestPage = () => {
       subcategory: '',
       xp_value: 100,
       evidence_prompt: '',
-      evidence_types: ['text', 'image'],
-      collaboration_eligible: true,
-      location_required: false,
-      is_optional: false,
       order_index: tasks.length + 1
     }]);
   };
@@ -129,17 +93,6 @@ const CreateQuestPage = () => {
     }
   };
 
-  const addTag = () => {
-    if (tagInput.trim() && !tags.includes(tagInput.trim())) {
-      setTags([...tags, tagInput.trim()]);
-      setTagInput('');
-    }
-  };
-
-  const removeTag = (tagToRemove) => {
-    setTags(tags.filter(tag => tag !== tagToRemove));
-  };
-
   const addMaterial = () => {
     if (materialInput.trim() && !materialsNeeded.includes(materialInput.trim())) {
       setMaterialsNeeded([...materialsNeeded, materialInput.trim()]);
@@ -149,17 +102,6 @@ const CreateQuestPage = () => {
 
   const removeMaterial = (material) => {
     setMaterialsNeeded(materialsNeeded.filter(m => m !== material));
-  };
-
-  const addPrompt = () => {
-    if (promptInput.trim() && !collaborationPrompts.includes(promptInput.trim())) {
-      setCollaborationPrompts([...collaborationPrompts, promptInput.trim()]);
-      setPromptInput('');
-    }
-  };
-
-  const removePrompt = (prompt) => {
-    setCollaborationPrompts(collaborationPrompts.filter(p => p !== prompt));
   };
 
   const calculateTotalXP = () => {
@@ -232,19 +174,13 @@ const CreateQuestPage = () => {
         
         // Metadata
         metadata: {
-          category,
-          difficulty_tier: difficultyTier,
-          tags,
           estimated_hours: estimatedHours,
           materials_needed: materialsNeeded,
-          team_size_limit: teamSizeLimit,
-          collaboration_prompts: collaborationPrompts,
           
           // Location
           location_type: locationType,
           location_address: locationAddress,
           venue_name: venueName,
-          location_radius_km: locationRadius,
           
           // Seasonal
           seasonal_start: isSeasonal ? seasonalStart : null,
@@ -362,78 +298,6 @@ const CreateQuestPage = () => {
                   placeholder="What will students create or accomplish in this quest?"
                 />
                 {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Category
-                  </label>
-                  <select
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
-                  >
-                    {categories.map(cat => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Difficulty Tier (1-5)
-                  </label>
-                  <select
-                    value={difficultyTier}
-                    onChange={(e) => setDifficultyTier(Number(e.target.value))}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
-                  >
-                    {[1, 2, 3, 4, 5].map(tier => (
-                      <option key={tier} value={tier}>
-                        Tier {tier} {tier === 1 ? '(Beginner)' : tier === 5 ? '(Expert)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Tags
-                </label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={tagInput}
-                    onChange={(e) => setTagInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addTag())}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
-                    placeholder="Add a tag and press Enter"
-                  />
-                  <button
-                    onClick={addTag}
-                    className="px-4 py-2 bg-[#6d469b] text-white rounded-lg hover:bg-[#5a3784] transition-colors"
-                  >
-                    Add
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {tags.map(tag => (
-                    <span
-                      key={tag}
-                      className="px-3 py-1 bg-gray-100 rounded-full text-sm flex items-center gap-1"
-                    >
-                      {tag}
-                      <button
-                        onClick={() => removeTag(tag)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
               </div>
             </div>
           )}
@@ -563,62 +427,6 @@ const CreateQuestPage = () => {
                         placeholder="What evidence should students submit?"
                       />
                     </div>
-
-                    <div className="md:col-span-2">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Evidence Types
-                      </label>
-                      <div className="flex gap-3">
-                        {evidenceTypes.map(type => (
-                          <label key={type.value} className="flex items-center gap-1">
-                            <input
-                              type="checkbox"
-                              checked={task.evidence_types.includes(type.value)}
-                              onChange={(e) => {
-                                const types = e.target.checked
-                                  ? [...task.evidence_types, type.value]
-                                  : task.evidence_types.filter(t => t !== type.value);
-                                updateTask(index, 'evidence_types', types);
-                              }}
-                              className="rounded border-gray-300 text-[#6d469b] focus:ring-[#6d469b]"
-                            />
-                            <span className="text-sm">{type.icon} {type.label}</span>
-                          </label>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="md:col-span-2 flex gap-4">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={task.collaboration_eligible}
-                          onChange={(e) => updateTask(index, 'collaboration_eligible', e.target.checked)}
-                          className="rounded border-gray-300 text-[#6d469b] focus:ring-[#6d469b]"
-                        />
-                        <span className="text-sm font-medium">Collaboration Eligible (2x XP)</span>
-                      </label>
-
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={task.location_required}
-                          onChange={(e) => updateTask(index, 'location_required', e.target.checked)}
-                          className="rounded border-gray-300 text-[#6d469b] focus:ring-[#6d469b]"
-                        />
-                        <span className="text-sm font-medium">Location Required</span>
-                      </label>
-
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={task.is_optional}
-                          onChange={(e) => updateTask(index, 'is_optional', e.target.checked)}
-                          className="rounded border-gray-300 text-[#6d469b] focus:ring-[#6d469b]"
-                        />
-                        <span className="text-sm font-medium">Optional Task</span>
-                      </label>
-                    </div>
                   </div>
                 </div>
               ))}
@@ -659,7 +467,6 @@ const CreateQuestPage = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
                 >
                   <option value="anywhere">Anywhere</option>
-                  <option value="local_community">Local Community</option>
                   <option value="specific_location">Specific Location</option>
                 </select>
               </div>
@@ -697,20 +504,6 @@ const CreateQuestPage = () => {
                         {errors.locationAddress && (
                           <p className="text-red-500 text-sm mt-1">{errors.locationAddress}</p>
                         )}
-                      </div>
-
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Radius (km)
-                        </label>
-                        <input
-                          type="number"
-                          value={locationRadius}
-                          onChange={(e) => setLocationRadius(Number(e.target.value))}
-                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
-                          min="1"
-                          max="100"
-                        />
                       </div>
                     </>
                   )}
@@ -823,77 +616,6 @@ const CreateQuestPage = () => {
                     </div>
                   </div>
                 )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Collaboration Section */}
-        <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
-          <button
-            onClick={() => toggleSection('collaboration')}
-            className="w-full px-6 py-4 bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 flex items-center justify-between hover:bg-gradient-to-r hover:from-[#ef597b]/20 hover:to-[#6d469b]/20 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <Users className="w-5 h-5" />
-              <h2 className="text-xl font-bold text-gray-900">Collaboration</h2>
-            </div>
-            {expandedSections.collaboration ? <ChevronUp /> : <ChevronDown />}
-          </button>
-          
-          {expandedSections.collaboration && (
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Team Size Limit
-                </label>
-                <select
-                  value={teamSizeLimit}
-                  onChange={(e) => setTeamSizeLimit(Number(e.target.value))}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
-                >
-                  {[2, 3, 4, 5].map(size => (
-                    <option key={size} value={size}>{size} people</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Collaboration Prompts
-                </label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={promptInput}
-                    onChange={(e) => setPromptInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addPrompt())}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
-                    placeholder="e.g., Partner with someone who has different skills"
-                  />
-                  <button
-                    onClick={addPrompt}
-                    className="px-4 py-2 bg-[#6d469b] text-white rounded-lg hover:bg-[#5a3784] transition-colors"
-                  >
-                    Add
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {collaborationPrompts.map(prompt => (
-                    <div
-                      key={prompt}
-                      className="px-3 py-2 bg-gray-50 rounded-lg text-sm flex items-center justify-between"
-                    >
-                      <span>{prompt}</span>
-                      <button
-                        onClick={() => removePrompt(prompt)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
               </div>
             </div>
           )}
