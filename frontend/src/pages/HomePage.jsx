@@ -7,7 +7,7 @@ const HomePage = () => {
   const { isAuthenticated } = useAuth()
   const [scrolled, setScrolled] = useState(false)
   const [pricingModalOpen, setPricingModalOpen] = useState(false)
-  const [processModalOpen, setProcessModalOpen] = useState(false)
+  const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
 
   useEffect(() => {
     const handleScroll = () => {
@@ -226,42 +226,72 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Simplified Process with Modal */}
+      {/* Our Philosophy Section */}
       <div className="py-16 sm:py-20 bg-white relative overflow-hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
           <div className="text-center mb-12 sm:mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-6">How It Works</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-6">The Process Is The Goal</h2>
             <p className="text-lg sm:text-xl text-gray-700 max-w-3xl mx-auto">
-              Four simple steps to build your portfolio.
+              Focus on the journey of learning, not the destination of a credential.
+            </p>
+            <p className="text-base text-gray-600 max-w-2xl mx-auto mt-4">
+              Every quest, every creation, every discovery matters because of what it teaches you right now.
             </p>
           </div>
           
-          {/* Simple process steps */}
+          {/* Philosophy pillars */}
           <div className="max-w-5xl mx-auto">
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-8">
-              {[
-                { step: "1", title: "Pick a Quest", icon: "🎯" },
-                { step: "2", title: "Complete Tasks", icon: "✨" },
-                { step: "3", title: "Upload Evidence", icon: "📸" },
-                { step: "4", title: "Earn Your Badge", icon: "🏆" }
-              ].map((item, index) => (
-                <div key={index} className="text-center">
-                  <div className="bg-white border-4 border-gray-200 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 shadow-lg">
-                    <span className="text-2xl" aria-hidden="true">{item.icon}</span>
-                  </div>
-                  <h3 className="text-lg sm:text-xl font-bold mb-2 text-gray-800">{item.title}</h3>
+            <div className="grid md:grid-cols-3 gap-8">
+              <div className="text-center p-6 rounded-xl bg-gradient-to-br from-purple-50 to-blue-50">
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+                  <span className="text-2xl" aria-hidden="true">🌱</span>
                 </div>
-              ))}
+                <h3 className="text-xl font-bold mb-3 text-gray-800">Present-Focused Value</h3>
+                <p className="text-gray-600">
+                  Your learning is valuable now, not someday. Each skill you build, each idea you explore enriches your life today.
+                </p>
+              </div>
+              
+              <div className="text-center p-6 rounded-xl bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+                  <span className="text-2xl" aria-hidden="true">✨</span>
+                </div>
+                <h3 className="text-xl font-bold mb-3 text-gray-800">Growth Over Achievement</h3>
+                <p className="text-gray-600">
+                  Celebrate attempts, effort, and learning from mistakes. Every step forward is progress, regardless of the outcome.
+                </p>
+              </div>
+              
+              <div className="text-center p-6 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50">
+                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+                  <span className="text-2xl" aria-hidden="true">💫</span>
+                </div>
+                <h3 className="text-xl font-bold mb-3 text-gray-800">Internal Motivation</h3>
+                <p className="text-gray-600">
+                  Learn for the joy of discovery, not external validation. Your curiosity and creativity are the real rewards.
+                </p>
+              </div>
+            </div>
+            
+            {/* Core message */}
+            <div className="mt-12 p-8 bg-gradient-to-r from-[#ef597b]/5 to-[#6d469b]/5 rounded-xl text-center">
+              <p className="text-xl font-semibold text-gray-800 mb-4">
+                "You're not building a resume. You're becoming who you're meant to be."
+              </p>
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                The diploma isn't the goal – it's the beautiful byproduct of a meaningful learning journey. 
+                Every quest you complete, every skill you develop, transforms you in ways that matter right now.
+              </p>
             </div>
             
             {/* Learn more button */}
             <div className="text-center mt-8">
               <button
-                onClick={() => setProcessModalOpen(true)}
+                onClick={() => setPhilosophyModalOpen(true)}
                 className="inline-flex items-center text-[#ef597b] hover:text-[#e54469] font-medium"
               >
                 <Info className="mr-2 w-4 h-4" aria-hidden="true" />
-                Learn More About Our Process
+                Read Our Full Philosophy
               </button>
             </div>
           </div>
@@ -576,14 +606,14 @@ const HomePage = () => {
         </div>
       )}
 
-      {/* Process Details Modal */}
-      {processModalOpen && (
+      {/* Philosophy Details Modal */}
+      {philosophyModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8">
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold">Our Learning Process</h3>
+              <h3 className="text-2xl font-bold">Our Philosophy: The Process Is The Goal</h3>
               <button
-                onClick={() => setProcessModalOpen(false)}
+                onClick={() => setPhilosophyModalOpen(false)}
                 className="text-gray-500 hover:text-gray-700"
                 aria-label="Close modal"
               >
@@ -592,30 +622,72 @@ const HomePage = () => {
             </div>
             
             <div className="space-y-6">
-              <div>
-                <h4 className="text-xl font-semibold mb-3 text-[#ef597b]">1. Pick a Quest</h4>
-                <p className="text-gray-700">Choose from our library of quests that match your interests. From coding to cooking, music to mathematics - follow your curiosity.</p>
+              <div className="p-4 bg-gradient-to-r from-[#ef597b]/5 to-[#6d469b]/5 rounded-lg">
+                <p className="text-lg font-semibold text-gray-800 mb-2">Core Belief</p>
+                <p className="text-gray-700">
+                  Learning is not about reaching a destination or impressing others. It's about who you become through the journey of discovery, creation, and growth. Every quest, every piece of evidence is valuable because of what it teaches you RIGHT NOW, not what it might prove later.
+                </p>
               </div>
               
               <div>
-                <h4 className="text-xl font-semibold mb-3 text-[#6d469b]">2. Complete Tasks</h4>
-                <p className="text-gray-700">Each quest has specific tasks to complete. Work at your own pace, taking as much time as you need to truly understand and create.</p>
+                <h4 className="text-xl font-semibold mb-3 text-[#ef597b]">Present-Focused Value</h4>
+                <p className="text-gray-700 mb-3">
+                  We don't say "This will help you in the future." We say "This is helping you grow right now."
+                </p>
+                <p className="text-gray-700">
+                  Your learning matters today. Each skill you build, each idea you explore, each creation you make enriches your life in this moment. The value isn't postponed to some future job or college application – it's immediate and real.
+                </p>
               </div>
               
               <div>
-                <h4 className="text-xl font-semibold mb-3 text-[#ef597b]">3. Upload Evidence</h4>
-                <p className="text-gray-700">Document your work with photos, videos, code repositories, or written reflections. This becomes part of your permanent portfolio.</p>
+                <h4 className="text-xl font-semibold mb-3 text-[#6d469b]">Internal Motivation Over External Validation</h4>
+                <p className="text-gray-700 mb-3">
+                  The platform celebrates personal growth, curiosity, and creation for its own sake. We focus on how learning FEELS, not how it LOOKS.
+                </p>
+                <ul className="space-y-2 text-gray-700">
+                  <li>• "You're discovering what you're capable of" (not "proving your capabilities")</li>
+                  <li>• "Your creativity is flourishing" (not "showcasing your creativity")</li>
+                  <li>• "You're becoming more yourself" (not "standing out from others")</li>
+                </ul>
               </div>
               
               <div>
-                <h4 className="text-xl font-semibold mb-3 text-[#6d469b]">4. Earn Your Badge</h4>
-                <p className="text-gray-700">Complete all tasks to earn XP and badges. Your achievements are permanently recorded on your diploma, ready to share with the world.</p>
+                <h4 className="text-xl font-semibold mb-3 text-[#ef597b]">Process Celebration</h4>
+                <p className="text-gray-700">
+                  Every step is valuable. We celebrate attempts, effort, and learning from mistakes as much as completion. Mistakes are expected and celebrated. Your consistency is beautiful. You're in a learning flow state.
+                </p>
+              </div>
+              
+              <div>
+                <h4 className="text-xl font-semibold mb-3 text-[#6d469b]">What This Means For You</h4>
+                <ul className="space-y-3 text-gray-700">
+                  <li className="flex items-start">
+                    <span className="text-green-500 mr-2">✓</span>
+                    <span>Learn at your own pace – there's no "falling behind"</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-green-500 mr-2">✓</span>
+                    <span>Follow your curiosity, not a prescribed path</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-green-500 mr-2">✓</span>
+                    <span>Create for the joy of creating, not for grades</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-green-500 mr-2">✓</span>
+                    <span>Build skills that matter to you personally</span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="text-green-500 mr-2">✓</span>
+                    <span>Celebrate growth, not comparison</span>
+                  </li>
+                </ul>
               </div>
             </div>
             
             <div className="mt-6 bg-blue-50 p-4 rounded-lg">
               <p className="text-sm text-blue-800">
-                <strong>Remember:</strong> The process is the goal. It's not about rushing through quests, but about genuine learning and growth.
+                <strong>Remember:</strong> You're already enough. You're growing at the perfect pace. You're creating something meaningful. The diploma is not the goal – it's the beautiful byproduct of a meaningful learning journey.
               </p>
             </div>
             
@@ -624,7 +696,7 @@ const HomePage = () => {
                 to="/demo"
                 className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all"
               >
-                See It In Action
+                Experience It Yourself
               </Link>
             </div>
           </div>
