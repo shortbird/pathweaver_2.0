@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import Button from '../../ui/Button';
+import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings';
 
 const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   const navigate = useNavigate();
@@ -16,15 +17,11 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   // Get dominant pillar for visual accent
   const pillarBreakdown = quest.pillar_breakdown || {};
   const dominantPillar = Object.entries(pillarBreakdown).reduce((max, [pillar, xp]) => 
-    xp > (max.xp || 0) ? { pillar, xp } : max, {}).pillar || 'creativity';
+    xp > (max.xp || 0) ? { pillar, xp } : max, {}).pillar || 'arts_creativity';
 
-  const pillarColors = {
-    creativity: { gradient: 'from-purple-500 to-pink-500', bg: 'bg-purple-100', text: 'text-purple-700' },
-    critical_thinking: { gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-100', text: 'text-blue-700' },
-    practical_skills: { gradient: 'from-green-500 to-emerald-500', bg: 'bg-green-100', text: 'text-green-700' },
-    communication: { gradient: 'from-orange-500 to-yellow-500', bg: 'bg-orange-100', text: 'text-orange-700' },
-    cultural_literacy: { gradient: 'from-red-500 to-rose-500', bg: 'bg-red-100', text: 'text-red-700' }
-  };
+  // Get pillar data safely - handles both old and new pillar keys
+  const dominantPillarData = getPillarData(dominantPillar);
+  const dominantPillarGradient = getPillarGradient(dominantPillar);
 
 
   const handleEnroll = async (e) => {
@@ -61,7 +58,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
       onClick={handleCardClick}
     >
       {/* Visual Header - Smaller and more subtle */}
-      <div className={`h-2 bg-gradient-to-r ${pillarColors[dominantPillar].gradient}`} />
+      <div className={`h-2 bg-gradient-to-r ${dominantPillarGradient}`} />
       
       {/* Content Section */}
       <div className="p-6">
@@ -89,7 +86,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
         <div className="mb-5">
           {/* Total XP Badge */}
           <div className="flex items-center gap-2 mb-3">
-            <div className={`px-3 py-1.5 rounded-full bg-gradient-to-r ${pillarColors[dominantPillar].gradient} text-white text-sm font-bold shadow-md`}>
+            <div className={`px-3 py-1.5 rounded-full bg-gradient-to-r ${dominantPillarGradient} text-white text-sm font-bold shadow-md`}>
               {totalXP} Total XP
             </div>
           </div>
@@ -100,15 +97,18 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
               {Object.entries(pillarBreakdown)
                 .filter(([_, xp]) => xp > 0)
                 .sort(([_, a], [__, b]) => b - a)
-                .map(([pillar, xp]) => (
-                  <div 
-                    key={pillar}
-                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${pillarColors[pillar]?.bg || 'bg-gray-100'} ${pillarColors[pillar]?.text || 'text-gray-700'} text-xs font-medium`}
-                  >
-                    <span className="capitalize">{pillar.replace('_', ' ')}</span>
-                    <span className="font-bold">+{xp}</span>
-                  </div>
-                ))}
+                .map(([pillar, xp]) => {
+                  const pillarData = getPillarData(pillar);
+                  return (
+                    <div 
+                      key={pillar}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${pillarData.bg} ${pillarData.text} text-xs font-medium`}
+                    >
+                      <span>{pillarData.name}</span>
+                      <span className="font-bold">+{xp}</span>
+                    </div>
+                  );
+                })}
             </div>
           )}
         </div>
