@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Play, Sparkles, Trophy, Info, X } from 'lucide-react'
+import { PhilosophySection } from '../components/ui/PhilosophyCard'
 
 const HomePage = () => {
   const { isAuthenticated } = useAuth()
@@ -227,76 +228,7 @@ const HomePage = () => {
       </div>
 
       {/* Our Philosophy Section */}
-      <div className="py-16 sm:py-20 bg-white relative overflow-hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
-          <div className="text-center mb-12 sm:mb-16">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-6">The Process Is The Goal</h2>
-            <p className="text-lg sm:text-xl text-gray-700 max-w-3xl mx-auto">
-              Focus on the journey of learning, not the destination of a credential.
-            </p>
-            <p className="text-base text-gray-600 max-w-2xl mx-auto mt-4">
-              Every quest, every creation, every discovery matters because of what it teaches you right now.
-            </p>
-          </div>
-          
-          {/* Philosophy pillars */}
-          <div className="max-w-5xl mx-auto">
-            <div className="grid md:grid-cols-3 gap-8">
-              <div className="text-center p-6 rounded-xl bg-gradient-to-br from-purple-50 to-blue-50">
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
-                  <span className="text-2xl" aria-hidden="true">🌱</span>
-                </div>
-                <h3 className="text-xl font-bold mb-3 text-gray-800">Present-Focused Value</h3>
-                <p className="text-gray-600">
-                  Your learning is valuable now, not someday. Each skill you build, each idea you explore enriches your life today.
-                </p>
-              </div>
-              
-              <div className="text-center p-6 rounded-xl bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
-                  <span className="text-2xl" aria-hidden="true">✨</span>
-                </div>
-                <h3 className="text-xl font-bold mb-3 text-gray-800">Growth Over Achievement</h3>
-                <p className="text-gray-600">
-                  Celebrate attempts, effort, and learning from mistakes. Every step forward is progress, regardless of the outcome.
-                </p>
-              </div>
-              
-              <div className="text-center p-6 rounded-xl bg-gradient-to-br from-green-50 to-emerald-50">
-                <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
-                  <span className="text-2xl" aria-hidden="true">💫</span>
-                </div>
-                <h3 className="text-xl font-bold mb-3 text-gray-800">Internal Motivation</h3>
-                <p className="text-gray-600">
-                  Learn for the joy of discovery, not external validation. Your curiosity and creativity are the real rewards.
-                </p>
-              </div>
-            </div>
-            
-            {/* Core message */}
-            <div className="mt-12 p-8 bg-gradient-to-r from-[#ef597b]/5 to-[#6d469b]/5 rounded-xl text-center">
-              <p className="text-xl font-semibold text-gray-800 mb-4">
-                "You're not building a resume. You're becoming who you're meant to be."
-              </p>
-              <p className="text-gray-600 max-w-2xl mx-auto">
-                The diploma isn't the goal – it's the beautiful byproduct of a meaningful learning journey. 
-                Every quest you complete, every skill you develop, transforms you in ways that matter right now.
-              </p>
-            </div>
-            
-            {/* Learn more button */}
-            <div className="text-center mt-8">
-              <button
-                onClick={() => setPhilosophyModalOpen(true)}
-                className="inline-flex items-center text-[#ef597b] hover:text-[#e54469] font-medium"
-              >
-                <Info className="mr-2 w-4 h-4" aria-hidden="true" />
-                Read Our Full Philosophy
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
+      <PhilosophySection onPhilosophyModalOpen={() => setPhilosophyModalOpen(true)} />
 
       {/* Simplified Pricing with Modal */}
       <div className="py-16 bg-gray-50">
