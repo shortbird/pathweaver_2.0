@@ -1,17 +1,16 @@
 import React, { useEffect } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
 import DemoHero from './DemoHero';
-import PersonaSelector from './PersonaSelector';
-import DiplomaIntroduction from './DiplomaIntroduction';
-import QuestExperience from './QuestExperience';
-import DiplomaCertificate from './DiplomaCertificate';
-import ComparisonView from './ComparisonView';
+import QuestSelector from './QuestSelector';
+import WorkSubmission from './WorkSubmission';
+import DiplomaDemoDisplay from './DiplomaDemoDisplay';
+import ValidationComparison from './ValidationComparison';
 import ConversionPanel from './ConversionPanel';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 
 const DemoFeature = () => {
   const { demoState, actions } = useDemo();
-  const { currentStep, persona } = demoState;
+  const { currentStep } = demoState;
 
   useEffect(() => {
     // Track demo start
@@ -22,7 +21,7 @@ const DemoFeature = () => {
 
   useEffect(() => {
     // Scroll to top when step changes
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [currentStep]);
 
   const renderStep = () => {
@@ -30,54 +29,59 @@ const DemoFeature = () => {
       case 0:
         return <DemoHero onStart={() => actions.nextStep()} />;
       case 1:
-        return <PersonaSelector />;
+        return <QuestSelector />;
       case 2:
-        return <DiplomaIntroduction />;
+        return <WorkSubmission />;
       case 3:
-        return <QuestExperience />;
+        return <DiplomaDemoDisplay />;
       case 4:
-        return <DiplomaCertificate />;
+        return <ValidationComparison />;
       case 5:
-        return <ComparisonView />;
-      case 6:
         return <ConversionPanel />;
       default:
         return <DemoHero onStart={() => actions.nextStep()} />;
     }
   };
 
-  const getStepTitle = () => {
-    const titles = [
-      'Welcome to Optio',
-      'Who are you?',
-      'Understanding Your Diploma',
-      'Experience a Quest',
-      'Your Optio Portfolio Diploma',
-      'See the Difference',
-      'Start Your Journey'
+  const getStepInfo = () => {
+    const steps = [
+      { title: 'Welcome', subtitle: 'Get Your Diploma Day 1' },
+      { title: 'Choose Your Quests', subtitle: 'Start Multiple Learning Paths' },
+      { title: 'Submit Your Work', subtitle: 'Public or Confidential' },
+      { title: 'Your Living Diploma', subtitle: 'See It Fill with Achievements' },
+      { title: 'Student vs Teacher Validation', subtitle: 'Why Public Work Matters' },
+      { title: 'Start Your Journey', subtitle: 'Join Optio Today' }
     ];
-    return titles[currentStep] || '';
+    return steps[currentStep] || steps[0];
   };
 
-  const canGoBack = currentStep > 0 && currentStep < 7;
-  const canGoForward = currentStep > 1 && currentStep < 6 && 
-    (currentStep !== 3 || demoState.completedTasks.length > 0);
+  const canGoBack = currentStep > 0 && currentStep < 5;
+  const canGoForward = currentStep > 0 && currentStep < 4 && 
+    (currentStep !== 1 || demoState.selectedQuests.length > 0);
+
+  const stepInfo = getStepInfo();
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#6d469b]/5 via-white to-[#ef597b]/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Progress Indicator */}
-        {currentStep > 0 && currentStep <= 6 && (
+        {/* Progress Header */}
+        {currentStep > 0 && currentStep <= 5 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-2xl font-bold text-[#003f5c]">{getStepTitle()}</h2>
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-gray-600">Step {currentStep} of 6</span>
+              <div>
+                <h2 className="text-3xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+                  {stepInfo.title}
+                </h2>
+                <p className="text-gray-600 mt-1">{stepInfo.subtitle}</p>
+              </div>
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-600">Step {currentStep} of 5</span>
                 <button
                   onClick={actions.resetDemo}
-                  className="text-sm text-[#6d469b] hover:underline"
+                  className="flex items-center gap-1 text-sm text-[#6d469b] hover:underline"
                 >
-                  Restart Demo
+                  <RotateCcw className="w-4 h-4" />
+                  Restart
                 </button>
               </div>
             </div>
@@ -86,7 +90,7 @@ const DemoFeature = () => {
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
               <div 
                 className="h-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] transition-all duration-500"
-                style={{ width: `${(currentStep / 6) * 100}%` }}
+                style={{ width: `${(currentStep / 5) * 100}%` }}
               />
             </div>
           </div>
@@ -98,37 +102,35 @@ const DemoFeature = () => {
             {renderStep()}
           </div>
 
-          {/* Navigation */}
-          {(canGoBack || canGoForward) && (
+          {/* Navigation Buttons */}
+          {currentStep > 0 && (
             <div className="flex justify-between mt-6">
               <button
                 onClick={actions.previousStep}
                 disabled={!canGoBack}
-                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all
                   ${canGoBack 
-                    ? 'bg-gray-100 hover:bg-gray-200 text-gray-700' 
-                    : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}
+                    ? 'bg-white text-[#6d469b] border-2 border-[#6d469b] hover:bg-[#6d469b]/10' 
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
               >
                 <ChevronLeft className="w-5 h-5" />
                 Back
               </button>
 
               <button
-                onClick={currentStep === 6 ? actions.resetDemo : actions.nextStep}
-                disabled={currentStep === 6 ? false : !canGoForward}
-                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all
-                  ${(currentStep === 6 || canGoForward) 
-                    ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg' 
-                    : 'bg-gray-50 text-gray-400 cursor-not-allowed'}`}
+                onClick={actions.nextStep}
+                disabled={!canGoForward}
+                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all
+                  ${canGoForward 
+                    ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg transform hover:scale-105' 
+                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
               >
-                {currentStep === 6 ? 'Exit Demo' : 'Next'}
+                Continue
                 <ChevronRight className="w-5 h-5" />
               </button>
             </div>
           )}
         </div>
-
-        {/* Demo Timer */}
       </div>
     </div>
   );

@@ -70,6 +70,7 @@ const initialState = {
   showAccreditedOption: false,
   currentStep: 0,
   selectedQuest: null,
+  selectedQuests: [], // For multiple quest starts
   completedTasks: [],
   earnedXP: {
     creativity: 0,
@@ -86,7 +87,18 @@ const initialState = {
   generatedDiploma: null,
   subscriptionTier: 'free',
   demoStartTime: null,
-  interactions: []
+  interactions: [],
+  // Modal states
+  modals: {
+    studentValidation: false,
+    questLibrary: false,
+    publicAccountability: false,
+    processPhilosophy: false,
+    teacherComparison: false
+  },
+  // Work submission states
+  submittedWork: [],
+  workVisibility: {} // questId -> { taskId: 'public' | 'confidential' }
 };
 
 export const DemoProvider = ({ children }) => {
@@ -200,19 +212,80 @@ export const DemoProvider = ({ children }) => {
     }));
   }, []);
 
+  // Modal management
+  const openModal = useCallback((modalName) => {
+    setDemoState(prev => ({
+      ...prev,
+      modals: { ...prev.modals, [modalName]: true }
+    }));
+  }, []);
+
+  const closeModal = useCallback((modalName) => {
+    setDemoState(prev => ({
+      ...prev,
+      modals: { ...prev.modals, [modalName]: false }
+    }));
+  }, []);
+
+  // Multiple quest selection
+  const toggleQuestSelection = useCallback((questId) => {
+    setDemoState(prev => {
+      const quest = DEMO_QUESTS.find(q => q.id === questId);
+      const isSelected = prev.selectedQuests.some(q => q.id === questId);
+      
+      if (isSelected) {
+        return {
+          ...prev,
+          selectedQuests: prev.selectedQuests.filter(q => q.id !== questId)
+        };
+      } else if (prev.selectedQuests.length < 4) { // Limit to 4 quests
+        return {
+          ...prev,
+          selectedQuests: [...prev.selectedQuests, quest]
+        };
+      }
+      return prev;
+    });
+  }, []);
+
+  // Work submission with visibility
+  const submitWork = useCallback((questId, taskId, work, visibility = 'public') => {
+    setDemoState(prev => ({
+      ...prev,
+      submittedWork: [...prev.submittedWork, {
+        questId,
+        taskId,
+        work,
+        visibility,
+        timestamp: Date.now()
+      }],
+      workVisibility: {
+        ...prev.workVisibility,
+        [questId]: {
+          ...prev.workVisibility[questId],
+          [taskId]: visibility
+        }
+      }
+    }));
+  }, []);
+
   const value = {
     demoState,
     demoQuests: DEMO_QUESTS,
     actions: {
       selectPersona,
       selectQuest,
+      toggleQuestSelection,
       completeTask,
+      submitWork,
       generateDiploma,
       showVisionaryTier,
       nextStep,
       previousStep,
       resetDemo,
-      trackInteraction
+      trackInteraction,
+      openModal,
+      closeModal
     }
   };
 

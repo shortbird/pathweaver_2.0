@@ -1,31 +1,160 @@
-import React, { useState, useEffect } from 'react';
-import { Play, Clock, Award, Users, Sparkles } from 'lucide-react';
+import React, { useState } from 'react';
+import { Play, Sparkles, GraduationCap, Globe, CheckCircle, Info } from 'lucide-react';
+import InfoModal from './InfoModal';
+import { useDemo } from '../../contexts/DemoContext';
 
 const DemoHero = ({ onStart }) => {
-  const [isHovered, setIsHovered] = useState(false);
-  const [currentTestimonial, setCurrentTestimonial] = useState(0);
+  const { actions } = useDemo();
+  const [hoveredCard, setHoveredCard] = useState(null);
+  const [activeModal, setActiveModal] = useState(null);
 
-  const testimonials = [
+  const features = [
     {
-      text: "My son went from failing grades to launching his own app. Optio changed everything.",
-      author: "Sarah M., Parent"
+      icon: <GraduationCap className="w-8 h-8" />,
+      title: "Diploma Day 1",
+      subtitle: "You make it impressive",
+      modalKey: 'diplomaDay1',
+      color: "from-[#ef597b] to-[#ff7a9a]"
     },
     {
-      text: "I finally get credit for all the real projects I do outside of boring textbooks!",
-      author: "Alex, 16, Homeschooler"
+      icon: <Globe className="w-8 h-8" />,
+      title: "Student Validation",
+      subtitle: "Public accountability",
+      modalKey: 'studentValidation',
+      color: "from-[#6d469b] to-[#8a6bb8]"
     },
     {
-      text: "The accredited diploma option gave us the best of both worlds.",
-      author: "Michael R., Parent"
+      icon: <CheckCircle className="w-8 h-8" />,
+      title: "Real Work",
+      subtitle: "Not grades",
+      modalKey: 'realWork',
+      color: "from-[#ef597b] to-[#6d469b]"
     }
   ];
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTestimonial((prev) => (prev + 1) % testimonials.length);
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const modalContent = {
+    diplomaDay1: {
+      title: "Get Your Diploma on Day 1",
+      content: (
+        <div className="space-y-4">
+          <p className="text-lg font-medium text-gray-800">
+            Start with your diploma, then make it impressive through real learning.
+          </p>
+          <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-lg p-4">
+            <h4 className="font-semibold mb-2">How it works:</h4>
+            <ul className="space-y-2 text-gray-700">
+              <li className="flex items-start gap-2">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <span>Your diploma exists from the moment you join</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <span>Complete quests to fill it with real achievements</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <CheckCircle className="w-5 h-5 text-green-500 mt-0.5" />
+                <span>Share your public portfolio with colleges & employers</span>
+              </li>
+            </ul>
+          </div>
+        </div>
+      )
+    },
+    studentValidation: {
+      title: "Student Validation Through Public Accountability",
+      content: (
+        <div className="space-y-4">
+          <p className="text-lg font-medium text-gray-800">
+            Students validate their own learning by making work public.
+          </p>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="border-2 border-red-200 rounded-lg p-4 bg-red-50">
+              <h4 className="font-semibold text-red-800 mb-2">Teacher Validation</h4>
+              <ul className="space-y-1 text-sm text-gray-700">
+                <li>• Hidden assignments</li>
+                <li>• Private grades</li>
+                <li>• Trust the institution</li>
+              </ul>
+            </div>
+            <div className="border-2 border-green-200 rounded-lg p-4 bg-green-50">
+              <h4 className="font-semibold text-green-800 mb-2">Student Validation</h4>
+              <ul className="space-y-1 text-sm text-gray-700">
+                <li>• Public portfolio</li>
+                <li>• Visible quality</li>
+                <li>• Trust the work</li>
+              </ul>
+            </div>
+          </div>
+          <p className="text-sm text-gray-600 italic">
+            Quality naturally emerges when work is public. Students can choose to keep sensitive work confidential.
+          </p>
+        </div>
+      )
+    },
+    realWork: {
+      title: "Real Work Speaks Louder Than Grades",
+      content: (
+        <div className="space-y-4">
+          <p className="text-lg font-medium text-gray-800">
+            Show what you can actually do, not just a letter grade.
+          </p>
+          <div className="space-y-3">
+            <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+              <span className="text-2xl font-bold text-gray-400">B+</span>
+              <span className="text-gray-600">vs</span>
+              <span className="text-lg font-medium text-[#6d469b]">25 Recipe Family Cookbook</span>
+            </div>
+            <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+              <span className="text-2xl font-bold text-gray-400">A-</span>
+              <span className="text-gray-600">vs</span>
+              <span className="text-lg font-medium text-[#ef597b]">Working Calculator App</span>
+            </div>
+            <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+              <span className="text-2xl font-bold text-gray-400">B</span>
+              <span className="text-gray-600">vs</span>
+              <span className="text-lg font-medium text-[#6d469b]">Community Documentary</span>
+            </div>
+          </div>
+          <p className="text-sm text-gray-600 italic">
+            Which tells you more about a student's abilities?
+          </p>
+        </div>
+      )
+    },
+    howItWorks: {
+      title: "The Process Is The Goal",
+      content: (
+        <div className="space-y-4">
+          <p className="text-lg font-medium text-gray-800">
+            Learning happens through the process, the diploma is just the record.
+          </p>
+          <div className="space-y-3">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] flex items-center justify-center text-white font-bold">1</div>
+              <div>
+                <h4 className="font-semibold">Choose from 100+ Quests</h4>
+                <p className="text-sm text-gray-600">Pick projects that match your interests</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] flex items-center justify-center text-white font-bold">2</div>
+              <div>
+                <h4 className="font-semibold">Complete Tasks & Submit Work</h4>
+                <p className="text-sm text-gray-600">Create real things, document your process</p>
+              </div>
+            </div>
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] flex items-center justify-center text-white font-bold">3</div>
+              <div>
+                <h4 className="font-semibold">Build Your Public Portfolio</h4>
+                <p className="text-sm text-gray-600">Your diploma fills with actual achievements</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )
+    }
+  };
 
   return (
     <div className="relative overflow-hidden">
@@ -36,85 +165,88 @@ const DemoHero = ({ onStart }) => {
       </div>
 
       <div className="text-center space-y-8">
-        {/* Main Headline */}
-        <div className="space-y-4">
+        {/* Main Headline - Minimal */}
+        <div className="space-y-3">
           <h1 className="text-5xl md:text-6xl font-bold text-[#003f5c] leading-tight">
-            Turn Real-World Projects Into
-            <span className="block bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent pb-2">
-              Academic Credit
+            Get Your Diploma
+            <span className="block bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+              Day 1
             </span>
           </h1>
           
-          <p className="text-xl text-gray-700 max-w-3xl mx-auto">
-            Watch how Optio students transform their passions into an impressive diploma 
-            that shows genuine skills & achievements.
+          <p className="text-xl text-gray-700">
+            You validate it through public work
           </p>
+          
+          <button
+            onClick={() => setActiveModal('howItWorks')}
+            className="inline-flex items-center gap-1 text-sm text-[#6d469b] hover:underline"
+          >
+            <Info className="w-4 h-4" />
+            Learn how it works
+          </button>
         </div>
 
-        {/* Value Props */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
-          <div className="bg-white/80 backdrop-blur rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <Award className="w-10 h-10 text-[#FFCA3A] mx-auto mb-3" />
-            <h3 className="font-semibold text-[#003f5c] mb-2">Real Achievements</h3>
-            <p className="text-sm text-gray-600">
-              Turn hobbies & projects into academic credit
-            </p>
-          </div>
-          
-          <div className="bg-white/80 backdrop-blur rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <Users className="w-10 h-10 text-[#6d469b] mx-auto mb-3" />
-            <h3 className="font-semibold text-[#003f5c] mb-2">Parent-Approved</h3>
-            <p className="text-sm text-gray-600">
-              Accredited diploma & teacher support options
-            </p>
-          </div>
-          
-          <div className="bg-white/80 backdrop-blur rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow">
-            <Clock className="w-10 h-10 text-[#ef597b] mx-auto mb-3" />
-            <h3 className="font-semibold text-[#003f5c] mb-2">2-Minute Demo</h3>
-            <p className="text-sm text-gray-600">
-              See the full experience in just minutes
-            </p>
-          </div>
+        {/* Feature Cards - Visual with Minimal Text */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-4xl mx-auto">
+          {features.map((feature, index) => (
+            <div
+              key={index}
+              className="relative group cursor-pointer"
+              onMouseEnter={() => setHoveredCard(index)}
+              onMouseLeave={() => setHoveredCard(null)}
+              onClick={() => setActiveModal(feature.modalKey)}
+            >
+              <div className={`absolute inset-0 bg-gradient-to-r ${feature.color} rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 blur-xl`} />
+              <div className="relative bg-white/90 backdrop-blur rounded-xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+                <div className={`inline-flex p-3 rounded-lg bg-gradient-to-r ${feature.color} text-white mb-3`}>
+                  {feature.icon}
+                </div>
+                <h3 className="font-bold text-[#003f5c] text-lg">{feature.title}</h3>
+                <p className="text-sm text-gray-600 mt-1">{feature.subtitle}</p>
+                <div className="mt-3 text-xs text-[#6d469b] font-medium flex items-center gap-1">
+                  Learn more
+                  <Info className="w-3 h-3" />
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* CTA Button */}
+        {/* CTA Button - Prominent */}
         <div className="relative">
           <button
             onClick={onStart}
-            onMouseEnter={() => setIsHovered(true)}
-            onMouseLeave={() => setIsHovered(false)}
             className="group relative px-12 py-6 bg-gradient-to-r from-[#ef597b] to-[#6d469b] 
                      text-white font-bold text-xl rounded-full shadow-xl 
                      hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
           >
             <span className="flex items-center gap-3">
-              <Play className={`w-6 h-6 ${isHovered ? 'animate-pulse' : ''}`} />
-              Start Interactive Demo
-              <Sparkles className={`w-5 h-5 ${isHovered ? 'animate-spin' : ''}`} />
+              <Play className="w-6 h-6 group-hover:animate-pulse" />
+              Try Interactive Demo
+              <Sparkles className="w-5 h-5 group-hover:animate-spin" />
             </span>
             
-            {/* Pulse Effect */}
             <span className="absolute inset-0 rounded-full bg-white/20 animate-pulse" />
           </button>
           
-          <p className="mt-4 text-sm text-gray-500">
-            No signup required • Free to explore
+          <p className="mt-3 text-sm text-gray-500">
+            2-minute experience • No signup required
           </p>
         </div>
-
-        {/* Social Proof - Testimonial Only */}
-        <div className="mt-12 p-6 bg-gradient-to-r from-[#6d469b]/5 to-[#ef597b]/5 rounded-2xl">
-          <div className="text-center">
-            <p className="text-lg italic text-gray-700 mb-2">
-              "{testimonials[currentTestimonial].text}"
-            </p>
-            <p className="text-sm text-gray-500">
-              — {testimonials[currentTestimonial].author}
-            </p>
-          </div>
-        </div>
       </div>
+
+      {/* Modals */}
+      {Object.entries(modalContent).map(([key, modal]) => (
+        <InfoModal
+          key={key}
+          isOpen={activeModal === key}
+          onClose={() => setActiveModal(null)}
+          title={modal.title}
+        >
+          {modal.content}
+        </InfoModal>
+      ))}
     </div>
   );
 };
