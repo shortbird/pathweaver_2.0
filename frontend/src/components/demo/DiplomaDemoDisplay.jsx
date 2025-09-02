@@ -56,6 +56,10 @@ const DiplomaDemoDisplay = () => {
 
   const xpData = calculateXP();
   const totalXP = Object.values(xpData).reduce((sum, val) => sum + val, 0);
+  
+  // Calculate max value for radar chart scale
+  const maxXP = Math.max(...Object.values(xpData), 100);
+  const radarMax = Math.ceil(maxXP / 100) * 100; // Round up to nearest 100
 
   // Radar chart data
   const radarData = {
@@ -94,7 +98,7 @@ const DiplomaDemoDisplay = () => {
     scales: {
       r: {
         beginAtZero: true,
-        max: 200,
+        max: radarMax,
         ticks: { display: false },
         grid: { color: 'rgba(0, 0, 0, 0.1)' }
       }

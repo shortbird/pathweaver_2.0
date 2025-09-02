@@ -9,67 +9,62 @@ import {
 const ConversionPanel = () => {
   const { demoState, actions } = useDemo();
   const navigate = useNavigate();
-  const [selectedTier, setSelectedTier] = useState('creator');
+  const [selectedTier, setSelectedTier] = useState('supported');
   const [email, setEmail] = useState('');
 
   const tiers = [
     {
-      id: 'explorer',
-      name: 'Explorer',
+      id: 'free',
+      name: 'Free',
       price: '$0',
-      period: '/month',
-      description: 'Start your diploma journey',
+      period: '',
+      description: 'Perfect for exploring the platform',
       features: [
-        'Get your diploma on Day 1',
-        'Browse 100+ quests',
-        'Track quest progress',
-        'Basic public portfolio',
-        'Limited to 3 active quests'
+        'Access quest library',
+        'Track ongoing quests',
+        'Mark tasks complete (no evidence submission)'
       ],
       limitations: [
-        'No work submission',
-        'No XP earning',
-        'No skills radar chart'
+        'XP earned',
+        'Optio Portfolio Diploma'
       ],
       cta: 'Start Free',
       recommended: false
     },
     {
-      id: 'creator',
-      name: 'Creator',
-      price: '$19',
-      period: '/month',
-      description: 'Build your public portfolio',
+      id: 'supported',
+      name: 'Supported',
+      price: '$39.99',
+      period: '/mo',
+      description: 'For dedicated learners ready to grow',
       features: [
-        'Everything in Explorer, plus:',
-        'Submit unlimited public work',
-        'Earn XP across all 5 pillars',
-        'Full public diploma with radar chart',
-        'Unlimited active quests',
-        'Confidential work option',
-        'Share diploma URL'
+        'Everything in Free, plus:',
+        'Access to a support team of Optio educators',
+        'Unlimited access to all Optio quest features',
+        'Team up with other Supported learners for XP bonuses',
+        'Optio Portfolio Diploma'
       ],
-      limitations: [],
-      cta: 'Become a Creator',
+      limitations: [
+        'Traditionally-accredited Diploma'
+      ],
+      cta: 'Get Supported',
       recommended: true
     },
     {
-      id: 'visionary',
-      name: 'Visionary',
-      price: '$99',
-      period: '/month',
-      description: 'Get support & accreditation',
+      id: 'academy',
+      name: 'Academy',
+      price: '$499.99',
+      period: '/mo',
+      description: 'A personalized private school experience',
       features: [
-        'Everything in Creator, plus:',
-        'Weekly 1-on-1 mentor sessions',
-        'Accredited high school diploma',
-        'Priority quest suggestions',
-        'College application support',
-        'Transcript services',
-        'Parent dashboard access'
+        'Everything in Supported, plus:',
+        'TWO diplomas: Optio Portfolio + Accredited HS Diploma',
+        'Personal learning guide & 1-on-1 teacher support',
+        'Regular check-ins with licensed educators',
+        "Connect with Optio's network of business leaders and mentors"
       ],
       limitations: [],
-      cta: 'Join Visionary',
+      cta: 'Join Academy',
       recommended: false,
       badge: 'ACCREDITED'
     }
@@ -104,20 +99,6 @@ const ConversionPanel = () => {
         <p className="text-xl text-gray-700 max-w-3xl mx-auto">
           You've seen how student validation works. Join thousands building impressive portfolios through public accountability.
         </p>
-        
-        {/* Demo Summary */}
-        {workSubmitted > 0 && (
-          <div className="inline-flex items-center gap-6 px-6 py-3 bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-full">
-            <div className="flex items-center gap-2">
-              <Globe className="w-5 h-5 text-[#6d469b]" />
-              <span className="text-sm font-medium">{publicWork} Public Submissions</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-[#ef597b]" />
-              <span className="text-sm font-medium">{demoState.selectedQuests.length} Quests Started</span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Pricing Tiers */}
@@ -149,40 +130,40 @@ const ConversionPanel = () => {
             )}
 
             {/* Tier Header */}
-            <div className="text-center mb-6 pt-2">
-              <h3 className="text-2xl font-bold text-[#003f5c] mb-2">{tier.name}</h3>
-              <div className="flex items-baseline justify-center gap-1">
-                <span className="text-4xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
-                  {tier.price}
-                </span>
-                <span className="text-gray-600">{tier.period}</span>
-              </div>
-              <p className="text-sm text-gray-600 mt-2">{tier.description}</p>
+            <div className="mb-6 pt-2">
+              <h3 className="text-2xl font-bold mb-2">{tier.name}</h3>
+              <p className="text-3xl font-bold mb-1">
+                {tier.price}
+                {tier.period && <span className="text-lg font-normal text-gray-600">{tier.period}</span>}
+              </p>
+              <p className="text-gray-600">{tier.description}</p>
             </div>
 
             {/* Features */}
-            <div className="space-y-3 mb-6">
-              {tier.features.map((feature, index) => (
-                <div key={index} className="flex items-start gap-2">
-                  <CheckCircle className={`w-5 h-5 flex-shrink-0 mt-0.5
-                    ${feature.includes('Accredited') ? 'text-green-500' : 'text-[#6d469b]'}`} />
-                  <span className={`text-sm ${
-                    feature.includes('Everything in') ? 'font-semibold text-gray-800' : 'text-gray-700'
-                  }`}>
-                    {feature}
-                  </span>
-                </div>
-              ))}
-              
-              {/* Limitations */}
-              {tier.limitations.map((limitation, index) => (
-                <div key={`limit-${index}`} className="flex items-start gap-2">
-                  <X className="w-5 h-5 flex-shrink-0 mt-0.5 text-gray-400" />
-                  <span className="text-sm text-gray-500 line-through">
-                    {limitation}
-                  </span>
-                </div>
-              ))}
+            <div className="mb-6">
+              {tier.features[0]?.includes('Everything in') && (
+                <div className="text-sm font-semibold text-[#ef597b] mb-3">{tier.features[0]}</div>
+              )}
+              <ul className="space-y-3">
+                {tier.features.slice(tier.features[0]?.includes('Everything in') ? 1 : 0).map((feature, index) => (
+                  <li key={index} className="flex items-start">
+                    <CheckCircle className="w-5 h-5 text-green-500 mr-2 flex-shrink-0 mt-0.5" />
+                    <span className={`text-gray-700 ${feature.includes('TWO diplomas') || feature.includes('Optio Portfolio Diploma') ? 'font-semibold' : ''}`}>
+                      {feature}
+                    </span>
+                  </li>
+                ))}
+                
+                {/* Limitations */}
+                {tier.limitations.map((limitation, index) => (
+                  <li key={`limit-${index}`} className="flex items-start">
+                    <X className="w-5 h-5 text-gray-400 mr-2 flex-shrink-0 mt-0.5" />
+                    <span className="text-gray-500 line-through">
+                      {limitation}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
 
             {/* CTA Button */}

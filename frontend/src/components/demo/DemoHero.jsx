@@ -167,8 +167,8 @@ const DemoHero = ({ onStart }) => {
       <div className="text-center space-y-8">
         {/* Main Headline - Minimal */}
         <div className="space-y-3">
-          <h1 className="text-5xl md:text-6xl font-bold text-[#003f5c] leading-tight">
-            Get Your Diploma
+          <h1 className="text-5xl md:text-6xl font-bold text-[#003f5c]">
+            <span className="block mb-2">Get Your Diploma</span>
             <span className="block bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
               Day 1
             </span>

@@ -106,29 +106,29 @@ const DemoFeature = () => {
           {/* Navigation Buttons */}
           {currentStep > 0 && (
             <div className="flex justify-between mt-6">
-              <button
-                onClick={actions.previousStep}
-                disabled={!canGoBack}
-                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all
-                  ${canGoBack 
-                    ? 'bg-white text-[#6d469b] border-2 border-[#6d469b] hover:bg-[#6d469b]/10' 
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-              >
-                <ChevronLeft className="w-5 h-5" />
-                Back
-              </button>
+              {canGoBack && (
+                <button
+                  onClick={actions.previousStep}
+                  className="flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all bg-white text-[#6d469b] border-2 border-[#6d469b] hover:bg-[#6d469b]/10"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                  Back
+                </button>
+              )}
 
-              <button
-                onClick={actions.nextStep}
-                disabled={!canGoForward}
-                className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all
-                  ${canGoForward 
-                    ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg transform hover:scale-105' 
-                    : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
-              >
-                Continue
-                <ChevronRight className="w-5 h-5" />
-              </button>
+              {currentStep < 5 && (
+                <button
+                  onClick={actions.nextStep}
+                  disabled={!canGoForward}
+                  className={`flex items-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all ml-auto
+                    ${canGoForward 
+                      ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg transform hover:scale-105' 
+                      : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
+                >
+                  Continue
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              )}
             </div>
           )}
         </div>
