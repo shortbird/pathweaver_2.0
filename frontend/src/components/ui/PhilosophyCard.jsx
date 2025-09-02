@@ -52,34 +52,34 @@ const PhilosophyCard = ({
     >
       {/* Icon as background */}
       <div className={`absolute inset-0 bg-gradient-to-br ${gradientClasses} flex items-center justify-center transition-all duration-500`}>
-        <div className={`w-full h-full flex items-center justify-center transition-all duration-500 ${isHovered ? 'opacity-20 scale-110' : 'opacity-30'}`}>
-          <div className="w-32 h-32">
+        <div className={`w-full h-full flex items-center justify-center transition-all duration-500 ${isHovered ? 'opacity-20 scale-110' : 'opacity-40'}`}>
+          <div className="w-28 h-28 mt-4">
             {getIcon()}
           </div>
         </div>
       </div>
 
-      {/* Title - always visible */}
+      {/* Title - always visible at top */}
       <div className={`
-        absolute inset-0 flex items-center justify-center transition-all duration-500 ease-out
+        absolute top-0 left-0 right-0 p-4 transition-all duration-500 ease-out
         ${isHovered ? 'opacity-0 pointer-events-none' : 'opacity-100'}
       `}>
-        <h3 className="text-2xl font-bold text-gray-800 bg-white/90 backdrop-blur-sm px-6 py-3 rounded-lg shadow-lg">
+        <h3 className="text-lg font-bold text-gray-800 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg shadow-md inline-block">
           {title}
         </h3>
       </div>
 
       {/* Description - visible on hover */}
       <div className={`
-        absolute inset-0 flex items-center justify-center p-6 transition-all duration-500 ease-out
+        absolute inset-0 flex flex-col justify-center items-center p-6 transition-all duration-500 ease-out
         bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-sm
         ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}
       `}>
         <div className="text-center">
-          <h3 className="text-xl font-bold mb-3 text-transparent bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text">
+          <h3 className="text-lg font-bold mb-3 text-transparent bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text">
             {title}
           </h3>
-          <p className="text-gray-700 leading-relaxed font-medium">
+          <p className="text-sm text-gray-700 leading-relaxed font-medium">
             {description}
           </p>
         </div>
