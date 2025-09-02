@@ -6,17 +6,8 @@ import { PhilosophySection } from '../components/ui/PhilosophyCard'
 
 const HomePage = () => {
   const { isAuthenticated } = useAuth()
-  const [scrolled, setScrolled] = useState(false)
   const [pricingModalOpen, setPricingModalOpen] = useState(false)
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
-
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 400)
-    }
-    window.addEventListener('scroll', handleScroll)
-    return () => window.removeEventListener('scroll', handleScroll)
-  }, [])
 
   return (
     <div className="min-h-screen">
@@ -338,17 +329,6 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Floating CTA - removed emoji, better contrast */}
-      {!isAuthenticated && scrolled && (
-        <div className="fixed bottom-6 right-6 z-50 hidden lg:block animate-fade-in">
-          <Link 
-            to="/register" 
-            className="bg-[#ef597b] hover:bg-[#e54469] text-white px-6 py-3 rounded-full shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 flex items-center font-semibold"
-          >
-            Start Learning Today
-          </Link>
-        </div>
-      )}
 
       {/* Pricing Details Modal */}
       {pricingModalOpen && (
