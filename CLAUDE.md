@@ -17,6 +17,7 @@
 - **Avoid**: Yellow and orange colors - they clash with the brand gradient
 - **Tier Styling**: Academy tier "ACCREDITED" badge uses `bg-green-500`, centered at top
 - **Tier Layout**: All tier cards use flexbox with buttons aligned at bottom
+- **Favicon**: Located at `https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/logos/icon.jpg`
 
 ## Project Overview
 
