@@ -1,32 +1,14 @@
 import React from 'react';
+import { getPillarData, getPillarGradient } from '../../utils/pillarMappings';
 
 const SkillsBreakdown = ({ skillsXP }) => {
-  const pillarInfo = {
-    creativity: {
-      gradient: 'from-[#ef597b] to-[#ff8fa3]',
-      icon: '🎨',
-      description: 'Creative problem-solving and innovation'
-    },
-    critical_thinking: {
-      gradient: 'from-[#6d469b] to-[#8b5cf6]',
-      icon: '🧠',
-      description: 'Analytical reasoning and evaluation'
-    },
-    practical_skills: {
-      gradient: 'from-[#ef597b] to-[#f97316]',
-      icon: '🛠️',
-      description: 'Applied knowledge and technical skills'
-    },
-    communication: {
-      gradient: 'from-[#6d469b] to-[#3b82f6]',
-      icon: '💬',
-      description: 'Effective communication and teamwork'
-    },
-    cultural_literacy: {
-      gradient: 'from-[#ef597b] to-[#ec4899]',
-      icon: '🌍',
-      description: 'Cultural awareness and global perspective'
-    }
+  // Get pillar info for all pillars that have XP
+  const getPillarInfoForDisplay = (pillarKey) => {
+    const data = getPillarData(pillarKey);
+    return {
+      ...data,
+      gradient: getPillarGradient(pillarKey)
+    };
   };
 
   const totalXP = Object.values(skillsXP || {}).reduce((sum, xp) => sum + xp, 0);
@@ -51,8 +33,8 @@ const SkillsBreakdown = ({ skillsXP }) => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {Object.entries(pillarInfo).map(([pillar, info]) => {
-          const xp = skillsXP[pillar] || 0;
+        {Object.entries(skillsXP).map(([pillar, xp]) => {
+          const info = getPillarInfoForDisplay(pillar);
           const hasXP = xp > 0;
           
           return (

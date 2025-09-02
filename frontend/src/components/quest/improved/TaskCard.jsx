@@ -1,48 +1,19 @@
 import React, { useState } from 'react';
 import Button from '../../ui/Button';
+import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings';
 
 const TaskCard = ({ task, index, isCompleted, isEnrolled, onComplete, hasCollaboration }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
-  const pillarStyles = {
-    creativity: {
-      gradient: 'from-purple-500 to-pink-500',
-      bg: 'bg-purple-50',
-      border: 'border-purple-200',
-      text: 'text-purple-700',
-      icon: '🎨'
-    },
-    critical_thinking: {
-      gradient: 'from-blue-500 to-cyan-500',
-      bg: 'bg-blue-50',
-      border: 'border-blue-200',
-      text: 'text-blue-700',
-      icon: '🧠'
-    },
-    practical_skills: {
-      gradient: 'from-green-500 to-emerald-500',
-      bg: 'bg-green-50',
-      border: 'border-green-200',
-      text: 'text-green-700',
-      icon: '🛠️'
-    },
-    communication: {
-      gradient: 'from-orange-500 to-yellow-500',
-      bg: 'bg-orange-50',
-      border: 'border-orange-200',
-      text: 'text-orange-700',
-      icon: '💬'
-    },
-    cultural_literacy: {
-      gradient: 'from-red-500 to-rose-500',
-      bg: 'bg-red-50',
-      border: 'border-red-200',
-      text: 'text-red-700',
-      icon: '🌍'
-    }
+  // Get pillar data safely
+  const pillarData = getPillarData(task.pillar);
+  const style = {
+    gradient: getPillarGradient(task.pillar),
+    bg: pillarData.bg.replace('100', '50'),
+    border: pillarData.bg.replace('bg-', 'border-').replace('100', '200'),
+    text: pillarData.text,
+    icon: pillarData.icon
   };
-
-  const style = pillarStyles[task.pillar] || pillarStyles.creativity;
   const effectiveXP = hasCollaboration && task.is_collaboration_eligible 
     ? task.xp_amount * 2 
     : task.xp_amount;
