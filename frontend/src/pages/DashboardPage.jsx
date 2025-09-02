@@ -3,21 +3,12 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
-import { DIPLOMA_PILLARS, getPillarName } from '../utils/pillarMappings'
+import { DIPLOMA_PILLARS, getPillarName, getPillarData, getPillarGradient } from '../utils/pillarMappings'
 import { getTierDisplayName } from '../utils/tierMapping'
 
 // Memoized component for Active Quests section
 const ActiveQuests = memo(({ activeQuests }) => {
   const navigate = useNavigate()
-  
-  // Define pillar colors to match QuestCard
-  const pillarColors = {
-    creativity: { gradient: 'from-purple-500 to-pink-500', bg: 'bg-purple-100', text: 'text-purple-700' },
-    critical_thinking: { gradient: 'from-blue-500 to-cyan-500', bg: 'bg-blue-100', text: 'text-blue-700' },
-    practical_skills: { gradient: 'from-green-500 to-emerald-500', bg: 'bg-green-100', text: 'text-green-700' },
-    communication: { gradient: 'from-orange-500 to-yellow-500', bg: 'bg-orange-100', text: 'text-orange-700' },
-    cultural_literacy: { gradient: 'from-red-500 to-rose-500', bg: 'bg-red-100', text: 'text-red-700' }
-  }
   
   if (!activeQuests || activeQuests.length === 0) {
     return (
@@ -57,7 +48,10 @@ const ActiveQuests = memo(({ activeQuests }) => {
         
         // Get dominant pillar for visual accent
         const dominantPillar = Object.entries(pillarBreakdown).reduce((max, [pillar, xp]) => 
-          xp > (max.xp || 0) ? { pillar, xp } : max, {}).pillar || 'creativity'
+          xp > (max.xp || 0) ? { pillar, xp } : max, {}).pillar || 'arts_creativity'
+        
+        // Get pillar gradient safely
+        const dominantPillarGradient = getPillarGradient(dominantPillar)
         
         const handleCardClick = () => {
           navigate(`/quests/${questId}`)
@@ -70,7 +64,7 @@ const ActiveQuests = memo(({ activeQuests }) => {
             onClick={handleCardClick}
           >
             {/* Visual Header - Colored bar at top */}
-            <div className={`h-2 bg-gradient-to-r ${pillarColors[dominantPillar].gradient}`} />
+            <div className={`h-2 bg-gradient-to-r ${dominantPillarGradient}`} />
             
             {/* Content Section */}
             <div className="p-6">
@@ -110,7 +104,7 @@ const ActiveQuests = memo(({ activeQuests }) => {
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                   <div 
-                    className={`h-full bg-gradient-to-r ${pillarColors[dominantPillar].gradient} rounded-full transition-all duration-500`}
+                    className={`h-full bg-gradient-to-r ${dominantPillarGradient} rounded-full transition-all duration-500`}
                     style={{ width: `${progressPercent}%` }}
                   />
                 </div>
@@ -120,7 +114,7 @@ const ActiveQuests = memo(({ activeQuests }) => {
               <div className="mb-5">
                 {/* Total XP Badge */}
                 <div className="flex items-center gap-2 mb-3">
-                  <div className={`px-3 py-1.5 rounded-full bg-gradient-to-r ${pillarColors[dominantPillar].gradient} text-white text-sm font-bold shadow-md`}>
+                  <div className={`px-3 py-1.5 rounded-full bg-gradient-to-r ${dominantPillarGradient} text-white text-sm font-bold shadow-md`}>
                     {totalXP} Total XP
                   </div>
                 </div>
@@ -131,15 +125,18 @@ const ActiveQuests = memo(({ activeQuests }) => {
                     {Object.entries(pillarBreakdown)
                       .filter(([_, xp]) => xp > 0)
                       .sort(([_, a], [__, b]) => b - a)
-                      .map(([pillar, xp]) => (
-                        <div 
-                          key={pillar}
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${pillarColors[pillar]?.bg || 'bg-gray-100'} ${pillarColors[pillar]?.text || 'text-gray-700'} text-xs font-medium`}
-                        >
-                          <span className="capitalize">{pillar.replace('_', ' ')}</span>
-                          <span className="font-bold">+{xp}</span>
-                        </div>
-                      ))}
+                      .map(([pillar, xp]) => {
+                        const pillarData = getPillarData(pillar)
+                        return (
+                          <div 
+                            key={pillar}
+                            className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${pillarData.bg} ${pillarData.text} text-xs font-medium`}
+                          >
+                            <span>{pillarData.name}</span>
+                            <span className="font-bold">+{xp}</span>
+                          </div>
+                        )
+                      })}
                   </div>
                 )}
               </div>
@@ -177,18 +174,15 @@ const RecentCompletions = memo(({ recentTasks }) => {
     return <p className="text-gray-600">No completed tasks yet. Keep going!</p>
   }
   
-  const pillarColors = {
-    creativity: { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200' },
-    critical_thinking: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200' },
-    practical_skills: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-200' },
-    communication: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-200' },
-    cultural_literacy: { bg: 'bg-pink-100', text: 'text-pink-700', border: 'border-pink-200' }
-  }
-  
   return (
     <div className="space-y-3">
       {recentTasks.slice(0, 3).map((task, idx) => {
-        const pillarStyle = pillarColors[task.pillar] || { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-200' }
+        const pillarData = getPillarData(task.pillar)
+        const pillarStyle = { 
+          bg: pillarData.bg, 
+          text: pillarData.text, 
+          border: pillarData.bg.replace('bg-', 'border-').replace('100', '200') 
+        }
         
         return (
           <div
