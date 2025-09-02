@@ -50,7 +50,10 @@ class Config:
         'http://localhost:5173',
         'http://localhost:3000',
         'https://optioed.org',
-        'https://www.optioed.org'
+        'https://www.optioed.org',
+        'https://optio-frontend.onrender.com',
+        'https://optioeducation.com',
+        'https://www.optioeducation.com'
     ]
     
     # Supabase Configuration - check multiple possible env var names
