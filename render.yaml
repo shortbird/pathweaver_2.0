@@ -17,7 +17,7 @@ services:
       - key: NODE_VERSION
         value: 20.11.0
       - key: VITE_API_URL
-        value: https://optio-8ibe.onrender.com
+        value: https://optio-8ibe.onrender.com/api
       - key: VITE_SUPABASE_URL
         value: https://vvfgxcykxjybtvpfzwyx.supabase.co
       - key: VITE_SUPABASE_ANON_KEY

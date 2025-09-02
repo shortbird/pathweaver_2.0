@@ -58,7 +58,8 @@
       "WebFetch(domain:optioeducation.com)",
       "WebFetch(domain:optio-8ibe.onrender.com)",
       "Bash(../venv/Scripts/pip show stripe)",
-      "Bash(../venv/Scripts/pip install stripe==9.12.0)"
+      "Bash(../venv/Scripts/pip install stripe==9.12.0)",
+      "WebFetch(domain:supabase.com)"
     ],
     "deny": [],
     "ask": []
