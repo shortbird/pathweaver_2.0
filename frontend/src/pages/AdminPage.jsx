@@ -715,15 +715,12 @@ const AdminQuests = () => {
               >
             Manage Source Images
               </button>
-              <button
-                onClick={() => {
-                  setEditingQuest(null)
-                  setShowManager(true)
-                }}
+              <Link
+                to="/admin/quests/create"
                 className="btn-primary"
               >
-            Create Quest
-              </button>
+                Create Quest
+              </Link>
             </div>
           </div>
 
@@ -1991,7 +1988,7 @@ const AdminPage = () => {
       <Routes>
         <Route index element={<AdminDashboard />} />
         <Route path="quests" element={<AdminQuests />} />
-        <Route path="create-quest" element={<CreateQuestPage />} />
+        <Route path="quests/create" element={<CreateQuestPage />} />
         <Route path="settings" element={<SiteSettings />} />
       </Routes>
     </div>
