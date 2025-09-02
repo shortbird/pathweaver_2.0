@@ -6,6 +6,7 @@ Handles XP calculations with collaboration bonuses and audit trails.
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from database import get_supabase_admin_client
+from utils.pillar_utils import migrate_old_pillar, is_valid_pillar, calculate_mastery_level
 import json
 
 class XPService:
@@ -61,6 +62,19 @@ class XPService:
         """
         print(f"=== XP SERVICE AWARD DEBUG ===")
         print(f"User: {user_id}, Pillar: {pillar}, Amount: {xp_amount}, Source: {source}")
+        
+        # Migrate old pillar values to new if needed
+        pillar = migrate_old_pillar(pillar)
+        
+        # Validate pillar
+        if not is_valid_pillar(pillar):
+            print(f"[WARNING] Invalid pillar: {pillar}")
+            # Try to handle gracefully
+            if pillar in ['creativity', 'critical_thinking', 'practical_skills', 'communication', 'cultural_literacy']:
+                pillar = migrate_old_pillar(pillar)
+            else:
+                print(f"[ERROR] Cannot process invalid pillar: {pillar}")
+                return False
         
         try:
             # Check current XP for this pillar
@@ -119,6 +133,9 @@ class XPService:
             
             # Create audit log entry
             self._create_xp_audit_log(user_id, pillar, xp_amount, source)
+            
+            # Update user mastery level
+            self.update_user_mastery(user_id)
             
             print(f"XP award success: {bool(result.data)}")
             print("===============================")
@@ -274,6 +291,61 @@ class XPService:
         # In production, this would write to an audit log table
         # For now, just log to console
         print(f"XP Calculation: {json.dumps(log_data)}")
+    
+    def update_user_mastery(self, user_id: str) -> Optional[int]:
+        """
+        Update user's mastery level based on total XP.
+        
+        Args:
+            user_id: User to update
+            
+        Returns:
+            New mastery level or None if error
+        """
+        try:
+            # Get total XP across all pillars
+            xp_records = self.supabase.table('user_skill_xp')\
+                .select('xp_amount')\
+                .eq('user_id', user_id)\
+                .execute()
+            
+            total_xp = sum(record.get('xp_amount', 0) for record in xp_records.data) if xp_records.data else 0
+            
+            # Calculate mastery level
+            mastery_level = calculate_mastery_level(total_xp)
+            
+            # Check if user_mastery record exists
+            existing = self.supabase.table('user_mastery')\
+                .select('id')\
+                .eq('user_id', user_id)\
+                .execute()
+            
+            if existing.data:
+                # Update existing record
+                self.supabase.table('user_mastery')\
+                    .update({
+                        'total_xp': total_xp,
+                        'mastery_level': mastery_level,
+                        'last_updated': datetime.utcnow().isoformat()
+                    })\
+                    .eq('user_id', user_id)\
+                    .execute()
+            else:
+                # Create new record
+                self.supabase.table('user_mastery')\
+                    .insert({
+                        'user_id': user_id,
+                        'total_xp': total_xp,
+                        'mastery_level': mastery_level
+                    })\
+                    .execute()
+            
+            print(f"Updated mastery for user {user_id}: Level {mastery_level} (Total XP: {total_xp})")
+            return mastery_level
+            
+        except Exception as e:
+            print(f"Error updating user mastery: {str(e)}")
+            return None
     
     def _create_xp_audit_log(self, 
                             user_id: str, 

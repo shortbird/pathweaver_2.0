@@ -1,0 +1,157 @@
+{
+  "title": "Build a Community Garden",
+  "description": "Transform unused space into a thriving garden that feeds your neighborhood",
+  "source": "admin",
+  
+  "category": "Life Skills",
+  "difficulty_tier": 2,
+  "tags": ["sustainability", "community", "gardening", "nutrition", "outdoor"],
+  
+  "location_type": "local_community",
+  "location_details": {
+    "address": "Your local community center or school",
+    "coordinates": null,
+    "radius_km": 5,
+    "venue_name": "Community Space"
+  },
+  
+  "prerequisites": [],
+  "materials_needed": ["Seeds or seedlings", "Basic gardening tools", "Access to water"],
+  
+  "seasonal_dates": {
+    "start": "2024-03-01",
+    "end": "2024-10-31"
+  },
+  
+  "tasks": [
+    {
+      "title": "Research Local Growing Conditions",
+      "description": "Study your climate zone, soil type, and what grows best in your area",
+      "pillar": "stem_logic",
+      "subcategory": "Biology",
+      "xp_value": 100,
+      "evidence_prompt": "Document your research findings including zone map, soil test results, and plant selection rationale",
+      "evidence_types": ["text", "image", "document"],
+      "collaboration_eligible": true,
+      "location_required": false,
+      "is_optional": false,
+      "alternative_to": null,
+      "order_index": 1
+    },
+    {
+      "title": "Design Your Garden Layout",
+      "description": "Create a visual plan showing where each plant will go and why",
+      "pillar": "arts_creativity",
+      "subcategory": "Design",
+      "xp_value": 125,
+      "evidence_prompt": "Upload your garden design with labels and measurements",
+      "evidence_types": ["image", "document"],
+      "collaboration_eligible": true,
+      "location_required": false,
+      "is_optional": false,
+      "alternative_to": null,
+      "order_index": 2
+    },
+    {
+      "title": "Get Community Buy-In",
+      "description": "Present your garden plan to neighbors and recruit volunteers",
+      "pillar": "language_communication",
+      "subcategory": "Public Speaking",
+      "xp_value": 100,
+      "evidence_prompt": "Share photos or video of your presentation and list of volunteers recruited",
+      "evidence_types": ["image", "video_link", "text"],
+      "collaboration_eligible": true,
+      "location_required": true,
+      "is_optional": false,
+      "alternative_to": null,
+      "order_index": 3
+    },
+    {
+      "title": "Build and Plant the Garden",
+      "description": "Prepare the soil, build any structures needed, and plant your garden",
+      "pillar": "life_wellness",
+      "subcategory": "Outdoor Education",
+      "xp_value": 150,
+      "evidence_prompt": "Document the building process with before/during/after photos",
+      "evidence_types": ["image", "video_link"],
+      "collaboration_eligible": true,
+      "location_required": true,
+      "is_optional": false,
+      "alternative_to": null,
+      "order_index": 4
+    },
+    {
+      "title": "Research Food Security in Your Area",
+      "description": "Investigate how community gardens impact local food access and nutrition",
+      "pillar": "society_culture",
+      "subcategory": "Social Studies",
+      "xp_value": 100,
+      "evidence_prompt": "Write about food deserts, community health, and how your garden helps",
+      "evidence_types": ["text", "document", "link"],
+      "collaboration_eligible": true,
+      "location_required": false,
+      "is_optional": false,
+      "alternative_to": null,
+      "order_index": 5
+    },
+    {
+      "title": "Create a Garden Care Guide",
+      "description": "Write instructions for the community to maintain the garden",
+      "pillar": "language_communication",
+      "subcategory": "English",
+      "xp_value": 75,
+      "evidence_prompt": "Share your care guide that others can follow",
+      "evidence_types": ["document", "link"],
+      "collaboration_eligible": false,
+      "location_required": false,
+      "is_optional": false,
+      "alternative_to": null,
+      "order_index": 6
+    },
+    {
+      "title": "Track Growth and Harvest Data",
+      "description": "Monitor plant growth, yield, and distribution of produce",
+      "pillar": "stem_logic",
+      "subcategory": "Data Science",
+      "xp_value": 100,
+      "evidence_prompt": "Share your data tracking spreadsheet or charts showing garden productivity",
+      "evidence_types": ["document", "image", "link"],
+      "collaboration_eligible": true,
+      "location_required": true,
+      "is_optional": true,
+      "alternative_to": null,
+      "order_index": 7
+    },
+    {
+      "title": "Host a Harvest Celebration",
+      "description": "Organize a community event to celebrate your garden's first harvest",
+      "pillar": "life_wellness",
+      "subcategory": "Life Skills",
+      "xp_value": 125,
+      "evidence_prompt": "Document your event with photos and stories from attendees",
+      "evidence_types": ["image", "video_link", "text"],
+      "collaboration_eligible": true,
+      "location_required": true,
+      "is_optional": true,
+      "alternative_to": "task_7",
+      "order_index": 8
+    }
+  ],
+  
+  "path_id": null,
+  "unlocks_quests": ["advanced_permaculture", "community_composting"],
+  
+  "team_size_limit": 5,
+  "collaboration_prompts": [
+    "Partner with neighbors who have gardening experience",
+    "Work with local environmental groups",
+    "Team up with friends to share the physical work"
+  ],
+  
+  "total_xp": 875,
+  "completion_bonus_xp": 438,
+  "is_featured": true,
+  "is_active": true,
+  "created_by": "admin",
+  "ai_generation_prompt": null
+}
