@@ -5,6 +5,7 @@ import {
   Calendar, Trophy, Target, Info, ExternalLink
 } from 'lucide-react';
 import InfoModal from './InfoModal';
+// Chart imports - using dynamic import to avoid build issues
 import { Radar } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
