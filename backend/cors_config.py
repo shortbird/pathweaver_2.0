@@ -25,6 +25,9 @@ def configure_cors(app):
     production_domains = [
         'https://pathweaver-2-0.vercel.app',
         'https://pathweaver20-production.up.railway.app',
+        # Render frontend URLs
+        'https://optio-fe.onrender.com',
+        'https://optio-frontend.onrender.com',
         # Optio Education domains
         'https://optioed.org',
         'https://www.optioed.org',
