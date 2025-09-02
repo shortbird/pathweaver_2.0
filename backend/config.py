@@ -52,6 +52,7 @@ class Config:
         'https://optioed.org',
         'https://www.optioed.org',
         'https://optio-frontend.onrender.com',
+        'https://optio-fe.onrender.com',
         'https://optioeducation.com',
         'https://www.optioeducation.com'
     ]
