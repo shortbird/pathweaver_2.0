@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
@@ -7,7 +7,13 @@ import { ChevronDown, ChevronUp, Plus, Trash2, MapPin, Calendar, Users, Sparkles
 
 const CreateQuestPage = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, isAdmin, loading } = useAuth();
+
+  useEffect(() => {
+    if (!loading && !isAdmin) {
+      navigate('/');
+    }
+  }, [isAdmin, loading, navigate]);
   
   // Quest basic info
   const [title, setTitle] = useState('');
@@ -260,6 +266,10 @@ const CreateQuestPage = () => {
       setIsSubmitting(false);
     }
   };
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
 
   const xpInfo = calculateTotalXP();
   const pillarBreakdown = getPillarBreakdown();
