@@ -40,51 +40,50 @@ const PhilosophyCard = ({
   return (
     <div 
       className={`
-        text-center p-6 rounded-xl bg-gradient-to-br ${gradientClasses}
+        relative overflow-hidden rounded-xl
         transform transition-all duration-700 ease-out
         hover:shadow-2xl hover:-translate-y-2
-        cursor-pointer group
+        cursor-pointer group h-48
         ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}
       `}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
       style={{ transitionDelay: `${delay}ms` }}
     >
-      {/* Icon Container */}
-      <div className={`
-        w-20 h-20 bg-white rounded-2xl flex items-center justify-center mx-auto mb-6 
-        shadow-lg transition-all duration-500 ease-out
-        ${isHovered ? 'shadow-2xl scale-110 rotate-3' : 'shadow-md'}
-        group-hover:bg-gradient-to-br group-hover:from-white group-hover:to-gray-50
-      `}>
-        <div className="w-12 h-12 transition-transform duration-500 ease-out">
-          {getIcon()}
+      {/* Icon as background */}
+      <div className={`absolute inset-0 bg-gradient-to-br ${gradientClasses} flex items-center justify-center transition-all duration-500`}>
+        <div className={`w-full h-full flex items-center justify-center transition-all duration-500 ${isHovered ? 'opacity-20 scale-110' : 'opacity-30'}`}>
+          <div className="w-32 h-32">
+            {getIcon()}
+          </div>
         </div>
       </div>
 
-      {/* Title */}
-      <h3 className={`
-        text-xl font-bold mb-4 text-gray-800 
-        transition-all duration-300 ease-out
-        ${isHovered ? 'text-transparent bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text' : ''}
-      `}>
-        {title}
-      </h3>
-
-      {/* Description */}
-      <p className={`
-        text-gray-600 leading-relaxed transition-all duration-300 ease-out
-        ${isHovered ? 'text-gray-700' : ''}
-      `}>
-        {description}
-      </p>
-
-      {/* Subtle animated border on hover - no overlay blocking text */}
+      {/* Title - always visible */}
       <div className={`
-        absolute inset-0 rounded-xl pointer-events-none
-        transition-all duration-500 ease-out
-        ${isHovered ? 'ring-2 ring-[#ef597b]/30 ring-offset-2' : ''}
-      `} />
+        absolute inset-0 flex items-center justify-center transition-all duration-500 ease-out
+        ${isHovered ? 'opacity-0 pointer-events-none' : 'opacity-100'}
+      `}>
+        <h3 className="text-2xl font-bold text-gray-800 bg-white/90 backdrop-blur-sm px-6 py-3 rounded-lg shadow-lg">
+          {title}
+        </h3>
+      </div>
+
+      {/* Description - visible on hover */}
+      <div className={`
+        absolute inset-0 flex items-center justify-center p-6 transition-all duration-500 ease-out
+        bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-sm
+        ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}
+      `}>
+        <div className="text-center">
+          <h3 className="text-xl font-bold mb-3 text-transparent bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text">
+            {title}
+          </h3>
+          <p className="text-gray-700 leading-relaxed font-medium">
+            {description}
+          </p>
+        </div>
+      </div>
     </div>
   );
 };
@@ -114,7 +113,7 @@ export const PhilosophySection = ({ onPhilosophyModalOpen }) => {
               type="present"
               title="Learn Today"
               description="Each skill you build has immediate value. Your growth matters now."
-              gradientClasses="from-emerald-50 to-green-50"
+              gradientClasses="from-emerald-100 to-green-100"
               delay={0}
             />
             
@@ -122,7 +121,7 @@ export const PhilosophySection = ({ onPhilosophyModalOpen }) => {
               type="growth"
               title="Progress Over Perfection"
               description="Every attempt teaches. Mistakes are data. Forward is forward."
-              gradientClasses="from-[#ef597b]/10 to-[#6d469b]/10"
+              gradientClasses="from-[#ef597b]/20 to-[#6d469b]/20"
               delay={200}
             />
             
@@ -130,7 +129,7 @@ export const PhilosophySection = ({ onPhilosophyModalOpen }) => {
               type="internal"
               title="Joy of Discovery"
               description="Follow curiosity, not credentials. Create because you want to."
-              gradientClasses="from-purple-50 to-pink-50"
+              gradientClasses="from-purple-100 to-pink-100"
               delay={400}
             />
           </div>
