@@ -15,7 +15,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
 
   const handleSubmit = async () => {
     if (!evidenceData || Object.keys(evidenceData).length === 0) {
-      setError('Please provide evidence for task completion');
+      setError('Please submit work for task completion');
       return;
     }
 
