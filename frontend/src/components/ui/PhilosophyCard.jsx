@@ -79,23 +79,12 @@ const PhilosophyCard = ({
         {description}
       </p>
 
-      {/* Hover overlay effect */}
+      {/* Subtle animated border on hover - no overlay blocking text */}
       <div className={`
         absolute inset-0 rounded-xl pointer-events-none
-        bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5
-        transition-opacity duration-500 ease-out
-        ${isHovered ? 'opacity-100' : 'opacity-0'}
+        transition-all duration-500 ease-out
+        ${isHovered ? 'ring-2 ring-[#ef597b]/30 ring-offset-2' : ''}
       `} />
-
-      {/* Animated border */}
-      <div className={`
-        absolute inset-0 rounded-xl pointer-events-none
-        bg-gradient-to-r from-[#ef597b] via-[#d946ef] to-[#6d469b] p-[2px]
-        transition-opacity duration-500 ease-out
-        ${isHovered ? 'opacity-100' : 'opacity-0'}
-      `}>
-        <div className={`w-full h-full rounded-[10px] bg-gradient-to-br ${gradientClasses}`} />
-      </div>
     </div>
   );
 };
@@ -114,7 +103,7 @@ export const PhilosophySection = ({ onPhilosophyModalOpen }) => {
         <div className="text-center mb-12 sm:mb-16">
           <h2 className="text-3xl sm:text-4xl font-bold mb-6">The Process Is The Goal</h2>
           <p className="text-lg sm:text-xl text-gray-700 max-w-3xl mx-auto">
-            Focus on the journey of learning, not the destination of a credential.
+            Learn for today, not someday.
           </p>
         </div>
         
@@ -123,24 +112,24 @@ export const PhilosophySection = ({ onPhilosophyModalOpen }) => {
           <div className="grid md:grid-cols-3 gap-8 relative">
             <PhilosophyCard
               type="present"
-              title="Present-Focused Value"
-              description="Your learning is valuable now, not someday. Each skill you build, each idea you explore enriches your life today."
+              title="Learn Today"
+              description="Each skill you build has immediate value. Your growth matters now."
               gradientClasses="from-emerald-50 to-green-50"
               delay={0}
             />
             
             <PhilosophyCard
               type="growth"
-              title="Growth Over Achievement"
-              description="Celebrate attempts, effort, and learning from mistakes. Every step forward is progress, regardless of the outcome."
+              title="Progress Over Perfection"
+              description="Every attempt teaches. Mistakes are data. Forward is forward."
               gradientClasses="from-[#ef597b]/10 to-[#6d469b]/10"
               delay={200}
             />
             
             <PhilosophyCard
               type="internal"
-              title="Internal Motivation"
-              description="Learn for the joy of discovery, not external validation. Your curiosity and creativity are the real rewards."
+              title="Joy of Discovery"
+              description="Follow curiosity, not credentials. Create because you want to."
               gradientClasses="from-purple-50 to-pink-50"
               delay={400}
             />
@@ -158,11 +147,10 @@ export const PhilosophySection = ({ onPhilosophyModalOpen }) => {
             </div>
             
             <p className="text-xl font-semibold text-gray-800 mb-4 relative">
-              "You're not building a resume. You're becoming who you're meant to be."
+              Build skills that matter to you, today.
             </p>
             <p className="text-gray-600 max-w-2xl mx-auto relative">
-              The diploma isn't the goal – it's the beautiful byproduct of a meaningful learning journey. 
-              Every quest you complete, every skill you develop, transforms you in ways that matter right now.
+              The diploma is a byproduct of meaningful learning. Focus on growth, not grades.
             </p>
           </div>
           
