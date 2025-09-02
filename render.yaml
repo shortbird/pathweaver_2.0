@@ -15,7 +15,7 @@ services:
         destination: /index.html
     envVars:
       - key: NODE_VERSION
-        value: 18.17.0
+        value: 20.11.0
       - key: VITE_API_URL
         value: https://optio-backend.onrender.com
       - key: VITE_SUPABASE_URL
