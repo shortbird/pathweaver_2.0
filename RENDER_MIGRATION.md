@@ -1,39 +1,13 @@
-# Render Migration Guide
+# Frontend Migration Guide: Vercel to Render
 
-## Migration from Vercel to Render - Complete Instructions
+## Quick Migration Steps (Frontend Only)
 
 ### Prerequisites
-1. GitHub repository connected to Render
-2. Render account created
-3. Stripe account for webhooks update
+- Render account created
+- GitHub repository already connected
+- Backend already running on Render at `https://optio-8ibe.onrender.com`
 
-### Step 1: Create Backend Service on Render
-1. Go to [Render Dashboard](https://dashboard.render.com)
-2. Click "New +" → "Web Service"
-3. Connect your GitHub repository
-4. Configure:
-   - **Name**: `optio-backend`
-   - **Environment**: Python 3
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `gunicorn app:app --bind 0.0.0.0:$PORT`
-   - **Plan**: Select at least Starter ($7/month)
-
-### Step 2: Configure Backend Environment Variables
-Add these in Render dashboard for backend service:
-```
-FLASK_ENV=production
-FLASK_SECRET_KEY=<generate-secure-key>
-SUPABASE_URL=https://vvfgxcykxjybtvpfzwyx.supabase.co
-SUPABASE_ANON_KEY=<your-anon-key>
-SUPABASE_SERVICE_KEY=<your-service-key>
-FRONTEND_URL=https://optio-frontend.onrender.com
-OPENAI_API_KEY=<your-key>
-GEMINI_API_KEY=<your-key>
-STRIPE_SECRET_KEY=<your-key>
-STRIPE_WEBHOOK_SECRET=<your-key>
-```
-
-### Step 3: Create Frontend Static Site on Render
+### Step 1: Create Frontend Static Site on Render
 1. Click "New +" → "Static Site"
 2. Connect same GitHub repository
 3. Configure:
@@ -42,61 +16,62 @@ STRIPE_WEBHOOK_SECRET=<your-key>
    - **Publish Directory**: `frontend/dist`
    - **Plan**: Free tier
 
-### Step 4: Configure Frontend Environment Variables
+### Step 2: Configure Frontend Environment Variables
 Add these in Render dashboard for frontend service:
 ```
 NODE_VERSION=18.17.0
-VITE_API_URL=https://optio-backend.onrender.com
+VITE_API_URL=https://optio-8ibe.onrender.com
 VITE_SUPABASE_URL=https://vvfgxcykxjybtvpfzwyx.supabase.co
-VITE_SUPABASE_ANON_KEY=<your-anon-key>
+VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2Zmd4Y3lreGp5YnR2cGZ6d3l4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU5ODQ2NTAsImV4cCI6MjA3MTU2MDY1MH0.Bh00lJuio6mYbAaJDd7BXsdRkm8azGw2A8djCq7cmO0
 ```
 
-### Step 5: Update Stripe Webhook
-1. Go to [Stripe Dashboard](https://dashboard.stripe.com/webhooks)
-2. Update webhook endpoint to: `https://optio-backend.onrender.com/api/stripe/webhook`
-3. Copy new webhook secret to backend env vars
-
-### Step 6: Custom Domain Setup (Optional)
+### Step 3: Custom Domain Setup (Optional)
 1. In Render dashboard, go to each service
 2. Click "Settings" → "Custom Domains"
 3. Add your domain (e.g., optioeducation.com)
 4. Update DNS records as instructed
 
-### Step 7: Deploy
+### Step 4: Deploy
 1. Push to main branch: `git push origin main`
-2. Both services will auto-deploy
-3. Monitor logs in Render dashboard
+2. Frontend will auto-deploy
+3. Monitor build logs in Render dashboard
 
-### Files Modified for Migration
-- `render.yaml` - Render deployment configuration
-- `app.py` - Main entry point for Gunicorn
-- `backend/config.py` - Added Render URLs to CORS
-- `frontend/.env.production` - Updated API URL
+### Step 5: Update DNS (When Ready)
+1. In Vercel: Remove custom domain
+2. In Render: Add custom domain 
+3. Update DNS A/CNAME records to point to Render
 
-### Post-Deployment Checklist
-- [ ] Backend service is running
-- [ ] Frontend loads correctly
+## Files Modified for Migration
+- `render.yaml` - Frontend service configuration
+- `frontend/.env.production` - API URL points to existing backend
+- `frontend/public/_redirects` - Already configured for SPA routing
+
+## Post-Deployment Checklist
+- [ ] Frontend builds successfully on Render
+- [ ] Homepage loads at `https://optio-frontend.onrender.com`
 - [ ] API calls work (test login/signup)
-- [ ] Stripe payments process correctly
-- [ ] Quest submission works
-- [ ] Diploma pages load
-- [ ] Custom domain configured (if applicable)
+- [ ] Quest hub loads properly
+- [ ] Diploma pages render correctly
+- [ ] All routing works (no 404s on refresh)
+- [ ] Assets load (images, fonts)
 
-### Rollback Plan
-If issues occur:
-1. Keep Vercel deployment active during migration
-2. Test thoroughly on Render URLs first
-3. Only switch DNS after confirming everything works
-4. Can revert DNS to Vercel if needed
+## Testing Before DNS Switch
+1. Test everything at: `https://optio-frontend.onrender.com`
+2. Keep Vercel live during testing
+3. Only switch DNS after full verification
 
-### Cost Comparison
-- **Vercel**: Free tier + potential overages
-- **Render**: 
-  - Backend: $7/month (Starter)
-  - Frontend: Free (Static Site)
-  - Total: $7/month minimum
+## Rollback Plan
+- Keep Vercel deployment active until Render is verified
+- DNS can be reverted to Vercel within minutes if needed
+- No data loss risk (backend unchanged)
 
-### Support
-- Render Documentation: https://render.com/docs
-- Support: support@render.com
-- Status Page: https://status.render.com
+## Cost Comparison
+- **Vercel**: Free tier with potential overages
+- **Render Frontend**: Free (Static Site)
+- **Savings**: Eliminates Vercel overage risks
+
+## Important Notes
+- Backend remains at: `https://optio-8ibe.onrender.com`  
+- No backend changes needed
+- Frontend auto-deploys on git push to main
+- Build time: ~2-3 minutes typically

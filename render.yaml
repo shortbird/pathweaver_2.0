@@ -1,33 +1,5 @@
 services:
-  # Backend API Service
-  - type: web
-    name: optio-backend
-    runtime: python
-    buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: FLASK_ENV
-        value: production
-      - key: SUPABASE_URL
-        value: https://vvfgxcykxjybtvpfzwyx.supabase.co
-      - key: SUPABASE_ANON_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2Zmd4Y3lreGp5YnR2cGZ6d3l4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU5ODQ2NTAsImV4cCI6MjA3MTU2MDY1MH0.Bh00lJuio6mYbAaJDd7BXsdRkm8azGw2A8djCq7cmO0
-      - key: SUPABASE_SERVICE_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2Zmd4Y3lreGp5YnR2cGZ6d3l4Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc1NTk4NDY1MCwiZXhwIjoyMDcxNTYwNjUwfQ.Q6CRSKT8_w4YYQ6b2P-GIlTw_a2UDyTpSbwopHCJsmw
-      - key: FLASK_SECRET_KEY
-        value: m_cWuqR)9{|Bq1&;c8eec+n@m-%3EC0wGzbyz`_V}Z1$JDoOp&*}U1RwvFM^5n
-      - key: FRONTEND_URL
-        value: https://optio-frontend.onrender.com
-      - key: GEMINI_API_KEY
-        value: AIzaSyA8heA_kAgyMosEDIJ9tu39DRgsPZUze-E
-      # Add these in Render dashboard:
-      # - OPENAI_API_KEY
-      # - STRIPE_SECRET_KEY  
-      # - STRIPE_WEBHOOK_SECRET
-
-  # Frontend Static Site
+  # Frontend Static Site (migrating from Vercel)
   - type: web
     name: optio-frontend
     runtime: static
