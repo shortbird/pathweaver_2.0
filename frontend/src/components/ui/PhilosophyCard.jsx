@@ -1,85 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { PresentFocusIcon, GrowthOverAchievementIcon, InternalMotivationIcon } from './PhilosophyIcons';
+import React from 'react';
+import { Clock, TrendingUp, Heart } from 'lucide-react';
 
 const PhilosophyCard = ({ 
-  type, 
+  icon: Icon,
   title, 
   description, 
-  gradientClasses = "from-purple-50 to-blue-50",
-  delay = 0 
+  gradientClasses = "from-purple-50 to-blue-50"
 }) => {
-  const [isHovered, setIsHovered] = useState(false);
-  const [isVisible, setIsVisible] = useState(false);
-
-  // Entrance animation trigger
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsVisible(true);
-    }, delay);
-    return () => clearTimeout(timer);
-  }, [delay]);
-
-  const getIcon = () => {
-    const iconProps = {
-      className: "w-full h-full",
-      isHovered
-    };
-
-    switch (type) {
-      case 'present':
-        return <PresentFocusIcon {...iconProps} />;
-      case 'growth':
-        return <GrowthOverAchievementIcon {...iconProps} />;
-      case 'internal':
-        return <InternalMotivationIcon {...iconProps} />;
-      default:
-        return null;
-    }
-  };
-
   return (
-    <div 
-      className={`
-        relative overflow-hidden rounded-xl
-        transform transition-all duration-700 ease-out
-        hover:shadow-2xl hover:-translate-y-2
-        cursor-pointer group h-48
-        ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}
-      `}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{ transitionDelay: `${delay}ms` }}
-    >
-      {/* Icon as background */}
-      <div className={`absolute inset-0 bg-gradient-to-br ${gradientClasses} flex items-center justify-center transition-all duration-500`}>
-        <div className={`w-full h-full flex items-center justify-center transition-all duration-500 ${isHovered ? 'opacity-20 scale-110' : 'opacity-40'}`}>
-          <div className="w-28 h-28 mt-4">
-            {getIcon()}
-          </div>
+    <div className={`p-6 rounded-xl bg-gradient-to-br ${gradientClasses} border border-gray-100`}>
+      <div className="flex items-start space-x-3">
+        <div className="flex-shrink-0">
+          <Icon className="w-5 h-5 text-[#6d469b] mt-1" />
         </div>
-      </div>
-
-      {/* Title - always visible at top */}
-      <div className={`
-        absolute top-0 left-0 right-0 p-4 transition-all duration-500 ease-out
-        ${isHovered ? 'opacity-0 pointer-events-none' : 'opacity-100'}
-      `}>
-        <h3 className="text-lg font-bold text-gray-800 bg-white/90 backdrop-blur-sm px-4 py-2 rounded-lg shadow-md inline-block">
-          {title}
-        </h3>
-      </div>
-
-      {/* Description - visible on hover */}
-      <div className={`
-        absolute inset-0 flex flex-col justify-center items-center p-6 transition-all duration-500 ease-out
-        bg-gradient-to-br from-white/95 to-white/90 backdrop-blur-sm
-        ${isHovered ? 'opacity-100' : 'opacity-0 pointer-events-none'}
-      `}>
-        <div className="text-center">
-          <h3 className="text-lg font-bold mb-3 text-transparent bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-800 mb-2">
             {title}
           </h3>
-          <p className="text-sm text-gray-700 leading-relaxed font-medium">
+          <p className="text-sm text-gray-600 leading-relaxed">
             {description}
           </p>
         </div>
@@ -108,29 +46,26 @@ export const PhilosophySection = ({ onPhilosophyModalOpen }) => {
         
         {/* Philosophy pillars */}
         <div className="max-w-5xl mx-auto">
-          <div className="grid md:grid-cols-3 gap-8 relative">
+          <div className="grid md:grid-cols-3 gap-6">
             <PhilosophyCard
-              type="present"
+              icon={Clock}
               title="Learn Today"
               description="Each skill you build has immediate value. Your growth matters now."
-              gradientClasses="from-emerald-100 to-green-100"
-              delay={0}
+              gradientClasses="from-purple-50 to-blue-50"
             />
             
             <PhilosophyCard
-              type="growth"
+              icon={TrendingUp}
               title="Progress Over Perfection"
               description="Every attempt teaches. Mistakes are data. Forward is forward."
-              gradientClasses="from-[#ef597b]/20 to-[#6d469b]/20"
-              delay={200}
+              gradientClasses="from-[#ef597b]/10 to-[#6d469b]/10"
             />
             
             <PhilosophyCard
-              type="internal"
+              icon={Heart}
               title="Joy of Discovery"
               description="Follow curiosity, not credentials. Create because you want to."
-              gradientClasses="from-purple-100 to-pink-100"
-              delay={400}
+              gradientClasses="from-pink-50 to-purple-50"
             />
           </div>
           
