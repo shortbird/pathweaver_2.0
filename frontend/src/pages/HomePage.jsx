@@ -45,8 +45,8 @@ const HomePage = () => {
             {/* Left column - Simplified Value Proposition */}
             <div className="text-center lg:text-left">
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-                <span className="drop-shadow-lg">Your Learning,</span>
-                <span className="block drop-shadow-lg">Your Diploma</span>
+                <span className="drop-shadow-lg">Learning That Counts,</span>
+                <span className="block drop-shadow-lg">Documented Forever</span>
               </h1>
               <p className="text-lg sm:text-xl mb-8 leading-relaxed opacity-95 px-2 sm:px-0 drop-shadow">
                 Build a portfolio that showcases real skills.
@@ -62,7 +62,6 @@ const HomePage = () => {
                   >
                     <Play className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform" aria-hidden="true" />
                     Try 2-Min Demo
-                    <Sparkles className="ml-2 w-5 h-5 group-hover:rotate-12 transition-transform" aria-hidden="true" />
                   </Link>
                   <span id="demo-description" className="sr-only">
                     Try our 2-minute interactive demo to see how Optio works
@@ -393,7 +392,7 @@ const HomePage = () => {
       {/* Pricing Details Modal */}
       {pricingModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8">
+          <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8">
             <div className="flex justify-between items-center mb-6">
               <h3 className="text-2xl font-bold">Full Feature Comparison</h3>
               <button
@@ -405,49 +404,172 @@ const HomePage = () => {
               </button>
             </div>
             
-            <div className="space-y-6">
-              <div>
-                <h4 className="text-xl font-semibold mb-3">Free Tier</h4>
-                <ul className="space-y-2 text-gray-700">
-                  <li>✓ Access to quest library</li>
-                  <li>✓ Track your progress</li>
-                  <li>✗ No portfolio diploma</li>
-                  <li>✗ No evidence submission</li>
-                </ul>
-              </div>
-              
-              <div>
-                <h4 className="text-xl font-semibold mb-3 text-[#ef597b]">Supported Tier ($39.99/mo)</h4>
-                <ul className="space-y-2 text-gray-700">
-                  <li>✓ Everything in Free</li>
-                  <li>✓ Optio Portfolio Diploma</li>
-                  <li>✓ Submit evidence for quests</li>
-                  <li>✓ Educator support team</li>
-                  <li>✓ Team up with other learners</li>
-                  <li>✓ XP and skill tracking</li>
-                </ul>
-              </div>
-              
-              <div>
-                <h4 className="text-xl font-semibold mb-3 text-green-600">Academy Tier ($499.99/mo)</h4>
-                <ul className="space-y-2 text-gray-700">
-                  <li>✓ Everything in Supported</li>
-                  <li>✓ Accredited high school diploma</li>
-                  <li>✓ 1-on-1 licensed teachers</li>
-                  <li>✓ Personal learning guide</li>
-                  <li>✓ Regular check-ins</li>
-                  <li>✓ Business mentor network</li>
-                  <li>✓ College counseling</li>
-                </ul>
-              </div>
+            {/* 3-Column Comparison Chart */}
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className="border-b-2 border-gray-200 p-4 text-left font-semibold text-gray-700">Features</th>
+                    <th className="border-b-2 border-gray-200 p-4 text-center">
+                      <div className="font-bold text-xl">Free</div>
+                      <div className="text-2xl font-bold mt-1">$0</div>
+                      <div className="text-sm text-gray-600">Forever</div>
+                    </th>
+                    <th className="border-b-2 border-gray-200 p-4 text-center bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">
+                      <div className="font-bold text-xl text-[#ef597b]">Supported</div>
+                      <div className="text-2xl font-bold mt-1">$39.99</div>
+                      <div className="text-sm text-gray-600">per month</div>
+                      <div className="mt-2">
+                        <span className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs px-3 py-1 rounded-full font-semibold">
+                          MOST POPULAR
+                        </span>
+                      </div>
+                    </th>
+                    <th className="border-b-2 border-gray-200 p-4 text-center">
+                      <div className="font-bold text-xl text-green-600">Academy</div>
+                      <div className="text-2xl font-bold mt-1">$499.99</div>
+                      <div className="text-sm text-gray-600">per month</div>
+                      <div className="mt-2">
+                        <span className="bg-green-500 text-white text-xs px-3 py-1 rounded-full font-semibold">
+                          ACCREDITED
+                        </span>
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* Core Features */}
+                  <tr className="border-b border-gray-100">
+                    <td colSpan="4" className="bg-gray-50 p-3 font-semibold text-gray-700">Core Features</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">Access to Quest Library</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">Track Learning Progress</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">Submit Evidence for Quests</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
+                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">Earn XP & Skill Badges</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
+                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700 font-semibold">Optio Portfolio Diploma</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
+                    <td className="p-4 text-center text-green-500 font-bold text-lg bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold text-lg">✓</td>
+                  </tr>
+                  
+                  {/* Support & Community */}
+                  <tr className="border-b border-gray-100">
+                    <td colSpan="4" className="bg-gray-50 p-3 font-semibold text-gray-700">Support & Community</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">Community Forum Access</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">Educator Support Team</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
+                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">Team Learning & XP Bonuses</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
+                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">Custom Quest Submissions</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
+                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                  
+                  {/* Academy Exclusive */}
+                  <tr className="border-b border-gray-100">
+                    <td colSpan="4" className="bg-gray-50 p-3 font-semibold text-gray-700">Academy Exclusive Features</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700 font-semibold">Accredited High School Diploma</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
+                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-green-500 font-bold text-lg">✓</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">1-on-1 Licensed Teachers</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
+                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">Personal Learning Guide</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
+                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">Weekly Check-ins</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
+                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">Business Mentor Network</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
+                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">College Counseling</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
+                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                  <tr className="border-b border-gray-100">
+                    <td className="p-4 text-gray-700">Official Transcripts</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
+                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
             
-            <div className="mt-6 flex justify-center">
+            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
               <Link
                 to="/register"
-                className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all"
+                className="block w-full bg-gray-100 text-gray-700 hover:bg-gray-200 py-3 px-6 rounded-lg font-semibold transition-colors text-center"
               >
-                Get Started Now
+                Start Free
+              </Link>
+              <Link
+                to="/register"
+                className="block w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-all text-center transform hover:scale-105"
+              >
+                Get Supported
+              </Link>
+              <Link
+                to="/register"
+                className="block w-full bg-green-500 text-white hover:bg-green-600 py-3 px-6 rounded-lg font-bold transition-colors text-center"
+              >
+                Join Academy
               </Link>
             </div>
           </div>
