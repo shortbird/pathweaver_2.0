@@ -18,6 +18,7 @@ const CreateQuestPage = () => {
   // Quest basic info
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [source, setSource] = useState('');
   
   // Location features
   const [locationType, setLocationType] = useState('anywhere');
@@ -25,9 +26,6 @@ const CreateQuestPage = () => {
   const [venueName, setVenueName] = useState('');
   
   // Time and requirements
-  const [estimatedHours, setEstimatedHours] = useState('');
-  const [materialsNeeded, setMaterialsNeeded] = useState([]);
-  const [materialInput, setMaterialInput] = useState('');
   const [prerequisites, setPrerequisites] = useState([]);
   
   // Seasonal
@@ -43,6 +41,7 @@ const CreateQuestPage = () => {
     subcategory: '',
     xp_value: 100,
     evidence_prompt: '',
+    materials_needed: [],
     order_index: 1
   }]);
   
@@ -72,6 +71,7 @@ const CreateQuestPage = () => {
       subcategory: '',
       xp_value: 100,
       evidence_prompt: '',
+      materials_needed: [],
       order_index: tasks.length + 1
     }]);
   };
@@ -93,15 +93,23 @@ const CreateQuestPage = () => {
     }
   };
 
-  const addMaterial = () => {
-    if (materialInput.trim() && !materialsNeeded.includes(materialInput.trim())) {
-      setMaterialsNeeded([...materialsNeeded, materialInput.trim()]);
-      setMaterialInput('');
+  const addMaterialToTask = (taskIndex) => {
+    const material = tasks[taskIndex].materialInput;
+    if (material && material.trim()) {
+      const updatedTasks = [...tasks];
+      if (!updatedTasks[taskIndex].materials_needed) {
+        updatedTasks[taskIndex].materials_needed = [];
+      }
+      updatedTasks[taskIndex].materials_needed.push(material.trim());
+      updatedTasks[taskIndex].materialInput = '';
+      setTasks(updatedTasks);
     }
   };
 
-  const removeMaterial = (material) => {
-    setMaterialsNeeded(materialsNeeded.filter(m => m !== material));
+  const removeMaterialFromTask = (taskIndex, material) => {
+    const updatedTasks = [...tasks];
+    updatedTasks[taskIndex].materials_needed = updatedTasks[taskIndex].materials_needed.filter(m => m !== material);
+    setTasks(updatedTasks);
   };
 
   const calculateTotalXP = () => {
@@ -125,18 +133,11 @@ const CreateQuestPage = () => {
     const newErrors = {};
     
     if (!title.trim()) newErrors.title = 'Title is required';
-    if (!description.trim()) newErrors.description = 'Description is required';
     
     // Validate tasks
     tasks.forEach((task, index) => {
       if (!task.title.trim()) {
         newErrors[`task_${index}_title`] = 'Task title is required';
-      }
-      if (!task.description.trim()) {
-        newErrors[`task_${index}_description`] = 'Task description is required';
-      }
-      if (!task.evidence_prompt.trim()) {
-        newErrors[`task_${index}_evidence`] = 'Evidence prompt is required';
       }
     });
     
@@ -161,7 +162,7 @@ const CreateQuestPage = () => {
         title,
         description,
         big_idea: description,
-        source: 'admin',
+        source,
         is_active: true,
         
         // Tasks
@@ -174,9 +175,6 @@ const CreateQuestPage = () => {
         
         // Metadata
         metadata: {
-          estimated_hours: estimatedHours,
-          materials_needed: materialsNeeded,
-          
           // Location
           location_type: locationType,
           location_address: locationAddress,
@@ -299,6 +297,19 @@ const CreateQuestPage = () => {
                 />
                 {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
               </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Source URL
+                </label>
+                <input
+                  type="text"
+                  value={source}
+                  onChange={(e) => setSource(e.target.value)}
+                  className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#6d469b] focus:border-transparent border-gray-300"
+                  placeholder="e.g., https://example.com/quest-resources"
+                />
+              </div>
             </div>
           )}
         </div>
@@ -364,14 +375,13 @@ const CreateQuestPage = () => {
 
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Task Description *
+                        Task Description
                       </label>
                       <textarea
                         value={task.description}
                         onChange={(e) => updateTask(index, 'description', e.target.value)}
                         rows={2}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#6d469b] ${
-                          errors[`task_${index}_description`] ? 'border-red-500' : 'border-gray-300'
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#6d469b] border-gray-300'
                         }`}
                         placeholder="Clear instructions on what to create/do"
                       />
@@ -415,17 +425,54 @@ const CreateQuestPage = () => {
 
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Evidence Prompt *
+                        Evidence Prompt
                       </label>
                       <input
                         type="text"
                         value={task.evidence_prompt}
                         onChange={(e) => updateTask(index, 'evidence_prompt', e.target.value)}
-                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#6d469b] ${
-                          errors[`task_${index}_evidence`] ? 'border-red-500' : 'border-gray-300'
+                        className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#6d469b] border-gray-300'
                         }`}
                         placeholder="What evidence should students submit?"
                       />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Materials Needed
+                      </label>
+                      <div className="flex gap-2 mb-2">
+                        <input
+                          type="text"
+                          value={task.materialInput}
+                          onChange={(e) => updateTask(index, 'materialInput', e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addMaterialToTask(index))}
+                          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                          placeholder="Add material and press Enter"
+                        />
+                        <button
+                          onClick={() => addMaterialToTask(index)}
+                          className="px-4 py-2 bg-[#6d469b] text-white rounded-lg hover:bg-[#5a3784] transition-colors"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {task.materials_needed && task.materials_needed.map(material => (
+                          <span
+                            key={material}
+                            className="px-3 py-1 bg-gray-100 rounded-full text-sm flex items-center gap-1"
+                          >
+                            {material}
+                            <button
+                              onClick={() => removeMaterialFromTask(index, material)}
+                              className="text-red-500 hover:text-red-700"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -528,57 +575,6 @@ const CreateQuestPage = () => {
           
           {expandedSections.time && (
             <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Estimated Hours
-                </label>
-                <input
-                  type="text"
-                  value={estimatedHours}
-                  onChange={(e) => setEstimatedHours(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
-                  placeholder="e.g., 6-10 hours over 2 weeks"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Materials Needed
-                </label>
-                <div className="flex gap-2 mb-2">
-                  <input
-                    type="text"
-                    value={materialInput}
-                    onChange={(e) => setMaterialInput(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addMaterial())}
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
-                    placeholder="Add material and press Enter"
-                  />
-                  <button
-                    onClick={addMaterial}
-                    className="px-4 py-2 bg-[#6d469b] text-white rounded-lg hover:bg-[#5a3784] transition-colors"
-                  >
-                    Add
-                  </button>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {materialsNeeded.map(material => (
-                    <span
-                      key={material}
-                      className="px-3 py-1 bg-gray-100 rounded-full text-sm flex items-center gap-1"
-                    >
-                      {material}
-                      <button
-                        onClick={() => removeMaterial(material)}
-                        className="text-red-500 hover:text-red-700"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-              </div>
-
               <div>
                 <label className="flex items-center gap-2 mb-2">
                   <input
