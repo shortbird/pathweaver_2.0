@@ -19,19 +19,14 @@ const CreateQuestPage = () => {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [source, setSource] = useState('');
+  const [isSeasonal, setIsSeasonal] = useState(false);
+  const [seasonalStart, setSeasonalStart] = useState('');
+  const [seasonalEnd, setSeasonalEnd] = useState('');
   
   // Location features
   const [locationType, setLocationType] = useState('anywhere');
   const [locationAddress, setLocationAddress] = useState('');
   const [venueName, setVenueName] = useState('');
-  
-  // Time and requirements
-  const [prerequisites, setPrerequisites] = useState([]);
-  
-  // Seasonal
-  const [isSeasonal, setIsSeasonal] = useState(false);
-  const [seasonalStart, setSeasonalStart] = useState('');
-  const [seasonalEnd, setSeasonalEnd] = useState('');
   
   // Tasks
   const [tasks, setTasks] = useState([{
@@ -50,7 +45,6 @@ const CreateQuestPage = () => {
     basic: true,
     tasks: true,
     location: false,
-    time: false,
     advanced: false
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -183,8 +177,6 @@ const CreateQuestPage = () => {
           // Seasonal
           seasonal_start: isSeasonal ? seasonalStart : null,
           seasonal_end: isSeasonal ? seasonalEnd : null,
-          
-          prerequisites
         }
       };
 
@@ -309,6 +301,45 @@ const CreateQuestPage = () => {
                   className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#6d469b] focus:border-transparent border-gray-300"
                   placeholder="e.g., https://example.com/quest-resources"
                 />
+              </div>
+
+              <div>
+                <label className="flex items-center gap-2 mb-2">
+                  <input
+                    type="checkbox"
+                    checked={isSeasonal}
+                    onChange={(e) => setIsSeasonal(e.target.checked)}
+                    className="rounded border-gray-300 text-[#6d469b] focus:ring-[#6d469b]"
+                  />
+                  <span className="text-sm font-medium text-gray-700">This is a seasonal quest</span>
+                </label>
+                
+                {isSeasonal && (
+                  <div className="grid grid-cols-2 gap-4 mt-2">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        Start Date
+                      </label>
+                      <input
+                        type="date"
+                        value={seasonalStart}
+                        onChange={(e) => setSeasonalStart(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        End Date
+                      </label>
+                      <input
+                        type="date"
+                        value={seasonalEnd}
+                        onChange={(e) => setSeasonalEnd(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -556,63 +587,6 @@ const CreateQuestPage = () => {
                   )}
                 </>
               )}
-            </div>
-          )}
-        </div>
-
-        {/* Time & Requirements Section */}
-        <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
-          <button
-            onClick={() => toggleSection('time')}
-            className="w-full px-6 py-4 bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 flex items-center justify-between hover:bg-gradient-to-r hover:from-[#ef597b]/20 hover:to-[#6d469b]/20 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <Calendar className="w-5 h-5" />
-              <h2 className="text-xl font-bold text-gray-900">Time & Requirements</h2>
-            </div>
-            {expandedSections.time ? <ChevronUp /> : <ChevronDown />}
-          </button>
-          
-          {expandedSections.time && (
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="flex items-center gap-2 mb-2">
-                  <input
-                    type="checkbox"
-                    checked={isSeasonal}
-                    onChange={(e) => setIsSeasonal(e.target.checked)}
-                    className="rounded border-gray-300 text-[#6d469b] focus:ring-[#6d469b]"
-                  />
-                  <span className="text-sm font-medium text-gray-700">This is a seasonal quest</span>
-                </label>
-                
-                {isSeasonal && (
-                  <div className="grid grid-cols-2 gap-4 mt-2">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Start Date
-                      </label>
-                      <input
-                        type="date"
-                        value={seasonalStart}
-                        onChange={(e) => setSeasonalStart(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        End Date
-                      </label>
-                      <input
-                        type="date"
-                        value={seasonalEnd}
-                        onChange={(e) => setSeasonalEnd(e.target.value)}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
           )}
         </div>
