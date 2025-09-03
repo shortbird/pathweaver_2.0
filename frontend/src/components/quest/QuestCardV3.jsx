@@ -164,15 +164,38 @@ const QuestCardV3 = ({ quest, onEnroll, onTeamUp }) => {
               </button>
             </>
           ) : (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/quests/${quest.id}`);
-              }}
-              className="flex-1 bg-emerald-500 text-white py-2 px-4 rounded-[20px] hover:bg-emerald-600 hover:-translate-y-0.5 transition-all duration-300 text-sm font-semibold"
-            >
-              Continue Quest →
-            </button>
+            (() => {
+              // Calculate completion status
+              const completedTasks = quest.quest_tasks?.filter(task => task.is_completed).length || 0;
+              const totalTasks = quest.quest_tasks?.length || 1;
+              const isCompleted = completedTasks === totalTasks && totalTasks > 0;
+              
+              if (isCompleted) {
+                return (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate('/diploma');
+                    }}
+                    className="flex-1 bg-gradient-to-r from-emerald-500 to-green-500 text-white py-2 px-4 rounded-[20px] hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 text-sm font-semibold"
+                  >
+                    ✓ Completed - View Diploma
+                  </button>
+                );
+              } else {
+                return (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/quests/${quest.id}`);
+                    }}
+                    className="flex-1 bg-emerald-500 text-white py-2 px-4 rounded-[20px] hover:bg-emerald-600 hover:-translate-y-0.5 transition-all duration-300 text-sm font-semibold"
+                  >
+                    Continue Quest →
+                  </button>
+                );
+              }
+            })()
           )}
         </div>
       </div>

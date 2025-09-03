@@ -10,7 +10,19 @@ import { getTierDisplayName } from '../utils/tierMapping'
 const ActiveQuests = memo(({ activeQuests }) => {
   const navigate = useNavigate()
   
-  if (!activeQuests || activeQuests.length === 0) {
+  // Filter out completed and ended quests
+  const filteredQuests = activeQuests?.filter(quest => {
+    const tasksCompleted = quest.tasks_completed || quest.completed_tasks || 0
+    const totalTasks = quest.quests?.task_count || quest.quests?.total_tasks || quest.task_count || quest.total_tasks || 1
+    const progressPercent = totalTasks > 0 ? Math.round((tasksCompleted / totalTasks) * 100) : 0
+    
+    const isCompleted = progressPercent === 100 || quest.status === 'completed' || quest.completed_at
+    const isEnded = quest.status === 'ended' || quest.ended_at
+    
+    return !isCompleted && !isEnded // Only show truly active quests
+  }) || []
+  
+  if (filteredQuests.length === 0) {
     return (
       <div className="text-center py-8">
         <p className="text-gray-600 mb-4">No active quests yet.</p>
@@ -29,7 +41,7 @@ const ActiveQuests = memo(({ activeQuests }) => {
   
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {activeQuests.map(quest => {
+      {filteredQuests.map(quest => {
         const questId = quest.quest_id || quest.quests?.id
         const questData = quest.quests || quest
         
@@ -41,6 +53,11 @@ const ActiveQuests = memo(({ activeQuests }) => {
         const tasksCompleted = quest.tasks_completed || quest.completed_tasks || 0
         const totalTasks = questData.task_count || questData.total_tasks || 1
         const progressPercent = totalTasks > 0 ? Math.round((tasksCompleted / totalTasks) * 100) : 0
+        
+        // Determine quest status
+        const isCompleted = progressPercent === 100 || quest.status === 'completed' || quest.completed_at
+        const isEnded = quest.status === 'ended' || quest.ended_at
+        const isActive = !isCompleted && !isEnded
         
         // Get pillar breakdown
         const pillarBreakdown = questData.pillar_breakdown || {}
@@ -142,23 +159,62 @@ const ActiveQuests = memo(({ activeQuests }) => {
               </div>
 
               {/* Continue Button */}
-              <button
-                className="w-full px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  navigate(`/quests/${questId}`)
-                }}
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Continue Quest
-              </button>
+              {isCompleted ? (
+                <button
+                  className="w-full px-4 py-2 bg-gradient-to-r from-emerald-500 to-green-500 text-white rounded-lg font-semibold hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate('/diploma')
+                  }}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.5-2A11.95 11.95 0 0010 20c-7.18 0-13-5.82-13-13s5.82-13 13-13 13 5.82 13 13c0 2.485-.696 4.813-1.904 6.804L16.5 12" />
+                  </svg>
+                  Quest Complete - View Diploma
+                </button>
+              ) : isEnded ? (
+                <button
+                  className="w-full px-4 py-2 bg-gray-400 text-white rounded-lg font-semibold cursor-not-allowed flex items-center justify-center gap-2"
+                  disabled
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Quest Ended
+                </button>
+              ) : (
+                <button
+                  className="w-full px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-lg font-semibold hover:shadow-md transition-all duration-200 flex items-center justify-center gap-2"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    navigate(`/quests/${questId}`)
+                  }}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Continue Quest
+                </button>
+              )}
 
-              {/* In Progress Indicator */}
-              <div className="mt-3 flex items-center gap-2 text-xs text-green-600">
-                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                <span>In Progress</span>
+              {/* Status Indicator */}
+              <div className="mt-3 flex items-center gap-2 text-xs">
+                {isCompleted ? (
+                  <>
+                    <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+                    <span className="text-emerald-600 font-medium">Completed</span>
+                  </>
+                ) : isEnded ? (
+                  <>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full" />
+                    <span className="text-gray-600">Ended Early</span>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                    <span className="text-green-600">In Progress</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -219,6 +275,78 @@ const RecentCompletions = memo(({ recentTasks }) => {
               <span className="text-xs text-gray-500 ml-auto">
                 {task.completed_at ? new Date(task.completed_at).toLocaleDateString() : 'Recently'}
               </span>
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+})
+
+// Memoized component for Completed Quests section
+const CompletedQuests = memo(({ activeQuests }) => {
+  const navigate = useNavigate()
+  
+  // Filter to show only completed quests
+  const completedQuests = activeQuests?.filter(quest => {
+    const tasksCompleted = quest.tasks_completed || quest.completed_tasks || 0
+    const totalTasks = quest.quests?.task_count || quest.quests?.total_tasks || quest.task_count || quest.total_tasks || 1
+    const progressPercent = totalTasks > 0 ? Math.round((tasksCompleted / totalTasks) * 100) : 0
+    
+    return progressPercent === 100 || quest.status === 'completed' || quest.completed_at
+  }) || []
+  
+  if (completedQuests.length === 0) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-gray-600">Complete your first quest to see it here!</p>
+      </div>
+    )
+  }
+  
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {completedQuests.slice(0, 6).map(quest => { // Show max 6 completed quests
+        const questId = quest.quest_id || quest.quests?.id
+        const questData = quest.quests || quest
+        
+        if (!questId) return null
+        
+        const pillarBreakdown = questData.pillar_breakdown || {}
+        const totalXP = questData.total_xp || 0
+        const dominantPillar = Object.entries(pillarBreakdown).reduce((max, [pillar, xp]) => 
+          xp > (pillarBreakdown[max] || 0) ? pillar : max, 'life_wellness')
+        const dominantPillarGradient = getPillarGradient(dominantPillar)
+        
+        return (
+          <div 
+            key={questId}
+            className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 overflow-hidden cursor-pointer group border-2 border-emerald-200"
+            onClick={() => navigate('/diploma')}
+          >
+            <div className="p-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-2 group-hover:text-emerald-600 transition-colors">
+                {questData.title}
+              </h3>
+              
+              <div className="flex items-center gap-2 mb-4">
+                <div className="px-3 py-1 bg-emerald-100 text-emerald-800 rounded-full text-sm font-medium">
+                  ✓ Completed
+                </div>
+                <div className={`px-3 py-1.5 rounded-full bg-gradient-to-r ${dominantPillarGradient} text-white text-sm font-bold`}>
+                  {totalXP} XP
+                </div>
+              </div>
+              
+              <button
+                className="w-full px-4 py-2 bg-emerald-500 text-white rounded-lg font-semibold hover:bg-emerald-600 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  navigate('/diploma')
+                }}
+              >
+                View on Diploma
+              </button>
             </div>
           </div>
         )
@@ -475,6 +603,20 @@ const DashboardPage = () => {
             </Link>
           </div>
           <ActiveQuests activeQuests={dashboardData?.active_quests} />
+        </div>
+        
+        {/* Completed Quests Section */}
+        <div className="card">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-semibold text-gray-900">Completed Quests</h2>
+            <Link
+              to="/diploma"
+              className="text-sm text-primary hover:text-purple-700 font-medium"
+            >
+              View Full Diploma →
+            </Link>
+          </div>
+          <CompletedQuests activeQuests={dashboardData?.active_quests} />
         </div>
       </div>
 
