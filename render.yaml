@@ -1,10 +1,63 @@
 services:
-  # Frontend Static Site (migrating from Vercel)
+  # Production Backend
   - type: web
-    name: optio-frontend
-    runtime: static
-    buildCommand: cd frontend && npm install && npm run build
-    staticPublishPath: frontend/dist
+    name: optio-backend-prod
+    env: python
+    branch: main
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        value: https://optio-frontend-prod.onrender.com
+
+  # Development Backend
+  - type: web
+    name: optio-backend-dev
+    env: python
+    branch: develop
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app
+    envVars:
+      - key: FLASK_ENV
+        value: development
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: FRONTEND_URL
+        value: https://optio-frontend-dev.onrender.com
+
+  # Production Frontend
+  - type: static
+    name: optio-frontend-prod
+    branch: main
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
     headers:
       - path: /*
         name: Cache-Control
@@ -17,8 +70,33 @@ services:
       - key: NODE_VERSION
         value: 20.11.0
       - key: VITE_API_URL
-        value: https://optio-8ibe.onrender.com/api
+        value: https://optio-backend-prod.onrender.com
       - key: VITE_SUPABASE_URL
-        value: https://vvfgxcykxjybtvpfzwyx.supabase.co
+        sync: false
       - key: VITE_SUPABASE_ANON_KEY
-        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ2Zmd4Y3lreGp5YnR2cGZ6d3l4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTU5ODQ2NTAsImV4cCI6MjA3MTU2MDY1MH0.Bh00lJuio6mYbAaJDd7BXsdRkm8azGw2A8djCq7cmO0
+        sync: false
+
+  # Development Frontend
+  - type: static
+    name: optio-frontend-dev
+    branch: develop
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: public, max-age=0, must-revalidate
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+      - key: VITE_API_URL
+        value: https://optio-backend-dev.onrender.com
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false
