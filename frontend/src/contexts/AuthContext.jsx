@@ -146,8 +146,9 @@ export const AuthProvider = ({ children }) => {
       // Use retry logic for registration to handle temporary service issues
       const response = await retryWithBackoff(
         () => api.post('/auth/register', userData),
-        3, // max retries
-        2000 // initial delay of 2 seconds
+        5, // more retries for cold starts
+        3000, // 3 second initial delay for cold starts
+        true // show progress in console
       )
       const { user, session, message, email_verification_required } = response.data
       

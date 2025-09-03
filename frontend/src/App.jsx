@@ -1,10 +1,11 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { AuthProvider } from './contexts/AuthContext'
 import { DemoProvider } from './contexts/DemoContext'
 import ErrorBoundary from './components/ErrorBoundary'
+import { warmupBackend } from './utils/retryHelper'
 
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
@@ -35,6 +36,12 @@ import PrivateRoute from './components/PrivateRoute'
 const queryClient = new QueryClient()
 
 function App() {
+  // Warm up the backend service on app load (helps with Render cold starts)
+  useEffect(() => {
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    warmupBackend(apiUrl);
+  }, []);
+
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
