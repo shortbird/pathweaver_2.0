@@ -10,8 +10,6 @@ import CreateQuestPage from './admin/CreateQuestPage'
 import { getTierDisplayName } from '../utils/tierMapping'
 
 const AdminDashboard = () => {
-  const [analytics, setAnalytics] = useState(null)
-  const [loading, setLoading] = useState(true)
   const [users, setUsers] = useState([])
   const [usersLoading, setUsersLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -35,7 +33,6 @@ const AdminDashboard = () => {
   const usersPerPage = 10 // Reduced for dashboard view
 
   useEffect(() => {
-    fetchAnalytics()
     fetchUsers()
   }, [])
 
@@ -43,16 +40,6 @@ const AdminDashboard = () => {
     fetchUsers()
   }, [currentPage, filters])
 
-  const fetchAnalytics = async () => {
-    try {
-      const response = await api.get('/admin/analytics')
-      setAnalytics(response.data)
-    } catch (error) {
-      toast.error('Failed to load analytics')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const fetchUsers = async () => {
     try {
@@ -67,7 +54,7 @@ const AdminDashboard = () => {
         sort_order: filters.sortOrder
       })
       
-      const response = await api.get(`/admin/users?${queryParams}`)
+      const response = await api.get(`/v3/admin/users?${queryParams}`)
       setUsers(response.data.users || [])
       setTotalPages(Math.ceil((response.data.total || 0) / usersPerPage))
     } catch (error) {
@@ -117,7 +104,7 @@ const AdminDashboard = () => {
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       try {
-        await api.delete(`/admin/users/${userId}`)
+        await api.delete(`/v3/admin/users/${userId}`)
         toast.success('User deleted successfully')
         fetchUsers()
       } catch (error) {
@@ -130,7 +117,7 @@ const AdminDashboard = () => {
     const action = currentStatus === 'active' ? 'disable' : 'enable'
     if (window.confirm(`Are you sure you want to ${action} this user account?`)) {
       try {
-        await api.post(`/admin/users/${userId}/toggle-status`)
+        await api.post(`/v3/admin/users/${userId}/toggle-status`)
         toast.success(`User account ${action}d successfully`)
         fetchUsers()
       } catch (error) {
@@ -150,7 +137,7 @@ const AdminDashboard = () => {
     if (!roleChangeUser || !newRole) return
 
     try {
-      const response = await api.put(`/admin/users/${roleChangeUser.id}/role`, {
+      const response = await api.put(`/v3/admin/users/${roleChangeUser.id}/role`, {
         role: newRole,
         reason: roleChangeReason || 'Role change requested by admin'
       })
@@ -169,7 +156,7 @@ const AdminDashboard = () => {
   const handleResetPassword = async (userId, userEmail) => {
     if (window.confirm(`Send password reset email to ${userEmail}?`)) {
       try {
-        await api.post(`/admin/users/${userId}/reset-password`)
+        await api.post(`/v3/admin/users/${userId}/reset-password`)
         toast.success('Password reset email sent')
       } catch (error) {
         toast.error('Failed to send password reset email')
@@ -216,36 +203,9 @@ const AdminDashboard = () => {
     })
   }
 
-  if (loading) {
-    return <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-  }
-
   return (
     <div>
       <h2 className="text-2xl font-bold mb-6">Dashboard Overview</h2>
-      
-      {/* Analytics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-        <div className="card">
-          <h3 className="text-sm text-gray-600 mb-2">Total Users</h3>
-          <p className="text-3xl font-bold">{analytics?.total_users || 0}</p>
-        </div>
-        <div className="card">
-          <h3 className="text-sm text-gray-600 mb-2">Monthly Active</h3>
-          <p className="text-3xl font-bold text-green-600">{analytics?.monthly_active_users || 0}</p>
-        </div>
-        <div className="card">
-          <h3 className="text-sm text-gray-600 mb-2">Quests Completed</h3>
-          <p className="text-3xl font-bold text-purple-600">{analytics?.total_quests_completed || 0}</p>
-        </div>
-        <div className="card">
-          <h3 className="text-sm text-gray-600 mb-2">Paid Subscribers</h3>
-          <p className="text-3xl font-bold text-yellow-600">
-            {(analytics?.subscription_breakdown?.creator || 0) + 
-             (analytics?.subscription_breakdown?.visionary || 0)}
-          </p>
-        </div>
-      </div>
 
       {/* Users Section */}
       <div className="mt-8">
@@ -633,7 +593,7 @@ const AdminQuests = () => {
   const handleDelete = async (questId) => {
     if (window.confirm('Are you sure you want to delete this quest?')) {
       try {
-        await api.delete(`/admin/quests/${questId}`)
+        await api.delete(`/v3/admin/quests/${questId}`)
         toast.success('Quest deleted successfully')
         fetchQuests()
       } catch (error) {
@@ -953,7 +913,7 @@ const AdminUsers = () => {
         sort_order: filters.sortOrder
       })
       
-      const response = await api.get(`/admin/users?${queryParams}`)
+      const response = await api.get(`/v3/admin/users?${queryParams}`)
       setUsers(response.data.users || [])
       setTotalPages(Math.ceil((response.data.total || 0) / usersPerPage))
     } catch (error) {
@@ -1003,7 +963,7 @@ const AdminUsers = () => {
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       try {
-        await api.delete(`/admin/users/${userId}`)
+        await api.delete(`/v3/admin/users/${userId}`)
         toast.success('User deleted successfully')
         fetchUsers()
       } catch (error) {
@@ -1016,7 +976,7 @@ const AdminUsers = () => {
     const action = currentStatus === 'active' ? 'disable' : 'enable'
     if (window.confirm(`Are you sure you want to ${action} this user account?`)) {
       try {
-        await api.post(`/admin/users/${userId}/toggle-status`)
+        await api.post(`/v3/admin/users/${userId}/toggle-status`)
         toast.success(`User account ${action}d successfully`)
         fetchUsers()
       } catch (error) {
@@ -1036,7 +996,7 @@ const AdminUsers = () => {
     if (!roleChangeUser || !newRole) return
 
     try {
-      const response = await api.put(`/admin/users/${roleChangeUser.id}/role`, {
+      const response = await api.put(`/v3/admin/users/${roleChangeUser.id}/role`, {
         role: newRole,
         reason: roleChangeReason || 'Role change requested by admin'
       })
@@ -1055,7 +1015,7 @@ const AdminUsers = () => {
   const handleResetPassword = async (userId, userEmail) => {
     if (window.confirm(`Send password reset email to ${userEmail}?`)) {
       try {
-        await api.post(`/admin/users/${userId}/reset-password`)
+        await api.post(`/v3/admin/users/${userId}/reset-password`)
         toast.success('Password reset email sent')
       } catch (error) {
         toast.error('Failed to send password reset email')
@@ -1480,7 +1440,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
   const fetchUserDetails = async () => {
     try {
-      const response = await api.get(`/admin/users/${user.id}`)
+      const response = await api.get(`/v3/admin/users/${user.id}`)
       setUserActivity(response.data)
     } catch (error) {
       toast.error('Failed to load user details')
@@ -1494,7 +1454,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const handleSaveProfile = async () => {
     setLoading(true)
     try {
-      await api.put(`/admin/users/${user.id}`, {
+      await api.put(`/v3/admin/users/${user.id}`, {
         first_name: formData.first_name,
         last_name: formData.last_name,
         email: formData.email
@@ -1512,7 +1472,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     if (window.confirm(`Change subscription to ${formData.subscription_tier}?`)) {
       setLoading(true)
       try {
-        await api.post(`/admin/users/${user.id}/subscription`, {
+        await api.post(`/v3/admin/users/${user.id}/subscription`, {
           tier: formData.subscription_tier,
           expires: formData.subscription_expires
         })
@@ -1836,7 +1796,7 @@ The OptioQuest Team`
     if (window.confirm(`Send email to ${selectedUserIds.length} users?`)) {
       setSending(true)
       try {
-        await api.post('/admin/users/bulk-email', {
+        await api.post('/v3/admin/users/bulk-email', {
           user_ids: selectedUserIds,
           subject: emailData.subject,
           message: emailData.message
