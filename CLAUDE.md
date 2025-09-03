@@ -10,6 +10,14 @@
 - Keep this documentation up to date with code changes
 - Follow core_philosophy.md for all updates
 
+**DEVELOPMENT WORKFLOW:**
+- **Development**: Push to `develop` branch for immediate live testing on dev environment
+- **Production**: Deploy to `main` branch only when ready for production release
+- **Branch Strategy**: 
+  - `develop` → https://optio-frontend-dev.onrender.com & https://optio-backend-dev.onrender.com
+  - `main` → https://www.optioeducation.com & https://optio-8ibe.onrender.com
+- **Testing Process**: Always test changes in dev environment first, then merge to main for production
+
 **DESIGN GUIDELINES:**
 - **Optio Brand Gradient**: Always use `from-[#ef597b] to-[#6d469b]` (pink to purple)
 - **Gradient Direction**: ALWAYS pink on the left (#ef597b), purple on the right (#6d469b) - NEVER swap
@@ -36,9 +44,10 @@ Optio is an educational platform where students create self-validated diplomas t
 - React Router v6, React Query, Axios
 
 **Hosting:**
-- Backend: Railway/Render
-- Frontend: Netlify/Vercel
-- Database: Supabase
+- Backend: Render (optio-backend-dev for dev, Optio for production)
+- Frontend: Render (optio-frontend-dev for dev, Optio_FE for production)
+- Database: Supabase (shared across environments)
+- Custom Domain: www.optioeducation.com → Optio_FE service
 
 ## Key Directory Structure
 
@@ -175,26 +184,37 @@ frontend/src/
 
 ## Production Deployment
 
-**Backend:**
+**Development Environment:**
 ```bash
-git push origin main  # Auto-deploys to Railway/Render
+git push origin develop  # Auto-deploys to optio-backend-dev & optio-frontend-dev
 ```
+- **Backend**: https://optio-backend-dev.onrender.com
+- **Frontend**: https://optio-frontend-dev.onrender.com
 
-**Frontend:**
+**Production Environment:**
 ```bash
-npm run build  # Auto-deploys via Git integration
+git push origin main  # Auto-deploys to Optio & Optio_FE
 ```
+- **Backend**: https://optio-8ibe.onrender.com  
+- **Frontend**: https://www.optioeducation.com
 
 **Key Files:**
-- Procfile: `web: gunicorn app:app`
-- _redirects: `/* /index.html 200`
+- Backend: `main.py` entry point for Python
+- Frontend: `frontend/dist` build output, `_redirects: /* /index.html 200`
+
+**Environment Variables:**
+- **Supabase**: SUPABASE_URL, SUPABASE_KEY, SUPABASE_SERVICE_KEY
+- **CORS**: FRONTEND_URL, ALLOWED_ORIGINS (configured per environment)
+- **Flask**: FLASK_ENV=production for main branch
 
 ## Common Issues
 
 1. **XP Not Showing**: Run `python fix_xp_calculation.py`
-2. **CORS Errors**: Check FRONTEND_URL in config.py
-3. **Auth Issues**: Verify Supabase keys match
-4. **Upload Limits**: 10MB per file default
+2. **CORS Errors**: Check FRONTEND_URL and ALLOWED_ORIGINS in Render environment variables
+3. **Auth Issues**: Verify Supabase keys match across dev/prod environments  
+4. **404 API Errors**: Ensure all API endpoints use `/api` prefix (e.g., `/api/auth/login`, `/api/settings`)
+5. **Upload Limits**: 10MB per file default
+6. **Branch Confusion**: Dev changes go to `develop`, production to `main`
 
 ## Development Guidelines
 
