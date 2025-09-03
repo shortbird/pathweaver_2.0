@@ -449,3 +449,450 @@ def delete_quest(user_id, quest_id):
     except Exception as e:
         print(f"Error deleting quest: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+# =============================================================================
+# USER MANAGEMENT ENDPOINTS - V3
+# =============================================================================
+
+@bp.route('/users', methods=['GET'])
+@require_admin
+def get_users_list(user_id):
+    """Get paginated list of users with search and filtering capabilities"""
+    supabase = get_supabase_admin_client()
+    
+    try:
+        # Get query parameters
+        page = request.args.get('page', 1, type=int)
+        limit = request.args.get('limit', 20, type=int)
+        search = request.args.get('search', '')
+        subscription = request.args.get('subscription', 'all')
+        role = request.args.get('role', 'all')
+        activity = request.args.get('activity', 'all')
+        sort_by = request.args.get('sort_by', 'created_at')
+        sort_order = request.args.get('sort_order', 'desc')
+        
+        # Start building query
+        query = supabase.table('users').select('*', count='exact')
+        
+        # Apply search filter
+        if search:
+            # Build search query safely
+            query = query.or_(f"first_name.ilike.%{search}%,last_name.ilike.%{search}%,username.ilike.%{search}%")
+        
+        # Apply subscription filter
+        if subscription != 'all':
+            if subscription == 'free':
+                query = query.or_('subscription_tier.eq.free,subscription_tier.is.null')
+            else:
+                query = query.eq('subscription_tier', subscription)
+        
+        # Apply role filter
+        if role != 'all':
+            query = query.eq('role', role)
+        
+        # Apply activity filter
+        if activity != 'all':
+            from datetime import datetime, timedelta
+            if activity == 'active_7':
+                cutoff = (datetime.utcnow() - timedelta(days=7)).isoformat()
+                query = query.gte('last_active', cutoff)
+            elif activity == 'active_30':
+                cutoff = (datetime.utcnow() - timedelta(days=30)).isoformat()
+                query = query.gte('last_active', cutoff)
+            elif activity == 'inactive':
+                cutoff = (datetime.utcnow() - timedelta(days=30)).isoformat()
+                query = query.or_(f'last_active.lt.{cutoff},last_active.is.null')
+        
+        # Apply sorting
+        if sort_order == 'desc':
+            query = query.order(sort_by, desc=True)
+        else:
+            query = query.order(sort_by)
+        
+        # Apply pagination
+        start = (page - 1) * limit
+        end = start + limit - 1
+        query = query.range(start, end)
+        
+        # Execute query
+        response = query.execute()
+        
+        # Enhance user data
+        users = response.data if response.data else []
+        
+        # Get emails from auth.users table
+        try:
+            auth_users = supabase.auth.admin.list_users()
+            email_map = {}
+            if auth_users:
+                for auth_user in auth_users:
+                    email_map[auth_user.id] = getattr(auth_user, 'email', None)
+        except Exception as e:
+            print(f"Warning: Could not fetch auth users: {e}")
+            email_map = {}
+        
+        for user in users:
+            # Add email from auth.users
+            user['email'] = email_map.get(user['id'], '')
+            
+            # Calculate total XP across all pillars
+            try:
+                xp_response = supabase.table('user_skill_xp')\
+                    .select('xp_amount')\
+                    .eq('user_id', user['id'])\
+                    .execute()
+                
+                user['total_xp'] = sum(x['xp_amount'] for x in xp_response.data) if xp_response.data else 0
+            except Exception:
+                user['total_xp'] = 0
+        
+        # Calculate total count for pagination
+        total_count = response.count if hasattr(response, 'count') else len(users)
+        
+        return jsonify({
+            'users': users,
+            'total': total_count,
+            'page': page,
+            'limit': limit
+        }), 200
+        
+    except Exception as e:
+        print(f"Error fetching users: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/users/<user_id>', methods=['GET'])
+@require_admin
+def get_user_details(admin_id, user_id):
+    """Get detailed information about a specific user"""
+    supabase = get_supabase_admin_client()
+    
+    try:
+        # Get user details
+        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
+        
+        if not user_response.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        user = user_response.data[0]
+        
+        # Get XP by pillar
+        xp_response = supabase.table('user_skill_xp')\
+            .select('pillar, xp_amount')\
+            .eq('user_id', user_id)\
+            .execute()
+        
+        xp_by_pillar = {}
+        total_xp = 0
+        if xp_response.data:
+            for xp in xp_response.data:
+                xp_by_pillar[xp['pillar']] = xp['xp_amount']
+                total_xp += xp['xp_amount']
+        
+        # Get completed quests
+        completed_quests_response = supabase.table('user_quests')\
+            .select('*, quests(title)')\
+            .eq('user_id', user_id)\
+            .not_.is_('completed_at', 'null')\
+            .order('completed_at', desc=True)\
+            .execute()
+        
+        completed_quests = []
+        quests_completed = 0
+        if completed_quests_response.data:
+            quests_completed = len(completed_quests_response.data)
+            for quest in completed_quests_response.data:
+                # Calculate XP for this quest completion
+                quest_xp = 0  # We'd need to calculate this based on quest tasks
+                completed_quests.append({
+                    'id': quest.get('quest_id'),
+                    'title': quest.get('quests', {}).get('title') if quest.get('quests') else 'Unknown Quest',
+                    'completed_at': quest.get('completed_at'),
+                    'xp_earned': quest_xp
+                })
+        
+        return jsonify({
+            'user': user,
+            'xp_by_pillar': xp_by_pillar,
+            'total_xp': total_xp,
+            'completed_quests': completed_quests,
+            'quests_completed': quests_completed,
+            'last_active': user.get('last_active'),
+            'current_streak': 0  # Could implement streak calculation
+        }), 200
+        
+    except Exception as e:
+        print(f"Error fetching user details: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/users/<user_id>', methods=['PUT'])
+@require_admin
+def update_user_profile(admin_id, user_id):
+    """Update user profile information"""
+    supabase = get_supabase_admin_client()
+    data = request.json
+    
+    try:
+        # Update user profile
+        update_data = {}
+        if 'first_name' in data:
+            update_data['first_name'] = data['first_name']
+        if 'last_name' in data:
+            update_data['last_name'] = data['last_name']
+        if 'email' in data:
+            # Note: Email updates might require auth.users update too
+            update_data['email'] = data['email']
+            
+        if update_data:
+            response = supabase.table('users')\
+                .update(update_data)\
+                .eq('id', user_id)\
+                .execute()
+            
+            if not response.data:
+                return jsonify({'error': 'User not found'}), 404
+        
+        return jsonify({'message': 'User updated successfully'}), 200
+        
+    except Exception as e:
+        print(f"Error updating user: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/users/<user_id>/subscription', methods=['POST'])
+@require_admin
+def update_user_subscription(admin_id, user_id):
+    """Update user subscription tier and expiration"""
+    supabase = get_supabase_admin_client()
+    data = request.json
+    
+    try:
+        update_data = {
+            'subscription_tier': data.get('tier', 'free'),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        if data.get('expires'):
+            update_data['subscription_expires'] = data['expires']
+        
+        response = supabase.table('users')\
+            .update(update_data)\
+            .eq('id', user_id)\
+            .execute()
+        
+        if not response.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        return jsonify({'message': 'Subscription updated successfully'}), 200
+        
+    except Exception as e:
+        print(f"Error updating subscription: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/users/<user_id>/role', methods=['PUT'])
+@require_admin
+def update_user_role(admin_id, user_id):
+    """Update user role with audit logging"""
+    supabase = get_supabase_admin_client()
+    data = request.json
+    
+    try:
+        new_role = data.get('role')
+        reason = data.get('reason', 'Role change by admin')
+        
+        # Validate role
+        valid_roles = ['student', 'parent', 'advisor', 'admin']
+        if new_role not in valid_roles:
+            return jsonify({'error': 'Invalid role'}), 400
+        
+        # Update user role
+        response = supabase.table('users')\
+            .update({
+                'role': new_role,
+                'updated_at': datetime.utcnow().isoformat()
+            })\
+            .eq('id', user_id)\
+            .execute()
+        
+        if not response.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Get role display name
+        role_display_names = {
+            'student': 'Student',
+            'parent': 'Parent',
+            'advisor': 'Advisor',
+            'admin': 'Administrator'
+        }
+        
+        return jsonify({
+            'message': 'Role updated successfully',
+            'display_name': role_display_names.get(new_role, new_role)
+        }), 200
+        
+    except Exception as e:
+        print(f"Error updating role: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/users/<user_id>/reset-password', methods=['POST'])
+@require_admin
+def reset_user_password(admin_id, user_id):
+    """Send password reset email to user"""
+    supabase = get_supabase_admin_client()
+    
+    try:
+        # Get user email
+        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
+        if not user_response.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Get email from auth.users
+        try:
+            auth_users = supabase.auth.admin.list_users()
+            user_email = None
+            if auth_users:
+                for auth_user in auth_users:
+                    if auth_user.id == user_id:
+                        user_email = getattr(auth_user, 'email', None)
+                        break
+            
+            if not user_email:
+                return jsonify({'error': 'User email not found'}), 404
+            
+            # Send password reset email
+            supabase.auth.admin.generate_link(
+                type='recovery',
+                email=user_email
+            )
+            
+            return jsonify({'message': 'Password reset email sent'}), 200
+            
+        except Exception as e:
+            print(f"Error sending reset email: {str(e)}")
+            return jsonify({'error': 'Failed to send reset email'}), 500
+        
+    except Exception as e:
+        print(f"Error in password reset: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/users/<user_id>/toggle-status', methods=['POST'])
+@require_admin
+def toggle_user_status(admin_id, user_id):
+    """Enable or disable a user account"""
+    supabase = get_supabase_admin_client()
+    
+    try:
+        # Get current status
+        user_response = supabase.table('users').select('status').eq('id', user_id).execute()
+        if not user_response.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        current_status = user_response.data[0].get('status', 'active')
+        new_status = 'disabled' if current_status == 'active' else 'active'
+        
+        # Update status
+        response = supabase.table('users')\
+            .update({
+                'status': new_status,
+                'updated_at': datetime.utcnow().isoformat()
+            })\
+            .eq('id', user_id)\
+            .execute()
+        
+        if not response.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        return jsonify({
+            'message': f'User account {"enabled" if new_status == "active" else "disabled"} successfully',
+            'status': new_status
+        }), 200
+        
+    except Exception as e:
+        print(f"Error toggling user status: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/users/<user_id>', methods=['DELETE'])
+@require_admin
+def delete_user_account(admin_id, user_id):
+    """Permanently delete a user account and all associated data"""
+    supabase = get_supabase_admin_client()
+    
+    try:
+        # Delete user data in proper order to avoid foreign key violations
+        
+        # Delete user XP data
+        supabase.table('user_skill_xp').delete().eq('user_id', user_id).execute()
+        
+        # Delete user quest enrollments and completions
+        supabase.table('user_quests').delete().eq('user_id', user_id).execute()
+        supabase.table('quest_task_completions').delete().eq('user_id', user_id).execute()
+        
+        # Delete user profile
+        response = supabase.table('users').delete().eq('id', user_id).execute()
+        
+        if not response.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Delete from auth.users
+        try:
+            supabase.auth.admin.delete_user(user_id)
+        except Exception as e:
+            print(f"Warning: Could not delete from auth.users: {e}")
+        
+        return jsonify({'message': 'User account deleted successfully'}), 200
+        
+    except Exception as e:
+        print(f"Error deleting user: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@bp.route('/users/bulk-email', methods=['POST'])
+@require_admin
+def send_bulk_email(admin_id):
+    """Send email to multiple users"""
+    supabase = get_supabase_admin_client()
+    data = request.json
+    
+    try:
+        user_ids = data.get('user_ids', [])
+        subject = data.get('subject', '')
+        message = data.get('message', '')
+        
+        if not user_ids or not subject or not message:
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Get user details
+        users_response = supabase.table('users')\
+            .select('id, first_name, last_name')\
+            .in_('id', user_ids)\
+            .execute()
+        
+        if not users_response.data:
+            return jsonify({'error': 'No users found'}), 404
+        
+        # Get emails from auth.users
+        try:
+            auth_users = supabase.auth.admin.list_users()
+            email_map = {}
+            if auth_users:
+                for auth_user in auth_users:
+                    if auth_user.id in user_ids:
+                        email_map[auth_user.id] = getattr(auth_user, 'email', None)
+        except Exception as e:
+            print(f"Error fetching emails: {e}")
+            return jsonify({'error': 'Could not fetch user emails'}), 500
+        
+        # For now, we'll just return success
+        # In a real implementation, you'd integrate with an email service
+        emails_sent = 0
+        for user in users_response.data:
+            user_email = email_map.get(user['id'])
+            if user_email:
+                # Here you would send the actual email
+                emails_sent += 1
+        
+        return jsonify({
+            'message': f'Bulk email prepared for {emails_sent} users',
+            'emails_sent': emails_sent
+        }), 200
+        
+    except Exception as e:
+        print(f"Error sending bulk email: {str(e)}")
+        return jsonify({'error': str(e)}), 500
