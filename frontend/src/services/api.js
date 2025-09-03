@@ -37,11 +37,20 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config
     
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    // Don't retry refresh if the failing request is already a refresh attempt
+    if (error.response?.status === 401 && 
+        !originalRequest._retry && 
+        !originalRequest.url?.includes('/auth/refresh')) {
       originalRequest._retry = true
       
       try {
         const refresh_token = localStorage.getItem('refresh_token')
+        
+        // Only attempt refresh if we have a refresh token
+        if (!refresh_token) {
+          throw new Error('No refresh token available')
+        }
+        
         const response = await api.post('/auth/refresh', { refresh_token })
         const { session } = response.data
         
@@ -53,10 +62,18 @@ api.interceptors.response.use(
         
         return api(originalRequest)
       } catch (refreshError) {
+        // Clear auth data
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
         localStorage.removeItem('user')
-        window.location.href = '/login'
+        
+        // Only redirect to login if we're not already on auth pages
+        const authPaths = ['/login', '/register', '/email-verification', '/']
+        const currentPath = window.location.pathname
+        if (!authPaths.includes(currentPath)) {
+          window.location.href = '/login'
+        }
+        
         return Promise.reject(refreshError)
       }
     }
