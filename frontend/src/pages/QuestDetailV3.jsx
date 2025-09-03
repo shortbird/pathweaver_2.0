@@ -2,10 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { handleApiResponse } from '../utils/errorHandling';
+import { getPillarData } from '../utils/pillarMappings';
 import TaskCompletionModal from '../components/quest/TaskCompletionModal';
 import LearningLogSection from '../components/quest/LearningLogSection';
 import TeamUpModal from '../components/quest/TeamUpModal';
 import { getQuestHeaderImage } from '../utils/questSourceConfig';
+import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const QuestDetailV3 = () => {
@@ -18,6 +20,7 @@ const QuestDetailV3 = () => {
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showTeamUpModal, setShowTeamUpModal] = useState(false);
+  const [expandedTasks, setExpandedTasks] = useState(new Set());
 
   useEffect(() => {
     fetchQuestDetails();
@@ -68,354 +71,508 @@ const QuestDetailV3 = () => {
       });
 
       const data = await response.json();
-
       handleApiResponse(response, data, 'Failed to enroll');
 
-      // Refresh quest details to show enrollment
-      await fetchQuestDetails();
-      alert(data.message);
+      if (response.ok) {
+        toast.success('Successfully enrolled in quest!');
+        fetchQuestDetails(); // Refresh to show enrolled state
+      }
     } catch (error) {
-      console.error('Error enrolling:', error);
-      alert(error.message || 'Failed to enroll in quest');
+      console.error('Enrollment error:', error);
+      toast.error('Failed to enroll in quest');
     }
-  };
-
-  const handleTaskComplete = async (result) => {
-    // Close modal
-    setShowTaskModal(false);
-    setSelectedTask(null);
-
-    // Show success message
-    alert(result.message);
-
-    // Dispatch event for dashboard to refresh
-    window.dispatchEvent(new CustomEvent('taskCompleted', { 
-      detail: { 
-        taskId: result.task?.id,
-        xp_awarded: result.xp_awarded 
-      } 
-    }));
-
-    // Refresh quest details to update progress
-    await fetchQuestDetails();
-
-    // If quest completed, show special message
-    if (result.quest_completed) {
-      // Dispatch quest completion event
-      window.dispatchEvent(new CustomEvent('questCompleted', { 
-        detail: { 
-          questId: id 
-        } 
-      }));
-      
-      setTimeout(() => {
-        alert('🎉 Congratulations! You\'ve completed the entire quest!');
-      }, 1000);
-    }
-  };
-
-  const handleTeamUpInviteSent = async (result) => {
-    setShowTeamUpModal(false);
-    toast.success(result.message || 'Team-up invitation sent!');
-    // Refresh quest details to show collaboration status
-    await fetchQuestDetails();
   };
 
   const handleEndQuest = async () => {
-    if (!confirm('Are you sure you want to end this quest?\n\nYour progress and XP will be saved, but you won\'t be able to complete any remaining tasks.')) {
-      return;
-    }
+    if (!quest.user_enrollment) return;
 
-    try {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/v3/quests/${id}/end`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json'
+    if (window.confirm('Are you sure you want to finish this quest? This will end your active enrollment and save your progress.')) {
+      try {
+        const apiBase = import.meta.env.VITE_API_URL || '';
+        const response = await fetch(`${apiBase}/v3/quests/${id}/end`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          toast.success('Quest finished successfully!');
+          navigate('/diploma'); // Navigate to diploma to show achievement
+        } else {
+          throw new Error('Failed to end quest');
         }
-      });
-
-      const data = await response.json();
-
-      handleApiResponse(response, data, 'Failed to end quest');
-
-      if (data.stats) {
-        alert(`Quest ended successfully! You completed ${data.stats.tasks_completed} tasks and earned ${data.stats.xp_earned} XP.`);
-      } else {
-        alert('Quest ended successfully');
+      } catch (error) {
+        console.error('Error ending quest:', error);
+        toast.error('Failed to finish quest');
       }
-      navigate('/quests');
-    } catch (error) {
-      console.error('Error ending quest:', error);
-      alert(error.message || 'Failed to end quest');
     }
+  };
+
+  const handleTaskCompletion = () => {
+    setShowTaskModal(false);
+    setSelectedTask(null);
+    fetchQuestDetails(); // Refresh quest data
+  };
+
+  const toggleTaskExpansion = (taskId) => {
+    const newExpanded = new Set(expandedTasks);
+    if (newExpanded.has(taskId)) {
+      newExpanded.delete(taskId);
+    } else {
+      newExpanded.add(taskId);
+    }
+    setExpandedTasks(newExpanded);
+  };
+
+  const calculateXP = () => {
+    if (!quest?.quest_tasks) return { baseXP: 0, bonusXP: 0, totalXP: 0 };
+    
+    const baseXP = quest.quest_tasks.reduce((sum, task) => sum + (task.xp_amount || 0), 0);
+    const bonusXP = Math.round(baseXP * 0.5 / 50) * 50; // Round to nearest 50
+    const totalXP = baseXP + bonusXP;
+    
+    return { baseXP, bonusXP, totalXP };
+  };
+
+  const getPillarBreakdown = () => {
+    if (!quest?.quest_tasks) return {};
+    
+    const breakdown = {};
+    quest.quest_tasks.forEach(task => {
+      const pillar = task.pillar || 'life_wellness';
+      if (!breakdown[pillar]) {
+        breakdown[pillar] = 0;
+      }
+      breakdown[pillar] += task.xp_amount || 0;
+    });
+    
+    return breakdown;
+  };
+
+  const getLocationDisplay = () => {
+    if (!quest?.metadata) return null;
+    
+    const { location_type, venue_name, location_address } = quest.metadata;
+    
+    if (location_type === 'anywhere') return 'Anywhere';
+    if (location_type === 'specific_location') {
+      if (venue_name && location_address) {
+        return `${venue_name}, ${location_address}`;
+      } else if (venue_name) {
+        return venue_name;
+      } else if (location_address) {
+        return location_address;
+      }
+    }
+    
+    return null;
+  };
+
+  const getSeasonalDisplay = () => {
+    if (!quest?.metadata?.seasonal_start) return null;
+    
+    const startDate = new Date(quest.metadata.seasonal_start).toLocaleDateString();
+    const endDate = quest.metadata.seasonal_end ? 
+      new Date(quest.metadata.seasonal_end).toLocaleDateString() : 'Ongoing';
+    
+    return `${startDate} - ${endDate}`;
   };
 
   if (isLoading) {
     return (
-      <div className="flex justify-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <div className="animate-pulse">
+          <div className="bg-gray-300 rounded-xl h-64 mb-8"></div>
+          <div className="space-y-4">
+            <div className="h-6 bg-gray-300 rounded w-3/4"></div>
+            <div className="h-4 bg-gray-300 rounded w-1/2"></div>
+            <div className="h-32 bg-gray-300 rounded"></div>
+          </div>
+        </div>
       </div>
     );
   }
 
   if (error || !quest) {
     return (
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-          <p className="text-red-700">{error || 'Quest not found'}</p>
-          <button
+      <div className="max-w-5xl mx-auto px-4 py-8">
+        <div className="text-center">
+          <div className="text-red-500 text-xl mb-4">{error || 'Quest not found'}</div>
+          <button 
             onClick={() => navigate('/quests')}
-            className="mt-4 px-6 py-3 bg-gradient-primary text-white rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
+            className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-6 py-3 rounded-[30px] hover:shadow-lg transition-all"
           >
-            Back to Quest Hub
+            Back to Quests
           </button>
         </div>
       </div>
     );
   }
 
-  const totalXP = quest.quest_tasks?.reduce((sum, task) => sum + task.xp_amount, 0) || 0;
   const completedTasks = quest.quest_tasks?.filter(task => task.is_completed).length || 0;
   const totalTasks = quest.quest_tasks?.length || 0;
   const progressPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+  const { baseXP, bonusXP, totalXP } = calculateXP();
+  const pillarBreakdown = getPillarBreakdown();
+  const locationDisplay = getLocationDisplay();
+  const seasonalDisplay = getSeasonalDisplay();
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">
-        {/* Quest Header */}
-        <div className="card-feature mb-8">
-          {quest.header_image_url || quest.source ? (
-            <img 
-              src={quest.header_image_url || getQuestHeaderImage(quest)} 
-              alt={quest.title}
-              className="w-full h-64 object-cover"
-              onError={(e) => {
-                // Fallback to default gradient if image fails to load
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'flex';
-              }}
-            />
-          ) : null}
-          <div 
-            className="h-64 bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center"
-            style={{ display: quest.header_image_url || quest.source ? 'none' : 'flex' }}
-          >
-            <div className="text-white text-center">
-              <div className="text-6xl mb-2">🚀</div>
-              <div className="text-xl font-medium">Quest</div>
-            </div>
+      {/* 1. Hero Header Section */}
+      <div className="relative overflow-hidden rounded-xl shadow-xl mb-8">
+        <img 
+          src={quest.header_image_url || getQuestHeaderImage(quest)} 
+          alt={quest.title}
+          className="w-full h-60 object-cover"
+          onError={(e) => {
+            e.target.style.display = 'none';
+            e.target.nextSibling.style.display = 'flex';
+          }}
+        />
+        <div 
+          className="w-full h-60 bg-gradient-to-br from-[#ef597b] to-[#6d469b] flex items-center justify-center"
+          style={{ display: 'none' }}
+        >
+          <div className="text-white text-center">
+            <div className="text-6xl mb-2">🚀</div>
+            <div className="text-xl font-medium">Quest</div>
           </div>
-
-          <div className="p-6">
-            <div className="flex justify-between items-start mb-4">
-              <div className="flex-1">
-                <h1 className="text-3xl font-bold text-text-primary mb-2">{quest.title}</h1>
-                <p className="text-text-secondary text-lg">{quest.big_idea}</p>
+        </div>
+        
+        {/* Hero Overlay Content */}
+        <div className="absolute inset-0 bg-black bg-opacity-40 flex flex-col justify-end">
+          <div className="p-6 text-white">
+            <h1 className="text-4xl font-bold mb-2 drop-shadow-lg">{quest.title}</h1>
+            <p className="text-lg mb-4 drop-shadow-sm opacity-90">{quest.big_idea || quest.description}</p>
+            
+            {/* Stats Bar */}
+            <div className="flex gap-6 text-sm">
+              <div className="bg-black bg-opacity-30 px-3 py-2 rounded-lg backdrop-blur-sm">
+                <div className="font-bold text-lg">{totalXP}</div>
+                <div className="opacity-90">Total XP</div>
               </div>
-              <div className="text-right ml-4">
-                <div className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">{totalXP} XP</div>
-                <div className="text-sm text-text-muted">Total Available</div>
+              <div className="bg-black bg-opacity-30 px-3 py-2 rounded-lg backdrop-blur-sm">
+                <div className="font-bold text-lg">{completedTasks} / {totalTasks}</div>
+                <div className="opacity-90">Tasks</div>
               </div>
-            </div>
-
-            {/* Completion Bonus Info */}
-            <div className="mb-4 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-              <div className="flex items-center">
-                <svg className="w-5 h-5 text-emerald-600 mr-2 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-emerald-700 text-sm">
-                  <strong>Completion Bonus:</strong> Complete ALL tasks to earn an additional 50% XP bonus ({Math.ceil(totalXP * 0.5 / 50) * 50} XP)!
-                </span>
+              <div className="bg-black bg-opacity-30 px-3 py-2 rounded-lg backdrop-blur-sm">
+                <div className="font-bold text-lg">+{bonusXP}</div>
+                <div className="opacity-90">Completion Bonus</div>
               </div>
-            </div>
-
-            {/* Progress Bar */}
-            {quest.user_enrollment && (
-              <div className="mb-6">
-                <div className="flex justify-between text-sm text-text-secondary mb-2">
-                  <span>Progress: {completedTasks} / {totalTasks} tasks</span>
-                  <span className="font-bold text-text-primary">{Math.round(progressPercentage)}%</span>
-                </div>
-                <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-primary rounded-full transition-all duration-500 relative overflow-hidden"
-                    style={{ width: `${progressPercentage}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Collaboration Status */}
-            {quest.collaboration && (
-              <div className="mb-4 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-                <div className="flex items-center">
-                  <svg className="w-5 h-5 text-purple-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-                  </svg>
-                  <span className="text-purple-700">
-                    {quest.collaboration.status === 'accepted' 
-                      ? quest.collaboration.collaborator_names?.length > 0
-                        ? `🎉 You're teamed up with ${quest.collaboration.collaborator_names.join(' and ')}! All tasks earn double XP`
-                        : '🎉 You\'re teamed up! All tasks earn double XP'
-                      : '⏳ Team-up invitation pending'}
-                  </span>
-                </div>
-              </div>
-            )}
-
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              {!quest.user_enrollment ? (
-                <>
-                  <button
-                    onClick={handleEnroll}
-                    className="flex-1 bg-gradient-primary text-white py-3 px-6 rounded-[30px] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300 font-semibold"
-                  >
-                    Start Quest
-                  </button>
-                  <button
-                    onClick={() => setShowTeamUpModal(true)}
-                    className="bg-primary text-white py-3 px-6 rounded-[30px] hover:bg-primary-dark hover:-translate-y-0.5 transition-all duration-300 font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)]"
-                  >
-                    Team Up First
-                  </button>
-                </>
-              ) : progressPercentage === 100 ? (
-                <button
-                  onClick={() => navigate('/diploma')}
-                  className="flex-1 bg-emerald-500 text-white py-3 px-6 rounded-[30px] hover:bg-emerald-600 hover:-translate-y-0.5 transition-all duration-300 font-semibold"
-                >
-                  View Achievement 🏆
-                </button>
-              ) : (
-                !quest.collaboration && (
-                  <button
-                    onClick={() => setShowTeamUpModal(true)}
-                    className="flex-1 bg-primary text-white py-3 px-6 rounded-[30px] hover:bg-primary-dark hover:-translate-y-0.5 transition-all duration-300 font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)]"
-                  >
-                    Team Up
-                  </button>
-                )
-              )}
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Tasks Section */}
-        <div className="card mb-8">
-          <h2 className="text-2xl font-bold text-text-primary mb-6">
-            Tasks
-          </h2>
+      {/* 2. Quest Metadata Strip */}
+      <div className="bg-white rounded-xl shadow-md p-4 mb-6">
+        <div className="flex flex-wrap gap-4 items-center text-sm">
+          {locationDisplay && (
+            <div className="flex items-center gap-2 text-gray-600">
+              <MapPin className="w-4 h-4" />
+              <span>{locationDisplay}</span>
+            </div>
+          )}
+          
+          {seasonalDisplay && (
+            <div className="flex items-center gap-2 text-gray-600">
+              <Calendar className="w-4 h-4" />
+              <span>{seasonalDisplay}</span>
+            </div>
+          )}
+          
+          {quest.source && (
+            <div className="flex items-center gap-2 text-gray-600">
+              <ExternalLink className="w-4 h-4" />
+              <span className="capitalize">{quest.source.replace('_', ' ')}</span>
+            </div>
+          )}
+        </div>
+        
+        {/* Pillar XP Breakdown */}
+        {Object.keys(pillarBreakdown).length > 0 && (
+          <div className="mt-4 pt-4 border-t border-gray-200">
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(pillarBreakdown).map(([pillar, xp]) => {
+                const pillarData = getPillarData(pillar);
+                return (
+                  <div 
+                    key={pillar} 
+                    className={`px-3 py-1 rounded-full text-sm font-medium ${pillarData.bg} ${pillarData.text}`}
+                  >
+                    {pillarData.icon} {pillarData.name}: {xp} XP
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
 
+      {/* 3. Progress Dashboard */}
+      {quest.user_enrollment && (
+        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold text-gray-900">Your Progress</h2>
+            <div className="text-2xl font-bold text-gray-900">{Math.round(progressPercentage)}%</div>
+          </div>
+          
+          <div className="w-full bg-gray-200 rounded-full h-4 mb-4 overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full transition-all duration-1000 ease-out relative"
+              style={{ width: `${progressPercentage}%` }}
+            >
+              <div className="absolute inset-0 bg-white opacity-20 animate-pulse"></div>
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+            <div>
+              <div className="text-2xl font-bold text-green-600">{completedTasks}</div>
+              <div className="text-sm text-gray-600">Completed</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-blue-600">{totalTasks - completedTasks}</div>
+              <div className="text-sm text-gray-600">Remaining</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-purple-600">{Math.round((completedTasks / totalTasks) * baseXP) || 0}</div>
+              <div className="text-sm text-gray-600">XP Earned</div>
+            </div>
+            <div>
+              <div className="text-2xl font-bold text-orange-600">{progressPercentage === 100 ? bonusXP : 0}</div>
+              <div className="text-sm text-gray-600">Bonus XP</div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Collaboration Status */}
+      {quest.collaboration && (
+        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6">
+          <div className="flex items-center">
+            <Users className="w-5 h-5 text-purple-600 mr-3" />
+            <span className="text-purple-700 font-medium">
+              {quest.collaboration.status === 'accepted' 
+                ? quest.collaboration.collaborator_names?.length > 0
+                  ? `You're teamed up with ${quest.collaboration.collaborator_names.join(' and ')}! All tasks earn double XP`
+                  : 'You\'re teamed up! All tasks earn double XP'
+                : 'Team-up invitation pending'}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Call-to-Action Buttons */}
+      <div className="bg-white rounded-xl shadow-md p-6 mb-8">
+        <div className="flex gap-4">
+          {!quest.user_enrollment ? (
+            <>
+              <button
+                onClick={handleEnroll}
+                className="flex-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg"
+              >
+                <Target className="w-5 h-5 inline mr-2" />
+                Start Quest
+              </button>
+              <button
+                onClick={() => setShowTeamUpModal(true)}
+                className="bg-purple-600 text-white py-4 px-8 rounded-[30px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
+              >
+                <Users className="w-5 h-5 inline mr-2" />
+                Team Up First
+              </button>
+            </>
+          ) : progressPercentage === 100 ? (
+            <button
+              onClick={() => navigate('/diploma')}
+              className="flex-1 bg-emerald-500 text-white py-4 px-8 rounded-[30px] hover:bg-emerald-600 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
+            >
+              <Award className="w-5 h-5 inline mr-2" />
+              View Achievement on Diploma
+            </button>
+          ) : (
+            <>
+              <div className="flex-1 bg-gray-100 text-gray-700 py-4 px-8 rounded-[30px] font-bold text-lg text-center">
+                <BookOpen className="w-5 h-5 inline mr-2" />
+                Continue Progress: {Math.round(progressPercentage)}%
+              </div>
+              {!quest.collaboration && (
+                <button
+                  onClick={() => setShowTeamUpModal(true)}
+                  className="bg-purple-600 text-white py-4 px-8 rounded-[30px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
+                >
+                  <Users className="w-5 h-5 inline mr-2" />
+                  Team Up
+                </button>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* 5. Enhanced Tasks Interface */}
+      <div className="bg-white rounded-xl shadow-md overflow-hidden mb-8">
+        <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white p-6">
+          <h2 className="text-2xl font-bold">Quest Tasks</h2>
+          <p className="text-white/80 mt-2">Complete all tasks to earn the full completion bonus</p>
+        </div>
+        
+        <div className="p-6">
           {quest.quest_tasks && quest.quest_tasks.length > 0 ? (
             <div className="space-y-4">
-              {quest.quest_tasks.map((task, index) => (
-                <div 
-                  key={task.id}
-                  className={`border rounded-lg p-4 transition-all ${
-                    task.is_completed 
-                      ? 'bg-green-50 border-green-300' 
-                      : 'bg-white border-gray-200 hover:border-gray-300'
-                  }`}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center mb-2">
-                        <h3 className="text-lg font-medium text-text-primary">{task.title}</h3>
-                        {task.is_completed && (
-                          <svg className="w-5 h-5 text-green-600 ml-2" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                          </svg>
+              {quest.quest_tasks.map((task, index) => {
+                const pillarData = getPillarData(task.pillar);
+                const isExpanded = expandedTasks.has(task.id);
+                
+                return (
+                  <div 
+                    key={task.id}
+                    className={`border-2 rounded-xl transition-all duration-300 ${
+                      task.is_completed 
+                        ? 'bg-green-50 border-green-300 shadow-green-100' 
+                        : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
+                    }`}
+                  >
+                    <div className="p-6">
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center mb-3">
+                            {task.is_completed ? (
+                              <CheckCircle className="w-6 h-6 text-green-600 mr-3" />
+                            ) : (
+                              <Circle className="w-6 h-6 text-gray-400 mr-3" />
+                            )}
+                            <h3 className="text-xl font-bold text-gray-900">{task.title}</h3>
+                          </div>
+                          
+                          <div className="flex items-center gap-4 mb-3">
+                            <div className={`px-3 py-1 rounded-full text-sm font-medium ${pillarData.bg} ${pillarData.text}`}>
+                              {pillarData.icon} {pillarData.name}
+                            </div>
+                            <div className="font-bold text-lg text-gray-900">
+                              {task.xp_amount} XP
+                              {task.is_collaboration_eligible && quest.collaboration?.status === 'accepted' && (
+                                <span className="text-purple-600 ml-2">(×2 = {task.xp_amount * 2} XP)</span>
+                              )}
+                            </div>
+                          </div>
+
+                          {task.description && (
+                            <p className="text-gray-600 mb-3">{task.description}</p>
+                          )}
+
+                          {/* Expandable Details */}
+                          {(task.evidence_prompt || task.materials_needed?.length > 0) && (
+                            <button
+                              onClick={() => toggleTaskExpansion(task.id)}
+                              className="text-blue-600 hover:text-blue-800 font-medium text-sm mb-3"
+                            >
+                              {isExpanded ? 'Hide Details' : 'Show Details'} 
+                              <span className="ml-1">{isExpanded ? '▼' : '▶'}</span>
+                            </button>
+                          )}
+
+                          {isExpanded && (
+                            <div className="bg-gray-50 rounded-lg p-4 mb-3 space-y-3">
+                              {task.evidence_prompt && (
+                                <div>
+                                  <h4 className="font-medium text-gray-900 mb-1">Evidence Required:</h4>
+                                  <p className="text-gray-600 text-sm">{task.evidence_prompt}</p>
+                                </div>
+                              )}
+                              
+                              {task.materials_needed?.length > 0 && (
+                                <div>
+                                  <h4 className="font-medium text-gray-900 mb-2">Materials Needed:</h4>
+                                  <ul className="space-y-1">
+                                    {task.materials_needed.map((material, idx) => (
+                                      <li key={idx} className="flex items-center text-sm text-gray-600">
+                                        <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
+                                        {material}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {quest.user_enrollment && !task.is_completed && (
+                          <button
+                            onClick={() => {
+                              setSelectedTask(task);
+                              setShowTaskModal(true);
+                            }}
+                            className="ml-6 px-8 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-[25px] hover:shadow-[0_6px_20px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold"
+                          >
+                            Complete Task
+                          </button>
                         )}
-                      </div>
-                      {task.description && (
-                        <p className="text-text-secondary text-sm mb-3">{task.description}</p>
-                      )}
-                      <div className="flex items-center gap-3">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-medium text-white bg-gradient-to-r
-                          ${task.pillar === 'creativity' ? 'from-purple-500 to-pink-500' : ''}
-                          ${task.pillar === 'critical_thinking' ? 'from-blue-500 to-cyan-500' : ''}
-                          ${task.pillar === 'practical_skills' ? 'from-green-500 to-emerald-500' : ''}
-                          ${task.pillar === 'communication' ? 'from-orange-500 to-yellow-500' : ''}
-                          ${task.pillar === 'cultural_literacy' ? 'from-red-500 to-rose-500' : ''}
-                        `}>
-                          {task.pillar.replace('_', ' ')}
-                        </span>
-                        <span className="text-sm font-medium text-gray-700">
-                          {task.xp_amount} XP
-                        </span>
-                        {task.is_collaboration_eligible && quest.collaboration?.status === 'accepted' && (
-                          <span className="text-sm font-medium text-purple-600">
-                            (×2 = {task.xp_amount * 2} XP)
-                          </span>
+                        
+                        {task.is_completed && (
+                          <div className="ml-6 px-8 py-3 bg-green-100 text-green-800 rounded-[25px] font-bold">
+                            Completed ✓
+                          </div>
                         )}
                       </div>
                     </div>
-                    
-                    {quest.user_enrollment && !task.is_completed && (
-                      <button
-                        onClick={() => {
-                          setSelectedTask(task);
-                          setShowTaskModal(true);
-                        }}
-                        className="ml-4 px-6 py-2 bg-gradient-primary text-white rounded-[20px] hover:shadow-[0_4px_15px_rgba(239,89,123,0.2)] hover:-translate-y-0.5 transition-all duration-300 font-semibold"
-                      >
-                        Complete
-                      </button>
-                    )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
-            <p className="text-gray-500 text-center py-8">No tasks available for this quest.</p>
+            <div className="text-center py-12 text-gray-500">
+              <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
+              <p className="text-lg">No tasks available for this quest.</p>
+            </div>
           )}
         </div>
+      </div>
 
-        {/* Learning Log Section */}
-        {quest.user_enrollment && (
-          <LearningLogSection 
-            userQuestId={quest.user_enrollment.id}
-            isOwner={true}
-          />
-        )}
+      {/* Learning Log Section */}
+      {quest.user_enrollment && (
+        <LearningLogSection 
+          userQuestId={quest.user_enrollment.id}
+          isOwner={true}
+        />
+      )}
 
-        {/* End Quest Button - at the bottom */}
-        {quest.user_enrollment && progressPercentage < 100 && (
-          <div className="mt-8 text-center">
-            <button
-              onClick={handleEndQuest}
-              className="px-6 py-3 bg-red-500 text-white rounded-[30px] hover:bg-red-600 hover:-translate-y-0.5 transition-all duration-300 font-semibold"
-            >
-              End Quest
-            </button>
-            <p className="mt-2 text-sm text-gray-500">
-              This will save your progress and XP and end your active enrollment in this quest
-            </p>
-          </div>
-        )}
+      {/* Quest Management - Finish Quest */}
+      {quest.user_enrollment && progressPercentage < 100 && (
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+          <h3 className="text-lg font-bold text-red-800 mb-2">Need to End Your Quest Early?</h3>
+          <p className="text-red-600 mb-4">
+            This will save your current progress and XP, but you won't earn the completion bonus.
+          </p>
+          <button
+            onClick={handleEndQuest}
+            className="px-6 py-3 bg-red-500 text-white rounded-[25px] hover:bg-red-600 hover:-translate-y-1 transition-all duration-300 font-bold"
+          >
+            Finish Quest Early
+          </button>
+        </div>
+      )}
 
-      {/* Task Completion Modal */}
+      {/* Modals */}
       {showTaskModal && selectedTask && (
         <TaskCompletionModal
           task={selectedTask}
           questId={quest.id}
-          onComplete={handleTaskComplete}
-          onClose={() => {
-            setShowTaskModal(false);
-            setSelectedTask(null);
-          }}
+          onComplete={handleTaskCompletion}
+          onCancel={() => setShowTaskModal(false)}
         />
       )}
 
-      {/* Team Up Modal */}
       {showTeamUpModal && (
         <TeamUpModal
-          quest={quest}
+          questId={quest.id}
           onClose={() => setShowTeamUpModal(false)}
-          onInviteSent={handleTeamUpInviteSent}
+          onTeamUpSuccess={fetchQuestDetails}
         />
       )}
     </div>
