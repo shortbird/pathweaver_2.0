@@ -136,6 +136,13 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
+      // Log registration attempt for debugging
+      console.log('Registration attempt with data:', {
+        ...userData,
+        password: '[REDACTED]',
+        confirmPassword: '[REDACTED]'
+      })
+      
       // Use retry logic for registration to handle temporary service issues
       const response = await retryWithBackoff(
         () => api.post('/auth/register', userData),
@@ -171,6 +178,9 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true }
     } catch (error) {
+      // Log the full error for debugging
+      console.error('Registration error:', error.response || error)
+      
       // Handle nested error structure from backend
       let message = 'Registration failed'
       
@@ -181,6 +191,19 @@ export const AuthProvider = ({ children }) => {
         message = 'Server error. Please try again later or contact support if this continues.'
       } else if (error.response?.status === 429) {
         message = 'Too many registration attempts. Please wait a few minutes and try again.'
+      } else if (error.response?.status === 400) {
+        // Handle 400 Bad Request - validation errors
+        if (error.response?.data?.error) {
+          if (typeof error.response.data.error === 'string') {
+            message = error.response.data.error
+          } else if (error.response.data.error.message) {
+            message = error.response.data.error.message
+          }
+        } else if (error.response?.data?.message) {
+          message = error.response.data.message
+        } else {
+          message = 'Invalid registration data. Please check all fields and try again.'
+        }
       } else if (error.response?.data?.error) {
         if (typeof error.response.data.error === 'string') {
           message = error.response.data.error
