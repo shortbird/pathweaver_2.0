@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import api from '../services/api'
+import { retryWithBackoff } from '../utils/retryHelper'
 
 const AuthContext = createContext()
 
@@ -135,7 +136,12 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      const response = await api.post('/auth/register', userData)
+      // Use retry logic for registration to handle temporary service issues
+      const response = await retryWithBackoff(
+        () => api.post('/auth/register', userData),
+        3, // max retries
+        2000 // initial delay of 2 seconds
+      )
       const { user, session, message, email_verification_required } = response.data
       
       // Handle email verification required case (rate limit or email confirmation)
@@ -167,13 +173,24 @@ export const AuthProvider = ({ children }) => {
     } catch (error) {
       // Handle nested error structure from backend
       let message = 'Registration failed'
-      if (error.response?.data?.error) {
+      
+      // Handle specific error codes
+      if (error.response?.status === 503) {
+        message = 'Service temporarily unavailable. Please try again in a few moments.'
+      } else if (error.response?.status === 500) {
+        message = 'Server error. Please try again later or contact support if this continues.'
+      } else if (error.response?.status === 429) {
+        message = 'Too many registration attempts. Please wait a few minutes and try again.'
+      } else if (error.response?.data?.error) {
         if (typeof error.response.data.error === 'string') {
           message = error.response.data.error
         } else if (error.response.data.error.message) {
           message = error.response.data.error.message
         }
+      } else if (!error.response) {
+        message = 'Connection error. Please check your internet connection and try again.'
       }
+      
       toast.error(message)
       return { success: false, error: message }
     }
