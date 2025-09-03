@@ -645,16 +645,16 @@ def get_analytics(user_id):
             # If activity_log doesn't exist or fails, use a fallback
             monthly_active_count = 0
         
-        # Get subscription breakdown
+        # Get subscription breakdown (using V3 tier names)
         subscription_breakdown = supabase.table('users').select('subscription_tier').execute()
-        tier_counts = {'explorer': 0, 'creator': 0, 'visionary': 0}
+        tier_counts = {'free': 0, 'supported': 0, 'academy': 0}
         if subscription_breakdown.data:
             for user in subscription_breakdown.data:
-                tier = user.get('subscription_tier', 'explorer')
+                tier = user.get('subscription_tier', 'free')
                 if tier in tier_counts:
                     tier_counts[tier] += 1
                 else:
-                    tier_counts['explorer'] += 1  # Default to explorer if unknown tier
+                    tier_counts['free'] += 1  # Default to free if unknown tier
         
         # Get quests completed count (V3 schema: completed_at not null means completed)
         quests_completed = supabase.table('user_quests')\

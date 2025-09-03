@@ -48,7 +48,7 @@ def get_transcript(user_id):
                 'name': f"{user.data.get('first_name', '')} {user.data.get('last_name', '')}",
                 'email': user.data.get('email'),
                 'joined_date': user.data.get('created_at'),
-                'subscription_tier': user.data.get('subscription_tier', 'explorer')
+                'subscription_tier': user.data.get('subscription_tier', 'free')
             },
             'summary': {
                 'total_xp': total_xp,

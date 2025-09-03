@@ -59,7 +59,12 @@
       "WebFetch(domain:optio-8ibe.onrender.com)",
       "Bash(../venv/Scripts/pip show stripe)",
       "Bash(../venv/Scripts/pip install stripe==9.12.0)",
-      "WebFetch(domain:supabase.com)"
+      "WebFetch(domain:supabase.com)",
+      "Bash(echo $APPDATA)",
+      "Read(C:\\Users\\tanne\\AppData\\Roaming\\Claude/**)",
+      "Read(C:\\Users\\tanne\\AppData\\Roaming\\Claude/**)",
+      "Read(C:\\Users\\tanne\\AppData\\Roaming\\Claude/**)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []
