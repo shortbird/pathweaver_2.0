@@ -40,7 +40,7 @@ api.interceptors.response.use(
     // Don't retry refresh if the failing request is already a refresh attempt
     if (error.response?.status === 401 && 
         !originalRequest._retry && 
-        !originalRequest.url?.includes('/api/auth/refresh')) {
+        !originalRequest.url?.includes('/auth/refresh')) {
       originalRequest._retry = true
       
       try {
@@ -51,7 +51,7 @@ api.interceptors.response.use(
           throw new Error('No refresh token available')
         }
         
-        const response = await api.post('/api/auth/refresh', { refresh_token })
+        const response = await api.post('/auth/refresh', { refresh_token })
         const { session } = response.data
         
         localStorage.setItem('access_token', session.access_token)
