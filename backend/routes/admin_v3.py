@@ -25,7 +25,6 @@ def create_quest_v2(user_id):
             'big_idea': data.get('big_idea', data.get('description', '')),  # Use description as big_idea if not provided
             'source': data.get('source', 'optio'),
             'is_active': data.get('is_active', True),
-            'is_v3': True,
             'created_at': datetime.utcnow().isoformat()
         }
         
