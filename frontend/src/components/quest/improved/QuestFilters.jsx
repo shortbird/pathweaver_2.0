@@ -13,11 +13,11 @@ const QuestFilters = ({
 
   const pillars = [
     { value: 'all', label: 'All Skills', icon: '✨' },
-    { value: 'creativity', label: 'Creativity', icon: '🎨', color: 'from-purple-500 to-pink-500' },
-    { value: 'critical_thinking', label: 'Critical Thinking', icon: '🧠', color: 'from-blue-500 to-cyan-500' },
-    { value: 'practical_skills', label: 'Practical Skills', icon: '🛠️', color: 'from-green-500 to-emerald-500' },
-    { value: 'communication', label: 'Communication', icon: '💬', color: 'from-orange-500 to-yellow-500' },
-    { value: 'cultural_literacy', label: 'Cultural Literacy', icon: '🌍', color: 'from-red-500 to-rose-500' }
+    { value: 'stem_logic', label: 'STEM & Logic', icon: '🧠', color: 'from-blue-500 to-cyan-500' },
+    { value: 'life_wellness', label: 'Life & Wellness', icon: '🛠️', color: 'from-green-500 to-emerald-500' },
+    { value: 'language_communication', label: 'Language & Communication', icon: '💬', color: 'from-orange-500 to-yellow-500' },
+    { value: 'society_culture', label: 'Society & Culture', icon: '🌍', color: 'from-red-500 to-rose-500' },
+    { value: 'arts_creativity', label: 'Arts & Creativity', icon: '🎨', color: 'from-purple-500 to-pink-500' }
   ];
 
   const difficulties = [

@@ -11,16 +11,16 @@ const CustomizeQuestPage = () => {
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    suggested_tasks: [{ title: '', description: '', pillar: 'creativity', xp: '' }],
+    suggested_tasks: [{ title: '', description: '', pillar: 'arts_creativity', xp: '' }],
     make_public: false
   });
 
   const pillars = [
-    { value: 'creativity', label: 'Creativity' },
-    { value: 'critical_thinking', label: 'Critical Thinking' },
-    { value: 'practical_skills', label: 'Practical Skills' },
-    { value: 'communication', label: 'Communication' },
-    { value: 'cultural_literacy', label: 'Cultural Literacy' }
+    { value: 'arts_creativity', label: 'Arts & Creativity' },
+    { value: 'stem_logic', label: 'STEM & Logic' },
+    { value: 'life_wellness', label: 'Life & Wellness' },
+    { value: 'language_communication', label: 'Language & Communication' },
+    { value: 'society_culture', label: 'Society & Culture' }
   ];
 
   const handleTaskChange = (index, field, value) => {
@@ -32,7 +32,7 @@ const CustomizeQuestPage = () => {
   const addTask = () => {
     setFormData({
       ...formData,
-      suggested_tasks: [...formData.suggested_tasks, { title: '', description: '', pillar: 'creativity', xp: '' }]
+      suggested_tasks: [...formData.suggested_tasks, { title: '', description: '', pillar: 'arts_creativity', xp: '' }]
     });
   };
 

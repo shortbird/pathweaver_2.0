@@ -4,40 +4,40 @@ import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Responsi
 const SkillsRadarChart = ({ skillsXP }) => {
   // Reordered for better visual balance - alternating between high and low values
   const competencyOrder = [
-    'creativity',
-    'practical_skills', 
-    'critical_thinking',
-    'cultural_literacy',
-    'communication'
+    'arts_creativity',
+    'life_wellness', 
+    'stem_logic',
+    'society_culture',
+    'language_communication'
   ];
   
   const competencyInfo = {
-    creativity: {
-      label: 'Creativity',
+    arts_creativity: {
+      label: 'Arts & Creativity',
       color: '#ef597b',
       icon: '🎨',
       description: 'Creative problem-solving and innovation'
     },
-    critical_thinking: {
-      label: 'Critical Thinking',
+    stem_logic: {
+      label: 'STEM & Logic',
       color: '#6d469b',
       icon: '🧠',
       description: 'Analytical reasoning and evaluation'
     },
-    practical_skills: {
-      label: 'Practical Skills',
+    life_wellness: {
+      label: 'Life & Wellness',
       color: '#f97316',
       icon: '🛠️',
       description: 'Applied knowledge and technical skills'
     },
-    communication: {
-      label: 'Communication',
+    language_communication: {
+      label: 'Language & Communication',
       color: '#3b82f6',
       icon: '💬',
       description: 'Effective communication and teamwork'
     },
-    cultural_literacy: {
-      label: 'Cultural Literacy',
+    society_culture: {
+      label: 'Society & Culture',
       color: '#ec4899',
       icon: '🌍',
       description: 'Cultural awareness and global perspective'
