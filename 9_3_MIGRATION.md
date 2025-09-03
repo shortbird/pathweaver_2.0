@@ -1,20 +1,179 @@
-# Optio Platform - Complete Refactoring & Migration Plan
+# Optio Platform - Complete Refactoring & Migration Plan (REVISED)
+
+## 🚨 CRITICAL DISCOVERY
+The database contains TWO parallel systems:
+- **Legacy System**: Integer-based IDs (`user`, `student`, `goal`, `milestone` tables)
+- **New System**: UUID-based IDs (`users`, `quests` tables)
+
+This significantly changes our refactoring approach.
 
 ## Executive Summary
-Comprehensive plan to refactor the Optio platform, fix persistent bugs, clean up legacy code, and establish a proper dev/production pipeline on Render while maintaining Supabase for database, auth, and storage.
+Comprehensive plan to:
+1. Complete migration from legacy to new system
+2. Create missing V3 tables
+3. Fix all bugs
+4. Clean up codebase
+5. Establish proper dev/production pipeline with testing
 
 ---
 
-## Phase 1: Bug Fixes & Data Model Updates
-**Timeline: 3-4 days**
+## Phase 0: Database Audit & Migration Planning
+**Timeline: 2 days**
+**PRIORITY: CRITICAL - Must be done first**
 
-### 1.1 Update Tier System
-- [ ] **Database Migration**
-  - Create migration script to update `users` table:
-    - Replace `explorer` → `free`
-    - Replace `creator` → `supported`
-    - Replace `visionary` → `academy`
-  - Update any tier-related constraints or indexes
+### ✅ 0.0 Setup Dev/Prod Pipeline (COMPLETED)
+- [x] **Created GitHub branches**
+  - Created `develop` branch from main
+  - Set up proper branch tracking with `origin/develop`
+  
+- [x] **Updated render.yaml configuration**
+  - Configured 4 services: backend-prod, backend-dev, frontend-prod, frontend-dev
+  - Set proper branch deployment (main = prod, develop = dev)
+  - Environment variables configured with sync: false for security
+  - SPA routing configured with /* -> /index.html rewrites
+
+- [x] **Set up Supabase MCP access**
+  - Added MCP server configuration to Claude Desktop config.json
+  - Configured with Supabase URL and service key for direct database operations
+  - Ready for database audit and migration operations
+
+### 0.1 Identify Current State
+- [ ] **Audit all API endpoints**
+  - List which endpoints use legacy tables
+  - List which endpoints use new tables
+  - Identify mixed usage (most dangerous)
+
+- [ ] **Map table dependencies**
+  ```sql
+  -- Check for active data in legacy tables
+  SELECT 'user' as table_name, COUNT(*) as count FROM "user"
+  UNION ALL
+  SELECT 'users', COUNT(*) FROM users
+  UNION ALL
+  SELECT 'goal', COUNT(*) FROM goal
+  UNION ALL
+  SELECT 'quests', COUNT(*) FROM quests
+  UNION ALL
+  SELECT 'student', COUNT(*) FROM student
+  UNION ALL
+  SELECT 'milestone', COUNT(*) FROM milestone;
+  ```
+
+- [ ] **Identify missing tables**
+  - `quest_tasks` - needs creation
+  - `quest_task_completions` - needs creation  
+  - `user_skill_xp` - needs creation
+  - `quest_submissions` - needs creation
+
+### 0.2 Create Missing V3 Tables
+- [ ] **Write migration script**
+  ```sql
+  -- Create quest_tasks table
+  CREATE TABLE IF NOT EXISTS quest_tasks (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    quest_id UUID REFERENCES quests(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT,
+    pillar TEXT CHECK (pillar IN (
+      'stem_logic', 'life_wellness', 'language_communication',
+      'society_culture', 'arts_creativity'
+    )),
+    xp_value INTEGER DEFAULT 100,
+    order_index INTEGER,
+    is_required BOOLEAN DEFAULT false,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  );
+
+  -- Create quest_task_completions
+  CREATE TABLE IF NOT EXISTS quest_task_completions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    quest_id UUID REFERENCES quests(id),
+    task_id UUID REFERENCES quest_tasks(id),
+    evidence_url TEXT,
+    evidence_text TEXT,
+    completed_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, task_id)
+  );
+
+  -- Create user_skill_xp
+  CREATE TABLE IF NOT EXISTS user_skill_xp (
+    user_id UUID REFERENCES users(id),
+    pillar TEXT CHECK (pillar IN (
+      'stem_logic', 'life_wellness', 'language_communication',
+      'society_culture', 'arts_creativity'
+    )),
+    xp_amount INTEGER DEFAULT 0,
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    PRIMARY KEY (user_id, pillar)
+  );
+
+  -- Create quest_submissions
+  CREATE TABLE IF NOT EXISTS quest_submissions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES users(id),
+    title TEXT NOT NULL,
+    description TEXT,
+    suggested_tasks JSONB,
+    make_public BOOLEAN DEFAULT false,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    approved_quest_id UUID REFERENCES quests(id),
+    admin_notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    reviewed_at TIMESTAMPTZ
+  );
+  ```
+
+### 0.3 Update Existing Tables
+- [ ] **Fix user_quests table**
+  - Currently uses INTEGER id but UUID foreign keys
+  - Need to ensure consistency
+
+- [ ] **Update quest_xp_awards**
+  - Update pillar enum to new values
+  - Ensure quest_id references are correct
+
+- [ ] **Fix friendships table** 
+  - Rename to `team_requests` for consistency
+  - Add constraints to prevent duplicate pending requests
+
+---
+
+## Phase 1: Code Audit & Cleanup
+**Timeline: 3-4 days**
+**Must complete Phase 0 first**
+
+### 1.1 Backend Code Audit
+- [ ] **Remove ALL references to legacy tables**
+  ```python
+  # Files to check and update:
+  backend/routes/*.py
+  backend/services/*.py
+  backend/models/*.py (if exists)
+  
+  # Replace:
+  - user → users
+  - goal → quests
+  - milestone → quest_tasks
+  - student/parent/advisor → users with role check
+  ```
+
+- [ ] **Update all SQL queries**
+  - Find all raw SQL queries
+  - Update table names
+  - Update column references
+  - Fix JOIN conditions
+
+- [ ] **Update Supabase client calls**
+  ```python
+  # Old (REMOVE):
+  supabase.table('user').select()
+  supabase.table('goal').select()
+  
+  # New (USE):
+  supabase.table('users').select()
+  supabase.table('quests').select()
+  ```
 
 - [ ] **Backend Updates**
   ```
@@ -628,10 +787,31 @@ If critical issues occur:
 
 ---
 
+## Progress Summary
+
+### ✅ Phase 0.0 Complete (Setup)
+**Completed Items:**
+- [x] GitHub develop branch created and configured
+- [x] Render.yaml updated with 4-service dev/prod pipeline
+- [x] Supabase MCP access configured in Claude Desktop
+- [x] Environment variables structured for secure deployment
+
+**Testing Required:**
+1. Restart Claude Desktop to activate MCP connection
+2. Verify MCP tools are available (start with mcp__)
+3. Set up 4 new Render services using render.yaml
+4. Configure environment variables in Render dashboard
+5. Test dev deployment pipeline
+
+**Next Phase:** Phase 0.1 - Database Audit (waiting for MCP activation)
+
+---
+
 ## Success Criteria
 
+- [x] Dev/Prod pipeline configured
+- [x] MCP integration set up for database operations  
 - [ ] All bugs from list are resolved
-- [ ] Dev/Prod pipeline working smoothly
 - [ ] Page load times improved by 20%
 - [ ] Zero critical bugs in production
 - [ ] Clean codebase with no legacy code
