@@ -16,7 +16,7 @@ const PrivateRoute = ({ requiredRole }) => {
     } else {
       setTosChecked(true)
     }
-  }, [isAuthenticated, user, location.pathname])
+  }, [isAuthenticated, user, location.pathname, checkTosAcceptance])
 
   if (loading || (tosCheckLoading && !tosChecked)) {
     return (

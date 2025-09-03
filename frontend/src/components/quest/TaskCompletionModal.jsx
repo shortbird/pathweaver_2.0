@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import ImprovedEvidenceUploader from '../evidence/ImprovedEvidenceUploader';
 import { handleApiResponse } from '../../utils/errorHandling';
+import ModalErrorBoundary from '../ModalErrorBoundary';
 
 const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
   const [evidenceType, setEvidenceType] = useState('text');
@@ -83,9 +84,10 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-xl">
+      <ModalErrorBoundary onClose={onClose}>
+        <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          {/* Header */}
+          <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6 rounded-t-xl">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-2xl font-bold mb-2">Complete Task</h2>
@@ -171,6 +173,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
           </div>
         </div>
       </div>
+      </ModalErrorBoundary>
     </div>
   );
 };
