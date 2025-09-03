@@ -488,13 +488,34 @@ def resend_verification():
         # Resend verification email using Supabase Auth
         try:
             # Use Supabase's resend functionality
-            supabase.auth.resend(email=email, type='signup')
+            print(f"[RESEND_VERIFICATION] Attempting to resend for {email}")
+            result = supabase.auth.resend(email=email, type='signup')
             
-            return jsonify({'message': 'Verification email has been resent. Please check your inbox.'}), 200
+            # Log the result for debugging
+            print(f"[RESEND_VERIFICATION] Result: {result}")
+            
+            return jsonify({
+                'message': 'Verification email request processed. Please check your inbox and spam folder.',
+                'note': 'Supabase free tier allows 4 emails per hour. If you don\'t receive an email, you may have hit the rate limit.'
+            }), 200
         except Exception as auth_error:
+            error_str = str(auth_error).lower()
             print(f"[RESEND_VERIFICATION] Supabase auth error: {str(auth_error)}")
-            # If Supabase resend fails, still return success to avoid revealing user existence
-            return jsonify({'message': 'If this email is registered, a verification email has been sent'}), 200
+            
+            # Provide helpful error messages
+            if 'rate limit' in error_str or 'too many' in error_str:
+                return jsonify({
+                    'error': 'Email rate limit reached. Supabase free tier allows 4 emails per hour. Please wait before trying again.',
+                    'suggestion': 'Check your spam folder for previous emails, or wait an hour for the limit to reset.'
+                }), 429
+            elif 'not found' in error_str:
+                return jsonify({'error': 'No account found with this email address. Please register first.'}), 404
+            else:
+                # Don't reveal too much about errors for security
+                return jsonify({
+                    'message': 'Verification email request processed. If an account exists, an email will be sent.',
+                    'note': 'Check spam folder. Supabase free tier has a 4 email/hour limit.'
+                }), 200
             
     except Exception as e:
         print(f"[RESEND_VERIFICATION] Error: {str(e)}")

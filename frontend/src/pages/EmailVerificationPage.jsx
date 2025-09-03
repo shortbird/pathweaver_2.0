@@ -18,12 +18,38 @@ const EmailVerificationPage = () => {
 
     setResending(true)
     try {
-      await api.post('/auth/resend-verification', { email })
+      const response = await api.post('/auth/resend-verification', { email })
       setResent(true)
-      toast.success('Verification email resent successfully!')
+      
+      // Show the message and note if available
+      const data = response.data
+      if (data.note) {
+        toast.success(data.message, { duration: 6000 })
+        toast(data.note, { 
+          icon: '⚠️',
+          duration: 8000,
+          style: {
+            background: '#FEF3C7',
+            color: '#92400E'
+          }
+        })
+      } else {
+        toast.success(data.message || 'Verification email resent!')
+      }
     } catch (error) {
-      const message = error.response?.data?.error || 'Failed to resend verification email'
-      toast.error(message)
+      const data = error.response?.data
+      const message = data?.error || 'Failed to resend verification email'
+      
+      toast.error(message, { duration: 6000 })
+      
+      if (data?.suggestion) {
+        setTimeout(() => {
+          toast(data.suggestion, { 
+            icon: '💡',
+            duration: 8000 
+          })
+        }, 1000)
+      }
     } finally {
       setResending(false)
     }
@@ -90,6 +116,14 @@ const EmailVerificationPage = () => {
               <p className="text-sm text-gray-500">
                 Didn't receive the email? Check your spam folder or
               </p>
+              
+              {/* Rate limit warning */}
+              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
+                <p className="text-xs text-blue-700">
+                  <strong>Note:</strong> Supabase free tier allows 4 verification emails per hour. 
+                  If you've tried multiple times, you may need to wait for the limit to reset.
+                </p>
+              </div>
               
               <button
                 onClick={handleResendEmail}
