@@ -364,7 +364,7 @@ const CreateQuestPage = () => {
                 <>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Venue Name
+                      Location Name
                     </label>
                     <input
                       type="text"

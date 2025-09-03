@@ -1,26 +1,62 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { PILLAR_KEYS, getPillarData } from '../utils/pillarMappings';
+import { ChevronDown, ChevronUp, Plus, Trash2, MapPin, Calendar, Save, X } from 'lucide-react';
 import toast from 'react-hot-toast';
+import api from '../services/api';
 
 const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
-  const [formData, setFormData] = useState({
-    title: quest?.title || '',
-    big_idea: quest?.big_idea || '',
-    source: quest?.source || 'optio',
-    header_image_url: quest?.header_image_url || '',
-    is_active: quest?.is_active !== undefined ? quest.is_active : true
-  });
-
-  const [tasks, setTasks] = useState(quest?.quest_tasks || []);
-  const [newTask, setNewTask] = useState({
-    title: '',
-    description: '',
-    xp_amount: 50,
-    pillar: 'creativity'
-  });
-  const [editingTaskIndex, setEditingTaskIndex] = useState(null);
-
+  // Quest basic info
+  const [title, setTitle] = useState(quest?.title || '');
+  const [description, setDescription] = useState(quest?.big_idea || quest?.description || '');
+  const [source, setSource] = useState(quest?.source || 'optio');
+  const [isSeasonal, setIsSeasonal] = useState(false);
+  const [seasonalStart, setSeasonalStart] = useState('');
+  const [seasonalEnd, setSeasonalEnd] = useState('');
+  const [isActive, setIsActive] = useState(quest?.is_active !== undefined ? quest.is_active : true);
+  
+  // Location features
+  const [locationType, setLocationType] = useState('anywhere');
+  const [locationAddress, setLocationAddress] = useState('');
+  const [venueName, setVenueName] = useState('');
+  
+  // Custom header image
   const [headerImageFile, setHeaderImageFile] = useState(null);
+  const [headerImageUrl, setHeaderImageUrl] = useState(quest?.header_image_url || '');
+  
+  // Tasks - initialize from quest data if editing
+  const [tasks, setTasks] = useState(() => {
+    if (quest?.quest_tasks) {
+      return quest.quest_tasks.map((task, index) => ({
+        title: task.title || '',
+        description: task.description || '',
+        pillar: task.pillar || 'arts_creativity',
+        subcategory: task.subcategory || '',
+        xp_value: task.xp_amount || task.xp_value || 100,
+        evidence_prompt: task.evidence_prompt || '',
+        materials_needed: task.materials_needed || [],
+        order_index: task.order_index || task.task_order || index + 1
+      }));
+    }
+    return [{
+      title: '',
+      description: '',
+      pillar: 'life_wellness',
+      subcategory: '',
+      xp_value: 100,
+      evidence_prompt: '',
+      materials_needed: [],
+      order_index: 1
+    }];
+  });
+  
+  // UI state
+  const [expandedSections, setExpandedSections] = useState({
+    basic: true,
+    tasks: true,
+    advanced: false
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
   const [showAddSource, setShowAddSource] = useState(false);
   const [newSourceName, setNewSourceName] = useState('');
   const [customSources, setCustomSources] = useState(() => {
@@ -28,17 +64,24 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
     return saved ? JSON.parse(saved) : {};
   });
 
-  // Predefined sources with their associated header images
+  // Initialize location data from quest metadata
+  useEffect(() => {
+    if (quest?.metadata) {
+      setLocationType(quest.metadata.location_type || 'anywhere');
+      setLocationAddress(quest.metadata.location_address || '');
+      setVenueName(quest.metadata.venue_name || '');
+      if (quest.metadata.seasonal_start) {
+        setIsSeasonal(true);
+        setSeasonalStart(quest.metadata.seasonal_start);
+        setSeasonalEnd(quest.metadata.seasonal_end || '');
+      }
+    }
+  }, [quest]);
+
+  // Predefined sources
   const DEFAULT_QUEST_SOURCES = {
     optio: 'Optio',
     khan_academy: 'Khan Academy'
-  };
-
-  // Map sources to their default header images (stored in Supabase)
-  // These would be the actual Supabase storage URLs if we had default images
-  const SOURCE_IMAGES = {
-    optio: null, // Will use uploaded image or no image
-    khan_academy: null // Will use uploaded image or no image
   };
 
   const allSources = { ...DEFAULT_QUEST_SOURCES, ...customSources };
@@ -62,76 +105,66 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
     
     setCustomSources(updatedCustomSources);
     localStorage.setItem('customQuestSources', JSON.stringify(updatedCustomSources));
-    setFormData({ ...formData, source: sourceKey });
+    setSource(sourceKey);
     setNewSourceName('');
     setShowAddSource(false);
     toast.success(`Added new source: ${newSourceName}`);
   };
 
-  const pillars = [
-    { value: 'creativity', label: 'Creativity', color: 'from-purple-500 to-pink-500' },
-    { value: 'critical_thinking', label: 'Critical Thinking', color: 'from-blue-500 to-cyan-500' },
-    { value: 'practical_skills', label: 'Practical Skills', color: 'from-green-500 to-emerald-500' },
-    { value: 'communication', label: 'Communication', color: 'from-orange-500 to-yellow-500' },
-    { value: 'cultural_literacy', label: 'Cultural Literacy', color: 'from-red-500 to-rose-500' }
-  ];
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
 
-  const handleAddTask = () => {
-    if (!newTask.title) {
-      toast.error('Task title is required');
-      return;
-    }
-
-    setTasks([...tasks, { ...newTask, task_order: tasks.length }]);
-    setNewTask({
+  const addTask = () => {
+    setTasks([...tasks, {
       title: '',
       description: '',
-      xp_amount: 50,
-      pillar: 'creativity'
-    });
-    toast.success('Task added');
+      pillar: 'life_wellness',
+      subcategory: '',
+      xp_value: 100,
+      evidence_prompt: '',
+      materials_needed: [],
+      order_index: tasks.length + 1
+    }]);
   };
 
-  const handleRemoveTask = (index) => {
-    const updatedTasks = tasks.filter((_, i) => i !== index);
-    // Reorder remaining tasks
-    updatedTasks.forEach((task, i) => {
-      task.task_order = i;
-    });
+  const updateTask = (index, field, value) => {
+    const updatedTasks = [...tasks];
+    updatedTasks[index][field] = value;
     setTasks(updatedTasks);
-    // Cancel editing if this task was being edited
-    if (editingTaskIndex === index) {
-      setEditingTaskIndex(null);
-    }
   };
 
-  const handleEditTask = (index) => {
-    setEditingTaskIndex(index);
-  };
-
-  const handleSaveEditedTask = (index, updatedTask) => {
-    const newTasks = [...tasks];
-    newTasks[index] = { ...newTasks[index], ...updatedTask };
-    setTasks(newTasks);
-    setEditingTaskIndex(null);
-    toast.success('Task updated');
-  };
-
-  const handleCancelEdit = () => {
-    setEditingTaskIndex(null);
-  };
-
-  const handleMoveTask = (index, direction) => {
-    const newTasks = [...tasks];
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    
-    if (targetIndex >= 0 && targetIndex < tasks.length) {
-      [newTasks[index], newTasks[targetIndex]] = [newTasks[targetIndex], newTasks[index]];
-      newTasks.forEach((task, i) => {
-        task.task_order = i;
+  const removeTask = (index) => {
+    if (tasks.length > 1) {
+      const updatedTasks = tasks.filter((_, i) => i !== index);
+      // Reorder remaining tasks
+      updatedTasks.forEach((task, i) => {
+        task.order_index = i + 1;
       });
-      setTasks(newTasks);
+      setTasks(updatedTasks);
     }
+  };
+
+  const addMaterialToTask = (taskIndex) => {
+    const material = tasks[taskIndex].materialInput;
+    if (material && material.trim()) {
+      const updatedTasks = [...tasks];
+      if (!updatedTasks[taskIndex].materials_needed) {
+        updatedTasks[taskIndex].materials_needed = [];
+      }
+      updatedTasks[taskIndex].materials_needed.push(material.trim());
+      updatedTasks[taskIndex].materialInput = '';
+      setTasks(updatedTasks);
+    }
+  };
+
+  const removeMaterialFromTask = (taskIndex, material) => {
+    const updatedTasks = [...tasks];
+    updatedTasks[taskIndex].materials_needed = updatedTasks[taskIndex].materials_needed.filter(m => m !== material);
+    setTasks(updatedTasks);
   };
 
   const handleImageChange = (e) => {
@@ -188,7 +221,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
               
               // Set preview
               const resizedUrl = canvas.toDataURL(file.type || 'image/jpeg', 0.9);
-              setFormData({ ...formData, header_image_url: resizedUrl });
+              setHeaderImageUrl(resizedUrl);
               
               if (width !== img.width || height !== img.height) {
                 toast.success(`Image resized to ${width}x${height} for optimal display`);
@@ -197,7 +230,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
           } else {
             // Image is already optimal size
             setHeaderImageFile(file);
-            setFormData({ ...formData, header_image_url: reader.result });
+            setHeaderImageUrl(reader.result);
           }
         };
         
@@ -208,31 +241,84 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
     }
   };
 
+  const calculateTotalXP = () => {
+    const baseXP = tasks.reduce((sum, task) => sum + (task.xp_value || 0), 0);
+    const completionBonus = Math.round(baseXP * 0.5);
+    return { baseXP, completionBonus, total: baseXP + completionBonus };
+  };
+
+  const getPillarBreakdown = () => {
+    const breakdown = {};
+    tasks.forEach(task => {
+      if (!breakdown[task.pillar]) {
+        breakdown[task.pillar] = 0;
+      }
+      breakdown[task.pillar] += task.xp_value || 0;
+    });
+    return breakdown;
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!title.trim()) newErrors.title = 'Title is required';
+    
+    // Validate tasks
+    tasks.forEach((task, index) => {
+      if (!task.title.trim()) {
+        newErrors[`task_${index}_title`] = 'Task title is required';
+      }
+    });
+    
+    // Validate location if specific
+    if (locationType === 'specific_location' && !locationAddress.trim()) {
+      newErrors.locationAddress = 'Address is required for specific locations';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    if (!formData.title || !formData.big_idea) {
-      toast.error('Title and Big Idea are required');
-      return;
-    }
-
-    if (tasks.length === 0) {
-      toast.error('Please add at least one task');
+    
+    if (!validateForm()) {
       return;
     }
 
     setIsSubmitting(true);
-
+    
     try {
-      // Try V3 endpoint first
-      const method = quest ? 'PUT' : 'POST';
-      // In production, use relative URLs. In dev, use the environment variable
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      let url = quest ? `${apiBase}/v3/admin/quests/${quest.id}` : `${apiBase}/v3/admin/quests`;
-      
-      let response;
-      
-      // If we have an image file, convert to base64 and send as JSON
+      // Prepare quest data for V3 API
+      let questData = {
+        title,
+        description,
+        big_idea: description,
+        source,
+        is_active: isActive,
+        
+        // Tasks
+        tasks: tasks.map((task, index) => ({
+          ...task,
+          order_index: index + 1,
+          xp_amount: task.xp_value, // Backend expects xp_amount
+          task_order: index // Legacy field
+        })),
+        
+        // Metadata
+        metadata: {
+          // Location
+          location_type: locationType,
+          location_address: locationAddress,
+          venue_name: venueName,
+          
+          // Seasonal
+          seasonal_start: isSeasonal ? seasonalStart : null,
+          seasonal_end: isSeasonal ? seasonalEnd : null,
+        }
+      };
+
+      // Handle image upload
       if (headerImageFile) {
         // Convert image to base64
         const reader = new FileReader();
@@ -242,533 +328,518 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         reader.readAsDataURL(headerImageFile);
         const base64Data = await base64Promise;
         
-        const jsonData = {
-          title: formData.title,
-          big_idea: formData.big_idea,
-          source: formData.source,
-          is_active: formData.is_active,
-          tasks: tasks,
-          header_image_base64: base64Data,
-          header_image_filename: headerImageFile.name
-        };
-        
-        response = await fetch(url, {
-          method,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(jsonData)
-        });
-      } else {
-        // No new image, but preserve existing image URL if editing
-        const jsonData = {
-          title: formData.title,
-          big_idea: formData.big_idea,
-          source: formData.source,
-          is_active: formData.is_active,
-          tasks: tasks,
-          // Preserve existing image URL when editing
-          ...(formData.header_image_url ? { header_image_url: formData.header_image_url } : {})
-        };
-        
-        response = await fetch(url, {
-          method,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(jsonData)
-        });
-      }
-      
-      // If V3 endpoint doesn't exist (404/405), fallback to old endpoint
-      if (response.status === 405 || response.status === 404) {
-        // Convert to old format for backward compatibility
-        const oldFormatData = {
-          title: formData.title,
-          description: formData.big_idea,
-          source: formData.source,
-          difficulty_level: 'intermediate',
-          effort_level: 'moderate',
-          estimated_hours: 2,
-          evidence_requirements: 'Complete all tasks and provide evidence',
-          accepted_evidence_types: ['text', 'link', 'image', 'video'],
-          is_active: formData.is_active,
-          // Add XP awards based on tasks (using old endpoint field name)
-          skill_xp_awards: tasks.map(task => ({
-            skill_category: 
-              task.pillar === 'creativity' ? 'making_creating' :
-              task.pillar === 'critical_thinking' ? 'thinking_skills' :
-              task.pillar === 'practical_skills' ? 'life_skills' :
-              task.pillar === 'communication' ? 'reading_writing' :
-              task.pillar === 'cultural_literacy' ? 'world_understanding' :
-              'personal_growth',
-            xp_amount: task.xp_amount
-          }))
-        };
-        
-        url = quest ? `${apiBase}/admin/quests/${quest.id}` : `${apiBase}/admin/quests`;
-        response = await fetch(url, {
-          method,
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(oldFormatData)
-        });
+        questData.header_image_base64 = base64Data;
+        questData.header_image_filename = headerImageFile.name;
+      } else if (headerImageUrl) {
+        // Preserve existing image URL when editing
+        questData.header_image_url = headerImageUrl;
       }
 
-      // Check if response has content
-      let data = {};
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        try {
-          data = await response.json();
-        } catch (jsonError) {
-          console.error('Failed to parse JSON response:', jsonError);
-          if (!response.ok) {
-            throw new Error(`Server error: ${response.status} ${response.statusText}`);
-          }
-        }
-      }
-
-      if (!response.ok) {
-        // Better error handling - check different error formats
-        let errorMessage = `Failed to save quest: ${response.status}`;
-        if (data) {
-          if (typeof data.error === 'string') {
-            errorMessage = data.error;
-          } else if (data.message) {
-            errorMessage = data.message;
-          } else if (data.detail) {
-            errorMessage = data.detail;
-          } else if (typeof data === 'string') {
-            errorMessage = data;
-          }
-        }
-        console.error('Server error response:', data);
-        console.error('Server error details:', JSON.stringify(data, null, 2));
-        throw new Error(errorMessage);
-      }
-
-      toast.success(quest ? 'Quest updated successfully!' : 'Quest created successfully!');
+      const endpoint = quest ? `/v3/admin/quests/${quest.id}` : '/v3/admin/quests/create';
+      const method = quest ? 'put' : 'post';
       
-      // For old endpoint, construct the quest object if not returned
-      const questData = data.quest || {
-        id: data.quest_id || data.id || quest?.id,
-        title: formData.title,
-        big_idea: formData.big_idea,
-        quest_tasks: tasks,
-        is_active: formData.is_active
-      };
+      const response = await api[method](endpoint, questData);
       
-      onSave(questData);
-      onClose();
+      if (response.data && (response.data.id || quest?.id)) {
+        toast.success(quest ? 'Quest updated successfully!' : 'Quest created successfully!');
+        onSave(response.data);
+        onClose();
+      }
     } catch (error) {
       console.error('Error saving quest:', error);
-      console.error('Error details:', {
-        message: error.message,
-        stack: error.stack,
-        error: error
-      });
-      toast.error(error.message || 'Failed to save quest');
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to save quest. Please try again.';
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const calculateTotalXP = () => {
-    return tasks.reduce((sum, task) => sum + (task.xp_amount || 0), 0);
-  };
+  const xpInfo = calculateTotalXP();
+  const pillarBreakdown = getPillarBreakdown();
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 overflow-y-auto">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="sticky top-0 bg-white border-b px-6 py-4">
-          <div className="flex justify-between items-center">
-            <h2 className="text-2xl font-bold text-gray-800">
+      <div className="bg-white rounded-xl shadow-xl max-w-5xl w-full max-h-[95vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-white border-b px-6 py-4 rounded-t-xl">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-3xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
               {quest ? 'Edit Quest' : 'Create New Quest'}
-            </h2>
+            </h1>
             <button
               onClick={onClose}
-              className="text-gray-400 hover:text-gray-600"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
             >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              <X className="w-6 h-6 text-gray-600" />
             </button>
+          </div>
+          
+          {/* XP Summary */}
+          <div className="flex items-center gap-6 p-4 bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-lg">
+            <div>
+              <p className="text-sm text-gray-600">Base XP</p>
+              <p className="text-xl font-bold text-gray-900">{xpInfo.baseXP}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Completion Bonus</p>
+              <p className="text-xl font-bold text-green-600">+{xpInfo.completionBonus}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Total XP</p>
+              <p className="text-2xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+                {xpInfo.total}
+              </p>
+            </div>
+            <div className="ml-auto flex gap-2">
+              {Object.entries(pillarBreakdown).map(([pillar, xp]) => {
+                const pillarData = getPillarData(pillar);
+                return (
+                  <div key={pillar} className={`px-3 py-1 rounded-full ${pillarData.bg} ${pillarData.text} text-sm font-medium`}>
+                    {pillarData.name}: {xp} XP
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} className="p-6">
-          {/* Quest Basic Info */}
-          <div className="mb-8">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Quest Information</h3>
+          {/* Quest Details Section */}
+          <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('basic')}
+              className="w-full px-6 py-4 bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 flex items-center justify-between hover:bg-gradient-to-r hover:from-[#ef597b]/20 hover:to-[#6d469b]/20 transition-colors"
+            >
+              <h2 className="text-xl font-bold text-gray-900">Quest Details</h2>
+              {expandedSections.basic ? <ChevronUp /> : <ChevronDown />}
+            </button>
             
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Quest Title *
-                </label>
-                <input
-                  type="text"
-                  value={formData.title}
-                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  placeholder="Enter an engaging quest title"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Big Idea *
-                </label>
-                <textarea
-                  value={formData.big_idea}
-                  onChange={(e) => setFormData({ ...formData, big_idea: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                  placeholder="Describe the main concept or learning goal"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Quest Source *
-                </label>
-                <div className="flex gap-2">
-                  <select
-                    value={formData.source}
-                    onChange={(e) => {
-                      const newSource = e.target.value;
-                      // Only update the source, don't override existing uploaded images
-                      setFormData({ 
-                        ...formData, 
-                        source: newSource
-                      });
-                    }}
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {Object.entries(allSources).map(([key, name]) => (
-                      <option key={key} value={key}>{name}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={() => setShowAddSource(!showAddSource)}
-                    className="px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors"
-                  >
-                    + Add Source
-                  </button>
-                </div>
-                {showAddSource && (
-                  <div className="mt-2 flex gap-2">
-                    <input
-                      type="text"
-                      value={newSourceName}
-                      onChange={(e) => setNewSourceName(e.target.value)}
-                      placeholder="Enter source name"
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleAddSource}
-                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                    >
-                      Add
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setShowAddSource(false);
-                        setNewSourceName('');
-                      }}
-                      className="px-3 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
-                <p className="text-xs text-gray-500 mt-1">
-                  Select the curriculum provider for this quest. This helps organize quests by source.
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Custom Header Image (Optional)
-                </label>
-                {formData.header_image_url && (
-                  <div className="mb-2">
-                    <img 
-                      src={formData.header_image_url} 
-                      alt="Quest header" 
-                      className="w-full h-48 object-cover rounded-lg"
-                    />
-                  </div>
-                )}
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Max size: 5MB • Recommended: 1200x675px (16:9 ratio) • Images will be automatically resized
-                  <br />Leave blank to use the default image for the selected source.
-                </p>
-              </div>
-
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="is_active"
-                  checked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="is_active" className="ml-2 text-sm text-gray-700">
-                  Quest is active and visible to students
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Tasks Section */}
-          <div className="mb-8">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold text-gray-800">
-                Tasks ({tasks.length})
-              </h3>
-              <div className="text-sm text-gray-600">
-                Total XP: <span className="font-bold text-green-600">{calculateTotalXP()}</span>
-              </div>
-            </div>
-
-            {/* Existing Tasks */}
-            {tasks.length > 0 && (
-              <div className="space-y-3 mb-6">
-                {tasks.map((task, index) => (
-                  <div key={index} className="border rounded-lg p-4 bg-gray-50">
-                    {editingTaskIndex === index ? (
-                      // Edit mode
-                      <div className="space-y-3">
-                        <input
-                          type="text"
-                          value={task.title}
-                          onChange={(e) => {
-                            const newTasks = [...tasks];
-                            newTasks[index].title = e.target.value;
-                            setTasks(newTasks);
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Task title"
-                        />
-                        <textarea
-                          value={task.description || ''}
-                          onChange={(e) => {
-                            const newTasks = [...tasks];
-                            newTasks[index].description = e.target.value;
-                            setTasks(newTasks);
-                          }}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="Task description (optional)"
-                          rows="2"
-                        />
-                        <div className="flex gap-3">
-                          <select
-                            value={task.pillar}
-                            onChange={(e) => {
-                              const newTasks = [...tasks];
-                              newTasks[index].pillar = e.target.value;
-                              setTasks(newTasks);
-                            }}
-                            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          >
-                            {pillars.map(p => (
-                              <option key={p.value} value={p.value}>{p.label}</option>
-                            ))}
-                          </select>
-                          <input
-                            type="number"
-                            value={task.xp_amount}
-                            onChange={(e) => {
-                              const newTasks = [...tasks];
-                              newTasks[index].xp_amount = parseInt(e.target.value) || 0;
-                              setTasks(newTasks);
-                            }}
-                            className="w-24 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                            min="0"
-                            step="10"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => handleSaveEditedTask(index, task)}
-                            className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-                          >
-                            Save
-                          </button>
-                          <button
-                            type="button"
-                            onClick={handleCancelEdit}
-                            className="px-3 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      // View mode
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <div className="font-medium text-gray-800 mb-1">{task.title}</div>
-                          {task.description && (
-                            <p className="text-sm text-gray-600 mb-2">{task.description}</p>
-                          )}
-                          <div className="flex items-center gap-3 text-sm">
-                            <span className={`inline-block px-2 py-1 rounded-full text-xs font-medium text-white bg-gradient-to-r ${
-                              pillars.find(p => p.value === task.pillar)?.color || 'from-gray-500 to-gray-600'
-                            }`}>
-                              {task.pillar.replace('_', ' ')}
-                            </span>
-                            <span className="font-medium text-green-600">{task.xp_amount} XP</span>
-                          </div>
-                        </div>
-                        <div className="flex gap-1 ml-4">
-                          <button
-                            type="button"
-                            onClick={() => handleEditTask(index)}
-                            className="p-1 text-blue-500 hover:text-blue-700"
-                            title="Edit task"
-                          >
-                            ✎
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMoveTask(index, 'up')}
-                            disabled={index === 0}
-                            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
-                            title="Move up"
-                          >
-                            ↑
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMoveTask(index, 'down')}
-                            disabled={index === tasks.length - 1}
-                            className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
-                            title="Move down"
-                          >
-                            ↓
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveTask(index)}
-                            className="p-1 text-red-500 hover:text-red-700"
-                            title="Delete task"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Add New Task */}
-            <div className="border-2 border-dashed border-gray-300 rounded-lg p-4">
-              <h4 className="font-medium text-gray-700 mb-3">Add New Task</h4>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            {expandedSections.basic && (
+              <div className="p-6 space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Task Title *
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quest Title *
                   </label>
                   <input
                     type="text"
-                    value={newTask.title}
-                    onChange={(e) => setNewTask({ ...newTask, title: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    placeholder="What will students do?"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#6d469b] focus:border-transparent ${
+                      errors.title ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="e.g., Build a Community Garden"
                   />
+                  {errors.title && <p className="text-red-500 text-sm mt-1">{errors.title}</p>}
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    XP Amount *
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Description *
                   </label>
-                  <input
-                    type="number"
-                    min="10"
-                    max="500"
-                    value={newTask.xp_amount}
-                    onChange={(e) => setNewTask({ ...newTask, xp_amount: parseInt(e.target.value) || 0 })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#6d469b] focus:border-transparent ${
+                      errors.description ? 'border-red-500' : 'border-gray-300'
+                    }`}
+                    placeholder="What will students create or accomplish in this quest?"
                   />
+                  {errors.description && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
                 </div>
-              </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Description (Optional)
-                </label>
-                <textarea
-                  value={newTask.description}
-                  onChange={(e) => setNewTask({ ...newTask, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={2}
-                  placeholder="Additional details or instructions"
-                />
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quest Source *
+                  </label>
+                  {!showAddSource ? (
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={source}
+                          onChange={(e) => setSource(e.target.value)}
+                          className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
+                          required
+                        >
+                          {Object.entries(allSources).map(([key, name]) => (
+                            <option key={key} value={key}>{name}</option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => setShowAddSource(true)}
+                          className="px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                        >
+                          + Add New Source
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={newSourceName}
+                        onChange={(e) => setNewSourceName(e.target.value)}
+                        onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddSource())}
+                        className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
+                        placeholder="Enter new source name (e.g., Coursera, edX)"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={handleAddSource}
+                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                      >
+                        Add
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowAddSource(false);
+                          setNewSourceName('');
+                        }}
+                        className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  )}
+                </div>
 
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Pillar *
-                </label>
-                <select
-                  value={newTask.pillar}
-                  onChange={(e) => setNewTask({ ...newTask, pillar: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  {pillars.map(pillar => (
-                    <option key={pillar.value} value={pillar.value}>
-                      {pillar.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Custom Header Image (Optional)
+                  </label>
+                  {headerImageUrl && (
+                    <div className="mb-2">
+                      <img 
+                        src={headerImageUrl} 
+                        alt="Quest header" 
+                        className="w-full h-48 object-cover rounded-lg"
+                      />
+                    </div>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b] focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Max size: 5MB • Recommended: 1200x675px (16:9 ratio) • Images will be automatically resized
+                  </p>
+                </div>
 
-              <button
-                type="button"
-                onClick={handleAddTask}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-              >
-                Add Task
-              </button>
-            </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="is_active"
+                    checked={isActive}
+                    onChange={(e) => setIsActive(e.target.checked)}
+                    className="h-4 w-4 text-[#6d469b] focus:ring-[#6d469b] border-gray-300 rounded"
+                  />
+                  <label htmlFor="is_active" className="ml-2 text-sm text-gray-700">
+                    Quest is active and visible to students
+                  </label>
+                </div>
+
+                <div>
+                  <label className="flex items-center gap-2 mb-2">
+                    <input
+                      type="checkbox"
+                      checked={isSeasonal}
+                      onChange={(e) => setIsSeasonal(e.target.checked)}
+                      className="rounded border-gray-300 text-[#6d469b] focus:ring-[#6d469b]"
+                    />
+                    <span className="text-sm font-medium text-gray-700">This is a seasonal quest</span>
+                  </label>
+                  
+                  {isSeasonal && (
+                    <div className="grid grid-cols-2 gap-4 mt-2">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Start Date
+                        </label>
+                        <input
+                          type="date"
+                          value={seasonalStart}
+                          onChange={(e) => setSeasonalStart(e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          End Date
+                        </label>
+                        <input
+                          type="date"
+                          value={seasonalEnd}
+                          onChange={(e) => setSeasonalEnd(e.target.value)}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Location Settings */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <MapPin className="w-4 h-4 inline mr-1" />
+                    Location Type
+                  </label>
+                  <select
+                    value={locationType}
+                    onChange={(e) => setLocationType(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                  >
+                    <option value="anywhere">Anywhere</option>
+                    <option value="specific_location">Specific Location</option>
+                  </select>
+                </div>
+
+                {locationType !== 'anywhere' && (
+                  <>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Location Name
+                      </label>
+                      <input
+                        type="text"
+                        value={venueName}
+                        onChange={(e) => setVenueName(e.target.value)}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                        placeholder="e.g., Natural History Museum"
+                      />
+                    </div>
+
+                    {locationType === 'specific_location' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Address *
+                        </label>
+                        <input
+                          type="text"
+                          value={locationAddress}
+                          onChange={(e) => setLocationAddress(e.target.value)}
+                          className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#6d469b] ${
+                            errors.locationAddress ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                          placeholder="123 Museum Way, City, State"
+                        />
+                        {errors.locationAddress && (
+                          <p className="text-red-500 text-sm mt-1">{errors.locationAddress}</p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
 
-          {/* Submit Buttons */}
-          <div className="flex justify-end gap-3">
+          {/* Tasks Section */}
+          <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => toggleSection('tasks')}
+              className="w-full px-6 py-4 bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 flex items-center justify-between hover:bg-gradient-to-r hover:from-[#ef597b]/20 hover:to-[#6d469b]/20 transition-colors"
+            >
+              <h2 className="text-xl font-bold text-gray-900">Tasks ({tasks.length})</h2>
+              {expandedSections.tasks ? <ChevronUp /> : <ChevronDown />}
+            </button>
+            
+            {expandedSections.tasks && (
+              <div className="p-6">
+                {tasks.map((task, index) => (
+                  <div key={index} className="mb-6 p-4 border-2 border-gray-200 rounded-lg">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-gray-900">
+                        Task {index + 1}
+                      </h3>
+                      {tasks.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeTask(index)}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <Trash2 className="w-5 h-5" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Task Title *
+                        </label>
+                        <input
+                          type="text"
+                          value={task.title}
+                          onChange={(e) => updateTask(index, 'title', e.target.value)}
+                          className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-[#6d469b] ${
+                            errors[`task_${index}_title`] ? 'border-red-500' : 'border-gray-300'
+                          }`}
+                          placeholder="e.g., Research Local Growing Conditions"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          XP Value
+                        </label>
+                        <input
+                          type="number"
+                          value={task.xp_value}
+                          onChange={(e) => updateTask(index, 'xp_value', Number(e.target.value))}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                          min="25"
+                          max="500"
+                          step="25"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Task Description
+                        </label>
+                        <textarea
+                          value={task.description}
+                          onChange={(e) => updateTask(index, 'description', e.target.value)}
+                          rows={2}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                          placeholder="Clear instructions on what to create/do"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Pillar
+                        </label>
+                        <select
+                          value={task.pillar}
+                          onChange={(e) => updateTask(index, 'pillar', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                        >
+                          {PILLAR_KEYS.map(pillar => {
+                            const pillarData = getPillarData(pillar);
+                            return (
+                              <option key={pillar} value={pillar}>
+                                {pillarData.name}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Subcategory
+                        </label>
+                        <select
+                          value={task.subcategory}
+                          onChange={(e) => updateTask(index, 'subcategory', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                        >
+                          <option value="">Select subcategory</option>
+                          {getPillarData(task.pillar).competencies.map(sub => (
+                            <option key={sub} value={sub}>{sub}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Evidence Prompt
+                        </label>
+                        <input
+                          type="text"
+                          value={task.evidence_prompt}
+                          onChange={(e) => updateTask(index, 'evidence_prompt', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                          placeholder="What evidence should students submit?"
+                        />
+                      </div>
+
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Materials Needed
+                        </label>
+                        <div className="flex gap-2 mb-2">
+                          <input
+                            type="text"
+                            value={task.materialInput}
+                            onChange={(e) => updateTask(index, 'materialInput', e.target.value)}
+                            onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addMaterialToTask(index))}
+                            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                            placeholder="Add material and press Enter"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => addMaterialToTask(index)}
+                            className="px-4 py-2 bg-[#6d469b] text-white rounded-lg hover:bg-[#5a3784] transition-colors"
+                          >
+                            Add
+                          </button>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {task.materials_needed && task.materials_needed.map(material => (
+                            <span
+                              key={material}
+                              className="px-3 py-1 bg-gray-100 rounded-full text-sm flex items-center gap-1"
+                            >
+                              {material}
+                              <button
+                                type="button"
+                                onClick={() => removeMaterialFromTask(index, material)}
+                                className="text-red-500 hover:text-red-700"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                <button
+                  type="button"
+                  onClick={addTask}
+                  className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg hover:border-[#6d469b] transition-colors flex items-center justify-center gap-2 text-gray-600 hover:text-[#6d469b]"
+                >
+                  <Plus className="w-5 h-5" />
+                  Add Another Task
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex gap-4">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="flex-1 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg font-semibold hover:shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            >
+              {isSubmitting ? (
+                <>Saving...</>
+              ) : (
+                <>
+                  <Save className="w-5 h-5" />
+                  {quest ? 'Update Quest' : 'Create Quest'}
+                </>
+              )}
+            </button>
+            
             <button
               type="button"
               onClick={onClose}
-              className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
-              disabled={isSubmitting}
+              className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
             >
               Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isSubmitting || tasks.length === 0}
-              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {isSubmitting ? 'Saving...' : (quest ? 'Update Quest' : 'Create Quest')}
             </button>
           </div>
         </form>
