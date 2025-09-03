@@ -19,7 +19,7 @@ const AcceptTermsPage = () => {
 
   const checkTosStatus = async () => {
     try {
-      const response = await api.get('/api/auth/check-tos-acceptance')
+      const response = await api.get('/auth/check-tos-acceptance')
       setTosStatus(response.data)
       
       // If they don't need to accept, redirect them
@@ -39,7 +39,7 @@ const AcceptTermsPage = () => {
 
     setLoading(true)
     try {
-      await api.post('/api/auth/accept-tos', {
+      await api.post('/auth/accept-tos', {
         acceptedTerms,
         acceptedPrivacy
       })

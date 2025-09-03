@@ -85,7 +85,9 @@
       "mcp__render__list_logs",
       "WebFetch(domain:www.optioeducation.com)",
       "mcp__render__get_service",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "mcp__render__list_postgres_instances",
+      "mcp__render__update_web_service"
     ],
     "deny": [],
     "ask": []

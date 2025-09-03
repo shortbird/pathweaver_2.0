@@ -26,6 +26,7 @@
 - **Tier Styling**: Academy tier "ACCREDITED" badge uses `bg-green-500`, centered at top
 - **Tier Layout**: All tier cards use flexbox with buttons aligned at bottom
 - **Favicon**: Located at `https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/logos/icon.jpg`
+- **NEVER USE EMOJIS**: Avoid emojis in UI components, text, or any user-facing content. Use proper icons, SVGs, or design elements instead. Emojis can cause encoding issues and look unprofessional.
 
 ## Project Overview
 

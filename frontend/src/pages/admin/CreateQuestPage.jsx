@@ -180,7 +180,7 @@ const CreateQuestPage = () => {
         }
       };
 
-      const response = await api.post('/api/v3/admin/quests/create', questData);
+      const response = await api.post('/v3/admin/quests/create', questData);
       
       if (response.data.success) {
         navigate(`/quests/${response.data.quest_id}`);

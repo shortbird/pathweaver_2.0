@@ -227,7 +227,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
       // Try V3 endpoint first
       const method = quest ? 'PUT' : 'POST';
       // In production, use relative URLs. In dev, use the environment variable
-      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const apiBase = import.meta.env.VITE_API_URL || '';
       let url = quest ? `${apiBase}/v3/admin/quests/${quest.id}` : `${apiBase}/v3/admin/quests`;
       
       let response;

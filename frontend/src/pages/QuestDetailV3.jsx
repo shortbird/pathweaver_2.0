@@ -25,7 +25,7 @@ const QuestDetailV3 = () => {
 
   const fetchQuestDetails = async () => {
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '/api';
+      const apiBase = import.meta.env.VITE_API_URL || '';
       const token = localStorage.getItem('access_token');
       const headers = {};
       
@@ -33,7 +33,7 @@ const QuestDetailV3 = () => {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch(`${apiBase}/api/v3/quests/${id}`, {
+      const response = await fetch(`${apiBase}/v3/quests/${id}`, {
         headers
       });
 
@@ -58,8 +58,8 @@ const QuestDetailV3 = () => {
     }
 
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${apiBase}/api/v3/quests/${id}/enroll`, {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${apiBase}/v3/quests/${id}/enroll`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -127,8 +127,8 @@ const QuestDetailV3 = () => {
     }
 
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${apiBase}/api/v3/quests/${id}/end`, {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${apiBase}/v3/quests/${id}/end`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

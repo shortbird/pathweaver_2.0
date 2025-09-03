@@ -17,8 +17,8 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
 
   const fetchFriends = async () => {
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '/api';
-      const url = `${apiBase}/api/community/friends`;
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const url = `${apiBase}/community/friends`;
       console.log('Fetching friends from:', url);
       
       const response = await fetch(url, {
@@ -47,8 +47,8 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
     setError('');
 
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${apiBase}/api/v3/collaborations/invite`, {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const response = await fetch(`${apiBase}/v3/collaborations/invite`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
