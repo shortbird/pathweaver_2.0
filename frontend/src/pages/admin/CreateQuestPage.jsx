@@ -45,7 +45,6 @@ const CreateQuestPage = () => {
   const [expandedSections, setExpandedSections] = useState({
     basic: true,
     tasks: true,
-    location: false,
     advanced: false
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -249,13 +248,13 @@ const CreateQuestPage = () => {
           </div>
         </div>
 
-        {/* Basic Information Section */}
+        {/* Quest Details Section */}
         <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
           <button
             onClick={() => toggleSection('basic')}
             className="w-full px-6 py-4 bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 flex items-center justify-between hover:bg-gradient-to-r hover:from-[#ef597b]/20 hover:to-[#6d469b]/20 transition-colors"
           >
-            <h2 className="text-xl font-bold text-gray-900">Basic Information</h2>
+            <h2 className="text-xl font-bold text-gray-900">Quest Details</h2>
             {expandedSections.basic ? <ChevronUp /> : <ChevronDown />}
           </button>
           
@@ -344,6 +343,59 @@ const CreateQuestPage = () => {
                   </div>
                 )}
               </div>
+
+              {/* Location Settings */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <MapPin className="w-4 h-4 inline mr-1" />
+                  Location Type
+                </label>
+                <select
+                  value={locationType}
+                  onChange={(e) => setLocationType(e.target.value)}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                >
+                  <option value="anywhere">Anywhere</option>
+                  <option value="specific_location">Specific Location</option>
+                </select>
+              </div>
+
+              {locationType !== 'anywhere' && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Venue Name
+                    </label>
+                    <input
+                      type="text"
+                      value={venueName}
+                      onChange={(e) => setVenueName(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
+                      placeholder="e.g., Natural History Museum"
+                    />
+                  </div>
+
+                  {locationType === 'specific_location' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Address *
+                      </label>
+                      <input
+                        type="text"
+                        value={locationAddress}
+                        onChange={(e) => setLocationAddress(e.target.value)}
+                        className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#6d469b] ${
+                          errors.locationAddress ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="123 Museum Way, City, State"
+                      />
+                      {errors.locationAddress && (
+                        <p className="text-red-500 text-sm mt-1">{errors.locationAddress}</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -523,76 +575,6 @@ const CreateQuestPage = () => {
           )}
         </div>
 
-        {/* Location Section */}
-        <div className="bg-white rounded-xl shadow-lg mb-6 overflow-hidden">
-          <button
-            onClick={() => toggleSection('location')}
-            className="w-full px-6 py-4 bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 flex items-center justify-between hover:bg-gradient-to-r hover:from-[#ef597b]/20 hover:to-[#6d469b]/20 transition-colors"
-          >
-            <div className="flex items-center gap-2">
-              <MapPin className="w-5 h-5" />
-              <h2 className="text-xl font-bold text-gray-900">Location Settings</h2>
-            </div>
-            {expandedSections.location ? <ChevronUp /> : <ChevronDown />}
-          </button>
-          
-          {expandedSections.location && (
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Location Type
-                </label>
-                <select
-                  value={locationType}
-                  onChange={(e) => setLocationType(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
-                >
-                  <option value="anywhere">Anywhere</option>
-                  <option value="specific_location">Specific Location</option>
-                </select>
-              </div>
-
-              {locationType !== 'anywhere' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Venue Name
-                    </label>
-                    <input
-                      type="text"
-                      value={venueName}
-                      onChange={(e) => setVenueName(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
-                      placeholder="e.g., Natural History Museum"
-                    />
-                  </div>
-
-                  {locationType === 'specific_location' && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Address *
-                        </label>
-                        <input
-                          type="text"
-                          value={locationAddress}
-                          onChange={(e) => setLocationAddress(e.target.value)}
-                          className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-[#6d469b] ${
-                            errors.locationAddress ? 'border-red-500' : 'border-gray-300'
-                          }`}
-                          placeholder="123 Museum Way, City, State"
-                        />
-                        {errors.locationAddress && (
-                          <p className="text-red-500 text-sm mt-1">{errors.locationAddress}</p>
-                        )}
-                      </div>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-        </div>
 
         {/* Action Buttons */}
         <div className="flex gap-4">
