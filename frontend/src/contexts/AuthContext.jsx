@@ -32,7 +32,7 @@ export const AuthProvider = ({ children }) => {
     
     setTosCheckLoading(true)
     try {
-      const response = await api.get('/auth/check-tos-acceptance')
+      const response = await api.get('/api/auth/check-tos-acceptance')
       const needsAcceptance = response.data.needs_acceptance
       setNeedsTosAcceptance(needsAcceptance)
       return needsAcceptance
@@ -67,7 +67,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      const response = await api.post('/auth/login', { email, password })
+      const response = await api.post('/api/auth/login', { email, password })
       const { user, session } = response.data
       
       setUser(user)
@@ -145,7 +145,7 @@ export const AuthProvider = ({ children }) => {
       
       // Use retry logic for registration to handle temporary service issues
       const response = await retryWithBackoff(
-        () => api.post('/auth/register', userData),
+        () => api.post('/api/auth/register', userData),
         5, // more retries for cold starts
         3000, // 3 second initial delay for cold starts
         true // show progress in console
@@ -222,7 +222,7 @@ export const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await api.post('/auth/logout')
+      await api.post('/api/auth/logout')
     } catch (error) {
       console.error('Logout error:', error)
     } finally {
@@ -250,7 +250,7 @@ export const AuthProvider = ({ children }) => {
     }
     
     try {
-      const response = await api.post('/auth/refresh', { refresh_token })
+      const response = await api.post('/api/auth/refresh', { refresh_token })
       const { session } = response.data
       
       setSession(session)
