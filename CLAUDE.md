@@ -207,6 +207,40 @@ git push origin main  # Auto-deploys to Optio & Optio_FE
 - **CORS**: FRONTEND_URL, ALLOWED_ORIGINS (configured per environment)
 - **Flask**: FLASK_ENV=production for main branch
 
+## MCP Integration
+
+**Render MCP Configuration:**
+- MCP provider enables direct management of Render services
+- Allows updating environment variables, monitoring deployments, and checking logs
+- Available services can be listed and managed programmatically
+
+**Key MCP Commands:**
+```bash
+# List all Render services
+mcp__render__list_services
+
+# Update environment variables (triggers auto-deploy)
+mcp__render__update_environment_variables(serviceId, envVars)
+
+# Check deployment status
+mcp__render__get_deploy(serviceId, deployId)
+
+# Monitor application logs
+mcp__render__list_logs(resource, limit, filters)
+```
+
+**Service IDs:**
+- **Dev Backend**: `srv-d2s8r8be5dus73ddp8h0` (optio-backend-dev)
+- **Dev Frontend**: `srv-d2s8ravdiees73bfll10` (optio-frontend-dev)
+- **Prod Backend**: `srv-d2po3n6r433s73dhcuig` (Optio)
+- **Prod Frontend**: `srv-d2r79t7diees73dvcbig` (Optio_FE)
+
+**MCP Benefits:**
+- Real-time deployment monitoring
+- Environment variable management without manual dashboard access
+- Log analysis for debugging issues
+- Automated service health checks
+
 ## Common Issues
 
 1. **XP Not Showing**: Run `python fix_xp_calculation.py`
