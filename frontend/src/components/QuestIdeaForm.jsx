@@ -19,7 +19,7 @@ const QuestIdeaForm = ({ onClose, onSuccess }) => {
     setError('');
 
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/quest-ideas`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/quest-ideas`, {
         method: 'POST',
         headers: {
           ...getAuthHeaders(),

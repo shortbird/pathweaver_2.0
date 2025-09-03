@@ -101,7 +101,7 @@ const DiplomaPageV3 = () => {
   const fetchPublicDiplomaByUserId = async () => {
     try {
       const apiBase = import.meta.env.VITE_API_URL || '/api';
-      const response = await fetch(`${apiBase}/portfolio/diploma/${userId}`);
+      const response = await fetch(`${apiBase}/api/portfolio/diploma/${userId}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch diploma');
@@ -127,13 +127,13 @@ const DiplomaPageV3 = () => {
       
       // Fetch both completed quests and user XP data
       const [questsResponse, dashboardResponse] = await Promise.all([
-        fetch(`${apiBase}/v3/quests/completed?t=${Date.now()}`, {
+        fetch(`${apiBase}/api/v3/quests/completed?t=${Date.now()}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Cache-Control': 'no-cache'
           }
         }),
-        fetch(`${apiBase}/users/dashboard?t=${Date.now()}`, {
+        fetch(`${apiBase}/api/users/dashboard?t=${Date.now()}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Cache-Control': 'no-cache'

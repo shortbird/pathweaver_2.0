@@ -16,7 +16,7 @@ const QuestRating = ({ questId, onRatingSubmit }) => {
 
   const fetchUserRating = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/quests/${questId}/user-rating`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/quests/${questId}/user-rating`, {
         headers: getAuthHeaders()
       });
       
@@ -34,7 +34,7 @@ const QuestRating = ({ questId, onRatingSubmit }) => {
 
   const fetchQuestStats = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/quests/${questId}/rating`);
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/quests/${questId}/rating`);
       
       if (response.ok) {
         const data = await response.json();
@@ -49,7 +49,7 @@ const QuestRating = ({ questId, onRatingSubmit }) => {
     setSubmitting(true);
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/quests/${questId}/rate`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/quests/${questId}/rate`, {
         method: 'POST',
         headers: {
           ...getAuthHeaders(),

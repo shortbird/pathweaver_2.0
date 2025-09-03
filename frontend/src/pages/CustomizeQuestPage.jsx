@@ -74,7 +74,7 @@ const CustomizeQuestPage = () => {
       };
 
       const response = await axios.post(
-        `${import.meta.env.VITE_API_URL}/v3/quests/submissions`,
+        `${import.meta.env.VITE_API_URL}/api/v3/quests/submissions`,
         submissionData,
         {
           headers: {
