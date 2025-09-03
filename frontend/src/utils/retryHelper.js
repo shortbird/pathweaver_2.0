@@ -36,7 +36,7 @@ export const retryWithBackoff = async (fn, maxRetries = 3, initialDelay = 1000, 
 // Warm up the backend service (for cold starts on Render)
 export const warmupBackend = async (apiUrl) => {
   try {
-    const response = await fetch(`${apiUrl}/health`, {
+    const response = await fetch(`${apiUrl}/api/health`, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json'
@@ -46,7 +46,7 @@ export const warmupBackend = async (apiUrl) => {
     if (response.status === 503) {
       // Service is starting up, retry with backoff
       await retryWithBackoff(
-        () => fetch(`${apiUrl}/health`),
+        () => fetch(`${apiUrl}/api/health`),
         5, // More retries for warmup
         2000 // 2 second initial delay
       );

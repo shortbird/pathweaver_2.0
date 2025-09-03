@@ -65,7 +65,7 @@ const Layout = () => {
 
   const fetchSiteSettings = async () => {
     try {
-      const response = await api.get('/settings')
+      const response = await api.get('/api/settings')
       if (response.data) {
         setSiteSettings(response.data)
       }

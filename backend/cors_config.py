@@ -28,6 +28,7 @@ def configure_cors(app):
         # Render frontend URLs
         'https://optio-fe.onrender.com',
         'https://optio-frontend.onrender.com',
+        'https://optio-frontend-dev.onrender.com',
         # Optio Education domains
         'https://optioed.org',
         'https://www.optioed.org',

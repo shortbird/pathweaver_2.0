@@ -14,7 +14,7 @@ const SiteSettings = () => {
 
   const fetchSettings = async () => {
     try {
-      const response = await api.get('/settings')
+      const response = await api.get('/api/settings')
       setSettings(response.data)
       setPreviewUrl(response.data?.logo_url)
       setLoading(false)
@@ -43,7 +43,7 @@ const SiteSettings = () => {
     setMessage('')
 
     try {
-      const response = await api.post('/settings/upload-logo', formData, {
+      const response = await api.post('/api/settings/upload-logo', formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -71,7 +71,7 @@ const SiteSettings = () => {
     setMessage('')
 
     try {
-      const response = await api.put('/settings', {
+      const response = await api.put('/api/settings', {
         site_name: e.target.site_name.value,
         site_description: e.target.site_description.value,
         footer_text: e.target.footer_text.value
