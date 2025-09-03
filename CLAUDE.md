@@ -88,7 +88,7 @@ frontend/src/
 - id (UUID, PK)
 - quest_id
 - title, description
-- pillar (creativity/critical_thinking/practical_skills/communication/cultural_literacy)
+- pillar (STEM & Logic, Life & Wellness, Language & Communication, Society & Culture, Arts & Creativity)
 - xp_value (XP for completing this task)
 - order_index, is_required
 
