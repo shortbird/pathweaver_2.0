@@ -55,17 +55,19 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
       // Use utility function for consistent error handling
       handleApiResponse(response, data, 'Failed to complete task');
 
-      // Show success message with XP earned
-      const successMessage = data.has_collaboration_bonus 
-        ? `🎉 Task completed! You earned ${data.xp_awarded} XP (2x collaboration bonus!)`
-        : `✅ Task completed! You earned ${data.xp_awarded} XP`;
+      if (response.ok) {
+        // Show success message with XP earned
+        const successMessage = data.has_collaboration_bonus 
+          ? `🎉 Task completed! You earned ${data.xp_awarded} XP (2x collaboration bonus!)`
+          : `✅ Task completed! You earned ${data.xp_awarded} XP`;
 
-      onComplete({
-        task,
-        xp_awarded: data.xp_awarded,
-        message: successMessage,
-        quest_completed: data.quest_completed
-      });
+        onComplete({
+          task,
+          xp_awarded: data.xp_awarded,
+          message: successMessage,
+          quest_completed: data.quest_completed
+        });
+      }
 
     } catch (error) {
       console.error('Error completing task:', error);

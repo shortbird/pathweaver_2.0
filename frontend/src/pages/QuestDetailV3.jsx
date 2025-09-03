@@ -21,6 +21,7 @@ const QuestDetailV3 = () => {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showTeamUpModal, setShowTeamUpModal] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState(new Set());
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     fetchQuestDetails();
@@ -45,10 +46,19 @@ const QuestDetailV3 = () => {
       }
 
       const data = await response.json();
+      console.log('Quest data received:', data.quest);
+      console.log('Quest tasks completion status:', data.quest.quest_tasks?.map(task => ({
+        id: task.id,
+        title: task.title,
+        is_completed: task.is_completed,
+        xp_amount: task.xp_amount
+      })));
       setQuest(data.quest);
+      setError(''); // Clear any previous errors
     } catch (error) {
       console.error('Error fetching quest:', error);
       setError('Failed to load quest details');
+      throw error; // Re-throw so handleTaskCompletion can catch it
     } finally {
       setIsLoading(false);
     }
@@ -110,10 +120,34 @@ const QuestDetailV3 = () => {
     }
   };
 
-  const handleTaskCompletion = () => {
+  const handleTaskCompletion = async (completionData) => {
     setShowTaskModal(false);
     setSelectedTask(null);
-    fetchQuestDetails(); // Refresh quest data
+    
+    // Show success message if provided
+    if (completionData?.message) {
+      toast.success(completionData.message);
+    }
+    
+    // Show refreshing indicator and refresh quest data
+    setIsRefreshing(true);
+    try {
+      await fetchQuestDetails();
+      
+      // If quest is completed, show special celebration after data refresh
+      if (completionData?.quest_completed) {
+        setTimeout(() => {
+          toast.success('🎉 Quest Complete! You earned the completion bonus!', {
+            duration: 5000,
+          });
+        }, 500);
+      }
+    } catch (error) {
+      console.error('Error refreshing quest data:', error);
+      toast.error('Failed to refresh quest data');
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const toggleTaskExpansion = (taskId) => {
@@ -127,13 +161,22 @@ const QuestDetailV3 = () => {
   };
 
   const calculateXP = () => {
-    if (!quest?.quest_tasks) return { baseXP: 0, bonusXP: 0, totalXP: 0 };
+    if (!quest?.quest_tasks) return { baseXP: 0, bonusXP: 0, totalXP: 0, earnedXP: 0, earnedBonusXP: 0 };
     
-    const baseXP = quest.quest_tasks.reduce((sum, task) => sum + (task.xp_amount || 0), 0);
+    const tasks = quest.quest_tasks;
+    const baseXP = tasks.reduce((sum, task) => sum + (task.xp_amount || 0), 0);
+    const earnedXP = tasks
+      .filter(task => task.is_completed)
+      .reduce((sum, task) => sum + (task.xp_amount || 0), 0);
+    
+    const completedCount = tasks.filter(task => task.is_completed).length;
+    const totalCount = tasks.length;
+    
     const bonusXP = Math.round(baseXP * 0.5 / 50) * 50; // Round to nearest 50
     const totalXP = baseXP + bonusXP;
+    const earnedBonusXP = (completedCount === totalCount && totalCount > 0) ? bonusXP : 0;
     
-    return { baseXP, bonusXP, totalXP };
+    return { baseXP, bonusXP, totalXP, earnedXP, earnedBonusXP };
   };
 
   const getPillarBreakdown = () => {
@@ -214,7 +257,7 @@ const QuestDetailV3 = () => {
   const completedTasks = quest.quest_tasks?.filter(task => task.is_completed).length || 0;
   const totalTasks = quest.quest_tasks?.length || 0;
   const progressPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
-  const { baseXP, bonusXP, totalXP } = calculateXP();
+  const { baseXP, bonusXP, totalXP, earnedXP, earnedBonusXP } = calculateXP();
   const pillarBreakdown = getPillarBreakdown();
   const locationDisplay = getLocationDisplay();
   const seasonalDisplay = getSeasonalDisplay();
@@ -339,11 +382,11 @@ const QuestDetailV3 = () => {
               <div className="text-sm text-gray-600">Remaining</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-purple-600">{Math.round((completedTasks / totalTasks) * baseXP) || 0}</div>
+              <div className="text-2xl font-bold text-purple-600">{earnedXP}</div>
               <div className="text-sm text-gray-600">XP Earned</div>
             </div>
             <div>
-              <div className="text-2xl font-bold text-orange-600">{progressPercentage === 100 ? bonusXP : 0}</div>
+              <div className="text-2xl font-bold text-orange-600">{earnedBonusXP}</div>
               <div className="text-sm text-gray-600">Bonus XP</div>
             </div>
           </div>
@@ -417,8 +460,18 @@ const QuestDetailV3 = () => {
       {/* 5. Enhanced Tasks Interface */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden mb-8">
         <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white p-6">
-          <h2 className="text-2xl font-bold">Quest Tasks</h2>
-          <p className="text-white/80 mt-2">Complete all tasks to earn the full completion bonus</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Quest Tasks</h2>
+              <p className="text-white/80 mt-2">Complete all tasks to earn the full completion bonus</p>
+            </div>
+            {isRefreshing && (
+              <div className="flex items-center gap-2 text-white/90">
+                <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full"></div>
+                <span className="text-sm">Updating...</span>
+              </div>
+            )}
+          </div>
         </div>
         
         <div className="p-6">
