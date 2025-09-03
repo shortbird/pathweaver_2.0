@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
 import { PILLAR_KEYS, getPillarData } from '../../utils/pillarMappings';
 import { ChevronDown, ChevronUp, Plus, Trash2, MapPin, Calendar, Save, X } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const CreateQuestPage = () => {
   const navigate = useNavigate();
@@ -182,8 +183,10 @@ const CreateQuestPage = () => {
 
       const response = await api.post('/v3/admin/quests/create', questData);
       
-      if (response.data.success) {
-        navigate(`/quests/${response.data.quest_id}`);
+      if (response.data && response.data.id) {
+        // Quest created successfully, redirect to admin quest management
+        toast.success('Quest created successfully!');
+        navigate('/admin/quests');
       }
     } catch (error) {
       console.error('Error creating quest:', error);
