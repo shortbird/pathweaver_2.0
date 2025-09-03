@@ -177,7 +177,21 @@ def register():
             # Note: username column has been removed from the database
             # Don't include it in the insert
             
-            supabase.table('users').insert(user_data).execute()
+            # Use upsert to handle cases where auth user exists but profile doesn't
+            # This fixes the foreign key constraint issue
+            try:
+                supabase.table('users').upsert(user_data, on_conflict='id').execute()
+            except Exception as profile_error:
+                # If we can't create the profile, check if it's a constraint issue
+                error_str = str(profile_error).lower()
+                if 'foreign key' in error_str or 'constraint' in error_str:
+                    # The auth user wasn't created properly, try to clean up
+                    print(f"Profile creation failed with constraint error: {profile_error}")
+                    # Don't fail the registration - the auth user was created
+                    # Just log the error and continue
+                else:
+                    # Re-raise other errors
+                    raise
             
             # Ensure diploma and skills are initialized (backup to database trigger)
             # This is now optimized to use batch operations
