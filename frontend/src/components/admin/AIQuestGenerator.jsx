@@ -12,10 +12,61 @@ const AIQuestGenerator = () => {
   const [similarity, setSimilarity] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState('');
-  const [templates, setTemplates] = useState([]);
-  const [modes, setModes] = useState([]);
-  const [pillars, setPillars] = useState([]);
-  const [difficultyLevels, setDifficultyLevels] = useState([]);
+  const [templates, setTemplates] = useState([
+    {
+      name: 'Research Project',
+      description: 'Investigate a topic through research and documentation',
+      mode: 'topic',
+      base_params: {
+        pillars: ['Language & Communication', 'Society & Culture'],
+        difficulty: 'intermediate'
+      }
+    },
+    {
+      name: 'Creative Expression',
+      description: 'Express ideas through various artistic mediums',
+      mode: 'skill',
+      base_params: {
+        skills: ['creativity', 'expression', 'design'],
+        pillars: ['Arts & Creativity'],
+        difficulty: 'beginner'
+      }
+    }
+  ]);
+  const [modes, setModes] = useState([
+    {
+      id: 'topic',
+      name: 'Topic-Based',
+      description: 'Generate a quest about a specific topic',
+      parameters: ['topic', 'age_group', 'pillars']
+    },
+    {
+      id: 'skill',
+      name: 'Skill-Focused',
+      description: 'Generate a quest that develops specific skills',
+      parameters: ['skills', 'pillars', 'difficulty']
+    },
+    {
+      id: 'difficulty',
+      name: 'Difficulty-Targeted',
+      description: 'Generate a quest for a specific difficulty level',
+      parameters: ['difficulty', 'subject']
+    },
+    {
+      id: 'custom',
+      name: 'Custom Requirements',
+      description: 'Generate a quest with custom requirements',
+      parameters: ['requirements']
+    }
+  ]);
+  const [pillars, setPillars] = useState([
+    "STEM & Logic",
+    "Life & Wellness",
+    "Language & Communication",
+    "Society & Culture",
+    "Arts & Creativity"
+  ]);
+  const [difficultyLevels, setDifficultyLevels] = useState(['beginner', 'intermediate', 'advanced']);
   const [editMode, setEditMode] = useState(false);
 
   useEffect(() => {
@@ -25,12 +76,16 @@ const AIQuestGenerator = () => {
   const fetchGenerationOptions = async () => {
     try {
       const response = await api.get('/api/ai/generation-options');
-      setTemplates(response.data.templates || []);
-      setModes(response.data.modes || []);
-      setPillars(response.data.pillars || []);
-      setDifficultyLevels(response.data.difficulty_levels || []);
+      // Only update if we got valid data
+      if (response.data.templates) setTemplates(response.data.templates);
+      if (response.data.modes) setModes(response.data.modes);
+      if (response.data.pillars) setPillars(response.data.pillars);
+      if (response.data.difficulty_levels) setDifficultyLevels(response.data.difficulty_levels);
     } catch (error) {
       console.error('Failed to fetch generation options:', error);
+      setError('Using default options. API may be initializing...');
+      // Clear error after 3 seconds
+      setTimeout(() => setError(''), 3000);
     }
   };
 

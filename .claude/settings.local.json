@@ -189,7 +189,8 @@
       "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src\\pages/**)",
       "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src\\pages/**)",
       "Read(/C:\\Users\\tanne\\Desktop\\pw_v2/**)",
-      "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\backend\\routes/**)"
+      "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\backend\\routes/**)",
+      "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src\\components\\admin/**)"
     ],
     "deny": [],
     "ask": []
