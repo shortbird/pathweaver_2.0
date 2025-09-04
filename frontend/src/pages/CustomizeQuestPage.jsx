@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
+import { Wand2, Sparkles, AlertCircle, Plus, Trash2 } from 'lucide-react';
+import api from '../services/api';
 
 const CustomizeQuestPage = () => {
   const navigate = useNavigate();
@@ -14,6 +16,10 @@ const CustomizeQuestPage = () => {
     suggested_tasks: [{ title: '', description: '', pillar: 'arts_creativity', xp: '' }],
     make_public: false
   });
+  const [aiEnhancing, setAiEnhancing] = useState(false);
+  const [aiEnhanced, setAiEnhanced] = useState(null);
+  const [showAiPreview, setShowAiPreview] = useState(false);
+  const [similarityCheck, setSimilarityCheck] = useState(null);
 
   const pillars = [
     { value: 'arts_creativity', label: 'Arts & Creativity' },
@@ -39,6 +45,73 @@ const CustomizeQuestPage = () => {
   const removeTask = (index) => {
     const newTasks = formData.suggested_tasks.filter((_, i) => i !== index);
     setFormData({ ...formData, suggested_tasks: newTasks });
+  };
+
+  const handleAiEnhance = async () => {
+    if (!formData.title.trim() || !formData.description.trim()) {
+      setError('Please provide a title and description before using AI assistance');
+      return;
+    }
+
+    setAiEnhancing(true);
+    setError('');
+
+    try {
+      const response = await api.post('/api/ai/enhance-submission', {
+        submission: {
+          title: formData.title,
+          description: formData.description,
+          suggested_tasks: formData.suggested_tasks.filter(
+            task => task.title.trim() || task.description.trim()
+          )
+        }
+      });
+
+      if (response.data.success) {
+        setAiEnhanced(response.data.enhanced_quest);
+        setSimilarityCheck(response.data.similarity);
+        setShowAiPreview(true);
+      } else {
+        setError('Failed to enhance quest with AI');
+      }
+    } catch (err) {
+      console.error('AI enhancement error:', err);
+      setError('Failed to enhance quest. AI service may be unavailable.');
+    } finally {
+      setAiEnhancing(false);
+    }
+  };
+
+  const applyAiEnhancements = () => {
+    if (!aiEnhanced) return;
+
+    // Apply enhanced content to form
+    setFormData({
+      title: aiEnhanced.title || formData.title,
+      description: aiEnhanced.description || formData.description,
+      suggested_tasks: aiEnhanced.tasks?.map(task => ({
+        title: task.title,
+        description: task.description,
+        pillar: convertPillarFormat(task.pillar),
+        xp: task.xp_value?.toString() || ''
+      })) || formData.suggested_tasks,
+      make_public: formData.make_public
+    });
+
+    setShowAiPreview(false);
+    setAiEnhanced(null);
+  };
+
+  const convertPillarFormat = (pillar) => {
+    // Convert from display format to database format
+    const pillarMap = {
+      'Arts & Creativity': 'arts_creativity',
+      'STEM & Logic': 'stem_logic',
+      'Life & Wellness': 'life_wellness',
+      'Language & Communication': 'language_communication',
+      'Society & Culture': 'society_culture'
+    };
+    return pillarMap[pillar] || 'arts_creativity';
   };
 
   const handleSubmit = async (e) => {
@@ -168,6 +241,43 @@ const CustomizeQuestPage = () => {
               />
             </div>
 
+            {/* AI Enhancement Button */}
+            <div className="flex justify-center">
+              <button
+                type="button"
+                onClick={handleAiEnhance}
+                disabled={aiEnhancing || !formData.title || !formData.description}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+              >
+                {aiEnhancing ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Enhancing with AI...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-4 h-4" />
+                    Enhance with AI Assistant
+                  </>
+                )}
+              </button>
+            </div>
+
+            {similarityCheck && similarityCheck.exceeds_threshold && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-start">
+                  <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 mr-2" />
+                  <div>
+                    <p className="text-sm font-medium text-yellow-800">Similar Quest Detected</p>
+                    <p className="text-sm text-yellow-700 mt-1">
+                      Your quest is {(similarityCheck.score * 100).toFixed(0)}% similar to existing quests. 
+                      Consider making it more unique to increase approval chances.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Suggested Tasks */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -185,8 +295,9 @@ const CustomizeQuestPage = () => {
                       <button
                         type="button"
                         onClick={() => removeTask(index)}
-                        className="text-red-600 hover:text-red-800 text-sm"
+                        className="text-red-600 hover:text-red-800 text-sm flex items-center gap-1"
                       >
+                        <Trash2 className="w-4 h-4" />
                         Remove
                       </button>
                     )}
@@ -234,9 +345,10 @@ const CustomizeQuestPage = () => {
               <button
                 type="button"
                 onClick={addTask}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 flex items-center gap-2"
               >
-                + Add Task
+                <Plus className="w-4 h-4" />
+                Add Task
               </button>
             </div>
 
@@ -274,6 +386,117 @@ const CustomizeQuestPage = () => {
           </form>
         </div>
       </div>
+
+      {/* AI Enhancement Preview Modal */}
+      {showAiPreview && aiEnhanced && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b p-6">
+              <div className="flex justify-between items-center">
+                <h2 className="text-2xl font-bold flex items-center gap-2">
+                  <Sparkles className="w-6 h-6 text-purple-600" />
+                  AI Enhanced Quest Preview
+                </h2>
+                <button
+                  onClick={() => setShowAiPreview(false)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Enhanced Quest Details */}
+              <div>
+                <h3 className="font-medium text-lg mb-2">Enhanced Title</h3>
+                <p className="p-3 bg-gray-50 rounded">{aiEnhanced.title}</p>
+              </div>
+
+              <div>
+                <h3 className="font-medium text-lg mb-2">Enhanced Description</h3>
+                <p className="p-3 bg-gray-50 rounded">{aiEnhanced.description}</p>
+              </div>
+
+              {aiEnhanced.big_idea && (
+                <div>
+                  <h3 className="font-medium text-lg mb-2">Big Idea</h3>
+                  <p className="p-3 bg-gray-50 rounded italic">{aiEnhanced.big_idea}</p>
+                </div>
+              )}
+
+              {/* Enhanced Tasks */}
+              {aiEnhanced.tasks && aiEnhanced.tasks.length > 0 && (
+                <div>
+                  <h3 className="font-medium text-lg mb-2">Enhanced Tasks</h3>
+                  <div className="space-y-3">
+                    {aiEnhanced.tasks.map((task, idx) => (
+                      <div key={idx} className="p-4 bg-gray-50 rounded">
+                        <div className="flex justify-between items-start mb-2">
+                          <h4 className="font-medium">{task.title}</h4>
+                          <span className="text-sm bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                            {task.xp_value} XP
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 mb-2">{task.description}</p>
+                        <div className="flex gap-4 text-sm">
+                          <span className="text-gray-600">
+                            <strong>Pillar:</strong> {task.pillar}
+                          </span>
+                          <span className="text-gray-600">
+                            <strong>Evidence:</strong> {task.evidence_type || 'text'}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Similarity Warning */}
+              {similarityCheck && similarityCheck.exceeds_threshold && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex items-start">
+                    <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 mr-2" />
+                    <div>
+                      <p className="text-sm font-medium text-yellow-800">Similarity Warning</p>
+                      <p className="text-sm text-yellow-700 mt-1">
+                        This quest is {(similarityCheck.score * 100).toFixed(0)}% similar to "{similarityCheck.most_similar?.title}".
+                      </p>
+                      {similarityCheck.unique_aspects?.suggestions && (
+                        <ul className="mt-2 text-sm text-yellow-700 list-disc list-inside">
+                          {similarityCheck.unique_aspects.suggestions.map((suggestion, idx) => (
+                            <li key={idx}>{suggestion}</li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex justify-end gap-3 pt-4 border-t">
+                <button
+                  onClick={() => setShowAiPreview(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={applyAiEnhancements}
+                  className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90 flex items-center gap-2"
+                >
+                  <Wand2 className="w-4 h-4" />
+                  Apply Enhancements
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

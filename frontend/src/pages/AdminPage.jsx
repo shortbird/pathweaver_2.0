@@ -8,6 +8,7 @@ import SiteSettings from '../components/admin/SiteSettings'
 import QuestSubmissionsManager from '../components/admin/QuestSubmissionsManager'
 import CreateQuestPage from './admin/CreateQuestPage'
 import { getTierDisplayName } from '../utils/tierMapping'
+import AIQuestGenerator from '../components/admin/AIQuestGenerator'
 
 const AdminDashboard = () => {
   const [users, setUsers] = useState([])
@@ -1938,6 +1939,12 @@ const AdminPage = () => {
           Quests
         </Link>
         <Link
+          to="/admin/ai-generator"
+          className={`pb-2 px-1 ${currentPath === 'ai-generator' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+        >
+          AI Generator
+        </Link>
+        <Link
           to="/admin/settings"
           className={`pb-2 px-1 ${currentPath === 'settings' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
         >
@@ -1949,6 +1956,7 @@ const AdminPage = () => {
         <Route index element={<AdminDashboard />} />
         <Route path="quests" element={<AdminQuests />} />
         <Route path="quests/create" element={<CreateQuestPage />} />
+        <Route path="ai-generator" element={<AIQuestGenerator />} />
         <Route path="settings" element={<SiteSettings />} />
       </Routes>
     </div>
