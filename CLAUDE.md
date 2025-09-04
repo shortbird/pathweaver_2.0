@@ -9,6 +9,7 @@
 - The diploma page is the CORE offering - students use it on resumes to showcase education
 - Keep this documentation up to date with code changes
 - Follow core_philosophy.md for all updates
+- Never use emojis
 
 **DEVELOPMENT WORKFLOW:**
 - **Development**: Push to `develop` branch for immediate live testing on dev environment

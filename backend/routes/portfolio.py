@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify
 from database import get_supabase_client
+from datetime import datetime
 
 bp = Blueprint('portfolio', __name__)
 
@@ -32,12 +33,57 @@ def get_public_portfolio(portfolio_slug):
             return jsonify({'error': 'User not found'}), 404
         
         # Get user's completed quests with details
+        # Get completed quests - include both explicitly completed and those with all tasks done
         completed_quests = supabase.table('user_quests').select(
             '''
             *,
             quests!inner(*)
             '''
         ).eq('user_id', user_id).not_.is_('completed_at', 'null').execute()
+        
+        # Also check for quests that have all tasks completed but no completed_at
+        # This is a workaround for the database trigger issue
+        all_user_quests = supabase.table('user_quests').select(
+            '''
+            *,
+            quests!inner(*)
+            '''
+        ).eq('user_id', user_id).is_('completed_at', 'null').execute()
+        
+        if all_user_quests.data:
+            for user_quest in all_user_quests.data:
+                user_quest_id = user_quest['id']
+                quest_id = user_quest['quest_id']
+                
+                # Get all tasks for this quest
+                all_tasks = supabase.table('quest_tasks')\
+                    .select('id')\
+                    .eq('quest_id', quest_id)\
+                    .execute()
+                
+                if all_tasks.data:
+                    # Get completed tasks for this user quest
+                    completed_tasks = supabase.table('user_quest_tasks')\
+                        .select('quest_task_id, completed_at')\
+                        .eq('user_quest_id', user_quest_id)\
+                        .execute()
+                    
+                    all_task_ids = {t['id'] for t in all_tasks.data}
+                    completed_task_ids = {t['quest_task_id'] for t in completed_tasks.data}
+                    
+                    # If all tasks are completed, include this quest
+                    if all_task_ids and all_task_ids == completed_task_ids:
+                        # Add a virtual completed_at based on last task completion
+                        if completed_tasks.data:
+                            latest_completion = max(t['completed_at'] for t in completed_tasks.data if t.get('completed_at'))
+                            user_quest['completed_at'] = latest_completion
+                        else:
+                            user_quest['completed_at'] = datetime.utcnow().isoformat()
+                        
+                        # Add to completed quests list
+                        if not completed_quests.data:
+                            completed_quests.data = []
+                        completed_quests.data.append(user_quest)
         
         # Calculate XP by skill category (same approach as dashboard)
         xp_by_category = {}
