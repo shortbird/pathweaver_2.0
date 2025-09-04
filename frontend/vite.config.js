@@ -7,19 +7,28 @@ export default defineConfig({
   plugins: [
     react(),
     {
-      name: 'copy-redirects',
+      name: 'copy-static-files',
       closeBundle() {
-        const source = join(process.cwd(), 'public', '_redirects')
         const distDir = join(process.cwd(), 'dist')
-        const dest = join(distDir, '_redirects')
         
         if (!existsSync(distDir)) {
           mkdirSync(distDir, { recursive: true })
         }
         
-        if (existsSync(source)) {
-          copyFileSync(source, dest)
+        // Copy _redirects
+        const redirectsSource = join(process.cwd(), 'public', '_redirects')
+        const redirectsDest = join(distDir, '_redirects')
+        if (existsSync(redirectsSource)) {
+          copyFileSync(redirectsSource, redirectsDest)
           console.log('Copied _redirects file to dist folder')
+        }
+        
+        // Copy 404.html
+        const notFoundSource = join(process.cwd(), 'public', '404.html')
+        const notFoundDest = join(distDir, '404.html')
+        if (existsSync(notFoundSource)) {
+          copyFileSync(notFoundSource, notFoundDest)
+          console.log('Copied 404.html file to dist folder')
         }
       }
     }
