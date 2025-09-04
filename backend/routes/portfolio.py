@@ -1,6 +1,5 @@
 from flask import Blueprint, jsonify
 from database import get_supabase_client
-from sqlalchemy import desc
 
 bp = Blueprint('portfolio', __name__)
 
@@ -323,7 +322,7 @@ def get_public_diploma_by_user_id(user_id):
             quests!inner(*),
             user_quest_tasks(*, quest_tasks(*))
             '''
-        ).eq('user_id', user_id).not_.is_('completed_at', 'null').order('completed_at', desc=True).execute()
+        ).eq('user_id', user_id).not_.is_('completed_at', 'null').order('completed_at.desc').execute()
         
         # Get XP by skill category from user_skill_xp table
         skill_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()
