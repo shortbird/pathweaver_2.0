@@ -48,7 +48,7 @@ def init_services():
 
 @ai_quests_bp.route('/ai/generate-quest', methods=['POST'])
 @require_auth
-async def generate_quest(user_id):
+def generate_quest(user_id):
     """Generate a new quest using AI"""
     
     try:
@@ -74,12 +74,15 @@ async def generate_quest(user_id):
         if generation_mode not in valid_modes:
             return jsonify({'error': f'Invalid generation mode. Must be one of: {valid_modes}'}), 400
         
-        # Generate quest
-        result = await ai_generator.generate_quest(
+        # Generate quest using asyncio
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(ai_generator.generate_quest(
             generation_mode=generation_mode,
             parameters=parameters,
             user_context={'user_id': user_id}
-        )
+        ))
         
         if not result['success']:
             return jsonify({
@@ -94,10 +97,10 @@ async def generate_quest(user_id):
         
         # Check similarity with existing quests
         existing_quests = supabase.table('quests').select('*').eq('is_active', True).execute()
-        similarity_result = await concept_matcher.check_quest_similarity(
+        similarity_result = loop.run_until_complete(concept_matcher.check_quest_similarity(
             generated_quest,
             existing_quests.data if existing_quests.data else []
-        )
+        ))
         
         # Prepare response
         response_data = {
@@ -124,7 +127,7 @@ async def generate_quest(user_id):
 
 @ai_quests_bp.route('/ai/check-similarity', methods=['POST'])
 @require_auth
-async def check_similarity(user_id):
+def check_similarity(user_id):
     """Check similarity between a quest and existing quests"""
     
     try:
@@ -143,11 +146,14 @@ async def check_similarity(user_id):
         existing_quests = supabase.table('quests').select('*').eq('is_active', True).execute()
         
         # Check similarity
-        similarity_result = await concept_matcher.check_quest_similarity(
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        similarity_result = loop.run_until_complete(concept_matcher.check_quest_similarity(
             quest_data,
             existing_quests.data if existing_quests.data else [],
             threshold=request.json.get('threshold', 0.7)
-        )
+        ))
         
         return jsonify({
             'success': True,
@@ -233,7 +239,7 @@ def get_generation_options(user_id):
 
 @ai_quests_bp.route('/ai/enhance-submission', methods=['POST'])
 @require_auth
-async def enhance_submission(user_id):
+def enhance_submission(user_id):
     """Enhance a student's quest submission with AI"""
     
     try:
@@ -249,7 +255,10 @@ async def enhance_submission(user_id):
             return jsonify({'error': 'AI service not available'}), 503
         
         # Enhance the submission
-        result = await ai_generator.enhance_submission(submission_data)
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        result = loop.run_until_complete(ai_generator.enhance_submission(submission_data))
         
         if not result['success']:
             return jsonify({
@@ -264,10 +273,10 @@ async def enhance_submission(user_id):
         
         # Check similarity
         existing_quests = supabase.table('quests').select('*').eq('is_active', True).execute()
-        similarity_result = await concept_matcher.check_quest_similarity(
+        similarity_result = loop.run_until_complete(concept_matcher.check_quest_similarity(
             enhanced_quest,
             existing_quests.data if existing_quests.data else []
-        )
+        ))
         
         return jsonify({
             'success': True,
@@ -283,7 +292,7 @@ async def enhance_submission(user_id):
 
 @ai_quests_bp.route('/ai/batch-generate', methods=['POST'])
 @require_auth
-async def batch_generate(user_id):
+def batch_generate(user_id):
     """Generate multiple quests in batch"""
     
     try:
@@ -307,12 +316,15 @@ async def batch_generate(user_id):
         variations = data.get('variations', [])
         
         # Generate quests
-        quests = await ai_generator.generate_batch(
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        quests = loop.run_until_complete(ai_generator.generate_batch(
             count=count,
             mode=mode,
             base_params=base_params,
             variations=variations
-        )
+        ))
         
         # Validate all quests
         validation_results = validator.validate_batch(quests)
@@ -323,11 +335,11 @@ async def batch_generate(user_id):
         
         similarity_results = []
         for quest in quests:
-            similarity = await concept_matcher.check_quest_similarity(quest, existing_data)
+            similarity = loop.run_until_complete(concept_matcher.check_quest_similarity(quest, existing_data))
             similarity_results.append(similarity)
         
         # Build concept index for the batch
-        batch_index = await concept_matcher.build_concept_index(quests)
+        batch_index = loop.run_until_complete(concept_matcher.build_concept_index(quests))
         
         return jsonify({
             'success': True,
@@ -440,7 +452,7 @@ def validate_quest(user_id):
 
 @ai_quests_bp.route('/ai/related-quests', methods=['POST'])
 @require_auth
-async def find_related_quests(user_id):
+def find_related_quests(user_id):
     """Find quests related to a given quest"""
     
     try:
@@ -462,7 +474,10 @@ async def find_related_quests(user_id):
         all_quests = quests_response.data if quests_response.data else []
         
         # Build concept index
-        index = await concept_matcher.build_concept_index(all_quests)
+        import asyncio
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        index = loop.run_until_complete(concept_matcher.build_concept_index(all_quests))
         
         # Find related quests
         related = concept_matcher.find_related_quests(quest_data, index, limit)
