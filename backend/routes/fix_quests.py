@@ -16,6 +16,7 @@ def fix_quest_completion(user_id: str):
     Marks quests as completed if all required tasks are done.
     """
     try:
+        print(f"=== FIX QUEST COMPLETION FOR USER {user_id} ===")
         supabase = get_supabase_admin_client()
         
         # Get all user's quests that are either active or incomplete
@@ -24,6 +25,8 @@ def fix_quest_completion(user_id: str):
             .eq('user_id', user_id)\
             .or_('is_active.eq.true,completed_at.is.null')\
             .execute()
+        
+        print(f"Found {len(user_quests.data)} active or incomplete quests")
         
         if not user_quests.data:
             return jsonify({
@@ -39,8 +42,14 @@ def fix_quest_completion(user_id: str):
             user_quest_id = user_quest['id']
             quest_title = user_quest['quests']['title'] if user_quest.get('quests') else 'Unknown'
             
+            print(f"Checking quest: {quest_title} (ID: {quest_id})")
+            print(f"  User Quest ID: {user_quest_id}")
+            print(f"  Is Active: {user_quest.get('is_active')}")
+            print(f"  Completed At: {user_quest.get('completed_at')}")
+            
             # Skip if already completed
             if user_quest.get('completed_at'):
+                print(f"  Skipping - already has completed_at")
                 continue
             
             # Get all tasks for this quest
@@ -66,8 +75,13 @@ def fix_quest_completion(user_id: str):
             completed_task_ids = {t['quest_task_id'] for t in completed_tasks.data}
             required_task_ids = {t['id'] for t in required_tasks}
             
+            print(f"  Required task IDs: {required_task_ids}")
+            print(f"  Completed task IDs: {completed_task_ids}")
+            
             # Check if all required tasks are completed
             if required_task_ids.issubset(completed_task_ids):
+                print(f"  ✓ All required tasks completed!")
+                
                 # Get the latest task completion date
                 latest_completion = supabase.table('user_quest_tasks')\
                     .select('completed_at')\
@@ -77,6 +91,7 @@ def fix_quest_completion(user_id: str):
                     .execute()
                 
                 completion_date = latest_completion.data[0]['completed_at'] if latest_completion.data else datetime.utcnow().isoformat()
+                print(f"  Setting completed_at to: {completion_date}")
                 
                 # Mark quest as completed
                 # Note: We're NOT using the update method to avoid triggering the broken database function
@@ -95,11 +110,14 @@ def fix_quest_completion(user_id: str):
                         .execute()
                     
                     if result.data:
+                        print(f"  ✓ Successfully updated quest in database")
                         fixed_quests.append({
                             'quest_title': quest_title,
                             'quest_id': quest_id,
                             'completed_at': completion_date
                         })
+                    else:
+                        print(f"  ✗ Update returned no data")
                 except APIError as e:
                     # If there's a database function error, we'll note it but continue
                     print(f"Database function error for quest {quest_id}: {str(e)}")
