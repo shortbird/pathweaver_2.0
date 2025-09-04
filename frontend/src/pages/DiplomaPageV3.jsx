@@ -6,6 +6,7 @@ import SkillsRadarChart from '../components/diploma/SkillsRadarChart';
 import { SkeletonDiplomaHeader, SkeletonStats, SkeletonAchievementGrid } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 import { formatErrorMessage } from '../utils/errorMessages';
+import FixQuestCompletion from '../components/FixQuestCompletion';
 
 const DiplomaPageV3 = () => {
   const { user, loginTimestamp } = useAuth();
@@ -537,21 +538,28 @@ const DiplomaPageV3 = () => {
           </div>
 
           {achievements.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 text-center" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-              <div className="max-w-md mx-auto">
-                <svg className="mx-auto h-20 w-20 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6d469b', opacity: 0.4 }}>
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                </svg>
-                <h3 className="text-xl font-bold mb-3" style={{ color: '#003f5c' }}>Your Learning Story Begins Here</h3>
-                <p className="text-gray-600 mb-6">Every quest you complete adds a chapter to your unique learning journey. Start exploring to build your story.</p>
-                {isOwner && (
-                  <button
-                    onClick={() => navigate('/quests')}
-                    className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg font-semibold hover:shadow-lg transition-shadow"
-                  >
-                    Start Your First Adventure
-                  </button>
-                )}
+            <div>
+              {/* Show fix component for authenticated users viewing their own diploma */}
+              {isOwner && (
+                <FixQuestCompletion />
+              )}
+              
+              <div className="bg-white rounded-xl p-12 text-center" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+                <div className="max-w-md mx-auto">
+                  <svg className="mx-auto h-20 w-20 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6d469b', opacity: 0.4 }}>
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                  <h3 className="text-xl font-bold mb-3" style={{ color: '#003f5c' }}>Your Learning Story Begins Here</h3>
+                  <p className="text-gray-600 mb-6">Every quest you complete adds a chapter to your unique learning journey. Start exploring to build your story.</p>
+                  {isOwner && (
+                    <button
+                      onClick={() => navigate('/quests')}
+                      className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg font-semibold hover:shadow-lg transition-shadow"
+                    >
+                      Start Your First Adventure
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           ) : (
