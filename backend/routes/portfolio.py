@@ -1,5 +1,6 @@
 from flask import Blueprint, jsonify
 from database import get_supabase_client
+from sqlalchemy import desc
 
 bp = Blueprint('portfolio', __name__)
 
@@ -299,6 +300,89 @@ def get_user_portfolio(user_id):
             'total_xp': 0,
             'portfolio_url': f"https://optio.com/portfolio/user{user_id[:8]}"
         }), 200  # Return 200 with default data instead of 500
+
+@bp.route('/diploma/<user_id>', methods=['GET'])
+def get_public_diploma_by_user_id(user_id):
+    """
+    Public endpoint to view a student's diploma by user ID.
+    This is the route called by the diploma page when viewing /diploma/:userId
+    """
+    try:
+        supabase = get_supabase_client()
+        
+        # Get user's basic info (not sensitive data)
+        user = supabase.table('users').select('id, first_name, last_name').eq('id', user_id).execute()
+        
+        if not user.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        # Get user's completed quests with V3 data structure
+        completed_quests = supabase.table('user_quests').select(
+            '''
+            *,
+            quests!inner(*),
+            user_quest_tasks(*, quest_tasks(*))
+            '''
+        ).eq('user_id', user_id).not_.is_('completed_at', 'null').order('completed_at', desc=True).execute()
+        
+        # Get XP by skill category from user_skill_xp table
+        skill_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()
+        
+        xp_by_category = {}
+        total_xp = 0
+        
+        if skill_xp.data:
+            for record in skill_xp.data:
+                # Handle both old and new column names
+                category = record.get('pillar', record.get('skill_category'))
+                xp = record.get('xp_amount', record.get('total_xp', 0))
+                if category:
+                    xp_by_category[category] = xp
+                    total_xp += xp
+        
+        # Process completed quests for achievements format
+        achievements = []
+        if completed_quests.data:
+            for cq in completed_quests.data:
+                quest = cq.get('quests')
+                if not quest:
+                    continue
+                
+                # Organize evidence by task
+                task_evidence = {}
+                for task_completion in cq.get('user_quest_tasks', []):
+                    task_data = task_completion.get('quest_tasks')
+                    if task_data:
+                        task_evidence[task_data['title']] = {
+                            'evidence_type': task_completion.get('evidence_type', 'text'),
+                            'evidence_content': task_completion.get('evidence_content', ''),
+                            'xp_awarded': task_completion.get('xp_awarded', 0),
+                            'completed_at': task_completion.get('completed_at'),
+                            'pillar': task_data.get('pillar', 'Arts & Creativity')
+                        }
+                
+                achievement = {
+                    'quest': quest,
+                    'completed_at': cq['completed_at'],
+                    'task_evidence': task_evidence,
+                    'total_xp_earned': sum(t.get('xp_awarded', 0) for t in cq.get('user_quest_tasks', []))
+                }
+                
+                achievements.append(achievement)
+        
+        return jsonify({
+            'student': user.data[0],
+            'achievements': achievements,
+            'skill_xp': xp_by_category,
+            'total_xp': total_xp,
+            'total_quests_completed': len(achievements)
+        }), 200
+        
+    except Exception as e:
+        import traceback
+        print(f"Error fetching diploma: {str(e)}")
+        print(f"Full traceback: {traceback.format_exc()}")
+        return jsonify({'error': 'Failed to fetch diploma'}), 500
 
 @bp.route('/user/<user_id>/privacy', methods=['PUT'])
 def update_portfolio_privacy(user_id):

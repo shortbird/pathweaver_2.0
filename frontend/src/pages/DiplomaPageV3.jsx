@@ -1,11 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
-import DiplomaHeader from '../components/diploma/DiplomaHeader';
-import DiplomaStats from '../components/diploma/DiplomaStats';
 import SkillsRadarChart from '../components/diploma/SkillsRadarChart';
-import AchievementCard from '../components/diploma/AchievementCard';
 import { SkeletonDiplomaHeader, SkeletonStats, SkeletonAchievementGrid } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 import { formatErrorMessage } from '../utils/errorMessages';
@@ -13,6 +10,7 @@ import { formatErrorMessage } from '../utils/errorMessages';
 const DiplomaPageV3 = () => {
   const { user, loginTimestamp } = useAuth();
   const { slug, userId } = useParams();
+  const navigate = useNavigate();
   const [achievements, setAchievements] = useState([]);
   const [totalXP, setTotalXP] = useState({});
   const [isLoading, setIsLoading] = useState(true);
@@ -24,6 +22,12 @@ const DiplomaPageV3 = () => {
   const [totalXPCount, setTotalXPCount] = useState(0);
 
   const pillarColors = {
+    'Arts & Creativity': 'from-[#ef597b] to-[#6d469b]',
+    'STEM & Logic': 'from-[#6d469b] to-[#ef597b]',
+    'Life & Wellness': 'from-[#ef597b] to-[#6d469b]',
+    'Language & Communication': 'from-[#6d469b] to-[#ef597b]',
+    'Society & Culture': 'from-[#ef597b] to-[#6d469b]',
+    // Legacy mappings
     creativity: 'from-[#ef597b] to-[#6d469b]',
     critical_thinking: 'from-[#6d469b] to-[#ef597b]',
     practical_skills: 'from-[#ef597b] to-[#6d469b]',
@@ -31,7 +35,25 @@ const DiplomaPageV3 = () => {
     cultural_literacy: 'from-[#ef597b] to-[#6d469b]'
   };
 
+  // Pillar display names for UI
+  const pillarDisplayNames = {
+    'Arts & Creativity': 'Arts & Creativity',
+    'STEM & Logic': 'STEM & Logic',
+    'Life & Wellness': 'Life & Wellness',
+    'Language & Communication': 'Language & Communication',
+    'Society & Culture': 'Society & Culture',
+    // Legacy mappings
+    creativity: 'Arts & Creativity',
+    critical_thinking: 'STEM & Logic',
+    practical_skills: 'Life & Wellness',
+    communication: 'Language & Communication',
+    cultural_literacy: 'Society & Culture'
+  };
+
   useEffect(() => {
+    // Scroll to top when component mounts
+    window.scrollTo(0, 0);
+    
     // Clear previous data when component mounts or dependencies change
     setAchievements([]);
     setTotalXP({});
@@ -101,7 +123,7 @@ const DiplomaPageV3 = () => {
   const fetchPublicDiplomaByUserId = async () => {
     try {
       const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/portfolio/diploma/${userId}`);
+      const response = await fetch(`${apiBase}/api/portfolio/diploma/${userId}`);
       
       if (!response.ok) {
         throw new Error('Failed to fetch diploma');
@@ -127,13 +149,13 @@ const DiplomaPageV3 = () => {
       
       // Fetch both completed quests and user XP data
       const [questsResponse, dashboardResponse] = await Promise.all([
-        fetch(`${apiBase}/v3/quests/completed?t=${Date.now()}`, {
+        fetch(`${apiBase}/api/v3/quests/completed?t=${Date.now()}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Cache-Control': 'no-cache'
           }
         }),
-        fetch(`${apiBase}/users/dashboard?t=${Date.now()}`, {
+        fetch(`${apiBase}/api/users/dashboard?t=${Date.now()}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Cache-Control': 'no-cache'
@@ -353,129 +375,242 @@ const DiplomaPageV3 = () => {
     skill_details: Object.keys(totalXP)
   };
 
+  // Get student display name
+  const getStudentName = () => {
+    const student = displayData.student || user;
+    if (!student) return 'Student';
+    
+    const firstName = student.first_name || '';
+    const lastName = student.last_name || '';
+    
+    if (firstName || lastName) {
+      return `${firstName} ${lastName}`.trim();
+    }
+    
+    return student.username || 'Student';
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      {/* Scroll to top on navigation */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Unified Diploma Header */}
-        <DiplomaHeader 
-          user={user}
-          isOwner={isOwner}
-          previewMode={previewMode}
-          onTogglePreview={handleTogglePreview}
-          onShare={copyShareLink}
-          diploma={diploma}
-        />
-
-        {/* Stats Overview */}
-        <DiplomaStats 
-          totalXP={displayData.total_xp || totalXPCount}
-          questsCompleted={displayData.total_quests_completed || achievements.length}
-          skillsCount={displayData.skill_details?.length || Object.keys(totalXP).length}
-          achievements={achievements}
-        />
-
-        {/* Skills Radar Chart */}
-        <SkillsRadarChart skillsXP={totalXP} />
-
-        {/* Philosophy Section */}
-        <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-8 mb-8 border border-gray-100" style={{ boxShadow: '0 8px 25px rgba(109, 70, 155, 0.05)' }}>
-          <div className="max-w-4xl mx-auto text-center">
-            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-br from-[#ef597b]/20 to-[#6d469b]/20 flex items-center justify-center">
-              <svg className="w-8 h-8 text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-            </div>
-            
-            <h2 className="text-3xl font-bold mb-4" style={{ color: '#003f5c' }}>The Process Is The Goal</h2>
-            
-            <p className="text-lg text-gray-700 leading-relaxed mb-6 max-w-3xl mx-auto">
-              This learning story represents a revolutionary approach to education where the journey of discovery is celebrated above all else. 
-              Every quest completed, every skill developed, and every moment of curiosity followed reflects genuine personal growth.
+      {/* Hero Section with Philosophy */}
+      <div className="relative overflow-hidden bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white">
+        <div className="absolute inset-0 bg-black opacity-10"></div>
+        <div className="relative max-w-7xl mx-auto px-4 py-16">
+          <div className="text-center">
+            <h1 className="text-5xl font-bold mb-4" style={{ letterSpacing: '-1px' }}>
+              {getStudentName()}'s Learning Story
+            </h1>
+            <p className="text-xl text-white/90 mb-8 max-w-3xl mx-auto">
+              A celebration of curiosity, growth, and self-directed learning
             </p>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
-              <div className="p-6 rounded-xl bg-white/50 backdrop-blur-sm">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#ef597b]/10 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#ef597b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                </div>
-                <h3 className="font-semibold text-gray-800 mb-2">Self-Directed Learning</h3>
-                <p className="text-sm text-gray-600">Learning driven by genuine curiosity and personal passion, not external requirements.</p>
+            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full">
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+              </svg>
+              <span className="font-semibold">Self-Validated Diploma</span>
+            </div>
+          </div>
+        </div>
+        <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-50 to-transparent"></div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 py-10">
+        {/* Share and Preview Controls */}
+        {isOwner && (
+          <div className="flex justify-end gap-4 mb-8">
+            <button
+              onClick={handleTogglePreview}
+              className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+              {previewMode ? 'Exit Preview' : 'Preview Public View'}
+            </button>
+            <button
+              onClick={copyShareLink}
+              className="px-4 py-2 rounded-lg bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg transition-shadow flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m9.032 4.026a9.001 9.001 0 01-7.432 0m9.032-4.026A9.001 9.001 0 0112 3c-4.474 0-8.268 2.943-9.543 7a9.97 9.97 0 011.827 3.026m9.032 4.026A9.97 9.97 0 0112 21c-4.474 0-8.268-2.943-9.543-7a9.97 9.97 0 011.827-3.026" />
+              </svg>
+              Share Learning Story
+            </button>
+          </div>
+        )}
+
+        {/* Growth Snapshot Section */}
+        <div className="mb-12">
+          <h2 className="text-2xl font-bold mb-6" style={{ color: '#003f5c' }}>Growth Snapshot</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-white rounded-xl p-6" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-gray-600">Total Growth Points</span>
+                <svg className="w-8 h-8 text-[#ef597b]" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
               </div>
-              
-              <div className="p-6 rounded-xl bg-white/50 backdrop-blur-sm">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#6d469b]/10 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 0l3 3m-3-3l-3 3m0 12v-1m0 0l3-3m-3 3l-3-3m9-1h-1m0 0l-3 3m3-3l3-3m-12 9h1m0 0l3-3m-3 3l-3 3" />
-                  </svg>
-                </div>
-                <h3 className="font-semibold text-gray-800 mb-2">Growth-Focused</h3>
-                <p className="text-sm text-gray-600">Celebrating the process of becoming rather than proving what you already know.</p>
+              <div className="text-3xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+                {displayData.total_xp || totalXPCount}
               </div>
-              
-              <div className="p-6 rounded-xl bg-white/50 backdrop-blur-sm">
-                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#ef597b]/10 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-[#ef597b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
-                  </svg>
-                </div>
-                <h3 className="font-semibold text-gray-800 mb-2">Joy-Driven</h3>
-                <p className="text-sm text-gray-600">Learning for the pure satisfaction of understanding and creating something new.</p>
+              <p className="text-sm text-gray-500 mt-2">Moments of learning celebrated</p>
+            </div>
+
+            <div className="bg-white rounded-xl p-6" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-gray-600">Adventures Completed</span>
+                <svg className="w-8 h-8 text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
+                  <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
+                </svg>
               </div>
+              <div className="text-3xl font-bold bg-gradient-to-r from-[#6d469b] to-[#ef597b] bg-clip-text text-transparent">
+                {displayData.total_quests_completed || achievements.length}
+              </div>
+              <p className="text-sm text-gray-500 mt-2">Journeys of discovery</p>
+            </div>
+
+            <div className="bg-white rounded-xl p-6" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-gray-600">Areas of Growth</span>
+                <svg className="w-8 h-8 text-[#ef597b]" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
+                </svg>
+              </div>
+              <div className="text-3xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+                {displayData.skill_details?.length || Object.keys(totalXP).length || 0}
+              </div>
+              <p className="text-sm text-gray-500 mt-2">Dimensions explored</p>
             </div>
           </div>
         </div>
 
+        {/* Philosophy Section */}
+        <div className="bg-gradient-to-r from-[#ef597b]/5 to-[#6d469b]/5 rounded-2xl p-8 mb-12" style={{ border: '1px solid rgba(109,70,155,0.1)' }}>
+          <h2 className="text-2xl font-bold mb-6" style={{ color: '#003f5c' }}>The Process Is The Goal</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-lg mb-2" style={{ color: '#003f5c' }}>Self-Directed Learning</h3>
+              <p className="text-gray-600">Learning driven by curiosity and passion, not external requirements</p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-[#6d469b] to-[#ef597b] rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-lg mb-2" style={{ color: '#003f5c' }}>Growth-Focused</h3>
+              <p className="text-gray-600">Celebrating who you're becoming through learning, not proving what you know</p>
+            </div>
+            <div className="text-center">
+              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <h3 className="font-bold text-lg mb-2" style={{ color: '#003f5c' }}>Joy-Driven</h3>
+              <p className="text-gray-600">Learning for the satisfaction of understanding and creating</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Skills Visualization */}
+        {Object.keys(totalXP).length > 0 && (
+          <div className="mb-12">
+            <h2 className="text-2xl font-bold mb-6" style={{ color: '#003f5c' }}>Growth Dimensions</h2>
+            <SkillsRadarChart skillsXP={totalXP} />
+          </div>
+        )}
+
         {/* Learning Journey Section */}
         <div className="mb-8">
-          <div className="text-center mb-8">
-            <h2 className="text-4xl font-bold mb-4" style={{ color: '#003f5c' }}>Learning Adventures</h2>
-            <p className="text-xl text-gray-600 max-w-4xl mx-auto leading-relaxed">
-              Each adventure represents a moment of curiosity transformed into growth. This is where learning comes alive through 
-              exploration, creation, and personal discovery—celebrating the journey of becoming.
-            </p>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold" style={{ color: '#003f5c' }}>Learning Journey</h2>
             {achievements.length > 0 && (
-              <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 border border-[#6d469b]/20">
-                <svg className="w-5 h-5 text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="font-semibold text-[#6d469b]">
-                  {achievements.length} Learning {achievements.length === 1 ? 'Adventure' : 'Adventures'} Completed
-                </span>
-              </div>
+              <span className="text-sm text-gray-600">
+                {achievements.length} Adventure{achievements.length === 1 ? '' : 's'} Completed
+              </span>
             )}
           </div>
 
           {achievements.length === 0 ? (
-              <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-16 text-center border-2 border-dashed border-gray-200" style={{ boxShadow: '0 8px 25px rgba(109, 70, 155, 0.05)' }}>
-                <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-[#ef597b]/20 to-[#6d469b]/20 flex items-center justify-center">
-                  <svg className="w-12 h-12 text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                </div>
-                <h3 className="text-2xl font-bold mb-3" style={{ color: '#003f5c' }}>Your Learning Story Begins Here</h3>
-                <p className="text-gray-600 text-lg leading-relaxed max-w-md mx-auto mb-6">
-                  Every quest you complete becomes part of your unique learning journey. Each challenge you embrace adds to your growing story of curiosity and growth.
-                </p>
-                <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full font-semibold hover:shadow-lg transition-all cursor-pointer group">
-                  <span>Start Your First Adventure</span>
-                  <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                  </svg>
-                </div>
+            <div className="bg-white rounded-xl p-12 text-center" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+              <div className="max-w-md mx-auto">
+                <svg className="mx-auto h-20 w-20 mb-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" style={{ color: '#6d469b', opacity: 0.4 }}>
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+                <h3 className="text-xl font-bold mb-3" style={{ color: '#003f5c' }}>Your Learning Story Begins Here</h3>
+                <p className="text-gray-600 mb-6">Every quest you complete adds a chapter to your unique learning journey. Start exploring to build your story.</p>
+                {isOwner && (
+                  <button
+                    onClick={() => navigate('/quests')}
+                    className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg font-semibold hover:shadow-lg transition-shadow"
+                  >
+                    Start Your First Adventure
+                  </button>
+                )}
               </div>
+            </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {achievements.map((achievement, index) => {
-                console.log(`Rendering achievement ${index + 1}/${achievements.length}:`, achievement.quest?.title);
+                const getPillarForQuest = () => {
+                  // Get the first task's pillar as the primary pillar
+                  const taskPillars = Object.values(achievement.task_evidence || {});
+                  if (taskPillars.length > 0 && taskPillars[0].pillar) {
+                    return taskPillars[0].pillar;
+                  }
+                  return 'Arts & Creativity'; // Default
+                };
+
+                const pillar = getPillarForQuest();
+                const displayName = pillarDisplayNames[pillar] || pillar;
+                const gradientClass = pillarColors[pillar] || pillarColors['Arts & Creativity'];
+
                 return (
-                  <AchievementCard 
+                  <div 
                     key={`${achievement.quest.id}-${index}`}
-                    achievement={achievement}
-                    onClick={setSelectedAchievement}
-                  />
+                    className="bg-white rounded-xl overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                    style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
+                    onClick={() => setSelectedAchievement(achievement)}
+                  >
+                    <div className={`h-2 bg-gradient-to-r ${gradientClass}`}></div>
+                    <div className="p-6">
+                      <div className="flex justify-between items-start mb-3">
+                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass}`}>
+                          {displayName}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {formatDate(achievement.completed_at)}
+                        </span>
+                      </div>
+                      <h3 className="font-bold text-lg mb-2" style={{ color: '#003f5c' }}>
+                        {achievement.quest.title}
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                        {achievement.quest.description || achievement.quest.big_idea}
+                      </p>
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          <span className="text-sm font-medium text-green-600">
+                            +{achievement.total_xp_earned} Growth Points
+                          </span>
+                        </div>
+                        <span className="text-sm text-[#6d469b] font-medium hover:underline">
+                          Explore Journey →
+                        </span>
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -498,8 +633,7 @@ const DiplomaPageV3 = () => {
                       </div>
                       <button
                         onClick={() => setSelectedAchievement(null)}
-                        className="text-white hover:bg-white/20 rounded-full p-2 transition-colors"
-                      >
+                        className="text-white hover:bg-white/20 rounded-full p-2 transition-colors">
                         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
@@ -508,70 +642,66 @@ const DiplomaPageV3 = () => {
                   </div>
 
                   <div className="p-8">
-                    <div className="mb-8 p-8 rounded-2xl" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.08) 0%, rgba(109,70,155,0.08) 100%)', border: '1px solid rgba(109,70,155,0.15)' }}>
-                      <div className="flex items-start gap-4">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#ef597b] to-[#6d469b] flex items-center justify-center">
-                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
-                          </svg>
-                        </div>
-                        <div className="flex-1">
-                          <h3 className="text-2xl font-bold mb-4" style={{ color: '#6d469b' }}>Adventure Overview</h3>
-                          <p className="text-lg leading-relaxed" style={{ color: '#003f5c' }}>{selectedAchievement.quest.big_idea}</p>
-                        </div>
-                      </div>
+                    <div className="mb-8 p-6 rounded-xl" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.05) 0%, rgba(109,70,155,0.05) 100%)', border: '1px solid rgba(109,70,155,0.1)' }}>
+                      <h3 className="text-lg font-bold mb-3" style={{ color: '#6d469b' }}>Adventure Overview</h3>
+                      <p style={{ color: '#003f5c', lineHeight: 1.7 }}>{selectedAchievement.quest.description || selectedAchievement.quest.big_idea || 'A journey of discovery and growth.'}</p>
                     </div>
 
                     <div>
-                      <h3 className="text-2xl font-bold mb-6" style={{ color: '#003f5c' }}>Learning Journey & Evidence</h3>
-                      <p className="text-gray-600 mb-6 leading-relaxed">
-                        Each task represents a moment of growth and discovery. The evidence below showcases the creative process, 
-                        problem-solving, and genuine learning that took place during this adventure.
-                      </p>
+                      <h3 className="text-lg font-bold mb-4" style={{ color: '#003f5c' }}>Learning Journey & Evidence</h3>
                       <div className="space-y-4">
-                        {Object.entries(selectedAchievement.task_evidence).map(([taskTitle, evidence], index) => (
-                          <div key={taskTitle} className="rounded-2xl p-6 mb-4" style={{ background: 'white', border: '1px solid rgba(109,70,155,0.1)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-                            <div className="flex items-start gap-4">
-                              <div className="flex-shrink-0">
-                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#ef597b] to-[#6d469b] flex items-center justify-center text-white font-bold text-sm">
-                                  {index + 1}
+                        {Object.entries(selectedAchievement.task_evidence).map(([taskTitle, evidence], index) => {
+                          const displayPillar = pillarDisplayNames[evidence.pillar] || evidence.pillar;
+                          const gradientClass = pillarColors[evidence.pillar] || pillarColors['Arts & Creativity'];
+                          
+                          return (
+                            <div key={taskTitle} className="rounded-xl p-5" style={{ background: 'white', border: '1px solid rgba(109,70,155,0.15)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                              <div className="mb-3">
+                                <div className="flex items-start gap-3">
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                                    {index + 1}
+                                  </div>
+                                  <div className="flex-1">
+                                    <h4 className="font-semibold" style={{ color: '#003f5c', fontSize: '16px' }}>{taskTitle}</h4>
+                                    <div className="flex items-center gap-3 mt-2 flex-wrap">
+                                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass}`} style={{ boxShadow: '0 2px 8px rgba(109,70,155,0.25)' }}>
+                                        {displayPillar}
+                                      </span>
+                                      <span className="text-sm font-medium text-green-600">
+                                        +{evidence.xp_awarded} Growth Points
+                                      </span>
+                                      <span className="text-xs text-gray-500">
+                                        {formatDate(evidence.completed_at)}
+                                      </span>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
-                              <div className="flex-1">
-                                <h4 className="font-bold text-lg mb-3" style={{ color: '#003f5c' }}>{taskTitle}</h4>
-                                
-                                <div className="flex flex-wrap items-center gap-3 mb-4">
-                                  <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white bg-gradient-to-r ${pillarColors[evidence.pillar]}`} style={{ boxShadow: '0 3px 12px rgba(109,70,155,0.25)' }}>
-                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                    </svg>
-                                    {evidence.pillar.replace('_', ' ')}
-                                  </span>
-                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-700">
-                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                                    </svg>
-                                    +{evidence.xp_awarded} Growth Points
-                                  </span>
-                                  <span className="text-sm text-gray-500">
-                                    {formatDate(evidence.completed_at)}
-                                  </span>
-                                </div>
-                                
-                                <div>
-                                  <p className="text-sm font-semibold text-gray-700 mb-3">Learning Evidence:</p>
-                                  {renderEvidence(evidence)}
-                                </div>
+                              
+                              <div className="mt-3 ml-11">
+                                <p className="text-sm font-medium text-gray-700 mb-2">Learning Evidence:</p>
+                                {renderEvidence(evidence)}
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
+                      </div>
+                      
+                      <div className="mt-6 p-4 rounded-lg bg-green-50 border border-green-200">
+                        <div className="flex items-center gap-2">
+                          <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          <span className="font-semibold text-green-800">
+                            Total Growth: +{selectedAchievement.total_xp_earned} Points
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          </div>
-        </div>
-      )}
+            )}
       </div>
     </div>
   );
