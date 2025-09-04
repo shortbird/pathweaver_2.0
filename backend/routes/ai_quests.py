@@ -261,6 +261,8 @@ def generate_and_save_quest(user_id):
         # Check if we can use AI generator or need fallback
         gemini_api_key = os.getenv('GEMINI_API_KEY')
         
+        print(f"Debug: ai_generator = {ai_generator}, gemini_api_key exists = {bool(gemini_api_key and gemini_api_key != 'PLACEHOLDER_KEY_NEEDS_TO_BE_SET')}")
+        
         if not ai_generator and (not gemini_api_key or gemini_api_key == 'PLACEHOLDER_KEY_NEEDS_TO_BE_SET'):
             return jsonify({
                 'error': 'AI service not configured',
@@ -353,19 +355,27 @@ def generate_and_save_quest(user_id):
                 return jsonify({'error': 'Failed to parse AI response', 'message': str(parse_error)}), 500
         else:
             # Use the AI generator service
-            import asyncio
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            result = loop.run_until_complete(ai_generator.generate_quest(
-                generation_mode='custom',
-                parameters=partial_quest_data,
-                user_context={'user_id': user_id}
-            ))
-            
-            if not result['success']:
-                return jsonify({'error': 'Failed to generate quest'}), 500
+            try:
+                import asyncio
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                result = loop.run_until_complete(ai_generator.generate_quest(
+                    generation_mode='custom',
+                    parameters=partial_quest_data,
+                    user_context={'user_id': user_id}
+                ))
                 
-            generated_quest = result['quest']
+                if not result['success']:
+                    error_msg = result.get('message', 'Unknown error in AI generator')
+                    print(f"AI generator failed: {error_msg}")
+                    return jsonify({'error': 'Failed to generate quest', 'message': error_msg}), 500
+                    
+                generated_quest = result['quest']
+            except Exception as gen_error:
+                print(f"Error using AI generator service: {gen_error}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
+                return jsonify({'error': 'Failed to generate quest with AI service', 'message': str(gen_error)}), 500
         
         # Save the quest to database
         quest_data = {

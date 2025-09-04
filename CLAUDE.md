@@ -12,7 +12,7 @@
 - Never use emojis
 - **File Reading Permission**: You have permission to read any file needed to complete tasks. Do not ask for permission to read files
 - VITE_API_URL = https://optio-backend-dev.onrender.com/api
-  - notice the /api at the end of this URL. 
+  - notice the /api at the end of this URL. Ensure routes in the code don't have /api to avoid double /api/api route calls.
 
 **DEVELOPMENT WORKFLOW:**
 - **Development**: Push to `develop` branch for immediate live testing on dev environment
