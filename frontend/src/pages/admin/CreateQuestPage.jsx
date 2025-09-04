@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import api from '../../services/api';
-import { Sparkles, Save, X } from 'lucide-react';
+import { Sparkles, Plus, X, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const CreateQuestPage = () => {
@@ -26,6 +26,8 @@ const CreateQuestPage = () => {
     notes: ''
   });
   
+  // User's task ideas
+  const [taskIdeas, setTaskIdeas] = useState(['']);
   const [isGenerating, setIsGenerating] = useState(false);
 
   const handleInputChange = (field, value) => {
@@ -33,6 +35,22 @@ const CreateQuestPage = () => {
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleTaskIdeaChange = (index, value) => {
+    const newTaskIdeas = [...taskIdeas];
+    newTaskIdeas[index] = value;
+    setTaskIdeas(newTaskIdeas);
+  };
+
+  const addTaskIdea = () => {
+    setTaskIdeas([...taskIdeas, '']);
+  };
+
+  const removeTaskIdea = (index) => {
+    if (taskIdeas.length > 1) {
+      setTaskIdeas(taskIdeas.filter((_, i) => i !== index));
+    }
   };
 
   const handleGenerateQuest = async () => {
@@ -46,6 +64,12 @@ const CreateQuestPage = () => {
         }
         return acc;
       }, {});
+
+      // Add non-empty task ideas
+      const nonEmptyTasks = taskIdeas.filter(task => task.trim());
+      if (nonEmptyTasks.length > 0) {
+        dataToSend.user_tasks = nonEmptyTasks;
+      }
 
       // Call the AI endpoint to generate and save the quest
       const response = await api.post('/v1/ai/generate-and-save-quest', dataToSend);
@@ -100,7 +124,7 @@ const CreateQuestPage = () => {
               <div>
                 <h3 className="font-semibold text-purple-900">AI-Enhanced Quest Creation</h3>
                 <p className="text-sm text-purple-700 mt-1">
-                  No fields are required! Share whatever ideas you have - a title, a topic, learning goals, or just a vague concept. 
+                  No fields are required! Share whatever ideas you have - a title, a topic, learning goals, or just task ideas. 
                   The AI will enhance your input, fill in missing details, and generate a complete quest with diverse tasks.
                 </p>
               </div>
@@ -193,6 +217,48 @@ const CreateQuestPage = () => {
               </select>
             </div>
 
+            {/* Task Ideas Section */}
+            <div>
+              <div className="flex justify-between items-center mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Task Ideas <span className="text-gray-400">(optional - add your own task ideas)</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={addTaskIdea}
+                  className="flex items-center gap-1 px-3 py-1 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-colors text-sm"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add Task
+                </button>
+              </div>
+              <div className="space-y-2">
+                {taskIdeas.map((task, index) => (
+                  <div key={index} className="flex gap-2">
+                    <input
+                      type="text"
+                      value={task}
+                      onChange={(e) => handleTaskIdeaChange(index, e.target.value)}
+                      placeholder={`Task ${index + 1}: e.g., "Research famous scientists" or "Build a model volcano"`}
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    />
+                    {taskIdeas.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeTaskIdea(index)}
+                        className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                AI will enhance your tasks and add more to ensure all 5 pillars are covered
+              </p>
+            </div>
+
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Additional Notes or Ideas <span className="text-gray-400">(optional)</span>
@@ -218,6 +284,10 @@ const CreateQuestPage = () => {
               <li className="flex items-start gap-2">
                 <span className="text-blue-500 mt-0.5">✓</span>
                 <span>Generate a compelling title and description if not provided</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-blue-500 mt-0.5">✓</span>
+                <span>Incorporate and enhance your task ideas</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-blue-500 mt-0.5">✓</span>

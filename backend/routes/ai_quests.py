@@ -259,20 +259,27 @@ def generate_and_save_quest(user_id):
             genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
             model = genai.GenerativeModel('gemini-pro')
             
+            # Extract user tasks if provided
+            user_tasks = partial_quest_data.pop('user_tasks', [])
+            user_tasks_text = ""
+            if user_tasks:
+                user_tasks_text = f"\n\nUser has provided these task ideas to include (enhance and incorporate them):\n" + "\n".join(f"- {task}" for task in user_tasks)
+            
             prompt = f"""Please act as an expert curriculum designer. Your task is to generate a complete quest object in valid JSON format. 
-    The user has provided the following starting data: {partial_quest_data}. 
+    The user has provided the following starting data: {partial_quest_data}{user_tasks_text}
     
     IMPORTANT REQUIREMENTS:
-    1. Generate AT LEAST 8 tasks (ideally 8-10 tasks)
-    2. Distribute tasks across ALL 5 pillars:
+    1. If user provided task ideas, incorporate and enhance ALL of them
+    2. Generate AT LEAST 8 tasks total (ideally 8-10 tasks)
+    3. Distribute tasks across ALL 5 pillars:
        - stem_logic (STEM & Logic): at least 1-2 tasks
        - life_wellness (Life & Wellness): at least 1-2 tasks  
        - language_communication (Language & Communication): at least 1-2 tasks
        - society_culture (Society & Culture): at least 1-2 tasks
        - arts_creativity (Arts & Creativity): at least 1-2 tasks
-    3. Clean up any grammar and enhance language clarity
-    4. Generate compelling title and description if not provided
-    5. Make tasks age-appropriate and educationally valuable
+    4. Clean up any grammar and enhance language clarity
+    5. Generate compelling title and description if not provided
+    6. Make tasks age-appropriate and educationally valuable
     
     The final JSON object MUST conform exactly to this structure:
     {{
@@ -293,8 +300,8 @@ def generate_and_save_quest(user_id):
       ]
     }}
     
-    Base your generation on the user's input, but use your expertise to create high-quality educational content. 
-    If the user provides minimal input, be creative and generate a complete, engaging quest.
+    Base your generation on the user's input, incorporating their task ideas if provided.
+    Use your expertise to create high-quality educational content. 
     Ensure the final output is ONLY the raw JSON object, with no other text or explanations."""
             
             response = model.generate_content(prompt)
@@ -304,10 +311,19 @@ def generate_and_save_quest(user_id):
             try:
                 # Clean up response and parse JSON
                 json_str = response.text.strip()
-                if json_str.startswith('```'):
+                
+                # Remove markdown code blocks if present
+                if '```json' in json_str:
+                    json_str = json_str.split('```json')[1].split('```')[0]
+                elif '```' in json_str:
                     json_str = json_str.split('```')[1]
                     if json_str.startswith('json'):
                         json_str = json_str[4:]
+                    json_str = json_str.split('```')[0]
+                
+                # Clean up any remaining whitespace or newlines
+                json_str = json_str.strip()
+                
                 generated_quest = json.loads(json_str)
             except Exception as parse_error:
                 print(f"Error parsing AI response: {parse_error}")
@@ -350,17 +366,23 @@ def generate_and_save_quest(user_id):
         quest_id = quest_response.data[0]['id']
         
         # Save tasks
-        for idx, task in enumerate(generated_quest.get('tasks', [])):
-            task_data = {
-                'quest_id': quest_id,
-                'title': task.get('title'),
-                'description': task.get('description'),
-                'pillar': task.get('pillar'),
-                'xp_value': task.get('xp_amount', 100),
-                'order_index': task.get('task_order', idx),
-                'is_required': True
-            }
-            supabase.table('quest_tasks').insert(task_data).execute()
+        try:
+            for idx, task in enumerate(generated_quest.get('tasks', [])):
+                task_data = {
+                    'quest_id': quest_id,
+                    'title': task.get('title', f'Task {idx + 1}'),
+                    'description': task.get('description', ''),
+                    'pillar': task.get('pillar', 'arts_creativity'),
+                    'xp_value': task.get('xp_amount', 100),
+                    'order_index': task.get('task_order', idx),
+                    'is_required': True
+                }
+                supabase.table('quest_tasks').insert(task_data).execute()
+        except Exception as task_error:
+            print(f"Error saving tasks: {task_error}")
+            # Clean up the quest if task creation failed
+            supabase.table('quests').delete().eq('id', quest_id).execute()
+            return jsonify({'error': f'Failed to save quest tasks: {str(task_error)}'}), 500
         
         return jsonify({
             'success': True,
