@@ -23,12 +23,12 @@ export default defineConfig({
           console.log('Copied _redirects file to dist folder')
         }
         
-        // Copy 404.html
-        const notFoundSource = join(process.cwd(), 'public', '404.html')
+        // Copy index.html as 404.html for SPA routing
+        const indexSource = join(distDir, 'index.html')
         const notFoundDest = join(distDir, '404.html')
-        if (existsSync(notFoundSource)) {
-          copyFileSync(notFoundSource, notFoundDest)
-          console.log('Copied 404.html file to dist folder')
+        if (existsSync(indexSource)) {
+          copyFileSync(indexSource, notFoundDest)
+          console.log('Copied index.html as 404.html for SPA routing')
         }
       }
     }

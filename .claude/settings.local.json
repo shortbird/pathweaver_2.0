@@ -146,7 +146,9 @@
       "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\public/**)",
       "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend/**)",
       "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend/**)",
-      "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src/**)"
+      "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src/**)",
+      "Read(/C:\\Users\\tanne\\Desktop\\pw_v2/**)",
+      "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\dist/**)"
     ],
     "deny": [],
     "ask": []
