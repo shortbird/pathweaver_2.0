@@ -354,8 +354,9 @@ const DiplomaPageV3 = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
-      <div className="max-w-7xl mx-auto px-4 py-10">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+      {/* Scroll to top on navigation */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Unified Diploma Header */}
         <DiplomaHeader 
           user={user}
@@ -377,27 +378,96 @@ const DiplomaPageV3 = () => {
         {/* Skills Radar Chart */}
         <SkillsRadarChart skillsXP={totalXP} />
 
-        {/* Achievements Section */}
+        {/* Philosophy Section */}
+        <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-8 mb-8 border border-gray-100" style={{ boxShadow: '0 8px 25px rgba(109, 70, 155, 0.05)' }}>
+          <div className="max-w-4xl mx-auto text-center">
+            <div className="w-16 h-16 mx-auto mb-6 rounded-full bg-gradient-to-br from-[#ef597b]/20 to-[#6d469b]/20 flex items-center justify-center">
+              <svg className="w-8 h-8 text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+              </svg>
+            </div>
+            
+            <h2 className="text-3xl font-bold mb-4" style={{ color: '#003f5c' }}>The Process Is The Goal</h2>
+            
+            <p className="text-lg text-gray-700 leading-relaxed mb-6 max-w-3xl mx-auto">
+              This learning story represents a revolutionary approach to education where the journey of discovery is celebrated above all else. 
+              Every quest completed, every skill developed, and every moment of curiosity followed reflects genuine personal growth.
+            </p>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+              <div className="p-6 rounded-xl bg-white/50 backdrop-blur-sm">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#ef597b]/10 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-[#ef597b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-gray-800 mb-2">Self-Directed Learning</h3>
+                <p className="text-sm text-gray-600">Learning driven by genuine curiosity and personal passion, not external requirements.</p>
+              </div>
+              
+              <div className="p-6 rounded-xl bg-white/50 backdrop-blur-sm">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#6d469b]/10 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 0l3 3m-3-3l-3 3m0 12v-1m0 0l3-3m-3 3l-3-3m9-1h-1m0 0l-3 3m3-3l3-3m-12 9h1m0 0l3-3m-3 3l-3 3" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-gray-800 mb-2">Growth-Focused</h3>
+                <p className="text-sm text-gray-600">Celebrating the process of becoming rather than proving what you already know.</p>
+              </div>
+              
+              <div className="p-6 rounded-xl bg-white/50 backdrop-blur-sm">
+                <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-[#ef597b]/10 flex items-center justify-center">
+                  <svg className="w-6 h-6 text-[#ef597b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                  </svg>
+                </div>
+                <h3 className="font-semibold text-gray-800 mb-2">Joy-Driven</h3>
+                <p className="text-sm text-gray-600">Learning for the pure satisfaction of understanding and creating something new.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Learning Journey Section */}
         <div className="mb-8">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold" style={{ color: '#003f5c' }}>Life Achievements</h2>
+          <div className="text-center mb-8">
+            <h2 className="text-4xl font-bold mb-4" style={{ color: '#003f5c' }}>Learning Adventures</h2>
+            <p className="text-xl text-gray-600 max-w-4xl mx-auto leading-relaxed">
+              Each adventure represents a moment of curiosity transformed into growth. This is where learning comes alive through 
+              exploration, creation, and personal discovery—celebrating the journey of becoming.
+            </p>
             {achievements.length > 0 && (
-              <span className="text-sm text-gray-600">
-                {achievements.length} Validated {achievements.length === 1 ? 'Achievement' : 'Achievements'}
-              </span>
+              <div className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 border border-[#6d469b]/20">
+                <svg className="w-5 h-5 text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="font-semibold text-[#6d469b]">
+                  {achievements.length} Learning {achievements.length === 1 ? 'Adventure' : 'Adventures'} Completed
+                </span>
+              </div>
             )}
           </div>
 
           {achievements.length === 0 ? (
-              <div className="bg-white rounded-xl p-12 text-center" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}>
-            <svg className="mx-auto h-16 w-16 mb-4" fill="currentColor" viewBox="0 0 20 20" style={{ color: '#6d469b', opacity: 0.3 }}>
-              <path fillRule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-            </svg>
-            <p className="text-lg mb-2 font-semibold" style={{ color: '#003f5c' }}>No completed quests yet</p>
-            <p style={{ color: '#003f5c', opacity: 0.7 }}>Your validated academic achievements will appear here.</p>
-            </div>
+              <div className="bg-gradient-to-br from-white to-gray-50 rounded-2xl p-16 text-center border-2 border-dashed border-gray-200" style={{ boxShadow: '0 8px 25px rgba(109, 70, 155, 0.05)' }}>
+                <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-[#ef597b]/20 to-[#6d469b]/20 flex items-center justify-center">
+                  <svg className="w-12 h-12 text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-bold mb-3" style={{ color: '#003f5c' }}>Your Learning Story Begins Here</h3>
+                <p className="text-gray-600 text-lg leading-relaxed max-w-md mx-auto mb-6">
+                  Every quest you complete becomes part of your unique learning journey. Each challenge you embrace adds to your growing story of curiosity and growth.
+                </p>
+                <div className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full font-semibold hover:shadow-lg transition-all cursor-pointer group">
+                  <span>Start Your First Adventure</span>
+                  <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                  </svg>
+                </div>
+              </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-8">
               {achievements.map((achievement, index) => {
                 console.log(`Rendering achievement ${index + 1}/${achievements.length}:`, achievement.quest?.title);
                 return (
@@ -438,37 +508,64 @@ const DiplomaPageV3 = () => {
                   </div>
 
                   <div className="p-8">
-                    <div className="mb-8 p-6 rounded-xl" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.05) 0%, rgba(109,70,155,0.05) 100%)', border: '1px solid rgba(109,70,155,0.1)' }}>
-                      <h3 className="text-lg font-bold mb-3" style={{ color: '#6d469b' }}>Quest Overview</h3>
-                      <p style={{ color: '#003f5c', lineHeight: 1.7 }}>{selectedAchievement.quest.big_idea}</p>
+                    <div className="mb-8 p-8 rounded-2xl" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.08) 0%, rgba(109,70,155,0.08) 100%)', border: '1px solid rgba(109,70,155,0.15)' }}>
+                      <div className="flex items-start gap-4">
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#ef597b] to-[#6d469b] flex items-center justify-center">
+                          <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                          </svg>
+                        </div>
+                        <div className="flex-1">
+                          <h3 className="text-2xl font-bold mb-4" style={{ color: '#6d469b' }}>Adventure Overview</h3>
+                          <p className="text-lg leading-relaxed" style={{ color: '#003f5c' }}>{selectedAchievement.quest.big_idea}</p>
+                        </div>
+                      </div>
                     </div>
 
                     <div>
-                      <h3 className="text-lg font-bold mb-4" style={{ color: '#003f5c' }}>Completed Tasks & Evidence</h3>
+                      <h3 className="text-2xl font-bold mb-6" style={{ color: '#003f5c' }}>Learning Journey & Evidence</h3>
+                      <p className="text-gray-600 mb-6 leading-relaxed">
+                        Each task represents a moment of growth and discovery. The evidence below showcases the creative process, 
+                        problem-solving, and genuine learning that took place during this adventure.
+                      </p>
                       <div className="space-y-4">
-                        {Object.entries(selectedAchievement.task_evidence).map(([taskTitle, evidence]) => (
-                          <div key={taskTitle} className="rounded-xl p-5" style={{ background: 'white', border: '1px solid rgba(109,70,155,0.15)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                            <div className="mb-3">
-                              <h4 className="font-semibold" style={{ color: '#003f5c', fontSize: '16px' }}>{taskTitle}</h4>
-                              <div className="flex items-center gap-3 mt-2">
-                                <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${pillarColors[evidence.pillar]}`} style={{ boxShadow: '0 2px 8px rgba(109,70,155,0.25)' }}>
-                            {evidence.pillar.replace('_', ' ')}
-                          </span>
-                          <span className="text-sm font-medium text-green-600">
-                            {evidence.xp_awarded} XP earned
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {formatDate(evidence.completed_at)}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      <div className="mt-3">
-                        <p className="text-sm font-medium text-gray-700 mb-2">Evidence:</p>
-                        {renderEvidence(evidence)}
-                      </div>
-                    </div>
-                  ))}
+                        {Object.entries(selectedAchievement.task_evidence).map(([taskTitle, evidence], index) => (
+                          <div key={taskTitle} className="rounded-2xl p-6 mb-4" style={{ background: 'white', border: '1px solid rgba(109,70,155,0.1)', boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
+                            <div className="flex items-start gap-4">
+                              <div className="flex-shrink-0">
+                                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#ef597b] to-[#6d469b] flex items-center justify-center text-white font-bold text-sm">
+                                  {index + 1}
+                                </div>
+                              </div>
+                              <div className="flex-1">
+                                <h4 className="font-bold text-lg mb-3" style={{ color: '#003f5c' }}>{taskTitle}</h4>
+                                
+                                <div className="flex flex-wrap items-center gap-3 mb-4">
+                                  <span className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold text-white bg-gradient-to-r ${pillarColors[evidence.pillar]}`} style={{ boxShadow: '0 3px 12px rgba(109,70,155,0.25)' }}>
+                                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                                    </svg>
+                                    {evidence.pillar.replace('_', ' ')}
+                                  </span>
+                                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-sm font-semibold bg-green-100 text-green-700">
+                                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                    </svg>
+                                    +{evidence.xp_awarded} Growth Points
+                                  </span>
+                                  <span className="text-sm text-gray-500">
+                                    {formatDate(evidence.completed_at)}
+                                  </span>
+                                </div>
+                                
+                                <div>
+                                  <p className="text-sm font-semibold text-gray-700 mb-3">Learning Evidence:</p>
+                                  {renderEvidence(evidence)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
                 </div>
               </div>
             </div>

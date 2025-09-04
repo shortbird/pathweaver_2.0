@@ -251,22 +251,23 @@ const DiplomaHeader = ({
           </div>
 
           {/* Main Title */}
-          <h1 className="text-5xl font-bold mb-3">
-            Portfolio Diploma
+          <h1 className="text-6xl font-bold mb-4 tracking-tight">
+            Learning Story
           </h1>
           
           {/* Student Name */}
-          <p className="text-3xl text-white/95 mb-4 font-light">
+          <p className="text-4xl text-white/95 mb-6 font-light">
             {displayName || 'Student Name'}
           </p>
 
-          {/* Certification Line */}
-          <div className="mt-6 mb-4">
-            <p className="text-lg text-white/80">
-              has accepted the responsibility to self-validate their education.
+          {/* Philosophy Statement */}
+          <div className="mt-8 mb-6 max-w-2xl mx-auto">
+            <p className="text-xl text-white/90 mb-4 font-medium leading-relaxed">
+              A celebration of growth and creations
             </p>
-            <p className="text-xl font-semibold mt-2 text-white/90">
-              This diploma is a record of their learning journey.
+            <p className="text-lg text-white/80 leading-relaxed">
+              This portfolio represents a journey of self-directed learning, where every quest completed 
+              and every skill developed reflects genuine curiosity and personal growth.
             </p>
           </div>
 
@@ -282,7 +283,7 @@ const DiplomaHeader = ({
               <svg className="w-5 h-5 text-green-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <span className="text-white/90">Self-Validated Achievement</span>
+              <span className="text-white/90">Self-Directed Learning</span>
             </div>
           </div>
 
