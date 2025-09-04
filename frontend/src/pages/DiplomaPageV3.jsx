@@ -20,6 +20,7 @@ const DiplomaPageV3 = () => {
   const [error, setError] = useState(null);
   const [previewMode, setPreviewMode] = useState(false);
   const [totalXPCount, setTotalXPCount] = useState(0);
+  const [showDiplomaExplanation, setShowDiplomaExplanation] = useState(false);
 
   const pillarColors = {
     'Arts & Creativity': 'from-[#ef597b] to-[#6d469b]',
@@ -403,37 +404,33 @@ const DiplomaPageV3 = () => {
             <p className="text-xl text-white/90 mb-8 max-w-3xl mx-auto">
               A celebration of curiosity, growth, and self-directed learning
             </p>
-            <div className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full">
+            <button 
+              onClick={() => setShowDiplomaExplanation(true)}
+              className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full hover:bg-white/30 transition-colors cursor-pointer"
+            >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
               </svg>
               <span className="font-semibold">Self-Validated Diploma</span>
-            </div>
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+              </svg>
+            </button>
           </div>
         </div>
         <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-50 to-transparent"></div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-10">
-        {/* Share and Preview Controls */}
+        {/* Share Controls */}
         {isOwner && (
-          <div className="flex justify-end gap-4 mb-8">
-            <button
-              onClick={handleTogglePreview}
-              className="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-2"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-              {previewMode ? 'Exit Preview' : 'Preview Public View'}
-            </button>
+          <div className="flex justify-end mb-8">
             <button
               onClick={copyShareLink}
               className="px-4 py-2 rounded-lg bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg transition-shadow flex items-center gap-2"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m9.032 4.026a9.001 9.001 0 01-7.432 0m9.032-4.026A9.001 9.001 0 0112 3c-4.474 0-8.268 2.943-9.543 7a9.97 9.97 0 011.827 3.026m9.032 4.026A9.97 9.97 0 0112 21c-4.474 0-8.268-2.943-9.543-7a9.97 9.97 0 011.827-3.026" />
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92zM18 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM6 13c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm12 7.02c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/>
               </svg>
               Share Learning Story
             </button>
@@ -702,6 +699,96 @@ const DiplomaPageV3 = () => {
                 </div>
               </div>
             )}
+
+        {/* Self-Validated Diploma Explanation Modal */}
+        {showDiplomaExplanation && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
+              <div className="p-8">
+                <div className="flex justify-between items-start mb-6">
+                  <h2 className="text-3xl font-bold" style={{ color: '#003f5c' }}>
+                    What is a Self-Validated Diploma?
+                  </h2>
+                  <button
+                    onClick={() => setShowDiplomaExplanation(false)}
+                    className="text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="p-6 rounded-xl bg-gradient-to-r from-[#ef597b]/5 to-[#6d469b]/5" style={{ border: '1px solid rgba(109,70,155,0.1)' }}>
+                    <h3 className="font-bold text-lg mb-3" style={{ color: '#6d469b' }}>A Revolutionary Approach to Education</h3>
+                    <p className="text-gray-700 leading-relaxed">
+                      Unlike traditional diplomas that require external validation from institutions, a self-validated diploma 
+                      puts YOU in charge of your education. You choose what to learn, document your journey with evidence, 
+                      and build a portfolio that authentically represents your unique skills and interests.
+                    </p>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-5 h-5 text-[#ef597b]" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 0016 0zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <h4 className="font-semibold" style={{ color: '#003f5c' }}>Evidence-Based</h4>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Every achievement is backed by real evidence - projects, writings, videos, and creations that prove your learning.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-5 h-5 text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        <h4 className="font-semibold" style={{ color: '#003f5c' }}>Self-Directed</h4>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        You choose what to learn based on your interests and curiosity, not a predetermined curriculum.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-5 h-5 text-[#ef597b]" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
+                        </svg>
+                        <h4 className="font-semibold" style={{ color: '#003f5c' }}>Process-Focused</h4>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Celebrates the journey of learning and growth, not just final outcomes or test scores.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center gap-2 mb-2">
+                        <svg className="w-5 h-5 text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762z" />
+                        </svg>
+                        <h4 className="font-semibold" style={{ color: '#003f5c' }}>Publicly Shareable</h4>
+                      </div>
+                      <p className="text-sm text-gray-600">
+                        Create a professional portfolio that showcases your unique learning story to the world.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="p-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg">
+                    <p className="text-center font-semibold">
+                      "The Process Is The Goal" - Your learning journey is valuable for who you become, not what you prove.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
