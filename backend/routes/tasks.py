@@ -14,7 +14,7 @@ import math
 from werkzeug.utils import secure_filename
 from typing import Dict, Any, Optional
 
-bp = Blueprint('tasks', __name__, url_prefix='/api/v3/tasks')
+bp = Blueprint('tasks', __name__, url_prefix='/v3/tasks')
 
 # Initialize services
 evidence_service = EvidenceService()

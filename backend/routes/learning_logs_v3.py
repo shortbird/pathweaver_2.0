@@ -10,7 +10,7 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import re
 
-bp = Blueprint('learning_logs_v3', __name__, url_prefix='/api/v3/logs')
+bp = Blueprint('learning_logs_v3', __name__, url_prefix='/v3/logs')
 
 # Maximum log entry length
 MAX_LOG_ENTRY_LENGTH = 2000

@@ -1,6 +1,31 @@
-# Optimized Implementation Plan - 9.4 Update (v2)
+# Optimized Implementation Plan - 9.4 Update (v3)
 
 This document provides a highly specific, step-by-step guide for a developer agent to execute a series of updates. Follow each instruction precisely.
+
+---
+
+## Preamble: Critical Configuration Verification
+
+**Objective:** Verify and ensure the application is connected to the correct Supabase project (`vvfgxcykxjybtvpfzwyx`) for all database and authentication operations. This step must be completed before any other actions are taken.
+
+### Action 1: Verify Frontend Configuration
+
+1.  **File to Check:** `frontend/.env` (and `frontend/.env.example` for reference).
+2.  **Variable to Check:** `VITE_SUPABASE_URL`.
+3.  **Required Value:** The value **must** be `https://vvfgxcykxjybtvpfzwyx.supabase.co`.
+4.  **Action:** If the value is incorrect, update it to the required value.
+
+### Action 2: Verify Backend Configuration
+
+1.  **File to Check:** `backend/.env` (and `backend/.env.example` for reference).
+2.  **Variable to Check:** `SUPABASE_URL`.
+3.  **Required Value:** The value **must** be `https://vvfgxcykxjybtvpfzwyx.supabase.co`.
+4.  **Action:** If the value is incorrect, update it to the required value.
+
+### Action 3: Verification
+
+1.  After confirming both frontend and backend configurations are correct, run the application.
+2.  Attempt to log in with a known user from the `vvfgxcykxjybtvpfzwyx` project. A successful login confirms the configuration is correct. Do not proceed until this step is successful.
 
 ---
 
@@ -240,3 +265,63 @@ This document provides a highly specific, step-by-step guide for a developer age
 2.  **Action:** In every instance, **remove the `/api` prefix** from the URL string.
 3.  **Example:** Change `api.get('/api/v3/quests/completed')` to `api.get('/v3/quests/completed')`.
 4.  **Verification:** After this is done, a global search for `'/api/'` within any `api` method call should yield zero results. This confirms the fix is complete.
+
+---
+
+## VI. Favicon Configuration
+
+**Objective:** Ensure the site favicon loads correctly from the specified Supabase storage URL.
+
+### Action 1: Edit the Main HTML File
+
+1.  **File to Edit:** `frontend/index.html`.
+2.  **Task:** Add or replace any existing favicon `<link>` tags in the `<head>` section with the following lines:
+    ```html
+    <link rel="icon" type="image/jpeg" href="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/icon.jpg" />
+    <link rel="apple-touch-icon" href="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/icon.jpg" />
+    ```
+3.  **Verification:** After saving the file, run the frontend development server. Open the site in a web browser and confirm that the correct icon appears in the browser tab.
+
+---
+
+## VII. User Registration & Login Flow Debugging
+
+**Objective:** Debug and fix the user registration flow to ensure that new, confirmed users can log in successfully and appear in the application.
+
+**Analysis:** The symptoms strongly suggest that the Supabase trigger responsible for creating a public `users` profile from a new `auth.users` entry is failing or missing. This prevents the application from finding the user's profile after authentication, leading to login failure and invisibility in admin panels.
+
+### Action 1: Inspect Supabase Database
+
+1.  **Navigate to Supabase Dashboard:** Go to the dashboard for project `vvfgxcykxjybtvpfzwyx`.
+2.  **Check for `handle_new_user` Function:** Go to the "Database" -> "Functions" section. Verify that a function named `handle_new_user` (or similar) exists.
+3.  **Check for Trigger:** Go to the "Database" -> "Triggers" section. Verify that a trigger named `on_auth_user_created` exists on the `auth.users` table.
+
+### Action 2: Re-create the Database Function and Trigger
+
+1.  **Task:** In the Supabase SQL Editor for your project, execute the following SQL commands. This will either create or overwrite the function and trigger with a known-good configuration. This is the most reliable way to fix the issue.
+2.  **SQL for the function:**
+    ```sql
+    create or replace function public.handle_new_user()
+    returns trigger as $$
+    begin
+      insert into public.users (id, email, role)
+      values (new.id, new.email, 'student');
+      return new;
+    end;
+    $$ language plpgsql security definer;
+    ```
+3.  **SQL for the trigger:**
+    ```sql
+    create or replace trigger on_auth_user_created
+      after insert on auth.users
+      for each row execute procedure public.handle_new_user();
+    ```
+
+### Action 3: End-to-End Verification
+
+1.  **Delete Test User:** In the Supabase "Authentication" section, manually delete any user you created for testing this issue.
+2.  **Register Again:** Go through your application's UI and register as a brand new user.
+3.  **Confirm Email:** Click the confirmation link sent to the user's email address.
+4.  **Verify Public Profile:** In the Supabase table editor, check the `public.users` table. A new row corresponding to the new user **must** exist.
+5.  **Test Login:** Attempt to log in with the new user's credentials. The login must succeed.
+6.  **Check Admin Page:** Log in as an administrator and navigate to the user management page. The new user must now be visible in the list.

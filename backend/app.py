@@ -51,36 +51,36 @@ configure_cors(app)
 error_handler.init_app(app)
 
 # Register existing routes (will be deprecated)
-app.register_blueprint(auth.bp, url_prefix='/api/auth')
-app.register_blueprint(quests.bp, url_prefix='/api/quests')
-app.register_blueprint(subscriptions.bp, url_prefix='/api/subscriptions')
-app.register_blueprint(users.bp, url_prefix='/api/users')
-app.register_blueprint(admin.bp, url_prefix='/api/admin')
-app.register_blueprint(community.bp, url_prefix='/api/community')
-app.register_blueprint(portfolio.bp, url_prefix='/api/portfolio')
-app.register_blueprint(learning_log.bp, url_prefix='/api')
+app.register_blueprint(auth.bp, url_prefix='/auth')
+app.register_blueprint(quests.bp, url_prefix='/quests')
+app.register_blueprint(subscriptions.bp, url_prefix='/subscriptions')
+app.register_blueprint(users.bp, url_prefix='/users')
+app.register_blueprint(admin.bp, url_prefix='/admin')
+app.register_blueprint(community.bp, url_prefix='/community')
+app.register_blueprint(portfolio.bp, url_prefix='/portfolio')
+app.register_blueprint(learning_log.bp)
 app.register_blueprint(quest_ideas_bp)
 app.register_blueprint(ratings_bp)
-app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
-app.register_blueprint(sources.bp)  # /api/sources
-app.register_blueprint(settings_bp)  # /api/settings
+app.register_blueprint(uploads.bp, url_prefix='/uploads')
+app.register_blueprint(sources.bp)  # /sources
+app.register_blueprint(settings_bp)  # /settings
 
 # Register V3 routes
-app.register_blueprint(quests_v3.bp)  # /api/v3/quests
-app.register_blueprint(tasks.bp)      # /api/v3/tasks
-app.register_blueprint(admin_v3.bp)   # /api/v3/admin
-app.register_blueprint(collaborations.bp)  # /api/v3/collaborations
-app.register_blueprint(learning_logs_v3.bp)  # /api/v3/logs
-app.register_blueprint(quest_submissions_bp)  # /api/v3/quests/submissions
-app.register_blueprint(ai_quests_bp, url_prefix='/api')  # /api/ai/* endpoints
+app.register_blueprint(quests_v3.bp)  # /v3/quests
+app.register_blueprint(tasks.bp)      # /v3/tasks
+app.register_blueprint(admin_v3.bp)   # /v3/admin
+app.register_blueprint(collaborations.bp)  # /v3/collaborations
+app.register_blueprint(learning_logs_v3.bp)  # /v3/logs
+app.register_blueprint(quest_submissions_bp)  # /v3/quests/submissions
+app.register_blueprint(ai_quests_bp)  # /ai/* and /v1/ai/* endpoints
 
 # Register development utilities (password protected in production)
-app.register_blueprint(dev_utils.bp, url_prefix='/api/dev')
+app.register_blueprint(dev_utils.bp, url_prefix='/dev')
 
 # Register user fix endpoint (temporary)
 from routes import user_fix, fix_quests
-app.register_blueprint(user_fix.bp, url_prefix='/api/user')
-app.register_blueprint(fix_quests.bp, url_prefix='/api/fix')
+app.register_blueprint(user_fix.bp, url_prefix='/user')
+app.register_blueprint(fix_quests.bp, url_prefix='/fix')
 
 @app.route('/health')
 def health_check():
