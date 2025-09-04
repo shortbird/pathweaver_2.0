@@ -72,7 +72,7 @@ app.register_blueprint(admin_v3.bp)   # /api/v3/admin
 app.register_blueprint(collaborations.bp)  # /api/v3/collaborations
 app.register_blueprint(learning_logs_v3.bp)  # /api/v3/logs
 app.register_blueprint(quest_submissions_bp)  # /api/v3/quests/submissions
-app.register_blueprint(ai_quests_bp)  # /api/ai/* endpoints
+app.register_blueprint(ai_quests_bp, url_prefix='/api')  # /api/ai/* endpoints
 
 # Register development utilities (password protected in production)
 app.register_blueprint(dev_utils.bp, url_prefix='/api/dev')

@@ -46,7 +46,7 @@ def init_services():
     if not validator:
         validator = QuestValidator()
 
-@ai_quests_bp.route('/api/ai/generate-quest', methods=['POST'])
+@ai_quests_bp.route('/ai/generate-quest', methods=['POST'])
 @require_auth
 async def generate_quest(user_id):
     """Generate a new quest using AI"""
@@ -122,7 +122,7 @@ async def generate_quest(user_id):
         print(f"Error generating quest: {e}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
-@ai_quests_bp.route('/api/ai/check-similarity', methods=['POST'])
+@ai_quests_bp.route('/ai/check-similarity', methods=['POST'])
 @require_auth
 async def check_similarity(user_id):
     """Check similarity between a quest and existing quests"""
@@ -158,7 +158,7 @@ async def check_similarity(user_id):
         print(f"Error checking similarity: {e}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
-@ai_quests_bp.route('/api/ai/generation-options', methods=['GET'])
+@ai_quests_bp.route('/ai/generation-options', methods=['GET'])
 @require_auth
 def get_generation_options(user_id):
     """Get available generation options and templates"""
@@ -231,7 +231,7 @@ def get_generation_options(user_id):
         print(f"Error getting generation options: {e}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
-@ai_quests_bp.route('/api/ai/enhance-submission', methods=['POST'])
+@ai_quests_bp.route('/ai/enhance-submission', methods=['POST'])
 @require_auth
 async def enhance_submission(user_id):
     """Enhance a student's quest submission with AI"""
@@ -281,7 +281,7 @@ async def enhance_submission(user_id):
         print(f"Error enhancing submission: {e}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
-@ai_quests_bp.route('/api/ai/batch-generate', methods=['POST'])
+@ai_quests_bp.route('/ai/batch-generate', methods=['POST'])
 @require_auth
 async def batch_generate(user_id):
     """Generate multiple quests in batch"""
@@ -351,7 +351,7 @@ async def batch_generate(user_id):
         print(f"Error in batch generation: {e}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
-@ai_quests_bp.route('/api/ai/save-generated-quest', methods=['POST'])
+@ai_quests_bp.route('/ai/save-generated-quest', methods=['POST'])
 @require_auth
 def save_generated_quest(user_id):
     """Save an AI-generated quest to the database"""
@@ -409,7 +409,7 @@ def save_generated_quest(user_id):
         print(f"Error saving quest: {e}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
-@ai_quests_bp.route('/api/ai/validate-quest', methods=['POST'])
+@ai_quests_bp.route('/ai/validate-quest', methods=['POST'])
 @require_auth
 def validate_quest(user_id):
     """Validate a quest without saving it"""
@@ -438,7 +438,7 @@ def validate_quest(user_id):
         print(f"Error validating quest: {e}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
-@ai_quests_bp.route('/api/ai/related-quests', methods=['POST'])
+@ai_quests_bp.route('/ai/related-quests', methods=['POST'])
 @require_auth
 async def find_related_quests(user_id):
     """Find quests related to a given quest"""
