@@ -35,7 +35,7 @@ def token_required(f):
     
     return decorated
 
-@quest_ideas_bp.route('/api/quest-ideas', methods=['POST'])
+@quest_ideas_bp.route('/quest-ideas', methods=['POST'])
 @cross_origin()
 @token_required
 def submit_quest_idea(current_user_id):
@@ -84,7 +84,7 @@ def submit_quest_idea(current_user_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@quest_ideas_bp.route('/api/quest-ideas', methods=['GET'])
+@quest_ideas_bp.route('/quest-ideas', methods=['GET'])
 @cross_origin()
 @token_required
 def get_user_quest_ideas(current_user_id):
@@ -105,7 +105,7 @@ def get_user_quest_ideas(current_user_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@quest_ideas_bp.route('/api/quest-ideas/<idea_id>', methods=['GET'])
+@quest_ideas_bp.route('/quest-ideas/<idea_id>', methods=['GET'])
 @cross_origin()
 @token_required
 def get_quest_idea_status(current_user_id, idea_id):

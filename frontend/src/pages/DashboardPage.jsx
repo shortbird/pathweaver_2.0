@@ -224,56 +224,48 @@ const ActiveQuests = memo(({ activeQuests }) => {
   )
 })
 
-// Memoized component for Recent Task Completions section  
-const RecentCompletions = memo(({ recentTasks }) => {
-  if (!recentTasks || recentTasks.length === 0) {
-    return <p className="text-gray-600">No completed tasks yet. Keep going!</p>
+// Memoized component for Recent Completions section (both tasks and quests) 
+const RecentCompletions = memo(({ recentItems }) => {
+  if (!recentItems || recentItems.length === 0) {
+    return <p className="text-gray-600">No recent completions. Go complete a task or quest!</p>
   }
   
   return (
     <div className="space-y-3">
-      {recentTasks.slice(0, 3).map((task, idx) => {
-        const pillarData = getPillarData(task.pillar)
+      {recentItems.map((item, idx) => {
+        const isTask = item.type === 'task'
+        const pillarData = isTask ? getPillarData(item.pillar) : getPillarData('creativity') // Default for quests
         const pillarStyle = { 
           bg: pillarData.bg, 
           text: pillarData.text, 
           border: pillarData.bg.replace('bg-', 'border-').replace('100', '200') 
         }
-        
+
         return (
           <div
-            key={task.id || idx}
-            className={`p-4 rounded-xl border ${pillarStyle.bg} ${pillarStyle.border}`}
-          >
+            key={item.id || idx}
+            className={`p-4 rounded-xl border ${pillarStyle.bg} ${pillarStyle.border}`}>
             <div className="flex justify-between items-start">
               <div className="flex-1">
                 <h3 className="font-medium text-sm text-gray-900">
-                  {task.task_description || task.description || 'Task completed'}
+                  {item.title}
                 </h3>
-                <p className="text-xs text-gray-600 mt-1">
-                  Quest: <span className="font-medium">{task.quest_title || 'Unknown Quest'}</span>
-                </p>
+                {isTask && (
+                  <p className="text-xs text-gray-600 mt-1">
+                    Quest: <span className="font-medium">{item.quest_title || 'Unknown Quest'}</span>
+                  </p>
+                )}
               </div>
-              {task.pillar && (
-                <span className={`px-2 py-1 text-xs font-medium rounded-full ${pillarStyle.bg} ${pillarStyle.text} ml-2`}>
-                  {task.pillar.replace('_', ' ')}
-                </span>
-              )}
+              <span className={`px-2 py-1 text-xs font-medium rounded-full ${pillarStyle.bg} ${pillarStyle.text} ml-2`}>
+                {isTask ? item.pillar.replace('_', ' ') : 'Quest'}
+              </span>
             </div>
-            
             <div className="flex items-center gap-3 mt-2">
-              {task.xp_awarded > 0 && (
-                <span className="text-sm font-bold text-green-600">
-                  +{task.xp_awarded} XP
-                </span>
-              )}
-              {task.evidence_type && (
-                <span className="text-xs text-gray-500">
-                  Evidence: {task.evidence_type}
-                </span>
-              )}
+              <span className="text-sm font-bold text-green-600">
+                +{item.xp || item.xp_awarded} XP
+              </span>
               <span className="text-xs text-gray-500 ml-auto">
-                {task.completed_at ? new Date(task.completed_at).toLocaleDateString() : 'Recently'}
+                {item.completed_at ? new Date(item.completed_at).toLocaleDateString() : 'Recently'}
               </span>
             </div>
           </div>
@@ -605,19 +597,6 @@ const DashboardPage = () => {
           <ActiveQuests activeQuests={dashboardData?.active_quests} />
         </div>
         
-        {/* Completed Quests Section */}
-        <div className="card">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-semibold text-gray-900">Completed Quests</h2>
-            <Link
-              to="/diploma"
-              className="text-sm text-primary hover:text-purple-700 font-medium"
-            >
-              View Full Diploma →
-            </Link>
-          </div>
-          <CompletedQuests activeQuests={dashboardData?.active_quests} />
-        </div>
       </div>
 
 
@@ -701,9 +680,9 @@ const DashboardPage = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="card">
-          <h2 className="text-xl font-semibold mb-4">Recent Task Completions</h2>
+          <h2 className="text-xl font-semibold mb-4">Recent Completions</h2>
           <RecentCompletions 
-            recentTasks={dashboardData?.recent_tasks || dashboardData?.recent_task_completions || dashboardData?.recent_completions} 
+            recentItems={dashboardData?.recent_completions} 
           />
         </div>
         

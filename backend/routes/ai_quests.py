@@ -237,6 +237,128 @@ def get_generation_options(user_id):
         print(f"Error getting generation options: {e}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
+@ai_quests_bp.route('/v1/ai/generate-and-save-quest', methods=['POST'])
+@require_auth
+def generate_and_save_quest(user_id):
+    """Generate and save a quest with AI assistance using partial data"""
+    
+    try:
+        # Get request data (partial quest data from user)
+        partial_quest_data = request.json
+        
+        # Check user role for approval status
+        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        is_admin = user_response.data and user_response.data.get('role') == 'admin'
+        
+        # Initialize AI generator
+        init_services()
+        
+        if not ai_generator:
+            # If AI is not available, use a fallback approach
+            import google.generativeai as genai
+            genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+            model = genai.GenerativeModel('gemini-pro')
+            
+            prompt = f"""Please act as an expert curriculum designer. Your task is to generate a complete quest object in valid JSON format. 
+    The user has provided the following starting data: {partial_quest_data}. 
+    You must fill in all missing fields to create a complete, coherent, and engaging quest. 
+    The final JSON object MUST conform exactly to this structure:
+    {{
+      "title": "(string)",
+      "description": "(string)",
+      "big_idea": "(string)",
+      "tasks": [
+        {{
+          "title": "(string)",
+          "description": "(string)",
+          "pillar": "(string: must be one of stem_logic, arts_creativity, language_communication, life_wellness, society_culture)",
+          "subcategory": "(string)",
+          "xp_amount": (integer),
+          "evidence_prompt": "(string)",
+          "materials_needed": ["(string)"],
+          "task_order": (integer, starting from 0)
+        }}
+      ]
+    }}
+    Base your generation on the user's input, but use your expertise to create high-quality educational content. Ensure the final output is ONLY the raw JSON object, with no other text or explanations."""
+            
+            response = model.generate_content(prompt)
+            
+            # Parse the AI response
+            import json
+            try:
+                # Clean up response and parse JSON
+                json_str = response.text.strip()
+                if json_str.startswith('```'):
+                    json_str = json_str.split('```')[1]
+                    if json_str.startswith('json'):
+                        json_str = json_str[4:]
+                generated_quest = json.loads(json_str)
+            except Exception as parse_error:
+                print(f"Error parsing AI response: {parse_error}")
+                print(f"Raw response: {response.text}")
+                return jsonify({'error': 'Failed to parse AI response'}), 500
+        else:
+            # Use the AI generator service
+            import asyncio
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(ai_generator.generate_quest(
+                generation_mode='custom',
+                parameters=partial_quest_data,
+                user_context={'user_id': user_id}
+            ))
+            
+            if not result['success']:
+                return jsonify({'error': 'Failed to generate quest'}), 500
+                
+            generated_quest = result['quest']
+        
+        # Save the quest to database
+        quest_data = {
+            'title': generated_quest.get('title'),
+            'description': generated_quest.get('description'),
+            'big_idea': generated_quest.get('big_idea', ''),
+            'is_v3': True,
+            'is_active': True,
+            'is_approved': is_admin,  # Auto-approve if admin, otherwise needs review
+            'created_by': user_id,
+            'created_at': datetime.utcnow().isoformat()
+        }
+        
+        # Insert quest
+        quest_response = supabase.table('quests').insert(quest_data).execute()
+        
+        if not quest_response.data:
+            return jsonify({'error': 'Failed to save quest'}), 500
+            
+        quest_id = quest_response.data[0]['id']
+        
+        # Save tasks
+        for idx, task in enumerate(generated_quest.get('tasks', [])):
+            task_data = {
+                'quest_id': quest_id,
+                'title': task.get('title'),
+                'description': task.get('description'),
+                'pillar': task.get('pillar'),
+                'xp_value': task.get('xp_amount', 100),
+                'order_index': task.get('task_order', idx),
+                'is_required': True
+            }
+            supabase.table('quest_tasks').insert(task_data).execute()
+        
+        return jsonify({
+            'success': True,
+            'quest_id': quest_id,
+            'quest': generated_quest,
+            'is_approved': is_admin,
+            'message': 'Quest generated and saved successfully' if is_admin else 'Quest submitted for review'
+        }), 200
+        
+    except Exception as e:
+        print(f"Error generating and saving quest: {e}")
+        return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
+
 @ai_quests_bp.route('/ai/enhance-submission', methods=['POST'])
 @require_auth
 def enhance_submission(user_id):

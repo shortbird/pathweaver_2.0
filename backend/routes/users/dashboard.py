@@ -1,12 +1,46 @@
 """User dashboard routes"""
 
 from flask import Blueprint, jsonify
+from datetime import datetime, timezone
 from database import get_user_client
 from utils.auth.decorators import require_auth
 from middleware.error_handler import NotFoundError
 from .helpers import calculate_user_xp, get_user_level, format_skill_data, SKILL_CATEGORIES
 
 dashboard_bp = Blueprint('dashboard', __name__)
+
+def get_recent_completions_combined(supabase, user_id: str, limit: int = 5) -> list:
+    """Get combined list of recent task and quest completions."""
+    try:
+        tasks = get_recent_task_completions(supabase, user_id, limit)
+        quests = get_recent_completions(supabase, user_id, limit)
+
+        for task in tasks:
+            task['type'] = 'task'
+            task['title'] = task.get('task_description', 'Task Completed')
+            task['xp'] = task.get('xp_awarded', 0)
+
+        formatted_quests = []
+        for quest_enrollment in quests:
+            quest_details = quest_enrollment.get('quests', {})
+            total_xp = sum(task.get('xp_amount', 0) for task in quest_details.get('quest_tasks', []))
+            formatted_quests.append({
+                'id': quest_enrollment.get('id'),
+                'type': 'quest',
+                'title': quest_details.get('title', 'Quest Completed'),
+                'completed_at': quest_enrollment.get('completed_at'),
+                'xp': total_xp
+            })
+
+        combined = tasks + formatted_quests
+        
+        # Sort by 'completed_at', handling potential naive and aware datetime objects
+        combined.sort(key=lambda x: datetime.fromisoformat(x['completed_at'].replace('Z', '+00:00')) if isinstance(x.get('completed_at'), str) else datetime.now(timezone.utc), reverse=True)
+        
+        return combined[:limit]
+    except Exception as e:
+        print(f"Error in get_recent_completions_combined: {str(e)}")
+        return []
 
 @dashboard_bp.route('/dashboard', methods=['GET'])
 @require_auth
@@ -25,8 +59,8 @@ def get_dashboard(user_id):
         # Get active quests
         active_quests = get_active_quests(supabase, user_id)
         
-        # Get recent task completions (not quest completions) - limit to 3
-        recent_completions = get_recent_task_completions(supabase, user_id, limit=3)
+        # Get combined recent completions (both tasks and quests) - limit to 5
+        recent_completions = get_recent_completions_combined(supabase, user_id, limit=5)
         
         # Calculate XP stats
         total_xp, skill_breakdown = calculate_user_xp(supabase, user_id)

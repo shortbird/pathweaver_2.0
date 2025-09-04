@@ -82,11 +82,11 @@ from routes import user_fix, fix_quests
 app.register_blueprint(user_fix.bp, url_prefix='/api/user')
 app.register_blueprint(fix_quests.bp, url_prefix='/api/fix')
 
-@app.route('/api/health')
+@app.route('/health')
 def health_check():
     return jsonify({'status': 'healthy'}), 200
 
-@app.route('/api/csrf-token', methods=['GET'])
+@app.route('/csrf-token', methods=['GET'])
 def get_csrf():
     """
     Get a CSRF token for the session.
@@ -100,7 +100,7 @@ def get_csrf():
         # CSRF module not installed
         return jsonify({'csrf_token': None, 'csrf_enabled': False, 'module_available': False}), 200
 
-@app.route('/api/test-config')
+@app.route('/test-config')
 def test_config():
     """Test endpoint to verify configuration"""
     from config import Config

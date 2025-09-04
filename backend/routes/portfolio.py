@@ -361,14 +361,14 @@ def get_public_diploma_by_user_id(user_id):
         if not user.data:
             return jsonify({'error': 'User not found'}), 404
         
-        # Get user's completed quests with V3 data structure
+        # Get user's completed quests with V3 data structure - optimized query
         completed_quests = supabase.table('user_quests').select(
             '''
-            *,
-            quests!inner(*),
-            user_quest_tasks(*, quest_tasks(*))
+            completed_at,
+            quests:quests!inner(id, title, description, big_idea),
+            user_quest_tasks:user_quest_tasks!inner(completed_at, evidence_type, evidence_content, xp_awarded, quest_tasks(title, pillar))
             '''
-        ).eq('user_id', user_id).not_.is_('completed_at', 'null').order('completed_at.desc').execute()
+        ).eq('user_id', user_id).not_.is_('completed_at', 'null').order('completed_at', desc=True).execute()
         
         # Get XP by skill category from user_skill_xp table
         skill_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()

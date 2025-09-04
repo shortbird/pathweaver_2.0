@@ -6,7 +6,7 @@ from datetime import datetime
 
 settings_bp = Blueprint('settings', __name__)
 
-@settings_bp.route('/api/settings', methods=['GET'])
+@settings_bp.route('/settings', methods=['GET'])
 def get_settings():
     try:
         # Get public settings (logo, site name, etc.)
@@ -31,7 +31,7 @@ def get_settings():
             'favicon_url': None
         }), 200
 
-@settings_bp.route('/api/settings', methods=['PUT'])
+@settings_bp.route('/settings', methods=['PUT'])
 @require_admin
 def update_settings(current_user):
     try:
@@ -61,7 +61,7 @@ def update_settings(current_user):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@settings_bp.route('/api/settings/upload-logo', methods=['POST'])
+@settings_bp.route('/settings/upload-logo', methods=['POST'])
 @require_admin
 def upload_logo(current_user):
     try:

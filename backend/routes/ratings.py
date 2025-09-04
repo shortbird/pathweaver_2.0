@@ -45,7 +45,7 @@ def token_required(f):
     
     return decorated
 
-@ratings_bp.route('/api/quests/<quest_id>/rate', methods=['POST'])
+@ratings_bp.route('/quests/<quest_id>/rate', methods=['POST'])
 @cross_origin()
 @token_required
 def rate_quest(user, quest_id):
@@ -115,7 +115,7 @@ def rate_quest(user, quest_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@ratings_bp.route('/api/quests/<quest_id>/rating', methods=['GET'])
+@ratings_bp.route('/quests/<quest_id>/rating', methods=['GET'])
 @cross_origin()
 def get_quest_rating(quest_id):
     """Get rating information for a quest"""
@@ -143,7 +143,7 @@ def get_quest_rating(quest_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@ratings_bp.route('/api/quests/<quest_id>/user-rating', methods=['GET'])
+@ratings_bp.route('/quests/<quest_id>/user-rating', methods=['GET'])
 @cross_origin()
 @token_required
 def get_user_quest_rating(user, quest_id):
