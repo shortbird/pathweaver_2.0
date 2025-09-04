@@ -4,12 +4,13 @@ Endpoints for AI-powered quest generation and similarity checking
 """
 
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt_identity
 from supabase import create_client, Client
 import os
 import asyncio
 from datetime import datetime
 from typing import Dict, List
+from utils.auth.decorators import require_auth
+from utils.auth.token_utils import verify_token
 
 # Import services
 from services.ai_quest_generator import AIQuestGenerator
@@ -46,13 +47,12 @@ def init_services():
         validator = QuestValidator()
 
 @ai_quests_bp.route('/api/ai/generate-quest', methods=['POST'])
-@jwt_required()
-async def generate_quest():
+@require_auth
+async def generate_quest(user_id):
     """Generate a new quest using AI"""
     
     try:
         # Check user role (only admins can generate quests)
-        user_id = get_jwt_identity()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
         
         if not user_response.data or user_response.data.get('role') != 'admin':
@@ -123,8 +123,8 @@ async def generate_quest():
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 @ai_quests_bp.route('/api/ai/check-similarity', methods=['POST'])
-@jwt_required()
-async def check_similarity():
+@require_auth
+async def check_similarity(user_id):
     """Check similarity between a quest and existing quests"""
     
     try:
@@ -159,13 +159,12 @@ async def check_similarity():
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 @ai_quests_bp.route('/api/ai/generation-options', methods=['GET'])
-@jwt_required()
-def get_generation_options():
+@require_auth
+def get_generation_options(user_id):
     """Get available generation options and templates"""
     
     try:
         # Check user role
-        user_id = get_jwt_identity()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
         
         if not user_response.data or user_response.data.get('role') not in ['admin', 'advisor']:
@@ -233,8 +232,8 @@ def get_generation_options():
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 @ai_quests_bp.route('/api/ai/enhance-submission', methods=['POST'])
-@jwt_required()
-async def enhance_submission():
+@require_auth
+async def enhance_submission(user_id):
     """Enhance a student's quest submission with AI"""
     
     try:
@@ -283,13 +282,12 @@ async def enhance_submission():
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 @ai_quests_bp.route('/api/ai/batch-generate', methods=['POST'])
-@jwt_required()
-async def batch_generate():
+@require_auth
+async def batch_generate(user_id):
     """Generate multiple quests in batch"""
     
     try:
         # Check admin role
-        user_id = get_jwt_identity()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
         
         if not user_response.data or user_response.data.get('role') != 'admin':
@@ -354,13 +352,12 @@ async def batch_generate():
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 @ai_quests_bp.route('/api/ai/save-generated-quest', methods=['POST'])
-@jwt_required()
-def save_generated_quest():
+@require_auth
+def save_generated_quest(user_id):
     """Save an AI-generated quest to the database"""
     
     try:
         # Check admin role
-        user_id = get_jwt_identity()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
         
         if not user_response.data or user_response.data.get('role') != 'admin':
@@ -413,8 +410,8 @@ def save_generated_quest():
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 @ai_quests_bp.route('/api/ai/validate-quest', methods=['POST'])
-@jwt_required()
-def validate_quest():
+@require_auth
+def validate_quest(user_id):
     """Validate a quest without saving it"""
     
     try:
@@ -442,8 +439,8 @@ def validate_quest():
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 @ai_quests_bp.route('/api/ai/related-quests', methods=['POST'])
-@jwt_required()
-async def find_related_quests():
+@require_auth
+async def find_related_quests(user_id):
     """Find quests related to a given quest"""
     
     try:
