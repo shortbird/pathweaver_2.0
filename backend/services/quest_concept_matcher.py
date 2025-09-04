@@ -174,7 +174,7 @@ class QuestConceptMatcher:
         
         return 0.0
     
-    async def check_quest_similarity(
+    def check_quest_similarity(
         self,
         new_quest: Dict,
         existing_quests: List[Dict],

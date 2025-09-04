@@ -6,7 +6,6 @@ Endpoints for AI-powered quest generation and similarity checking
 from flask import Blueprint, request, jsonify
 from supabase import create_client, Client
 import os
-import asyncio
 from datetime import datetime
 from typing import Dict, List
 from utils.auth.decorators import require_auth
@@ -79,15 +78,12 @@ def generate_quest(user_id):
         if generation_mode not in valid_modes:
             return jsonify({'error': f'Invalid generation mode. Must be one of: {valid_modes}'}), 400
         
-        # Generate quest using asyncio
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        result = loop.run_until_complete(ai_generator.generate_quest(
+        # Generate quest (now synchronous)
+        result = ai_generator.generate_quest(
             generation_mode=generation_mode,
             parameters=parameters,
             user_context={'user_id': user_id}
-        ))
+        )
         
         if not result['success']:
             return jsonify({
@@ -102,10 +98,10 @@ def generate_quest(user_id):
         
         # Check similarity with existing quests
         existing_quests = supabase.table('quests').select('*').eq('is_active', True).execute()
-        similarity_result = loop.run_until_complete(concept_matcher.check_quest_similarity(
+        similarity_result = concept_matcher.check_quest_similarity(
             generated_quest,
             existing_quests.data if existing_quests.data else []
-        ))
+        )
         
         # Prepare response
         response_data = {
@@ -150,15 +146,12 @@ def check_similarity(user_id):
         # Get existing quests
         existing_quests = supabase.table('quests').select('*').eq('is_active', True).execute()
         
-        # Check similarity
-        import asyncio
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        similarity_result = loop.run_until_complete(concept_matcher.check_quest_similarity(
+        # Check similarity (now synchronous)
+        similarity_result = concept_matcher.check_quest_similarity(
             quest_data,
             existing_quests.data if existing_quests.data else [],
             threshold=request.json.get('threshold', 0.7)
-        ))
+        )
         
         return jsonify({
             'success': True,
@@ -354,16 +347,13 @@ def generate_and_save_quest(user_id):
                 print(f"Raw response: {response.text if hasattr(response, 'text') else 'No response text'}")
                 return jsonify({'error': 'Failed to parse AI response', 'message': str(parse_error)}), 500
         else:
-            # Use the AI generator service
+            # Use the AI generator service (now synchronous)
             try:
-                import asyncio
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                result = loop.run_until_complete(ai_generator.generate_quest(
+                result = ai_generator.generate_quest(
                     generation_mode='custom',
                     parameters=partial_quest_data,
                     user_context={'user_id': user_id}
-                ))
+                )
                 
                 if not result['success']:
                     error_msg = result.get('message', 'Unknown error in AI generator')

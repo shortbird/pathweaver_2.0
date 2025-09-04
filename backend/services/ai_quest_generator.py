@@ -16,11 +16,19 @@ class AIQuestGenerator:
     def __init__(self):
         """Initialize the AI quest generator with Gemini API"""
         api_key = os.getenv('GEMINI_API_KEY')
-        if not api_key:
-            raise ValueError("GEMINI_API_KEY not found in environment variables")
+        self.api_key = api_key
+        self.model = None
         
-        genai.configure(api_key=api_key)
-        self.model = genai.GenerativeModel('gemini-pro')
+        # Only configure if API key is available and not a placeholder
+        if api_key and api_key != 'PLACEHOLDER_KEY_NEEDS_TO_BE_SET':
+            try:
+                genai.configure(api_key=api_key)
+                self.model = genai.GenerativeModel('gemini-pro')
+            except Exception as e:
+                print(f"Failed to initialize Gemini model: {e}")
+                self.model = None
+        else:
+            print(f"GEMINI_API_KEY not properly configured (current value: {'not set' if not api_key else 'placeholder'})")
         
         # Define available pillars
         self.pillars = [
@@ -38,7 +46,7 @@ class AIQuestGenerator:
             'advanced': (150, 200)
         }
     
-    async def generate_quest(
+    def generate_quest(
         self,
         generation_mode: str,
         parameters: Dict[str, Any],
@@ -55,6 +63,10 @@ class AIQuestGenerator:
         Returns:
             Generated quest structure with tasks
         """
+        
+        # Check if model is initialized
+        if not self.model:
+            raise ValueError("AI model not initialized. Please check GEMINI_API_KEY configuration.")
         
         # Build the prompt based on generation mode
         prompt = self._build_generation_prompt(generation_mode, parameters)
