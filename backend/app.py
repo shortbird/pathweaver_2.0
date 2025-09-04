@@ -76,8 +76,9 @@ app.register_blueprint(quest_submissions_bp)  # /api/v3/quests/submissions
 app.register_blueprint(dev_utils.bp, url_prefix='/api/dev')
 
 # Register user fix endpoint (temporary)
-from routes import user_fix
+from routes import user_fix, fix_quests
 app.register_blueprint(user_fix.bp, url_prefix='/api/user')
+app.register_blueprint(fix_quests.bp, url_prefix='/api/fix')
 
 @app.route('/api/health')
 def health_check():
