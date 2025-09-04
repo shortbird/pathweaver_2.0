@@ -261,26 +261,41 @@ def generate_and_save_quest(user_id):
             
             prompt = f"""Please act as an expert curriculum designer. Your task is to generate a complete quest object in valid JSON format. 
     The user has provided the following starting data: {partial_quest_data}. 
-    You must fill in all missing fields to create a complete, coherent, and engaging quest. 
+    
+    IMPORTANT REQUIREMENTS:
+    1. Generate AT LEAST 8 tasks (ideally 8-10 tasks)
+    2. Distribute tasks across ALL 5 pillars:
+       - stem_logic (STEM & Logic): at least 1-2 tasks
+       - life_wellness (Life & Wellness): at least 1-2 tasks  
+       - language_communication (Language & Communication): at least 1-2 tasks
+       - society_culture (Society & Culture): at least 1-2 tasks
+       - arts_creativity (Arts & Creativity): at least 1-2 tasks
+    3. Clean up any grammar and enhance language clarity
+    4. Generate compelling title and description if not provided
+    5. Make tasks age-appropriate and educationally valuable
+    
     The final JSON object MUST conform exactly to this structure:
     {{
-      "title": "(string)",
-      "description": "(string)",
-      "big_idea": "(string)",
+      "title": "(string - create one if not provided)",
+      "description": "(string - create one if not provided)",
+      "big_idea": "(string - the main learning concept)",
       "tasks": [
         {{
           "title": "(string)",
           "description": "(string)",
           "pillar": "(string: must be one of stem_logic, arts_creativity, language_communication, life_wellness, society_culture)",
           "subcategory": "(string)",
-          "xp_amount": (integer),
-          "evidence_prompt": "(string)",
+          "xp_amount": (integer between 50-200),
+          "evidence_prompt": "(string describing what evidence to submit)",
           "materials_needed": ["(string)"],
           "task_order": (integer, starting from 0)
         }}
       ]
     }}
-    Base your generation on the user's input, but use your expertise to create high-quality educational content. Ensure the final output is ONLY the raw JSON object, with no other text or explanations."""
+    
+    Base your generation on the user's input, but use your expertise to create high-quality educational content. 
+    If the user provides minimal input, be creative and generate a complete, engaging quest.
+    Ensure the final output is ONLY the raw JSON object, with no other text or explanations."""
             
             response = model.generate_content(prompt)
             
