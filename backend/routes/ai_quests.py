@@ -36,7 +36,12 @@ def init_services():
     
     if not ai_generator:
         try:
-            ai_generator = AIQuestGenerator()
+            # Check if API key is properly configured before attempting initialization
+            gemini_key = os.getenv('GEMINI_API_KEY')
+            if gemini_key and gemini_key != 'PLACEHOLDER_KEY_NEEDS_TO_BE_SET':
+                ai_generator = AIQuestGenerator()
+            else:
+                print(f"Skipping AI generator initialization - GEMINI_API_KEY not properly configured")
         except Exception as e:
             print(f"Failed to initialize AI generator: {e}")
     
@@ -253,11 +258,18 @@ def generate_and_save_quest(user_id):
         # Initialize AI generator
         init_services()
         
+        # Check if we can use AI generator or need fallback
+        gemini_api_key = os.getenv('GEMINI_API_KEY')
+        
+        if not ai_generator and (not gemini_api_key or gemini_api_key == 'PLACEHOLDER_KEY_NEEDS_TO_BE_SET'):
+            return jsonify({
+                'error': 'AI service not configured',
+                'message': 'The GEMINI_API_KEY environment variable needs to be set with a valid API key. Please contact your administrator to configure the AI service.',
+                'details': 'To get a Gemini API key, visit https://makersuite.google.com/app/apikey'
+            }), 503
+        
         if not ai_generator:
-            # If AI is not available, use a fallback approach
-            gemini_api_key = os.getenv('GEMINI_API_KEY')
-            if not gemini_api_key or gemini_api_key == 'PLACEHOLDER_KEY_NEEDS_TO_BE_SET':
-                return jsonify({'error': 'GEMINI_API_KEY not configured. Please set the API key in environment variables.'}), 503
+            # If AI generator service is not available but we have API key, use fallback approach
             
             import google.generativeai as genai
             genai.configure(api_key=gemini_api_key)
