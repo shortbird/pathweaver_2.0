@@ -628,54 +628,54 @@ const AdminQuests = () => {
 
   return (
     <div>
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">Manage Quests</h2>
-            <div className="flex gap-2">
-              <button
-                onClick={() => {
-                  if (collapsedQuests.size === quests.length) {
-                    // All collapsed, so expand all
-                    setCollapsedQuests(new Set())
-                  } else {
-                    // Some or all expanded, so collapse all
-                    const allQuestIds = new Set(quests.map(quest => quest.id))
-                    setCollapsedQuests(allQuestIds)
-                  }
-                }}
-                className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
-              >
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-bold">Manage Quests</h2>
+        <div className="flex gap-2">
+          <button
+            onClick={() => {
+              if (collapsedQuests.size === quests.length) {
+                // All collapsed, so expand all
+                setCollapsedQuests(new Set())
+              } else {
+                // Some or all expanded, so collapse all
+                const allQuestIds = new Set(quests.map(quest => quest.id))
+                setCollapsedQuests(allQuestIds)
+              }
+            }}
+            className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
+          >
             {collapsedQuests.size === quests.length ? 'Expand All' : 'Collapse All'}
-              </button>
-              <button
-                onClick={() => setShowSourcesManager(true)}
-                className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
-              >
+          </button>
+          <button
+            onClick={() => setShowSourcesManager(true)}
+            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+          >
             Manage Source Images
-              </button>
-            </div>
-          </div>
+          </button>
+        </div>
+      </div>
 
-          {showManager && (
-            <AdminQuestManagerV3
-              quest={editingQuest}
-              onClose={() => {
-                setShowManager(false)
-                setEditingQuest(null)
-              }}
-              onSave={handleQuestSave}
-            />
-          )}
+      {showManager && (
+        <AdminQuestManagerV3
+          quest={editingQuest}
+          onClose={() => {
+            setShowManager(false)
+            setEditingQuest(null)
+          }}
+          onSave={handleQuestSave}
+        />
+      )}
 
-          {showSourcesManager && (
-            <SourcesManager
-              onClose={() => setShowSourcesManager(false)}
-            />
-          )}
+      {showSourcesManager && (
+        <SourcesManager
+          onClose={() => setShowSourcesManager(false)}
+        />
+      )}
 
-          {loading ? (
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
-          ) : (
-            <div>
+      {loading ? (
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+      ) : (
+        <div>
           {quests.length === 0 ? (
             <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
               <p className="text-lg">No quests found</p>
@@ -836,6 +836,8 @@ const AdminQuests = () => {
               })}
             </div>
           )}
+        </div>
+      )}
     </div>
   )
 }
