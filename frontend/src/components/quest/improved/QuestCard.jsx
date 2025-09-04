@@ -138,20 +138,48 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
               </button>
             </>
           ) : (
-            <Button
-              variant="success"
-              size="sm"
-              className="flex-1"
-              onClick={(e) => {
-                e.stopPropagation();
-                navigate(`/quests/${quest.id}`);
-              }}
-            >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              Continue Quest
-            </Button>
+            (() => {
+              // Check if quest is completed
+              const completedTasks = quest.quest_tasks?.filter(task => task.is_completed).length || 0;
+              const totalTasks = quest.quest_tasks?.length || 1;
+              const isCompleted = completedTasks === totalTasks && totalTasks > 0;
+              
+              if (isCompleted) {
+                return (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="flex-1 !bg-gradient-to-r !from-emerald-500 !to-green-500 hover:!from-emerald-600 hover:!to-green-600"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate('/diploma');
+                    }}
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.5-2A11.95 11.95 0 0010 20c-7.18 0-13-5.82-13-13s5.82-13 13-13 13 5.82 13 13c0 2.485-.696 4.813-1.904 6.804L16.5 12" />
+                    </svg>
+                    Completed! View Diploma
+                  </Button>
+                );
+              } else {
+                return (
+                  <Button
+                    variant="success"
+                    size="sm"
+                    className="flex-1"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/quests/${quest.id}`);
+                    }}
+                  >
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Continue Quest
+                  </Button>
+                );
+              }
+            })()
           )}
         </div>
 
