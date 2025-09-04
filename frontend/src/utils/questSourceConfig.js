@@ -2,13 +2,27 @@
 
 export const QUEST_SOURCES = {
   optio: 'Optio',
-  khan_academy: 'Khan Academy'
+  khan_academy: 'Khan Academy',
+  brilliant: 'Brilliant',
+  coursera: 'Coursera',
+  edx: 'edX',
+  udemy: 'Udemy',
+  duolingo: 'Duolingo',
+  codecademy: 'Codecademy',
+  custom: 'Custom'
 }
 
 // Map sources to their default header images
 export const SOURCE_IMAGES = {
   optio: '/images/headers/optio-header.png',
-  khan_academy: '/images/headers/khan-academy-header.png'
+  khan_academy: '/images/headers/khan-academy-header.png',
+  brilliant: '/images/headers/brilliant-header.png',
+  coursera: '/images/headers/coursera-header.png',
+  edx: '/images/headers/edx-header.png',
+  udemy: '/images/headers/udemy-header.png',
+  duolingo: '/images/headers/duolingo-header.png',
+  codecademy: '/images/headers/codecademy-header.png',
+  custom: '/images/headers/custom-header.png'
 }
 
 // Function to get header image for a quest based on its source
@@ -22,7 +36,9 @@ export const getQuestHeaderImage = (quest) => {
   
   // Otherwise, use the source-based default
   const source = quest.source || 'optio';
-  return SOURCE_IMAGES[source] || SOURCE_IMAGES.optio;
+  // Handle empty string source as optio
+  const normalizedSource = source === '' ? 'optio' : source;
+  return SOURCE_IMAGES[normalizedSource] || SOURCE_IMAGES.optio;
 }
 
 // Function to detect source from title or description
