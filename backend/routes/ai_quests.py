@@ -324,6 +324,8 @@ def generate_and_save_quest(user_id):
                 response = model.generate_content(prompt)
             except Exception as ai_error:
                 print(f"Error calling Gemini API: {ai_error}")
+                import traceback
+                print(f"Traceback: {traceback.format_exc()}")
                 return jsonify({'error': 'Failed to generate content with AI', 'message': str(ai_error)}), 500
             
             # Parse the AI response

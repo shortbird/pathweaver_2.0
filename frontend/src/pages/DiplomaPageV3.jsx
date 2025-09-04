@@ -151,13 +151,13 @@ const DiplomaPageV3 = () => {
       
       // Fetch both completed quests and user XP data
       const [questsResponse, dashboardResponse] = await Promise.all([
-        fetch(`${apiBase}/api/v3/quests/completed?t=${Date.now()}`, {
+        fetch(`${apiBase}/v3/quests/completed?t=${Date.now()}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Cache-Control': 'no-cache'
           }
         }),
-        fetch(`${apiBase}/api/users/dashboard?t=${Date.now()}`, {
+        fetch(`${apiBase}/users/dashboard?t=${Date.now()}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Cache-Control': 'no-cache'

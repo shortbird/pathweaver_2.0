@@ -11,6 +11,8 @@
 - Follow core_philosophy.md for all updates
 - Never use emojis
 - **File Reading Permission**: You have permission to read any file needed to complete tasks. Do not ask for permission to read files
+- VITE_API_URL = https://optio-backend-dev.onrender.com/api
+  - notice the /api at the end of this URL. 
 
 **DEVELOPMENT WORKFLOW:**
 - **Development**: Push to `develop` branch for immediate live testing on dev environment
