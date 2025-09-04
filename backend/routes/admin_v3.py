@@ -6,7 +6,7 @@ import json
 import base64
 import uuid
 
-bp = Blueprint('admin_v3', __name__, url_prefix='/v3/admin')
+bp = Blueprint('admin_v3', __name__, url_prefix='/api/v3/admin')
 
 @bp.route('/quests/create', methods=['POST'])
 @require_admin

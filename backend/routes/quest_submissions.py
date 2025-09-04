@@ -10,7 +10,7 @@ import uuid
 
 quest_submissions_bp = Blueprint('quest_submissions', __name__)
 
-@quest_submissions_bp.route('/v3/quests/submissions', methods=['POST'])
+@quest_submissions_bp.route('/api/v3/quests/submissions', methods=['POST'])
 @require_auth
 def submit_quest(user_id):
     """Submit a custom quest for admin approval"""
@@ -47,7 +47,7 @@ def submit_quest(user_id):
         print(f"Error submitting quest: {e}")
         return jsonify({'error': str(e)}), 500
 
-@quest_submissions_bp.route('/v3/quests/submissions/<user_id>', methods=['GET'])
+@quest_submissions_bp.route('/api/v3/quests/submissions/<user_id>', methods=['GET'])
 @require_auth
 def get_user_submissions(user_id, requesting_user_id):
     """Get all quest submissions for a user"""
@@ -73,7 +73,7 @@ def get_user_submissions(user_id, requesting_user_id):
         print(f"Error fetching user submissions: {e}")
         return jsonify({'error': str(e)}), 500
 
-@quest_submissions_bp.route('/v3/admin/submissions', methods=['GET'])
+@quest_submissions_bp.route('/api/v3/admin/submissions', methods=['GET'])
 @require_admin
 def get_all_submissions(admin_id):
     """Get all quest submissions (admin only)"""
@@ -100,7 +100,7 @@ def get_all_submissions(admin_id):
         print(f"Error fetching submissions: {e}")
         return jsonify({'error': str(e)}), 500
 
-@quest_submissions_bp.route('/v3/admin/submissions/<submission_id>/approve', methods=['PUT'])
+@quest_submissions_bp.route('/api/v3/admin/submissions/<submission_id>/approve', methods=['PUT'])
 @require_admin
 def approve_submission(submission_id, admin_id):
     """Approve a quest submission and create the quest"""
@@ -183,7 +183,7 @@ def approve_submission(submission_id, admin_id):
         print(f"Error approving submission: {e}")
         return jsonify({'error': str(e)}), 500
 
-@quest_submissions_bp.route('/v3/admin/submissions/<submission_id>/reject', methods=['PUT'])
+@quest_submissions_bp.route('/api/v3/admin/submissions/<submission_id>/reject', methods=['PUT'])
 @require_admin
 def reject_submission(submission_id, admin_id):
     """Reject a quest submission"""
