@@ -255,8 +255,12 @@ def generate_and_save_quest(user_id):
         
         if not ai_generator:
             # If AI is not available, use a fallback approach
+            gemini_api_key = os.getenv('GEMINI_API_KEY')
+            if not gemini_api_key or gemini_api_key == 'PLACEHOLDER_KEY_NEEDS_TO_BE_SET':
+                return jsonify({'error': 'GEMINI_API_KEY not configured. Please set the API key in environment variables.'}), 503
+            
             import google.generativeai as genai
-            genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
+            genai.configure(api_key=gemini_api_key)
             model = genai.GenerativeModel('gemini-pro')
             
             # Extract user tasks if provided
@@ -304,7 +308,11 @@ def generate_and_save_quest(user_id):
     Use your expertise to create high-quality educational content. 
     Ensure the final output is ONLY the raw JSON object, with no other text or explanations."""
             
-            response = model.generate_content(prompt)
+            try:
+                response = model.generate_content(prompt)
+            except Exception as ai_error:
+                print(f"Error calling Gemini API: {ai_error}")
+                return jsonify({'error': 'Failed to generate content with AI', 'message': str(ai_error)}), 500
             
             # Parse the AI response
             import json
@@ -327,8 +335,8 @@ def generate_and_save_quest(user_id):
                 generated_quest = json.loads(json_str)
             except Exception as parse_error:
                 print(f"Error parsing AI response: {parse_error}")
-                print(f"Raw response: {response.text}")
-                return jsonify({'error': 'Failed to parse AI response'}), 500
+                print(f"Raw response: {response.text if hasattr(response, 'text') else 'No response text'}")
+                return jsonify({'error': 'Failed to parse AI response', 'message': str(parse_error)}), 500
         else:
             # Use the AI generator service
             import asyncio
@@ -394,6 +402,8 @@ def generate_and_save_quest(user_id):
         
     except Exception as e:
         print(f"Error generating and saving quest: {e}")
+        import traceback
+        print(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 @ai_quests_bp.route('/ai/enhance-submission', methods=['POST'])
