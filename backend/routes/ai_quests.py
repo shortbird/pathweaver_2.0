@@ -33,16 +33,24 @@ def init_services():
     """Initialize AI services (lazy loading)"""
     global ai_generator, concept_matcher, validator
     
+    print("DEBUG: init_services called")
+    
     if not ai_generator:
         try:
             # Check if API key is properly configured before attempting initialization
             gemini_key = os.getenv('GEMINI_API_KEY')
+            print(f"DEBUG: GEMINI_API_KEY value: {gemini_key[:20] if gemini_key else 'None'}...")
+            
             if gemini_key and gemini_key != 'PLACEHOLDER_KEY_NEEDS_TO_BE_SET':
+                print("DEBUG: Attempting to initialize AIQuestGenerator")
                 ai_generator = AIQuestGenerator()
+                print(f"DEBUG: AIQuestGenerator initialized successfully: {ai_generator}")
             else:
                 print(f"Skipping AI generator initialization - GEMINI_API_KEY not properly configured")
         except Exception as e:
             print(f"Failed to initialize AI generator: {e}")
+            import traceback
+            print(f"Traceback: {traceback.format_exc()}")
     
     if not concept_matcher:
         concept_matcher = QuestConceptMatcher()
@@ -240,9 +248,12 @@ def get_generation_options(user_id):
 def generate_and_save_quest(user_id):
     """Generate and save a quest with AI assistance using partial data"""
     
+    print(f"DEBUG: Entered generate_and_save_quest function for user {user_id}")
+    
     try:
         # Get request data (partial quest data from user)
         partial_quest_data = request.json
+        print(f"DEBUG: Received request data: {partial_quest_data}")
         
         # Check user role for approval status
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
