@@ -3,6 +3,8 @@ AI Quest Generation API Routes
 Endpoints for AI-powered quest generation and similarity checking
 """
 
+print("DEBUG: Loading ai_quests module")
+
 from flask import Blueprint, request, jsonify
 from supabase import create_client, Client
 import os
@@ -11,10 +13,21 @@ from typing import Dict, List
 from utils.auth.decorators import require_auth
 from utils.auth.token_utils import verify_token
 
-# Import services
-from services.ai_quest_generator import AIQuestGenerator
-from services.quest_concept_matcher import QuestConceptMatcher
-from utils.quest_validation import QuestValidator
+print("DEBUG: Imported base dependencies")
+
+# Import services with error handling
+try:
+    from services.ai_quest_generator import AIQuestGenerator
+    from services.quest_concept_matcher import QuestConceptMatcher
+    from utils.quest_validation import QuestValidator
+    print("DEBUG: Successfully imported AI services")
+except Exception as import_error:
+    print(f"ERROR importing AI services: {import_error}")
+    import traceback
+    print(f"Import traceback: {traceback.format_exc()}")
+    AIQuestGenerator = None
+    QuestConceptMatcher = None
+    QuestValidator = None
 
 # Initialize services
 ai_generator = None
@@ -244,7 +257,7 @@ def get_generation_options(user_id):
         return jsonify({'error': 'Internal server error', 'message': str(e)}), 500
 
 @ai_quests_bp.route('/v1/ai/generate-and-save-quest', methods=['POST'])
-@require_auth
+@require_auth  
 def generate_and_save_quest(user_id):
     """Generate and save a quest with AI assistance using partial data"""
     
