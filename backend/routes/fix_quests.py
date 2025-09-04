@@ -4,7 +4,7 @@ Endpoint to fix quest completion status.
 from flask import Blueprint, jsonify, request
 from datetime import datetime
 from database import get_supabase_admin_client
-from middleware.auth_middleware import require_auth
+from utils.auth.decorators import require_auth
 
 bp = Blueprint('fix_quests', __name__)
 
