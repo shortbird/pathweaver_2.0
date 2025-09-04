@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import Dict, List
 from utils.auth.decorators import require_auth
 from utils.auth.token_utils import verify_token
+from utils.pillar_mapping import normalize_pillar_name, pillar_to_underscore
 
 print("DEBUG: Imported base dependencies")
 
@@ -267,6 +268,7 @@ def generate_and_save_quest(user_id):
         # Get request data (partial quest data from user)
         partial_quest_data = request.json
         print(f"DEBUG: Received request data: {partial_quest_data}")
+        print(f"DEBUG: Request data keys: {list(partial_quest_data.keys()) if partial_quest_data else 'None'}")
         
         # Check user role for approval status
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
@@ -306,12 +308,12 @@ def generate_and_save_quest(user_id):
     IMPORTANT REQUIREMENTS:
     1. If user provided task ideas, incorporate and enhance ALL of them
     2. Generate AT LEAST 8 tasks total (ideally 8-10 tasks)
-    3. Distribute tasks across ALL 5 pillars:
-       - stem_logic (STEM & Logic): at least 1-2 tasks
-       - life_wellness (Life & Wellness): at least 1-2 tasks  
-       - language_communication (Language & Communication): at least 1-2 tasks
-       - society_culture (Society & Culture): at least 1-2 tasks
-       - arts_creativity (Arts & Creativity): at least 1-2 tasks
+    3. Distribute tasks across ALL 5 pillars (use EXACT names):
+       - "STEM & Logic": at least 1-2 tasks
+       - "Life & Wellness": at least 1-2 tasks  
+       - "Language & Communication": at least 1-2 tasks
+       - "Society & Culture": at least 1-2 tasks
+       - "Arts & Creativity": at least 1-2 tasks
     4. Clean up any grammar and enhance language clarity
     5. Generate compelling title and description if not provided
     6. Make tasks age-appropriate and educationally valuable
@@ -325,7 +327,7 @@ def generate_and_save_quest(user_id):
         {{
           "title": "(string)",
           "description": "(string)",
-          "pillar": "(string: must be one of stem_logic, arts_creativity, language_communication, life_wellness, society_culture)",
+          "pillar": "(string: must be EXACTLY one of: 'STEM & Logic', 'Arts & Creativity', 'Language & Communication', 'Life & Wellness', 'Society & Culture')",
           "subcategory": "(string)",
           "xp_amount": (integer between 50-200),
           "evidence_prompt": "(string describing what evidence to submit)",
@@ -414,18 +416,28 @@ def generate_and_save_quest(user_id):
         # Save tasks
         try:
             for idx, task in enumerate(generated_quest.get('tasks', [])):
+                # Normalize pillar name to full format for database
+                try:
+                    pillar_name = normalize_pillar_name(task.get('pillar', 'arts_creativity'))
+                except ValueError as e:
+                    print(f"Warning: Invalid pillar name '{task.get('pillar')}', using default")
+                    pillar_name = "Arts & Creativity"
+                
                 task_data = {
                     'quest_id': quest_id,
                     'title': task.get('title', f'Task {idx + 1}'),
                     'description': task.get('description', ''),
-                    'pillar': task.get('pillar', 'arts_creativity'),
+                    'pillar': pillar_name,  # Use normalized pillar name
                     'xp_value': task.get('xp_amount', 100),
                     'order_index': task.get('task_order', idx),
                     'is_required': True
                 }
                 supabase.table('quest_tasks').insert(task_data).execute()
         except Exception as task_error:
-            print(f"Error saving tasks: {task_error}")
+            print(f"ERROR saving tasks for quest {quest_id}: {task_error}")
+            import traceback
+            print(f"Task save traceback: {traceback.format_exc()}")
+            print(f"Failed task data: {task_data}")
             # Clean up the quest if task creation failed
             supabase.table('quests').delete().eq('id', quest_id).execute()
             return jsonify({'error': f'Failed to save quest tasks: {str(task_error)}'}), 500

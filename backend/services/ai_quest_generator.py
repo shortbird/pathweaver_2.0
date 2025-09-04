@@ -9,6 +9,7 @@ import re
 from typing import Dict, List, Optional, Any
 import google.generativeai as genai
 from datetime import datetime
+from utils.pillar_mapping import normalize_pillar_name, FULL_PILLAR_NAMES
 
 class AIQuestGenerator:
     """Handles AI-powered quest generation using Gemini"""
@@ -30,14 +31,8 @@ class AIQuestGenerator:
         else:
             print(f"GEMINI_API_KEY not properly configured (current value: {'not set' if not api_key else 'placeholder'})")
         
-        # Define available pillars
-        self.pillars = [
-            "STEM & Logic",
-            "Life & Wellness", 
-            "Language & Communication",
-            "Society & Culture",
-            "Arts & Creativity"
-        ]
+        # Define available pillars (use from pillar_mapping)
+        self.pillars = FULL_PILLAR_NAMES
         
         # XP ranges by difficulty
         self.xp_ranges = {
@@ -262,8 +257,14 @@ class AIQuestGenerator:
         if 'description' not in task or not task['description']:
             task['description'] = "Complete this learning task and submit evidence."
         
-        # Validate pillar
-        if 'pillar' not in task or task['pillar'] not in self.pillars:
+        # Validate and normalize pillar
+        if 'pillar' in task:
+            try:
+                task['pillar'] = normalize_pillar_name(task['pillar'])
+            except ValueError:
+                # If normalization fails, try to determine from content
+                task['pillar'] = self._determine_pillar(task['title'], task['description'])
+        else:
             # Try to determine pillar from content
             task['pillar'] = self._determine_pillar(task['title'], task['description'])
         

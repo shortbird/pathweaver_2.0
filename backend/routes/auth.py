@@ -53,8 +53,8 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
                         break
         
         # Batch insert all skill categories at once instead of checking each one
-        skill_categories = ['creativity', 'critical_thinking', 'practical_skills', 
-                           'communication', 'cultural_literacy']
+        skill_categories = ['Arts & Creativity', 'STEM & Logic', 'Life & Wellness', 
+                           'Language & Communication', 'Society & Culture']
         
         # Build all skill records to insert
         skill_records = [
