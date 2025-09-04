@@ -75,7 +75,7 @@ const AIQuestGenerator = () => {
 
   const fetchGenerationOptions = async () => {
     try {
-      const response = await api.get('/api/ai/generation-options');
+      const response = await api.get('/ai/generation-options');
       // Only update if we got valid data
       if (response.data.templates) setTemplates(response.data.templates);
       if (response.data.modes) setModes(response.data.modes);
@@ -97,7 +97,7 @@ const AIQuestGenerator = () => {
     setSimilarity(null);
 
     try {
-      const response = await api.post('/api/ai/generate-quest', {
+      const response = await api.post('/ai/generate-quest', {
         mode: generationMode,
         parameters: parameters
       });
@@ -120,7 +120,7 @@ const AIQuestGenerator = () => {
     if (!generatedQuest) return;
 
     try {
-      const response = await api.post('/api/ai/save-generated-quest', {
+      const response = await api.post('/ai/save-generated-quest', {
         quest: editMode ? generatedQuest : generatedQuest,
         publish: publish
       });

@@ -57,7 +57,7 @@ const CustomizeQuestPage = () => {
     setError('');
 
     try {
-      const response = await api.post('/api/ai/enhance-submission', {
+      const response = await api.post('/ai/enhance-submission', {
         submission: {
           title: formData.title,
           description: formData.description,
