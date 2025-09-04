@@ -12,7 +12,11 @@ const FixQuestCompletion = () => {
     setError(null);
 
     try {
-      const response = await api.post('/fix/fix-completion');
+      const response = await api.post('/fix/fix-completion', {}, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
       setResult(response.data);
       
       // If quests were fixed, refresh the page to show updated diploma

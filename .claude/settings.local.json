@@ -128,7 +128,10 @@
       "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src\\pages/**)",
       "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src\\pages/**)",
       "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src\\pages/**)",
-      "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\backend\\middleware/**)"
+      "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\backend\\middleware/**)",
+      "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src\\services/**)",
+      "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend/**)",
+      "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src\\pages/**)"
     ],
     "deny": [],
     "ask": []
