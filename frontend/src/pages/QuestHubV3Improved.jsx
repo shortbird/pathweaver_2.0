@@ -172,14 +172,6 @@ const QuestHubV3Improved = () => {
               Choose your adventure and start earning XP!
             </p>
           </div>
-          {user ? (
-            <button
-              onClick={() => navigate('/quests/customize')}
-              className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white px-6 py-3 rounded-full font-semibold shadow-lg hover:shadow-xl hover:brightness-110 transform hover:-translate-y-0.5 transition-all"
-            >
-              Customize Your Quest
-            </button>
-          ) : null}
         </div>
 
         {/* Featured Section - Only show when not searching */}

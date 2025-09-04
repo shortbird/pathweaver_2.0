@@ -10,8 +10,6 @@ from routes.settings import settings_bp
 
 # Import V3 routes
 from routes import quests_v3, tasks, collaborations, learning_logs_v3, admin_v3
-from routes.quest_submissions import quest_submissions_bp
-from routes.ai_quests import ai_quests_bp
 
 # Development utilities (password protected in production)
 from routes import dev_utils
@@ -71,8 +69,6 @@ app.register_blueprint(tasks.bp)      # /api/v3/tasks (blueprint has url_prefix=
 app.register_blueprint(admin_v3.bp)   # /api/v3/admin (blueprint has url_prefix='/v3/admin')
 app.register_blueprint(collaborations.bp)  # /api/v3/collaborations (blueprint has url_prefix='/v3/collaborations')
 app.register_blueprint(learning_logs_v3.bp)  # /api/v3/logs (blueprint has url_prefix='/v3/logs')
-app.register_blueprint(quest_submissions_bp)  # /api/v3/quests/submissions (routes defined with full path)
-app.register_blueprint(ai_quests_bp, url_prefix='/api')  # /api/ai/* and /api/v1/ai/* endpoints
 
 # Register development utilities (password protected in production)
 app.register_blueprint(dev_utils.bp, url_prefix='/api/dev')

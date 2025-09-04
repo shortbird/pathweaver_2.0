@@ -5,10 +5,7 @@ import toast from 'react-hot-toast'
 import AdminQuestManagerV3 from './AdminQuestManagerV3'
 import SourcesManager from '../components/SourcesManager'
 import SiteSettings from '../components/admin/SiteSettings'
-import QuestSubmissionsManager from '../components/admin/QuestSubmissionsManager'
-import CreateQuestPage from './admin/CreateQuestPage'
 import { getTierDisplayName } from '../utils/tierMapping'
-// AI Quest Generator removed - now integrated in CreateQuestPage
 
 const AdminDashboard = () => {
   const [users, setUsers] = useState([])
@@ -631,27 +628,6 @@ const AdminQuests = () => {
 
   return (
     <div>
-      {/* Tab Navigation */}
-      <div className="flex gap-4 mb-6 border-b">
-        <button
-          onClick={() => setActiveTab('quests')}
-          className={`pb-2 px-1 ${activeTab === 'quests' ? 'border-b-2 border-primary text-primary font-semibold' : 'text-gray-600'}`}
-        >
-          Manage Quests
-        </button>
-        <button
-          onClick={() => setActiveTab('submissions')}
-          className={`pb-2 px-1 ${activeTab === 'submissions' ? 'border-b-2 border-primary text-primary font-semibold' : 'text-gray-600'}`}
-        >
-          Quest Submissions
-        </button>
-      </div>
-
-      {/* Tab Content */}
-      {activeTab === 'submissions' ? (
-        <QuestSubmissionsManager />
-      ) : (
-        <>
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold">Manage Quests</h2>
             <div className="flex gap-2">
@@ -676,12 +652,6 @@ const AdminQuests = () => {
               >
             Manage Source Images
               </button>
-              <Link
-                to="/admin/quests/create"
-                className="btn-primary"
-              >
-                Create Quest
-              </Link>
             </div>
           </div>
 
@@ -866,10 +836,6 @@ const AdminQuests = () => {
               })}
             </div>
           )}
-            </div>
-          )}
-        </>
-      )}
     </div>
   )
 }
@@ -1949,7 +1915,6 @@ const AdminPage = () => {
       <Routes>
         <Route index element={<AdminDashboard />} />
         <Route path="quests" element={<AdminQuests />} />
-        <Route path="quests/create" element={<CreateQuestPage />} />
         <Route path="settings" element={<SiteSettings />} />
       </Routes>
     </div>
