@@ -434,6 +434,8 @@ const DashboardPage = () => {
     console.log('Dashboard xp_by_category:', dashboardData?.xp_by_category)
     console.log('Dashboard stats.total_xp:', dashboardData?.stats?.total_xp)
     console.log('Portfolio data:', portfolioData)
+    console.log('skillCategoryNames keys:', Object.keys(skillCategoryNames))
+    console.log('xp_by_category keys:', dashboardData?.xp_by_category ? Object.keys(dashboardData.xp_by_category) : 'none')
     
     // Always use dashboard xp_by_category if available - it's the most reliable
     if (dashboardData?.xp_by_category) {
