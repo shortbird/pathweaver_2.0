@@ -73,9 +73,9 @@ class XPService:
             print(f"[ERROR] Cannot process invalid pillar after normalization: {pillar}")
             return False
         
-        # Convert to database-compatible pillar key (constraint only accepts old names)
-        db_pillar = get_database_pillar_key(pillar)
-        print(f"Using database pillar '{db_pillar}' for storage")
+        # With new schema, we can use the normalized pillar key directly
+        db_pillar = pillar
+        print(f"Using pillar '{db_pillar}' for storage")
         
         try:
             # Check current XP for this pillar
