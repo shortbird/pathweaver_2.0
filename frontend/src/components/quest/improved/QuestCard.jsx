@@ -34,6 +34,8 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
     setIsEnrolling(true);
     try {
       await onEnroll(quest.id);
+      // Navigate to quest page after successful enrollment
+      navigate(`/quests/${quest.id}`);
     } finally {
       setIsEnrolling(false);
     }

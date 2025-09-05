@@ -26,7 +26,7 @@ const QuestDetailV3 = () => {
 
   useEffect(() => {
     fetchQuestDetails();
-  }, [id]);
+  }, [id, user]); // Also refetch when user login state changes
 
   const fetchQuestDetails = async () => {
     try {
@@ -39,7 +39,8 @@ const QuestDetailV3 = () => {
       }
       
       const response = await fetch(`${apiBase}/api/v3/quests/${id}?t=${Date.now()}`, {
-        headers
+        headers,
+        cache: 'no-cache' // Ensure fresh data is fetched
       });
 
       if (!response.ok) {
@@ -90,11 +91,10 @@ const QuestDetailV3 = () => {
 
       if (response.ok) {
         toast.success('Successfully enrolled in quest!');
-        // Force refresh with a small delay to ensure backend state is consistent
-        setTimeout(() => {
-          setIsRefreshing(true);
-          fetchQuestDetails().finally(() => setIsRefreshing(false));
-        }, 500);
+        // Force refresh immediately to update state
+        setIsRefreshing(true);
+        await fetchQuestDetails();
+        setIsRefreshing(false);
       }
     } catch (error) {
       console.error('Enrollment error:', error);
