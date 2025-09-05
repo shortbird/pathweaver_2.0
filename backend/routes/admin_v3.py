@@ -106,21 +106,25 @@ def create_quest_v3_clean(user_id):
                 'xp_amount': task['xp_amount'],
                 'order_index': task['order_index'],
                 'evidence_prompt': task.get('evidence_prompt'),
-                'is_required': True,  # Default all tasks to required
-                'is_collaboration_eligible': task.get('collaboration_eligible', True)
+                'is_required': task.get('is_required', True),  # Use from validated task
+                'is_collaboration_eligible': task.get('is_collaboration_eligible', True)
             }
             
             # Remove None values
             task_data = {k: v for k, v in task_data.items() if v is not None}
             
             print(f"Creating task: {task_data['title']}")
+            print(f"Task data being inserted: {json.dumps(task_data, indent=2)}")
             task_response = supabase.table('quest_tasks').insert(task_data).execute()
             
             if not task_response.data:
                 print(f"Failed to create task: {task_data['title']}")
+                print(f"Task creation error response: {task_response}")
                 # Rollback: delete the quest
                 supabase.table('quests').delete().eq('id', quest_id).execute()
                 return jsonify({'error': f"Failed to create task: {task_data['title']}"}), 500
+            else:
+                print(f"Successfully created task: {task_response.data[0]}")
         
         # Handle optional metadata
         if data.get('metadata'):

@@ -168,6 +168,8 @@ def get_quest_detail(user_id: str, quest_id: str):
             .single()\
             .execute()
         
+        print(f"[QUEST DETAIL] Quest query response: {quest.data}")
+        
         if not quest.data:
             return jsonify({
                 'success': False,
@@ -185,7 +187,10 @@ def get_quest_detail(user_id: str, quest_id: str):
         
         # Sort tasks by order
         if quest_data.get('quest_tasks'):
+            print(f"[QUEST DETAIL] Found {len(quest_data['quest_tasks'])} tasks for quest")
             quest_data['quest_tasks'].sort(key=lambda x: x.get('order_index', 0))
+        else:
+            print(f"[QUEST DETAIL] No quest_tasks found in quest data")
         
         # Check if user is actively enrolled
         print(f"[QUEST DETAIL] Checking enrollment for user {user_id[:8]} on quest {quest_id[:8]}")
