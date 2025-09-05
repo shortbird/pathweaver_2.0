@@ -353,14 +353,14 @@ const DashboardPage = () => {
   const [portfolioData, setPortfolioData] = useState(null)
   const [loading, setLoading] = useState(true)
 
-  // Use the 5 Diploma Pillars
+  // Use the 5 Diploma Pillars with updated keys
   const skillCategoryNames = useMemo(() => {
     return {
-      creativity: 'Creativity',
-      critical_thinking: 'Critical Thinking',
-      practical_skills: 'Practical Skills',
-      communication: 'Communication',
-      cultural_literacy: 'Cultural Literacy'
+      arts_creativity: 'Arts & Creativity',
+      stem_logic: 'STEM & Logic',
+      life_wellness: 'Life & Wellness',
+      language_communication: 'Language & Communication',
+      society_culture: 'Society & Culture'
     }
   }, [])
 
@@ -442,9 +442,12 @@ const DashboardPage = () => {
       // Check if we have actual XP data
       let hasXP = false
       Object.entries(dashboardData.xp_by_category).forEach(([category, xp]) => {
+        // The backend now sends new pillar keys, so they should match directly
         if (category in xpByCategory) {
           xpByCategory[category] = xp || 0
           if (xp > 0) hasXP = true
+        } else {
+          console.log(`Warning: Category '${category}' not found in skillCategoryNames`)
         }
       })
       
@@ -459,12 +462,25 @@ const DashboardPage = () => {
     if (dataSource !== 'dashboard' && portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp)) {
       console.log('Fallback to portfolio skill_xp:', portfolioData.skill_xp)
       
+      // Handle pillar key mapping for portfolio data (may contain old keys)
+      const pillarMapping = {
+        'creativity': 'arts_creativity',
+        'critical_thinking': 'stem_logic',
+        'practical_skills': 'life_wellness',
+        'communication': 'language_communication',
+        'cultural_literacy': 'society_culture'
+      }
+      
       // Portfolio uses 'pillar' field, not 'skill_category'
       portfolioData.skill_xp.forEach(skill => {
         const category = skill.pillar || skill.skill_category
         const xp = skill.xp_amount ?? skill.total_xp ?? 0
-        if (category && category in xpByCategory) {
-          xpByCategory[category] = xp
+        
+        // Normalize pillar key
+        const normalizedCategory = pillarMapping[category] || category
+        
+        if (normalizedCategory && normalizedCategory in xpByCategory) {
+          xpByCategory[normalizedCategory] = xp
         }
       })
       

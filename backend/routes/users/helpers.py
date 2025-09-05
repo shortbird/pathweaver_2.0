@@ -4,11 +4,11 @@ from typing import Tuple, Dict, List
 from cache import cached as cache_decorator
 
 SKILL_CATEGORIES = [
-    'creativity',
-    'critical_thinking', 
-    'practical_skills',
-    'communication',
-    'cultural_literacy'
+    'arts_creativity',
+    'stem_logic',
+    'life_wellness',
+    'language_communication',
+    'society_culture'
 ]
 
 # Mapping for legacy subject system to skill categories
@@ -51,11 +51,25 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                 xp_amount = record.get('xp_amount', 0)
                 skill_cat = record.get('pillar')  # Column is named 'pillar' not 'skill_category'
                 print(f"  Category: {skill_cat}, XP: {xp_amount}")
-                if skill_cat in skill_breakdown:
+                
+                # Handle both old and new pillar keys - map old to new
+                pillar_mapping = {
+                    'creativity': 'arts_creativity',
+                    'critical_thinking': 'stem_logic',
+                    'practical_skills': 'life_wellness',
+                    'communication': 'language_communication',
+                    'cultural_literacy': 'society_culture'
+                }
+                
+                # Convert old pillar keys to new ones
+                normalized_pillar = pillar_mapping.get(skill_cat, skill_cat)
+                
+                if normalized_pillar in skill_breakdown:
                     total_xp += xp_amount
-                    skill_breakdown[skill_cat] = xp_amount
+                    skill_breakdown[normalized_pillar] = xp_amount
+                    print(f"  Mapped '{skill_cat}' -> '{normalized_pillar}': {xp_amount} XP")
                 else:
-                    print(f"  WARNING: Category '{skill_cat}' not in SKILL_CATEGORIES")
+                    print(f"  WARNING: Category '{skill_cat}' (normalized: '{normalized_pillar}') not in SKILL_CATEGORIES")
         print(f"Final skill_breakdown: {skill_breakdown}")
         print("=======================================")
     except Exception as e:
@@ -248,12 +262,11 @@ def format_skill_data(skill_breakdown: Dict[str, int]) -> List[Dict]:
     """Format skill breakdown for frontend consumption"""
     formatted = []
     skill_display_names = {
-        'reading_writing': 'Reading & Writing',
-        'thinking_skills': 'Thinking Skills',
-        'personal_growth': 'Personal Growth',
-        'life_skills': 'Life Skills',
-        'making_creating': 'Making & Creating',
-        'world_understanding': 'World Understanding'
+        'arts_creativity': 'Arts & Creativity',
+        'stem_logic': 'STEM & Logic',
+        'life_wellness': 'Life & Wellness',
+        'language_communication': 'Language & Communication',
+        'society_culture': 'Society & Culture'
     }
     
     for category, xp in skill_breakdown.items():

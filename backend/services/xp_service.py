@@ -65,17 +65,32 @@ class XPService:
         
         # Normalize pillar input (handles display names, old keys, etc.)
         original_pillar = pillar
-        pillar = normalize_pillar_key(pillar)
-        print(f"Normalized pillar from '{original_pillar}' to '{pillar}'")
         
-        # Validate normalized pillar
-        if not is_valid_pillar(pillar):
-            print(f"[ERROR] Cannot process invalid pillar after normalization: {pillar}")
+        # Handle pillar key normalization - we need to store in DB using old keys
+        # but the system should work with both old and new keys
+        pillar_mapping = {
+            'creativity': 'creativity',
+            'critical_thinking': 'critical_thinking',
+            'practical_skills': 'practical_skills',
+            'communication': 'communication',
+            'cultural_literacy': 'cultural_literacy',
+            'arts_creativity': 'creativity',
+            'stem_logic': 'critical_thinking',
+            'life_wellness': 'practical_skills',
+            'language_communication': 'communication',
+            'society_culture': 'cultural_literacy'
+        }
+        
+        # For database storage, we need to use old keys (database constraint)
+        db_pillar = pillar_mapping.get(pillar, pillar)
+        print(f"Mapped pillar from '{original_pillar}' to database key '{db_pillar}' for storage")
+        
+        # Validate that we have a valid pillar for storage
+        valid_storage_pillars = ['creativity', 'critical_thinking', 'practical_skills', 
+                               'communication', 'cultural_literacy']
+        if db_pillar not in valid_storage_pillars:
+            print(f"[ERROR] Invalid pillar for database storage: {db_pillar}")
             return False
-        
-        # With new schema, we can use the normalized pillar key directly
-        db_pillar = pillar
-        print(f"Using pillar '{db_pillar}' for storage")
         
         try:
             # Check current XP for this pillar
@@ -167,15 +182,30 @@ class XPService:
                 .execute()
             
             if xp_data.data:
-                return {item['pillar']: item['xp_amount'] for item in xp_data.data}
+                # Handle pillar key normalization - convert old keys to new ones
+                pillar_mapping = {
+                    'creativity': 'arts_creativity',
+                    'critical_thinking': 'stem_logic',
+                    'practical_skills': 'life_wellness',
+                    'communication': 'language_communication',
+                    'cultural_literacy': 'society_culture'
+                }
+                
+                result = {}
+                for item in xp_data.data:
+                    old_pillar = item['pillar']
+                    new_pillar = pillar_mapping.get(old_pillar, old_pillar)
+                    result[new_pillar] = item['xp_amount']
+                    
+                return result
             
-            # Return zeros for all pillars if no data
+            # Return zeros for all pillars if no data (using new pillar keys)
             return {
-                'creativity': 0,
-                'critical_thinking': 0,
-                'practical_skills': 0,
-                'communication': 0,
-                'cultural_literacy': 0
+                'arts_creativity': 0,
+                'stem_logic': 0,
+                'life_wellness': 0,
+                'language_communication': 0,
+                'society_culture': 0
             }
             
         except Exception as e:
@@ -387,19 +417,30 @@ class XPService:
             if not completed_tasks.data:
                 return True  # No tasks completed yet
             
-            # Calculate expected XP per pillar
+            # Calculate expected XP per pillar (using new pillar keys)
             expected_xp = {
-                'creativity': 0,
-                'critical_thinking': 0,
-                'practical_skills': 0,
-                'communication': 0,
-                'cultural_literacy': 0
+                'arts_creativity': 0,
+                'stem_logic': 0,
+                'life_wellness': 0,
+                'language_communication': 0,
+                'society_culture': 0
+            }
+            
+            # Pillar mapping for normalization
+            pillar_mapping = {
+                'creativity': 'arts_creativity',
+                'critical_thinking': 'stem_logic',
+                'practical_skills': 'life_wellness',
+                'communication': 'language_communication',
+                'cultural_literacy': 'society_culture'
             }
             
             for task in completed_tasks.data:
                 if task.get('quest_tasks'):
-                    pillar = task['quest_tasks']['pillar']
-                    expected_xp[pillar] += task['xp_awarded']
+                    old_pillar = task['quest_tasks']['pillar']
+                    new_pillar = pillar_mapping.get(old_pillar, old_pillar)
+                    if new_pillar in expected_xp:
+                        expected_xp[new_pillar] += task['xp_awarded']
             
             # Get actual XP from user_skill_xp
             actual_xp = self.get_user_total_xp(user_id)

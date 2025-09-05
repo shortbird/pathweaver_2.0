@@ -193,9 +193,10 @@ def complete_task(user_id: str, task_id: str):
         print(f"XP to award: {final_xp}")
         print("================================")
         
+        # The XP service will handle pillar normalization internally
         xp_awarded = xp_service.award_xp(
             user_id,
-            task_data.get('pillar', 'creativity'),  # Default to creativity if missing
+            task_data.get('pillar', 'creativity'),  # Default to old key, service will normalize
             final_xp,
             f'task_completion:{task_id}'
         )
@@ -411,13 +412,17 @@ def suggest_task(user_id: str):
                 'error': 'Quest ID, title, and pillar are required'
             }), 400
         
-        # Validate pillar
-        valid_pillars = ['creativity', 'critical_thinking', 'practical_skills', 
-                        'communication', 'cultural_literacy']
+        # Validate pillar - accept both old and new pillar keys
+        old_pillars = ['creativity', 'critical_thinking', 'practical_skills', 
+                      'communication', 'cultural_literacy']
+        new_pillars = ['arts_creativity', 'stem_logic', 'life_wellness',
+                      'language_communication', 'society_culture']
+        valid_pillars = old_pillars + new_pillars
+        
         if suggested_pillar not in valid_pillars:
             return jsonify({
                 'success': False,
-                'error': f'Invalid pillar. Must be one of: {", ".join(valid_pillars)}'
+                'error': f'Invalid pillar. Must be one of: {", ".join(new_pillars)}'
             }), 400
         
         # Check if quest exists
