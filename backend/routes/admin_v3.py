@@ -73,24 +73,23 @@ def create_quest_v3_clean(user_id):
             
             validated_tasks.append(validated_task)
         
-        # Validate source if provided
-        source = data.get('source', 'optio')
-        
-        # Check if source exists in quest_sources table
-        source_check = supabase.table('quest_sources').select('id').eq('id', source).execute()
-        if not source_check.data:
-            print(f"Warning: Source '{source}' not found in quest_sources table, using 'optio'")
-            source = 'optio'
+        # Validate source if provided  
+        source = data.get('source', 'admin')
+        valid_sources = ['khan_academy', 'brilliant', 'custom', 'admin', 'community']
+        if source not in valid_sources:
+            print(f"Warning: Invalid source '{source}', using 'admin'")
+            source = 'admin'
         
         # Create the quest record
         quest_data = {
             'title': data['title'],
-            'big_idea': data.get('big_idea'),
+            'description': data.get('description'),
             'source': source,
+            'category': data.get('category'),
+            'difficulty_level': data.get('difficulty_level', 1),
+            'estimated_hours': data.get('estimated_hours'),
             'is_active': data.get('is_active', True),
-            'is_v3': True,  # Mark as V3 quest
-            'created_at': datetime.utcnow().isoformat(),
-            'updated_at': datetime.utcnow().isoformat()
+            'is_featured': data.get('is_featured', False)
         }
         
         # Remove None values
