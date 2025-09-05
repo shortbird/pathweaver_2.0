@@ -6,7 +6,7 @@ Handles XP calculations with collaboration bonuses and audit trails.
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from database import get_supabase_admin_client
-from utils.pillar_utils import migrate_old_pillar, is_valid_pillar
+from utils.pillar_utils import migrate_old_pillar, is_valid_pillar, normalize_pillar_key
 import json
 
 class XPService:
@@ -63,18 +63,15 @@ class XPService:
         print(f"=== XP SERVICE AWARD DEBUG ===")
         print(f"User: {user_id}, Pillar: {pillar}, Amount: {xp_amount}, Source: {source}")
         
-        # Migrate old pillar values to new if needed
-        pillar = migrate_old_pillar(pillar)
+        # Normalize pillar input (handles display names, old keys, etc.)
+        original_pillar = pillar
+        pillar = normalize_pillar_key(pillar)
+        print(f"Normalized pillar from '{original_pillar}' to '{pillar}'")
         
-        # Validate pillar
+        # Validate normalized pillar
         if not is_valid_pillar(pillar):
-            print(f"[WARNING] Invalid pillar: {pillar}")
-            # Try to handle gracefully
-            if pillar in ['creativity', 'critical_thinking', 'practical_skills', 'communication', 'cultural_literacy']:
-                pillar = migrate_old_pillar(pillar)
-            else:
-                print(f"[ERROR] Cannot process invalid pillar: {pillar}")
-                return False
+            print(f"[ERROR] Cannot process invalid pillar after normalization: {pillar}")
+            return False
         
         try:
             # Check current XP for this pillar

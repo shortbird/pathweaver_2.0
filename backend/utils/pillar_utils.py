@@ -111,6 +111,39 @@ def migrate_old_pillar(old_pillar):
     """Convert old pillar value to new."""
     return PILLAR_MIGRATION_MAP.get(old_pillar, old_pillar)
 
+def normalize_pillar_key(pillar_input):
+    """
+    Normalize pillar input to a valid pillar key.
+    Handles display names, old keys, and variations.
+    """
+    if not pillar_input:
+        return None
+    
+    # First check if it's already a valid key
+    if pillar_input in PILLARS:
+        return pillar_input
+    
+    # Try migrating old pillar
+    migrated = migrate_old_pillar(pillar_input)
+    if migrated in PILLARS:
+        return migrated
+    
+    # Create reverse mapping from display names to keys
+    name_to_key = {info['name']: key for key, info in PILLARS.items()}
+    
+    # Check if it's a display name
+    if pillar_input in name_to_key:
+        return name_to_key[pillar_input]
+    
+    # Try case-insensitive matching for display names
+    pillar_lower = pillar_input.lower()
+    for name, key in name_to_key.items():
+        if name.lower() == pillar_lower:
+            return key
+    
+    # Return the original input if no match found
+    return pillar_input
+
 def is_valid_pillar(pillar_key):
     """Check if a pillar key is valid."""
     return pillar_key in PILLARS
