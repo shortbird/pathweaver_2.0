@@ -10,7 +10,7 @@ from utils.user_sync import ensure_user_exists, get_user_name
 from datetime import datetime
 from typing import Dict, List, Optional
 
-bp = Blueprint('collaborations', __name__, url_prefix='/api/v3/collaborations')
+bp = Blueprint('collaborations', __name__, url_prefix='/v3/collaborations')
 
 @bp.route('/invite', methods=['POST'])
 @require_auth

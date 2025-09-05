@@ -10,7 +10,7 @@ import base64
 import json
 import os
 
-bp = Blueprint('sources', __name__, url_prefix='/api/sources')
+bp = Blueprint('sources', __name__, url_prefix='/sources')
 
 # Store source images with predictable filenames in Supabase storage
 SOURCE_IMAGE_PREFIX = 'source_defaults/'
