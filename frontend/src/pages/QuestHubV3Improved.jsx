@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { handleApiResponse } from '../utils/errorHandling';
 import QuestCard from '../components/quest/improved/QuestCard';
 import QuestFilters from '../components/quest/improved/QuestFilters';
@@ -11,6 +11,7 @@ import Button from '../components/ui/Button';
 const QuestHubV3Improved = () => {
   const { user, loginTimestamp } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [quests, setQuests] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -62,6 +63,17 @@ const QuestHubV3Improved = () => {
     }
   }, [loginTimestamp]);
 
+  // Refresh quest list when navigating back to this page (after completing a quest)
+  useEffect(() => {
+    if (user && location.pathname === '/quests') {
+      console.log('Navigated back to quest hub, refreshing data');
+      setQuests([]);
+      setPage(1);
+      setHasMore(true);
+      fetchQuests(true);
+    }
+  }, [location.pathname, user]);
+
   const fetchQuests = async (isInitial = true) => {
     if (isInitial) {
       setIsLoading(true);
@@ -75,14 +87,16 @@ const QuestHubV3Improved = () => {
         page,
         per_page: 12,
         ...(searchTerm && { search: searchTerm }),
-        ...(selectedPillar !== 'all' && { pillar: selectedPillar })
+        ...(selectedPillar !== 'all' && { pillar: selectedPillar }),
+        t: Date.now() // Cache-busting parameter
       });
 
       const apiBase = import.meta.env.VITE_API_URL || '';
       const response = await fetch(`${apiBase}/api/v3/quests?${params}`, {
         headers: user ? {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        } : {}
+        } : {},
+        cache: 'no-cache' // Ensure fresh data
       });
 
       if (!response.ok) {
