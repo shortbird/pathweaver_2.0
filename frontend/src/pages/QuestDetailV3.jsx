@@ -276,7 +276,7 @@ const QuestDetailV3 = () => {
   const completedTasks = quest.quest_tasks?.filter(task => task.is_completed).length || 0;
   const totalTasks = quest.quest_tasks?.length || 0;
   const progressPercentage = quest.progress?.percentage || (totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0);
-  const isQuestCompleted = quest.completed_enrollment !== null;
+  const isQuestCompleted = quest.completed_enrollment && quest.completed_enrollment.completed_at;
   const { baseXP, bonusXP, totalXP, earnedXP, earnedBonusXP } = calculateXP();
   const pillarBreakdown = getPillarBreakdown();
   const locationDisplay = getLocationDisplay();
