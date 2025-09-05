@@ -632,7 +632,7 @@ const QuestDetailV3 = () => {
           task={selectedTask}
           questId={quest.id}
           onComplete={handleTaskCompletion}
-          onCancel={() => setShowTaskModal(false)}
+          onClose={() => setShowTaskModal(false)}
         />
       )}
 
