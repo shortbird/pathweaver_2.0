@@ -6,7 +6,7 @@ Handles XP calculations with collaboration bonuses and audit trails.
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from database import get_supabase_admin_client
-from utils.pillar_utils import migrate_old_pillar, is_valid_pillar, calculate_mastery_level
+from utils.pillar_utils import migrate_old_pillar, is_valid_pillar
 import json
 
 class XPService:
@@ -311,8 +311,8 @@ class XPService:
             
             total_xp = sum(record.get('xp_amount', 0) for record in xp_records.data) if xp_records.data else 0
             
-            # Calculate mastery level
-            mastery_level = calculate_mastery_level(total_xp)
+            # Simple level calculation (or remove if not needed)
+            mastery_level = 1
             
             # Check if user_mastery record exists
             existing = self.supabase.table('user_mastery')\
