@@ -294,7 +294,7 @@ def complete_task(user_id: str, task_id: str):
                 # Return response with or without bonus
                 return jsonify({
                     'success': True,
-                    'message': f'Task completed! Earned {final_xp} XP. 🎉 Quest fully completed!' + 
+                    'message': f'Task completed! Earned {final_xp} XP. Quest fully completed!' + 
                               (f' Bonus {bonus_xp} XP awarded!' if bonus_awarded else ' (Bonus XP award pending)'),
                     'xp_awarded': final_xp,
                     'completion_bonus': bonus_xp if bonus_awarded else 0,
