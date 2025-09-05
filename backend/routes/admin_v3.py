@@ -153,16 +153,12 @@ def create_quest_v3_clean(user_id):
         
         # Fetch the complete quest with tasks for response
         complete_quest = supabase.table('quests')\
-            .select('*, quest_tasks(*), quest_sources(header_image_url)')\
+            .select('*, quest_tasks(*)')\
             .eq('id', quest_id)\
             .execute()
         
         if complete_quest.data:
             quest_result = complete_quest.data[0]
-            # Add header image from source if available
-            if quest_result.get('quest_sources'):
-                quest_result['header_image_url'] = quest_result['quest_sources'].get('header_image_url')
-                del quest_result['quest_sources']  # Clean up nested data
         else:
             quest_result = quest
         
