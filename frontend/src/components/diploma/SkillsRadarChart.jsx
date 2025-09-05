@@ -184,9 +184,6 @@ const SkillsRadarChart = ({ skillsXP }) => {
               className="text-center p-4 rounded-lg" 
               style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }}
             >
-              <div className="mb-2 flex justify-center" style={{ color: info.color }}>
-                {info.icon}
-              </div>
               <h4 className="font-semibold text-gray-900 text-sm mb-1">{info.label}</h4>
               <div className="text-lg font-bold" style={{ color: info.color }}>
                 {xp.toLocaleString()}
