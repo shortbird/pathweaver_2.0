@@ -258,13 +258,25 @@ def complete_task(user_id: str, task_id: str):
                 bonus_xp = math.ceil(bonus_xp / 50) * 50
                 
                 # Get the quest's primary pillar for the bonus
-                quest_info = supabase.table('quests')\
-                    .select('pillar')\
-                    .eq('id', quest_id)\
-                    .single()\
-                    .execute()
-                
-                quest_pillar = quest_info.data.get('pillar', 'creativity') if quest_info.data else 'creativity'
+                quest_pillar = 'creativity'  # Default pillar
+                try:
+                    quest_info = supabase.table('quests')\
+                        .select('pillar')\
+                        .eq('id', quest_id)\
+                        .single()\
+                        .execute()
+                    
+                    if quest_info.data and quest_info.data.get('pillar'):
+                        quest_pillar = quest_info.data['pillar']
+                except Exception as e:
+                    print(f"Warning: Could not fetch quest pillar, using default: {e}")
+                    # Use the most common pillar from tasks as fallback
+                    try:
+                        task_pillars = [task['pillar'] for task in all_tasks.data if task.get('pillar')]
+                        if task_pillars:
+                            quest_pillar = max(set(task_pillars), key=task_pillars.count)
+                    except:
+                        pass
                 
                 # Award the completion bonus
                 print(f"=== QUEST COMPLETION BONUS ===")
@@ -279,18 +291,19 @@ def complete_task(user_id: str, task_id: str):
                     f'quest_completion_bonus:{quest_id}'
                 )
                 
-                if bonus_awarded:
-                    # Include bonus in response
-                    return jsonify({
-                        'success': True,
-                        'message': f'Task completed! Earned {final_xp} XP. 🎉 Quest fully completed! Bonus {bonus_xp} XP awarded!',
-                        'xp_awarded': final_xp,
-                        'completion_bonus': bonus_xp,
-                        'has_collaboration_bonus': has_collaboration,
-                        'quest_completed': quest_completed,
-                        'all_tasks_completed': True,
-                        'completion': completion.data[0]
-                    })
+                # Return response with or without bonus
+                return jsonify({
+                    'success': True,
+                    'message': f'Task completed! Earned {final_xp} XP. 🎉 Quest fully completed!' + 
+                              (f' Bonus {bonus_xp} XP awarded!' if bonus_awarded else ' (Bonus XP award pending)'),
+                    'xp_awarded': final_xp,
+                    'completion_bonus': bonus_xp if bonus_awarded else 0,
+                    'has_collaboration_bonus': has_collaboration,
+                    'quest_completed': quest_completed,
+                    'all_tasks_completed': True,
+                    'bonus_awarded': bonus_awarded,
+                    'completion': completion.data[0]
+                })
         else:
             quest_completed = False
         
