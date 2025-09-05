@@ -8,6 +8,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
   const [sources, setSources] = useState([])
   const [showNewSourceForm, setShowNewSourceForm] = useState(false)
   const [errors, setErrors] = useState({})
+  const [expandedTasks, setExpandedTasks] = useState({})
   
   // Form state matching the quest template structure
   const [formData, setFormData] = useState({
@@ -46,6 +47,53 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
     { value: 'Arts & Creativity', label: 'Arts & Creativity' }
   ]
 
+  // Subcategories by pillar
+  const subcategoriesByPillar = {
+    'Arts & Creativity': [
+      'Visual Arts',
+      'Music',
+      'Drama & Theater',
+      'Creative Writing',
+      'Digital Media',
+      'Design'
+    ],
+    'STEM & Logic': [
+      'Mathematics',
+      'Biology',
+      'Chemistry',
+      'Physics',
+      'Computer Science',
+      'Engineering',
+      'Data Science'
+    ],
+    'Language & Communication': [
+      'English',
+      'Foreign Languages',
+      'Journalism',
+      'Public Speaking',
+      'Digital Communication',
+      'Literature'
+    ],
+    'Society & Culture': [
+      'History',
+      'Geography',
+      'Social Studies',
+      'World Cultures',
+      'Civics & Government',
+      'Psychology',
+      'Sociology'
+    ],
+    'Life & Wellness': [
+      'Physical Education',
+      'Health & Nutrition',
+      'Personal Finance',
+      'Life Skills',
+      'Mental Wellness',
+      'Outdoor Education',
+      'Sports & Athletics'
+    ]
+  }
+
   // Location type options
   const locationTypes = [
     { value: 'anywhere', label: 'Anywhere' },
@@ -57,6 +105,51 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
   useEffect(() => {
     fetchSources()
   }, [])
+
+  const toggleTaskExpansion = (index) => {
+    setExpandedTasks(prev => ({
+      ...prev,
+      [index]: !prev[index]
+    }))
+  }
+
+  // Enhanced field components
+  const RequiredFieldLabel = ({ children }) => (
+    <label className="block text-sm font-semibold mb-2 text-gray-800">
+      {children}
+      <span className="text-red-500 font-bold ml-1">*</span>
+      <span className="text-xs font-normal text-gray-500 ml-1">(Required)</span>
+    </label>
+  )
+
+  const OptionalFieldLabel = ({ children }) => (
+    <label className="block text-sm font-medium mb-2 text-gray-600">
+      {children}
+      <span className="text-xs text-gray-400 ml-1">(Optional)</span>
+    </label>
+  )
+
+  const SectionHeader = ({ title, description, required = false, children }) => (
+    <div className="mb-6">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-xl font-semibold text-gray-800 flex items-center">
+            {title}
+            {required && (
+              <span className="ml-2 px-2 py-1 bg-red-100 text-red-800 text-xs font-medium rounded-full">
+                Required
+              </span>
+            )}
+          </h3>
+          {description && (
+            <p className="text-gray-600 text-sm mt-1">{description}</p>
+          )}
+        </div>
+        {children}
+      </div>
+      <div className="w-full h-px bg-gradient-to-r from-[#ef597b] to-[#6d469b] mb-6"></div>
+    </div>
+  )
 
   const fetchSources = async () => {
     try {
@@ -75,20 +168,20 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
       newErrors.title = 'Title is required'
     }
     
-    if (!formData.big_idea.trim()) {
-      newErrors.big_idea = 'Big idea/description is required'
+    // Validate tasks (at least one required)
+    if (formData.tasks.length === 0) {
+      newErrors.tasks = 'At least one task is required'
     }
     
-    // Validate tasks
     formData.tasks.forEach((task, index) => {
       if (!task.title.trim()) {
         newErrors[`task_${index}_title`] = 'Task title is required'
       }
-      if (!task.description.trim()) {
-        newErrors[`task_${index}_description`] = 'Task description is required'
-      }
       if (!task.pillar) {
         newErrors[`task_${index}_pillar`] = 'Pillar is required'
+      }
+      if (!task.subcategory) {
+        newErrors[`task_${index}_subcategory`] = 'Subcategory is required'
       }
       if (task.xp_value <= 0) {
         newErrors[`task_${index}_xp`] = 'XP must be positive'
@@ -185,6 +278,11 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
     newTasks[index] = {
       ...newTasks[index],
       [field]: value
+    }
+    
+    // Clear subcategory if pillar changes
+    if (field === 'pillar') {
+      newTasks[index].subcategory = ''
     }
     
     setFormData({
@@ -294,13 +392,15 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
         
         <form onSubmit={handleSubmit} className="p-6">
           {/* Basic Information */}
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-4">Basic Information</h3>
-            
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">
-                Quest Title <span className="text-red-500">*</span>
-              </label>
+          <SectionHeader 
+            title="Quest Details" 
+            description="Basic information about your quest"
+            required
+          />
+          
+          <div className="space-y-6 mb-8">
+            <div>
+              <RequiredFieldLabel>Quest Title</RequiredFieldLabel>
               <input
                 type="text"
                 value={formData.title}
@@ -310,21 +410,27 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     setErrors({ ...errors, title: '' })
                   }
                 }}
-                className={`w-full px-3 py-2 border rounded-lg ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
+                className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors.title ? 'border-red-500' : 'border-gray-300'}`}
                 placeholder="e.g., Build a Community Garden"
               />
+              <p className="text-xs text-gray-500 mt-1">
+                Create an engaging title that clearly describes what students will accomplish
+              </p>
               {errors.title && (
-                <p className="text-red-500 text-sm mt-1 flex items-center">
-                  <AlertCircle size={16} className="mr-1" />
-                  {errors.title}
-                </p>
+                <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-700 text-sm flex items-center">
+                    <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                    {errors.title}
+                  </p>
+                  <p className="text-red-600 text-xs mt-1 ml-6">
+                    💡 Tip: Quest titles should be descriptive and engaging (5-50 characters)
+                  </p>
+                </div>
               )}
             </div>
             
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">
-                Big Idea / Description <span className="text-red-500">*</span>
-              </label>
+            <div>
+              <OptionalFieldLabel>Big Idea / Description</OptionalFieldLabel>
               <textarea
                 value={formData.big_idea}
                 onChange={(e) => {
@@ -333,16 +439,13 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     setErrors({ ...errors, big_idea: '' })
                   }
                 }}
-                className={`w-full px-3 py-2 border rounded-lg ${errors.big_idea ? 'border-red-500' : 'border-gray-300'}`}
+                className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                 rows={3}
-                placeholder="Describe the quest's main concept and goals"
+                placeholder="Describe the quest's main concept and learning goals (optional)"
               />
-              {errors.big_idea && (
-                <p className="text-red-500 text-sm mt-1 flex items-center">
-                  <AlertCircle size={16} className="mr-1" />
-                  {errors.big_idea}
-                </p>
-              )}
+              <p className="text-xs text-gray-500 mt-1">
+                Provide context about why this quest matters and what students will gain
+              </p>
             </div>
             
             <div className="grid grid-cols-2 gap-4">
@@ -389,169 +492,240 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
           </div>
           
           {/* Tasks Section */}
-          <div className="mb-6">
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-semibold">Tasks</h3>
-              <button
-                type="button"
-                onClick={addTask}
-                className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90"
-              >
-                <Plus size={20} className="inline mr-1" />
-                Add Task
-              </button>
-            </div>
+          <SectionHeader 
+            title="Learning Tasks" 
+            description="Define what students need to accomplish"
+            required
+          >
+            <button
+              type="button"
+              onClick={addTask}
+              className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 transition-all"
+            >
+              <Plus size={20} className="inline mr-1" />
+              Add Task
+            </button>
+          </SectionHeader>
             
             {formData.tasks.map((task, index) => (
-              <div key={index} className="border rounded-lg p-4 mb-4">
-                <div className="flex justify-between items-center mb-3">
-                  <h4 className="font-semibold">Task {index + 1}</h4>
+              <div key={index} className="border-2 border-gray-100 rounded-xl p-6 mb-6 hover:border-purple-200 transition-colors">
+                <div className="flex justify-between items-start mb-6">
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-800">Task {index + 1}</h4>
+                    <p className="text-sm text-gray-500">Define what students need to accomplish</p>
+                  </div>
                   {formData.tasks.length > 1 && (
                     <button
                       type="button"
                       onClick={() => removeTask(index)}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded"
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                      title="Remove this task"
                     >
                       <Trash2 size={20} />
                     </button>
                   )}
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
+                {/* Essential Fields - Always Visible */}
+                <div className="space-y-4 mb-6">
                   <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Title <span className="text-red-500">*</span>
-                    </label>
+                    <RequiredFieldLabel>Task Title</RequiredFieldLabel>
                     <input
                       type="text"
                       value={task.title}
                       onChange={(e) => updateTask(index, 'title', e.target.value)}
-                      className={`w-full px-3 py-2 border rounded ${errors[`task_${index}_title`] ? 'border-red-500' : 'border-gray-300'}`}
-                      placeholder="Task title"
+                      className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_title`] ? 'border-red-500' : 'border-gray-300'}`}
+                      placeholder="e.g., Research local plant species"
                     />
                     {errors[`task_${index}_title`] && (
-                      <p className="text-red-500 text-xs mt-1">{errors[`task_${index}_title`]}</p>
+                      <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                        <p className="text-red-700 text-sm flex items-center">
+                          <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                          {errors[`task_${index}_title`]}
+                        </p>
+                      </div>
                     )}
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium mb-1">
-                      Pillar <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={task.pillar}
-                      onChange={(e) => updateTask(index, 'pillar', e.target.value)}
-                      className={`w-full px-3 py-2 border rounded ${errors[`task_${index}_pillar`] ? 'border-red-500' : 'border-gray-300'}`}
-                    >
-                      <option value="">Select a pillar</option>
-                      {pillarOptions.map(pillar => (
-                        <option key={pillar.value} value={pillar.value}>
-                          {pillar.label}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <RequiredFieldLabel>Learning Pillar</RequiredFieldLabel>
+                      <select
+                        value={task.pillar}
+                        onChange={(e) => updateTask(index, 'pillar', e.target.value)}
+                        className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_pillar`] ? 'border-red-500' : 'border-gray-300'}`}
+                      >
+                        <option value="">Choose a learning pillar...</option>
+                        {pillarOptions.map(pillar => (
+                          <option key={pillar.value} value={pillar.value}>
+                            {pillar.label}
+                          </option>
+                        ))}
+                      </select>
+                      {errors[`task_${index}_pillar`] && (
+                        <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-red-700 text-sm flex items-center">
+                            <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                            {errors[`task_${index}_pillar`]}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <RequiredFieldLabel>Subject Area</RequiredFieldLabel>
+                      <select
+                        value={task.subcategory}
+                        onChange={(e) => updateTask(index, 'subcategory', e.target.value)}
+                        className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_subcategory`] ? 'border-red-500' : 'border-gray-300'} ${!task.pillar ? 'bg-gray-100 cursor-not-allowed' : ''}`}
+                        disabled={!task.pillar}
+                      >
+                        <option value="">
+                          {!task.pillar ? 'Select learning pillar first' : 'Choose subject area...'}
                         </option>
-                      ))}
-                    </select>
-                    {errors[`task_${index}_pillar`] && (
-                      <p className="text-red-500 text-xs mt-1">{errors[`task_${index}_pillar`]}</p>
-                    )}
+                        {task.pillar && subcategoriesByPillar[task.pillar]?.map(subcategory => (
+                          <option key={subcategory} value={subcategory}>
+                            {subcategory}
+                          </option>
+                        ))}
+                      </select>
+                      {errors[`task_${index}_subcategory`] && (
+                        <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-red-700 text-sm flex items-center">
+                            <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                            {errors[`task_${index}_subcategory`]}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <RequiredFieldLabel>XP Reward</RequiredFieldLabel>
+                      <input
+                        type="number"
+                        value={task.xp_value}
+                        onChange={(e) => updateTask(index, 'xp_value', parseInt(e.target.value) || 0)}
+                        className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_xp`] ? 'border-red-500' : 'border-gray-300'}`}
+                        min="0"
+                        step="50"
+                        placeholder="100"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">Points awarded for completion</p>
+                      {errors[`task_${index}_xp`] && (
+                        <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                          <p className="text-red-700 text-sm flex items-center">
+                            <AlertCircle size={16} className="mr-2 flex-shrink-0" />
+                            {errors[`task_${index}_xp`]}
+                          </p>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 
-                <div className="mt-3">
-                  <label className="block text-sm font-medium mb-1">
-                    Description <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={task.description}
-                    onChange={(e) => updateTask(index, 'description', e.target.value)}
-                    className={`w-full px-3 py-2 border rounded ${errors[`task_${index}_description`] ? 'border-red-500' : 'border-gray-300'}`}
-                    rows={2}
-                    placeholder="Describe what the student needs to do"
-                  />
-                  {errors[`task_${index}_description`] && (
-                    <p className="text-red-500 text-xs mt-1">{errors[`task_${index}_description`]}</p>
-                  )}
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4 mt-3">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">XP Value</label>
-                    <input
-                      type="number"
-                      value={task.xp_value}
-                      onChange={(e) => updateTask(index, 'xp_value', parseInt(e.target.value) || 0)}
-                      className={`w-full px-3 py-2 border rounded ${errors[`task_${index}_xp`] ? 'border-red-500' : 'border-gray-300'}`}
-                      min="0"
-                    />
-                    {errors[`task_${index}_xp`] && (
-                      <p className="text-red-500 text-xs mt-1">{errors[`task_${index}_xp`]}</p>
-                    )}
-                  </div>
+                {/* Expandable Additional Details */}
+                <div className="border-t border-gray-100 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => toggleTaskExpansion(index)}
+                    className="flex items-center text-sm text-gray-600 hover:text-gray-800 transition-colors mb-3"
+                  >
+                    {expandedTasks[index] ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                    <span className="ml-1">
+                      {expandedTasks[index] ? 'Hide' : 'Show'} additional options
+                    </span>
+                    <span className="ml-1 text-gray-400">(description, evidence prompt, materials)</span>
+                  </button>
                   
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Subcategory (Optional)</label>
-                    <input
-                      type="text"
-                      value={task.subcategory}
-                      onChange={(e) => updateTask(index, 'subcategory', e.target.value)}
-                      className="w-full px-3 py-2 border rounded"
-                      placeholder="e.g., Biology, Public Speaking"
-                    />
-                  </div>
-                </div>
-                
-                <div className="mt-3">
-                  <label className="block text-sm font-medium mb-1">Evidence Prompt</label>
-                  <input
-                    type="text"
-                    value={task.evidence_prompt}
-                    onChange={(e) => updateTask(index, 'evidence_prompt', e.target.value)}
-                    className="w-full px-3 py-2 border rounded"
-                    placeholder="What evidence should students provide?"
-                  />
-                </div>
-                
-                <div className="mt-3">
-                  <label className="block text-sm font-medium mb-1">Materials Needed</label>
-                  <div className="flex flex-wrap gap-2">
-                    {task.materials_needed.map((material, mIndex) => (
-                      <span key={mIndex} className="px-3 py-1 bg-gray-100 rounded-full text-sm flex items-center">
-                        {material}
+                  {expandedTasks[index] && (
+                    <div className="space-y-4 animate-in slide-in-from-top-5 duration-200">
+                      <div>
+                        <OptionalFieldLabel>Task Description</OptionalFieldLabel>
+                        <textarea
+                          value={task.description}
+                          onChange={(e) => updateTask(index, 'description', e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
+                          rows={3}
+                          placeholder="Provide detailed instructions for students (optional)"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          Help students understand exactly what they need to do
+                        </p>
+                      </div>
+
+                      <div>
+                        <OptionalFieldLabel>Evidence Prompt</OptionalFieldLabel>
+                        <input
+                          type="text"
+                          value={task.evidence_prompt}
+                          onChange={(e) => updateTask(index, 'evidence_prompt', e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
+                          placeholder="What should students submit as proof? (photos, videos, documents, etc.)"
+                        />
+                        <p className="text-xs text-gray-500 mt-1">
+                          If left blank, a default prompt will be generated
+                        </p>
+                      </div>
+
+                      <div>
+                        <OptionalFieldLabel>Materials Needed</OptionalFieldLabel>
+                        
+                        {/* Existing materials */}
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {task.materials_needed.map((material, mIndex) => (
+                            <span 
+                              key={mIndex} 
+                              className="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm"
+                            >
+                              {material}
+                              <button
+                                type="button"
+                                onClick={() => removeMaterial(index, mIndex)}
+                                className="ml-2 text-purple-600 hover:text-purple-800 transition-colors"
+                              >
+                                <X size={14} />
+                              </button>
+                            </span>
+                          ))}
+                        </div>
+
+                        {/* Add new material */}
                         <button
                           type="button"
-                          onClick={() => removeMaterial(index, mIndex)}
-                          className="ml-2 text-red-500 hover:text-red-700"
+                          onClick={() => addMaterial(index)}
+                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all text-sm"
                         >
-                          <X size={16} />
+                          <Plus size={16} className="inline mr-1" /> Add Material
                         </button>
-                      </span>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => addMaterial(index)}
-                      className="px-3 py-1 bg-gray-200 rounded-full text-sm hover:bg-gray-300"
-                    >
-                      <Plus size={16} className="inline" /> Add Material
-                    </button>
-                  </div>
+                        <p className="text-xs text-gray-500 mt-1">
+                          List any physical items or resources students will need
+                        </p>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
-          </div>
           
           {/* Metadata Section (Optional) */}
-          <div className="mb-6">
-            <h3 className="text-lg font-semibold mb-4">Metadata (Optional)</h3>
+          <SectionHeader 
+            title="Quest Metadata" 
+            description="Optional settings for location and timing"
+          />
             
+          <div className="space-y-6 mb-8">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-2">Location Type</label>
+                <OptionalFieldLabel>Location Type</OptionalFieldLabel>
                 <select
                   value={formData.metadata.location_type}
                   onChange={(e) => setFormData({
                     ...formData,
                     metadata: { ...formData.metadata, location_type: e.target.value }
                   })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                 >
                   {locationTypes.map(type => (
                     <option key={type.value} value={type.value}>
@@ -564,7 +738,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
               {formData.metadata.location_type === 'specific_location' && (
                 <>
                   <div>
-                    <label className="block text-sm font-medium mb-2">Venue Name</label>
+                    <OptionalFieldLabel>Venue Name</OptionalFieldLabel>
                     <input
                       type="text"
                       value={formData.metadata.venue_name}
@@ -572,13 +746,13 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                         ...formData,
                         metadata: { ...formData.metadata, venue_name: e.target.value }
                       })}
-                      className="w-full px-3 py-2 border rounded-lg"
+                      className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                       placeholder="e.g., Community Center"
                     />
                   </div>
                   
                   <div className="col-span-2">
-                    <label className="block text-sm font-medium mb-2">Address</label>
+                    <OptionalFieldLabel>Address</OptionalFieldLabel>
                     <input
                       type="text"
                       value={formData.metadata.location_address}
@@ -586,7 +760,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                         ...formData,
                         metadata: { ...formData.metadata, location_address: e.target.value }
                       })}
-                      className="w-full px-3 py-2 border rounded-lg"
+                      className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                       placeholder="Full address"
                     />
                   </div>
@@ -594,7 +768,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
               )}
               
               <div>
-                <label className="block text-sm font-medium mb-2">Seasonal Start Date</label>
+                <OptionalFieldLabel>Seasonal Start Date</OptionalFieldLabel>
                 <input
                   type="date"
                   value={formData.metadata.seasonal_start}
@@ -602,12 +776,12 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     ...formData,
                     metadata: { ...formData.metadata, seasonal_start: e.target.value }
                   })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                 />
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-2">Seasonal End Date</label>
+                <OptionalFieldLabel>Seasonal End Date</OptionalFieldLabel>
                 <input
                   type="date"
                   value={formData.metadata.seasonal_end}
@@ -615,7 +789,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     ...formData,
                     metadata: { ...formData.metadata, seasonal_end: e.target.value }
                   })}
-                  className="w-full px-3 py-2 border rounded-lg"
+                  className="w-full px-3 py-2 border rounded-lg border-gray-200 bg-gray-50/50 transition-all focus:bg-white focus:border-gray-400"
                 />
               </div>
             </div>
