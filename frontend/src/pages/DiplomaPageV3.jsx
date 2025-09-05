@@ -413,8 +413,10 @@ const DiplomaPageV3 = () => {
           <div className="text-center max-w-4xl mx-auto">
             <div className="mb-4">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/15 backdrop-blur-sm rounded-full text-white/80 text-sm font-medium mb-4">
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M12.0007 13.0268L16.2437 15.0268C16.4937 15.1518 16.7437 15.0268 16.8687 14.7768C16.9937 14.5268 16.8687 14.2768 16.6187 14.1518L12.3757 12.1518C12.2507 12.0268 12.1257 12.0268 12.0007 12.0268C11.8757 12.0268 11.7507 12.0268 11.6257 12.1518L7.38266 14.1518C7.13266 14.2768 7.00766 14.5268 7.13266 14.7768C7.25766 15.0268 7.50766 15.1518 7.75766 15.0268L12.0007 13.0268Z" />
+                  <path d="M12 8L16.732 10.268C16.9 10.351 17.1 10.268 17.183 10.1C17.266 9.932 17.183 9.732 17.015 9.649L12.283 7.381C12.199 7.338 12.1 7.338 12.017 7.381L7.285 9.649C7.117 9.732 7.034 9.932 7.117 10.1C7.2 10.268 7.4 10.351 7.568 10.268L12 8Z" />
+                  <path fillRule="evenodd" d="M6 14.5C6 14.224 5.776 14 5.5 14C5.224 14 5 14.224 5 14.5V16.5C5 18.433 6.567 20 8.5 20H15.5C17.433 20 19 18.433 19 16.5V14.5C19 14.224 18.776 14 18.5 14C18.224 14 18 14.224 18 14.5V16.5C18 17.881 16.881 19 15.5 19H8.5C7.119 19 6 17.881 6 16.5V14.5Z" clipRule="evenodd" />
                 </svg>
                 Portfolio Diploma
               </div>
@@ -441,7 +443,6 @@ const DiplomaPageV3 = () => {
             </button>
           </div>
         </div>
-        <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-50 to-transparent"></div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 py-10">
@@ -460,17 +461,18 @@ const DiplomaPageV3 = () => {
           </div>
         )}
 
+        {/* Subtle divider line */}
+        <div className="border-b border-gray-100 mb-8"></div>
+
         {/* Growth Dimensions */}
         {Object.keys(totalXP).length > 0 && (
-          <div className="mb-12">
+          <div className="mb-12 pb-12 border-b border-gray-100">
             <SkillsRadarChart skillsXP={totalXP} />
           </div>
         )}
 
-
-
         {/* Learning Journey Section */}
-        <div className="mb-8">
+        <div className="mb-8 pt-8">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold" style={{ color: '#003f5c' }}>Learning Journey</h2>
             {achievements.length > 0 && (

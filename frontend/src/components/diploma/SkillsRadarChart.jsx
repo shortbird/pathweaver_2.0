@@ -15,31 +15,51 @@ const SkillsRadarChart = ({ skillsXP }) => {
     arts_creativity: {
       label: 'Arts & Creativity',
       color: '#ef597b',
-      icon: '🎨',
+      icon: (
+        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm3.5 6L12 10.5 8.5 8 12 5.5 15.5 8zM7.5 9l4.5 2.5V15l-4.5-2.5V9zm9 0v3.5L12 15v-3.5L16.5 9z" />
+        </svg>
+      ),
       description: 'Creative problem-solving and innovation'
     },
     stem_logic: {
       label: 'STEM & Logic',
       color: '#6d469b',
-      icon: '🧠',
+      icon: (
+        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M19.5 3A2.5 2.5 0 0 0 17 5.5c0 .357.078.696.214 1.005L16.5 7.5l-3.259-2.005A2.5 2.5 0 1 0 8.5 7.5c0 .357.078.696.214 1.005L8 9.5l-3.741-2.255A2.5 2.5 0 1 0 2.5 9.5c0 .982.571 1.834 1.407 2.231L5.5 12.5l-1.593.769A2.5 2.5 0 1 0 2.5 15.5c0 .982.571 1.834 1.407 2.231L5.5 18.5l3.241-1.755A2.5 2.5 0 1 0 13.5 18.5c0-.357-.078-.696-.214-1.005L14 16.5l3.259 2.005A2.5 2.5 0 1 0 21.5 16.5c0-.357-.078-.696-.214-1.005L22 14.5l-3.241-1.755A2.5 2.5 0 1 0 19.5 3z" />
+        </svg>
+      ),
       description: 'Analytical reasoning and evaluation'
     },
     life_wellness: {
       label: 'Life & Wellness',
       color: '#f97316',
-      icon: '🛠️',
+      icon: (
+        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
+        </svg>
+      ),
       description: 'Applied knowledge and technical skills'
     },
     language_communication: {
       label: 'Language & Communication',
       color: '#3b82f6',
-      icon: '💬',
+      icon: (
+        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" />
+        </svg>
+      ),
       description: 'Effective communication and teamwork'
     },
     society_culture: {
       label: 'Society & Culture',
       color: '#ec4899',
-      icon: '🌍',
+      icon: (
+        <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zM4.64 6.64c.23-.5.7-.99 1.28-1.28l.55-.29.29.55c.2.38.36.78.47 1.21l.12.45-.45-.12c-.43-.11-.83-.27-1.21-.47l-.55-.29-.5.24zm7.72 5.98c.49.39.98.86 1.32 1.41l.5.8-.8-.5c-.55-.34-1.02-.83-1.41-1.32l-.19-.24.24.19zm1.74-1.34l-.38-.38 6.68-6.68c.39.39.68.89.84 1.42l-.08.08-6.68 6.68-.38-.12zm-3.02 3.02l-.24-.19c.2-.49.36-.99.41-1.51l.05-.52.52.05c.52.05 1.02.21 1.51.41l.19.24-.19-.24zm-2.34-2.34l.38.38-6.68 6.68c-.39-.39-.68-.89-.84-1.42l.08-.08 6.68-6.68.38.12z" />
+        </svg>
+      ),
       description: 'Cultural awareness and global perspective'
     }
   };
@@ -164,7 +184,9 @@ const SkillsRadarChart = ({ skillsXP }) => {
               className="text-center p-4 rounded-lg" 
               style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }}
             >
-              <div className="text-2xl mb-2">{info.icon}</div>
+              <div className="mb-2 flex justify-center" style={{ color: info.color }}>
+                {info.icon}
+              </div>
               <h4 className="font-semibold text-gray-900 text-sm mb-1">{info.label}</h4>
               <div className="text-lg font-bold" style={{ color: info.color }}>
                 {xp.toLocaleString()}
