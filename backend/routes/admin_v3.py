@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
-from utils.pillar_mapping import normalize_pillar_name, validate_pillar
+from utils.pillar_utils import normalize_pillar_key, is_valid_pillar
 from datetime import datetime, timedelta
 import json
 import base64
@@ -48,9 +48,11 @@ def create_quest_v3_clean(user_id):
             
             # Validate and normalize pillar
             try:
-                normalized_pillar = normalize_pillar_name(task['pillar'])
+                normalized_pillar = normalize_pillar_key(task['pillar'])
+                if not normalized_pillar or not is_valid_pillar(normalized_pillar):
+                    raise ValueError(f"Unknown pillar: {task['pillar']}")
                 print(f"Task {idx + 1}: Normalized pillar from '{task['pillar']}' to '{normalized_pillar}'")
-            except ValueError as e:
+            except Exception as e:
                 return jsonify({'error': f'Task {idx + 1}: Invalid pillar - {str(e)}'}), 400
             
             # Validate XP value
