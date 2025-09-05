@@ -72,15 +72,13 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
         ? `Task completed! You earned ${data.xp_awarded} XP (2x collaboration bonus!)`
         : `Task completed! You earned ${data.xp_awarded} XP`;
 
+      // Let the parent handle modal closure via onComplete callback
       onComplete({
         task,
         xp_awarded: data.xp_awarded,
         message: successMessage,
         quest_completed: data.quest_completed
       });
-
-      // Close modal on successful completion
-      onClose();
 
     } catch (error) {
       console.error('Error completing task:', error);

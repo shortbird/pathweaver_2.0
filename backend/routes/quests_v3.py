@@ -125,6 +125,11 @@ def list_quests():
                             'total_tasks': total_tasks,
                             'percentage': (completed_task_count / total_tasks * 100) if total_tasks > 0 else 0
                         }
+                        
+                        # Mark completed tasks (same logic as quest detail endpoint)
+                        completed_task_ids = {t['quest_task_id'] for t in completed_tasks_result.data} if completed_tasks_result.data else set()
+                        for task in quest.get('quest_tasks', []):
+                            task['is_completed'] = task['id'] in completed_task_ids
             
             # Apply pillar filter if specified
             if not pillar_filter or pillar_filter in pillar_xp:
