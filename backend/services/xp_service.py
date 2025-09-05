@@ -6,7 +6,7 @@ Handles XP calculations with collaboration bonuses and audit trails.
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from database import get_supabase_admin_client
-from utils.pillar_utils import migrate_old_pillar, is_valid_pillar, normalize_pillar_key
+from utils.pillar_utils import migrate_old_pillar, is_valid_pillar, normalize_pillar_key, get_database_pillar_key
 import json
 
 class XPService:
@@ -73,12 +73,16 @@ class XPService:
             print(f"[ERROR] Cannot process invalid pillar after normalization: {pillar}")
             return False
         
+        # Convert to database-compatible pillar key (constraint only accepts old names)
+        db_pillar = get_database_pillar_key(pillar)
+        print(f"Using database pillar '{db_pillar}' for storage")
+        
         try:
             # Check current XP for this pillar
             current_xp = self.supabase.table('user_skill_xp')\
                 .select('*')\
                 .eq('user_id', user_id)\
-                .eq('pillar', pillar)\
+                .eq('pillar', db_pillar)\
                 .execute()
             
             print(f"Current XP records found: {len(current_xp.data) if current_xp.data else 0}")
@@ -111,17 +115,17 @@ class XPService:
                             'updated_at': datetime.utcnow().isoformat()
                         })\
                         .eq('user_id', user_id)\
-                        .eq('pillar', pillar)\
+                        .eq('pillar', db_pillar)\
                         .execute()
                 
                 print(f"Update result: {result.data}")
             else:
                 # Create new XP record - use 'pillar' and 'xp_amount' columns
-                print(f"Creating new XP record for {pillar} with {xp_amount} XP")
+                print(f"Creating new XP record for {db_pillar} with {xp_amount} XP")
                 result = self.supabase.table('user_skill_xp')\
                     .insert({
                         'user_id': user_id,
-                        'pillar': pillar,
+                        'pillar': db_pillar,
                         'xp_amount': xp_amount,
                         'updated_at': datetime.utcnow().isoformat()
                     })\

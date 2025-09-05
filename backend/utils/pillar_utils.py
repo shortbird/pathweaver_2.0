@@ -11,6 +11,15 @@ PILLAR_MIGRATION_MAP = {
     'cultural_literacy': 'society_culture'
 }
 
+# Reverse mapping for database storage (database constraint only accepts old names)
+NEW_TO_OLD_PILLAR_MAP = {
+    'arts_creativity': 'creativity',
+    'stem_logic': 'critical_thinking', 
+    'life_wellness': 'practical_skills',
+    'language_communication': 'communication',
+    'society_culture': 'cultural_literacy'
+}
+
 # New pillar definitions
 PILLARS = {
     'arts_creativity': {
@@ -143,6 +152,13 @@ def normalize_pillar_key(pillar_input):
     
     # Return the original input if no match found
     return pillar_input
+
+def get_database_pillar_key(pillar_key):
+    """
+    Convert new pillar key to old pillar key for database storage.
+    The database constraint only accepts old pillar names.
+    """
+    return NEW_TO_OLD_PILLAR_MAP.get(pillar_key, pillar_key)
 
 def is_valid_pillar(pillar_key):
     """Check if a pillar key is valid."""
