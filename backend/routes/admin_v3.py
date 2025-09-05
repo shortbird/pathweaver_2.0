@@ -73,23 +73,13 @@ def create_quest_v3_clean(user_id):
             
             validated_tasks.append(validated_task)
         
-        # Validate source if provided  
-        source = data.get('source', 'admin')
-        valid_sources = ['khan_academy', 'brilliant', 'custom', 'admin', 'community']
-        if source not in valid_sources:
-            print(f"Warning: Invalid source '{source}', using 'admin'")
-            source = 'admin'
-        
-        # Create the quest record
+        # Create the quest record with actual schema columns
         quest_data = {
             'title': data['title'],
-            'description': data.get('description'),
-            'source': source,
-            'category': data.get('category'),
-            'difficulty_level': data.get('difficulty_level', 1),
-            'estimated_hours': data.get('estimated_hours'),
+            'big_idea': data.get('big_idea') or data.get('description') or 'A learning quest',
+            'header_image_url': data.get('header_image_url'),
             'is_active': data.get('is_active', True),
-            'is_featured': data.get('is_featured', False)
+            'source': data.get('source', 'optio')
         }
         
         # Remove None values
