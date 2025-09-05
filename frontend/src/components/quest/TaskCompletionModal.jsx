@@ -59,28 +59,32 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
         data: data
       });
       
-      // Check for successful response first
+      // Check for HTTP error status
       if (!response.ok) {
         const errorMessage = data.error || data.message || 'Failed to complete task';
         throw new Error(errorMessage);
       }
 
-      // Additional check for API-level success flag
+      // Check for API-level success flag (backend uses success: true/false)
       if (data.success === false) {
         throw new Error(data.error || data.message || 'Failed to complete task');
       }
 
+      // If we get here, the request was successful
+      console.log('Task completion successful:', data);
+
       // Show success message with XP earned
+      const xpAwarded = data.xp_awarded || 0;
       const successMessage = data.has_collaboration_bonus 
-        ? `Task completed! You earned ${data.xp_awarded} XP (2x collaboration bonus!)`
-        : `Task completed! You earned ${data.xp_awarded} XP`;
+        ? `Task completed! You earned ${xpAwarded} XP (2x collaboration bonus!)`
+        : `Task completed! You earned ${xpAwarded} XP`;
 
       // Let the parent handle modal closure via onComplete callback
       onComplete({
         task,
-        xp_awarded: data.xp_awarded,
+        xp_awarded: xpAwarded,
         message: successMessage,
-        quest_completed: data.quest_completed
+        quest_completed: data.quest_completed || false
       });
 
     } catch (error) {
