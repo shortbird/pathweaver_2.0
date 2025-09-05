@@ -10,7 +10,7 @@ import base64
 from utils.auth.decorators import require_admin
 from database import get_supabase_admin_client
 
-bp = Blueprint('quest_sources', __name__, url_prefix='/v3/admin/quest-sources')
+bp = Blueprint('quest_sources', __name__, url_prefix='/api/v3/admin/quest-sources')
 
 @bp.route('', methods=['GET'])
 @require_admin

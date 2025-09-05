@@ -64,12 +64,12 @@ app.register_blueprint(sources.bp, url_prefix='/api/sources')  # /api/sources
 app.register_blueprint(settings_bp, url_prefix='/api')  # /api/settings
 
 # Register V3 routes
-app.register_blueprint(quests_v3.bp, url_prefix='/api')  # /api/v3/quests (blueprint has url_prefix='/v3/quests')
-app.register_blueprint(tasks.bp, url_prefix='/api')      # /api/v3/tasks (blueprint has url_prefix='/v3/tasks')
-app.register_blueprint(admin_v3.bp, url_prefix='/api')   # /api/v3/admin (blueprint has url_prefix='/v3/admin')
-app.register_blueprint(quest_sources.bp, url_prefix='/api')  # /api/v3/admin/quest-sources (blueprint has url_prefix='/v3/admin/quest-sources')
-app.register_blueprint(collaborations.bp, url_prefix='/api')  # /api/v3/collaborations (blueprint has url_prefix='/v3/collaborations')
-app.register_blueprint(learning_logs_v3.bp, url_prefix='/api')  # /api/v3/logs (blueprint has url_prefix='/v3/logs')
+app.register_blueprint(quests_v3.bp)  # /api/v3/quests (blueprint has url_prefix='/api/v3/quests')
+app.register_blueprint(tasks.bp)      # /api/v3/tasks (blueprint has url_prefix='/api/v3/tasks')
+app.register_blueprint(admin_v3.bp)   # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
+app.register_blueprint(quest_sources.bp)  # /api/v3/admin/quest-sources (blueprint has url_prefix='/api/v3/admin/quest-sources')
+app.register_blueprint(collaborations.bp)  # /api/v3/collaborations (blueprint has url_prefix='/api/v3/collaborations')
+app.register_blueprint(learning_logs_v3.bp)  # /api/v3/logs (blueprint has url_prefix='/api/v3/logs')
 
 # Register development utilities (password protected in production)
 app.register_blueprint(dev_utils.bp, url_prefix='/api/dev')

@@ -11,7 +11,7 @@ from utils.user_sync import ensure_user_exists, get_user_name
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-bp = Blueprint('quests_v3', __name__, url_prefix='/v3/quests')
+bp = Blueprint('quests_v3', __name__, url_prefix='/api/v3/quests')
 
 @bp.route('', methods=['GET'])
 def list_quests():
