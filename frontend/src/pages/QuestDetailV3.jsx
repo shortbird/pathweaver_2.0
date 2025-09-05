@@ -270,7 +270,8 @@ const QuestDetailV3 = () => {
 
   const completedTasks = quest.quest_tasks?.filter(task => task.is_completed).length || 0;
   const totalTasks = quest.quest_tasks?.length || 0;
-  const progressPercentage = totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0;
+  const progressPercentage = quest.progress?.percentage || (totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0);
+  const isQuestCompleted = quest.completed_enrollment !== null;
   const { baseXP, bonusXP, totalXP, earnedXP, earnedBonusXP } = calculateXP();
   const pillarBreakdown = getPillarBreakdown();
   const locationDisplay = getLocationDisplay();
@@ -370,7 +371,7 @@ const QuestDetailV3 = () => {
       </div>
 
       {/* 3. Progress Dashboard */}
-      {quest.user_enrollment && (
+      {(quest.user_enrollment || isQuestCompleted) && (
         <div className="bg-white rounded-xl shadow-md p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-gray-900">Your Progress</h2>
@@ -444,7 +445,7 @@ const QuestDetailV3 = () => {
                 Team Up First
               </button>
             </>
-          ) : progressPercentage === 100 ? (
+          ) : isQuestCompleted ? (
             <button
               onClick={() => navigate('/diploma')}
               className="flex-1 bg-emerald-500 text-white py-4 px-8 rounded-[30px] hover:bg-emerald-600 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
@@ -570,7 +571,7 @@ const QuestDetailV3 = () => {
                           )}
                         </div>
                         
-                        {quest.user_enrollment && !task.is_completed && (
+                        {quest.user_enrollment && !task.is_completed && !isQuestCompleted && (
                           <button
                             onClick={() => {
                               setSelectedTask(task);
@@ -611,7 +612,7 @@ const QuestDetailV3 = () => {
       )}
 
       {/* Quest Management - Finish Quest */}
-      {quest.user_enrollment && progressPercentage < 100 && (
+      {quest.user_enrollment && !isQuestCompleted && progressPercentage < 100 && (
         <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
           <h3 className="text-lg font-bold text-red-800 mb-2">Need to End Your Quest Early?</h3>
           <p className="text-red-600 mb-4">
