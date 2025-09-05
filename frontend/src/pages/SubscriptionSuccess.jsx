@@ -20,11 +20,11 @@ const SubscriptionSuccess = () => {
         
         if (sessionId) {
           // Verify the session and update subscription
-          await api.post('/subscriptions/verify-session', { session_id: sessionId })
+          await api.post('/api/subscriptions/verify-session', { session_id: sessionId })
         }
         
         // Fetch updated subscription status
-        const response = await api.get('/subscriptions/status')
+        const response = await api.get('/api/subscriptions/status')
         setSubscriptionDetails(response.data)
         
         // Update user data with new subscription tier

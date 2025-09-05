@@ -30,7 +30,7 @@ const FriendsPage = () => {
 
   const fetchFriends = async () => {
     try {
-      const response = await api.get('/community/friends')
+      const response = await api.get('/api/community/friends')
       setFriends(response.data.friends)
       setPendingRequests(response.data.pending_requests)
     } catch (error) {
@@ -50,7 +50,7 @@ const FriendsPage = () => {
 
     setSending(true)
     try {
-      await api.post('/community/friends/request', { email })
+      await api.post('/api/community/friends/request', { email })
       if (returnToQuest) {
         toast.success('Friend request sent! Once accepted, you can team up on the quest.')
       } else {
@@ -67,7 +67,7 @@ const FriendsPage = () => {
 
   const acceptRequest = async (friendshipId) => {
     try {
-      await api.post(`/community/friends/accept/${friendshipId}`, {})
+      await api.post(`/api/community/friends/accept/${friendshipId}`, {})
       toast.success('Friend request accepted!')
       fetchFriends()
     } catch (error) {
@@ -77,7 +77,7 @@ const FriendsPage = () => {
 
   const declineRequest = async (friendshipId) => {
     try {
-      await api.delete(`/community/friends/decline/${friendshipId}`)
+      await api.delete(`/api/community/friends/decline/${friendshipId}`)
       toast.success('Friend request declined')
       fetchFriends()
     } catch (error) {

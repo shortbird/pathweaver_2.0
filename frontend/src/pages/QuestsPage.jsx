@@ -47,7 +47,7 @@ const QuestsPage = () => {
 
   const fetchFilterOptions = async () => {
     try {
-      const response = await api.get('/quests/filter-options')
+      const response = await api.get('/api/quests/filter-options')
       setFilterOptions(response.data)
     } catch (error) {
       console.error('Failed to fetch filter options:', error)
@@ -56,7 +56,7 @@ const QuestsPage = () => {
 
   const fetchCompletedQuests = async () => {
     try {
-      const response = await api.get('/users/completed-quests')
+      const response = await api.get('/api/users/completed-quests')
       if (response.data && response.data.completed_quest_ids) {
         setCompletedQuestIds(response.data.completed_quest_ids)
       }
@@ -82,7 +82,7 @@ const QuestsPage = () => {
       if (maxHours) params.max_hours = maxHours
       if (adultSupervision) params.adult_supervision = adultSupervision
       
-      const response = await api.get('/quests', { params })
+      const response = await api.get('/api/quests', { params })
       setQuests(response.data.quests)
     } catch (error) {
       console.error('Failed to fetch quests:', error)

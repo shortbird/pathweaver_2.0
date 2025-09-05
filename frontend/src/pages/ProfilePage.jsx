@@ -18,7 +18,7 @@ const ProfilePage = () => {
 
   const fetchProfile = async () => {
     try {
-      const response = await api.get('/users/profile')
+      const response = await api.get('/api/users/profile')
       setProfileData(response.data)
       reset({
         first_name: response.data.user.first_name,
@@ -34,7 +34,7 @@ const ProfilePage = () => {
 
   const onSubmit = async (data) => {
     try {
-      const response = await api.put('/users/profile', data)
+      const response = await api.put('/api/users/profile', data)
       updateUser(response.data)
       setProfileData({ ...profileData, user: response.data })
       setEditing(false)
@@ -46,7 +46,7 @@ const ProfilePage = () => {
 
   const downloadTranscript = async () => {
     try {
-      const response = await api.get('/users/transcript')
+      const response = await api.get('/api/users/transcript')
       const transcript = response.data
       
       const blob = new Blob([JSON.stringify(transcript, null, 2)], { type: 'application/json' })

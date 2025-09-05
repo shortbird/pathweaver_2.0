@@ -51,7 +51,7 @@ api.interceptors.response.use(
           throw new Error('No refresh token available')
         }
         
-        const response = await api.post('/auth/refresh', { refresh_token })
+        const response = await api.post('/api/auth/refresh', { refresh_token })
         const { session } = response.data
         
         localStorage.setItem('access_token', session.access_token)

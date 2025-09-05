@@ -110,7 +110,7 @@ const QuestDetailPage = () => {
         })
         
         try {
-          const uploadResponse = await api.post('/uploads/evidence', formData, {
+          const uploadResponse = await api.post('/api/uploads/evidence', formData, {
             headers: {
               'Content-Type': 'multipart/form-data'
             }

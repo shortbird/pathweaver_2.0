@@ -26,7 +26,7 @@ const SubscriptionPage = () => {
 
   const fetchSubscriptionStatus = async () => {
     try {
-      const response = await api.get('/subscriptions/status')
+      const response = await api.get('/api/subscriptions/status')
       setSubscriptionStatus(response.data)
     } catch (error) {
       console.error('Failed to fetch subscription status:', error)
@@ -38,7 +38,7 @@ const SubscriptionPage = () => {
   const handleUpgrade = async (tier, period = billingPeriod) => {
     setLoadingTier(tier) // Set which tier is loading
     try {
-      const response = await api.post('/subscriptions/create-checkout', { 
+      const response = await api.post('/api/subscriptions/create-checkout', { 
         tier,
         billing_period: period 
       })
@@ -64,7 +64,7 @@ const SubscriptionPage = () => {
 
     setCanceling(true)
     try {
-      await api.post('/subscriptions/cancel')
+      await api.post('/api/subscriptions/cancel')
       toast.success('Subscription will be cancelled at the end of the billing period')
       await fetchSubscriptionStatus()
     } catch (error) {
@@ -77,7 +77,7 @@ const SubscriptionPage = () => {
   const handleBillingPortal = async () => {
     setLoading(true)
     try {
-      const response = await api.post('/subscriptions/billing-portal')
+      const response = await api.post('/api/subscriptions/billing-portal')
       window.location.href = response.data.portal_url
     } catch (error) {
       toast.error('Failed to access billing portal')

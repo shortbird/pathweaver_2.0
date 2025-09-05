@@ -366,7 +366,7 @@ const DashboardPage = () => {
 
   const fetchDashboardData = useCallback(async () => {
     try {
-      const response = await api.get('/users/dashboard')
+      const response = await api.get('/api/users/dashboard')
       console.log('=== DASHBOARD DEBUG ===')
       console.log('Full Dashboard API response:', response.data)
       console.log('Stats object:', response.data.stats)

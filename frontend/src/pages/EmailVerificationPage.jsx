@@ -18,7 +18,7 @@ const EmailVerificationPage = () => {
 
     setResending(true)
     try {
-      const response = await api.post('/auth/resend-verification', { email })
+      const response = await api.post('/api/auth/resend-verification', { email })
       setResent(true)
       
       // Show the message and note if available
