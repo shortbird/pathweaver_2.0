@@ -197,8 +197,9 @@ def get_quest_detail(user_id: str, quest_id: str):
             .eq('quest_id', quest_id)\
             .execute()
         
-        print(f"[QUEST DETAIL] All enrollments found: {len(all_enrollments.data if all_enrollments.data else 0)}")
-        for enrollment in (all_enrollments.data or []):
+        enrollments_data = all_enrollments.data or []
+        print(f"[QUEST DETAIL] All enrollments found: {len(enrollments_data)}")
+        for enrollment in enrollments_data:
             print(f"[QUEST DETAIL] Enrollment: id={enrollment.get('id')}, is_active={enrollment.get('is_active')}, completed_at={enrollment.get('completed_at')}")
         
         # Now filter for active enrollments
@@ -216,7 +217,7 @@ def get_quest_detail(user_id: str, quest_id: str):
         
         # Use all enrollments to find active ones (more robust than the filtered query)
         active_enrollment = None
-        for enrollment in (all_enrollments.data or []):
+        for enrollment in enrollments_data:
             # Consider enrollment active if:
             # 1. Not completed AND 
             # 2. is_active is True or None (not explicitly False)
@@ -232,7 +233,12 @@ def get_quest_detail(user_id: str, quest_id: str):
             
             # Calculate progress
             total_tasks = len(quest_data.get('quest_tasks', []))
-            completed_tasks = len(active_enrollment.get('user_quest_tasks', []))
+            user_quest_tasks = active_enrollment.get('user_quest_tasks', [])
+            # Ensure user_quest_tasks is a list (sometimes it's an int from count queries)
+            if isinstance(user_quest_tasks, int):
+                completed_tasks = user_quest_tasks
+            else:
+                completed_tasks = len(user_quest_tasks) if user_quest_tasks else 0
             quest_data['progress'] = {
                 'completed_tasks': completed_tasks,
                 'total_tasks': total_tasks,
@@ -240,7 +246,16 @@ def get_quest_detail(user_id: str, quest_id: str):
             }
             
             # Mark completed tasks
-            completed_task_ids = {t['quest_task_id'] for t in active_enrollment.get('user_quest_tasks', [])}
+            if isinstance(user_quest_tasks, list):
+                completed_task_ids = {t['quest_task_id'] for t in user_quest_tasks}
+            else:
+                # If user_quest_tasks is an integer, we need to query the actual task IDs
+                task_completions = supabase.table('user_quest_tasks')\
+                    .select('quest_task_id')\
+                    .eq('user_quest_id', active_enrollment['id'])\
+                    .execute()
+                completed_task_ids = {t['quest_task_id'] for t in (task_completions.data or [])}
+            
             for task in quest_data.get('quest_tasks', []):
                 task['is_completed'] = task['id'] in completed_task_ids
         else:
