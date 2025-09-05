@@ -48,7 +48,9 @@ const QuestDetailV3 = () => {
       }
 
       const data = await response.json();
-      console.log('Quest data received:', data.quest);
+      console.log('=== QUEST DETAIL DEBUG ===');
+      console.log('Full quest data received:', data.quest);
+      console.log('User enrollment object:', data.quest.user_enrollment);
       console.log('User enrollment status:', data.quest.user_enrollment ? 'ENROLLED' : 'NOT ENROLLED');
       console.log('Quest tasks completion status:', data.quest.quest_tasks?.map(task => ({
         id: task.id,
@@ -56,6 +58,7 @@ const QuestDetailV3 = () => {
         is_completed: task.is_completed,
         xp_amount: task.xp_amount
       })));
+      console.log('=== END DEBUG ===');
       setQuest(data.quest);
       setError(''); // Clear any previous errors
     } catch (error) {

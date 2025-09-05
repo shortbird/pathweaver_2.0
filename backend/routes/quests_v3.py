@@ -183,6 +183,19 @@ def get_quest_detail(user_id: str, quest_id: str):
         
         # Check if user is actively enrolled
         print(f"[QUEST DETAIL] Checking enrollment for user {user_id[:8]} on quest {quest_id[:8]}")
+        
+        # First check all enrollments for debugging
+        all_enrollments = supabase.table('user_quests')\
+            .select('*, user_quest_tasks(*)')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .execute()
+        
+        print(f"[QUEST DETAIL] All enrollments found: {len(all_enrollments.data if all_enrollments.data else 0)}")
+        for enrollment in (all_enrollments.data or []):
+            print(f"[QUEST DETAIL] Enrollment: id={enrollment.get('id')}, is_active={enrollment.get('is_active')}, completed_at={enrollment.get('completed_at')}")
+        
+        # Now filter for active enrollments
         user_quest = supabase.table('user_quests')\
             .select('*, user_quest_tasks(*)')\
             .eq('user_id', user_id)\
@@ -191,9 +204,9 @@ def get_quest_detail(user_id: str, quest_id: str):
             .execute()
         
         if user_quest.data:
-            print(f"[QUEST DETAIL] Found enrollment: {user_quest.data[0]}")
+            print(f"[QUEST DETAIL] Found active enrollment: {user_quest.data[0]}")
         else:
-            print(f"[QUEST DETAIL] No enrollment found")
+            print(f"[QUEST DETAIL] No active enrollment found")
         
         # Check for any active enrollment (is_active might be None in some cases)
         if user_quest.data and not user_quest.data[0].get('completed_at'):
