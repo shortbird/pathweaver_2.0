@@ -27,9 +27,6 @@ def create_quest_v3_clean(user_id):
         if not data.get('title'):
             return jsonify({'error': 'Quest title is required'}), 400
         
-        if not data.get('big_idea'):
-            return jsonify({'error': 'Quest big idea/description is required'}), 400
-        
         if not data.get('tasks') or not isinstance(data['tasks'], list) or len(data['tasks']) == 0:
             return jsonify({'error': 'At least one task is required'}), 400
         
@@ -40,11 +37,11 @@ def create_quest_v3_clean(user_id):
             if not task.get('title'):
                 return jsonify({'error': f'Task {idx + 1}: Title is required'}), 400
             
-            if not task.get('description'):
-                return jsonify({'error': f'Task {idx + 1}: Description is required'}), 400
-            
             if not task.get('pillar'):
                 return jsonify({'error': f'Task {idx + 1}: Pillar is required'}), 400
+            
+            if not task.get('subcategory'):
+                return jsonify({'error': f'Task {idx + 1}: Subcategory is required'}), 400
             
             # Validate and normalize pillar
             try:
@@ -62,8 +59,9 @@ def create_quest_v3_clean(user_id):
             
             validated_task = {
                 'title': task['title'],
-                'description': task['description'],
+                'description': task.get('description', ''),  # Optional field
                 'pillar': normalized_pillar,  # Use normalized pillar
+                'subcategory': task.get('subcategory', ''),  # Required field
                 'xp_amount': int(xp_value),  # Use xp_amount (database column)
                 'order_index': task.get('order_index', task.get('task_order', idx)),  # Use order_index (database column)
                 'evidence_prompt': task.get('evidence_prompt', f"Provide evidence for completing: {task['title']}"),
@@ -76,7 +74,7 @@ def create_quest_v3_clean(user_id):
         # Create the quest record with actual schema columns
         quest_data = {
             'title': data['title'],
-            'big_idea': data.get('big_idea') or data.get('description') or 'A learning quest',
+            'big_idea': data.get('big_idea') or data.get('description') or '',
             'header_image_url': data.get('header_image_url'),
             'is_active': data.get('is_active', True),
             'source': data.get('source', 'optio')

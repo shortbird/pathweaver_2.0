@@ -496,19 +496,11 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
             title="Learning Tasks" 
             description="Define what students need to accomplish"
             required
-          >
-            <button
-              type="button"
-              onClick={addTask}
-              className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 transition-all"
-            >
-              <Plus size={20} className="inline mr-1" />
-              Add Task
-            </button>
-          </SectionHeader>
+          />
             
+          <div className="space-y-6">
             {formData.tasks.map((task, index) => (
-              <div key={index} className="border-2 border-gray-100 rounded-xl p-6 mb-6 hover:border-purple-200 transition-colors">
+              <div key={index} className="border-2 border-gray-100 rounded-xl p-6 hover:border-purple-200 transition-colors">
                 <div className="flex justify-between items-start mb-6">
                   <div>
                     <h4 className="text-lg font-semibold text-gray-800">Task {index + 1}</h4>
@@ -708,6 +700,19 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                 </div>
               </div>
             ))}
+            
+            {/* Add Task Button - Below all tasks */}
+            <div className="flex justify-center pt-4">
+              <button
+                type="button"
+                onClick={addTask}
+                className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 transition-all shadow-md hover:shadow-lg"
+              >
+                <Plus size={20} className="inline mr-2" />
+                Add Another Task
+              </button>
+            </div>
+          </div>
           
           {/* Metadata Section (Optional) */}
           <SectionHeader 
