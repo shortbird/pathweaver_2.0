@@ -62,13 +62,13 @@ def create_quest_v3_clean(user_id):
                 'title': task['title'],
                 'description': task['description'],
                 'pillar': normalized_pillar,  # Use normalized pillar
-                'xp_value': int(xp_value),
-                'xp_amount': int(xp_value),  # Keep both for compatibility
-                'order_index': task.get('order_index', idx + 1),
-                'task_order': task.get('task_order', idx),
+                'xp_amount': int(xp_value),  # Use xp_amount (database column)
+                'task_order': task.get('task_order', task.get('order_index', idx)),  # Use task_order (database column)
                 'evidence_prompt': task.get('evidence_prompt', f"Provide evidence for completing: {task['title']}"),
-                'materials_needed': task.get('materials_needed', []),
-                'subcategory': task.get('subcategory', '')
+                'subcategory': task.get('subcategory'),
+                'collaboration_eligible': task.get('collaboration_eligible', True),
+                'location_required': task.get('location_required', False),
+                'is_optional': task.get('is_optional', False)
             }
             
             validated_tasks.append(validated_task)
@@ -98,22 +98,21 @@ def create_quest_v3_clean(user_id):
         quest_id = quest['id']
         print(f"Created quest with ID: {quest_id}")
         
-        # Create quest tasks
+        # Create quest tasks using actual database schema
         for task in validated_tasks:
             task_data = {
                 'quest_id': quest_id,
                 'title': task['title'],
                 'description': task['description'],
                 'pillar': task['pillar'],
-                'xp_value': task['xp_value'],
                 'xp_amount': task['xp_amount'],
-                'order_index': task['order_index'],
                 'task_order': task['task_order'],
-                'evidence_prompt': task['evidence_prompt'],
-                'materials_needed': task['materials_needed'] if task['materials_needed'] else None,
-                'subcategory': task['subcategory'] if task['subcategory'] else None,
+                'evidence_prompt': task.get('evidence_prompt'),
+                'subcategory': task.get('subcategory'),
                 'is_required': True,  # Default all tasks to required
-                'created_at': datetime.utcnow().isoformat()
+                'collaboration_eligible': task.get('collaboration_eligible'),
+                'location_required': task.get('location_required'),
+                'is_optional': task.get('is_optional')
             }
             
             # Remove None values
