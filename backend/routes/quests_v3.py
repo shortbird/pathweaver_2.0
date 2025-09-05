@@ -252,42 +252,54 @@ def get_quest_detail(user_id: str, quest_id: str):
                 'percentage': 0
             }
         
-        # Check for active collaboration
-        collab = supabase.table('quest_collaborations')\
-            .select('*')\
-            .eq('quest_id', quest_id)\
-            .in_('status', ['pending', 'accepted'])\
-            .or_(f'requester_id.eq.{user_id},partner_id.eq.{user_id}')\
-            .execute()
-        
-        if collab.data:
-            collaboration_data = collab.data[0]
+        # Check for active collaboration (with error handling)
+        try:
+            collab = supabase.table('quest_collaborations')\
+                .select('*')\
+                .eq('quest_id', quest_id)\
+                .in_('status', ['pending', 'accepted'])\
+                .or_(f'requester_id.eq.{user_id},partner_id.eq.{user_id}')\
+                .execute()
             
-            # Fetch user names for collaboration
-            collaborator_names = []
-            
-            print(f"[QUEST DETAIL] Found collaboration: requester={collaboration_data['requester_id'][:8]}, partner={collaboration_data['partner_id'][:8]}, current_user={user_id[:8]}")
-            
-            # Get requester name if not current user
-            if collaboration_data['requester_id'] != user_id:
-                ensure_user_exists(collaboration_data['requester_id'])
-                first_name, last_name = get_user_name(collaboration_data['requester_id'])
-                name = f"{first_name} {last_name}"
-                collaborator_names.append(name)
-                print(f"[QUEST DETAIL] Added requester name: {name}")
-            
-            # Get partner name if not current user
-            if collaboration_data['partner_id'] != user_id:
-                ensure_user_exists(collaboration_data['partner_id'])
-                first_name, last_name = get_user_name(collaboration_data['partner_id'])
-                name = f"{first_name} {last_name}"
-                collaborator_names.append(name)
-                print(f"[QUEST DETAIL] Added partner name: {name}")
-            
-            print(f"[QUEST DETAIL] Final collaborator_names: {collaborator_names}")
-            collaboration_data['collaborator_names'] = collaborator_names
-            quest_data['collaboration'] = collaboration_data
-        else:
+            if collab.data:
+                collaboration_data = collab.data[0]
+                
+                # Fetch user names for collaboration
+                collaborator_names = []
+                
+                print(f"[QUEST DETAIL] Found collaboration: requester={collaboration_data['requester_id'][:8]}, partner={collaboration_data['partner_id'][:8]}, current_user={user_id[:8]}")
+                
+                # Get requester name if not current user (with error handling)
+                if collaboration_data['requester_id'] != user_id:
+                    try:
+                        ensure_user_exists(collaboration_data['requester_id'])
+                        first_name, last_name = get_user_name(collaboration_data['requester_id'])
+                        name = f"{first_name} {last_name}"
+                        collaborator_names.append(name)
+                        print(f"[QUEST DETAIL] Added requester name: {name}")
+                    except Exception as e:
+                        print(f"[QUEST DETAIL] Error getting requester name: {e}")
+                        collaborator_names.append("Collaborator")
+                
+                # Get partner name if not current user (with error handling)
+                if collaboration_data['partner_id'] != user_id:
+                    try:
+                        ensure_user_exists(collaboration_data['partner_id'])
+                        first_name, last_name = get_user_name(collaboration_data['partner_id'])
+                        name = f"{first_name} {last_name}"
+                        collaborator_names.append(name)
+                        print(f"[QUEST DETAIL] Added partner name: {name}")
+                    except Exception as e:
+                        print(f"[QUEST DETAIL] Error getting partner name: {e}")
+                        collaborator_names.append("Collaborator")
+                
+                print(f"[QUEST DETAIL] Final collaborator_names: {collaborator_names}")
+                collaboration_data['collaborator_names'] = collaborator_names
+                quest_data['collaboration'] = collaboration_data
+            else:
+                quest_data['collaboration'] = None
+        except Exception as collab_error:
+            print(f"[QUEST DETAIL] Error fetching collaboration data: {collab_error}")
             quest_data['collaboration'] = None
         
         return jsonify({
