@@ -110,32 +110,8 @@ def list_quests():
                             active_enrollment = enr
                             print(f"[DEBUG] Found ACTIVE enrollment: is_active={enr.get('is_active')}")
                     
-                    # Include active enrollment if exists
-                    if active_enrollment:
-                        quest['user_enrollment'] = active_enrollment
-                        
-                        # Add progress information
-                        completed_tasks_result = supabase.table('user_quest_tasks')\
-                            .select('quest_task_id')\
-                            .eq('user_quest_id', active_enrollment['id'])\
-                            .execute()
-                        
-                        completed_task_count = len(completed_tasks_result.data) if completed_tasks_result.data else 0
-                        total_tasks = len(quest.get('quest_tasks', []))
-                        
-                        quest['progress'] = {
-                            'completed_tasks': completed_task_count,
-                            'total_tasks': total_tasks,
-                            'percentage': (completed_task_count / total_tasks * 100) if total_tasks > 0 else 0
-                        }
-                        
-                        # Mark completed tasks (same logic as quest detail endpoint)
-                        completed_task_ids = {t['quest_task_id'] for t in completed_tasks_result.data} if completed_tasks_result.data else set()
-                        for task in quest.get('quest_tasks', []):
-                            task['is_completed'] = task['id'] in completed_task_ids
-                    
-                    # Include completed enrollment information if exists
-                    elif completed_enrollment:
+                    # Prioritize completed enrollment if it exists
+                    if completed_enrollment:
                         quest['completed_enrollment'] = completed_enrollment
                         
                         # Add progress information for completed quest
@@ -154,6 +130,30 @@ def list_quests():
                         }
                         
                         # Mark all tasks as completed for completed quest
+                        completed_task_ids = {t['quest_task_id'] for t in completed_tasks_result.data} if completed_tasks_result.data else set()
+                        for task in quest.get('quest_tasks', []):
+                            task['is_completed'] = task['id'] in completed_task_ids
+                            
+                    # Include active enrollment only if no completed enrollment exists
+                    elif active_enrollment:
+                        quest['user_enrollment'] = active_enrollment
+                        
+                        # Add progress information
+                        completed_tasks_result = supabase.table('user_quest_tasks')\
+                            .select('quest_task_id')\
+                            .eq('user_quest_id', active_enrollment['id'])\
+                            .execute()
+                        
+                        completed_task_count = len(completed_tasks_result.data) if completed_tasks_result.data else 0
+                        total_tasks = len(quest.get('quest_tasks', []))
+                        
+                        quest['progress'] = {
+                            'completed_tasks': completed_task_count,
+                            'total_tasks': total_tasks,
+                            'percentage': (completed_task_count / total_tasks * 100) if total_tasks > 0 else 0
+                        }
+                        
+                        # Mark completed tasks (same logic as quest detail endpoint)
                         completed_task_ids = {t['quest_task_id'] for t in completed_tasks_result.data} if completed_tasks_result.data else set()
                         for task in quest.get('quest_tasks', []):
                             task['is_completed'] = task['id'] in completed_task_ids
