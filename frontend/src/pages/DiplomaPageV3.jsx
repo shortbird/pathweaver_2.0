@@ -34,7 +34,13 @@ const DiplomaPageV3 = () => {
     critical_thinking: 'from-[#6d469b] to-[#ef597b]',
     practical_skills: 'from-[#ef597b] to-[#6d469b]',
     communication: 'from-[#6d469b] to-[#ef597b]',
-    cultural_literacy: 'from-[#ef597b] to-[#6d469b]'
+    cultural_literacy: 'from-[#ef597b] to-[#6d469b]',
+    // Underscore format mappings for database consistency
+    'arts_creativity': 'from-[#ef597b] to-[#6d469b]',
+    'stem_logic': 'from-[#6d469b] to-[#ef597b]',
+    'life_wellness': 'from-[#ef597b] to-[#6d469b]',
+    'language_communication': 'from-[#6d469b] to-[#ef597b]',
+    'society_culture': 'from-[#ef597b] to-[#6d469b]'
   };
 
   // Pillar display names for UI
@@ -49,7 +55,13 @@ const DiplomaPageV3 = () => {
     critical_thinking: 'STEM & Logic',
     practical_skills: 'Life & Wellness',
     communication: 'Language & Communication',
-    cultural_literacy: 'Society & Culture'
+    cultural_literacy: 'Society & Culture',
+    // Underscore format mappings for database consistency
+    'arts_creativity': 'Arts & Creativity',
+    'stem_logic': 'STEM & Logic',
+    'life_wellness': 'Life & Wellness',
+    'language_communication': 'Language & Communication',
+    'society_culture': 'Society & Culture'
   };
 
   useEffect(() => {
@@ -394,29 +406,34 @@ const DiplomaPageV3 = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-      {/* Hero Section with Philosophy */}
+      {/* Hero Section with Professional Diploma Title */}
       <div className="relative overflow-hidden bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white">
         <div className="absolute inset-0 bg-black opacity-10"></div>
         <div className="relative max-w-7xl mx-auto px-4 py-16">
-          <div className="text-center">
-            <h1 className="text-5xl font-bold mb-4" style={{ letterSpacing: '-1px' }}>
-              {getStudentName()}'s Learning Story
+          <div className="text-center max-w-4xl mx-auto">
+            <h1 className="text-4xl md:text-5xl font-bold mb-6" style={{ letterSpacing: '-1px' }}>
+              Self-Validated Diploma
             </h1>
-            <p className="text-xl text-white/90 mb-8 max-w-3xl mx-auto">
-              A celebration of curiosity, growth, and self-directed learning
-            </p>
-            <button 
-              onClick={() => setShowDiplomaExplanation(true)}
-              className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full hover:bg-white/30 transition-colors cursor-pointer"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-              </svg>
-              <span className="font-semibold">Self-Validated Diploma</span>
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
-              </svg>
-            </button>
+            <div className="text-lg md:text-xl text-white/95 mb-8 leading-relaxed">
+              <p className="mb-4">
+                <strong>{getStudentName()}</strong> has accepted the responsibility to self-validate their education. 
+                This portfolio diploma is a record of their learning process.
+              </p>
+              <p className="text-white/80">
+                A celebration of curiosity, growth, and self-directed learning
+              </p>
+            </div>
+            <div className="flex justify-center">
+              <button 
+                onClick={() => setShowDiplomaExplanation(true)}
+                className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm px-6 py-3 rounded-full hover:bg-white/30 transition-colors cursor-pointer"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-3a1 1 0 00-.867.5 1 1 0 11-1.731-1A3 3 0 0113 8a3.001 3.001 0 01-2 2.83V11a1 1 0 11-2 0v-1a1 1 0 011-1 1 1 0 100-2zm0 8a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                </svg>
+                <span className="font-semibold">What is a Self-Validated Diploma?</span>
+              </button>
+            </div>
           </div>
         </div>
         <div className="absolute bottom-0 left-0 right-0 h-20 bg-gradient-to-t from-gray-50 to-transparent"></div>
@@ -438,93 +455,14 @@ const DiplomaPageV3 = () => {
           </div>
         )}
 
-        {/* Growth Snapshot Section */}
-        <div className="mb-12">
-          <h2 className="text-2xl font-bold mb-6" style={{ color: '#003f5c' }}>Growth Snapshot</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="bg-white rounded-xl p-6" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-600">Total Growth Points</span>
-                <svg className="w-8 h-8 text-[#ef597b]" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-                </svg>
-              </div>
-              <div className="text-3xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
-                {displayData.total_xp || totalXPCount}
-              </div>
-              <p className="text-sm text-gray-500 mt-2">Moments of learning celebrated</p>
-            </div>
-
-            <div className="bg-white rounded-xl p-6" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-600">Adventures Completed</span>
-                <svg className="w-8 h-8 text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M6 6V5a3 3 0 013-3h2a3 3 0 013 3v1h2a2 2 0 012 2v3.57A22.952 22.952 0 0110 13a22.95 22.95 0 01-8-1.43V8a2 2 0 012-2h2zm2-1a1 1 0 011-1h2a1 1 0 011 1v1H8V5zm1 5a1 1 0 011-1h.01a1 1 0 110 2H10a1 1 0 01-1-1z" clipRule="evenodd" />
-                  <path d="M2 13.692V16a2 2 0 002 2h12a2 2 0 002-2v-2.308A24.974 24.974 0 0110 15c-2.796 0-5.487-.46-8-1.308z" />
-                </svg>
-              </div>
-              <div className="text-3xl font-bold bg-gradient-to-r from-[#6d469b] to-[#ef597b] bg-clip-text text-transparent">
-                {displayData.total_quests_completed || achievements.length}
-              </div>
-              <p className="text-sm text-gray-500 mt-2">Journeys of discovery</p>
-            </div>
-
-            <div className="bg-white rounded-xl p-6" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-600">Areas of Growth</span>
-                <svg className="w-8 h-8 text-[#ef597b]" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M2 11a1 1 0 011-1h2a1 1 0 011 1v5a1 1 0 01-1 1H3a1 1 0 01-1-1v-5zM8 7a1 1 0 011-1h2a1 1 0 011 1v9a1 1 0 01-1 1H9a1 1 0 01-1-1V7zM14 4a1 1 0 011-1h2a1 1 0 011 1v12a1 1 0 01-1 1h-2a1 1 0 01-1-1V4z" />
-                </svg>
-              </div>
-              <div className="text-3xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
-                {displayData.skill_details?.length || Object.keys(totalXP).length || 0}
-              </div>
-              <p className="text-sm text-gray-500 mt-2">Dimensions explored</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Philosophy Section */}
-        <div className="bg-gradient-to-r from-[#ef597b]/5 to-[#6d469b]/5 rounded-2xl p-8 mb-12" style={{ border: '1px solid rgba(109,70,155,0.1)' }}>
-          <h2 className="text-2xl font-bold mb-6" style={{ color: '#003f5c' }}>The Process Is The Goal</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
-                </svg>
-              </div>
-              <h3 className="font-bold text-lg mb-2" style={{ color: '#003f5c' }}>Self-Directed Learning</h3>
-              <p className="text-gray-600">Learning driven by curiosity and passion, not external requirements</p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-[#6d469b] to-[#ef597b] rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <h3 className="font-bold text-lg mb-2" style={{ color: '#003f5c' }}>Growth-Focused</h3>
-              <p className="text-gray-600">Celebrating who you're becoming through learning, not proving what you know</p>
-            </div>
-            <div className="text-center">
-              <div className="w-16 h-16 mx-auto mb-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center">
-                <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <h3 className="font-bold text-lg mb-2" style={{ color: '#003f5c' }}>Joy-Driven</h3>
-              <p className="text-gray-600">Learning for the satisfaction of understanding and creating</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Skills Visualization */}
+        {/* Growth Dimensions */}
         {Object.keys(totalXP).length > 0 && (
           <div className="mb-12">
-            <h2 className="text-2xl font-bold mb-6" style={{ color: '#003f5c' }}>Growth Dimensions</h2>
             <SkillsRadarChart skillsXP={totalXP} />
           </div>
         )}
+
+
 
         {/* Learning Journey Section */}
         <div className="mb-8">
