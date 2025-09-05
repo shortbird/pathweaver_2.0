@@ -207,7 +207,6 @@ def get_quest_detail(user_id: str, quest_id: str):
             .select('*, user_quest_tasks(*)')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
-            .eq('is_active', True)\
             .execute()
         
         if user_quest.data:
