@@ -52,6 +52,13 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
 
       const data = await response.json();
       
+      // Add debugging to see what's happening
+      console.log('Task completion response:', {
+        status: response.status,
+        ok: response.ok,
+        data: data
+      });
+      
       // Use utility function for consistent error handling
       handleApiResponse(response, data, 'Failed to complete task');
 

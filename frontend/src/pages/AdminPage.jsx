@@ -685,7 +685,7 @@ const AdminQuests = () => {
           onClose={() => setShowCreationForm(false)}
           onSuccess={(newQuest) => {
             fetchQuests() // Refresh quest list
-            toast.success('Quest created successfully!')
+            // Success toast is already shown by QuestCreationForm
           }}
         />
       )}
