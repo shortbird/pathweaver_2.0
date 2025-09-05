@@ -208,34 +208,37 @@ def get_quest_detail(user_id: str, quest_id: str):
         else:
             print(f"[QUEST DETAIL] No active enrollment found")
         
-        # Check for any active enrollment (is_active might be None in some cases)
-        if user_quest.data and not user_quest.data[0].get('completed_at'):
-            # Consider enrollment active if is_active is True or None (not explicitly False)
-            is_active = user_quest.data[0].get('is_active')
-            if is_active is not False:  # True or None are both considered active
-                quest_data['user_enrollment'] = user_quest.data[0]
-                
-                # Calculate progress
-                total_tasks = len(quest_data.get('quest_tasks', []))
-                completed_tasks = len(user_quest.data[0].get('user_quest_tasks', []))
-                quest_data['progress'] = {
-                    'completed_tasks': completed_tasks,
-                    'total_tasks': total_tasks,
-                    'percentage': (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
-                }
-                
-                # Mark completed tasks
-                completed_task_ids = {t['quest_task_id'] for t in user_quest.data[0].get('user_quest_tasks', [])}
-                for task in quest_data.get('quest_tasks', []):
-                    task['is_completed'] = task['id'] in completed_task_ids
-            else:
-                quest_data['user_enrollment'] = None
-                quest_data['progress'] = {
-                    'completed_tasks': 0,
-                    'total_tasks': len(quest_data.get('quest_tasks', [])),
-                    'percentage': 0
-                }
+        # Use all enrollments to find active ones (more robust than the filtered query)
+        active_enrollment = None
+        for enrollment in (all_enrollments.data or []):
+            # Consider enrollment active if:
+            # 1. Not completed AND 
+            # 2. is_active is True or None (not explicitly False)
+            if not enrollment.get('completed_at'):
+                is_active = enrollment.get('is_active')
+                if is_active is not False:  # True or None are both considered active
+                    active_enrollment = enrollment
+                    break
+        
+        if active_enrollment:
+            print(f"[QUEST DETAIL] Using active enrollment: {active_enrollment}")
+            quest_data['user_enrollment'] = active_enrollment
+            
+            # Calculate progress
+            total_tasks = len(quest_data.get('quest_tasks', []))
+            completed_tasks = len(active_enrollment.get('user_quest_tasks', []))
+            quest_data['progress'] = {
+                'completed_tasks': completed_tasks,
+                'total_tasks': total_tasks,
+                'percentage': (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+            }
+            
+            # Mark completed tasks
+            completed_task_ids = {t['quest_task_id'] for t in active_enrollment.get('user_quest_tasks', [])}
+            for task in quest_data.get('quest_tasks', []):
+                task['is_completed'] = task['id'] in completed_task_ids
         else:
+            print(f"[QUEST DETAIL] No active enrollment found")
             quest_data['user_enrollment'] = None
             quest_data['progress'] = {
                 'completed_tasks': 0,
