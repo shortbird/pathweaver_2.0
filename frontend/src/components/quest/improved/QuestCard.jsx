@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import Button from '../../ui/Button';
 import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings';
+import { CheckCircle } from 'lucide-react';
 
 const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   const navigate = useNavigate();
@@ -129,9 +130,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
                 navigate('/diploma');
               }}
             >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.5-2A11.95 11.95 0 0010 20c-7.18 0-13-5.82-13-13s5.82-13 13-13 13 5.82 13 13c0 2.485-.696 4.813-1.904 6.804L16.5 12" />
-              </svg>
+              <CheckCircle className="w-4 h-4 mr-2" />
               Completed! View Diploma
             </Button>
           ) : isEnrolled ? (
