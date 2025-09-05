@@ -169,6 +169,20 @@ const QuestDetailV3 = () => {
     }
   };
 
+  const handleInviteSent = async (inviteData) => {
+    // Show success message
+    if (inviteData?.message) {
+      toast.success(inviteData.message);
+    }
+    
+    // Refresh quest details to show any new collaboration status
+    try {
+      await fetchQuestDetails();
+    } catch (error) {
+      console.error('Error refreshing quest data after invite:', error);
+    }
+  };
+
   const toggleTaskExpansion = (taskId) => {
     const newExpanded = new Set(expandedTasks);
     if (newExpanded.has(taskId)) {
@@ -644,9 +658,9 @@ const QuestDetailV3 = () => {
 
       {showTeamUpModal && (
         <TeamUpModal
-          questId={quest.id}
+          quest={quest}
           onClose={() => setShowTeamUpModal(false)}
-          onTeamUpSuccess={fetchQuestDetails}
+          onInviteSent={handleInviteSent}
         />
       )}
     </div>
