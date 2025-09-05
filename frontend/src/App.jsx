@@ -37,8 +37,8 @@ const queryClient = new QueryClient()
 function App() {
   // Warm up the backend service on app load (helps with Render cold starts)
   useEffect(() => {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
-    warmupBackend(apiUrl);
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+    warmupBackend(`${apiUrl}/api`);
   }, []);
 
   return (

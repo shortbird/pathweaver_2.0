@@ -14,7 +14,7 @@ const SiteSettings = () => {
 
   const fetchSettings = async () => {
     try {
-      const response = await api.get('/settings')
+      const response = await api.get('/api/settings')
       setSettings(response.data)
       setPreviewUrl(response.data?.logo_url)
       setLoading(false)

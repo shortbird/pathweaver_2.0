@@ -79,7 +79,7 @@ const QuestHubV3Improved = () => {
       });
 
       const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/v3/quests?${params}`, {
+      const response = await fetch(`${apiBase}/api/v3/quests?${params}`, {
         headers: user ? {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         } : {}
@@ -116,7 +116,7 @@ const QuestHubV3Improved = () => {
 
     try {
       const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/v3/quests/${questId}/enroll`, {
+      const response = await fetch(`${apiBase}/api/v3/quests/${questId}/enroll`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,

@@ -12,7 +12,7 @@ const FixQuestCompletion = () => {
     setError(null);
 
     try {
-      const response = await api.post('/fix/fix-completion', {}, {
+      const response = await api.post('/api/fix/fix-completion', {}, {
         headers: {
           'Content-Type': 'application/json'
         }

@@ -88,7 +88,7 @@ const FriendsPage = () => {
   const fetchTeamInvitations = async () => {
     try {
       console.log('Fetching team invitations...')
-      const response = await api.get('/v3/collaborations/invites')
+      const response = await api.get('/api/v3/collaborations/invites')
       console.log('Team invitations response:', response.data)
       setTeamInvitations(response.data.invitations || [])
       if (response.data.invitations && response.data.invitations.length > 0) {
@@ -101,7 +101,7 @@ const FriendsPage = () => {
 
   const fetchActiveCollaborations = async () => {
     try {
-      const response = await api.get('/v3/collaborations/active')
+      const response = await api.get('/api/v3/collaborations/active')
       setActiveCollaborations(response.data.collaborations || [])
     } catch (error) {
       console.error('Failed to fetch collaborations:', error)

@@ -18,7 +18,7 @@ const LearningLogSection = ({ userQuestId, isOwner = true }) => {
   const fetchLogs = async () => {
     try {
       const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/v3/logs/${userQuestId}`, {
+      const response = await fetch(`${apiBase}/api/v3/logs/${userQuestId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
@@ -49,7 +49,7 @@ const LearningLogSection = ({ userQuestId, isOwner = true }) => {
 
     try {
       const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/v3/logs/${userQuestId}/entry`, {
+      const response = await fetch(`${apiBase}/api/v3/logs/${userQuestId}/entry`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -88,7 +88,7 @@ const LearningLogSection = ({ userQuestId, isOwner = true }) => {
 
     try {
       const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/v3/logs/${logId}`, {
+      const response = await fetch(`${apiBase}/api/v3/logs/${logId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`

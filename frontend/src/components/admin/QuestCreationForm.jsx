@@ -60,7 +60,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
 
   const fetchSources = async () => {
     try {
-      const response = await api.get('/v3/admin/quest-sources')
+      const response = await api.get('/api/v3/admin/quest-sources')
       setSources(response.data.sources || [])
     } catch (error) {
       console.error('Error fetching sources:', error)
@@ -128,7 +128,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
         metadata: formData.metadata.location_type !== 'anywhere' ? formData.metadata : undefined
       }
       
-      const response = await api.post('/v3/admin/quests/create-v3', submitData)
+      const response = await api.post('/api/v3/admin/quests/create-v3', submitData)
       
       toast.success('Quest created successfully!')
       onSuccess && onSuccess(response.data.quest)
@@ -223,7 +223,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
       }
       
       try {
-        const response = await api.post('/v3/admin/quest-sources', {
+        const response = await api.post('/api/v3/admin/quest-sources', {
           id: newSource.id.toLowerCase().replace(/\s+/g, '_'),
           name: newSource.name
         })

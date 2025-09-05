@@ -5,14 +5,10 @@
 **IMPORTANT INSTRUCTIONS:**
 - Always test in production, not locally
 - Always commit and push changes automatically unless explicitly told otherwise
-- Core philosophy: "The Process Is The Goal"
 - The diploma page is the CORE offering - students use it on resumes to showcase education
 - Keep this documentation up to date with code changes
 - Follow core_philosophy.md for all updates
 - Never use emojis
-- **File Reading Permission**: You have permission to read any file needed to complete tasks. Do not ask for permission to read files
-- VITE_API_URL = https://optio-backend-dev.onrender.com/api
-  - notice the /api at the end of this URL. Ensure routes in the code don't have /api to avoid double /api/api route calls.
 
 **DEVELOPMENT WORKFLOW:**
 - **Development**: Push to `develop` branch for immediate live testing on dev environment
@@ -174,7 +170,6 @@ frontend/src/
 - XP awarded per task completion, not per quest
 - Stored in user_skill_xp table by pillar
 - Completion bonus applied when all tasks done
-- Run `python fix_xp_calculation.py` if XP issues occur
 
 ## Environment Variables
 
@@ -246,15 +241,6 @@ mcp__render__list_logs(resource, limit, filters)
 - Log analysis for debugging issues
 - Automated service health checks
 
-## Common Issues
-
-1. **XP Not Showing**: Run `python fix_xp_calculation.py`
-2. **CORS Errors**: Check FRONTEND_URL and ALLOWED_ORIGINS in Render environment variables
-3. **Auth Issues**: Verify Supabase keys match across dev/prod environments  
-4. **404 API Errors**: Ensure all API endpoints use `/api` prefix (e.g., `/api/auth/login`, `/api/settings`)
-5. **Upload Limits**: 10MB per file default
-6. **Branch Confusion**: Dev changes go to `develop`, production to `main`
-
 ## Development Guidelines
 
 - Follow PEP 8 for Python
@@ -266,6 +252,5 @@ mcp__render__list_logs(resource, limit, filters)
 ## Critical Notes
 
 - The diploma page is the core product - prioritize its quality
-- XP and pillars are now per-task, not per-quest (V3)
 - Custom quests allow student-generated content
 - Always maintain backwards compatibility with existing data

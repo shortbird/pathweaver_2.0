@@ -16,7 +16,7 @@ const SourcesManager = ({ onClose }) => {
 
   const fetchSources = async () => {
     try {
-      const response = await api.get('/v3/admin/quest-sources');
+      const response = await api.get('/api/v3/admin/quest-sources');
       // Convert array to object format for easier access
       const sourcesArray = response.data.sources || [];
       setSources(sourcesArray);
@@ -73,7 +73,7 @@ const SourcesManager = ({ onClose }) => {
     }
 
     try {
-      const response = await api.post('/v3/admin/quest-sources', {
+      const response = await api.post('/api/v3/admin/quest-sources', {
         id: newSource.id.toLowerCase().replace(/\s+/g, '_'),
         name: newSource.name
       });

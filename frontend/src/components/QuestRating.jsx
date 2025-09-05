@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAuthHeaders } from '../services/api';
+import api, { getAuthHeaders } from '../services/api';
 
 const QuestRating = ({ questId, onRatingSubmit }) => {
   const [rating, setRating] = useState(0);
@@ -16,16 +16,11 @@ const QuestRating = ({ questId, onRatingSubmit }) => {
 
   const fetchUserRating = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/quests/${questId}/user-rating`, {
-        headers: getAuthHeaders()
-      });
+      const response = await api.get(`/api/quests/${questId}/user-rating`);
       
-      if (response.ok) {
-        const data = await response.json();
-        if (data.user_rating) {
-          setUserRating(data.user_rating);
-          setRating(data.user_rating);
-        }
+      if (response.data && response.data.user_rating) {
+        setUserRating(response.data.user_rating);
+        setRating(response.data.user_rating);
       }
     } catch (error) {
       console.error('Error fetching user rating:', error);
@@ -34,12 +29,8 @@ const QuestRating = ({ questId, onRatingSubmit }) => {
 
   const fetchQuestStats = async () => {
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/quests/${questId}/rating`);
-      
-      if (response.ok) {
-        const data = await response.json();
-        setQuestStats(data);
-      }
+      const response = await api.get(`/api/quests/${questId}/rating`);
+      setQuestStats(response.data);
     } catch (error) {
       console.error('Error fetching quest stats:', error);
     }
@@ -49,31 +40,23 @@ const QuestRating = ({ questId, onRatingSubmit }) => {
     setSubmitting(true);
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/quests/${questId}/rate`, {
-        method: 'POST',
-        headers: {
-          ...getAuthHeaders(),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ rating: selectedRating })
+      const response = await api.post(`/api/quests/${questId}/rate`, {
+        rating: selectedRating
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        setUserRating(selectedRating);
-        setRating(selectedRating);
-        
-        // Update stats
-        if (data.average_rating !== undefined) {
-          setQuestStats(prev => ({
-            ...prev,
-            average_rating: data.average_rating,
-            total_ratings: data.total_ratings
-          }));
-        }
-        
-        onRatingSubmit?.(selectedRating);
+      setUserRating(selectedRating);
+      setRating(selectedRating);
+      
+      // Update stats
+      if (response.data.average_rating !== undefined) {
+        setQuestStats(prev => ({
+          ...prev,
+          average_rating: response.data.average_rating,
+          total_ratings: response.data.total_ratings
+        }));
       }
+      
+      onRatingSubmit?.(selectedRating);
     } catch (error) {
       console.error('Error submitting rating:', error);
     } finally {

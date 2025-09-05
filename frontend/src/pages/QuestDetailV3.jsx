@@ -37,7 +37,7 @@ const QuestDetailV3 = () => {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch(`${apiBase}/v3/quests/${id}`, {
+      const response = await fetch(`${apiBase}/api/v3/quests/${id}`, {
         headers
       });
 
@@ -72,7 +72,7 @@ const QuestDetailV3 = () => {
 
     try {
       const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/v3/quests/${id}/enroll`, {
+      const response = await fetch(`${apiBase}/api/v3/quests/${id}/enroll`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
@@ -99,7 +99,7 @@ const QuestDetailV3 = () => {
     if (window.confirm('Are you sure you want to finish this quest? This will end your active enrollment and save your progress.')) {
       try {
         const apiBase = import.meta.env.VITE_API_URL || '';
-        const response = await fetch(`${apiBase}/v3/quests/${id}/end`, {
+        const response = await fetch(`${apiBase}/api/v3/quests/${id}/end`, {
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
