@@ -4,6 +4,7 @@ import api from '../services/api'
 import toast from 'react-hot-toast'
 import AdminQuestManagerV3 from './AdminQuestManagerV3'
 import SourcesManager from '../components/SourcesManager'
+import QuestCreationForm from '../components/admin/QuestCreationForm'
 import SiteSettings from '../components/admin/SiteSettings'
 import { getTierDisplayName } from '../utils/tierMapping'
 
@@ -557,6 +558,7 @@ const AdminQuests = () => {
   const [editingQuest, setEditingQuest] = useState(null)
   const [collapsedQuests, setCollapsedQuests] = useState(new Set())
   const [showSourcesManager, setShowSourcesManager] = useState(false)
+  const [showCreationForm, setShowCreationForm] = useState(false)
   const [activeTab, setActiveTab] = useState('quests')
 
   useEffect(() => {
@@ -647,6 +649,12 @@ const AdminQuests = () => {
             {collapsedQuests.size === quests.length ? 'Expand All' : 'Collapse All'}
           </button>
           <button
+            onClick={() => setShowCreationForm(true)}
+            className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded hover:opacity-90"
+          >
+            Create New Quest
+          </button>
+          <button
             onClick={() => setShowSourcesManager(true)}
             className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
           >
@@ -669,6 +677,16 @@ const AdminQuests = () => {
       {showSourcesManager && (
         <SourcesManager
           onClose={() => setShowSourcesManager(false)}
+        />
+      )}
+
+      {showCreationForm && (
+        <QuestCreationForm
+          onClose={() => setShowCreationForm(false)}
+          onSuccess={(newQuest) => {
+            fetchQuests() // Refresh quest list
+            toast.success('Quest created successfully!')
+          }}
         />
       )}
 

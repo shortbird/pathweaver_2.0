@@ -1,12 +1,195 @@
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
-from datetime import datetime
+from utils.pillar_mapping import normalize_pillar_name, validate_pillar
+from datetime import datetime, timedelta
 import json
 import base64
 import uuid
 
 bp = Blueprint('admin_v3', __name__, url_prefix='/api/v3/admin')
+
+@bp.route('/quests/create-v3', methods=['POST'])
+@require_admin
+def create_quest_v3_clean(user_id):
+    """
+    Create a new quest with comprehensive validation and error handling.
+    This is the clean, rebuilt version to avoid previous bugs.
+    """
+    print(f"CREATE QUEST V3 CLEAN: admin_user_id={user_id}")
+    supabase = get_supabase_admin_client()
+    
+    try:
+        data = request.json
+        print(f"Received quest data: {json.dumps(data, indent=2)}")
+        
+        # Validate required fields
+        if not data.get('title'):
+            return jsonify({'error': 'Quest title is required'}), 400
+        
+        if not data.get('big_idea'):
+            return jsonify({'error': 'Quest big idea/description is required'}), 400
+        
+        if not data.get('tasks') or not isinstance(data['tasks'], list) or len(data['tasks']) == 0:
+            return jsonify({'error': 'At least one task is required'}), 400
+        
+        # Validate and normalize each task
+        validated_tasks = []
+        for idx, task in enumerate(data['tasks']):
+            # Validate required task fields
+            if not task.get('title'):
+                return jsonify({'error': f'Task {idx + 1}: Title is required'}), 400
+            
+            if not task.get('description'):
+                return jsonify({'error': f'Task {idx + 1}: Description is required'}), 400
+            
+            if not task.get('pillar'):
+                return jsonify({'error': f'Task {idx + 1}: Pillar is required'}), 400
+            
+            # Validate and normalize pillar
+            try:
+                normalized_pillar = normalize_pillar_name(task['pillar'])
+                print(f"Task {idx + 1}: Normalized pillar from '{task['pillar']}' to '{normalized_pillar}'")
+            except ValueError as e:
+                return jsonify({'error': f'Task {idx + 1}: Invalid pillar - {str(e)}'}), 400
+            
+            # Validate XP value
+            xp_value = task.get('xp_value', 100)
+            if not isinstance(xp_value, (int, float)) or xp_value < 0:
+                return jsonify({'error': f'Task {idx + 1}: XP value must be a positive number'}), 400
+            
+            validated_task = {
+                'title': task['title'],
+                'description': task['description'],
+                'pillar': normalized_pillar,  # Use normalized pillar
+                'xp_value': int(xp_value),
+                'xp_amount': int(xp_value),  # Keep both for compatibility
+                'order_index': task.get('order_index', idx + 1),
+                'task_order': task.get('task_order', idx),
+                'evidence_prompt': task.get('evidence_prompt', f"Provide evidence for completing: {task['title']}"),
+                'materials_needed': task.get('materials_needed', []),
+                'subcategory': task.get('subcategory', '')
+            }
+            
+            validated_tasks.append(validated_task)
+        
+        # Validate source if provided
+        source = data.get('source', 'optio')
+        
+        # Check if source exists in quest_sources table
+        source_check = supabase.table('quest_sources').select('id').eq('id', source).execute()
+        if not source_check.data:
+            print(f"Warning: Source '{source}' not found in quest_sources table, using 'optio'")
+            source = 'optio'
+        
+        # Create the quest record
+        quest_data = {
+            'title': data['title'],
+            'big_idea': data.get('big_idea'),
+            'source': source,
+            'is_active': data.get('is_active', True),
+            'is_v3': True,  # Mark as V3 quest
+            'created_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat()
+        }
+        
+        # Remove None values
+        quest_data = {k: v for k, v in quest_data.items() if v is not None}
+        
+        print(f"Creating quest with data: {json.dumps(quest_data, indent=2)}")
+        
+        # Insert quest
+        quest_response = supabase.table('quests').insert(quest_data).execute()
+        
+        if not quest_response.data:
+            print("Failed to create quest: No data returned from insert")
+            return jsonify({'error': 'Failed to create quest'}), 500
+        
+        quest = quest_response.data[0]
+        quest_id = quest['id']
+        print(f"Created quest with ID: {quest_id}")
+        
+        # Create quest tasks
+        for task in validated_tasks:
+            task_data = {
+                'quest_id': quest_id,
+                'title': task['title'],
+                'description': task['description'],
+                'pillar': task['pillar'],
+                'xp_value': task['xp_value'],
+                'xp_amount': task['xp_amount'],
+                'order_index': task['order_index'],
+                'task_order': task['task_order'],
+                'evidence_prompt': task['evidence_prompt'],
+                'materials_needed': task['materials_needed'] if task['materials_needed'] else None,
+                'subcategory': task['subcategory'] if task['subcategory'] else None,
+                'is_required': True,  # Default all tasks to required
+                'created_at': datetime.utcnow().isoformat()
+            }
+            
+            # Remove None values
+            task_data = {k: v for k, v in task_data.items() if v is not None}
+            
+            print(f"Creating task: {task_data['title']}")
+            task_response = supabase.table('quest_tasks').insert(task_data).execute()
+            
+            if not task_response.data:
+                print(f"Failed to create task: {task_data['title']}")
+                # Rollback: delete the quest
+                supabase.table('quests').delete().eq('id', quest_id).execute()
+                return jsonify({'error': f"Failed to create task: {task_data['title']}"}), 500
+        
+        # Handle optional metadata
+        if data.get('metadata'):
+            metadata = data['metadata']
+            metadata_data = {
+                'quest_id': quest_id,
+                'location_type': metadata.get('location_type', 'anywhere'),
+                'location_address': metadata.get('location_address'),
+                'venue_name': metadata.get('venue_name'),
+                'seasonal_start': metadata.get('seasonal_start'),
+                'seasonal_end': metadata.get('seasonal_end'),
+                'created_at': datetime.utcnow().isoformat()
+            }
+            
+            # Remove None values
+            metadata_data = {k: v for k, v in metadata_data.items() if v is not None}
+            
+            # Only insert if there's meaningful metadata
+            if len(metadata_data) > 2:  # More than just quest_id and created_at
+                try:
+                    supabase.table('quest_metadata').insert(metadata_data).execute()
+                    print("Created quest metadata")
+                except Exception as e:
+                    print(f"Warning: Could not create metadata (table may not exist): {e}")
+        
+        # Fetch the complete quest with tasks for response
+        complete_quest = supabase.table('quests')\
+            .select('*, quest_tasks(*), quest_sources(header_image_url)')\
+            .eq('id', quest_id)\
+            .execute()
+        
+        if complete_quest.data:
+            quest_result = complete_quest.data[0]
+            # Add header image from source if available
+            if quest_result.get('quest_sources'):
+                quest_result['header_image_url'] = quest_result['quest_sources'].get('header_image_url')
+                del quest_result['quest_sources']  # Clean up nested data
+        else:
+            quest_result = quest
+        
+        print(f"Successfully created quest: {quest['title']} with {len(validated_tasks)} tasks")
+        
+        return jsonify({
+            'message': 'Quest created successfully',
+            'quest': quest_result
+        }), 201
+        
+    except Exception as e:
+        print(f"Error creating quest: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Failed to create quest: {str(e)}'}), 500
 
 @bp.route('/quests/create', methods=['POST'])
 @require_admin
