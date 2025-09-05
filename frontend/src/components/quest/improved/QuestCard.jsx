@@ -13,6 +13,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   const totalXP = quest.total_xp || 0;
   const taskCount = quest.task_count || 0;
   const isEnrolled = quest.user_enrollment;
+  const isCompleted = quest.completed_enrollment;
 
   // Get dominant pillar for visual accent
   const pillarBreakdown = quest.pillar_breakdown || {};
@@ -117,7 +118,40 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
 
         {/* Action Buttons - Cleaner design */}
         <div className="flex gap-2">
-          {!isEnrolled ? (
+          {isCompleted ? (
+            // Quest is completed - show diploma button
+            <Button
+              variant="primary"
+              size="sm"
+              className="flex-1 !bg-gradient-to-r !from-emerald-500 !to-green-500 hover:!from-emerald-600 hover:!to-green-600"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate('/diploma');
+              }}
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.5-2A11.95 11.95 0 0010 20c-7.18 0-13-5.82-13-13s5.82-13 13-13 13 5.82 13 13c0 2.485-.696 4.813-1.904 6.804L16.5 12" />
+              </svg>
+              Completed! View Diploma
+            </Button>
+          ) : isEnrolled ? (
+            // Quest is in progress - show continue button
+            <Button
+              variant="success"
+              size="sm"
+              className="flex-1"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/quests/${quest.id}`);
+              }}
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Continue Quest
+            </Button>
+          ) : (
+            // Quest not started - show start and team up buttons
             <>
               <Button
                 variant="primary"
@@ -139,54 +173,16 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
                 </svg>
               </button>
             </>
-          ) : (
-            (() => {
-              // Check if quest is completed
-              const completedTasks = quest.quest_tasks?.filter(task => task.is_completed).length || 0;
-              const totalTasks = quest.quest_tasks?.length || 1;
-              const isCompleted = completedTasks === totalTasks && totalTasks > 0;
-              
-              if (isCompleted) {
-                return (
-                  <Button
-                    variant="primary"
-                    size="sm"
-                    className="flex-1 !bg-gradient-to-r !from-emerald-500 !to-green-500 hover:!from-emerald-600 hover:!to-green-600"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate('/diploma');
-                    }}
-                  >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.5-2A11.95 11.95 0 0010 20c-7.18 0-13-5.82-13-13s5.82-13 13-13 13 5.82 13 13c0 2.485-.696 4.813-1.904 6.804L16.5 12" />
-                    </svg>
-                    Completed! View Diploma
-                  </Button>
-                );
-              } else {
-                return (
-                  <Button
-                    variant="success"
-                    size="sm"
-                    className="flex-1"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      navigate(`/quests/${quest.id}`);
-                    }}
-                  >
-                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Continue Quest
-                  </Button>
-                );
-              }
-            })()
           )}
         </div>
 
         {/* Enrollment Status Indicator */}
-        {isEnrolled && (
+        {isCompleted ? (
+          <div className="mt-3 flex items-center gap-2 text-xs text-emerald-600">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full" />
+            <span>Completed</span>
+          </div>
+        ) : isEnrolled && (
           <div className="mt-3 flex items-center gap-2 text-xs text-green-600">
             <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
             <span>In Progress</span>

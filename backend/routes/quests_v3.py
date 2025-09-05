@@ -99,15 +99,18 @@ def list_quests():
                     print(f"[DEBUG] Found enrollment for quest {quest['id'][:8]}: {enrollment.data[0]}")
                     # Find the active enrollment - consider is_active=None as active
                     active_enrollment = None
+                    completed_enrollment = None
+                    
                     for enr in enrollment.data:
+                        # Check if completed
+                        if enr.get('completed_at'):
+                            completed_enrollment = enr
                         # Check if not completed and is_active is not explicitly False
-                        if not enr.get('completed_at') and enr.get('is_active') is not False:
+                        elif enr.get('is_active') is not False:
                             active_enrollment = enr
                             print(f"[DEBUG] Found ACTIVE enrollment: is_active={enr.get('is_active')}")
-                            break
                     
-                    # Only include active enrollments in the response
-                    # This ensures the frontend shows correct button state
+                    # Include active enrollment if exists
                     if active_enrollment:
                         quest['user_enrollment'] = active_enrollment
                         
@@ -127,6 +130,30 @@ def list_quests():
                         }
                         
                         # Mark completed tasks (same logic as quest detail endpoint)
+                        completed_task_ids = {t['quest_task_id'] for t in completed_tasks_result.data} if completed_tasks_result.data else set()
+                        for task in quest.get('quest_tasks', []):
+                            task['is_completed'] = task['id'] in completed_task_ids
+                    
+                    # Include completed enrollment information if exists
+                    elif completed_enrollment:
+                        quest['completed_enrollment'] = completed_enrollment
+                        
+                        # Add progress information for completed quest
+                        completed_tasks_result = supabase.table('user_quest_tasks')\
+                            .select('quest_task_id')\
+                            .eq('user_quest_id', completed_enrollment['id'])\
+                            .execute()
+                        
+                        completed_task_count = len(completed_tasks_result.data) if completed_tasks_result.data else 0
+                        total_tasks = len(quest.get('quest_tasks', []))
+                        
+                        quest['progress'] = {
+                            'completed_tasks': completed_task_count,
+                            'total_tasks': total_tasks,
+                            'percentage': 100  # Always 100% for completed quests
+                        }
+                        
+                        # Mark all tasks as completed for completed quest
                         completed_task_ids = {t['quest_task_id'] for t in completed_tasks_result.data} if completed_tasks_result.data else set()
                         for task in quest.get('quest_tasks', []):
                             task['is_completed'] = task['id'] in completed_task_ids
