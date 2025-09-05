@@ -53,7 +53,7 @@ const AdminDashboard = () => {
         sort_order: filters.sortOrder
       })
       
-      const response = await api.get(`/v3/admin/users?${queryParams}`)
+      const response = await api.get(`/api/v3/admin/users?${queryParams}`)
       setUsers(response.data.users || [])
       setTotalPages(Math.ceil((response.data.total || 0) / usersPerPage))
     } catch (error) {
@@ -103,7 +103,7 @@ const AdminDashboard = () => {
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       try {
-        await api.delete(`/v3/admin/users/${userId}`)
+        await api.delete(`/api/v3/admin/users/${userId}`)
         toast.success('User deleted successfully')
         fetchUsers()
       } catch (error) {
@@ -116,7 +116,7 @@ const AdminDashboard = () => {
     const action = currentStatus === 'active' ? 'disable' : 'enable'
     if (window.confirm(`Are you sure you want to ${action} this user account?`)) {
       try {
-        await api.post(`/v3/admin/users/${userId}/toggle-status`)
+        await api.post(`/api/v3/admin/users/${userId}/toggle-status`)
         toast.success(`User account ${action}d successfully`)
         fetchUsers()
       } catch (error) {
@@ -136,7 +136,7 @@ const AdminDashboard = () => {
     if (!roleChangeUser || !newRole) return
 
     try {
-      const response = await api.put(`/v3/admin/users/${roleChangeUser.id}/role`, {
+      const response = await api.put(`/api/v3/admin/users/${roleChangeUser.id}/role`, {
         role: newRole,
         reason: roleChangeReason || 'Role change requested by admin'
       })
@@ -155,7 +155,7 @@ const AdminDashboard = () => {
   const handleResetPassword = async (userId, userEmail) => {
     if (window.confirm(`Send password reset email to ${userEmail}?`)) {
       try {
-        await api.post(`/v3/admin/users/${userId}/reset-password`)
+        await api.post(`/api/v3/admin/users/${userId}/reset-password`)
         toast.success('Password reset email sent')
       } catch (error) {
         toast.error('Failed to send password reset email')
@@ -593,7 +593,7 @@ const AdminQuests = () => {
   const handleDelete = async (questId) => {
     if (window.confirm('Are you sure you want to delete this quest?')) {
       try {
-        await api.delete(`/v3/admin/quests/${questId}`)
+        await api.delete(`/api/v3/admin/quests/${questId}`)
         toast.success('Quest deleted successfully')
         fetchQuests()
       } catch (error) {
@@ -900,7 +900,7 @@ const AdminUsers = () => {
         sort_order: filters.sortOrder
       })
       
-      const response = await api.get(`/v3/admin/users?${queryParams}`)
+      const response = await api.get(`/api/v3/admin/users?${queryParams}`)
       setUsers(response.data.users || [])
       setTotalPages(Math.ceil((response.data.total || 0) / usersPerPage))
     } catch (error) {
@@ -950,7 +950,7 @@ const AdminUsers = () => {
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       try {
-        await api.delete(`/v3/admin/users/${userId}`)
+        await api.delete(`/api/v3/admin/users/${userId}`)
         toast.success('User deleted successfully')
         fetchUsers()
       } catch (error) {
@@ -963,7 +963,7 @@ const AdminUsers = () => {
     const action = currentStatus === 'active' ? 'disable' : 'enable'
     if (window.confirm(`Are you sure you want to ${action} this user account?`)) {
       try {
-        await api.post(`/v3/admin/users/${userId}/toggle-status`)
+        await api.post(`/api/v3/admin/users/${userId}/toggle-status`)
         toast.success(`User account ${action}d successfully`)
         fetchUsers()
       } catch (error) {
@@ -983,7 +983,7 @@ const AdminUsers = () => {
     if (!roleChangeUser || !newRole) return
 
     try {
-      const response = await api.put(`/v3/admin/users/${roleChangeUser.id}/role`, {
+      const response = await api.put(`/api/v3/admin/users/${roleChangeUser.id}/role`, {
         role: newRole,
         reason: roleChangeReason || 'Role change requested by admin'
       })
@@ -1002,7 +1002,7 @@ const AdminUsers = () => {
   const handleResetPassword = async (userId, userEmail) => {
     if (window.confirm(`Send password reset email to ${userEmail}?`)) {
       try {
-        await api.post(`/v3/admin/users/${userId}/reset-password`)
+        await api.post(`/api/v3/admin/users/${userId}/reset-password`)
         toast.success('Password reset email sent')
       } catch (error) {
         toast.error('Failed to send password reset email')
@@ -1427,7 +1427,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
   const fetchUserDetails = async () => {
     try {
-      const response = await api.get(`/v3/admin/users/${user.id}`)
+      const response = await api.get(`/api/v3/admin/users/${user.id}`)
       setUserActivity(response.data)
     } catch (error) {
       toast.error('Failed to load user details')
@@ -1441,7 +1441,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const handleSaveProfile = async () => {
     setLoading(true)
     try {
-      await api.put(`/v3/admin/users/${user.id}`, {
+      await api.put(`/api/v3/admin/users/${user.id}`, {
         first_name: formData.first_name,
         last_name: formData.last_name,
         email: formData.email
@@ -1459,7 +1459,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     if (window.confirm(`Change subscription to ${formData.subscription_tier}?`)) {
       setLoading(true)
       try {
-        await api.post(`/v3/admin/users/${user.id}/subscription`, {
+        await api.post(`/api/v3/admin/users/${user.id}/subscription`, {
           tier: formData.subscription_tier,
           expires: formData.subscription_expires
         })

@@ -110,7 +110,7 @@ const FriendsPage = () => {
 
   const acceptTeamInvite = async (inviteId, questId) => {
     try {
-      await api.post(`/v3/collaborations/${inviteId}/accept`, {})
+      await api.post(`/api/v3/collaborations/${inviteId}/accept`, {})
       toast.success('Team invitation accepted! You\'ll earn 2x XP together!')
       fetchTeamInvitations()
       fetchActiveCollaborations()
@@ -126,7 +126,7 @@ const FriendsPage = () => {
 
   const declineTeamInvite = async (inviteId) => {
     try {
-      await api.post(`/v3/collaborations/${inviteId}/decline`, {})
+      await api.post(`/api/v3/collaborations/${inviteId}/decline`, {})
       toast.success('Team invitation declined')
       fetchTeamInvitations()
     } catch (error) {

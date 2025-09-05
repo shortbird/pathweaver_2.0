@@ -46,7 +46,7 @@ const SourcesManager = ({ onClose }) => {
       reader.readAsDataURL(file);
       const base64Data = await base64Promise;
 
-      const response = await api.put(`/v3/admin/quest-sources/${sourceId}`, {
+      const response = await api.put(`/api/v3/admin/quest-sources/${sourceId}`, {
         header_image_base64: base64Data
       });
 
