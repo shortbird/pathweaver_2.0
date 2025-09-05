@@ -68,13 +68,10 @@ const QuestHubV3Improved = () => {
     if (user && location.pathname === '/quests') {
       console.log('Navigated back to quest hub, refreshing data');
       // Always refresh when user visits quest hub to ensure latest completion status
-      // Add a small delay to ensure database consistency after quest completion
-      setTimeout(() => {
-        setQuests([]);
-        setPage(1);
-        setHasMore(true);
-        fetchQuests(true);
-      }, 500);
+      setQuests([]);
+      setPage(1);
+      setHasMore(true);
+      fetchQuests(true);
     }
   }, [location.pathname, user]);
   

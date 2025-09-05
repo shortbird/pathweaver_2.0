@@ -146,23 +146,7 @@ const QuestDetailV3 = () => {
     // Show refreshing indicator and refresh quest data
     setIsRefreshing(true);
     try {
-      // If quest was just completed, immediately update local state to reflect completion
-      if (completionData?.quest_completed && quest) {
-        setQuest(prevQuest => ({
-          ...prevQuest,
-          completed_enrollment: { 
-            ...prevQuest.user_enrollment,
-            completed_at: new Date().toISOString()
-          },
-          user_enrollment: null,
-          progress: {
-            ...prevQuest.progress,
-            percentage: 100
-          }
-        }));
-      }
-      
-      // Wait a moment for database commit, then fetch fresh data
+      // If quest was just completed, wait a moment for database commit
       if (completionData?.quest_completed) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
