@@ -63,12 +63,10 @@ def create_quest_v3_clean(user_id):
                 'description': task['description'],
                 'pillar': normalized_pillar,  # Use normalized pillar
                 'xp_amount': int(xp_value),  # Use xp_amount (database column)
-                'task_order': task.get('task_order', task.get('order_index', idx)),  # Use task_order (database column)
+                'order_index': task.get('order_index', task.get('task_order', idx)),  # Use order_index (database column)
                 'evidence_prompt': task.get('evidence_prompt', f"Provide evidence for completing: {task['title']}"),
-                'subcategory': task.get('subcategory'),
-                'collaboration_eligible': task.get('collaboration_eligible', True),
-                'location_required': task.get('location_required', False),
-                'is_optional': task.get('is_optional', False)
+                'is_collaboration_eligible': task.get('collaboration_eligible', task.get('is_collaboration_eligible', True)),
+                'is_required': not task.get('is_optional', False)
             }
             
             validated_tasks.append(validated_task)
@@ -106,13 +104,10 @@ def create_quest_v3_clean(user_id):
                 'description': task['description'],
                 'pillar': task['pillar'],
                 'xp_amount': task['xp_amount'],
-                'task_order': task['task_order'],
+                'order_index': task['order_index'],
                 'evidence_prompt': task.get('evidence_prompt'),
-                'subcategory': task.get('subcategory'),
                 'is_required': True,  # Default all tasks to required
-                'collaboration_eligible': task.get('collaboration_eligible'),
-                'location_required': task.get('location_required'),
-                'is_optional': task.get('is_optional')
+                'is_collaboration_eligible': task.get('collaboration_eligible', True)
             }
             
             # Remove None values
@@ -251,13 +246,11 @@ def create_quest_v2(user_id):
                     'title': task['title'],
                     'description': task.get('description'),
                     'pillar': task['pillar'],
-                    'subcategory': task.get('subcategory'),
                     'xp_amount': task.get('xp_value', 100),  # Map xp_value to xp_amount
                     'evidence_prompt': task.get('evidence_prompt'),
-                    'task_order': task.get('order_index', idx + 1),  # Map order_index to task_order
+                    'order_index': task.get('order_index', idx + 1),  # Use correct database column
                     'is_required': not task.get('is_optional', False),
                     'is_collaboration_eligible': task.get('collaboration_eligible', True),
-                    'location_required': task.get('location_required', False),
                     'created_at': datetime.utcnow().isoformat()
                 }
                 
@@ -426,7 +419,7 @@ def create_quest(user_id):
                     'description': task.get('description'),
                     'xp_amount': task['xp_amount'],
                     'pillar': task['pillar'],
-                    'task_order': idx,
+                    'order_index': idx,
                     'created_at': datetime.utcnow().isoformat()
                 })
             
@@ -584,7 +577,7 @@ def update_quest(user_id, quest_id):
                     'description': task.get('description'),
                     'xp_amount': task['xp_amount'],
                     'pillar': task['pillar'],
-                    'task_order': idx,
+                    'order_index': idx,
                     'created_at': datetime.utcnow().isoformat()
                 })
             
