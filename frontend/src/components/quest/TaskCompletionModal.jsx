@@ -59,8 +59,11 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
         data: data
       });
       
-      // Use utility function for consistent error handling
-      handleApiResponse(response, data, 'Failed to complete task');
+      // Check for successful response first
+      if (!response.ok) {
+        const errorMessage = data.error || data.message || 'Failed to complete task';
+        throw new Error(errorMessage);
+      }
 
       // Additional check for API-level success flag
       if (data.success === false) {
