@@ -22,6 +22,7 @@ const QuestDetailV3 = () => {
   const [showTeamUpModal, setShowTeamUpModal] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState(new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isEnrolling, setIsEnrolling] = useState(false);
 
   useEffect(() => {
     fetchQuestDetails();
@@ -37,7 +38,7 @@ const QuestDetailV3 = () => {
         headers['Authorization'] = `Bearer ${token}`;
       }
       
-      const response = await fetch(`${apiBase}/api/v3/quests/${id}`, {
+      const response = await fetch(`${apiBase}/api/v3/quests/${id}?t=${Date.now()}`, {
         headers
       });
 
@@ -47,6 +48,7 @@ const QuestDetailV3 = () => {
 
       const data = await response.json();
       console.log('Quest data received:', data.quest);
+      console.log('User enrollment status:', data.quest.user_enrollment ? 'ENROLLED' : 'NOT ENROLLED');
       console.log('Quest tasks completion status:', data.quest.quest_tasks?.map(task => ({
         id: task.id,
         title: task.title,
@@ -70,6 +72,9 @@ const QuestDetailV3 = () => {
       return;
     }
 
+    if (isEnrolling) return;
+    
+    setIsEnrolling(true);
     try {
       const apiBase = import.meta.env.VITE_API_URL || '';
       const response = await fetch(`${apiBase}/api/v3/quests/${id}/enroll`, {
@@ -85,11 +90,17 @@ const QuestDetailV3 = () => {
 
       if (response.ok) {
         toast.success('Successfully enrolled in quest!');
-        fetchQuestDetails(); // Refresh to show enrolled state
+        // Force refresh with a small delay to ensure backend state is consistent
+        setTimeout(() => {
+          setIsRefreshing(true);
+          fetchQuestDetails().finally(() => setIsRefreshing(false));
+        }, 500);
       }
     } catch (error) {
       console.error('Enrollment error:', error);
       toast.error('Failed to enroll in quest');
+    } finally {
+      setIsEnrolling(false);
     }
   };
 
@@ -416,10 +427,11 @@ const QuestDetailV3 = () => {
             <>
               <button
                 onClick={handleEnroll}
-                className="flex-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg"
+                disabled={isEnrolling}
+                className="flex-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Target className="w-5 h-5 inline mr-2" />
-                Start Quest
+                {isEnrolling ? 'Enrolling...' : 'Start Quest'}
               </button>
               <button
                 onClick={() => setShowTeamUpModal(true)}
