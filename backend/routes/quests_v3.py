@@ -727,3 +727,28 @@ def end_quest(user_id: str, quest_id: str):
             'success': False,
             'error': str(e)
         }), 500
+
+@bp.route('/sources', methods=['GET'])
+def get_quest_sources():
+    """
+    Public endpoint to get quest sources with their header images.
+    Used by frontend to display source-based header images.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+        
+        # Get all sources with their header images (only public data)
+        response = supabase.table('quest_sources')\
+            .select('id, name, header_image_url')\
+            .execute()
+        
+        sources = response.data if response.data else []
+        
+        return jsonify({
+            'sources': sources,
+            'total': len(sources)
+        }), 200
+        
+    except Exception as e:
+        print(f"Error fetching public quest sources: {str(e)}")
+        return jsonify({'error': 'Failed to fetch quest sources'}), 500

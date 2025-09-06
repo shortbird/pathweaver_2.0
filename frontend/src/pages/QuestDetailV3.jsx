@@ -6,7 +6,7 @@ import { getPillarData } from '../utils/pillarMappings';
 import TaskCompletionModal from '../components/quest/TaskCompletionModal';
 import LearningLogSection from '../components/quest/LearningLogSection';
 import TeamUpModal from '../components/quest/TeamUpModal';
-import { getQuestHeaderImage } from '../utils/questSourceConfig';
+import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
 import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -290,7 +290,7 @@ const QuestDetailV3 = () => {
       {/* 1. Hero Header Section */}
       <div className="relative overflow-hidden rounded-xl shadow-xl mb-8">
         <img 
-          src={quest.header_image_url || getQuestHeaderImage(quest)} 
+          src={quest.header_image_url || getQuestHeaderImageSync(quest)} 
           alt={quest.title}
           className="w-full h-60 object-cover"
           onError={(e) => {

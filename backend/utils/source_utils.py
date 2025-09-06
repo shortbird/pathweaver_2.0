@@ -6,7 +6,7 @@ from database import get_supabase_admin_client
 
 def get_source_header_image(source_id):
     """
-    Get the default header image URL for a source.
+    Get the default header image URL for a source from the quest_sources table.
     Returns None if no default image exists.
     """
     if not source_id:
@@ -14,19 +14,17 @@ def get_source_header_image(source_id):
     
     supabase = get_supabase_admin_client()
     
-    # Try different extensions
-    for ext in ['png', 'jpg', 'jpeg', 'gif', 'webp']:
-        file_name = f'source_defaults/{source_id}_header.{ext}'
-        try:
-            # Get public URL
-            public_url = supabase.storage.from_('quest-images').get_public_url(file_name)
-            
-            # Verify the file actually exists by trying to list it
-            files = supabase.storage.from_('quest-images').list('source_defaults/')
-            if any(f['name'] == f'{source_id}_header.{ext}' for f in files):
-                return public_url
-        except:
-            continue
+    try:
+        # Query the quest_sources table for this source's header image
+        response = supabase.table('quest_sources')\
+            .select('header_image_url')\
+            .eq('id', source_id)\
+            .execute()
+        
+        if response.data and response.data[0].get('header_image_url'):
+            return response.data[0]['header_image_url']
+    except Exception as e:
+        print(f"Error fetching source header image for {source_id}: {e}")
     
     return None
 
