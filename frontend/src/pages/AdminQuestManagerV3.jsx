@@ -346,7 +346,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         onClose();
       }
     } catch (error) {
-      console.error('Error saving quest:', error);
+      // Error already handled by toast below
       const errorMessage = error.response?.data?.error || error.message || 'Failed to save quest. Please try again.';
       toast.error(errorMessage);
     } finally {

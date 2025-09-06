@@ -44,14 +44,21 @@ const QuestHubV3Improved = () => {
     setHasMore(true);
   }, [searchTerm, selectedPillar]);
 
-  // Fetch quests
+  // Fetch quests when page changes
   useEffect(() => {
     if (page === 1) {
       fetchQuests(true);
     } else {
       fetchQuests(false);
     }
-  }, [page, searchTerm, selectedPillar, fetchQuests]);
+  }, [page]); // Remove fetchQuests from dependencies to avoid circular reference
+
+  // Refetch when filters change (after page has been reset to 1)
+  useEffect(() => {
+    if (page === 1) {
+      fetchQuests(true);
+    }
+  }, [searchTerm, selectedPillar]); // Trigger refetch when filters change
 
   // Reset and refetch on login change
   useEffect(() => {
@@ -61,7 +68,7 @@ const QuestHubV3Improved = () => {
       setHasMore(true);
       fetchQuests(true);
     }
-  }, [loginTimestamp, fetchQuests]);
+  }, [loginTimestamp]); // Remove fetchQuests to avoid circular reference
 
   // Refresh quest list when navigating back to this page (after completing a quest)
   useEffect(() => {
@@ -72,7 +79,7 @@ const QuestHubV3Improved = () => {
       setHasMore(true);
       fetchQuests(true);
     }
-  }, [location.pathname, user, fetchQuests]);
+  }, [location.pathname, user]); // Remove fetchQuests to avoid circular reference
   
   // Additional effect to refresh on focus (when user comes back to the tab)
   useEffect(() => {
@@ -87,7 +94,7 @@ const QuestHubV3Improved = () => {
     
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [user, location.pathname, fetchQuests]);
+  }, [user, location.pathname]); // Remove fetchQuests to avoid circular reference
 
   const fetchQuests = useCallback(async (isInitial = true) => {
     if (isInitial) {

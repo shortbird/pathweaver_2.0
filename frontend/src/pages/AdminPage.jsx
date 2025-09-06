@@ -567,7 +567,7 @@ const AdminQuests = () => {
 
   const fetchQuests = async () => {
     try {
-      const response = await api.get('/api/quests')
+      const response = await api.get('/api/v3/admin/quests')
       setQuests(response.data.quests)
       // Set all quests as collapsed by default
       const allQuestIds = new Set(response.data.quests.map(quest => quest.id))
