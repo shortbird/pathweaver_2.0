@@ -480,23 +480,17 @@ const DiplomaPageV3 = () => {
           </div>
 
           {achievements.length === 0 ? (
-            <div className="bg-white rounded-xl p-12 text-center" style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}>
-                <div className="max-w-md mx-auto">
-                  <div className="mx-auto h-20 w-20 mb-6 bg-purple-100 rounded-full flex items-center justify-center">
-                    <span className="text-3xl">🎓</span>
-                  </div>
-                  <h3 className="text-xl font-bold mb-3" style={{ color: '#003f5c' }}>Your Learning Story Begins Here</h3>
-                  <p className="text-gray-600 mb-6">Every quest you complete adds a chapter to your unique learning journey. Start exploring to build your story.</p>
-                  {isOwner && (
-                    <button
-                      onClick={() => navigate('/quests')}
-                      className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg font-semibold hover:shadow-lg transition-shadow"
-                    >
-                      Start Your First Adventure
-                    </button>
-                  )}
-                </div>
-              </div>
+            <div className="bg-white rounded-xl p-12 text-center">
+              <h3 className="text-xl font-bold mb-3">No achievements yet</h3>
+              <p className="text-gray-600 mb-6">Start your learning journey!</p>
+              {isOwner && (
+                <button
+                  onClick={() => navigate('/quests')}
+                  className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold"
+                >
+                  Start Your First Adventure
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
