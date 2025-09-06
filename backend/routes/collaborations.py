@@ -204,7 +204,7 @@ def get_pending_invites(user_id: str):
             
             # Get requester details - use execute() without single() to handle missing users
             requester = supabase.table('users')\
-                .select('id, username, first_name, last_name, avatar_url')\
+                .select('id, first_name, last_name, avatar_url')\
                 .eq('id', invite['requester_id'])\
                 .execute()
             
@@ -213,7 +213,6 @@ def get_pending_invites(user_id: str):
                 # Create a placeholder for missing user
                 requester.data = [{
                     'id': invite['requester_id'],
-                    'username': 'Unknown User',
                     'first_name': 'Unknown',
                     'last_name': 'User',
                     'avatar_url': None
