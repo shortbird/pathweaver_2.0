@@ -8,17 +8,10 @@ const AIQuestGenerationModal = ({ isOpen, onClose, onQuestGenerated }) => {
   const [step, setStep] = useState('input') // 'input', 'generating', 'result'
   const [formData, setFormData] = useState({
     topic: '',
-    age_level: 'high school',
     learning_objectives: ''
   })
   const [generatedQuest, setGeneratedQuest] = useState(null)
 
-  const ageLevels = [
-    { value: 'elementary', label: 'Elementary School (K-5)' },
-    { value: 'middle school', label: 'Middle School (6-8)' },
-    { value: 'high school', label: 'High School (9-12)' },
-    { value: 'college', label: 'College/University' }
-  ]
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
@@ -39,7 +32,6 @@ const AIQuestGenerationModal = ({ isOpen, onClose, onQuestGenerated }) => {
     try {
       const response = await api.post('/api/v3/quest-ai/generate', {
         topic: formData.topic,
-        age_level: formData.age_level,
         learning_objectives: formData.learning_objectives || null
       })
 
@@ -77,7 +69,6 @@ const AIQuestGenerationModal = ({ isOpen, onClose, onQuestGenerated }) => {
     setGeneratedQuest(null)
     setFormData({
       topic: '',
-      age_level: 'high school',
       learning_objectives: ''
     })
     onClose()
@@ -128,22 +119,6 @@ const AIQuestGenerationModal = ({ isOpen, onClose, onQuestGenerated }) => {
                 </p>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold mb-2 text-gray-800">
-                  Target Age Level
-                </label>
-                <select
-                  value={formData.age_level}
-                  onChange={(e) => handleInputChange('age_level', e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-                >
-                  {ageLevels.map(level => (
-                    <option key={level.value} value={level.value}>
-                      {level.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2 text-gray-600">

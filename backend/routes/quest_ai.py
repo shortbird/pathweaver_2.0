@@ -35,13 +35,7 @@ def generate_quest_from_topic(user_id: str):
             }), 400
         
         # Optional fields with validation
-        age_level = sanitize_search_input(data.get('age_level', 'high school'), max_length=50)
         learning_objectives = sanitize_search_input(data.get('learning_objectives', ''), max_length=500)
-        
-        # Validate age level
-        valid_age_levels = ['elementary', 'middle school', 'high school', 'college']
-        if age_level not in valid_age_levels:
-            age_level = 'high school'
         
         # Initialize AI service
         ai_service = QuestAIService()
@@ -49,7 +43,6 @@ def generate_quest_from_topic(user_id: str):
         # Generate quest
         result = ai_service.generate_quest_from_topic(
             topic=topic,
-            age_level=age_level,
             learning_objectives=learning_objectives if learning_objectives else None
         )
         
