@@ -307,28 +307,26 @@ const QuestDetailV3 = () => {
             <div className="text-xl font-medium">Quest</div>
           </div>
         </div>
+      </div>
+
+      {/* Quest Information Section */}
+      <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+        <h1 className="text-4xl font-bold mb-4 text-gray-900">{quest.title}</h1>
+        <p className="text-lg text-gray-700 mb-6">{quest.big_idea || quest.description}</p>
         
-        {/* Hero Overlay Content */}
-        <div className="absolute inset-0 bg-black bg-opacity-40 flex flex-col justify-end">
-          <div className="p-6 text-white">
-            <h1 className="text-4xl font-bold mb-2 drop-shadow-lg">{quest.title}</h1>
-            <p className="text-lg mb-4 drop-shadow-sm opacity-90">{quest.big_idea || quest.description}</p>
-            
-            {/* Stats Bar */}
-            <div className="flex gap-6 text-sm">
-              <div className="bg-black bg-opacity-30 px-3 py-2 rounded-lg backdrop-blur-sm">
-                <div className="font-bold text-lg">{totalXP}</div>
-                <div className="opacity-90">Total XP</div>
-              </div>
-              <div className="bg-black bg-opacity-30 px-3 py-2 rounded-lg backdrop-blur-sm">
-                <div className="font-bold text-lg">{completedTasks} / {totalTasks}</div>
-                <div className="opacity-90">Tasks</div>
-              </div>
-              <div className="bg-black bg-opacity-30 px-3 py-2 rounded-lg backdrop-blur-sm">
-                <div className="font-bold text-lg">+{bonusXP}</div>
-                <div className="opacity-90">Completion Bonus</div>
-              </div>
-            </div>
+        {/* Stats Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white p-4 rounded-lg text-center">
+            <div className="font-bold text-2xl">{totalXP}</div>
+            <div className="text-white/90">Total XP</div>
+          </div>
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-lg text-center">
+            <div className="font-bold text-2xl">{completedTasks} / {totalTasks}</div>
+            <div className="text-white/90">Tasks</div>
+          </div>
+          <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4 rounded-lg text-center">
+            <div className="font-bold text-2xl">+{bonusXP}</div>
+            <div className="text-white/90">Completion Bonus</div>
           </div>
         </div>
       </div>
@@ -347,13 +345,6 @@ const QuestDetailV3 = () => {
             <div className="flex items-center gap-2 text-gray-600">
               <Calendar className="w-4 h-4" />
               <span>{seasonalDisplay}</span>
-            </div>
-          )}
-          
-          {quest.source && (
-            <div className="flex items-center gap-2 text-gray-600">
-              <ExternalLink className="w-4 h-4" />
-              <span className="capitalize">{quest.source.replace('_', ' ')}</span>
             </div>
           )}
         </div>
@@ -383,7 +374,18 @@ const QuestDetailV3 = () => {
         <div className="bg-white rounded-xl shadow-md p-6 mb-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-bold text-gray-900">Your Progress</h2>
-            <div className="text-2xl font-bold text-gray-900">{Math.round(progressPercentage)}%</div>
+            <div className="flex items-center gap-4">
+              <div className="text-2xl font-bold text-gray-900">{Math.round(progressPercentage)}%</div>
+              {!quest.collaboration && !isQuestCompleted && (
+                <button
+                  onClick={() => setShowTeamUpModal(true)}
+                  className="bg-purple-600 text-white py-2 px-4 rounded-[20px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-medium text-sm shadow-lg"
+                >
+                  <Users className="w-4 h-4 inline mr-1" />
+                  Team Up
+                </button>
+              )}
+            </div>
           </div>
           
           <div className="w-full bg-gray-200 rounded-full h-4 mb-4 overflow-hidden">
@@ -461,23 +463,7 @@ const QuestDetailV3 = () => {
               <Award className="w-5 h-5 inline mr-2" />
               View Achievement on Diploma
             </button>
-          ) : (
-            <>
-              <div className="flex-1 bg-gray-100 text-gray-700 py-4 px-8 rounded-[30px] font-bold text-lg text-center">
-                <BookOpen className="w-5 h-5 inline mr-2" />
-                Continue Progress: {Math.round(progressPercentage)}%
-              </div>
-              {!quest.collaboration && (
-                <button
-                  onClick={() => setShowTeamUpModal(true)}
-                  className="bg-purple-600 text-white py-4 px-8 rounded-[30px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
-                >
-                  <Users className="w-5 h-5 inline mr-2" />
-                  Team Up
-                </button>
-              )}
-            </>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -557,7 +543,7 @@ const QuestDetailV3 = () => {
                             <div className="bg-gray-50 rounded-lg p-4 mb-3 space-y-3">
                               {task.evidence_prompt && (
                                 <div>
-                                  <h4 className="font-medium text-gray-900 mb-1">Evidence Required:</h4>
+                                  <h4 className="font-medium text-gray-900 mb-1">Evidence Ideas:</h4>
                                   <p className="text-gray-600 text-sm">{task.evidence_prompt}</p>
                                 </div>
                               )}
@@ -620,17 +606,13 @@ const QuestDetailV3 = () => {
       )}
 
       {/* Quest Management - Finish Quest */}
-      {quest.user_enrollment && !isQuestCompleted && progressPercentage < 100 && (
-        <div className="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-          <h3 className="text-lg font-bold text-red-800 mb-2">Need to End Your Quest Early?</h3>
-          <p className="text-red-600 mb-4">
-            This will save your current progress and XP, but you won't earn the completion bonus.
-          </p>
+      {quest.user_enrollment && !isQuestCompleted && (
+        <div className="bg-white rounded-xl shadow-md p-6 text-center">
           <button
             onClick={handleEndQuest}
-            className="px-6 py-3 bg-red-500 text-white rounded-[25px] hover:bg-red-600 hover:-translate-y-1 transition-all duration-300 font-bold"
+            className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-[25px] hover:shadow-[0_6px_20px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold"
           >
-            Finish Quest Early
+            Finish Quest
           </button>
         </div>
       )}
