@@ -828,13 +828,25 @@ def update_user_subscription(admin_id, user_id):
     data = request.json
     
     try:
+        # Map new tier names to legacy database values
+        tier_mapping = {
+            'free': 'free',
+            'supported': 'creator',  # Map supported -> creator for DB
+            'academy': 'visionary'   # Map academy -> visionary for DB
+        }
+        
+        requested_tier = data.get('tier', 'free')
+        db_tier = tier_mapping.get(requested_tier, requested_tier)
+        
         update_data = {
-            'subscription_tier': data.get('tier', 'free'),
+            'subscription_tier': db_tier,
             'updated_at': datetime.utcnow().isoformat()
         }
         
         if data.get('expires'):
             update_data['subscription_expires'] = data['expires']
+        
+        print(f"Updating user {user_id} subscription from {requested_tier} to DB tier {db_tier}")
         
         response = supabase.table('users')\
             .update(update_data)\

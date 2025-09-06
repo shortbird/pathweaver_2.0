@@ -129,8 +129,9 @@ def require_paid_tier(f):
             
             subscription_tier = user.data.get('subscription_tier', 'free')
             
-            # Allow supported and academy tiers, block free and legacy explorer
-            if subscription_tier not in ['supported', 'academy']:
+            # Allow supported/academy tiers (including legacy names creator/visionary)
+            allowed_tiers = ['supported', 'academy', 'creator', 'visionary']
+            if subscription_tier not in allowed_tiers:
                 return jsonify({
                     'error': 'subscription_required',
                     'message': 'This feature requires a Supported or Academy subscription',
