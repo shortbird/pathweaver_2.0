@@ -16,6 +16,7 @@ const SubscriptionPage = () => {
   const [canceling, setCanceling] = useState(false)
   const [subscriptionStatus, setSubscriptionStatus] = useState(null)
   const [loadingStatus, setLoadingStatus] = useState(true)
+  const [loading, setLoading] = useState(false) // For billing portal
   const [billingPeriod, setBillingPeriod] = useState('monthly')
 
   const currentTier = convertLegacyTier(user?.subscription_tier) || 'free'
