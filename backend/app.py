@@ -9,7 +9,7 @@ from routes import uploads
 from routes.settings import settings_bp
 
 # Import V3 routes
-from routes import quests_v3, tasks, collaborations, learning_logs_v3, admin_v3, quest_sources, quest_ai
+from routes import quests_v3, tasks, collaborations, learning_logs_v3, admin_v3, quest_sources
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -65,7 +65,13 @@ app.register_blueprint(admin_v3.bp)   # /api/v3/admin (blueprint has url_prefix=
 app.register_blueprint(quest_sources.bp)  # /api/v3/admin/quest-sources (blueprint has url_prefix='/api/v3/admin/quest-sources')
 app.register_blueprint(collaborations.bp)  # /api/v3/collaborations (blueprint has url_prefix='/api/v3/collaborations')
 app.register_blueprint(learning_logs_v3.bp)  # /api/v3/logs (blueprint has url_prefix='/api/v3/logs')
-app.register_blueprint(quest_ai.bp)   # /api/v3/quest-ai (blueprint has url_prefix='/api/v3/quest-ai')
+# Conditionally import and register Quest AI blueprint
+try:
+    from routes import quest_ai
+    app.register_blueprint(quest_ai.bp)  # /api/v3/quest-ai
+    print("Quest AI routes registered successfully")
+except Exception as e:
+    print(f"Warning: Quest AI routes not available: {e}")
 
 
 @app.route('/api/health')

@@ -5,18 +5,17 @@ Provides intelligent assistance for creating quests, tasks, and educational cont
 
 import json
 import re
+import os
 from typing import Dict, List, Optional, Any, Tuple
 import google.generativeai as genai
-from config import Config
-from utils.pillar_utils import normalize_pillar_key, is_valid_pillar
 
 class QuestAIService:
     """Service for AI-powered quest generation using Gemini API"""
     
     def __init__(self):
         """Initialize the AI service with Gemini configuration"""
-        self.api_key = Config.GOOGLE_API_KEY
-        self.model_name = Config.GEMINI_MODEL
+        self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+        self.model_name = os.getenv('GEMINI_MODEL', 'gemini-pro')
         
         if not self.api_key:
             raise ValueError("GOOGLE_API_KEY not configured. Set GEMINI_API_KEY environment variable.")
@@ -354,10 +353,9 @@ class QuestAIService:
         if not pillar:
             return 'STEM & Logic'
         
-        # Try to normalize the pillar
-        normalized = normalize_pillar_key(pillar)
-        if normalized and is_valid_pillar(normalized):
-            return normalized
+        # Check if pillar is already valid
+        if pillar in self.valid_pillars:
+            return pillar
         
         # Fuzzy matching for common variations
         pillar_lower = pillar.lower()

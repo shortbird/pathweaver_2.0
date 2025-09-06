@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react'
 import { X, Plus, Trash2, ChevronDown, ChevronUp, Save, AlertCircle, Sparkles } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
-import AIQuestGenerationModal from './AIQuestGenerationModal'
 
 const QuestCreationForm = ({ onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false)
@@ -11,6 +10,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
   const [errors, setErrors] = useState({})
   const [expandedTasks, setExpandedTasks] = useState({})
   const [showAIModal, setShowAIModal] = useState(false)
+  const [AIModalComponent, setAIModalComponent] = useState(null)
   
   // Form state matching the quest template structure
   const [formData, setFormData] = useState({
@@ -106,7 +106,18 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
 
   useEffect(() => {
     fetchSources()
+    // Try to load AI Modal component
+    loadAIModalComponent()
   }, [])
+
+  const loadAIModalComponent = async () => {
+    try {
+      const { default: AIQuestGenerationModal } = await import('./AIQuestGenerationModal')
+      setAIModalComponent(() => AIQuestGenerationModal)
+    } catch (error) {
+      console.log('AI Modal not available:', error)
+    }
+  }
 
   const toggleTaskExpansion = (index) => {
     setExpandedTasks(prev => ({
@@ -429,14 +440,16 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
             description="Basic information about your quest"
             required
           >
-            <button
-              type="button"
-              onClick={() => setShowAIModal(true)}
-              className="flex items-center space-x-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
-            >
-              <Sparkles className="h-4 w-4" />
-              <span>AI Assist</span>
-            </button>
+            {AIModalComponent && (
+              <button
+                type="button"
+                onClick={() => setShowAIModal(true)}
+                className="flex items-center space-x-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+              >
+                <Sparkles className="h-4 w-4" />
+                <span>AI Assist</span>
+              </button>
+            )}
           </SectionHeader>
           
           <div className="space-y-6 mb-8">
@@ -862,12 +875,14 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
         </form>
       </div>
 
-      {/* AI Quest Generation Modal */}
-      <AIQuestGenerationModal
-        isOpen={showAIModal}
-        onClose={() => setShowAIModal(false)}
-        onQuestGenerated={handleAIQuestGenerated}
-      />
+      {/* AI Quest Generation Modal - conditionally rendered */}
+      {AIModalComponent && (
+        <AIModalComponent
+          isOpen={showAIModal}
+          onClose={() => setShowAIModal(false)}
+          onQuestGenerated={handleAIQuestGenerated}
+        />
+      )}
     </div>
   )
 }

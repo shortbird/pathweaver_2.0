@@ -39,12 +39,11 @@ def token_required(f):
 @cross_origin()
 @token_required
 def submit_quest_idea(current_user_id):
-    """Submit a new quest idea for review with optional AI enhancement"""
+    """Submit a new quest idea for review"""
     try:
         data = request.get_json()
         title = data.get('title')
         description = data.get('description')
-        use_ai_enhancement = data.get('use_ai_enhancement', False)
         
         if not title or not description:
             return jsonify({'error': 'Title and description are required'}), 400
@@ -61,44 +60,12 @@ def submit_quest_idea(current_user_id):
             os.environ.get('SUPABASE_SERVICE_KEY')
         )
         
-        ai_suggestions = None
-        
-        # Generate AI suggestions if requested
-        if use_ai_enhancement:
-            try:
-                # Import here to avoid circular imports
-                sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                from services.quest_ai_service import QuestAIService
-                
-                ai_service = QuestAIService()
-                
-                # Generate enhanced description
-                enhanced_desc_result = ai_service.enhance_quest_description(title, description)
-                
-                # Generate suggested tasks  
-                tasks_result = ai_service.suggest_tasks_for_quest(
-                    title, 
-                    enhanced_desc_result.get('enhanced_description', description),
-                    target_task_count=4
-                )
-                
-                if enhanced_desc_result['success'] and tasks_result['success']:
-                    ai_suggestions = {
-                        'enhanced_description': enhanced_desc_result['enhanced_description'],
-                        'suggested_tasks': tasks_result['tasks'],
-                        'original_description': description
-                    }
-            except Exception as ai_error:
-                print(f"AI enhancement failed: {ai_error}")
-                # Continue without AI suggestions
-        
         # Save the idea to database
         idea_data = {
             'user_id': current_user_id,
             'title': title,
             'description': description,
             'status': 'pending_review',
-            'ai_suggestions': ai_suggestions,
             'created_at': datetime.utcnow().isoformat()
         }
         
@@ -107,17 +74,10 @@ def submit_quest_idea(current_user_id):
         if response.data:
             idea_id = response.data[0]['id']
             
-            result = {
+            return jsonify({
                 'message': 'Your quest idea has been submitted for review!',
                 'idea_id': idea_id
-            }
-            
-            # Include AI suggestions in response if generated
-            if ai_suggestions:
-                result['ai_suggestions'] = ai_suggestions
-                result['message'] += ' AI suggestions have been included to help with development.'
-            
-            return jsonify(result), 202
+            }), 202
         else:
             return jsonify({'error': 'Failed to save quest idea'}), 500
             
