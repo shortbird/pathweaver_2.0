@@ -206,11 +206,10 @@ def get_quest_detail(user_id: str, quest_id: str):
         quest_data = quest.data
         
         # Add source header image if no custom header exists
-        # Temporarily commented out to debug 500 error
-        # if not quest_data.get('header_image_url') and quest_data.get('source'):
-        #     source_header = get_quest_header_image(quest_data)
-        #     if source_header:
-        #         quest_data['header_image_url'] = source_header
+        if not quest_data.get('header_image_url') and quest_data.get('source'):
+            source_header = get_quest_header_image(quest_data)
+            if source_header:
+                quest_data['header_image_url'] = source_header
         
         # Sort tasks by order
         if quest_data.get('quest_tasks'):
