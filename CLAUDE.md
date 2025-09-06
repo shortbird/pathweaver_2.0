@@ -14,8 +14,8 @@
 - **Development**: Push to `develop` branch for immediate live testing on dev environment
 - **Production**: Deploy to `main` branch only when ready for production release
 - **Branch Strategy**: 
-  - `develop` → https://optio-frontend-dev.onrender.com & https://optio-backend-dev.onrender.com
-  - `main` → https://www.optioeducation.com & https://optio-8ibe.onrender.com
+  - `develop` → https://optio-frontend-dev-new.onrender.com & https://optio-backend-dev-new.onrender.com
+  - `main` → https://www.optioeducation.com & https://optio-backend-dev.onrender.com (promoted from working dev)
 - **Testing Process**: Always test changes in dev environment first, then merge to main for production
 
 **DESIGN GUIDELINES:**
@@ -183,7 +183,7 @@ frontend/src/
 
 - **Environment-specific:**
   - `FRONTEND_URL` - CORS configuration
-    - Dev: `https://optio-frontend-dev.onrender.com`
+    - Dev: `https://optio-frontend-dev-new.onrender.com`
     - Prod: `https://www.optioeducation.com`
 
 - **Optional:**
@@ -192,13 +192,13 @@ frontend/src/
 
 **Frontend Environment Variables:**
 - **Required for all environments:**
-  - `VITE_API_URL` - Backend API endpoint
-    - Dev: `https://optio-backend-dev.onrender.com/api`
-    - Prod: `https://optio-8ibe.onrender.com/api`
+  - `VITE_API_URL` - Backend API endpoint (without /api suffix)
+    - Dev: `https://optio-backend-dev-new.onrender.com`
+    - Prod: `https://optio-backend-dev.onrender.com` (promoted from working dev)
 
 **Critical Notes:**
 - **FLASK_SECRET_KEY** must be exactly 64 characters (32 hex bytes) in production
-- **API URLs** must include `/api` suffix for proper routing
+- **VITE_API_URL** should NOT include `/api` suffix - the frontend code adds `/api` prefix to all requests
 - All environment variables should be identical between develop and main branches except for the URLs
 - Never commit secrets to the repository - all sensitive values go in Render environment variables
 
@@ -250,10 +250,14 @@ mcp__render__list_logs(resource, limit, filters)
 ```
 
 **Service IDs:**
-- **Dev Backend**: `srv-d2s8r8be5dus73ddp8h0` (optio-backend-dev)
-- **Dev Frontend**: `srv-d2s8ravdiees73bfll10` (optio-frontend-dev)
-- **Prod Backend**: `srv-d2po3n6r433s73dhcuig` (Optio)
+- **Dev Backend**: `srv-d2tnm1uuk2gs73d2cqk0` (optio-backend-dev-new)
+- **Dev Frontend**: `srv-d2tnm3re5dus73e155u0` (optio-frontend-dev-new)
+- **Prod Backend**: `srv-d2s8r8be5dus73ddp8h0` (optio-backend-dev - promoted to production)
 - **Prod Frontend**: `srv-d2r79t7diees73dvcbig` (Optio_FE)
+
+**Legacy Services (can be deleted after verification):**
+- **Old Prod Backend**: `srv-d2po3n6r433s73dhcuig` (Optio - had CORS issues)
+- **Old Dev Frontend**: `srv-d2s8ravdiees73bfll10` (optio-frontend-dev - replaced by new)
 
 **MCP Benefits:**
 - Real-time deployment monitoring
