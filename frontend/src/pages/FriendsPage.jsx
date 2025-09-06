@@ -34,7 +34,6 @@ const FriendsPage = () => {
       setFriends(response.data.friends)
       setPendingRequests(response.data.pending_requests)
     } catch (error) {
-      console.error('Failed to fetch friends:', error)
       toast.error('Failed to load friends')
     } finally {
       setLoading(false)
@@ -67,21 +66,16 @@ const FriendsPage = () => {
 
   const acceptRequest = async (friendshipId) => {
     try {
-      console.log('Accepting friend request:', friendshipId)
       const response = await api.post(`/api/community/friends/accept/${friendshipId}`, {})
-      console.log('Accept request response:', response.data)
       toast.success('Friend request accepted!')
       
       // Refresh friends list (don't fail silently if this fails)
       try {
         await fetchFriends()
       } catch (refreshError) {
-        console.error('Failed to refresh friends list:', refreshError)
         // Don't show error toast since the main operation succeeded
       }
     } catch (error) {
-      console.error('Error accepting friend request:', error)
-      console.error('Error response:', error.response?.data)
       toast.error(error.response?.data?.error || 'Failed to accept friend request')
     }
   }
@@ -98,15 +92,11 @@ const FriendsPage = () => {
 
   const fetchTeamInvitations = async () => {
     try {
-      console.log('Fetching team invitations...')
       const response = await api.get('/api/v3/collaborations/invites')
-      console.log('Team invitations response:', response.data)
       setTeamInvitations(response.data.invitations || [])
       if (response.data.invitations && response.data.invitations.length > 0) {
-        console.log('Found', response.data.invitations.length, 'team invitations')
       }
     } catch (error) {
-      console.error('Failed to fetch team invitations:', error)
     }
   }
 
@@ -115,7 +105,6 @@ const FriendsPage = () => {
       const response = await api.get('/api/v3/collaborations/active')
       setActiveCollaborations(response.data.collaborations || [])
     } catch (error) {
-      console.error('Failed to fetch collaborations:', error)
     }
   }
 
@@ -130,7 +119,6 @@ const FriendsPage = () => {
         navigate(`/quests/${questId}`)
       }, 1500)
     } catch (error) {
-      console.error('Error accepting invitation:', error)
       toast.error(error.response?.data?.error || 'Failed to accept team invitation')
     }
   }
@@ -141,7 +129,6 @@ const FriendsPage = () => {
       toast.success('Team invitation declined')
       fetchTeamInvitations()
     } catch (error) {
-      console.error('Error declining invitation:', error)
       toast.error(error.response?.data?.error || 'Failed to decline team invitation')
     }
   }

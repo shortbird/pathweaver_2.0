@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from 'recharts';
 
 const SkillsRadarChart = ({ skillsXP }) => {
@@ -197,4 +197,4 @@ const SkillsRadarChart = ({ skillsXP }) => {
   );
 };
 
-export default SkillsRadarChart;
+export default memo(SkillsRadarChart);

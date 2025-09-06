@@ -52,12 +52,6 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
 
       const data = await response.json();
       
-      // Add debugging to see what's happening
-      console.log('Task completion response:', {
-        status: response.status,
-        ok: response.ok,
-        data: data
-      });
       
       // Check for HTTP error status
       if (!response.ok) {
@@ -71,7 +65,6 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
       }
 
       // If we get here, the request was successful
-      console.log('Task completion successful:', data);
 
       // Show success message with XP earned
       const xpAwarded = data.xp_awarded || 0;
@@ -88,15 +81,16 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
       });
 
     } catch (error) {
-      console.error('Error completing task:', error);
-      console.error('Error details:', {
-        message: error.message,
-        taskId: task.id,
-        questId: questId,
-        evidenceType: evidenceType,
-        evidenceData: evidenceData
-      });
-      setError(error.message || 'Failed to complete task. Please try again.');
+      const errorMsg = error.response?.status === 413
+        ? 'Your file is too large. Please use a smaller file or reduce the image quality.'
+        : error.response?.status === 400
+        ? 'Invalid submission format. Please check your evidence and try again.'
+        : error.response?.status === 403
+        ? 'You do not have permission to complete this task.'
+        : error.response?.status >= 500
+        ? 'Our servers are temporarily unavailable. Please try again in a moment.'
+        : error.message || 'Unable to submit your task completion. Please check your connection and try again.'
+      setError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }

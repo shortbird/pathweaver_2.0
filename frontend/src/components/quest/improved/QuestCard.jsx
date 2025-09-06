@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import Button from '../../ui/Button';
@@ -192,4 +192,4 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   );
 };
 
-export default QuestCard;
+export default memo(QuestCard);

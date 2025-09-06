@@ -37,7 +37,6 @@ export const AuthProvider = ({ children }) => {
       setNeedsTosAcceptance(needsAcceptance)
       return needsAcceptance
     } catch (error) {
-      console.error('Error checking ToS acceptance:', error)
       setNeedsTosAcceptance(false)
       return false
     } finally {
@@ -136,12 +135,6 @@ export const AuthProvider = ({ children }) => {
 
   const register = async (userData) => {
     try {
-      // Log registration attempt for debugging
-      console.log('Registration attempt with data:', {
-        ...userData,
-        password: '[REDACTED]',
-        confirmPassword: '[REDACTED]'
-      })
       
       // Use retry logic for registration to handle temporary service issues
       const response = await retryWithBackoff(
@@ -179,8 +172,6 @@ export const AuthProvider = ({ children }) => {
       
       return { success: true }
     } catch (error) {
-      // Log the full error for debugging
-      console.error('Registration error:', error.response || error)
       
       // Handle nested error structure from backend
       let message = 'Registration failed'
@@ -224,7 +215,6 @@ export const AuthProvider = ({ children }) => {
     try {
       await api.post('/api/auth/logout')
     } catch (error) {
-      console.error('Logout error:', error)
     } finally {
       setUser(null)
       setSession(null)

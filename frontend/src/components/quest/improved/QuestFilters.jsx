@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, memo } from 'react';
 
 const QuestFilters = ({ 
   searchTerm, 
@@ -136,7 +136,7 @@ const QuestFilters = ({
 };
 
 // Separate component for filter content to avoid duplication
-const FilterContent = ({ 
+const FilterContent = memo(({ 
   pillars, 
   selectedPillar, 
   onPillarChange, 
@@ -175,6 +175,6 @@ const FilterContent = ({
       </div>
     </div>
   );
-};
+});
 
-export default QuestFilters;
+export default memo(QuestFilters);

@@ -15,8 +15,6 @@ const Layout = () => {
   }
 
   React.useEffect(() => {
-    console.log('Layout useEffect - user:', user)
-    console.log('Layout useEffect - isAuthenticated:', isAuthenticated)
     if (user?.id && isAuthenticated) {
       fetchPortfolioSlug()
     }
@@ -25,40 +23,26 @@ const Layout = () => {
 
   const fetchPortfolioSlug = async () => {
     try {
-      console.log('Fetching portfolio for user ID:', user.id)
-      console.log('Full user object:', user)
       const response = await api.get(`/portfolio/user/${user.id}`)
-      console.log('Portfolio API response:', response.data)
       
       if (response.data?.diploma?.portfolio_slug) {
         setPortfolioSlug(response.data.diploma.portfolio_slug)
-        console.log('Portfolio slug set to:', response.data.diploma.portfolio_slug)
       } else if (response.data?.portfolio_url) {
         // Extract slug from URL if diploma object not present
         const match = response.data.portfolio_url.match(/\/portfolio\/(.+)$/)
         if (match) {
           setPortfolioSlug(match[1])
-          console.log('Portfolio slug extracted:', match[1])
         }
       } else {
-        console.log('No portfolio slug found in response')
         // Generate a fallback slug based on user ID
         const fallbackSlug = `user${user.id.slice(0, 8)}`
         setPortfolioSlug(fallbackSlug)
-        console.log('Using fallback slug:', fallbackSlug)
       }
     } catch (error) {
-      console.error('Failed to fetch portfolio slug:', error)
-      console.error('Error response data:', error.response?.data)
-      console.error('Error status:', error.response?.status)
-      if (error.response?.data?.error) {
-        console.error('Backend error message:', error.response.data.error)
-      }
       // Even on error, set a fallback slug
       if (user?.id) {
         const fallbackSlug = `user${user.id.slice(0, 8)}`
         setPortfolioSlug(fallbackSlug)
-        console.log('Using fallback slug on error:', fallbackSlug)
       }
     }
   }
@@ -70,7 +54,6 @@ const Layout = () => {
         setSiteSettings(response.data)
       }
     } catch (error) {
-      console.error('Failed to fetch site settings:', error)
     }
   }
 

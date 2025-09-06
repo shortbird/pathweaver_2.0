@@ -48,22 +48,15 @@ const QuestDetailV3 = () => {
       }
 
       const data = await response.json();
-      console.log('=== QUEST DETAIL DEBUG ===');
-      console.log('Full quest data received:', data.quest);
-      console.log('User enrollment object:', data.quest.user_enrollment);
-      console.log('User enrollment status:', data.quest.user_enrollment ? 'ENROLLED' : 'NOT ENROLLED');
-      console.log('Quest tasks completion status:', data.quest.quest_tasks?.map(task => ({
-        id: task.id,
-        title: task.title,
-        is_completed: task.is_completed,
-        xp_amount: task.xp_amount
-      })));
-      console.log('=== END DEBUG ===');
       setQuest(data.quest);
       setError(''); // Clear any previous errors
     } catch (error) {
-      console.error('Error fetching quest:', error);
-      setError('Failed to load quest details');
+      const errorMsg = error.response?.status === 404
+        ? 'This quest could not be found. It may have been removed or is no longer available.'
+        : error.response?.status === 403
+        ? 'You do not have permission to view this quest.'
+        : 'Unable to load quest details. Please refresh the page and try again.'
+      setError(errorMsg);
       throw error; // Re-throw so handleTaskCompletion can catch it
     } finally {
       setIsLoading(false);
@@ -100,7 +93,6 @@ const QuestDetailV3 = () => {
         setIsRefreshing(false);
       }
     } catch (error) {
-      console.error('Enrollment error:', error);
       toast.error('Failed to enroll in quest');
     } finally {
       setIsEnrolling(false);
@@ -128,7 +120,6 @@ const QuestDetailV3 = () => {
           throw new Error('Failed to end quest');
         }
       } catch (error) {
-        console.error('Error ending quest:', error);
         toast.error('Failed to finish quest');
       }
     }
@@ -162,7 +153,6 @@ const QuestDetailV3 = () => {
         }, 500);
       }
     } catch (error) {
-      console.error('Error refreshing quest data:', error);
       toast.error('Failed to refresh quest data');
     } finally {
       setIsRefreshing(false);
@@ -179,7 +169,6 @@ const QuestDetailV3 = () => {
     try {
       await fetchQuestDetails();
     } catch (error) {
-      console.error('Error refreshing quest data after invite:', error);
     }
   };
 

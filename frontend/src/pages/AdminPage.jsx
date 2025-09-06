@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, memo } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
@@ -1941,4 +1941,4 @@ const AdminPage = () => {
   )
 }
 
-export default AdminPage
+export default memo(AdminPage)

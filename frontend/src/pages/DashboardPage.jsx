@@ -367,17 +367,8 @@ const DashboardPage = () => {
   const fetchDashboardData = useCallback(async () => {
     try {
       const response = await api.get('/api/users/dashboard')
-      console.log('=== DASHBOARD DEBUG ===')
-      console.log('Full Dashboard API response:', response.data)
-      console.log('Stats object:', response.data.stats)
-      console.log('Stats total_xp:', response.data.stats?.total_xp)
-      console.log('xp_by_category:', response.data.xp_by_category)
-      console.log('skill_xp_data:', response.data.skill_xp_data)
-      console.log('active_quests:', response.data.active_quests)
-      console.log('======================')
       setDashboardData(response.data)
     } catch (error) {
-      console.error('Failed to fetch dashboard data:', error)
     } finally {
       setLoading(false)
     }
@@ -385,17 +376,10 @@ const DashboardPage = () => {
 
   const fetchPortfolioData = useCallback(async () => {
     if (!user?.id) {
-      console.log('No user ID available for portfolio fetch')
       return
     }
     try {
       const response = await api.get(`/portfolio/user/${user.id}`)
-      console.log('=== PORTFOLIO DEBUG ===')
-      console.log('Portfolio API response:', response.data)
-      console.log('skill_xp:', response.data.skill_xp)
-      console.log('total_xp:', response.data.total_xp)
-      console.log('total_quests_completed:', response.data.total_quests_completed)
-      console.log('=======================')
       
       // Only set portfolio data if it has actual XP data
       // This prevents overwriting good dashboard data with empty portfolio data
@@ -406,11 +390,9 @@ const DashboardPage = () => {
         if (hasActualXP || response.data.total_xp > 0) {
           setPortfolioData(response.data)
         } else {
-          console.log('Portfolio has no XP data, not updating state')
         }
       }
     } catch (error) {
-      console.error('Failed to fetch portfolio data:', error)
       // Don't let portfolio failure affect the dashboard
       // The dashboard data should have everything we need
     }
@@ -429,17 +411,9 @@ const DashboardPage = () => {
     let maxCategoryXP = 0
     let dataSource = null
     
-    console.log('=== DASHBOARD XP PROCESSING ===')
-    console.log('Dashboard data:', dashboardData)
-    console.log('Dashboard xp_by_category:', dashboardData?.xp_by_category)
-    console.log('Dashboard stats.total_xp:', dashboardData?.stats?.total_xp)
-    console.log('Portfolio data:', portfolioData)
-    console.log('skillCategoryNames keys:', Object.keys(skillCategoryNames))
-    console.log('xp_by_category keys:', dashboardData?.xp_by_category ? Object.keys(dashboardData.xp_by_category) : 'none')
     
     // Always use dashboard xp_by_category if available - it's the most reliable
     if (dashboardData?.xp_by_category) {
-      console.log('Using dashboard xp_by_category:', dashboardData.xp_by_category)
       
       // Check if we have actual XP data
       let hasXP = false
@@ -449,7 +423,6 @@ const DashboardPage = () => {
           xpByCategory[category] = xp || 0
           if (xp > 0) hasXP = true
         } else {
-          console.log(`Warning: Category '${category}' not found in skillCategoryNames`)
         }
       })
       
@@ -462,7 +435,6 @@ const DashboardPage = () => {
     
     // Only use portfolio as fallback if dashboard has no data
     if (dataSource !== 'dashboard' && portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp)) {
-      console.log('Fallback to portfolio skill_xp:', portfolioData.skill_xp)
       
       // Handle pillar key mapping for portfolio data (may contain old keys)
       const pillarMapping = {
@@ -503,9 +475,6 @@ const DashboardPage = () => {
       fullMark: maxCategoryXP + 100  // Add buffer for better visualization
     }))
     
-    console.log('Final skillXPData:', skillXPData)
-    console.log('Total XP:', totalXP)
-    console.log('Max Category XP:', maxCategoryXP)
     
     return { skillXPData, totalXP, maxCategoryXP }
   }, [dashboardData, portfolioData, skillCategoryNames])

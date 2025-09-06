@@ -16,9 +16,6 @@ export const retryWithBackoff = async (fn, maxRetries = 3, initialDelay = 1000, 
           // Exponential backoff with jitter
           const delay = baseDelay * Math.pow(1.5, i) + Math.random() * 1000;
           
-          if (showProgress && error.response?.status === 503) {
-            console.log(`Service is waking up... Retrying in ${Math.round(delay/1000)} seconds (attempt ${i + 2}/${maxRetries})`);
-          }
           
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
@@ -58,7 +55,6 @@ export const warmupBackend = async (apiUrl) => {
     
     return true;
   } catch (error) {
-    console.warn('Backend warmup failed, but continuing...', error);
     return false;
   }
 };

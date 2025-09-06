@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { handleApiResponse } from '../utils/errorHandling';
@@ -51,7 +51,7 @@ const QuestHubV3Improved = () => {
     } else {
       fetchQuests(false);
     }
-  }, [page, searchTerm, selectedPillar]);
+  }, [page, searchTerm, selectedPillar, fetchQuests]);
 
   // Reset and refetch on login change
   useEffect(() => {
@@ -61,25 +61,23 @@ const QuestHubV3Improved = () => {
       setHasMore(true);
       fetchQuests(true);
     }
-  }, [loginTimestamp]);
+  }, [loginTimestamp, fetchQuests]);
 
   // Refresh quest list when navigating back to this page (after completing a quest)
   useEffect(() => {
     if (user && location.pathname === '/quests') {
-      console.log('Navigated back to quest hub, refreshing data');
       // Always refresh when user visits quest hub to ensure latest completion status
       setQuests([]);
       setPage(1);
       setHasMore(true);
       fetchQuests(true);
     }
-  }, [location.pathname, user]);
+  }, [location.pathname, user, fetchQuests]);
   
   // Additional effect to refresh on focus (when user comes back to the tab)
   useEffect(() => {
     const handleFocus = () => {
       if (user && location.pathname === '/quests') {
-        console.log('Window focused on quest hub, refreshing data');
         setQuests([]);
         setPage(1);
         setHasMore(true);
@@ -89,9 +87,9 @@ const QuestHubV3Improved = () => {
     
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [user, location.pathname]);
+  }, [user, location.pathname, fetchQuests]);
 
-  const fetchQuests = async (isInitial = true) => {
+  const fetchQuests = useCallback(async (isInitial = true) => {
     if (isInitial) {
       setIsLoading(true);
     } else {
@@ -117,7 +115,7 @@ const QuestHubV3Improved = () => {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to fetch quests');
+        throw new Error('Unable to load quests at this time. Please check your internet connection and try again.');
       }
 
       const data = await response.json();
@@ -131,15 +129,19 @@ const QuestHubV3Improved = () => {
       setTotalResults(data.total || 0);
       setHasMore(data.has_more || (data.quests && data.quests.length === 12));
     } catch (error) {
-      console.error('Error fetching quests:', error);
-      setError('Failed to load quests. Please try again.');
+      const errorMsg = error.response?.status === 500 
+        ? 'Our servers are temporarily unavailable. Please try again in a few moments.'
+        : error.response?.status === 404
+        ? 'No quests found. Check back later for new adventures!'
+        : 'Unable to load quests at this time. Please check your connection and refresh the page.'
+      setError(errorMsg);
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  };
+  }, [page, searchTerm, selectedPillar, user]);
 
-  const handleEnroll = async (questId) => {
+  const handleEnroll = useCallback(async (questId) => {
     if (!user) {
       window.location.href = '/login';
       return;
@@ -167,28 +169,27 @@ const QuestHubV3Improved = () => {
 
       // Show success toast instead of alert
       // TODO: Implement toast notification
-      console.log(data.message);
+      // Success message handled by UI feedback
     } catch (error) {
-      console.error('Error enrolling in quest:', error);
     }
-  };
+  }, [quests, user]);
 
-  const handleTeamUp = (quest) => {
+  const handleTeamUp = useCallback((quest) => {
     if (!user) {
       window.location.href = '/login';
       return;
     }
     setSelectedQuestForTeamUp(quest);
     setShowTeamUpModal(true);
-  };
+  }, [user]);
 
-  const handleInviteSent = (result) => {
+  const handleInviteSent = useCallback((result) => {
     // TODO: Replace with toast
-    console.log(result.message);
-  };
+    // Success message handled by UI feedback
+  }, []);
 
-  // Featured quests section (mock data - would come from API)
-  const featuredQuests = quests.slice(0, 3);
+  // Featured quests section - memoized to prevent unnecessary re-renders
+  const featuredQuests = useMemo(() => quests.slice(0, 3), [quests]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
@@ -337,4 +338,4 @@ const QuestHubV3Improved = () => {
   );
 };
 
-export default QuestHubV3Improved;
+export default memo(QuestHubV3Improved);
