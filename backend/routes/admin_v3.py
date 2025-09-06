@@ -1056,3 +1056,76 @@ def send_bulk_email(admin_id):
     except Exception as e:
         print(f"Error sending bulk email: {str(e)}")
         return jsonify({'error': str(e)}), 500
+
+@bp.route('/quests', methods=['GET'])
+@require_admin
+def list_admin_quests(user_id):
+    """
+    List all quests for admin management.
+    Supports pagination, search, and filtering.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+        
+        # Get pagination parameters
+        page = int(request.args.get('page', 1))
+        per_page = min(int(request.args.get('per_page', 20)), 100)
+        search = request.args.get('search', '').strip()
+        is_active = request.args.get('is_active')
+        source = request.args.get('source')
+        
+        # Calculate offset
+        offset = (page - 1) * per_page
+        
+        # Build query
+        query = supabase.table('quests')\
+            .select('*, quest_tasks(*)', count='exact')\
+            .order('created_at', desc=True)
+        
+        # Apply filters
+        if search:
+            query = query.ilike('title', f'%{search}%')
+        
+        if is_active is not None:
+            is_active_bool = is_active.lower() == 'true'
+            query = query.eq('is_active', is_active_bool)
+        
+        if source:
+            query = query.eq('source', source)
+        
+        # Apply pagination
+        query = query.range(offset, offset + per_page - 1)
+        
+        result = query.execute()
+        
+        # Process quest data to include task counts and total XP
+        quests = []
+        for quest in result.data:
+            # Calculate total XP and task breakdown
+            total_xp = 0
+            task_count = len(quest.get('quest_tasks', []))
+            
+            for task in quest.get('quest_tasks', []):
+                total_xp += task.get('xp_amount', 0)
+            
+            # Add calculated fields
+            quest['total_xp'] = total_xp
+            quest['task_count'] = task_count
+            
+            quests.append(quest)
+        
+        return jsonify({
+            'success': True,
+            'quests': quests,
+            'total': result.count,
+            'page': page,
+            'per_page': per_page,
+            'total_pages': (result.count + per_page - 1) // per_page if result.count else 0
+        })
+        
+    except Exception as e:
+        print(f"Error listing admin quests: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch quests'
+        }), 500

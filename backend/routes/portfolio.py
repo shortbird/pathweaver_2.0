@@ -1,10 +1,12 @@
 from flask import Blueprint, jsonify
+from flask_cors import cross_origin
 from database import get_supabase_client
 from datetime import datetime
 
 bp = Blueprint('portfolio', __name__)
 
 @bp.route('/public/<portfolio_slug>', methods=['GET'])
+@cross_origin()
 def get_public_portfolio(portfolio_slug):
     """
     Public endpoint (no auth required) to view a student's portfolio
@@ -193,6 +195,7 @@ def get_public_portfolio(portfolio_slug):
         return jsonify({'error': 'Failed to fetch portfolio'}), 500
 
 @bp.route('/user/<user_id>', methods=['GET'])
+@cross_origin()
 def get_user_portfolio(user_id):
     """
     Get portfolio data for a specific user
@@ -347,6 +350,7 @@ def get_user_portfolio(user_id):
         }), 200  # Return 200 with default data instead of 500
 
 @bp.route('/diploma/<user_id>', methods=['GET'])
+@cross_origin()
 def get_public_diploma_by_user_id(user_id):
     """
     Public endpoint to view a student's diploma by user ID.
