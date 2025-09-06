@@ -55,7 +55,9 @@ def init_csrf(app):
     ]
     
     for endpoint in exempt_endpoints:
-        csrf.exempt(app.view_functions.get(endpoint))
+        view_func = app.view_functions.get(endpoint)
+        if view_func is not None:
+            csrf.exempt(view_func)
     
     return csrf
 
