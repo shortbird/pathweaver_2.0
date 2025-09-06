@@ -25,28 +25,47 @@ def validate_email(email: str) -> tuple[bool, Optional[str]]:
 
 def validate_password(password: str) -> tuple[bool, Optional[str]]:
     """
-    Validate password strength to match Supabase requirements
+    Validate password strength with enhanced security requirements
     Returns: (is_valid, error_message)
     """
     if not password:
         return False, "Password is required"
     
-    if len(password) < 6:
-        return False, "Password must be at least 6 characters long"
+    if len(password) < 12:
+        return False, "Password must be at least 12 characters long"
     
     if len(password) > 128:
         return False, "Password is too long (max 128 characters)"
     
-    # Check for at least one uppercase, one lowercase, and one number
+    # Check for at least one uppercase, one lowercase, one number, and one special character
     has_upper = any(c.isupper() for c in password)
     has_lower = any(c.islower() for c in password)
     has_digit = any(c.isdigit() for c in password)
+    has_special = any(c in "!@#$%^&*()_+-=[]{}|;:,.<>?" for c in password)
     
-    if not (has_upper and has_lower and has_digit):
-        return False, "Password must contain at least one uppercase letter, one lowercase letter, and one number. Example: Abc123"
+    missing_requirements = []
+    if not has_upper:
+        missing_requirements.append("uppercase letter")
+    if not has_lower:
+        missing_requirements.append("lowercase letter")
+    if not has_digit:
+        missing_requirements.append("number")
+    if not has_special:
+        missing_requirements.append("special character (!@#$%^&*()_+-=[]{}|;:,.<>?)")
     
-    # Skip weak pattern check for short passwords
-    # With only 6 characters required, weak pattern checking is less relevant
+    if missing_requirements:
+        return False, f"Password must contain at least one: {', '.join(missing_requirements)}"
+    
+    # Check for common weak patterns
+    weak_patterns = [
+        r'(.)\1{2,}',  # Same character repeated 3+ times
+        r'123|abc|password|qwerty|admin',  # Common sequences
+        r'^.{0,2}(.+)\1',  # Short repeated patterns
+    ]
+    
+    for pattern in weak_patterns:
+        if re.search(pattern, password.lower()):
+            return False, "Password contains common weak patterns. Please choose a more complex password"
     
     return True, None
 

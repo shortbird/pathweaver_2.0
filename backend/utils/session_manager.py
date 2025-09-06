@@ -12,7 +12,9 @@ class SessionManager:
     """Manages secure session tokens using httpOnly cookies"""
     
     def __init__(self):
-        self.secret_key = os.getenv('JWT_SECRET_KEY', os.getenv('SECRET_KEY', 'fallback-dev-key'))
+        self.secret_key = os.getenv('JWT_SECRET_KEY') or os.getenv('SECRET_KEY')
+        if not self.secret_key:
+            raise ValueError("JWT_SECRET_KEY or SECRET_KEY environment variable must be set")
         self.access_token_expiry = timedelta(minutes=15)  # Short-lived access token
         self.refresh_token_expiry = timedelta(days=7)  # Longer-lived refresh token
         self.cookie_secure = os.getenv('FLASK_ENV') == 'production'

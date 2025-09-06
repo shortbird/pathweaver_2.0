@@ -83,7 +83,21 @@ class SecurityMiddleware:
         
         # CSP header for additional XSS protection
         if not response.headers.get('Content-Security-Policy'):
-            response.headers['Content-Security-Policy'] = "default-src 'self'"
+            # Comprehensive CSP for React/Vite application
+            csp_policy = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "  # React/Vite needs inline scripts
+                "style-src 'self' 'unsafe-inline' fonts.googleapis.com; "  # Allow inline styles and Google Fonts
+                "img-src 'self' data: blob: https:; "  # Allow images from various sources
+                "font-src 'self' fonts.gstatic.com; "  # Google Fonts
+                "connect-src 'self' https:; "  # API calls and WebSocket connections
+                "media-src 'self' blob:; "  # Media content
+                "object-src 'none'; "  # Disable plugins
+                "base-uri 'self'; "  # Prevent base tag injection
+                "form-action 'self'; "  # Forms can only submit to same origin
+                "frame-ancestors 'none'"  # Prevent framing (clickjacking)
+            )
+            response.headers['Content-Security-Policy'] = csp_policy
         
         return response
     

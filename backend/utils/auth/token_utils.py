@@ -29,7 +29,7 @@ def verify_token(token):
         user = get_user()
         return user.user.id if user.user else None
     except Exception as e:
-        print(f"Token verification error: {str(e)}")
+        # Token verification failed - log internally only
         return None
 
 def generate_token(user_id: str, expires_in: int = 3600) -> str:
@@ -43,7 +43,9 @@ def generate_token(user_id: str, expires_in: int = 3600) -> str:
     Returns:
         JWT token string
     """
-    secret_key = os.getenv('JWT_SECRET_KEY', os.getenv('SECRET_KEY', 'dev-secret-key'))
+    secret_key = os.getenv('JWT_SECRET_KEY') or os.getenv('SECRET_KEY')
+    if not secret_key:
+        raise ValueError("JWT_SECRET_KEY or SECRET_KEY environment variable must be set")
     
     payload = {
         'user_id': user_id,
@@ -69,7 +71,7 @@ def decode_token(token: str) -> dict:
         payload = jwt.decode(token, options={"verify_signature": False})
         return payload
     except Exception as e:
-        print(f"Token decode error: {str(e)}")
+        # Token decode error - return None
         return None
 
 def refresh_token(old_token: str) -> str:

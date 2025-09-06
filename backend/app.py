@@ -35,9 +35,10 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max request size
 # Configure security middleware
 security_middleware.init_app(app)
 
-# Configure CSRF protection (disabled by default for API compatibility)
-# Individual routes can enable it as needed
-# init_csrf(app)  # Uncomment to enable CSRF globally
+# Configure CSRF protection for enhanced security
+if CSRF_AVAILABLE:
+    init_csrf(app)
+    print("CSRF protection enabled")
 
 # Configure CORS with proper settings - MUST come before error handler
 configure_cors(app)
@@ -74,12 +75,10 @@ def health_check():
 def get_csrf():
     """
     Get a CSRF token for the session.
-    Note: CSRF protection is currently disabled by default for API compatibility.
-    This endpoint is provided for future use when CSRF is enabled.
     """
     if CSRF_AVAILABLE:
-        # If CSRF is available but disabled, return status
-        return jsonify({'csrf_token': None, 'csrf_enabled': False}), 200
+        token = get_csrf_token()
+        return jsonify({'csrf_token': token, 'csrf_enabled': True}), 200
     else:
         # CSRF module not installed
         return jsonify({'csrf_token': None, 'csrf_enabled': False, 'module_available': False}), 200

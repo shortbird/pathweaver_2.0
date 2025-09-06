@@ -21,29 +21,27 @@ def configure_cors(app):
     if os.getenv('FRONTEND_URL'):
         allowed_origins.append(os.getenv('FRONTEND_URL'))
     
-    # Production domains
+    # Production domains (HTTPS only for security)
     production_domains = [
-        'https://pathweaver-2-0.vercel.app',
-        'https://pathweaver20-production.up.railway.app',
-        # Render frontend URLs
+        # Current Render frontend URLs
+        'https://optio-dev-frontend.onrender.com',
+        'https://optio-prod-frontend.onrender.com',
+        # Legacy Render URLs
         'https://optio-fe.onrender.com',
         'https://optio-frontend.onrender.com',
         'https://optio-frontend-dev.onrender.com',
-        # Optio Education domains
-        'https://optioed.org',
-        'https://www.optioed.org',
-        'https://optioeducation.com',
+        # Main production domains
         'https://www.optioeducation.com',
-        'https://optioed.com',
-        'https://www.optioed.com',
-        # HTTP versions (if needed during transition)
-        'http://optioed.org',
-        'http://www.optioed.org',
-        'http://optioeducation.com',
-        'http://www.optioeducation.com',
-        'http://optioed.com',
-        'http://www.optioed.com'
+        'https://optioeducation.com'
     ]
+    
+    # Add HTTP variants only in development for local testing
+    if is_development:
+        http_variants = [
+            'http://optioeducation.com',
+            'http://www.optioeducation.com'
+        ]
+        production_domains.extend(http_variants)
     
     # Only add production domains if they're not already in the list
     for domain in production_domains:
