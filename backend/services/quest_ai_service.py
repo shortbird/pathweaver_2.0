@@ -91,18 +91,22 @@ class QuestAIService:
         """
         try:
             prompt = f"""
-            Enhance this educational quest description to be more engaging, specific, and pedagogically sound:
+            Transform this educational quest description into something inspiring and personally meaningful:
 
             Title: {title}
             Current Description: {current_description}
 
             Please provide an enhanced version that:
-            - Is engaging and motivating for students
-            - Clearly explains the learning value
-            - Includes specific outcomes students will achieve
-            - Uses active, positive language
-            - Is 2-3 sentences long
-            - Avoids generic educational jargon
+            - Makes students excited to start immediately
+            - Explains why this quest matters to them RIGHT NOW (not in the future)
+            - Emphasizes creativity, discovery, and personal expression
+            - Uses inspiring language: "create", "discover", "build your own", "explore"
+            - Focuses on the journey of creation and learning, not end products
+            - Is 2-3 sentences that feel like an invitation to an adventure
+            - Avoids prescriptive language or specific requirements
+
+            Make this feel like something students WANT to do, not something they HAVE to do.
+            Think of quests like "Create Your Own Music Composition" or "Build Your Family Recipe Book".
 
             Return only the enhanced description, no additional text.
             """
@@ -139,25 +143,30 @@ class QuestAIService:
             target_task_count = max(3, min(6, target_task_count))
             
             prompt = f"""
-            Create {target_task_count} specific, measurable tasks for this educational quest:
+            Create {target_task_count} inspiring exploration milestones for this educational quest:
 
             Quest Title: {title}
             Quest Description: {description}
 
-            For each task, provide:
-            - title: Clear, action-oriented task name (max 100 chars)
-            - description: Detailed explanation of what students do (100-200 words)
+            For each milestone, provide:
+            - title: Inspiring milestone name that makes students excited (e.g. "Discover your style", "Bring your vision to life", "Share your creation")
+            - description: Framework for exploration (50-100 words) - provide guidance and possibilities without being prescriptive
             - pillar: One of [{', '.join(self.valid_pillars)}]
             - subcategory: Appropriate subcategory for the pillar
-            - xp_value: XP points (50-300 based on complexity)
-            - evidence_prompt: Specific instructions for what evidence to submit
+            - xp_value: XP points (50-300 based on depth of exploration)
+            - evidence_prompt: Flexible suggestions for sharing learning - offer creative options without specific requirements
 
-            Tasks should:
-            - Build upon each other logically
+            Milestones should:
+            - Guide the learning journey while allowing student choice in HOW they complete it
+            - Build upon each other as a natural progression of discovery
             - Cover different skill areas when possible
-            - Be achievable but challenging
-            - Have clear, measurable outcomes
-            - Require specific evidence/deliverables
+            - Inspire creativity and personal expression
+            - Use language of exploration: "explore", "discover", "create", "experiment", "build your own"
+            - Focus on the process of learning and creation, not specific deliverables
+
+            Evidence prompts should suggest possibilities like: "Share your learning journey through any format that expresses your understanding - writing, video, art, code, presentation, or your own creative approach"
+
+            Make each milestone feel like an exciting step in a creative adventure!
 
             Return as valid JSON array with these exact field names.
             """
@@ -237,27 +246,29 @@ class QuestAIService:
         objectives_text = f"\nLearning Objectives: {learning_objectives}" if learning_objectives else ""
         
         return f"""
-        Create an educational quest for {age_level} students on the topic: {topic}{objectives_text}
+        Create an inspiring educational quest for {age_level} students on the topic: {topic}{objectives_text}
 
-        Generate a complete quest with:
-        1. title: Action-oriented quest name (Design a website, Build a robot, etc.)
-        2. big_idea: Compelling 2-3 sentence description explaining the quest's value
-        3. tasks: Array of 4-5 specific tasks, each with:
-           - title: Clear task name
-           - description: Detailed explanation (100-200 words)
+        Generate a creative quest that feels like an exciting challenge, not homework:
+        1. title: Inspiring, creative quest name that makes students want to start immediately (e.g. "Create Your Own...", "Build Something Amazing", "Design the Future of...", "Discover the Secrets of...")
+        2. big_idea: Compelling 2-3 sentence description explaining why this quest is personally meaningful and exciting to do RIGHT NOW - focus on creativity, discovery, and personal expression
+        3. tasks: Array of 4-5 exploration milestones, each with:
+           - title: Inspiring milestone name (e.g. "Explore the possibilities", "Bring your vision to life", "Share your creation")
+           - description: Framework for exploration (50-100 words) - provide direction and possibilities without prescriptive requirements
            - pillar: One of [{', '.join(self.valid_pillars)}]
            - subcategory: Appropriate subcategory for the pillar
-           - xp_value: Points 50-300 based on complexity and time
-           - evidence_prompt: Suggestions for how they can demonstrate completion (e.g. "Submit a photo of your model", "Write a 200-word reflection")
+           - xp_value: Points 50-300 based on depth of exploration
+           - evidence_prompt: Flexible suggestions for sharing learning - offer multiple creative options without requiring any specific format
            - order_index: Sequential number starting from 1
 
-        Requirements:
-        - Tasks should build upon each other logically
-        - Cover multiple skill pillars when possible
-        - Be appropriate for {age_level} level
-        - Have measurable, specific outcomes
+        Guidelines for creating inspiring quests:
+        - Frame as creative challenges that inspire personal expression
+        - Use language of discovery: "explore", "discover", "create", "experiment", "build your own"
+        - Tasks should guide the learning journey while allowing student choice in HOW they complete it
+        - Focus on the process of creation and discovery, not specific deliverables
         - Total XP should be 400-1200 points
-        - Evidence prompts must be specific (not just "submit your work")
+        - Evidence prompts should suggest possibilities: "Share your journey through writing, video, art, code, presentation, or any creative format that shows your understanding"
+
+        Make this feel like something students WANT to do, not something they HAVE to do.
 
         Return as valid JSON with exact field names shown above.
         """
