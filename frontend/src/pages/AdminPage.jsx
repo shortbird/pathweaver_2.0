@@ -167,8 +167,10 @@ const AdminDashboard = () => {
     const badges = {
       free: 'bg-gray-100 text-gray-700',
       explorer: 'bg-gray-100 text-gray-700',
-      creator: 'bg-blue-100 text-blue-700',
-      visionary: 'bg-purple-100 text-purple-700'
+      supported: 'bg-blue-100 text-blue-700',
+      creator: 'bg-blue-100 text-blue-700', // Legacy
+      academy: 'bg-purple-100 text-purple-700',
+      visionary: 'bg-purple-100 text-purple-700' // Legacy
     }
     return badges[tier] || badges.free
   }
@@ -255,8 +257,8 @@ const AdminDashboard = () => {
             >
               <option value="all">All Subscriptions</option>
               <option value="free">Free</option>
-              <option value="creator">Supported</option>
-              <option value="visionary">Academy</option>
+              <option value="supported">Supported</option>
+              <option value="academy">Academy</option>
             </select>
             <select
               value={filters.activity}
@@ -1014,8 +1016,10 @@ const AdminUsers = () => {
     const badges = {
       free: 'bg-gray-100 text-gray-700',
       explorer: 'bg-gray-100 text-gray-700',
-      creator: 'bg-blue-100 text-blue-700',
-      visionary: 'bg-purple-100 text-purple-700'
+      supported: 'bg-blue-100 text-blue-700',
+      creator: 'bg-blue-100 text-blue-700', // Legacy
+      academy: 'bg-purple-100 text-purple-700',
+      visionary: 'bg-purple-100 text-purple-700' // Legacy
     }
     return badges[tier] || badges.free
   }
@@ -1102,8 +1106,8 @@ const AdminUsers = () => {
           >
             <option value="all">All Subscriptions</option>
             <option value="free">Free</option>
-            <option value="creator">Creator</option>
-            <option value="visionary">Visionary</option>
+            <option value="supported">Supported</option>
+            <option value="academy">Academy</option>
           </select>
           <select
             value={filters.activity}
@@ -1456,7 +1460,15 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   }
 
   const handleUpdateSubscription = async () => {
-    if (window.confirm(`Change subscription to ${formData.subscription_tier}?`)) {
+    const tierDisplayNames = { 
+      free: 'Free', 
+      supported: 'Supported', 
+      academy: 'Academy', 
+      creator: 'Supported (Legacy)', 
+      visionary: 'Academy (Legacy)' 
+    };
+    const displayName = tierDisplayNames[formData.subscription_tier] || formData.subscription_tier;
+    if (window.confirm(`Change subscription to ${displayName}?`)) {
       setLoading(true)
       try {
         await api.post(`/api/v3/admin/users/${user.id}/subscription`, {
@@ -1606,8 +1618,8 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="free">Free</option>
-                  <option value="creator">Supported ($10/month)</option>
-                  <option value="visionary">Academy ($25/month)</option>
+                  <option value="supported">Supported ($39.99/month)</option>
+                  <option value="academy">Academy ($499.99/month)</option>
                 </select>
               </div>
               <div>
