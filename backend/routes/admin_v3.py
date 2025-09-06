@@ -868,10 +868,7 @@ def update_user_role(admin_id, user_id):
         
         # Update user role
         response = supabase.table('users')\
-            .update({
-                'role': new_role,
-                'updated_at': datetime.utcnow().isoformat()
-            })\
+            .update({'role': new_role})\
             .eq('id', user_id)\
             .execute()
         
