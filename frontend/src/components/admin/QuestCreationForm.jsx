@@ -720,7 +720,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                         
                         {/* Existing materials */}
                         <div className="flex flex-wrap gap-2 mb-3">
-                          {task.materials_needed.map((material, mIndex) => (
+                          {(task.materials_needed || []).map((material, mIndex) => (
                             <span 
                               key={mIndex} 
                               className="inline-flex items-center px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm"

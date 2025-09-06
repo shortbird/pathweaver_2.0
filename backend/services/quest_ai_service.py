@@ -240,7 +240,7 @@ class QuestAIService:
         Create an educational quest for {age_level} students on the topic: {topic}{objectives_text}
 
         Generate a complete quest with:
-        1. title: Engaging quest name (max 100 characters)
+        1. title: Action-oriented quest name (Design a website, Build a robot, etc.)
         2. big_idea: Compelling 2-3 sentence description explaining the quest's value
         3. tasks: Array of 4-5 specific tasks, each with:
            - title: Clear task name
@@ -248,7 +248,7 @@ class QuestAIService:
            - pillar: One of [{', '.join(self.valid_pillars)}]
            - subcategory: Appropriate subcategory for the pillar
            - xp_value: Points 50-300 based on complexity and time
-           - evidence_prompt: Specific instructions for evidence submission
+           - evidence_prompt: Suggestions for how they can demonstrate completion (e.g. "Submit a photo of your model", "Write a 200-word reflection")
            - order_index: Sequential number starting from 1
 
         Requirements:
@@ -341,6 +341,7 @@ class QuestAIService:
                 'subcategory': self._validate_subcategory(task.get('pillar', 'STEM & Logic'), task.get('subcategory', '')),
                 'xp_value': self._validate_xp(task.get('xp_value', 100)),
                 'evidence_prompt': task.get('evidence_prompt', 'Provide evidence of your completed work.'),
+                'materials_needed': task.get('materials_needed', []),
                 'order_index': task.get('order_index', i + 1)
             }
             
