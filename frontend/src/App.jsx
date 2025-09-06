@@ -21,9 +21,6 @@ import AcceptTermsPage from './pages/AcceptTermsPage'
 import QuestHubV3 from './pages/QuestHubV3Improved'
 import QuestDetailV3 from './pages/QuestDetailV3'
 import DiplomaPageV3 from './pages/DiplomaPageV3'
-// Legacy pages (to be removed)
-import QuestsPage from './pages/QuestsPage'
-import QuestDetailPage from './pages/QuestDetailPage'
 import ProfilePage from './pages/ProfilePage'
 import FriendsPage from './pages/FriendsPage'
 import SubscriptionPage from './pages/SubscriptionPage'
@@ -78,9 +75,6 @@ function App() {
                 <Route path="quests" element={<QuestHubV3 />} />
                 <Route path="quests/:id" element={<QuestDetailV3 />} />
                 <Route path="diploma" element={<DiplomaPageV3 />} />
-                {/* Legacy routes - keeping for now */}
-                <Route path="quests-old" element={<QuestsPage />} />
-                <Route path="quests-old/:id" element={<QuestDetailPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="friends" element={<FriendsPage />} />
                 <Route path="subscription" element={<SubscriptionPage />} />

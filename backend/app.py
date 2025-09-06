@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, make_response
 from dotenv import load_dotenv
 import os
 
-from routes import auth, quests, subscriptions, users, admin, community, portfolio, learning_log, sources
+from routes import auth, subscriptions, users, community, portfolio, sources
 from routes.quest_ideas import quest_ideas_bp
 from routes.ratings import ratings_bp
 from routes import uploads
@@ -10,9 +10,6 @@ from routes.settings import settings_bp
 
 # Import V3 routes
 from routes import quests_v3, tasks, collaborations, learning_logs_v3, admin_v3, quest_sources
-
-# Development utilities (password protected in production)
-from routes import dev_utils
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -48,15 +45,12 @@ configure_cors(app)
 # Configure error handling middleware - MUST come after CORS
 error_handler.init_app(app)
 
-# Register existing routes (will be deprecated)
+# Register existing routes
 app.register_blueprint(auth.bp, url_prefix='/api/auth')
-app.register_blueprint(quests.bp, url_prefix='/api/quests')
 app.register_blueprint(subscriptions.bp, url_prefix='/api/subscriptions')
 app.register_blueprint(users.bp, url_prefix='/api/users')
-app.register_blueprint(admin.bp, url_prefix='/api/admin')
 app.register_blueprint(community.bp, url_prefix='/api/community')
 app.register_blueprint(portfolio.bp, url_prefix='/api/portfolio')
-app.register_blueprint(learning_log.bp, url_prefix='/api')
 app.register_blueprint(quest_ideas_bp)
 app.register_blueprint(ratings_bp)
 app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
@@ -71,13 +65,6 @@ app.register_blueprint(quest_sources.bp)  # /api/v3/admin/quest-sources (bluepri
 app.register_blueprint(collaborations.bp)  # /api/v3/collaborations (blueprint has url_prefix='/api/v3/collaborations')
 app.register_blueprint(learning_logs_v3.bp)  # /api/v3/logs (blueprint has url_prefix='/api/v3/logs')
 
-# Register development utilities (password protected in production)
-app.register_blueprint(dev_utils.bp, url_prefix='/api/dev')
-
-# Register user fix endpoint (temporary)
-from routes import user_fix, fix_quests
-app.register_blueprint(user_fix.bp, url_prefix='/api/user')
-app.register_blueprint(fix_quests.bp, url_prefix='/api/fix')
 
 @app.route('/api/health')
 def health_check():
