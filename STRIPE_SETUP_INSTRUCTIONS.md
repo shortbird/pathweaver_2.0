@@ -20,13 +20,13 @@ You need to create these products in your Stripe Dashboard:
 - **Product Name**: "Optio Supported Subscription"
 - **Description**: "Access to Optio's supported learning features"
 - **Monthly Price**: $39.99/month recurring
-- **Yearly Price**: $399.99/year recurring (~17% discount)
+- **Yearly Price**: $449.99/year recurring (~6% discount)
 
 #### Academy Tier Product  
 - **Product Name**: "Optio Academy Subscription"
 - **Description**: "Full academy experience with 1-on-1 support"
 - **Monthly Price**: $499.99/month recurring
-- **Yearly Price**: $4,999.99/year recurring (~17% discount)
+- **Yearly Price**: $5,499.99/year recurring (~8% discount)
 
 ### 2. Environment Variables to Update
 
@@ -160,3 +160,11 @@ After completing setup:
 - **Next Steps**: Replace placeholders with actual Stripe price IDs
 
 Once the Stripe Dashboard setup is complete and environment variables are updated, the subscription system will be fully functional.
+
+
+STRIPE_ACADEMY_MONTHLY_PRICE_ID=price_[academy_monthly_id]
+STRIPE_ACADEMY_YEARLY_PRICE_ID=price_[academy_yearly_id]
+STRIPE_SECRET_KEY=sk_test_[your_test_secret_key]
+STRIPE_SUPPORTED_MONTHLY_PRICE_ID=price_[supported_monthly_id]
+STRIPE_SUPPORTED_YEARLY_PRICE_ID=price_[supported_yearly_id]
+STRIPE_WEBHOOK_SECRET=whsec_[your_webhook_secret]
