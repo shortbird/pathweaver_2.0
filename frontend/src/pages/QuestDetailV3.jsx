@@ -3,11 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { handleApiResponse } from '../utils/errorHandling';
 import { getPillarData } from '../utils/pillarMappings';
+import { hasFeatureAccess } from '../utils/tierMapping';
 import TaskCompletionModal from '../components/quest/TaskCompletionModal';
 import LearningLogSection from '../components/quest/LearningLogSection';
 import TeamUpModal from '../components/quest/TeamUpModal';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
-import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen } from 'lucide-react';
+import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const QuestDetailV3 = () => {
@@ -15,6 +16,9 @@ const QuestDetailV3 = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [quest, setQuest] = useState(null);
+  
+  // Check if user can start quests (requires paid tier)
+  const canStartQuests = hasFeatureAccess(user?.subscription_tier, 'supported');
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
@@ -377,13 +381,23 @@ const QuestDetailV3 = () => {
             <div className="flex items-center gap-4">
               <div className="text-2xl font-bold text-gray-900">{Math.round(progressPercentage)}%</div>
               {!isQuestCompleted && (
-                <button
-                  onClick={() => setShowTeamUpModal(true)}
-                  className="bg-purple-600 text-white py-2 px-4 rounded-[20px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-medium text-sm shadow-lg"
-                >
-                  <Users className="w-4 h-4 inline mr-1" />
-                  Team Up
-                </button>
+                {canStartQuests ? (
+                  <button
+                    onClick={() => setShowTeamUpModal(true)}
+                    className="bg-purple-600 text-white py-2 px-4 rounded-[20px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-medium text-sm shadow-lg"
+                  >
+                    <Users className="w-4 h-4 inline mr-1" />
+                    Team Up
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => navigate('/subscription')}
+                    className="bg-gray-100 text-gray-600 py-2 px-4 rounded-[20px] hover:bg-gray-200 transition-all duration-300 font-medium text-sm border-2 border-gray-300"
+                  >
+                    <Lock className="w-4 h-4 inline mr-1" />
+                    Upgrade to Team Up
+                  </button>
+                )}
               )}
             </div>
           </div>
@@ -440,21 +454,44 @@ const QuestDetailV3 = () => {
           <div className="flex gap-4">
             {!quest.user_enrollment ? (
               <>
-                <button
-                  onClick={handleEnroll}
-                  disabled={isEnrolling}
-                  className="flex-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Target className="w-5 h-5 inline mr-2" />
-                  {isEnrolling ? 'Enrolling...' : 'Start Quest'}
-                </button>
-                <button
-                  onClick={() => setShowTeamUpModal(true)}
-                  className="bg-purple-600 text-white py-4 px-8 rounded-[30px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
-                >
-                  <Users className="w-5 h-5 inline mr-2" />
-                  Team Up First
-                </button>
+                {canStartQuests ? (
+                  // Paid tier users - show normal start and team up buttons
+                  <>
+                    <button
+                      onClick={handleEnroll}
+                      disabled={isEnrolling}
+                      className="flex-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Target className="w-5 h-5 inline mr-2" />
+                      {isEnrolling ? 'Enrolling...' : 'Start Quest'}
+                    </button>
+                    <button
+                      onClick={() => setShowTeamUpModal(true)}
+                      className="bg-purple-600 text-white py-4 px-8 rounded-[30px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
+                    >
+                      <Users className="w-5 h-5 inline mr-2" />
+                      Team Up First
+                    </button>
+                  </>
+                ) : (
+                  // Free tier users - show upgrade buttons
+                  <>
+                    <button
+                      onClick={() => navigate('/subscription')}
+                      className="flex-1 bg-gray-100 text-gray-600 py-4 px-8 rounded-[30px] hover:bg-gray-200 transition-all duration-300 font-bold text-lg border-2 border-gray-300"
+                    >
+                      <Lock className="w-5 h-5 inline mr-2" />
+                      Upgrade to Start
+                    </button>
+                    <button
+                      onClick={() => navigate('/subscription')}
+                      className="bg-gray-100 text-gray-600 py-4 px-8 rounded-[30px] hover:bg-gray-200 transition-all duration-300 font-bold text-lg border-2 border-gray-300"
+                    >
+                      <Lock className="w-5 h-5 inline mr-2" />
+                      Upgrade to Team Up
+                    </button>
+                  </>
+                )}
               </>
             ) : isQuestCompleted ? (
               <button

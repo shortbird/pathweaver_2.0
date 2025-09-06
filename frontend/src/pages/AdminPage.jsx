@@ -168,9 +168,7 @@ const AdminDashboard = () => {
       free: 'bg-gray-100 text-gray-700',
       explorer: 'bg-gray-100 text-gray-700',
       supported: 'bg-blue-100 text-blue-700',
-      creator: 'bg-blue-100 text-blue-700', // Legacy
-      academy: 'bg-purple-100 text-purple-700',
-      visionary: 'bg-purple-100 text-purple-700' // Legacy
+      academy: 'bg-purple-100 text-purple-700'
     }
     return badges[tier] || badges.free
   }
@@ -1017,9 +1015,7 @@ const AdminUsers = () => {
       free: 'bg-gray-100 text-gray-700',
       explorer: 'bg-gray-100 text-gray-700',
       supported: 'bg-blue-100 text-blue-700',
-      creator: 'bg-blue-100 text-blue-700', // Legacy
-      academy: 'bg-purple-100 text-purple-700',
-      visionary: 'bg-purple-100 text-purple-700' // Legacy
+      academy: 'bg-purple-100 text-purple-700'
     }
     return badges[tier] || badges.free
   }
@@ -1463,9 +1459,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     const tierDisplayNames = { 
       free: 'Free', 
       supported: 'Supported', 
-      academy: 'Academy', 
-      creator: 'Supported (Legacy)', 
-      visionary: 'Academy (Legacy)' 
+      academy: 'Academy'
     };
     const displayName = tierDisplayNames[formData.subscription_tier] || formData.subscription_tier;
     if (window.confirm(`Change subscription to ${displayName}?`)) {
