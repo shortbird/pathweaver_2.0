@@ -256,7 +256,7 @@ class QuestAIService:
         - Tasks should build naturally on each other
         - Avoid flowery or overly enthusiastic language
         - Total XP should be 400-1200 points
-        - Evidence prompts should suggest multiple options: "Could be demonstrated through writing, video, presentation, model, website, or other creative format"
+        - Evidence prompts should suggest multiple options: "Show you completed this task by writing, video, presentation, model, website, or another creative format"
 
         Return as valid JSON with exact field names shown above.
         """
