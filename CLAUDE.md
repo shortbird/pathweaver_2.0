@@ -173,14 +173,34 @@ frontend/src/
 
 ## Environment Variables
 
-**Required:**
-- SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_KEY
-- FLASK_SECRET_KEY
+**Backend Environment Variables:**
+- **Required for all environments:**
+  - `SUPABASE_URL` - Supabase project URL
+  - `SUPABASE_ANON_KEY` - Supabase anonymous key  
+  - `SUPABASE_SERVICE_KEY` - Supabase service role key
+  - `FLASK_SECRET_KEY` - Must be 32+ characters in production
+  - `FLASK_ENV` - Set to "production" for main branch, "development" for develop branch
 
-**Optional:**
-- OPENAI_API_KEY, GEMINI_API_KEY (AI features)
-- STRIPE_SECRET_KEY (payments)
-- FRONTEND_URL (CORS config)
+- **Environment-specific:**
+  - `FRONTEND_URL` - CORS configuration
+    - Dev: `https://optio-frontend-dev.onrender.com`
+    - Prod: `https://www.optioeducation.com`
+
+- **Optional:**
+  - `OPENAI_API_KEY`, `GEMINI_API_KEY` (AI features)
+  - `STRIPE_SECRET_KEY` (payments)
+
+**Frontend Environment Variables:**
+- **Required for all environments:**
+  - `VITE_API_URL` - Backend API endpoint
+    - Dev: `https://optio-backend-dev.onrender.com/api`
+    - Prod: `https://optio-8ibe.onrender.com/api`
+
+**Critical Notes:**
+- **FLASK_SECRET_KEY** must be exactly 64 characters (32 hex bytes) in production
+- **API URLs** must include `/api` suffix for proper routing
+- All environment variables should be identical between develop and main branches except for the URLs
+- Never commit secrets to the repository - all sensitive values go in Render environment variables
 
 ## Production Deployment
 
