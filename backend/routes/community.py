@@ -230,15 +230,20 @@ def accept_friend_request(user_id, friendship_id):
         if friendship['data']['status'] != 'pending':
             return jsonify({'error': 'Friend request already processed'}), 400
         
+        # Update friendship status (critical operation)
         response = supabase.table('friendships').update({
             'status': 'accepted'
         }).eq('id', friendship_id).execute()
         
-        supabase.table('activity_log').insert({
-            'user_id': user_id,
-            'event_type': 'friend_request_accepted',
-            'event_details': {'requester_id': friendship['data']['requester_id']}
-        }).execute()
+        # Log activity (non-critical - don't fail if this fails)
+        try:
+            supabase.table('activity_log').insert({
+                'user_id': user_id,
+                'event_type': 'friend_request_accepted',
+                'event_details': {'requester_id': friendship['data']['requester_id']}
+            }).execute()
+        except Exception as log_error:
+            print(f"Warning: Failed to log activity: {log_error}")
         
         return jsonify(response.data[0]), 200
         

@@ -67,11 +67,22 @@ const FriendsPage = () => {
 
   const acceptRequest = async (friendshipId) => {
     try {
-      await api.post(`/api/community/friends/accept/${friendshipId}`, {})
+      console.log('Accepting friend request:', friendshipId)
+      const response = await api.post(`/api/community/friends/accept/${friendshipId}`, {})
+      console.log('Accept request response:', response.data)
       toast.success('Friend request accepted!')
-      fetchFriends()
+      
+      // Refresh friends list (don't fail silently if this fails)
+      try {
+        await fetchFriends()
+      } catch (refreshError) {
+        console.error('Failed to refresh friends list:', refreshError)
+        // Don't show error toast since the main operation succeeded
+      }
     } catch (error) {
-      toast.error('Failed to accept friend request')
+      console.error('Error accepting friend request:', error)
+      console.error('Error response:', error.response?.data)
+      toast.error(error.response?.data?.error || 'Failed to accept friend request')
     }
   }
 
