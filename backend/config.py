@@ -96,7 +96,7 @@ class Config:
     
     # Google Gemini Configuration
     GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
-    GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-pro')
+    GEMINI_MODEL = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
     
     # Stripe Configuration
     STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
