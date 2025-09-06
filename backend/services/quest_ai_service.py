@@ -41,21 +41,19 @@ class QuestAIService:
             'Life & Wellness': ['Physical Education', 'Health & Nutrition', 'Personal Finance', 'Life Skills', 'Mental Wellness', 'Outdoor Education', 'Sports & Athletics']
         }
     
-    def generate_quest_from_topic(self, topic: str, age_level: str = "high school", 
-                                learning_objectives: Optional[str] = None) -> Dict[str, Any]:
+    def generate_quest_from_topic(self, topic: str, learning_objectives: Optional[str] = None) -> Dict[str, Any]:
         """
         Generate a complete quest structure from a topic.
         
         Args:
             topic: The subject or topic for the quest
-            age_level: Target age level (elementary, middle school, high school, college)
             learning_objectives: Optional specific learning goals
             
         Returns:
             Dict containing quest structure with title, description, and tasks
         """
         try:
-            prompt = self._build_quest_generation_prompt(topic, age_level, learning_objectives)
+            prompt = self._build_quest_generation_prompt(topic, learning_objectives)
             
             response = self.model.generate_content(prompt)
             if not response or not response.text:
@@ -91,24 +89,19 @@ class QuestAIService:
         """
         try:
             prompt = f"""
-            Transform this educational quest description into something inspiring and personally meaningful:
+            Improve this educational quest description:
 
             Title: {title}
             Current Description: {current_description}
 
             Please provide an enhanced version that:
-            - Makes students excited to start immediately
-            - Explains why this quest matters to them RIGHT NOW (not in the future)
-            - Emphasizes creativity, discovery, and personal expression
-            - Uses inspiring language: "create", "discover", "build your own", "explore"
-            - Focuses on the journey of creation and learning, not end products
-            - Is 2-3 sentences that feel like an invitation to an adventure
-            - Avoids prescriptive language or specific requirements
+            - Is clear and direct
+            - Explains what students will create or accomplish
+            - Uses simple language
+            - Is 2-3 sentences
+            - Avoids flowery or overly enthusiastic language
 
-            Make this feel like something students WANT to do, not something they HAVE to do.
-            Think of quests like "Create Your Own Music Composition" or "Build Your Family Recipe Book".
-
-            Return only the enhanced description, no additional text.
+            Return only the improved description, no additional text.
             """
             
             response = self.model.generate_content(prompt)
@@ -143,30 +136,25 @@ class QuestAIService:
             target_task_count = max(3, min(6, target_task_count))
             
             prompt = f"""
-            Create {target_task_count} inspiring exploration milestones for this educational quest:
+            Create {target_task_count} tasks for this educational quest:
 
             Quest Title: {title}
             Quest Description: {description}
 
-            For each milestone, provide:
-            - title: Inspiring milestone name that makes students excited (e.g. "Discover your style", "Bring your vision to life", "Share your creation")
-            - description: Framework for exploration (50-100 words) - provide guidance and possibilities without being prescriptive
+            For each task, provide:
+            - title: Clear task name
+            - description: Simple framework (50-100 words) - provide guidance without being prescriptive
             - pillar: One of [{', '.join(self.valid_pillars)}]
             - subcategory: Appropriate subcategory for the pillar
-            - xp_value: XP points (50-300 based on depth of exploration)
-            - evidence_prompt: Flexible suggestions for sharing learning - offer creative options without specific requirements
+            - xp_value: XP points (50-300 based on complexity)
+            - evidence_prompt: Straightforward suggestions for demonstrating learning
 
-            Milestones should:
-            - Guide the learning journey while allowing student choice in HOW they complete it
-            - Build upon each other as a natural progression of discovery
+            Tasks should:
+            - Build naturally on each other
             - Cover different skill areas when possible
-            - Inspire creativity and personal expression
-            - Use language of exploration: "explore", "discover", "create", "experiment", "build your own"
-            - Focus on the process of learning and creation, not specific deliverables
-
-            Evidence prompts should suggest possibilities like: "Share your learning journey through any format that expresses your understanding - writing, video, art, code, presentation, or your own creative approach"
-
-            Make each milestone feel like an exciting step in a creative adventure!
+            - Use simple, direct language
+            - Focus on what students will accomplish
+            - Avoid redundant or overly enthusiastic phrases
 
             Return as valid JSON array with these exact field names.
             """
@@ -240,35 +228,32 @@ class QuestAIService:
                 }
             }
     
-    def _build_quest_generation_prompt(self, topic: str, age_level: str, 
-                                     learning_objectives: Optional[str]) -> str:
+    def _build_quest_generation_prompt(self, topic: str, learning_objectives: Optional[str]) -> str:
         """Build the main quest generation prompt"""
         objectives_text = f"\nLearning Objectives: {learning_objectives}" if learning_objectives else ""
         
         return f"""
-        Create an inspiring educational quest for {age_level} students on the topic: {topic}{objectives_text}
+        Create an educational quest on the topic: {topic}{objectives_text}
 
-        Generate a creative quest that feels like an exciting challenge, not homework:
-        1. title: Inspiring, creative quest name that makes students want to start immediately (e.g. "Create Your Own...", "Build Something Amazing", "Design the Future of...", "Discover the Secrets of...")
-        2. big_idea: Compelling 2-3 sentence description explaining why this quest is personally meaningful and exciting to do RIGHT NOW - focus on creativity, discovery, and personal expression
-        3. tasks: Array of 4-5 exploration milestones, each with:
-           - title: Inspiring milestone name (e.g. "Explore the possibilities", "Bring your vision to life", "Share your creation")
-           - description: Framework for exploration (50-100 words) - provide direction and possibilities without prescriptive requirements
+        Generate a quest with:
+        1. title: Simple, clear quest name (e.g. "Build Your Own Solar System", "Create a Family Recipe Book", "Start a Small Business")
+        2. big_idea: Brief 2-3 sentence description explaining what students will create and why it matters
+        3. tasks: Array of 4-5 tasks, each with:
+           - title: Clear task name
+           - description: Simple framework (50-100 words) - provide direction without being prescriptive
            - pillar: One of [{', '.join(self.valid_pillars)}]
            - subcategory: Appropriate subcategory for the pillar
-           - xp_value: Points 50-300 based on depth of exploration
-           - evidence_prompt: Flexible suggestions for sharing learning - offer multiple creative options without requiring any specific format
+           - xp_value: Points 50-300 based on complexity
+           - evidence_prompt: Straightforward suggestions for demonstrating learning
            - order_index: Sequential number starting from 1
 
-        Guidelines for creating inspiring quests:
-        - Frame as creative challenges that inspire personal expression
-        - Use language of discovery: "explore", "discover", "create", "experiment", "build your own"
-        - Tasks should guide the learning journey while allowing student choice in HOW they complete it
-        - Focus on the process of creation and discovery, not specific deliverables
+        Guidelines:
+        - Use simple, direct language
+        - Focus on what students will create or accomplish
+        - Tasks should build naturally on each other
+        - Avoid flowery or overly enthusiastic language
         - Total XP should be 400-1200 points
-        - Evidence prompts should suggest possibilities: "Share your journey through writing, video, art, code, presentation, or any creative format that shows your understanding"
-
-        Make this feel like something students WANT to do, not something they HAVE to do.
+        - Evidence prompts should offer options without being redundant
 
         Return as valid JSON with exact field names shown above.
         """
