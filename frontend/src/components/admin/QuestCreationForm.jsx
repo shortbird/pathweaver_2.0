@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
-import { X, Plus, Trash2, ChevronDown, ChevronUp, Save, AlertCircle } from 'lucide-react'
+import { X, Plus, Trash2, ChevronDown, ChevronUp, Save, AlertCircle, Sparkles } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import AIQuestGenerationModal from './AIQuestGenerationModal'
 
 const QuestCreationForm = ({ onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false)
@@ -9,6 +10,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
   const [showNewSourceForm, setShowNewSourceForm] = useState(false)
   const [errors, setErrors] = useState({})
   const [expandedTasks, setExpandedTasks] = useState({})
+  const [showAIModal, setShowAIModal] = useState(false)
   
   // Form state matching the quest template structure
   const [formData, setFormData] = useState({
@@ -273,6 +275,36 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
     })
   }
 
+  const handleAIQuestGenerated = (generatedQuest) => {
+    // Update form with AI generated quest data
+    setFormData({
+      title: generatedQuest.title || '',
+      big_idea: generatedQuest.big_idea || '',
+      source: 'optio',
+      is_active: true,
+      tasks: generatedQuest.tasks || [],
+      metadata: {
+        location_type: 'anywhere',
+        location_address: '',
+        venue_name: '',
+        seasonal_start: '',
+        seasonal_end: ''
+      }
+    })
+    
+    // Clear any existing errors
+    setErrors({})
+    
+    // Expand all tasks so user can review
+    const expanded = {}
+    generatedQuest.tasks?.forEach((_, index) => {
+      expanded[index] = true
+    })
+    setExpandedTasks(expanded)
+    
+    toast.success('AI-generated quest loaded! Review and modify as needed.')
+  }
+
   const updateTask = (index, field, value) => {
     const newTasks = [...formData.tasks]
     newTasks[index] = {
@@ -396,7 +428,16 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
             title="Quest Details" 
             description="Basic information about your quest"
             required
-          />
+          >
+            <button
+              type="button"
+              onClick={() => setShowAIModal(true)}
+              className="flex items-center space-x-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+            >
+              <Sparkles className="h-4 w-4" />
+              <span>AI Assist</span>
+            </button>
+          </SectionHeader>
           
           <div className="space-y-6 mb-8">
             <div>
@@ -820,6 +861,13 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
           </div>
         </form>
       </div>
+
+      {/* AI Quest Generation Modal */}
+      <AIQuestGenerationModal
+        isOpen={showAIModal}
+        onClose={() => setShowAIModal(false)}
+        onQuestGenerated={handleAIQuestGenerated}
+      />
     </div>
   )
 }
