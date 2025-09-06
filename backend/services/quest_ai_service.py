@@ -147,7 +147,7 @@ class QuestAIService:
             - pillar: One of [{', '.join(self.valid_pillars)}]
             - subcategory: Appropriate subcategory for the pillar
             - xp_value: XP points (50-300 based on complexity)
-            - evidence_prompt: Straightforward suggestions for demonstrating learning
+            - evidence_prompt: Suggested evidence options - offer multiple ways students could demonstrate learning (written work, video, presentation, model, website, etc.)
 
             Tasks should:
             - Build naturally on each other
@@ -155,6 +155,9 @@ class QuestAIService:
             - Use simple, direct language
             - Focus on what students will accomplish
             - Avoid redundant or overly enthusiastic phrases
+
+            Evidence prompts should suggest multiple ways students could demonstrate learning:
+            "Could be demonstrated through a written reflection, video presentation, creative project, model, website, or other format that shows your understanding"
 
             Return as valid JSON array with these exact field names.
             """
@@ -244,7 +247,7 @@ class QuestAIService:
            - pillar: One of [{', '.join(self.valid_pillars)}]
            - subcategory: Appropriate subcategory for the pillar
            - xp_value: Points 50-300 based on complexity
-           - evidence_prompt: Straightforward suggestions for demonstrating learning
+           - evidence_prompt: Suggested evidence options - offer multiple ways students could demonstrate learning (written work, video, presentation, model, website, etc.)
            - order_index: Sequential number starting from 1
 
         Guidelines:
@@ -253,7 +256,7 @@ class QuestAIService:
         - Tasks should build naturally on each other
         - Avoid flowery or overly enthusiastic language
         - Total XP should be 400-1200 points
-        - Evidence prompts should offer options without being redundant
+        - Evidence prompts should suggest multiple options: "Could be demonstrated through writing, video, presentation, model, website, or other creative format"
 
         Return as valid JSON with exact field names shown above.
         """
