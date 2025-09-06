@@ -29,7 +29,12 @@ export const SOURCE_IMAGES = {
 export const getQuestHeaderImage = (quest) => {
   if (!quest) return SOURCE_IMAGES.optio;
   
-  // If quest has a custom banner image, use that
+  // If quest has a custom header image, use that first
+  if (quest.header_image_url) {
+    return quest.header_image_url;
+  }
+  
+  // If quest has a custom banner image (legacy field), use that
   if (quest.quest_banner_image) {
     return quest.quest_banner_image;
   }

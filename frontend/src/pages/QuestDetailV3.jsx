@@ -315,18 +315,18 @@ const QuestDetailV3 = () => {
         <p className="text-lg text-gray-700 mb-6">{quest.big_idea || quest.description}</p>
         
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white p-4 rounded-lg text-center">
-            <div className="font-bold text-2xl">{totalXP}</div>
-            <div className="text-white/90">Total XP</div>
+        <div className="flex flex-wrap gap-3">
+          <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-lg text-center">
+            <div className="font-bold text-lg">{totalXP}</div>
+            <div className="text-white/90 text-xs">Total XP</div>
           </div>
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-lg text-center">
-            <div className="font-bold text-2xl">{completedTasks} / {totalTasks}</div>
-            <div className="text-white/90">Tasks</div>
+          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 rounded-lg text-center">
+            <div className="font-bold text-lg">{completedTasks} / {totalTasks}</div>
+            <div className="text-white/90 text-xs">Tasks</div>
           </div>
-          <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-4 rounded-lg text-center">
-            <div className="font-bold text-2xl">+{bonusXP}</div>
-            <div className="text-white/90">Completion Bonus</div>
+          <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-4 py-2 rounded-lg text-center">
+            <div className="font-bold text-lg">+{bonusXP}</div>
+            <div className="text-white/90 text-xs">Completion Bonus</div>
           </div>
         </div>
       </div>
@@ -351,7 +351,7 @@ const QuestDetailV3 = () => {
         
         {/* Pillar XP Breakdown */}
         {Object.keys(pillarBreakdown).length > 0 && (
-          <div className="mt-4 pt-4 border-t border-gray-200">
+          <div className="mt-4">
             <div className="flex flex-wrap gap-2">
               {Object.entries(pillarBreakdown).map(([pillar, xp]) => {
                 const pillarData = getPillarData(pillar);
@@ -376,7 +376,7 @@ const QuestDetailV3 = () => {
             <h2 className="text-xl font-bold text-gray-900">Your Progress</h2>
             <div className="flex items-center gap-4">
               <div className="text-2xl font-bold text-gray-900">{Math.round(progressPercentage)}%</div>
-              {!quest.collaboration && !isQuestCompleted && (
+              {!isQuestCompleted && (
                 <button
                   onClick={() => setShowTeamUpModal(true)}
                   className="bg-purple-600 text-white py-2 px-4 rounded-[20px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-medium text-sm shadow-lg"
@@ -435,37 +435,39 @@ const QuestDetailV3 = () => {
       )}
 
       {/* 4. Call-to-Action Buttons */}
-      <div className="bg-white rounded-xl shadow-md p-6 mb-8">
-        <div className="flex gap-4">
-          {!quest.user_enrollment ? (
-            <>
+      {(!quest.user_enrollment || isQuestCompleted) && (
+        <div className="bg-white rounded-xl shadow-md p-6 mb-8">
+          <div className="flex gap-4">
+            {!quest.user_enrollment ? (
+              <>
+                <button
+                  onClick={handleEnroll}
+                  disabled={isEnrolling}
+                  className="flex-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Target className="w-5 h-5 inline mr-2" />
+                  {isEnrolling ? 'Enrolling...' : 'Start Quest'}
+                </button>
+                <button
+                  onClick={() => setShowTeamUpModal(true)}
+                  className="bg-purple-600 text-white py-4 px-8 rounded-[30px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
+                >
+                  <Users className="w-5 h-5 inline mr-2" />
+                  Team Up First
+                </button>
+              </>
+            ) : isQuestCompleted ? (
               <button
-                onClick={handleEnroll}
-                disabled={isEnrolling}
-                className="flex-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={() => navigate('/diploma')}
+                className="flex-1 bg-emerald-500 text-white py-4 px-8 rounded-[30px] hover:bg-emerald-600 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
               >
-                <Target className="w-5 h-5 inline mr-2" />
-                {isEnrolling ? 'Enrolling...' : 'Start Quest'}
+                <Award className="w-5 h-5 inline mr-2" />
+                View Achievement on Diploma
               </button>
-              <button
-                onClick={() => setShowTeamUpModal(true)}
-                className="bg-purple-600 text-white py-4 px-8 rounded-[30px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
-              >
-                <Users className="w-5 h-5 inline mr-2" />
-                Team Up First
-              </button>
-            </>
-          ) : isQuestCompleted ? (
-            <button
-              onClick={() => navigate('/diploma')}
-              className="flex-1 bg-emerald-500 text-white py-4 px-8 rounded-[30px] hover:bg-emerald-600 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
-            >
-              <Award className="w-5 h-5 inline mr-2" />
-              View Achievement on Diploma
-            </button>
-          ) : null}
+            ) : null}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* 5. Enhanced Tasks Interface */}
       <div className="bg-white rounded-xl shadow-md overflow-hidden mb-8">
