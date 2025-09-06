@@ -3,12 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import Button from '../../ui/Button';
 import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings';
-import { CheckCircle } from 'lucide-react';
+import { hasFeatureAccess } from '../../../utils/tierMapping';
+import { CheckCircle, Lock } from 'lucide-react';
 
 const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isEnrolling, setIsEnrolling] = useState(false);
+  
+  // Check if user can start quests (requires paid tier)
+  const canStartQuests = hasFeatureAccess(user?.subscription_tier, 'supported');
 
   // Simplified data extraction
   const totalXP = quest.total_xp || 0;
@@ -150,27 +154,46 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
               Continue Quest
             </Button>
           ) : (
-            // Quest not started - show start and team up buttons
+            // Quest not started - show different buttons based on tier
             <>
-              <Button
-                variant="primary"
-                size="sm"
-                className="flex-1"
-                onClick={handleEnroll}
-                loading={isEnrolling}
-              >
-                Start Quest
-              </Button>
-              
-              <button
-                onClick={handleTeamUpClick}
-                className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors group/team"
-                title="Team up for bonus XP!"
-              >
-                <svg className="w-5 h-5 text-gray-600 group-hover/team:text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
-                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-                </svg>
-              </button>
+              {canStartQuests ? (
+                // Paid tier users - show start and team up buttons
+                <>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    className="flex-1"
+                    onClick={handleEnroll}
+                    loading={isEnrolling}
+                  >
+                    Start Quest
+                  </Button>
+                  
+                  <button
+                    onClick={handleTeamUpClick}
+                    className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors group/team"
+                    title="Team up for bonus XP!"
+                  >
+                    <svg className="w-5 h-5 text-gray-600 group-hover/team:text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M13 6a3 3 0 11-6 0 3 3 0 616 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                    </svg>
+                  </button>
+                </>
+              ) : (
+                // Free tier users - show upgrade button
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1 !bg-gray-100 !text-gray-600 hover:!bg-gray-200"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navigate('/subscription');
+                  }}
+                >
+                  <Lock className="w-4 h-4 mr-2" />
+                  Upgrade to Start
+                </Button>
+              )}
             </>
           )}
         </div>

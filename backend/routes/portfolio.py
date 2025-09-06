@@ -2,6 +2,7 @@ from flask import Blueprint, jsonify
 from flask_cors import cross_origin
 from database import get_supabase_client
 from datetime import datetime
+from utils.auth.decorators import require_auth, require_paid_tier
 
 bp = Blueprint('portfolio', __name__)
 
@@ -196,7 +197,9 @@ def get_public_portfolio(portfolio_slug):
 
 @bp.route('/user/<user_id>', methods=['GET'])
 @cross_origin()
-def get_user_portfolio(user_id):
+@require_auth
+@require_paid_tier
+def get_user_portfolio(auth_user_id: str, user_id: str):
     """
     Get portfolio data for a specific user
     """

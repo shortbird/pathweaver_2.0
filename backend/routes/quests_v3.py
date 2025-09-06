@@ -5,7 +5,7 @@ Handles quest listing, enrollment, and detail views.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_client, get_supabase_admin_client
-from utils.auth.decorators import require_auth
+from utils.auth.decorators import require_auth, require_paid_tier
 from utils.source_utils import get_quest_header_image
 from utils.user_sync import ensure_user_exists, get_user_name
 from datetime import datetime
@@ -443,6 +443,7 @@ def check_enrollment_status(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/enroll', methods=['POST'])
 @require_auth
+@require_paid_tier
 def enroll_in_quest(user_id: str, quest_id: str):
     """
     Enroll a user in a quest.

@@ -100,3 +100,51 @@ def require_role(*allowed_roles):
         
         return decorated_function
     return decorator
+
+def require_paid_tier(f):
+    """Decorator to require a paid subscription tier (supported or academy)"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        token = request.headers.get('Authorization', '').replace('Bearer ', '')
+        
+        if not token:
+            raise AuthenticationError('No token provided')
+        
+        user_id = verify_token(token)
+        
+        if not user_id:
+            raise AuthenticationError('Invalid or expired token')
+        
+        # Store user_id in request context
+        request.user_id = user_id
+        
+        # Check subscription tier
+        supabase = get_authenticated_supabase_client()
+        
+        try:
+            user = supabase.table('users').select('subscription_tier').eq('id', user_id).single().execute()
+            
+            if not user.data:
+                raise AuthorizationError('User not found')
+            
+            subscription_tier = user.data.get('subscription_tier', 'free')
+            
+            # Allow supported and academy tiers, block free and legacy explorer
+            if subscription_tier not in ['supported', 'academy']:
+                return jsonify({
+                    'error': 'subscription_required',
+                    'message': 'This feature requires a Supported or Academy subscription',
+                    'required_tier': 'supported',
+                    'current_tier': subscription_tier,
+                    'upgrade_url': '/subscription'
+                }), 403
+            
+            return f(user_id, *args, **kwargs)
+            
+        except (AuthenticationError, AuthorizationError):
+            raise
+        except Exception as e:
+            print(f"Error verifying subscription tier: {str(e)}")
+            raise AuthorizationError('Failed to verify subscription tier')
+    
+    return decorated_function

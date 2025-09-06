@@ -5,7 +5,7 @@ Handles team-up invitations and collaboration management.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client, get_supabase_client
-from utils.auth.decorators import require_auth
+from utils.auth.decorators import require_auth, require_paid_tier
 from utils.user_sync import ensure_user_exists, get_user_name
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -14,6 +14,7 @@ bp = Blueprint('collaborations', __name__, url_prefix='/api/v3/collaborations')
 
 @bp.route('/invite', methods=['POST'])
 @require_auth
+@require_paid_tier
 def send_collaboration_invite(user_id: str):
     """
     Send a team-up invitation to a friend for a specific quest.
@@ -166,6 +167,7 @@ def send_collaboration_invite(user_id: str):
 
 @bp.route('/invites', methods=['GET'])
 @require_auth
+@require_paid_tier
 def get_pending_invites(user_id: str):
     """
     Get all pending team-up invitations for the current user.
@@ -241,6 +243,7 @@ def get_pending_invites(user_id: str):
 
 @bp.route('/<invite_id>/accept', methods=['POST'])
 @require_auth
+@require_paid_tier
 def accept_invitation(user_id: str, invite_id: str):
     """
     Accept a team-up invitation.
@@ -327,6 +330,7 @@ def accept_invitation(user_id: str, invite_id: str):
 
 @bp.route('/<invite_id>/decline', methods=['POST'])
 @require_auth
+@require_paid_tier
 def decline_invitation(user_id: str, invite_id: str):
     """
     Decline a team-up invitation.
@@ -378,6 +382,7 @@ def decline_invitation(user_id: str, invite_id: str):
 
 @bp.route('/active', methods=['GET'])
 @require_auth
+@require_paid_tier
 def get_active_collaborations(user_id: str):
     """
     Get all active collaborations for the current user.
@@ -446,6 +451,7 @@ def get_active_collaborations(user_id: str):
 
 @bp.route('/<collab_id>/complete', methods=['POST'])
 @require_auth
+@require_paid_tier
 def mark_collaboration_complete(user_id: str, collab_id: str):
     """
     Mark a collaboration as completed when the quest is finished.

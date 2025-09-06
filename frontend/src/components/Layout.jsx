@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
+import { hasFeatureAccess } from '../utils/tierMapping'
 
 const Layout = () => {
   const { user, logout, isAuthenticated } = useAuth()
@@ -15,7 +16,7 @@ const Layout = () => {
   }
 
   React.useEffect(() => {
-    if (user?.id && isAuthenticated) {
+    if (user?.id && isAuthenticated && hasFeatureAccess(user?.subscription_tier, 'supported')) {
       fetchPortfolioSlug()
     }
     fetchSiteSettings()
@@ -89,18 +90,22 @@ const Layout = () => {
                   >
                     Quests
                   </Link>
-                  <Link
-                    to="/friends"
-                    className="inline-flex items-center px-1 pt-1 text-sm font-medium text-text-secondary hover:text-primary transition-colors"
-                  >
-                    Friends
-                  </Link>
-                  <Link
-                    to="/diploma"
-                    className="inline-flex items-center px-1 pt-1 text-sm font-medium text-text-secondary hover:text-primary transition-colors"
-                  >
-                    My Diploma
-                  </Link>
+                  {hasFeatureAccess(user?.subscription_tier, 'supported') && (
+                    <Link
+                      to="/friends"
+                      className="inline-flex items-center px-1 pt-1 text-sm font-medium text-text-secondary hover:text-primary transition-colors"
+                    >
+                      Friends
+                    </Link>
+                  )}
+                  {hasFeatureAccess(user?.subscription_tier, 'supported') && (
+                    <Link
+                      to="/diploma"
+                      className="inline-flex items-center px-1 pt-1 text-sm font-medium text-text-secondary hover:text-primary transition-colors"
+                    >
+                      My Diploma
+                    </Link>
+                  )}
                   {user?.role === 'admin' && (
                     <Link
                       to="/admin"
@@ -199,20 +204,24 @@ const Layout = () => {
               >
                 Quests
               </Link>
-              <Link
-                to="/friends"
-                className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Friends
-              </Link>
-              <Link
-                to="/diploma"
-                className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                My Diploma
-              </Link>
+              {hasFeatureAccess(user?.subscription_tier, 'supported') && (
+                <Link
+                  to="/friends"
+                  className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Friends
+                </Link>
+              )}
+              {hasFeatureAccess(user?.subscription_tier, 'supported') && (
+                <Link
+                  to="/diploma"
+                  className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  My Diploma
+                </Link>
+              )}
               {user?.role === 'admin' && (
                 <Link
                   to="/admin"
