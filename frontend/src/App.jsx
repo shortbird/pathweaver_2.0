@@ -67,6 +67,8 @@ function App() {
               <Route path="privacy" element={<PrivacyPolicy />} />
               <Route path="portfolio/:slug" element={<DiplomaPageV3 />} />
               <Route path="diploma/:userId" element={<DiplomaPageV3 />} />
+              <Route path="subscription/success" element={<SubscriptionSuccess />} />
+              <Route path="subscription/cancel" element={<SubscriptionCancel />} />
               
               <Route element={<PrivateRoute />}>
                 <Route path="accept-terms" element={<AcceptTermsPage />} />
@@ -78,8 +80,6 @@ function App() {
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="friends" element={<FriendsPage />} />
                 <Route path="subscription" element={<SubscriptionPage />} />
-                <Route path="subscription/success" element={<SubscriptionSuccess />} />
-                <Route path="subscription/cancel" element={<SubscriptionCancel />} />
               </Route>
               
               <Route element={<PrivateRoute requiredRole="admin" />}>

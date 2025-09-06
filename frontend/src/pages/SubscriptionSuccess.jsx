@@ -20,26 +20,46 @@ const SubscriptionSuccess = () => {
         
         if (sessionId) {
           // Verify the session and update subscription
-          await api.post('/api/subscriptions/verify-session', { session_id: sessionId })
+          const verifyResponse = await api.post('/api/subscriptions/verify-session', { session_id: sessionId })
+          console.log('Verification response:', verifyResponse.data)
+          
+          // Set subscription details from verify response
+          if (verifyResponse.data.success) {
+            setSubscriptionDetails({
+              tier: verifyResponse.data.tier,
+              status: verifyResponse.data.status,
+              current_period_end: verifyResponse.data.period_end
+            })
+            
+            // Update user data with new subscription tier if user is authenticated
+            if (user && updateUser) {
+              updateUser({
+                ...user,
+                subscription_tier: verifyResponse.data.tier,
+                subscription_status: verifyResponse.data.status || 'active'
+              })
+            }
+            
+            toast.success('Welcome to your new subscription plan!')
+          }
+        } else {
+          // No session ID, try to fetch current status if authenticated
+          if (user) {
+            const response = await api.get('/api/subscriptions/status')
+            setSubscriptionDetails(response.data)
+          }
         }
         
-        // Fetch updated subscription status
-        const response = await api.get('/api/subscriptions/status')
-        setSubscriptionDetails(response.data)
-        
-        // Update user data with new subscription tier
-        if (response.data.tier) {
-          updateUser({
-            ...user,
-            subscription_tier: response.data.tier,
-            subscription_status: response.data.status || 'active'
-          })
-        }
-        
-        toast.success('Welcome to your new subscription plan!')
       } catch (error) {
         console.error('Error verifying subscription:', error)
-        toast.error('There was an issue verifying your subscription. Please contact support.')
+        
+        // If authentication error, user might need to log in
+        if (error.response?.status === 401) {
+          toast.error('Please log in to complete your subscription setup.')
+          setTimeout(() => navigate('/login'), 2000)
+        } else {
+          toast.error('There was an issue verifying your subscription. Please contact support.')
+        }
       } finally {
         setLoading(false)
       }
@@ -49,7 +69,7 @@ const SubscriptionSuccess = () => {
   }, [searchParams]) // Removed updateUser and user to prevent infinite loop
   
   const handleContinue = () => {
-    navigate('/quest-hub')
+    navigate('/quests')
   }
   
   const handleViewDashboard = () => {
