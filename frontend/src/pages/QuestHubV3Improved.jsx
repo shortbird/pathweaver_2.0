@@ -16,6 +16,7 @@ const QuestHubV3Improved = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState('');
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPillar, setSelectedPillar] = useState('all');
   const [showTeamUpModal, setShowTeamUpModal] = useState(false);
@@ -42,6 +43,7 @@ const QuestHubV3Improved = () => {
     setQuests([]);
     setPage(1);
     setHasMore(true);
+    setError(''); // Clear any previous errors when filters change
   }, [searchTerm, selectedPillar]);
 
   // Fetch quests when page changes
@@ -129,6 +131,7 @@ const QuestHubV3Improved = () => {
       
       if (isInitial) {
         setQuests(data.quests || []);
+        setHasLoadedOnce(true);
       } else {
         setQuests(prev => [...prev, ...(data.quests || [])]);
       }
@@ -141,10 +144,17 @@ const QuestHubV3Improved = () => {
         : error.response?.status === 404
         ? 'No quests found. Check back later for new adventures!'
         : 'Unable to load quests at this time. Please check your connection and refresh the page.'
-      setError(errorMsg);
+      
+      // Only show error if we're not loading for the first time or if we've loaded before
+      if (!isInitial || hasLoadedOnce) {
+        setError(errorMsg);
+      }
     } finally {
       setIsLoading(false);
       setIsLoadingMore(false);
+      if (isInitial) {
+        setHasLoadedOnce(true);
+      }
     }
   }, [page, searchTerm, selectedPillar, user]);
 
