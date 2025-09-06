@@ -14,8 +14,8 @@
 - **Development**: Push to `develop` branch for immediate live testing on dev environment
 - **Production**: Deploy to `main` branch only when ready for production release
 - **Branch Strategy**: 
-  - `develop` → https://optio-frontend-dev-new.onrender.com & https://optio-backend-dev-new.onrender.com
-  - `main` → https://www.optioeducation.com & https://optio-backend-dev.onrender.com (promoted from working dev)
+  - `develop` → https://optio-dev-frontend.onrender.com & https://optio-dev-backend.onrender.com
+  - `main` → https://www.optioeducation.com & https://optio-prod-backend.onrender.com
 - **Testing Process**: Always test changes in dev environment first, then merge to main for production
 
 **DESIGN GUIDELINES:**
@@ -45,10 +45,10 @@ Optio is an educational platform where students create self-validated diplomas t
 - React Router v6, React Query, Axios
 
 **Hosting:**
-- Backend: Render (optio-backend-dev for dev, Optio for production)
-- Frontend: Render (optio-frontend-dev for dev, Optio_FE for production)
+- Backend: Render (optio-dev-backend for dev, optio-prod-backend for production)
+- Frontend: Render (optio-dev-frontend for dev, optio-prod-frontend for production)
 - Database: Supabase (shared across environments)
-- Custom Domain: www.optioeducation.com → Optio_FE service
+- Custom Domain: www.optioeducation.com → optio-prod-frontend service
 
 ## Key Directory Structure
 
@@ -183,7 +183,7 @@ frontend/src/
 
 - **Environment-specific:**
   - `FRONTEND_URL` - CORS configuration
-    - Dev: `https://optio-frontend-dev-new.onrender.com`
+    - Dev: `https://optio-dev-frontend.onrender.com`
     - Prod: `https://www.optioeducation.com`
 
 - **Optional:**
@@ -193,8 +193,8 @@ frontend/src/
 **Frontend Environment Variables:**
 - **Required for all environments:**
   - `VITE_API_URL` - Backend API endpoint (without /api suffix)
-    - Dev: `https://optio-backend-dev-new.onrender.com`
-    - Prod: `https://optio-backend-dev.onrender.com` (promoted from working dev)
+    - Dev: `https://optio-dev-backend.onrender.com`
+    - Prod: `https://optio-prod-backend.onrender.com`
 
 **Critical Notes:**
 - **FLASK_SECRET_KEY** must be exactly 64 characters (32 hex bytes) in production
@@ -206,16 +206,16 @@ frontend/src/
 
 **Development Environment:**
 ```bash
-git push origin develop  # Auto-deploys to optio-backend-dev & optio-frontend-dev
+git push origin develop  # Auto-deploys to optio-dev-backend & optio-dev-frontend
 ```
-- **Backend**: https://optio-backend-dev.onrender.com
-- **Frontend**: https://optio-frontend-dev.onrender.com
+- **Backend**: https://optio-dev-backend.onrender.com
+- **Frontend**: https://optio-dev-frontend.onrender.com
 
 **Production Environment:**
 ```bash
-git push origin main  # Auto-deploys to Optio & Optio_FE
+git push origin main  # Auto-deploys to optio-prod-backend & optio-prod-frontend
 ```
-- **Backend**: https://optio-8ibe.onrender.com  
+- **Backend**: https://optio-prod-backend.onrender.com  
 - **Frontend**: https://www.optioeducation.com
 
 **Key Files:**
@@ -249,15 +249,20 @@ mcp__render__get_deploy(serviceId, deployId)
 mcp__render__list_logs(resource, limit, filters)
 ```
 
-**Service IDs:**
-- **Dev Backend**: `srv-d2tnm1uuk2gs73d2cqk0` (optio-backend-dev-new)
-- **Dev Frontend**: `srv-d2tnm3re5dus73e155u0` (optio-frontend-dev-new)
-- **Prod Backend**: `srv-d2s8r8be5dus73ddp8h0` (optio-backend-dev - promoted to production)
-- **Prod Frontend**: `srv-d2r79t7diees73dvcbig` (Optio_FE)
+**Service IDs (Clean Architecture):**
+- **Dev Backend**: `srv-d2tnvlvfte5s73ae8npg` (optio-dev-backend)
+- **Dev Frontend**: `srv-d2tnvrffte5s73ae8s4g` (optio-dev-frontend)
+- **Prod Backend**: `srv-d2to00vfte5s73ae9310` (optio-prod-backend)
+- **Prod Frontend**: `srv-d2to04vfte5s73ae97ag` (optio-prod-frontend)
 
-**Legacy Services (can be deleted after verification):**
-- **Old Prod Backend**: `srv-d2po3n6r433s73dhcuig` (Optio - had CORS issues)
-- **Old Dev Frontend**: `srv-d2s8ravdiees73bfll10` (optio-frontend-dev - replaced by new)
+**Legacy Services (DELETE THESE - no longer needed):**
+- `srv-d2tnouh5pdvs739ohha0` (optio-backend-dev-v2)
+- `srv-d2tnm1uuk2gs73d2cqk0` (optio-backend-dev-new)
+- `srv-d2tnm3re5dus73e155u0` (optio-frontend-dev-new)
+- `srv-d2s8ravdiees73bfll10` (optio-frontend-dev)
+- `srv-d2s8r8be5dus73ddp8h0` (optio-backend-dev)
+- `srv-d2r79t7diees73dvcbig` (Optio_FE)
+- `srv-d2po3n6r433s73dhcuig` (Optio)
 
 **MCP Benefits:**
 - Real-time deployment monitoring
