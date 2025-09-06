@@ -4,8 +4,14 @@ from database import get_supabase_admin_client
 import base64
 import uuid
 import mimetypes
-import magic
 from datetime import datetime
+
+# Try to import python-magic for file type validation
+try:
+    import magic
+    HAS_MAGIC = True
+except ImportError:
+    HAS_MAGIC = False
 
 bp = Blueprint('uploads', __name__)
 
@@ -48,13 +54,14 @@ def validate_file_type(filename, file_content):
         return False, f"File type '{extension}' not allowed"
     
     # Check magic bytes if python-magic is available
-    try:
-        mime_type = magic.from_buffer(file_content[:2048], mime=True)
-        if mime_type not in ALLOWED_FILE_TYPES[extension]:
-            return False, f"File content doesn't match extension. Expected: {ALLOWED_FILE_TYPES[extension]}, Got: {mime_type}"
-    except:
-        # Fallback to basic extension check if python-magic is not available
-        pass
+    if HAS_MAGIC:
+        try:
+            mime_type = magic.from_buffer(file_content[:2048], mime=True)
+            if mime_type not in ALLOWED_FILE_TYPES[extension]:
+                return False, f"File content doesn't match extension. Expected: {ALLOWED_FILE_TYPES[extension]}, Got: {mime_type}"
+        except Exception:
+            # If magic bytes check fails, continue with basic extension check
+            pass
     
     return True, None
 
