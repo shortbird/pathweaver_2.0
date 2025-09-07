@@ -381,7 +381,7 @@ const QuestDetailV3 = () => {
             <div className="flex items-center gap-4">
               <div className="text-2xl font-bold text-gray-900">{Math.round(progressPercentage)}%</div>
               {!isQuestCompleted && (
-                {canStartQuests ? (
+                canStartQuests ? (
                   <button
                     onClick={() => setShowTeamUpModal(true)}
                     className="bg-purple-600 text-white py-2 px-4 rounded-[20px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-medium text-sm shadow-lg"
@@ -397,7 +397,7 @@ const QuestDetailV3 = () => {
                     <Lock className="w-4 h-4 inline mr-1" />
                     Upgrade to Team Up
                   </button>
-                )}
+                )
               )}
             </div>
           </div>
