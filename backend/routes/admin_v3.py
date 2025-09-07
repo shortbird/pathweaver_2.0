@@ -843,8 +843,7 @@ def update_user_subscription(admin_id, user_id):
             'subscription_tier': db_tier
         }
         
-        if data.get('expires'):
-            update_data['subscription_expires'] = data['expires']
+        # Note: subscription_expires field is not used in database schema
         
         print(f"Updating user {user_id} subscription from {requested_tier} to DB tier {db_tier}")
         print(f"Update data: {update_data}")
