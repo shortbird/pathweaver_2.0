@@ -828,15 +828,16 @@ def update_user_subscription(admin_id, user_id):
     data = request.json
     
     try:
-        # Map new tier names to legacy database values
-        tier_mapping = {
-            'free': 'free',
-            'supported': 'creator',  # Map supported -> creator for DB
-            'academy': 'visionary'   # Map academy -> visionary for DB
-        }
+        # Valid subscription tier values
+        valid_tiers = ['free', 'supported', 'academy']
         
         requested_tier = data.get('tier', 'free')
-        db_tier = tier_mapping.get(requested_tier, requested_tier)
+        
+        # Validate tier
+        if requested_tier not in valid_tiers:
+            return jsonify({'error': f'Invalid tier: {requested_tier}. Must be one of: {valid_tiers}'}), 400
+        
+        db_tier = requested_tier
         
         update_data = {
             'subscription_tier': db_tier
