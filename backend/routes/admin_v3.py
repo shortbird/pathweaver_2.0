@@ -839,19 +839,21 @@ def update_user_subscription(admin_id, user_id):
         db_tier = tier_mapping.get(requested_tier, requested_tier)
         
         update_data = {
-            'subscription_tier': db_tier,
-            'updated_at': datetime.utcnow().isoformat()
+            'subscription_tier': db_tier
         }
         
         if data.get('expires'):
             update_data['subscription_expires'] = data['expires']
         
         print(f"Updating user {user_id} subscription from {requested_tier} to DB tier {db_tier}")
+        print(f"Update data: {update_data}")
         
         response = supabase.table('users')\
             .update(update_data)\
             .eq('id', user_id)\
             .execute()
+        
+        print(f"Supabase response: {response}")
         
         if not response.data:
             return jsonify({'error': 'User not found'}), 404
