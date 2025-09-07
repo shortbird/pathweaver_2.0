@@ -129,8 +129,8 @@ def require_paid_tier(f):
             
             subscription_tier = user.data.get('subscription_tier', 'free')
             
-            # Allow supported/academy tiers (including legacy names creator/visionary)
-            allowed_tiers = ['supported', 'academy', 'creator', 'visionary']
+            # Allow supported/academy tiers (including legacy names creator/visionary/enterprise)
+            allowed_tiers = ['supported', 'academy', 'creator', 'visionary', 'enterprise']
             if subscription_tier not in allowed_tiers:
                 return jsonify({
                     'error': 'subscription_required',
