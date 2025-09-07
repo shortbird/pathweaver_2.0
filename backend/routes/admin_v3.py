@@ -683,6 +683,13 @@ def get_users_list(user_id):
         # Enhance user data
         users = response.data if response.data else []
         
+        # Reverse tier mapping: convert database tier names to frontend tier names
+        reverse_tier_mapping = {
+            'explorer': 'free',
+            'creator': 'supported', 
+            'visionary': 'academy'
+        }
+        
         # Get emails from auth.users table
         try:
             auth_users = supabase.auth.admin.list_users()
@@ -697,6 +704,12 @@ def get_users_list(user_id):
         for user in users:
             # Add email from auth.users
             user['email'] = email_map.get(user['id'], '')
+            
+            # Convert database tier to frontend tier for consistency
+            db_tier = user.get('subscription_tier', 'explorer')
+            frontend_tier = reverse_tier_mapping.get(db_tier, db_tier)
+            user['subscription_tier'] = frontend_tier
+            print(f"User {user.get('id', 'unknown')}: DB tier '{db_tier}' -> Frontend tier '{frontend_tier}'")
             
             # Calculate total XP across all pillars
             try:
@@ -737,6 +750,17 @@ def get_user_details(admin_id, user_id):
             return jsonify({'error': 'User not found'}), 404
         
         user = user_response.data[0]
+        
+        # Convert database tier to frontend tier for consistency
+        reverse_tier_mapping = {
+            'explorer': 'free',
+            'creator': 'supported', 
+            'visionary': 'academy'
+        }
+        db_tier = user.get('subscription_tier', 'explorer')
+        frontend_tier = reverse_tier_mapping.get(db_tier, db_tier)
+        user['subscription_tier'] = frontend_tier
+        print(f"User details: DB tier '{db_tier}' -> Frontend tier '{frontend_tier}'")
         
         # Get XP by pillar
         xp_response = supabase.table('user_skill_xp')\
@@ -828,16 +852,24 @@ def update_user_subscription(admin_id, user_id):
     data = request.json
     
     try:
-        # Valid subscription tier values
-        valid_tiers = ['free', 'supported', 'academy']
+        # Valid frontend tier values (what the admin panel sends)
+        valid_frontend_tiers = ['free', 'supported', 'academy']
+        
+        # Map frontend tier names to database tier names (legacy schema compatibility)
+        tier_mapping = {
+            'free': 'explorer',      # Free tier -> explorer in DB
+            'supported': 'creator',  # Supported tier -> creator in DB  
+            'academy': 'visionary'   # Academy tier -> visionary in DB
+        }
         
         requested_tier = data.get('tier', 'free')
         
         # Validate tier
-        if requested_tier not in valid_tiers:
-            return jsonify({'error': f'Invalid tier: {requested_tier}. Must be one of: {valid_tiers}'}), 400
+        if requested_tier not in valid_frontend_tiers:
+            return jsonify({'error': f'Invalid tier: {requested_tier}. Must be one of: {valid_frontend_tiers}'}), 400
         
-        db_tier = requested_tier
+        # Map to database tier name
+        db_tier = tier_mapping.get(requested_tier, 'explorer')
         
         update_data = {
             'subscription_tier': db_tier
@@ -845,8 +877,8 @@ def update_user_subscription(admin_id, user_id):
         
         # Note: subscription_expires field is not used in database schema
         
-        print(f"Updating user {user_id} subscription from {requested_tier} to DB tier {db_tier}")
-        print(f"Update data: {update_data}")
+        print(f"TIER UPDATE: User {user_id}, Frontend tier: {requested_tier} -> DB tier: {db_tier}")
+        print(f"Update data being sent to Supabase: {update_data}")
         
         try:
             response = supabase.table('users')\
@@ -854,17 +886,41 @@ def update_user_subscription(admin_id, user_id):
                 .eq('id', user_id)\
                 .execute()
             
-            print(f"Supabase response: {response}")
+            print(f"Supabase update response: {response}")
+            print(f"Supabase response data: {response.data}")
             
             if not response.data:
-                return jsonify({'error': 'User not found'}), 404
+                print(f"ERROR: No data returned from Supabase - user {user_id} may not exist")
+                return jsonify({'error': 'User not found or update failed'}), 404
+            
+            # Log successful update
+            updated_user = response.data[0]
+            actual_db_tier = updated_user.get('subscription_tier')
+            print(f"SUCCESS: User {user_id} tier updated. DB shows: {actual_db_tier}")
                 
         except Exception as supabase_error:
-            print(f"Supabase error details: {str(supabase_error)}")
-            print(f"Supabase error type: {type(supabase_error)}")
-            if hasattr(supabase_error, 'response'):
-                print(f"Supabase response content: {supabase_error.response}")
-            return jsonify({'error': f'Database update failed: {str(supabase_error)}'}), 500
+            error_str = str(supabase_error)
+            print(f"SUPABASE ERROR: {error_str}")
+            print(f"Error type: {type(supabase_error)}")
+            
+            # Check for common database constraint errors
+            if 'invalid input value for enum' in error_str.lower():
+                print(f"ENUM ERROR: Attempted to set invalid tier '{db_tier}' in database")
+                return jsonify({
+                    'error': f'Invalid tier value for database. Attempted: {db_tier}',
+                    'details': 'Database schema may need updating or tier mapping is incorrect'
+                }), 400
+            elif 'foreign key constraint' in error_str.lower():
+                print(f"FK ERROR: User {user_id} may not exist in users table")
+                return jsonify({'error': 'User not found in database'}), 404
+            else:
+                print(f"UNKNOWN DB ERROR: {error_str}")
+                if hasattr(supabase_error, 'response'):
+                    print(f"Supabase response details: {supabase_error.response}")
+                return jsonify({
+                    'error': f'Database update failed: {error_str}',
+                    'details': 'Check server logs for more information'
+                }), 500
         
         return jsonify({'message': 'Subscription updated successfully'}), 200
         
