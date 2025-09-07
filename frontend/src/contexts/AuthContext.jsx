@@ -262,6 +262,28 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem('user', JSON.stringify(userData))
   }
 
+  const refreshUser = async () => {
+    if (!user?.id || !session?.access_token) {
+      return false
+    }
+
+    try {
+      // Call the dashboard endpoint to get fresh user data
+      const response = await api.get('/api/users/dashboard')
+      if (response.data?.user) {
+        const freshUserData = response.data.user
+        setUser(freshUserData)
+        localStorage.setItem('user', JSON.stringify(freshUserData))
+        console.log('User data refreshed successfully', freshUserData)
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Failed to refresh user data:', error)
+      return false
+    }
+  }
+
   const value = {
     user,
     session,
@@ -271,14 +293,15 @@ export const AuthProvider = ({ children }) => {
     logout,
     refreshToken,
     updateUser,
+    refreshUser,
     checkTosAcceptance,
     needsTosAcceptance,
     tosCheckLoading,
     loginTimestamp, // Expose timestamp to trigger data refresh
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin' || user?.role === 'educator',
-    isCreator: user?.subscription_tier === 'creator' || user?.subscription_tier === 'visionary',
-    isVisionary: user?.subscription_tier === 'visionary',
+    isCreator: user?.subscription_tier === 'creator' || user?.subscription_tier === 'enterprise',
+    isAcademy: user?.subscription_tier === 'academy' || user?.subscription_tier === 'enterprise',
     isFree: user?.subscription_tier === 'free' || user?.subscription_tier === 'explorer' || !user?.subscription_tier
   }
 
