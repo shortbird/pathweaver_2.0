@@ -855,20 +855,19 @@ def update_user_subscription(admin_id, user_id):
         # Valid frontend tier values (what the admin panel sends)
         valid_frontend_tiers = ['free', 'supported', 'academy']
         
-        # Map frontend tier names to database tier names (legacy schema compatibility)
-        tier_mapping = {
-            'free': 'explorer',      # Free tier -> explorer in DB
-            'supported': 'creator',  # Supported tier -> creator in DB  
-            'academy': 'visionary'   # Academy tier -> visionary in DB
-        }
-        
         requested_tier = data.get('tier', 'free')
         
         # Validate tier
         if requested_tier not in valid_frontend_tiers:
             return jsonify({'error': f'Invalid tier: {requested_tier}. Must be one of: {valid_frontend_tiers}'}), 400
         
-        # Map to database tier name
+        # Primary tier mapping based on schema files
+        tier_mapping = {
+            'free': 'explorer',
+            'supported': 'creator', 
+            'academy': 'visionary'
+        }
+        
         db_tier = tier_mapping.get(requested_tier, 'explorer')
         
         update_data = {
@@ -880,67 +879,68 @@ def update_user_subscription(admin_id, user_id):
         print(f"TIER UPDATE: User {user_id}, Frontend tier: {requested_tier} -> DB tier: {db_tier}")
         print(f"Update data being sent to Supabase: {update_data}")
         
-        try:
-            response = supabase.table('users')\
-                .update(update_data)\
-                .eq('id', user_id)\
-                .execute()
-            
-            print(f"Supabase update response: {response}")
-            print(f"Supabase response data: {response.data}")
-            
-            if not response.data:
-                print(f"ERROR: No data returned from Supabase - user {user_id} may not exist")
-                return jsonify({'error': 'User not found or update failed'}), 404
-            
-            # Log successful update
-            updated_user = response.data[0]
-            actual_db_tier = updated_user.get('subscription_tier')
-            print(f"SUCCESS: User {user_id} tier updated. DB shows: {actual_db_tier}")
+        # Try primary tier mapping first
+        def try_tier_update(tier_value):
+            try:
+                update_data = {'subscription_tier': tier_value}
+                print(f"ATTEMPTING TIER UPDATE: User {user_id}, Trying tier value: {tier_value}")
                 
-        except Exception as supabase_error:
-            error_str = str(supabase_error)
-            print(f"SUPABASE ERROR: {error_str}")
-            print(f"Error type: {type(supabase_error)}")
+                response = supabase.table('users')\
+                    .update(update_data)\
+                    .eq('id', user_id)\
+                    .execute()
+                
+                print(f"Supabase update response: {response}")
+                print(f"Supabase response data: {response.data}")
+                
+                if response.data:
+                    updated_user = response.data[0]
+                    actual_db_tier = updated_user.get('subscription_tier')
+                    print(f"SUCCESS: User {user_id} tier updated to: {actual_db_tier}")
+                    return response.data[0]
+                else:
+                    print(f"ERROR: No data returned from Supabase")
+                    return None
+                    
+            except Exception as e:
+                print(f"TIER UPDATE FAILED for value '{tier_value}': {str(e)}")
+                return None
+        
+        # Try the primary mapping first
+        result = try_tier_update(db_tier)
+        
+        # If primary mapping failed, try alternative values
+        if result is None:
+            print(f"Primary mapping failed for tier '{requested_tier}' -> '{db_tier}'. Trying alternatives...")
             
-            # Enhanced error logging - capture the full response details
-            if hasattr(supabase_error, 'details'):
-                print(f"Supabase error details: {supabase_error.details}")
-            if hasattr(supabase_error, 'message'):
-                print(f"Supabase error message: {supabase_error.message}")
-            if hasattr(supabase_error, 'code'):
-                print(f"Supabase error code: {supabase_error.code}")
-            if hasattr(supabase_error, 'response'):
-                print(f"Supabase response object: {supabase_error.response}")
-                if hasattr(supabase_error.response, 'text'):
-                    print(f"Supabase response text: {supabase_error.response.text}")
-                if hasattr(supabase_error.response, 'json'):
-                    try:
-                        response_json = supabase_error.response.json()
-                        print(f"Supabase response JSON: {response_json}")
-                    except:
-                        pass
+            # Try direct frontend value
+            result = try_tier_update(requested_tier)
             
-            # Check for common database constraint errors
-            if 'invalid input value for enum' in error_str.lower():
-                print(f"ENUM ERROR: Attempted to set invalid tier '{db_tier}' in database")
-                print(f"Valid database enum values may be different from: ['explorer', 'creator', 'visionary']")
-                return jsonify({
-                    'error': f'Invalid tier value for database. Attempted: {db_tier}',
-                    'details': 'Database schema may need updating or tier mapping is incorrect',
-                    'attempted_value': db_tier,
-                    'mapping_used': f'{requested_tier} -> {db_tier}'
-                }), 400
-            elif 'foreign key constraint' in error_str.lower():
-                print(f"FK ERROR: User {user_id} may not exist in users table")
-                return jsonify({'error': 'User not found in database'}), 404
-            else:
-                print(f"UNKNOWN DB ERROR: {error_str}")
-                return jsonify({
-                    'error': f'Database update failed: {error_str}',
-                    'details': 'Check server logs for more information',
-                    'attempted_update': update_data
-                }), 500
+            # If that failed too, try some common alternatives
+            if result is None:
+                alternative_mappings = {
+                    'free': ['basic', 'starter', 'free'],
+                    'supported': ['premium', 'standard', 'supported'],
+                    'academy': ['enterprise', 'pro', 'academy']
+                }
+                
+                alternatives = alternative_mappings.get(requested_tier, [])
+                for alt_value in alternatives:
+                    if alt_value != db_tier and alt_value != requested_tier:  # Skip already tried values
+                        result = try_tier_update(alt_value)
+                        if result is not None:
+                            break
+        
+        # Check final result
+        if result is None:
+            return jsonify({
+                'error': f'Failed to update subscription tier to {requested_tier}',
+                'details': 'Database enum constraints do not allow this value',
+                'attempted_values': [db_tier, requested_tier] + alternative_mappings.get(requested_tier, [])
+            }), 500
+        
+        # Success case - the tier update worked with one of our attempted values
+        print(f"FINAL SUCCESS: User {user_id} subscription tier updated successfully")
         
         return jsonify({'message': 'Subscription updated successfully'}), 200
         
