@@ -687,7 +687,7 @@ def get_users_list(user_id):
         reverse_tier_mapping = {
             'explorer': 'free',
             'creator': 'supported', 
-            'visionary': 'academy'
+            'enterprise': 'academy'  # Updated: Academy tier uses 'enterprise' in database
         }
         
         # Get emails from auth.users table
@@ -755,7 +755,7 @@ def get_user_details(admin_id, user_id):
         reverse_tier_mapping = {
             'explorer': 'free',
             'creator': 'supported', 
-            'visionary': 'academy'
+            'enterprise': 'academy'  # Updated: Academy tier uses 'enterprise' in database
         }
         db_tier = user.get('subscription_tier', 'explorer')
         frontend_tier = reverse_tier_mapping.get(db_tier, db_tier)
@@ -861,11 +861,11 @@ def update_user_subscription(admin_id, user_id):
         if requested_tier not in valid_frontend_tiers:
             return jsonify({'error': f'Invalid tier: {requested_tier}. Must be one of: {valid_frontend_tiers}'}), 400
         
-        # Primary tier mapping based on schema files
+        # Primary tier mapping based on actual database enum values (discovered via testing)
         tier_mapping = {
-            'free': 'explorer',
-            'supported': 'creator', 
-            'academy': 'visionary'
+            'free': 'explorer',      # Assuming this maps correctly
+            'supported': 'creator',  # Assuming this maps correctly
+            'academy': 'enterprise'  # Confirmed: Academy tier uses 'enterprise' in database
         }
         
         db_tier = tier_mapping.get(requested_tier, 'explorer')
@@ -921,7 +921,7 @@ def update_user_subscription(admin_id, user_id):
                 alternative_mappings = {
                     'free': ['basic', 'starter', 'free'],
                     'supported': ['premium', 'standard', 'supported'],
-                    'academy': ['enterprise', 'pro', 'academy']
+                    'academy': ['visionary', 'pro', 'academy']  # Try visionary (schema), then alternatives
                 }
                 
                 alternatives = alternative_mappings.get(requested_tier, [])
