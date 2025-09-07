@@ -67,7 +67,10 @@ def configure_cors(app):
     print(f"Allowed origins: {allowed_origins}")
     
     CORS(app,
-         resources={r"/api/*": {"origins": allowed_origins}},
+         resources={
+             r"/api/*": {"origins": allowed_origins},
+             r"/portfolio/*": {"origins": allowed_origins}
+         },
          allow_headers=["Content-Type", "Authorization", "X-Requested-With"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
          supports_credentials=True,
