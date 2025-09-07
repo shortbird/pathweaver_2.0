@@ -5,6 +5,7 @@ export const TIER_DISPLAY_NAMES = {
   explorer: 'Free',
   creator: 'Supported',
   visionary: 'Academy',
+  enterprise: 'Academy', // Database uses 'enterprise' for Academy tier
   // New tier names
   free: 'Free',
   supported: 'Supported',
@@ -91,6 +92,7 @@ export const getTierFeaturesByBackendValue = (backendTier) => {
     explorer: TIER_FEATURES.free,
     creator: TIER_FEATURES.supported,
     visionary: TIER_FEATURES.academy,
+    enterprise: TIER_FEATURES.academy, // Database uses 'enterprise' for Academy tier
     // New names
     free: TIER_FEATURES.free,
     supported: TIER_FEATURES.supported,
@@ -107,6 +109,7 @@ export const hasFeatureAccess = (userTier, requiredTier) => {
     explorer: 0,
     creator: 1,
     visionary: 2,
+    enterprise: 2, // Database uses 'enterprise' for Academy tier
     // New names
     free: 0,
     supported: 1,
@@ -127,7 +130,8 @@ export const getNextTier = (currentTier) => {
     supported: 'academy',
     creator: 'academy',  // Legacy
     academy: null,
-    visionary: null  // Legacy
+    visionary: null,  // Legacy
+    enterprise: null  // Database uses 'enterprise' for Academy tier
   };
   
   return tierProgression[currentTier?.toLowerCase()];
@@ -147,7 +151,8 @@ export const getTierBadgeColor = (tier) => {
     supported: 'bg-blue-100 text-blue-800',
     creator: 'bg-blue-100 text-blue-800',  // Legacy
     academy: 'bg-purple-100 text-purple-800',
-    visionary: 'bg-purple-100 text-purple-800'  // Legacy
+    visionary: 'bg-purple-100 text-purple-800',  // Legacy
+    enterprise: 'bg-purple-100 text-purple-800'  // Database uses 'enterprise' for Academy tier
   };
   
   return colors[tier?.toLowerCase()] || colors.free;
@@ -155,7 +160,7 @@ export const getTierBadgeColor = (tier) => {
 
 // Check if tier is legacy
 export const isLegacyTier = (tier) => {
-  const legacyTiers = ['explorer', 'creator', 'visionary'];
+  const legacyTiers = ['explorer', 'creator', 'visionary', 'enterprise'];
   return legacyTiers.includes(tier?.toLowerCase());
 };
 
@@ -164,7 +169,8 @@ export const convertLegacyTier = (legacyTier) => {
   const conversionMap = {
     explorer: 'free',
     creator: 'supported',
-    visionary: 'academy'
+    visionary: 'academy',
+    enterprise: 'academy'  // Database uses 'enterprise' for Academy tier
   };
   
   return conversionMap[legacyTier?.toLowerCase()] || legacyTier;
