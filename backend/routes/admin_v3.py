@@ -903,23 +903,43 @@ def update_user_subscription(admin_id, user_id):
             print(f"SUPABASE ERROR: {error_str}")
             print(f"Error type: {type(supabase_error)}")
             
+            # Enhanced error logging - capture the full response details
+            if hasattr(supabase_error, 'details'):
+                print(f"Supabase error details: {supabase_error.details}")
+            if hasattr(supabase_error, 'message'):
+                print(f"Supabase error message: {supabase_error.message}")
+            if hasattr(supabase_error, 'code'):
+                print(f"Supabase error code: {supabase_error.code}")
+            if hasattr(supabase_error, 'response'):
+                print(f"Supabase response object: {supabase_error.response}")
+                if hasattr(supabase_error.response, 'text'):
+                    print(f"Supabase response text: {supabase_error.response.text}")
+                if hasattr(supabase_error.response, 'json'):
+                    try:
+                        response_json = supabase_error.response.json()
+                        print(f"Supabase response JSON: {response_json}")
+                    except:
+                        pass
+            
             # Check for common database constraint errors
             if 'invalid input value for enum' in error_str.lower():
                 print(f"ENUM ERROR: Attempted to set invalid tier '{db_tier}' in database")
+                print(f"Valid database enum values may be different from: ['explorer', 'creator', 'visionary']")
                 return jsonify({
                     'error': f'Invalid tier value for database. Attempted: {db_tier}',
-                    'details': 'Database schema may need updating or tier mapping is incorrect'
+                    'details': 'Database schema may need updating or tier mapping is incorrect',
+                    'attempted_value': db_tier,
+                    'mapping_used': f'{requested_tier} -> {db_tier}'
                 }), 400
             elif 'foreign key constraint' in error_str.lower():
                 print(f"FK ERROR: User {user_id} may not exist in users table")
                 return jsonify({'error': 'User not found in database'}), 404
             else:
                 print(f"UNKNOWN DB ERROR: {error_str}")
-                if hasattr(supabase_error, 'response'):
-                    print(f"Supabase response details: {supabase_error.response}")
                 return jsonify({
                     'error': f'Database update failed: {error_str}',
-                    'details': 'Check server logs for more information'
+                    'details': 'Check server logs for more information',
+                    'attempted_update': update_data
                 }), 500
         
         return jsonify({'message': 'Subscription updated successfully'}), 200
