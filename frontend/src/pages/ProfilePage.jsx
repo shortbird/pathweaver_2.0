@@ -6,10 +6,11 @@ import toast from 'react-hot-toast'
 import { getTierDisplayName } from '../utils/tierMapping'
 
 const ProfilePage = () => {
-  const { user, updateUser, isCreator } = useAuth()
+  const { user, updateUser, refreshUser, isCreator } = useAuth()
   const [profileData, setProfileData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
   const { register, handleSubmit, formState: { errors }, reset } = useForm()
 
   useEffect(() => {
@@ -41,6 +42,25 @@ const ProfilePage = () => {
       toast.success('Profile updated successfully!')
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to update profile')
+    }
+  }
+
+  const handleRefreshUserData = async () => {
+    setRefreshing(true)
+    try {
+      const success = await refreshUser()
+      if (success) {
+        toast.success('User data refreshed! Your current tier should now be displayed correctly.')
+        // Also refresh the profile data to ensure consistency
+        await fetchProfile()
+      } else {
+        toast.error('Failed to refresh user data')
+      }
+    } catch (error) {
+      console.error('Error refreshing user data:', error)
+      toast.error('Failed to refresh user data')
+    } finally {
+      setRefreshing(false)
     }
   }
 
@@ -192,6 +212,17 @@ const ProfilePage = () => {
                 {getTierDisplayName(user?.subscription_tier).toUpperCase()}
               </span>
             </div>
+            
+            <div className="mb-4">
+              <button
+                onClick={handleRefreshUserData}
+                disabled={refreshing}
+                className="text-primary hover:underline text-sm disabled:text-gray-400"
+              >
+                {refreshing ? 'Refreshing...' : 'Refresh account data'}
+              </button>
+            </div>
+
             {isCreator && (
               <button
                 onClick={downloadTranscript}

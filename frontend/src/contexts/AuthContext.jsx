@@ -301,7 +301,7 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin' || user?.role === 'educator',
     isCreator: user?.subscription_tier === 'creator' || user?.subscription_tier === 'enterprise',
-    isAcademy: user?.subscription_tier === 'academy' || user?.subscription_tier === 'enterprise',
+    isAcademy: user?.subscription_tier === 'enterprise', // Academy tier uses 'enterprise' in database
     isFree: user?.subscription_tier === 'free' || user?.subscription_tier === 'explorer' || !user?.subscription_tier
   }
 
