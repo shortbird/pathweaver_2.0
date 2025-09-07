@@ -849,15 +849,23 @@ def update_user_subscription(admin_id, user_id):
         print(f"Updating user {user_id} subscription from {requested_tier} to DB tier {db_tier}")
         print(f"Update data: {update_data}")
         
-        response = supabase.table('users')\
-            .update(update_data)\
-            .eq('id', user_id)\
-            .execute()
-        
-        print(f"Supabase response: {response}")
-        
-        if not response.data:
-            return jsonify({'error': 'User not found'}), 404
+        try:
+            response = supabase.table('users')\
+                .update(update_data)\
+                .eq('id', user_id)\
+                .execute()
+            
+            print(f"Supabase response: {response}")
+            
+            if not response.data:
+                return jsonify({'error': 'User not found'}), 404
+                
+        except Exception as supabase_error:
+            print(f"Supabase error details: {str(supabase_error)}")
+            print(f"Supabase error type: {type(supabase_error)}")
+            if hasattr(supabase_error, 'response'):
+                print(f"Supabase response content: {supabase_error.response}")
+            return jsonify({'error': f'Database update failed: {str(supabase_error)}'}), 500
         
         return jsonify({'message': 'Subscription updated successfully'}), 200
         
