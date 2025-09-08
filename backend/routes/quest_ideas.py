@@ -7,7 +7,7 @@ import sys
 from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-quest_ideas_bp = Blueprint('quest_ideas', __name__)
+quest_ideas_bp = Blueprint('quest_ideas', __name__)  # Force redeploy
 
 def token_required(f):
     @wraps(f)
