@@ -15,7 +15,7 @@ export const useDiploma = (slug, userId) => {
 
   const fetchPublicDiploma = useCallback(async () => {
     try {
-      const response = await api.get(`/portfolio/public/${slug}`);
+      const response = await api.get(`/api/portfolio/public/${slug}`);
       setDiploma(response.data);
     } catch (error) {
       const errorInfo = formatErrorMessage(

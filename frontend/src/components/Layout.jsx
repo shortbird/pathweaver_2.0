@@ -24,7 +24,7 @@ const Layout = () => {
 
   const fetchPortfolioSlug = async () => {
     try {
-      const response = await api.get(`/portfolio/user/${user.id}`)
+      const response = await api.get(`/api/portfolio/user/${user.id}`)
       
       if (response.data?.diploma?.portfolio_slug) {
         setPortfolioSlug(response.data.diploma.portfolio_slug)

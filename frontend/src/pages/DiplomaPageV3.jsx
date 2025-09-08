@@ -125,7 +125,7 @@ const DiplomaPageV3 = () => {
 
   const fetchPublicDiploma = async () => {
     try {
-      const response = await api.get(`/portfolio/public/${slug}`);
+      const response = await api.get(`/api/portfolio/public/${slug}`);
       setDiploma(response.data);
       
       // Transform the data to match achievements format if needed

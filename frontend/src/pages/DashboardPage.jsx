@@ -379,7 +379,7 @@ const DashboardPage = () => {
       return
     }
     try {
-      const response = await api.get(`/portfolio/user/${user.id}`)
+      const response = await api.get(`/api/portfolio/user/${user.id}`)
       
       // Only set portfolio data if it has actual XP data
       // This prevents overwriting good dashboard data with empty portfolio data
