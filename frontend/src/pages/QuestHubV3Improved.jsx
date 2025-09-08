@@ -5,6 +5,7 @@ import { handleApiResponse } from '../utils/errorHandling';
 import QuestCard from '../components/quest/improved/QuestCard';
 import QuestFilters from '../components/quest/improved/QuestFilters';
 import TeamUpModal from '../components/quest/TeamUpModal';
+import QuestSuggestionModal from '../components/QuestSuggestionModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 
@@ -21,6 +22,7 @@ const QuestHubV3Improved = () => {
   const [selectedPillar, setSelectedPillar] = useState('all');
   const [showTeamUpModal, setShowTeamUpModal] = useState(false);
   const [selectedQuestForTeamUp, setSelectedQuestForTeamUp] = useState(null);
+  const [showQuestSuggestionModal, setShowQuestSuggestionModal] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [totalResults, setTotalResults] = useState(0);
@@ -205,6 +207,26 @@ const QuestHubV3Improved = () => {
     // Success message handled by UI feedback
   }, []);
 
+  const handleQuestSuggestion = useCallback(() => {
+    if (!user) {
+      window.location.href = '/login';
+      return;
+    }
+    setShowQuestSuggestionModal(true);
+  }, [user]);
+
+  const handleQuestSuggestionSuccess = useCallback(() => {
+    // Optionally refresh quests or show additional feedback
+  }, []);
+
+  // Check if user can suggest quests (non-free tiers)
+  const canSuggestQuests = useMemo(() => {
+    if (!user) return false;
+    const tier = user.subscription_tier;
+    // Allow supported (creator/premium) and academy (enterprise) tiers
+    return tier === 'creator' || tier === 'premium' || tier === 'enterprise' || tier === 'supported';
+  }, [user]);
+
   // Featured quests section - memoized to prevent unnecessary re-renders
   const featuredQuests = useMemo(() => quests.slice(0, 3), [quests]);
 
@@ -221,6 +243,21 @@ const QuestHubV3Improved = () => {
               Choose your adventure and start earning XP!
             </p>
           </div>
+          
+          {/* Quest Suggestion Button - Only show for non-free tiers */}
+          {canSuggestQuests && (
+            <div className="flex-shrink-0">
+              <button
+                onClick={handleQuestSuggestion}
+                className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center gap-2 shadow-lg"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                </svg>
+                Suggest a Quest
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Featured Section - Only show when not searching */}
@@ -348,6 +385,14 @@ const QuestHubV3Improved = () => {
               setSelectedQuestForTeamUp(null);
             }}
             onInviteSent={handleInviteSent}
+          />
+        )}
+
+        {/* Quest Suggestion Modal */}
+        {showQuestSuggestionModal && (
+          <QuestSuggestionModal
+            onClose={() => setShowQuestSuggestionModal(false)}
+            onSuccess={handleQuestSuggestionSuccess}
           />
         )}
       </div>

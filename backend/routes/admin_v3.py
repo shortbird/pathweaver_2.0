@@ -1227,3 +1227,117 @@ def list_admin_quests(user_id):
             'success': False,
             'error': 'Failed to fetch quests'
         }), 500
+
+# Quest Ideas Management Endpoints
+
+@bp.route('/quest-ideas', methods=['GET'])
+@require_admin
+def list_quest_ideas(user_id):
+    """Get all quest ideas for admin review"""
+    try:
+        supabase = get_supabase_admin_client()
+        
+        # Get pagination parameters
+        page = int(request.args.get('page', 1))
+        per_page = min(int(request.args.get('per_page', 20)), 100)
+        status_filter = request.args.get('status', 'all')  # all, pending, approved, rejected
+        
+        offset = (page - 1) * per_page
+        
+        # Build query with user information
+        query = supabase.table('quest_ideas')\
+            .select('*, users(first_name, last_name, username)', count='exact')\
+            .order('created_at', desc=True)
+        
+        # Apply status filter
+        if status_filter != 'all':
+            query = query.eq('status', status_filter)
+        
+        # Apply pagination
+        query = query.range(offset, offset + per_page - 1)
+        
+        result = query.execute()
+        
+        return jsonify({
+            'success': True,
+            'quest_ideas': result.data,
+            'total': result.count,
+            'page': page,
+            'per_page': per_page,
+            'total_pages': (result.count + per_page - 1) // per_page if result.count else 0
+        })
+        
+    except Exception as e:
+        print(f"Error listing quest ideas: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch quest ideas'
+        }), 500
+
+@bp.route('/quest-ideas/<idea_id>/approve', methods=['PUT'])
+@require_admin
+def approve_quest_idea(user_id, idea_id):
+    """Approve a quest idea"""
+    try:
+        supabase = get_supabase_admin_client()
+        data = request.get_json()
+        admin_feedback = data.get('feedback', '')
+        
+        # Update the quest idea status
+        update_data = {
+            'status': 'approved',
+            'admin_feedback': admin_feedback,
+            'reviewed_at': datetime.utcnow().isoformat()
+        }
+        
+        result = supabase.table('quest_ideas').update(update_data).eq('id', idea_id).execute()
+        
+        if not result.data:
+            return jsonify({'error': 'Quest idea not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'message': 'Quest idea approved successfully',
+            'quest_idea': result.data[0]
+        })
+        
+    except Exception as e:
+        print(f"Error approving quest idea: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to approve quest idea'
+        }), 500
+
+@bp.route('/quest-ideas/<idea_id>/reject', methods=['PUT'])
+@require_admin
+def reject_quest_idea(user_id, idea_id):
+    """Reject a quest idea"""
+    try:
+        supabase = get_supabase_admin_client()
+        data = request.get_json()
+        admin_feedback = data.get('feedback', '')
+        
+        # Update the quest idea status
+        update_data = {
+            'status': 'rejected',
+            'admin_feedback': admin_feedback,
+            'reviewed_at': datetime.utcnow().isoformat()
+        }
+        
+        result = supabase.table('quest_ideas').update(update_data).eq('id', idea_id).execute()
+        
+        if not result.data:
+            return jsonify({'error': 'Quest idea not found'}), 404
+        
+        return jsonify({
+            'success': True,
+            'message': 'Quest idea rejected',
+            'quest_idea': result.data[0]
+        })
+        
+    except Exception as e:
+        print(f"Error rejecting quest idea: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to reject quest idea'
+        }), 500

@@ -41,6 +41,27 @@ def token_required(f):
 def submit_quest_idea(current_user_id):
     """Submit a new quest idea for review"""
     try:
+        from supabase import create_client
+        supabase = create_client(
+            os.environ.get('SUPABASE_URL'),
+            os.environ.get('SUPABASE_SERVICE_KEY')
+        )
+        
+        # Get user subscription tier to validate access
+        user_response = supabase.table('users').select('subscription_tier').eq('id', current_user_id).single().execute()
+        
+        if not user_response.data:
+            return jsonify({'error': 'User not found'}), 404
+        
+        subscription_tier = user_response.data.get('subscription_tier', 'free')
+        
+        # Check if user can suggest quests (non-free tiers)
+        allowed_tiers = ['creator', 'premium', 'enterprise', 'supported']
+        if subscription_tier not in allowed_tiers and subscription_tier != 'explorer':
+            # Allow explorer for backwards compatibility, but block 'free' explicitly  
+            if subscription_tier in ['free']:
+                return jsonify({'error': 'Quest suggestions are available for Supported and Academy tier members. Please upgrade your subscription to suggest custom quests.'}), 403
+        
         data = request.get_json()
         title = data.get('title')
         description = data.get('description')
@@ -53,12 +74,6 @@ def submit_quest_idea(current_user_id):
             return jsonify({'error': 'Title must be less than 200 characters'}), 400
         if len(description) > 1000:
             return jsonify({'error': 'Description must be less than 1000 characters'}), 400
-        
-        from supabase import create_client
-        supabase = create_client(
-            os.environ.get('SUPABASE_URL'),
-            os.environ.get('SUPABASE_SERVICE_KEY')
-        )
         
         # Save the idea to database
         idea_data = {

@@ -6,6 +6,7 @@ import AdminQuestManagerV3 from './AdminQuestManagerV3'
 import SourcesManager from '../components/SourcesManager'
 import QuestCreationForm from '../components/admin/QuestCreationForm'
 import SiteSettings from '../components/admin/SiteSettings'
+import AdminQuestSuggestions from '../components/admin/AdminQuestSuggestions'
 import { getTierDisplayName } from '../utils/tierMapping'
 
 const AdminDashboard = () => {
@@ -1931,6 +1932,12 @@ const AdminPage = () => {
           Quests
         </Link>
         <Link
+          to="/admin/quest-suggestions"
+          className={`pb-2 px-1 ${currentPath === 'quest-suggestions' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+        >
+          Quest Suggestions
+        </Link>
+        <Link
           to="/admin/settings"
           className={`pb-2 px-1 ${currentPath === 'settings' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
         >
@@ -1941,6 +1948,7 @@ const AdminPage = () => {
       <Routes>
         <Route index element={<AdminDashboard />} />
         <Route path="quests" element={<AdminQuests />} />
+        <Route path="quest-suggestions" element={<AdminQuestSuggestions />} />
         <Route path="settings" element={<SiteSettings />} />
       </Routes>
     </div>
