@@ -208,29 +208,25 @@ def get_pending_invites(user_id: str):
             requester_data = ensure_user_exists(invite['requester_id'])
             
             if requester_data:
-                requester = {
-                    'data': [{
-                        'id': invite['requester_id'],
-                        'first_name': requester_data.get('first_name', 'User'),
-                        'last_name': requester_data.get('last_name', 'Account'),
-                        'avatar_url': requester_data.get('avatar_url')
-                    }]
+                requester_info = {
+                    'id': invite['requester_id'],
+                    'first_name': requester_data.get('first_name', 'User'),
+                    'last_name': requester_data.get('last_name', 'Account'),
+                    'avatar_url': requester_data.get('avatar_url')
                 }
             else:
                 # Fallback if user can't be found/created
-                requester = {
-                    'data': [{
-                        'id': invite['requester_id'],
-                        'first_name': 'User',
-                        'last_name': 'Account',
-                        'avatar_url': None
-                    }]
+                requester_info = {
+                    'id': invite['requester_id'],
+                    'first_name': 'User',
+                    'last_name': 'Account',
+                    'avatar_url': None
                 }
             
             formatted_invites.append({
                 'id': invite['id'],
                 'quest': quest.data if quest.data else None,
-                'requester': requester.data[0] if requester.data else None,
+                'requester': requester_info,
                 'created_at': invite['created_at'],
                 'status': invite['status']
             })
