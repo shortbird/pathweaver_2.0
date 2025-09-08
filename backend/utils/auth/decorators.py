@@ -149,7 +149,9 @@ def require_paid_tier(f):
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
-            print(f"Error verifying subscription tier: {str(e)}")
+            import traceback
+            print(f"Error verifying subscription tier: {str(e)}", file=sys.stderr, flush=True)
+            print(f"Full traceback: {traceback.format_exc()}", file=sys.stderr, flush=True)
             raise AuthorizationError('Failed to verify subscription tier')
     
     return decorated_function
