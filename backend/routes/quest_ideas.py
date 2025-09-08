@@ -25,7 +25,10 @@ def token_required(f):
             return jsonify({'error': 'Token is missing'}), 401
         
         try:
-            data = jwt.decode(token, os.environ.get('FLASK_SECRET_KEY'), algorithms=['HS256'])
+            secret_key = os.getenv('JWT_SECRET_KEY') or os.getenv('SECRET_KEY')
+            if not secret_key:
+                return jsonify({'error': 'Server configuration error'}), 500
+            data = jwt.decode(token, secret_key, algorithms=['HS256'])
             current_user_id = data['user_id']
             return f(current_user_id, *args, **kwargs)
         except jwt.ExpiredSignatureError:
