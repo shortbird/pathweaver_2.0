@@ -131,7 +131,8 @@ def require_paid_tier(f):
             
             # Allow supported/academy tiers (including legacy names creator/visionary/enterprise)
             allowed_tiers = ['supported', 'academy', 'creator', 'visionary', 'enterprise']
-            print(f"[REQUIRE_PAID_TIER] User {user_id} has tier: '{subscription_tier}', allowed tiers: {allowed_tiers}")
+            import sys
+            print(f"[REQUIRE_PAID_TIER] User {user_id} has tier: '{subscription_tier}', allowed tiers: {allowed_tiers}", file=sys.stderr, flush=True)
             if subscription_tier not in allowed_tiers:
                 return jsonify({
                     'error': 'subscription_required',
