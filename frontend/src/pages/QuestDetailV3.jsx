@@ -402,12 +402,15 @@ const QuestDetailV3 = () => {
             </div>
           </div>
           
-          <div className="w-full bg-gray-200 rounded-full h-4 mb-4 overflow-hidden">
+          <div className="w-full bg-gray-200 rounded-full h-4 mb-4 overflow-hidden relative">
             <div 
               className="h-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full transition-all duration-1000 ease-out relative"
               style={{ width: `${progressPercentage}%` }}
             >
               <div className="absolute inset-0 bg-white opacity-20 animate-pulse"></div>
+            </div>
+            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-700">
+              {earnedXP + earnedBonusXP} / {totalXP} XP
             </div>
           </div>
           
