@@ -335,7 +335,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         questData.header_image_url = headerImageUrl;
       }
 
-      const endpoint = quest ? `/v3/admin/quests/${quest.id}` : '/v3/admin/quests/create';
+      const endpoint = quest ? `/api/v3/admin/quests/${quest.id}` : '/v3/admin/quests/create';
       const method = quest ? 'put' : 'post';
       
       const response = await api[method](endpoint, questData);
