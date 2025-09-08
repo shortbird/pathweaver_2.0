@@ -52,7 +52,7 @@ app.register_blueprint(subscriptions.bp, url_prefix='/api/subscriptions')
 app.register_blueprint(users.bp, url_prefix='/api/users')
 app.register_blueprint(community.bp, url_prefix='/api/community')
 app.register_blueprint(portfolio.bp, url_prefix='/api/portfolio')
-app.register_blueprint(quest_ideas_bp)
+app.register_blueprint(quest_ideas_bp, url_prefix='/api')
 app.register_blueprint(ratings_bp)
 app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
 app.register_blueprint(sources.bp, url_prefix='/api/sources')  # /api/sources
