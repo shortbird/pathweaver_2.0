@@ -55,10 +55,7 @@ export const AuthProvider = ({ children }) => {
       setLoginTimestamp(Date.now()) // Set timestamp when restoring session
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`
       
-      // Check ToS acceptance for non-admin users
-      if (parsedUser && parsedUser.role !== 'admin') {
-        checkTosAcceptance()
-      }
+      // TOS check disabled - users no longer need to accept ToS
     }
     
     setLoading(false)
@@ -91,14 +88,7 @@ export const AuthProvider = ({ children }) => {
         toast.success('Welcome back!')
       }
       
-      // Check if user needs to accept ToS (for existing users)
-      if (user.role !== 'admin') {
-        const needsAcceptance = await checkTosAcceptance()
-        if (needsAcceptance) {
-          navigate('/accept-terms')
-          return { success: true }
-        }
-      }
+      // TOS check disabled - skip ToS acceptance
       
       navigate('/dashboard')
       

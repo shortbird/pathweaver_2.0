@@ -29,14 +29,14 @@ const FriendsPage = () => {
   }, [])
 
   useEffect(() => {
-    if (hasAccess) {
+    if (hasAccess && user?.id) {
       fetchFriends()
       fetchTeamInvitations()
       fetchActiveCollaborations()
     } else {
       setLoading(false)
     }
-  }, [hasAccess])
+  }, [hasAccess, user?.id])
 
   const fetchFriends = async () => {
     try {
@@ -44,7 +44,14 @@ const FriendsPage = () => {
       setFriends(response.data.friends)
       setPendingRequests(response.data.pending_requests)
     } catch (error) {
-      toast.error('Failed to load friends')
+      console.error('Failed to load friends:', error)
+      if (error.response?.status === 404) {
+        console.log('Friends endpoint not found')
+      } else if (error.response?.status === 403) {
+        console.log('Friends access denied - subscription tier issue')
+      } else {
+        toast.error('Failed to load friends')
+      }
     } finally {
       setLoading(false)
     }
