@@ -582,7 +582,10 @@ def check_tos_acceptance():
         }), 200
         
     except Exception as e:
-        print(f"[CHECK_TOS] Error: {str(e)}")
+        import traceback
+        import sys
+        print(f"[CHECK_TOS] Error: {str(e)}", file=sys.stderr, flush=True)
+        print(f"[CHECK_TOS] Full traceback: {traceback.format_exc()}", file=sys.stderr, flush=True)
         return jsonify({'error': 'Failed to check ToS acceptance status'}), 500
 
 @bp.route('/accept-tos', methods=['POST'])
