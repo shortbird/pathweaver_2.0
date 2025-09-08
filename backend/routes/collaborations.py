@@ -204,29 +204,26 @@ def get_pending_invites(user_id: str):
                 .single()\
                 .execute()
             
-            # Ensure requester exists and get their details
-            requester_data = ensure_user_exists(invite['requester_id'])
+            # Get requester details - use execute() without single() to handle missing users
+            requester = supabase.table('users')\
+                .select('id, first_name, last_name, avatar_url')\
+                .eq('id', invite['requester_id'])\
+                .execute()
             
-            if requester_data:
-                requester_info = {
+            # Handle case where user doesn't exist in users table
+            if not requester.data or len(requester.data) == 0:
+                # Create a placeholder for missing user
+                requester.data = [{
                     'id': invite['requester_id'],
-                    'first_name': requester_data.get('first_name', 'User'),
-                    'last_name': requester_data.get('last_name', 'Account'),
-                    'avatar_url': requester_data.get('avatar_url')
-                }
-            else:
-                # Final fallback if ensure_user_exists fails
-                requester_info = {
-                    'id': invite['requester_id'],
-                    'first_name': 'User',
-                    'last_name': 'Account',
+                    'first_name': 'Unknown',
+                    'last_name': 'User',
                     'avatar_url': None
-                }
+                }]
             
             formatted_invites.append({
                 'id': invite['id'],
                 'quest': quest.data if quest.data else None,
-                'requester': requester_info,
+                'requester': requester.data[0] if requester.data else None,
                 'created_at': invite['created_at'],
                 'status': invite['status']
             })
