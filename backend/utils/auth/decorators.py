@@ -144,7 +144,7 @@ def require_paid_tier(f):
                     'upgrade_url': '/subscription'
                 }), 403
             
-            return f(user_id, *args, **kwargs)
+            return f(*args, **kwargs)
             
         except (AuthenticationError, AuthorizationError):
             raise
