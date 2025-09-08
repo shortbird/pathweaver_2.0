@@ -443,7 +443,10 @@ def get_active_collaborations(user_id: str):
         })
         
     except Exception as e:
-        print(f"Error getting active collaborations: {str(e)}")
+        import traceback
+        import sys
+        print(f"Error getting active collaborations: {str(e)}", file=sys.stderr, flush=True)
+        print(f"Full traceback: {traceback.format_exc()}", file=sys.stderr, flush=True)
         return jsonify({
             'success': False,
             'error': 'Failed to fetch collaborations'

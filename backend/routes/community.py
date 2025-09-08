@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 from database import get_supabase_client
 from utils.auth.decorators import require_auth, require_paid_tier
+import sys
 
 bp = Blueprint('community', __name__)
 
@@ -65,7 +66,9 @@ def get_friends(user_id):
         }), 200
         
     except Exception as e:
-        print(f"[GET_FRIENDS] Error: {str(e)}")
+        import traceback
+        print(f"[GET_FRIENDS] Error: {str(e)}", file=sys.stderr, flush=True)
+        print(f"[GET_FRIENDS] Full traceback: {traceback.format_exc()}", file=sys.stderr, flush=True)
         return jsonify({'error': str(e)}), 400
 
 @bp.route('/friends/request', methods=['POST'])
