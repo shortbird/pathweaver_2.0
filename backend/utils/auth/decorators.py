@@ -130,9 +130,9 @@ def require_paid_tier(f):
             subscription_tier = user.data.get('subscription_tier', 'free')
             
             # Allow paid tiers based on actual database schema
-            # Database schema: ['explorer', 'creator', 'visionary']
-            # Where: creator = Supported tier, visionary = Academy tier
-            allowed_tiers = ['creator', 'visionary']
+            # Database schema: ['explorer', 'creator', 'visionary', 'enterprise']
+            # Where: creator = Supported tier, visionary = Academy tier, enterprise = Academy tier
+            allowed_tiers = ['creator', 'visionary', 'enterprise']
             import sys
             print(f"[REQUIRE_PAID_TIER] User {user_id} has tier: '{subscription_tier}', allowed tiers: {allowed_tiers}", file=sys.stderr, flush=True)
             if subscription_tier not in allowed_tiers:
