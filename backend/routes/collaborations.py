@@ -295,28 +295,56 @@ def accept_invitation(user_id: str, invite_id: str):
                 }), 500
         
         # Update invitation status
-        updated = supabase.table('quest_collaborations')\
-            .update({
-                'status': 'accepted',
-                'accepted_at': datetime.utcnow().isoformat()
-            })\
-            .eq('id', invite_id)\
-            .execute()
-        
-        if not updated.data:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to accept invitation'
-            }), 500
+        try:
+            print(f"Attempting to update invitation {invite_id} to accepted status")
+            updated = supabase.table('quest_collaborations')\
+                .update({
+                    'status': 'accepted',
+                    'accepted_at': datetime.utcnow().isoformat()
+                })\
+                .eq('id', invite_id)\
+                .execute()
+            
+            if not updated.data:
+                print(f"Update failed - no data returned")
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to accept invitation - no data returned'
+                }), 500
+                
+        except Exception as update_error:
+            print(f"Error updating invitation: {str(update_error)}")
+            # Try without accepted_at field in case it doesn't exist
+            try:
+                print(f"Retrying update without accepted_at field")
+                updated = supabase.table('quest_collaborations')\
+                    .update({'status': 'accepted'})\
+                    .eq('id', invite_id)\
+                    .execute()
+                
+                if not updated.data:
+                    return jsonify({
+                        'success': False,
+                        'error': 'Failed to accept invitation - retry also failed'
+                    }), 500
+                    
+            except Exception as retry_error:
+                print(f"Retry also failed: {str(retry_error)}")
+                return jsonify({
+                    'success': False,
+                    'error': f'Database update failed: {str(retry_error)}'
+                }), 500
         
         # Get requester's name for notification
-        requester = supabase.table('users')\
-            .select('first_name, last_name')\
-            .eq('id', invitation.data['requester_id'])\
-            .single()\
-            .execute()
-        
-        requester_name = f"{requester.data['first_name']} {requester.data['last_name']}"
+        try:
+            requester_data = ensure_user_exists(invitation.data['requester_id'])
+            if requester_data:
+                requester_name = f"{requester_data.get('first_name', 'User')} {requester_data.get('last_name', 'Account')}"
+            else:
+                requester_name = "Your friend"
+        except Exception as name_error:
+            print(f"Error getting requester name: {str(name_error)}")
+            requester_name = "Your friend"
         
         return jsonify({
             'success': True,
