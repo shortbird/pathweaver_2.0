@@ -6,6 +6,7 @@ export const TIER_DISPLAY_NAMES = {
   creator: 'Supported',
   visionary: 'Academy',
   enterprise: 'Academy', // Database uses 'enterprise' for Academy tier
+  premium: 'Supported', // Legacy alternative for 'supported'
   // New tier names
   free: 'Free',
   supported: 'Supported',
@@ -93,6 +94,7 @@ export const getTierFeaturesByBackendValue = (backendTier) => {
     creator: TIER_FEATURES.supported,
     visionary: TIER_FEATURES.academy,
     enterprise: TIER_FEATURES.academy, // Database uses 'enterprise' for Academy tier
+    premium: TIER_FEATURES.supported, // Legacy alternative for 'supported'
     // New names
     free: TIER_FEATURES.free,
     supported: TIER_FEATURES.supported,
@@ -110,6 +112,7 @@ export const hasFeatureAccess = (userTier, requiredTier) => {
     creator: 1,
     visionary: 2,
     enterprise: 2, // Database uses 'enterprise' for Academy tier
+    premium: 1, // Legacy alternative for 'supported'
     // New names
     free: 0,
     supported: 1,
@@ -129,6 +132,7 @@ export const getNextTier = (currentTier) => {
     explorer: 'supported',  // Legacy
     supported: 'academy',
     creator: 'academy',  // Legacy
+    premium: 'academy',  // Legacy alternative for 'supported'
     academy: null,
     visionary: null,  // Legacy
     enterprise: null  // Database uses 'enterprise' for Academy tier
@@ -150,6 +154,7 @@ export const getTierBadgeColor = (tier) => {
     explorer: 'bg-gray-100 text-gray-800',  // Legacy
     supported: 'bg-blue-100 text-blue-800',
     creator: 'bg-blue-100 text-blue-800',  // Legacy
+    premium: 'bg-blue-100 text-blue-800',  // Legacy alternative for 'supported'
     academy: 'bg-purple-100 text-purple-800',
     visionary: 'bg-purple-100 text-purple-800',  // Legacy
     enterprise: 'bg-purple-100 text-purple-800'  // Database uses 'enterprise' for Academy tier
@@ -160,7 +165,7 @@ export const getTierBadgeColor = (tier) => {
 
 // Check if tier is legacy
 export const isLegacyTier = (tier) => {
-  const legacyTiers = ['explorer', 'creator', 'visionary', 'enterprise'];
+  const legacyTiers = ['explorer', 'creator', 'visionary', 'enterprise', 'premium'];
   return legacyTiers.includes(tier?.toLowerCase());
 };
 
@@ -170,7 +175,8 @@ export const convertLegacyTier = (legacyTier) => {
     explorer: 'free',
     creator: 'supported',
     visionary: 'academy',
-    enterprise: 'academy'  // Database uses 'enterprise' for Academy tier
+    enterprise: 'academy',  // Database uses 'enterprise' for Academy tier
+    premium: 'supported'  // Legacy alternative for 'supported'
   };
   
   return conversionMap[legacyTier?.toLowerCase()] || legacyTier;
