@@ -18,31 +18,9 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState(null)
-  const [needsTosAcceptance, setNeedsTosAcceptance] = useState(false)
-  const [tosCheckLoading, setTosCheckLoading] = useState(false)
   const [loginTimestamp, setLoginTimestamp] = useState(null)
   const navigate = useNavigate()
 
-  // Check if user needs to accept ToS
-  const checkTosAcceptance = async () => {
-    if (!user || user.role === 'admin') {
-      setNeedsTosAcceptance(false)
-      return false
-    }
-    
-    setTosCheckLoading(true)
-    try {
-      const response = await api.get('/api/auth/check-tos-acceptance')
-      const needsAcceptance = response.data.needs_acceptance
-      setNeedsTosAcceptance(needsAcceptance)
-      return needsAcceptance
-    } catch (error) {
-      setNeedsTosAcceptance(false)
-      return false
-    } finally {
-      setTosCheckLoading(false)
-    }
-  }
 
   useEffect(() => {
     const token = localStorage.getItem('access_token')
@@ -55,7 +33,6 @@ export const AuthProvider = ({ children }) => {
       setLoginTimestamp(Date.now()) // Set timestamp when restoring session
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`
       
-      // TOS check disabled - users no longer need to accept ToS
     }
     
     setLoading(false)
@@ -88,7 +65,6 @@ export const AuthProvider = ({ children }) => {
         toast.success('Welcome back!')
       }
       
-      // TOS check disabled - skip ToS acceptance
       
       navigate('/dashboard')
       
@@ -284,9 +260,6 @@ export const AuthProvider = ({ children }) => {
     refreshToken,
     updateUser,
     refreshUser,
-    checkTosAcceptance,
-    needsTosAcceptance,
-    tosCheckLoading,
     loginTimestamp, // Expose timestamp to trigger data refresh
     isAuthenticated: !!user,
     isAdmin: user?.role === 'admin' || user?.role === 'educator',
