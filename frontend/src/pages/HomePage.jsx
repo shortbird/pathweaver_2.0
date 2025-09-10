@@ -381,7 +381,6 @@ const HomePage = () => {
                   </div>
                 </div>
               </div>
-            </div>
 
               <div className="text-center mt-8">
                 <Link 
@@ -392,6 +391,7 @@ const HomePage = () => {
                   See more examples in demo
                 </Link>
               </div>
+            </div>
             </div>
           </div>
         </div>
