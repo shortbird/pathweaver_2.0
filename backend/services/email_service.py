@@ -276,399 +276,76 @@ class EmailService:
     
     def send_promo_welcome_email(self, parent_email: str, parent_name: str, teen_age: str, activity: str = '') -> bool:
         """Send welcome email to parents who fill out the promo form"""
-        subject = "Welcome to Optio Education - Your Teen's Learning Journey Starts Here"
+        subject = "Welcome to Optio - Let's Chat About Your Teen's Future"
         
-        # HTML version using the professional template
+        # Simple HTML version with markdown-like formatting
         html_body = f"""
-        <!DOCTYPE html>
-        <html lang="en">
-        <head>
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <meta http-equiv="X-UA-Compatible" content="IE=edge">
-            <title>Welcome to Optio Education</title>
-            <style>
-                /* Reset and base styles */
-                * {{
-                    margin: 0;
-                    padding: 0;
-                    box-sizing: border-box;
-                }}
-                
-                body {{
-                    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-                    line-height: 1.6;
-                    color: #333333;
-                    background-color: #f8f9fa;
-                }}
-                
-                /* Container */
-                .email-container {{
-                    max-width: 600px;
-                    margin: 0 auto;
-                    background-color: #ffffff;
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-                }}
-                
-                /* Header with Optio branding */
-                .header {{
-                    background: linear-gradient(135deg, #ef597b 0%, #6d469b 100%);
-                    padding: 40px 30px;
-                    text-align: center;
-                    color: white;
-                }}
-                
-                .logo {{
-                    font-size: 32px;
-                    font-weight: bold;
-                    letter-spacing: -0.5px;
-                    margin-bottom: 8px;
-                }}
-                
-                .tagline {{
-                    font-size: 16px;
-                    opacity: 0.95;
-                    font-weight: 300;
-                }}
-                
-                /* Main content */
-                .content {{
-                    padding: 40px 30px;
-                }}
-                
-                .greeting {{
-                    font-size: 24px;
-                    font-weight: 600;
-                    color: #2d3748;
-                    margin-bottom: 20px;
-                }}
-                
-                .intro-text {{
-                    font-size: 16px;
-                    color: #4a5568;
-                    margin-bottom: 25px;
-                    line-height: 1.7;
-                }}
-                
-                .highlight-box {{
-                    background: linear-gradient(135deg, #f8b3c5 0%, #b794d6 100%);
-                    padding: 25px;
-                    border-radius: 12px;
-                    margin: 30px 0;
-                    color: #2d3748;
-                }}
-                
-                .highlight-title {{
-                    font-size: 18px;
-                    font-weight: 600;
-                    margin-bottom: 12px;
-                }}
-                
-                .highlight-text {{
-                    font-size: 15px;
-                    line-height: 1.6;
-                }}
-                
-                /* Call-to-action button */
-                .cta-container {{
-                    text-align: center;
-                    margin: 35px 0;
-                }}
-                
-                .cta-button {{
-                    display: inline-block;
-                    background: linear-gradient(135deg, #ef597b 0%, #6d469b 100%);
-                    color: white;
-                    text-decoration: none;
-                    padding: 16px 32px;
-                    border-radius: 8px;
-                    font-size: 16px;
-                    font-weight: 600;
-                    letter-spacing: 0.3px;
-                    transition: transform 0.2s ease;
-                }}
-                
-                /* Next steps section */
-                .next-steps {{
-                    background-color: #f7fafc;
-                    padding: 25px;
-                    border-radius: 12px;
-                    margin: 30px 0;
-                    border-left: 4px solid #ef597b;
-                }}
-                
-                .next-steps h3 {{
-                    color: #2d3748;
-                    font-size: 18px;
-                    margin-bottom: 15px;
-                    font-weight: 600;
-                }}
-                
-                .step {{
-                    margin-bottom: 12px;
-                    display: flex;
-                    align-items: flex-start;
-                }}
-                
-                .step-number {{
-                    background: linear-gradient(135deg, #ef597b 0%, #6d469b 100%);
-                    color: white;
-                    width: 24px;
-                    height: 24px;
-                    border-radius: 50%;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    font-size: 12px;
-                    font-weight: 600;
-                    margin-right: 12px;
-                    flex-shrink: 0;
-                    margin-top: 1px;
-                }}
-                
-                .step-text {{
-                    font-size: 15px;
-                    color: #4a5568;
-                    line-height: 1.5;
-                }}
-                
-                /* Contact section */
-                .contact-info {{
-                    background-color: #2d3748;
-                    color: white;
-                    padding: 30px;
-                    text-align: center;
-                }}
-                
-                .contact-title {{
-                    font-size: 18px;
-                    font-weight: 600;
-                    margin-bottom: 15px;
-                }}
-                
-                .contact-text {{
-                    font-size: 14px;
-                    margin-bottom: 20px;
-                    opacity: 0.9;
-                }}
-                
-                .contact-email {{
-                    color: #f8b3c5;
-                    text-decoration: none;
-                    font-weight: 600;
-                }}
-                
-                /* Footer */
-                .footer {{
-                    background-color: #1a202c;
-                    color: #a0aec0;
-                    padding: 25px 30px;
-                    text-align: center;
-                    font-size: 13px;
-                }}
-                
-                .footer-brand {{
-                    color: #ef597b;
-                    font-weight: 600;
-                    margin-bottom: 8px;
-                }}
-                
-                .footer-text {{
-                    line-height: 1.5;
-                }}
-                
-                .footer a {{
-                    color: #b794d6;
-                    text-decoration: none;
-                }}
-                
-                /* Mobile responsive */
-                @media only screen and (max-width: 600px) {{
-                    .email-container {{
-                        margin: 0;
-                        box-shadow: none;
-                    }}
-                    
-                    .header {{
-                        padding: 30px 20px;
-                    }}
-                    
-                    .logo {{
-                        font-size: 28px;
-                    }}
-                    
-                    .content {{
-                        padding: 30px 20px;
-                    }}
-                    
-                    .greeting {{
-                        font-size: 22px;
-                    }}
-                    
-                    .highlight-box {{
-                        padding: 20px;
-                    }}
-                    
-                    .cta-button {{
-                        padding: 14px 28px;
-                        font-size: 15px;
-                    }}
-                    
-                    .next-steps {{
-                        padding: 20px;
-                    }}
-                    
-                    .contact-info {{
-                        padding: 25px 20px;
-                    }}
-                    
-                    .footer {{
-                        padding: 20px;
-                    }}
-                }}
-            </style>
-        </head>
-        <body>
-            <div class="email-container">
-                <!-- Header -->
-                <div class="header">
-                    <div class="logo">Optio Education</div>
-                    <div class="tagline">Empowering Self-Directed Learning</div>
-                </div>
-                
-                <!-- Main Content -->
-                <div class="content">
-                    <div class="greeting">Welcome to the Optio Family, {parent_name}!</div>
-                    
-                    <div class="intro-text">
-                        Thank you for your interest in Optio Education. We're excited to help your teen{' (age ' + teen_age + ')' if teen_age else ''} develop real-world skills, build an impressive portfolio, and gain the confidence that comes from self-directed learning.{' We noticed they\'re passionate about ' + activity + ' - that\'s a perfect starting point for their learning journey!' if activity else ''}
-                    </div>
-                    
-                    <div class="highlight-box">
-                        <div class="highlight-title">Why Parents Choose Optio</div>
-                        <div class="highlight-text">
-                            Our platform helps teens create self-validated diplomas by completing meaningful quests that develop critical thinking, creativity, and practical skills. Students build portfolios they can proudly share with colleges and employers.
-                        </div>
-                    </div>
-                    
-                    <div class="cta-container">
-                        <a href="https://www.optioeducation.com/demo" class="cta-button">Explore Our Interactive Demo</a>
-                    </div>
-                    
-                    <div class="next-steps">
-                        <h3>Your Next Steps</h3>
-                        
-                        <div class="step">
-                            <div class="step-number">1</div>
-                            <div class="step-text">
-                                <strong>Try the Demo:</strong> Experience our platform firsthand with our interactive demo designed specifically for parents and students.
-                            </div>
-                        </div>
-                        
-                        <div class="step">
-                            <div class="step-number">2</div>
-                            <div class="step-text">
-                                <strong>Schedule a Call:</strong> Book a 15-minute conversation with our education specialists to discuss your teen's goals and how Optio can help.
-                            </div>
-                        </div>
-                        
-                        <div class="step">
-                            <div class="step-number">3</div>
-                            <div class="step-text">
-                                <strong>Start the Journey:</strong> Create your teen's account and begin their first quest in an area that interests them most.
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="intro-text">
-                        We understand that choosing the right educational path for your teen is one of the most important decisions you'll make. We're here to support you every step of the way.
-                    </div>
-                </div>
-                
-                <!-- Contact Information -->
-                <div class="contact-info">
-                    <div class="contact-title">Questions? We're Here to Help</div>
-                    <div class="contact-text">
-                        Our team is ready to answer any questions about Optio's approach, pricing, or how we can best support your teen's learning journey.
-                    </div>
-                    <a href="mailto:support@optioeducation.com" class="contact-email">support@optioeducation.com</a>
-                </div>
-                
-                <!-- Footer -->
-                <div class="footer">
-                    <div class="footer-brand">Optio Education</div>
-                    <div class="footer-text">
-                        Building the future of self-directed learning<br>
-                        <a href="https://www.optioeducation.com">www.optioeducation.com</a> | 
-                        <a href="mailto:support@optioeducation.com">support@optioeducation.com</a>
-                    </div>
-                </div>
-            </div>
+        <html>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h1>Welcome to Optio!</h1>
+            
+            <p>Hi {parent_name},</p>
+            
+            <p>I'm Dr. Tanner Bowman, founder of Optio Education. Thank you for your interest in helping your teen{' (age ' + teen_age + ')' if teen_age else ''} build real-world skills and create an impressive portfolio.{' I noticed they\'re passionate about ' + activity + ' - that\'s fantastic!' if activity else ''}</p>
+            
+            <p>I created Optio because I believe teens learn best when they can pursue their interests and document their journey. Our platform helps students earn credit for real-world learning experiences while building portfolios that colleges and employers love.</p>
+            
+            <h2>Here's what happens next:</h2>
+            
+            <ol>
+                <li><strong>Explore our demo:</strong> <a href="https://www.optioeducation.com/demo">Take a quick tour</a> to see how Optio works</li>
+                <li><strong>Tell me about your teen:</strong> Reply to this email and share what makes your teen unique - their interests, goals, or challenges</li>
+                <li><strong>Get personalized guidance:</strong> I personally read every reply and will respond with specific thoughts about how Optio could help</li>
+            </ol>
+            
+            <p><strong>I'd love to hear from you!</strong> What are your teen's biggest interests? What educational challenges are you facing? What are your hopes for their future?</p>
+            
+            <p>Just hit reply and tell me about your situation. There's a real person (me!) who will read your message and respond personally.</p>
+            
+            <p>Best,<br>
+            Dr. Tanner Bowman<br>
+            Founder, Optio Education<br>
+            <a href="mailto:tanner@optioeducation.com">tanner@optioeducation.com</a></p>
         </body>
         </html>
         """
         
         # Plain text version
         text_body = f"""
-        OPTIO EDUCATION
-        Empowering Self-Directed Learning
+        Welcome to Optio!
         
-        =================================================
+        Hi {parent_name},
         
-        WELCOME TO THE OPTIO FAMILY!
+        I'm Dr. Tanner Bowman, founder of Optio Education. Thank you for your interest in helping your teen{' (age ' + teen_age + ')' if teen_age else ''} build real-world skills and create an impressive portfolio.{' I noticed they\'re passionate about ' + activity + ' - that\'s fantastic!' if activity else ''}
         
-        Dear {parent_name},
+        I created Optio because I believe teens learn best when they can pursue their interests and document their journey. Our platform helps students earn credit for real-world learning experiences while building portfolios that colleges and employers love.
         
-        Thank you for your interest in Optio Education. We're excited to help your teen{' (age ' + teen_age + ')' if teen_age else ''} develop real-world skills, build an impressive portfolio, and gain the confidence that comes from self-directed learning.{' We noticed they\'re passionate about ' + activity + ' - that\'s a perfect starting point for their learning journey!' if activity else ''}
+        Here's what happens next:
         
-        WHY PARENTS CHOOSE OPTIO
-        ------------------------
-        Our platform helps teens create self-validated diplomas by completing meaningful quests that develop critical thinking, creativity, and practical skills. Students build portfolios they can proudly share with colleges and employers.
+        1. Explore our demo: Take a quick tour at https://www.optioeducation.com/demo to see how Optio works
         
-        EXPLORE OUR INTERACTIVE DEMO
-        ---------------------------
-        Experience our platform firsthand with our interactive demo designed specifically for parents and students:
-        https://www.optioeducation.com/demo
+        2. Tell me about your teen: Reply to this email and share what makes your teen unique - their interests, goals, or challenges
         
-        YOUR NEXT STEPS
-        ---------------
+        3. Get personalized guidance: I personally read every reply and will respond with specific thoughts about how Optio could help
         
-        1. TRY THE DEMO
-           Experience our platform firsthand with our interactive demo designed specifically for parents and students.
+        I'd love to hear from you! What are your teen's biggest interests? What educational challenges are you facing? What are your hopes for their future?
         
-        2. SCHEDULE A CALL
-           Book a 15-minute conversation with our education specialists to discuss your teen's goals and how Optio can help.
+        Just hit reply and tell me about your situation. There's a real person (me!) who will read your message and respond personally.
         
-        3. START THE JOURNEY
-           Create your teen's account and begin their first quest in an area that interests them most.
-        
-        We understand that choosing the right educational path for your teen is one of the most important decisions you'll make. We're here to support you every step of the way.
-        
-        QUESTIONS? WE'RE HERE TO HELP
-        -----------------------------
-        Our team is ready to answer any questions about Optio's approach, pricing, or how we can best support your teen's learning journey.
-        
-        Email us at: support@optioeducation.com
-        
-        =================================================
-        
-        OPTIO EDUCATION
-        Building the future of self-directed learning
-        
-        Website: https://www.optioeducation.com
-        Email: support@optioeducation.com
-        
-        This email was sent because you expressed interest in Optio Education through our promotional landing page. If you have any questions, please don't hesitate to reach out to our support team.
+        Best,
+        Dr. Tanner Bowman
+        Founder, Optio Education
+        tanner@optioeducation.com
         """
         
-        # Send email with BCC to admin for follow-up
-        admin_email = os.getenv('ADMIN_EMAIL', 'hello@optioeducation.com')
+        # Send email with BCC to Tanner for follow-up
+        tanner_email = os.getenv('ADMIN_EMAIL', 'tanner@optioeducation.com')
         return self.send_email(
             to_email=parent_email,
             subject=subject,
             html_body=html_body,
             text_body=text_body,
-            bcc=[admin_email]  # Copy admin for follow-up
+            bcc=[tanner_email]  # Copy Tanner for personal follow-up
         )
 
 # Create singleton instance
