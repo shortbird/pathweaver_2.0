@@ -95,7 +95,7 @@ const PromoLandingPage = () => {
           <div className="text-center">
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
               <span className="block drop-shadow-lg">GET HIGH SCHOOL CREDIT FOR</span>
-              <div className="relative h-20 sm:h-24 mt-4">
+              <div className="relative h-24 sm:h-28 mt-4">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span 
                     key={currentActivity}

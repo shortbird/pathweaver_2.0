@@ -1,46 +1,16 @@
 from flask import Blueprint, request, jsonify
 from flask_cors import cross_origin
-from functools import wraps
-import jwt
+from datetime import datetime
+from utils.auth.decorators import require_auth
 import os
 import sys
-from datetime import datetime
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 quest_ideas_bp = Blueprint('quest_ideas', __name__)  # Force redeploy
 
-def token_required(f):
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        token = None
-        auth_header = request.headers.get('Authorization')
-        
-        if auth_header:
-            try:
-                token = auth_header.split(' ')[1]
-            except IndexError:
-                return jsonify({'error': 'Invalid token format'}), 401
-        
-        if not token:
-            return jsonify({'error': 'Token is missing'}), 401
-        
-        try:
-            secret_key = os.getenv('JWT_SECRET_KEY') or os.getenv('SECRET_KEY')
-            if not secret_key:
-                return jsonify({'error': 'Server configuration error'}), 500
-            data = jwt.decode(token, secret_key, algorithms=['HS256'])
-            current_user_id = data['user_id']
-            return f(current_user_id, *args, **kwargs)
-        except jwt.ExpiredSignatureError:
-            return jsonify({'error': 'Token has expired'}), 401
-        except jwt.InvalidTokenError:
-            return jsonify({'error': 'Invalid token'}), 401
-    
-    return decorated
-
 @quest_ideas_bp.route('/quest-ideas', methods=['POST'])
 @cross_origin()
-@token_required
+@require_auth
 def submit_quest_idea(current_user_id):
     """Submit a new quest idea for review"""
     try:
@@ -104,7 +74,7 @@ def submit_quest_idea(current_user_id):
 
 @quest_ideas_bp.route('/quest-ideas', methods=['GET'])
 @cross_origin()
-@token_required
+@require_auth
 def get_user_quest_ideas(current_user_id):
     """Get all quest ideas submitted by the current user"""
     try:
@@ -125,7 +95,7 @@ def get_user_quest_ideas(current_user_id):
 
 @quest_ideas_bp.route('/quest-ideas/<idea_id>', methods=['GET'])
 @cross_origin()
-@token_required
+@require_auth
 def get_quest_idea_status(current_user_id, idea_id):
     """Get the status of a specific quest idea"""
     try:
