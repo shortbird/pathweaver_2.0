@@ -160,7 +160,7 @@ const QuestHubV3Improved = () => {
         setHasLoadedOnce(true);
       }
     }
-  }, [page, searchTerm, selectedPillar, user]);
+  }, [page, searchTerm, selectedPillar, selectedSubject, user]);
 
   const handleEnroll = useCallback(async (questId) => {
     if (!user) {
