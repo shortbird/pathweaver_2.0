@@ -392,7 +392,6 @@ const HomePage = () => {
                 </Link>
               </div>
             </div>
-            </div>
           </div>
         </div>
       </div>
