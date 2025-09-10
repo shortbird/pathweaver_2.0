@@ -1,14 +1,65 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Play, Sparkles, Trophy, Info, X, Award, BookOpen, Users } from 'lucide-react'
+import { Play, Sparkles, Trophy, Info, X, Award, BookOpen, Users, Music, Code, PenTool, Calculator, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
+
+// Activity Card Component for the scrolling section
+const ActivityCard = ({ activity, icon: Icon, color, quote, skills, credit, subject }) => (
+  <div className="flex-shrink-0 w-80 h-72 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300 p-6">
+    {/* Header with Icon */}
+    <div className="flex items-center mb-4">
+      <div className={`w-12 h-12 rounded-full flex items-center justify-center mr-3`} style={{ backgroundColor: `${color}20` }}>
+        <Icon className="w-6 h-6" style={{ color }} />
+      </div>
+      <div className="flex-1">
+        <div className="text-sm font-medium text-gray-600">{subject}</div>
+        <div className="text-lg font-bold" style={{ color }}>{credit} Credit</div>
+      </div>
+    </div>
+
+    {/* Parent Quote */}
+    <div className="mb-4">
+      <blockquote className="text-gray-800 font-medium text-sm leading-relaxed">
+        "{quote}"
+      </blockquote>
+    </div>
+
+    {/* Key Skills */}
+    <div className="mb-4">
+      <div className="text-xs text-gray-600 mb-2">Key Skills Demonstrated:</div>
+      <div className="flex flex-wrap gap-1">
+        {skills.map((skill, index) => (
+          <span 
+            key={index}
+            className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs"
+          >
+            {skill}
+          </span>
+        ))}
+      </div>
+    </div>
+
+    {/* Trust Indicator */}
+    <div className="flex items-center justify-between mt-auto">
+      <div className="flex items-center text-xs text-green-700 bg-green-50 px-2 py-1 rounded-full">
+        <CheckCircle className="w-3 h-3 mr-1" />
+        State Approved
+      </div>
+      <div className="text-xs text-gray-500">Portfolio Required</div>
+    </div>
+  </div>
+)
 
 const HomePage = () => {
   const { isAuthenticated } = useAuth()
   const [pricingModalOpen, setPricingModalOpen] = useState(false)
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
   const [currentActivity, setCurrentActivity] = useState(0)
+  const [currentCardIndex, setCurrentCardIndex] = useState(0)
+  const [canScrollLeft, setCanScrollLeft] = useState(false)
+  const [canScrollRight, setCanScrollRight] = useState(true)
+  const scrollRef = useRef(null)
   const [formData, setFormData] = useState({
     parentName: '',
     email: '',
@@ -36,12 +87,89 @@ const HomePage = () => {
     'E-commerce Stores'
   ]
 
+  // Credit conversion card activities
+  const creditActivities = [
+    {
+      icon: Music,
+      color: '#ef597b',
+      subject: 'Fine Arts',
+      credit: '0.5',
+      quote: 'My daughter has been taking piano lessons for 3 months and can now play 5 songs confidently',
+      skills: ['Musical theory', 'Practice discipline', 'Performance', 'Creativity']
+    },
+    {
+      icon: Code,
+      color: '#6d469b', 
+      subject: 'Computer Science',
+      credit: '0.5',
+      quote: 'My son taught himself to code and built an app that helps our family track chores',
+      skills: ['Programming logic', 'Problem-solving', 'UI design', 'Project management']
+    },
+    {
+      icon: PenTool,
+      color: '#059669',
+      subject: 'English',
+      credit: '0.5', 
+      quote: 'Our family trip to Europe inspired my teenager to write 12 detailed blog posts',
+      skills: ['Written communication', 'Research', 'Audience awareness', 'Cultural analysis']
+    },
+    {
+      icon: Trophy,
+      color: '#ea580c',
+      subject: 'Physical Education', 
+      credit: '1.0',
+      quote: 'Playing varsity soccer has taught my son leadership and teamwork as team captain',
+      skills: ['Physical fitness', 'Leadership', 'Strategic thinking', 'Team collaboration']
+    },
+    {
+      icon: Calculator,
+      color: '#2563eb',
+      subject: 'Applied Mathematics',
+      credit: '0.5',
+      quote: 'My daughter started selling handmade jewelry and now manages inventory, pricing, and profit/loss',
+      skills: ['Applied mathematics', 'Financial literacy', 'Data analysis', 'Business operations']
+    }
+  ]
+
+  // Scrolling functions for credit cards
+  const scroll = (direction) => {
+    const container = scrollRef.current
+    const cardWidth = 320 + 16 // card width + gap
+    const scrollAmount = cardWidth * 2 // scroll 2 cards at a time
+    
+    if (direction === 'left') {
+      container.scrollLeft -= scrollAmount
+      setCurrentCardIndex(Math.max(0, currentCardIndex - 2))
+    } else {
+      container.scrollLeft += scrollAmount  
+      setCurrentCardIndex(Math.min(creditActivities.length - 1, currentCardIndex + 2))
+    }
+  }
+
+  const updateScrollButtons = () => {
+    const container = scrollRef.current
+    if (container) {
+      setCanScrollLeft(container.scrollLeft > 0)
+      setCanScrollRight(container.scrollLeft < container.scrollWidth - container.clientWidth)
+    }
+  }
+
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentActivity((prev) => (prev + 1) % activities.length)
     }, 3000)
     return () => clearInterval(interval)
   }, [activities.length])
+
+  useEffect(() => {
+    const container = scrollRef.current
+    if (container) {
+      container.addEventListener('scroll', updateScrollButtons)
+      updateScrollButtons() // Initial check
+      
+      return () => container.removeEventListener('scroll', updateScrollButtons)
+    }
+  }, [])
 
   const handleInputChange = (e) => {
     setFormData({
@@ -171,226 +299,106 @@ const HomePage = () => {
             </p>
           </div>
             
-          {/* Parent-Focused Credit Conversion Table */}
-          <div className="max-w-5xl mx-auto">
-            <div className="bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 rounded-2xl p-8">
-              <h3 className="text-3xl font-bold text-gray-900 mb-3 text-center">
-                Turn What You're Already Doing Into High School Credit
+          {/* Mobile-Optimized Scrolling Credit Cards */}
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-8">
+              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
+                Turn Activities Into Credits
               </h3>
-              <p className="text-lg text-gray-600 mb-8 text-center max-w-3xl mx-auto">
-                Stop paying for activities that "don't count." Your teen's real-world achievements can earn official academic credit.
+              <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+                See how real activities become official high school credits
               </p>
+            </div>
 
-              <div className="space-y-6">
-                {/* Fine Arts Example */}
-                <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
-                  <div className="flex flex-col md:flex-row items-center gap-6">
-                    <div className="flex-1 text-left">
-                      <div className="text-lg font-semibold text-gray-900 mb-2">
-                        "My daughter has been taking piano lessons at the local music studio for 3 months and can now play 5 songs confidently"
-                      </div>
-                      <div className="text-sm text-gray-600 mb-3">
-                        Demonstrates: Musical theory, practice discipline, performance skills, creative expression
-                      </div>
-                      <div className="flex items-center text-xs text-gray-500">
-                        <span className="bg-gray-100 px-2 py-1 rounded mr-2">Documentation: Recital videos</span>
-                        <span className="bg-gray-100 px-2 py-1 rounded">Portfolio: Performance recordings</span>
-                      </div>
-                    </div>
-                    
-                    <div className="hidden md:block">
-                      <svg className="w-8 h-8 text-[#ef597b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                      </svg>
-                    </div>
-                    
-                    <div className="text-center md:text-right">
-                      <div className="text-xl font-bold text-[#ef597b] mb-1">0.5 Credit</div>
-                      <div className="text-sm font-medium text-gray-700">Fine Arts</div>
-                      <div className="inline-flex items-center mt-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                        State Approved
-                      </div>
-                    </div>
-                  </div>
-                </div>
+            {/* Touch-friendly scroll hint for mobile */}
+            <div className="flex items-center justify-center mb-4 sm:hidden">
+              <div className="flex items-center text-sm text-gray-500">
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                <span>Swipe to see examples</span>
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </div>
+            </div>
 
-                {/* Computer Science Example */}
-                <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
-                  <div className="flex flex-col md:flex-row items-center gap-6">
-                    <div className="flex-1 text-left">
-                      <div className="text-lg font-semibold text-gray-900 mb-2">
-                        "My son taught himself to code over the summer and built an app that helps our family track chores, plus a game his friends actually play"
-                      </div>
-                      <div className="text-sm text-gray-600 mb-3">
-                        Demonstrates: Programming logic, problem-solving, user interface design, project management
-                      </div>
-                      <div className="flex items-center text-xs text-gray-500">
-                        <span className="bg-gray-100 px-2 py-1 rounded mr-2">Documentation: Code repositories</span>
-                        <span className="bg-gray-100 px-2 py-1 rounded">Portfolio: Live app demos</span>
-                      </div>
-                    </div>
-                    
-                    <div className="hidden md:block">
-                      <svg className="w-8 h-8 text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                      </svg>
-                    </div>
-                    
-                    <div className="text-center md:text-right">
-                      <div className="text-xl font-bold text-[#6d469b] mb-1">0.5 Credit</div>
-                      <div className="text-sm font-medium text-gray-700">Computer Science</div>
-                      <div className="inline-flex items-center mt-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                        State Approved
-                      </div>
-                    </div>
+            {/* Horizontal Scrolling Cards Container */}
+            <div className="relative">
+              <div 
+                ref={scrollRef}
+                className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4 px-4 sm:px-0"
+                style={{
+                  scrollbarWidth: 'none',
+                  msOverflowStyle: 'none',
+                  WebkitOverflowScrolling: 'touch'
+                }}
+                onScroll={updateScrollButtons}
+              >
+                {creditActivities.map((activity, index) => (
+                  <div key={index} className="snap-start">
+                    <ActivityCard {...activity} />
                   </div>
-                </div>
-
-                {/* English Example */}
-                <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
-                  <div className="flex flex-col md:flex-row items-center gap-6">
-                    <div className="flex-1 text-left">
-                      <div className="text-lg font-semibold text-gray-900 mb-2">
-                        "Our family trip to Europe inspired my teenager to document the experience - she's written 12 detailed blog posts that thousands of people have read"
-                      </div>
-                      <div className="text-sm text-gray-600 mb-3">
-                        Demonstrates: Written communication, research skills, audience awareness, cultural analysis
-                      </div>
-                      <div className="flex items-center text-xs text-gray-500">
-                        <span className="bg-gray-100 px-2 py-1 rounded mr-2">Documentation: Published articles</span>
-                        <span className="bg-gray-100 px-2 py-1 rounded">Portfolio: Analytics & engagement</span>
-                      </div>
-                    </div>
-                    
-                    <div className="hidden md:block">
-                      <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                      </svg>
-                    </div>
-                    
-                    <div className="text-center md:text-right">
-                      <div className="text-xl font-bold text-green-600 mb-1">0.5 Credit</div>
-                      <div className="text-sm font-medium text-gray-700">English</div>
-                      <div className="inline-flex items-center mt-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                        State Approved
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Physical Education Example */}
-                <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
-                  <div className="flex flex-col md:flex-row items-center gap-6">
-                    <div className="flex-1 text-left">
-                      <div className="text-lg font-semibold text-gray-900 mb-2">
-                        "Playing varsity soccer has taught my son leadership, time management, and teamwork - he's been team captain for 6 months"
-                      </div>
-                      <div className="text-sm text-gray-600 mb-3">
-                        Demonstrates: Physical fitness, leadership skills, strategic thinking, team collaboration
-                      </div>
-                      <div className="flex items-center text-xs text-gray-500">
-                        <span className="bg-gray-100 px-2 py-1 rounded mr-2">Documentation: Coach recommendations</span>
-                        <span className="bg-gray-100 px-2 py-1 rounded">Portfolio: Game footage & stats</span>
-                      </div>
-                    </div>
-                    
-                    <div className="hidden md:block">
-                      <svg className="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                      </svg>
-                    </div>
-                    
-                    <div className="text-center md:text-right">
-                      <div className="text-xl font-bold text-orange-500 mb-1">1.0 Credit</div>
-                      <div className="text-sm font-medium text-gray-700">Physical Education</div>
-                      <div className="inline-flex items-center mt-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                        State Approved
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Mathematics Example */}
-                <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
-                  <div className="flex flex-col md:flex-row items-center gap-6">
-                    <div className="flex-1 text-left">
-                      <div className="text-lg font-semibold text-gray-900 mb-2">
-                        "My daughter started selling handmade jewelry on Etsy and now manages inventory, pricing, taxes, and profit/loss - real business math"
-                      </div>
-                      <div className="text-sm text-gray-600 mb-3">
-                        Demonstrates: Applied mathematics, financial literacy, data analysis, business operations
-                      </div>
-                      <div className="flex items-center text-xs text-gray-500">
-                        <span className="bg-gray-100 px-2 py-1 rounded mr-2">Documentation: Financial records</span>
-                        <span className="bg-gray-100 px-2 py-1 rounded">Portfolio: Business metrics</span>
-                      </div>
-                    </div>
-                    
-                    <div className="hidden md:block">
-                      <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                      </svg>
-                    </div>
-                    
-                    <div className="text-center md:text-right">
-                      <div className="text-xl font-bold text-blue-600 mb-1">0.5 Credit</div>
-                      <div className="text-sm font-medium text-gray-700">Applied Mathematics</div>
-                      <div className="inline-flex items-center mt-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
-                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        </svg>
-                        State Approved
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                ))}
               </div>
 
-              {/* Trust Indicators */}
-              <div className="mt-8 pt-6 border-t border-gray-200">
-                <div className="flex flex-wrap justify-center items-center gap-6 text-sm text-gray-600">
-                  <div className="flex items-center">
-                    <svg className="w-4 h-4 mr-2 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    Educator-Reviewed
-                  </div>
-                  <div className="flex items-center">
-                    <svg className="w-4 h-4 mr-2 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    College-Accepted
-                  </div>
-                  <div className="flex items-center">
-                    <svg className="w-4 h-4 mr-2 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    Portfolio Evidence Required
-                  </div>
-                </div>
-              </div>
-
-              <div className="text-center mt-8">
-                <Link 
-                  to="/demo"
-                  className="inline-flex items-center text-[#ef597b] hover:text-[#e54469] font-medium text-lg"
+              {/* Desktop Navigation Arrows */}
+              <div className="hidden sm:flex absolute top-1/2 -translate-y-1/2 left-0 right-0 justify-between pointer-events-none">
+                <button
+                  onClick={() => scroll('left')}
+                  disabled={!canScrollLeft}
+                  className="w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed pointer-events-auto hover:shadow-xl transition-all -ml-6"
                 >
-                  <Play className="mr-2 w-5 h-5" />
-                  See more examples in demo
-                </Link>
+                  <ChevronLeft className="w-6 h-6 text-gray-600" />
+                </button>
+                <button
+                  onClick={() => scroll('right')}
+                  disabled={!canScrollRight}
+                  className="w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed pointer-events-auto hover:shadow-xl transition-all -mr-6"
+                >
+                  <ChevronRight className="w-6 h-6 text-gray-600" />
+                </button>
               </div>
+            </div>
+
+            {/* Mobile Progress Indicators */}
+            <div className="flex justify-center mt-6 sm:hidden">
+              <div className="flex space-x-2">
+                {creditActivities.map((_, index) => (
+                  <div
+                    key={index}
+                    className={`w-2 h-2 rounded-full transition-all ${
+                      index === currentCardIndex 
+                        ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b]' 
+                        : 'bg-gray-300'
+                    }`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* Trust Indicators - Condensed for mobile */}
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 text-sm text-gray-600">
+                <div className="flex items-center">
+                  <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                  Educator-Reviewed
+                </div>
+                <div className="flex items-center">
+                  <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                  College-Accepted
+                </div>
+                <div className="flex items-center">
+                  <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
+                  Portfolio Evidence
+                </div>
+              </div>
+            </div>
+
+            <div className="text-center mt-8">
+              <Link 
+                to="/demo"
+                className="inline-flex items-center text-[#ef597b] hover:text-[#e54469] font-medium text-lg hover:underline transition-all"
+              >
+                <Play className="mr-2 w-5 h-5" />
+                See more examples in demo
+              </Link>
             </div>
           </div>
         </div>
