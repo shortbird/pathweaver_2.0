@@ -151,7 +151,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
               return (
                 <div className="mt-3">
                   <div className="flex items-center gap-1 mb-2">
-                    <span className="text-xs text-gray-500 font-medium">School Credit:</span>
+                    <span className="text-xs text-gray-500 font-medium">Diploma Credit:</span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
                     {displaySubjects.map(subject => (

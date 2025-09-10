@@ -168,9 +168,14 @@ def list_quests():
                 quest_subjects = set()
                 for task in quest.get('quest_tasks', []):
                     task_subjects = task.get('school_subjects', [])
-                    if isinstance(task_subjects, list):
+                    if isinstance(task_subjects, list) and task_subjects:
                         quest_subjects.update(task_subjects)
-                subject_matches = subject_filter in quest_subjects
+                
+                # If quest has no school subjects, only match if filtering for 'electives'
+                if not quest_subjects:
+                    subject_matches = subject_filter == 'electives'
+                else:
+                    subject_matches = subject_filter in quest_subjects
             
             if pillar_matches and subject_matches:
                 quests.append(quest)

@@ -570,7 +570,7 @@ const QuestDetailV3 = () => {
                           {task.school_subjects && task.school_subjects.length > 0 && (
                             <div className="mb-3">
                               <div className="flex items-center gap-1 mb-2">
-                                <span className="text-sm text-gray-500 font-medium">School Credit:</span>
+                                <span className="text-sm text-gray-500 font-medium">Diploma Credit:</span>
                               </div>
                               <div className="flex flex-wrap gap-1.5">
                                 {task.school_subjects.map(subject => {

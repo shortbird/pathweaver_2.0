@@ -157,7 +157,7 @@ const QuestFilters = ({
               onClick={() => onSubjectChange('all')}
               className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium hover:bg-blue-200 transition-colors"
             >
-              📚 {subjects.find(s => s.value === selectedSubject)?.label}
+              {subjects.find(s => s.value === selectedSubject)?.label}
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
@@ -213,7 +213,7 @@ const FilterContent = memo(({
 
       {/* School Subjects */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">School Subject</h3>
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">Diploma Credit</h3>
         <div className={`${mobile ? 'grid grid-cols-2 gap-2' : 'flex flex-wrap gap-2'}`}>
           {subjects.map(subject => (
             <button
@@ -228,7 +228,7 @@ const FilterContent = memo(({
                 }
               `}
             >
-              {subject.value === 'all' ? subject.label : `📚 ${subject.label}`}
+              {subject.label}
             </button>
           ))}
         </div>
