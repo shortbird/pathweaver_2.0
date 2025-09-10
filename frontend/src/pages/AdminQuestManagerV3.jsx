@@ -5,6 +5,8 @@ import toast from 'react-hot-toast';
 import api from '../services/api';
 
 const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
+  // School subjects state
+  const [availableSubjects, setAvailableSubjects] = useState([]);
   // Quest basic info
   const [title, setTitle] = useState(quest?.title || '');
   const [description, setDescription] = useState(quest?.big_idea || quest?.description || '');
@@ -30,7 +32,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
         title: task.title || '',
         description: task.description || '',
         pillar: task.pillar || 'arts_creativity',
-        subcategory: task.subcategory || '',
+        school_subjects: task.school_subjects || ['electives'],
         xp_value: task.xp_amount || task.xp_value || 100,
         evidence_prompt: task.evidence_prompt || '',
         materials_needed: task.materials_needed || [],
@@ -41,7 +43,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
       title: '',
       description: '',
       pillar: 'life_wellness',
-      subcategory: '',
+      school_subjects: ['electives'],
       xp_value: 100,
       evidence_prompt: '',
       materials_needed: [],
@@ -77,6 +79,36 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
       }
     }
   }, [quest]);
+
+  // Fetch available school subjects
+  useEffect(() => {
+    const fetchSchoolSubjects = async () => {
+      try {
+        const response = await api.get('/api/v3/admin/school-subjects');
+        if (response.data.success) {
+          setAvailableSubjects(response.data.school_subjects);
+        }
+      } catch (error) {
+        console.error('Failed to fetch school subjects:', error);
+        // Fallback to default subjects if API fails
+        setAvailableSubjects([
+          { key: 'language_arts', name: 'Language Arts', description: 'Reading, writing, literature, and language skills' },
+          { key: 'math', name: 'Math', description: 'Mathematics, algebra, geometry, statistics' },
+          { key: 'science', name: 'Science', description: 'Biology, chemistry, physics, earth science' },
+          { key: 'social_studies', name: 'Social Studies', description: 'History, geography, civics, government' },
+          { key: 'financial_literacy', name: 'Financial Literacy', description: 'Personal finance, budgeting, investing' },
+          { key: 'health', name: 'Health', description: 'Health education, nutrition, wellness' },
+          { key: 'pe', name: 'PE', description: 'Physical education, sports, fitness' },
+          { key: 'fine_arts', name: 'Fine Arts', description: 'Visual arts, music, theater, dance' },
+          { key: 'cte', name: 'CTE', description: 'Career and technical education, vocational skills' },
+          { key: 'digital_literacy', name: 'Digital Literacy', description: 'Technology skills, computer science' },
+          { key: 'electives', name: 'Electives', description: 'Specialized interests and supplemental learning' }
+        ]);
+      }
+    };
+    
+    fetchSchoolSubjects();
+  }, []);
 
   // Predefined sources
   const DEFAULT_QUEST_SOURCES = {
@@ -123,7 +155,7 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
       title: '',
       description: '',
       pillar: 'life_wellness',
-      subcategory: '',
+      school_subjects: ['electives'],
       xp_value: 100,
       evidence_prompt: '',
       materials_needed: [],
@@ -735,18 +767,43 @@ const AdminQuestManagerV3 = ({ quest, onClose, onSave }) => {
 
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">
-                          Subcategory
+                          School Subjects <span className="text-xs text-gray-500">(Select all that apply)</span>
                         </label>
-                        <select
-                          value={task.subcategory}
-                          onChange={(e) => updateTask(index, 'subcategory', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6d469b]"
-                        >
-                          <option value="">Select subcategory</option>
-                          {getPillarData(task.pillar).competencies.map(sub => (
-                            <option key={sub} value={sub}>{sub}</option>
+                        <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-2">
+                          {availableSubjects.map(subject => (
+                            <label key={subject.key} className="flex items-center space-x-2 p-1 hover:bg-gray-50 rounded">
+                              <input
+                                type="checkbox"
+                                checked={task.school_subjects.includes(subject.key)}
+                                onChange={(e) => {
+                                  const currentSubjects = task.school_subjects || [];
+                                  let newSubjects;
+                                  if (e.target.checked) {
+                                    newSubjects = [...currentSubjects, subject.key];
+                                  } else {
+                                    newSubjects = currentSubjects.filter(s => s !== subject.key);
+                                  }
+                                  // Ensure at least one subject is selected
+                                  if (newSubjects.length === 0) {
+                                    newSubjects = ['electives'];
+                                  }
+                                  updateTask(index, 'school_subjects', newSubjects);
+                                }}
+                                className="text-[#6d469b] focus:ring-[#6d469b]"
+                              />
+                              <span className="text-sm" title={subject.description}>
+                                {subject.name}
+                              </span>
+                            </label>
                           ))}
-                        </select>
+                        </div>
+                        {task.school_subjects && task.school_subjects.length > 0 && (
+                          <p className="text-xs text-gray-600 mt-1">
+                            Selected: {task.school_subjects.map(key => 
+                              availableSubjects.find(s => s.key === key)?.name || key
+                            ).join(', ')}
+                          </p>
+                        )}
                       </div>
 
                       <div className="md:col-span-2">

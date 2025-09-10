@@ -41,11 +41,12 @@ def list_quests():
         per_page = sanitize_integer(request.args.get('per_page', 12), default=12, min_val=1, max_val=100)
         search = sanitize_search_input(request.args.get('search', ''))
         pillar_filter = sanitize_search_input(request.args.get('pillar', ''), max_length=50)
+        subject_filter = sanitize_search_input(request.args.get('subject', ''), max_length=50)
         
         # Calculate offset
         offset = (page - 1) * per_page
         
-        # Build query
+        # Build query - include school_subjects in quest_tasks selection
         query = supabase.table('quests')\
             .select('*, quest_tasks(*)', count='exact')\
             .eq('is_active', True)\
@@ -159,7 +160,19 @@ def list_quests():
                             task['is_completed'] = task['id'] in completed_task_ids
             
             # Apply pillar filter if specified
-            if not pillar_filter or pillar_filter in pillar_xp:
+            pillar_matches = not pillar_filter or pillar_filter in pillar_xp
+            
+            # Apply subject filter if specified
+            subject_matches = True
+            if subject_filter:
+                quest_subjects = set()
+                for task in quest.get('quest_tasks', []):
+                    task_subjects = task.get('school_subjects', [])
+                    if isinstance(task_subjects, list):
+                        quest_subjects.update(task_subjects)
+                subject_matches = subject_filter in quest_subjects
+            
+            if pillar_matches and subject_matches:
                 quests.append(quest)
         
         return jsonify({

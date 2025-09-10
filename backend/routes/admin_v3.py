@@ -2,12 +2,35 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
 from utils.pillar_utils import normalize_pillar_key, is_valid_pillar
+from utils.school_subjects import validate_school_subjects, normalize_subject_key
 from datetime import datetime, timedelta
 import json
 import base64
 import uuid
 
 bp = Blueprint('admin_v3', __name__, url_prefix='/api/v3/admin')
+
+@bp.route('/school-subjects', methods=['GET'])
+def get_school_subjects():
+    """
+    Get all available school subjects for quest creation.
+    Public endpoint - no auth required for getting subject list.
+    """
+    try:
+        from utils.school_subjects import get_all_subjects_with_info
+        subjects = get_all_subjects_with_info()
+        
+        return jsonify({
+            'success': True,
+            'school_subjects': subjects
+        })
+        
+    except Exception as e:
+        print(f"Error getting school subjects: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch school subjects'
+        }), 500
 
 @bp.route('/quests/create-v3', methods=['POST'])
 @require_admin
@@ -40,9 +63,6 @@ def create_quest_v3_clean(user_id):
             if not task.get('pillar'):
                 return jsonify({'error': f'Task {idx + 1}: Pillar is required'}), 400
             
-            if not task.get('subcategory'):
-                return jsonify({'error': f'Task {idx + 1}: Subcategory is required'}), 400
-            
             # Validate and normalize pillar
             try:
                 normalized_pillar = normalize_pillar_key(task['pillar'])
@@ -51,6 +71,28 @@ def create_quest_v3_clean(user_id):
                 print(f"Task {idx + 1}: Normalized pillar from '{task['pillar']}' to '{normalized_pillar}'")
             except Exception as e:
                 return jsonify({'error': f'Task {idx + 1}: Invalid pillar - {str(e)}'}), 400
+            
+            # Validate and normalize school subjects
+            school_subjects = task.get('school_subjects', [])
+            if school_subjects:
+                # Normalize subject keys
+                normalized_subjects = []
+                for subject in school_subjects:
+                    normalized_subject = normalize_subject_key(subject)
+                    if normalized_subject:
+                        normalized_subjects.append(normalized_subject)
+                    else:
+                        print(f"Warning: Unknown school subject '{subject}' in task {idx + 1}")
+                        normalized_subjects.append(subject)  # Keep original for validation error
+                
+                # Validate the normalized subjects
+                is_valid, error_msg = validate_school_subjects(normalized_subjects)
+                if not is_valid:
+                    return jsonify({'error': f'Task {idx + 1}: {error_msg}'}), 400
+                school_subjects = normalized_subjects
+            else:
+                # Default to electives if no subjects provided
+                school_subjects = ['electives']
             
             # Validate XP value
             xp_value = task.get('xp_value', 100)
@@ -61,7 +103,7 @@ def create_quest_v3_clean(user_id):
                 'title': task['title'],
                 'description': task.get('description', ''),  # Optional field
                 'pillar': normalized_pillar,  # Use normalized pillar
-                'subcategory': task.get('subcategory', ''),  # Required field
+                'school_subjects': school_subjects,  # Use normalized school subjects
                 'xp_amount': int(xp_value),  # Use xp_amount (database column)
                 'order_index': task.get('order_index', task.get('task_order', idx)),  # Use order_index (database column)
                 'evidence_prompt': task.get('evidence_prompt', f"Provide evidence for completing: {task['title']}"),
@@ -103,6 +145,7 @@ def create_quest_v3_clean(user_id):
                 'title': task['title'],
                 'description': task['description'],
                 'pillar': task['pillar'],
+                'school_subjects': task['school_subjects'],
                 'xp_amount': task['xp_amount'],
                 'order_index': task['order_index'],
                 'evidence_prompt': task.get('evidence_prompt'),

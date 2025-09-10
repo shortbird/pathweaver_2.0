@@ -75,6 +75,32 @@ const TaskCard = ({ task, index, isCompleted, isEnrolled, onComplete, hasCollabo
               <span className="capitalize">{task.pillar.replace('_', ' ')}</span>
             </div>
 
+            {/* School Subjects Badge */}
+            {task.school_subjects && task.school_subjects.length > 0 && (
+              <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-gray-700 text-xs">
+                <span>📚</span>
+                <span>
+                  {task.school_subjects.map(subject => {
+                    const subjectNames = {
+                      'language_arts': 'Language Arts',
+                      'math': 'Math',
+                      'science': 'Science',
+                      'social_studies': 'Social Studies',
+                      'financial_literacy': 'Financial Literacy',
+                      'health': 'Health',
+                      'pe': 'PE',
+                      'fine_arts': 'Fine Arts',
+                      'cte': 'CTE',
+                      'digital_literacy': 'Digital Literacy',
+                      'electives': 'Electives'
+                    };
+                    return subjectNames[subject] || subject;
+                  }).slice(0, 2).join(', ')}
+                  {task.school_subjects.length > 2 && ` +${task.school_subjects.length - 2}`}
+                </span>
+              </div>
+            )}
+
             {/* XP Badge with Animation */}
             <div className="relative">
               <div className={`
