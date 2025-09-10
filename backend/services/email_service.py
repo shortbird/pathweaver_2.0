@@ -18,7 +18,7 @@ class EmailService:
         self.smtp_user = os.getenv('SMTP_USER', 'apikey')
         self.smtp_pass = os.getenv('SMTP_PASS', '')
         self.sender_email = os.getenv('SENDER_EMAIL', 'noreply@optioeducation.com')
-        self.sender_name = os.getenv('SENDER_NAME', 'Optio')
+        self.sender_name = os.getenv('SENDER_NAME', 'Tanner from Optio')
         
     def send_email(
         self,
@@ -286,16 +286,16 @@ class EmailService:
             
             <p>Hi {parent_name},</p>
             
-            <p>I'm Dr. Tanner Bowman, founder of Optio Education. Thank you for your interest in helping your teen{' (age ' + teen_age + ')' if teen_age else ''} build real-world skills and create an impressive portfolio.{' I noticed they\'re passionate about ' + activity + '! That\'s fantastic!' if activity else ''}</p>
+            <p>Thank you for your interest in helping your teen{' (age ' + teen_age + ')' if teen_age else ''} build real-world skills and create an impressive portfolio.{' I noticed they\'re passionate about ' + activity + '! That\'s fantastic!' if activity else ''}</p>
             
-            <p>I created Optio because I believe teens learn best when given the freedom to pursue their interests. Our platform helps students earn real high school credit for the learning experiences they have in their lives while building portfolios that showcase their excellent work.</p>
+            <p>We created Optio because we believe teens learn best when given the freedom to pursue their interests. Our platform helps students earn real high school credit for the learning experiences they have in their lives while building portfolios that showcase their excellent work.</p>
             
             <h2>Want to learn more?</h2>
             
             <ol>
                 <li><strong>Explore our demo:</strong> <a href="https://www.optioeducation.com/demo">Take a quick tour</a> to see how Optio works</li>
-                <li><strong>Tell me about your teen:</strong> Reply to this email and share what makes your teen unique - their interests, goals, or challenges</li>
-                <li><strong>Get personalized guidance:</strong> I personally read every reply and will respond with specific thoughts about how Optio could help</li>
+                <li><strong>Tell us about your teen:</strong> Reply to this email and share what makes your teen unique - their interests, goals, or challenges</li>
+                <li><strong>Get personalized guidance:</strong> Our team will read every reply and respond with specific thoughts about how Optio could help</li>
             </ol>
             
             <p><strong>I'd love to hear from you!</strong> What are your teen's biggest interests? What educational challenges are you facing? What are your hopes for their future?</p>
