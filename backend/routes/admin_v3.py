@@ -618,12 +618,35 @@ def update_quest(user_id, quest_id):
         if tasks:
             task_records = []
             for idx, task in enumerate(tasks):
+                # Validate and normalize school subjects for this task
+                school_subjects = task.get('school_subjects', ['electives'])
+                if school_subjects:
+                    # Normalize subject keys
+                    normalized_subjects = []
+                    for subject in school_subjects:
+                        normalized_subject = normalize_subject_key(subject)
+                        if normalized_subject:
+                            normalized_subjects.append(normalized_subject)
+                        else:
+                            normalized_subjects.append(subject)  # Keep original
+                    
+                    # Validate the normalized subjects
+                    is_valid, error_msg = validate_school_subjects(normalized_subjects)
+                    if is_valid:
+                        school_subjects = normalized_subjects
+                    else:
+                        print(f"Warning: Invalid school subjects for task {idx}: {error_msg}")
+                        school_subjects = ['electives']  # Default fallback
+                else:
+                    school_subjects = ['electives']
+                
                 task_records.append({
                     'quest_id': quest_id,
                     'title': task['title'],
                     'description': task.get('description'),
                     'xp_amount': task['xp_amount'],
                     'pillar': task['pillar'],
+                    'school_subjects': school_subjects,
                     'order_index': idx,
                     'created_at': datetime.utcnow().isoformat()
                 })
