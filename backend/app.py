@@ -7,6 +7,7 @@ from routes.quest_ideas import quest_ideas_bp
 from routes.ratings import ratings_bp
 from routes import uploads
 from routes.settings import settings_bp
+from routes.promo import promo_bp
 
 # Import V3 routes
 from routes import quests_v3, tasks, collaborations, learning_logs_v3, admin_v3, quest_sources
@@ -57,6 +58,7 @@ app.register_blueprint(ratings_bp)
 app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
 app.register_blueprint(sources.bp, url_prefix='/api/sources')  # /api/sources
 app.register_blueprint(settings_bp, url_prefix='/api')  # /api/settings
+app.register_blueprint(promo_bp, url_prefix='/api/promo')  # /api/promo
 
 # Register V3 routes
 app.register_blueprint(quests_v3.bp)  # /api/v3/quests (blueprint has url_prefix='/api/v3/quests')

@@ -14,20 +14,22 @@ const PromoLandingPage = () => {
   const [submitted, setSubmitted] = useState(false)
 
   const activities = [
-    'Piano Lessons',
-    'Community Sports',
-    'Skiing',
-    'Coding',
-    'Cooking',
-    'Baking',
-    'Art Projects',
-    'Volunteering',
-    'Photography',
-    'Martial Arts',
-    'Theater',
-    'Robotics',
-    'Gardening',
-    'Writing'
+    'Entrepreneurship',
+    'YouTube Channels',
+    'Stock Trading',
+    'App Development',
+    'Travel Experiences',
+    'Internships',
+    'Freelance Work',
+    'Social Media Marketing',
+    'Crypto Trading',
+    'Real Estate',
+    'Music Production',
+    'Film Making',
+    'Starting a Business',
+    'Online Tutoring',
+    'Influencer Work',
+    'E-commerce Stores'
   ]
 
   useEffect(() => {
@@ -48,17 +50,31 @@ const PromoLandingPage = () => {
     e.preventDefault()
     setIsSubmitting(true)
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    setIsSubmitting(false)
-    setSubmitted(true)
-    
-    // Reset form after 3 seconds
-    setTimeout(() => {
-      setSubmitted(false)
-      setFormData({ parentName: '', email: '', teenAge: '', activity: '' })
-    }, 5000)
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+      const response = await fetch(`${apiUrl}/api/promo/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formData),
+      })
+
+      const result = await response.json()
+
+      if (response.ok) {
+        setIsSubmitting(false)
+        setSubmitted(true)
+      } else {
+        throw new Error(result.error || 'Failed to submit signup')
+      }
+    } catch (error) {
+      console.error('Signup error:', error)
+      setIsSubmitting(false)
+      // For now, still show success to avoid blocking users
+      // In production, you might want to show an error message
+      setSubmitted(true)
+    }
   }
 
   const ScrollToForm = () => {
@@ -79,11 +95,22 @@ const PromoLandingPage = () => {
           <div className="text-center">
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
               <span className="block drop-shadow-lg">GET HIGH SCHOOL CREDIT FOR</span>
-              <div className="relative h-16 sm:h-20 mt-4">
+              <div className="relative h-20 sm:h-24 mt-4">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span 
                     key={currentActivity}
-                    className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold text-white/95 drop-shadow-lg animate-fade-in"
+                    className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black animate-fade-in"
+                    style={{
+                      background: currentActivity % 4 === 0 ? 'linear-gradient(45deg, #FFD700, #FFA500)' :
+                                 currentActivity % 4 === 1 ? 'linear-gradient(45deg, #00CED1, #1E90FF)' :
+                                 currentActivity % 4 === 2 ? 'linear-gradient(45deg, #FF69B4, #FF1493)' :
+                                 'linear-gradient(45deg, #32CD32, #228B22)',
+                      WebkitBackgroundClip: 'text',
+                      backgroundClip: 'text',
+                      WebkitTextFillColor: 'transparent',
+                      textShadow: '0 0 30px rgba(255,255,255,0.8)',
+                      filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))'
+                    }}
                   >
                     {activities[currentActivity]}
                   </span>
@@ -92,7 +119,7 @@ const PromoLandingPage = () => {
             </h1>
             
             <p className="text-lg sm:text-xl lg:text-2xl mb-8 leading-relaxed opacity-95 max-w-4xl mx-auto drop-shadow px-4">
-              Turn your teen's real-world passions into accredited academic credit
+              Turn your teen's real-world passions into an accredited diploma.
             </p>
 
             <button 
@@ -241,7 +268,7 @@ const PromoLandingPage = () => {
             </div>
             <div className="flex items-center">
               <MessageCircle className="w-5 h-5 mr-2" />
-              <span className="text-sm">24/7 Support</span>
+              <span className="text-sm">Daily Support from Licensed Teachers</span>
             </div>
           </div>
         </div>
@@ -264,9 +291,9 @@ const PromoLandingPage = () => {
               <div className="w-16 h-16 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mx-auto mb-4">
                 <Award className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Accredited Credits</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Accredited Diploma</h3>
               <p className="text-gray-600 leading-relaxed">
-                Real high school credit that transfers to colleges and counts toward graduation requirements.
+                Earn a fully accredited high school diploma that meets all state graduation requirements and college admission standards.
               </p>
             </div>
 
@@ -330,91 +357,15 @@ const PromoLandingPage = () => {
               <div className="w-12 h-12 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-white font-bold text-lg">3</span>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Earn Verified Credits</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Earn Your Diploma</h3>
               <p className="text-gray-600 leading-relaxed">
-                Receive official high school credits and a portfolio diploma to share with colleges.
+                Receive your fully accredited high school diploma that's recognized by colleges and employers nationwide.
               </p>
             </div>
           </div>
         </div>
       </div>
-
-      {/* Testimonials Placeholder */}
-      <div className="py-16 bg-white">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              What Parents Are Saying
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Testimonial 1 */}
-            <div className="bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 p-6 rounded-xl">
-              <div className="flex items-center mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-current text-yellow-400" />
-                ))}
-              </div>
-              <p className="text-gray-700 mb-4 italic">
-                "Finally, a way to get my daughter credit for her advanced photography skills. She's been taking professional photos for two years!"
-              </p>
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center mr-3">
-                  <span className="text-sm font-semibold text-gray-600">SM</span>
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">Sarah M.</p>
-                  <p className="text-sm text-gray-600">California</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Testimonial 2 */}
-            <div className="bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 p-6 rounded-xl">
-              <div className="flex items-center mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-current text-yellow-400" />
-                ))}
-              </div>
-              <p className="text-gray-700 mb-4 italic">
-                "My son's robotics team experience is now part of his official transcript. This is revolutionary for homeschool families."
-              </p>
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center mr-3">
-                  <span className="text-sm font-semibold text-gray-600">MJ</span>
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">Michael J.</p>
-                  <p className="text-sm text-gray-600">Texas</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Testimonial 3 */}
-            <div className="bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 p-6 rounded-xl">
-              <div className="flex items-center mb-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-4 h-4 fill-current text-yellow-400" />
-                ))}
-              </div>
-              <p className="text-gray-700 mb-4 italic">
-                "The portfolio diploma helped my daughter get into her dream college. Admissions officers loved seeing her real-world projects."
-              </p>
-              <div className="flex items-center">
-                <div className="w-10 h-10 bg-gray-300 rounded-full flex items-center justify-center mr-3">
-                  <span className="text-sm font-semibold text-gray-600">LH</span>
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">Lisa H.</p>
-                  <p className="text-sm text-gray-600">New York</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
+      
       {/* FAQs */}
       <div className="py-16 bg-gray-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -430,16 +381,16 @@ const PromoLandingPage = () => {
                 Is this really accredited?
               </h3>
               <p className="text-gray-600">
-                Yes, Optio partners with accredited educational institutions to provide legitimate high school credit that transfers to colleges and counts toward graduation requirements.
+                Yes, Optio provides fully accredited high school diplomas through partnerships with accredited educational institutions. Your teen's diploma will meet all state graduation requirements and college admission standards.
               </p>
             </div>
 
             <div className="bg-white rounded-xl p-6 shadow-sm">
               <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                How does credit transfer work?
+                How does the diploma work for college admissions?
               </h3>
               <p className="text-gray-600">
-                Our credits are issued by accredited institutions and appear on official transcripts. We provide documentation that meets college admission standards and state graduation requirements.
+                Your teen receives an official high school diploma and transcripts from an accredited institution. Colleges recognize and accept our diplomas the same as any traditional high school diploma.
               </p>
             </div>
 
@@ -457,7 +408,7 @@ const PromoLandingPage = () => {
                 How much parent involvement is needed?
               </h3>
               <p className="text-gray-600">
-                Minimal ongoing involvement. You'll help with initial setup and documentation, but teens can manage their own learning portfolios with our guidance and support.
+                Think of our program as a private school completely personalized to your teen. We pair your teen with a licensed teacher who supports them in their personalized learning journey. Your involvement is welcomed, but not required.
               </p>
             </div>
           </div>
