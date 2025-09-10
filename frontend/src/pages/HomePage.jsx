@@ -6,7 +6,7 @@ import { PhilosophySection } from '../components/ui/PhilosophyCard'
 
 // Activity Card Component for the scrolling section
 const ActivityCard = ({ activity, icon: Icon, color, description, skills, credit, subject }) => (
-  <div className="flex-shrink-0 w-96 h-80 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300 p-6 mx-4 mb-8">
+  <div className="flex-shrink-0 w-80 sm:w-96 h-80 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300 p-6 mx-2 sm:mx-4 mb-8">
     {/* Header with Icon */}
     <div className="flex items-center mb-4">
       <div className={`w-12 h-12 rounded-full flex items-center justify-center mr-3`} style={{ backgroundColor: `${color}20` }}>
@@ -167,7 +167,7 @@ const HomePage = () => {
     const container = scrollRef.current
     if (!container) return
     
-    const cardWidth = 384 + 32 // Card width (w-96) + gap (mx-4 = 16px each side)
+    const cardWidth = window.innerWidth < 640 ? 320 + 16 : 384 + 32 // Mobile: w-80 + smaller gaps, Desktop: w-96 + gaps
     const scrollAmount = cardWidth
     const totalCards = creditActivities.length * 3 // We have 3 copies
     const singleSetWidth = cardWidth * creditActivities.length
@@ -199,7 +199,7 @@ const HomePage = () => {
       setCanScrollRight(true)
       
       // Update current card index based on scroll position
-      const cardWidth = 384 + 32
+      const cardWidth = window.innerWidth < 640 ? 320 + 16 : 384 + 32
       const singleSetWidth = cardWidth * creditActivities.length
       
       // Calculate position relative to the middle set (second copy)
@@ -226,7 +226,7 @@ const HomePage = () => {
       container.addEventListener('scroll', updateScrollButtons)
       
       // Start in the middle set for seamless infinite scroll
-      const cardWidth = 384 + 32
+      const cardWidth = window.innerWidth < 640 ? 320 + 16 : 384 + 32
       const singleSetWidth = cardWidth * creditActivities.length
       container.scrollLeft = singleSetWidth // Start at second copy
       
@@ -381,7 +381,7 @@ const HomePage = () => {
             <div className="relative">
               <div 
                 ref={scrollRef}
-                className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4 px-4 sm:px-0"
+                className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4 px-6 sm:px-0"
                 style={{
                   scrollbarWidth: 'none',
                   msOverflowStyle: 'none',
@@ -392,7 +392,7 @@ const HomePage = () => {
               >
                 {/* Duplicate activities for infinite scroll */}
                 {[...creditActivities, ...creditActivities, ...creditActivities].map((activity, index) => (
-                  <div key={`${index}-${Math.floor(index / creditActivities.length)}`} className="snap-center flex-shrink-0">
+                  <div key={`${index}-${Math.floor(index / creditActivities.length)}`} className="snap-center flex-shrink-0 flex justify-center">
                     <ActivityCard {...activity} />
                   </div>
                 ))}
