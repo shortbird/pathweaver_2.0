@@ -286,7 +286,7 @@ class EmailService:
             
             <p>Hi {parent_name},</p>
             
-            <p>I'm Dr. Tanner Bowman, founder of Optio Education. Thank you for your interest in helping your teen{' (age ' + teen_age + ')' if teen_age else ''} build real-world skills and create an impressive portfolio.{' I noticed they\'re passionate about ' + activity + ' - that\'s fantastic!' if activity else ''}</p>
+            <p>I'm Dr. Tanner Bowman, founder of Optio Education. Thank you for your interest in helping your teen{' (age ' + teen_age + ')' if teen_age else ''} build real-world skills and create an impressive portfolio.{' I noticed they\'re passionate about ' + activity + '! That\'s fantastic!' if activity else ''}</p>
             
             <p>I created Optio because I believe teens learn best when given the freedom to pursue their interests. Our platform helps students earn real high school credit for the learning experiences they have in their lives while building portfolios that showcase their excellent work.</p>
             
@@ -316,7 +316,7 @@ class EmailService:
         
         Hi {parent_name},
         
-        I'm Dr. Tanner Bowman, founder of Optio Education. Thank you for your interest in helping your teen{' (age ' + teen_age + ')' if teen_age else ''} build real-world skills and create an impressive portfolio.{' I noticed they\'re passionate about ' + activity + ' - that\'s fantastic!' if activity else ''}
+        I'm Dr. Tanner Bowman, founder of Optio Education. Thank you for your interest in helping your teen{' (age ' + teen_age + ')' if teen_age else ''} build real-world skills and create an impressive portfolio.{' I noticed they\'re passionate about ' + activity + '! That\'s fantastic!' if activity else ''}
         
         
         I created Optio because I believe teens learn best when given the freedom to pursue their interests. Our platform helps students earn real high school credit for the learning experiences they have in their lives while building portfolios that showcase their excellent work.        
