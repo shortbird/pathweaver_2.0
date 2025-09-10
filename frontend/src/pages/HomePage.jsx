@@ -171,70 +171,217 @@ const HomePage = () => {
             </p>
           </div>
             
-          {/* Single Column Layout */}
-          <div className="max-w-4xl mx-auto">
-            <div className="space-y-6">
-              <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">Real Activities = Real Credits</h3>
-              
-              {/* Fine Arts */}
-              <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-[#ef597b]">
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-gray-800 mb-3">3 months of piano lessons</div>
-                  <div className="text-3xl font-bold text-[#ef597b] mb-3">=</div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-[#ef597b]">0.5 credit in Fine Arts</span>
-                    <span className="bg-[#ef597b]/10 text-[#ef597b] px-3 py-1 rounded-full text-sm font-medium">Arts</span>
+          {/* Parent-Focused Credit Conversion Table */}
+          <div className="max-w-5xl mx-auto">
+            <div className="bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 rounded-2xl p-8">
+              <h3 className="text-3xl font-bold text-gray-900 mb-3 text-center">
+                Turn What You're Already Doing Into High School Credit
+              </h3>
+              <p className="text-lg text-gray-600 mb-8 text-center max-w-3xl mx-auto">
+                Stop paying for activities that "don't count." Your teen's real-world achievements can earn official academic credit.
+              </p>
+
+              <div className="space-y-6">
+                {/* Fine Arts Example */}
+                <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    <div className="flex-1 text-left">
+                      <div className="text-lg font-semibold text-gray-900 mb-2">
+                        "My daughter has been taking piano lessons at the local music studio for 3 months and can now play 5 songs confidently"
+                      </div>
+                      <div className="text-sm text-gray-600 mb-3">
+                        Demonstrates: Musical theory, practice discipline, performance skills, creative expression
+                      </div>
+                      <div className="flex items-center text-xs text-gray-500">
+                        <span className="bg-gray-100 px-2 py-1 rounded mr-2">Documentation: Recital videos</span>
+                        <span className="bg-gray-100 px-2 py-1 rounded">Portfolio: Performance recordings</span>
+                      </div>
+                    </div>
+                    
+                    <div className="hidden md:block">
+                      <svg className="w-8 h-8 text-[#ef597b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </div>
+                    
+                    <div className="text-center md:text-right">
+                      <div className="text-xl font-bold text-[#ef597b] mb-1">0.5 Credit</div>
+                      <div className="text-sm font-medium text-gray-700">Fine Arts</div>
+                      <div className="inline-flex items-center mt-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
+                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        State Approved
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Computer Science Example */}
+                <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    <div className="flex-1 text-left">
+                      <div className="text-lg font-semibold text-gray-900 mb-2">
+                        "My son taught himself to code over the summer and built an app that helps our family track chores, plus a game his friends actually play"
+                      </div>
+                      <div className="text-sm text-gray-600 mb-3">
+                        Demonstrates: Programming logic, problem-solving, user interface design, project management
+                      </div>
+                      <div className="flex items-center text-xs text-gray-500">
+                        <span className="bg-gray-100 px-2 py-1 rounded mr-2">Documentation: Code repositories</span>
+                        <span className="bg-gray-100 px-2 py-1 rounded">Portfolio: Live app demos</span>
+                      </div>
+                    </div>
+                    
+                    <div className="hidden md:block">
+                      <svg className="w-8 h-8 text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </div>
+                    
+                    <div className="text-center md:text-right">
+                      <div className="text-xl font-bold text-[#6d469b] mb-1">0.5 Credit</div>
+                      <div className="text-sm font-medium text-gray-700">Computer Science</div>
+                      <div className="inline-flex items-center mt-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
+                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        State Approved
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* English Example */}
+                <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    <div className="flex-1 text-left">
+                      <div className="text-lg font-semibold text-gray-900 mb-2">
+                        "Our family trip to Europe inspired my teenager to document the experience - she's written 12 detailed blog posts that thousands of people have read"
+                      </div>
+                      <div className="text-sm text-gray-600 mb-3">
+                        Demonstrates: Written communication, research skills, audience awareness, cultural analysis
+                      </div>
+                      <div className="flex items-center text-xs text-gray-500">
+                        <span className="bg-gray-100 px-2 py-1 rounded mr-2">Documentation: Published articles</span>
+                        <span className="bg-gray-100 px-2 py-1 rounded">Portfolio: Analytics & engagement</span>
+                      </div>
+                    </div>
+                    
+                    <div className="hidden md:block">
+                      <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </div>
+                    
+                    <div className="text-center md:text-right">
+                      <div className="text-xl font-bold text-green-600 mb-1">0.5 Credit</div>
+                      <div className="text-sm font-medium text-gray-700">English</div>
+                      <div className="inline-flex items-center mt-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
+                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        State Approved
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Physical Education Example */}
+                <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    <div className="flex-1 text-left">
+                      <div className="text-lg font-semibold text-gray-900 mb-2">
+                        "Playing varsity soccer has taught my son leadership, time management, and teamwork - he's been team captain for 6 months"
+                      </div>
+                      <div className="text-sm text-gray-600 mb-3">
+                        Demonstrates: Physical fitness, leadership skills, strategic thinking, team collaboration
+                      </div>
+                      <div className="flex items-center text-xs text-gray-500">
+                        <span className="bg-gray-100 px-2 py-1 rounded mr-2">Documentation: Coach recommendations</span>
+                        <span className="bg-gray-100 px-2 py-1 rounded">Portfolio: Game footage & stats</span>
+                      </div>
+                    </div>
+                    
+                    <div className="hidden md:block">
+                      <svg className="w-8 h-8 text-orange-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </div>
+                    
+                    <div className="text-center md:text-right">
+                      <div className="text-xl font-bold text-orange-500 mb-1">1.0 Credit</div>
+                      <div className="text-sm font-medium text-gray-700">Physical Education</div>
+                      <div className="inline-flex items-center mt-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
+                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        State Approved
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mathematics Example */}
+                <div className="bg-white rounded-xl p-6 border border-gray-200 hover:shadow-lg transition-shadow">
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    <div className="flex-1 text-left">
+                      <div className="text-lg font-semibold text-gray-900 mb-2">
+                        "My daughter started selling handmade jewelry on Etsy and now manages inventory, pricing, taxes, and profit/loss - real business math"
+                      </div>
+                      <div className="text-sm text-gray-600 mb-3">
+                        Demonstrates: Applied mathematics, financial literacy, data analysis, business operations
+                      </div>
+                      <div className="flex items-center text-xs text-gray-500">
+                        <span className="bg-gray-100 px-2 py-1 rounded mr-2">Documentation: Financial records</span>
+                        <span className="bg-gray-100 px-2 py-1 rounded">Portfolio: Business metrics</span>
+                      </div>
+                    </div>
+                    
+                    <div className="hidden md:block">
+                      <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                      </svg>
+                    </div>
+                    
+                    <div className="text-center md:text-right">
+                      <div className="text-xl font-bold text-blue-600 mb-1">0.5 Credit</div>
+                      <div className="text-sm font-medium text-gray-700">Applied Mathematics</div>
+                      <div className="inline-flex items-center mt-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
+                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        State Approved
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Computer Science */}
-              <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-[#6d469b]">
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-gray-800 mb-3">Building 2 apps</div>
-                  <div className="text-3xl font-bold text-[#6d469b] mb-3">=</div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-[#6d469b]">0.5 credit in Computer Science</span>
-                    <span className="bg-[#6d469b]/10 text-[#6d469b] px-3 py-1 rounded-full text-sm font-medium">STEM</span>
+              {/* Trust Indicators */}
+              <div className="mt-8 pt-6 border-t border-gray-200">
+                <div className="flex flex-wrap justify-center items-center gap-6 text-sm text-gray-600">
+                  <div className="flex items-center">
+                    <svg className="w-4 h-4 mr-2 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    Educator-Reviewed
+                  </div>
+                  <div className="flex items-center">
+                    <svg className="w-4 h-4 mr-2 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    College-Accepted
+                  </div>
+                  <div className="flex items-center">
+                    <svg className="w-4 h-4 mr-2 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    Portfolio Evidence Required
                   </div>
                 </div>
               </div>
-
-              {/* English */}
-              <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-green-600">
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-gray-800 mb-3">Travel blog (10+ posts)</div>
-                  <div className="text-3xl font-bold text-green-600 mb-3">=</div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-green-600">0.5 credit in English</span>
-                    <span className="bg-green-600/10 text-green-600 px-3 py-1 rounded-full text-sm font-medium">Language</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Physical Education */}
-              <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-orange-500">
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-gray-800 mb-3">6 months of soccer team</div>
-                  <div className="text-3xl font-bold text-orange-500 mb-3">=</div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-orange-500">1.0 credit in Physical Education</span>
-                    <span className="bg-orange-500/10 text-orange-500 px-3 py-1 rounded-full text-sm font-medium">PE</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mathematics */}
-              <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-blue-600">
-                <div className="text-center">
-                  <div className="text-lg font-semibold text-gray-800 mb-3">E-commerce store finances</div>
-                  <div className="text-3xl font-bold text-blue-600 mb-3">=</div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-lg font-bold text-blue-600">0.5 credit in Applied Mathematics</span>
-                    <span className="bg-blue-600/10 text-blue-600 px-3 py-1 rounded-full text-sm font-medium">Math</span>
-                  </div>
-                </div>
-              </div>
+            </div>
 
               <div className="text-center mt-8">
                 <Link 
@@ -262,7 +409,7 @@ const HomePage = () => {
             </p>
           </div>
 
-          <div className="grid lg:grid-cols-4 md:grid-cols-2 gap-8 items-start">
+          <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center p-6 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 rounded-xl">
               <div className="w-16 h-16 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mx-auto mb-4">
                 <Award className="w-8 h-8 text-white" />
@@ -293,7 +440,7 @@ const HomePage = () => {
               </p>
             </div>
 
-            {/* Diploma Graphic Column */}
+            {/* COMMENTED OUT - Diploma Graphic Column
             <div className="flex justify-center lg:col-span-1 md:col-span-2 lg:col-span-1">
               <div className="bg-white rounded-2xl shadow-xl p-6 transform rotate-2 max-w-xs border-2 border-gray-100">
                 <div className="border-4 border-[#ef597b]/20 rounded-xl p-4">
@@ -329,7 +476,6 @@ const HomePage = () => {
                     </div>
                   </div>
                 </div>
-                {/* Accredited badge */}
                 <div className="mt-3 flex items-center justify-center">
                   <div className="flex items-center text-xs text-gray-700 bg-green-50 px-3 py-1 rounded-full border border-green-200">
                     <svg className="w-3 h-3 mr-1 text-green-600" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
@@ -340,6 +486,7 @@ const HomePage = () => {
                 </div>
               </div>
             </div>
+            -->
           </div>
         </div>
       </div>
