@@ -171,129 +171,79 @@ const HomePage = () => {
             </p>
           </div>
             
-          {/* 2-Column Layout */}
-          <div className="grid lg:grid-cols-2 gap-12 items-center max-w-6xl mx-auto">
-            {/* Left Column - Credit Conversion Examples */}
+          {/* Single Column Layout */}
+          <div className="max-w-4xl mx-auto">
             <div className="space-y-6">
-              <h3 className="text-2xl font-bold text-gray-900 mb-6">Real Activities = Real Credits</h3>
+              <h3 className="text-2xl font-bold text-gray-900 mb-6 text-center">Real Activities = Real Credits</h3>
               
               {/* Fine Arts */}
               <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-[#ef597b]">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-lg font-semibold text-gray-800">3 months of piano lessons</span>
-                  <span className="text-2xl font-bold text-[#ef597b]">=</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold text-[#ef597b]">0.5 credit in Fine Arts</span>
-                  <span className="bg-[#ef597b]/10 text-[#ef597b] px-3 py-1 rounded-full text-sm font-medium">Arts</span>
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-gray-800 mb-3">3 months of piano lessons</div>
+                  <div className="text-3xl font-bold text-[#ef597b] mb-3">=</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-bold text-[#ef597b]">0.5 credit in Fine Arts</span>
+                    <span className="bg-[#ef597b]/10 text-[#ef597b] px-3 py-1 rounded-full text-sm font-medium">Arts</span>
+                  </div>
                 </div>
               </div>
 
               {/* Computer Science */}
               <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-[#6d469b]">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-lg font-semibold text-gray-800">Building 2 apps</span>
-                  <span className="text-2xl font-bold text-[#6d469b]">=</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold text-[#6d469b]">0.5 credit in Computer Science</span>
-                  <span className="bg-[#6d469b]/10 text-[#6d469b] px-3 py-1 rounded-full text-sm font-medium">STEM</span>
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-gray-800 mb-3">Building 2 apps</div>
+                  <div className="text-3xl font-bold text-[#6d469b] mb-3">=</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-bold text-[#6d469b]">0.5 credit in Computer Science</span>
+                    <span className="bg-[#6d469b]/10 text-[#6d469b] px-3 py-1 rounded-full text-sm font-medium">STEM</span>
+                  </div>
                 </div>
               </div>
 
               {/* English */}
               <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-green-600">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-lg font-semibold text-gray-800">Travel blog (10+ posts)</span>
-                  <span className="text-2xl font-bold text-green-600">=</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold text-green-600">0.5 credit in English</span>
-                  <span className="bg-green-600/10 text-green-600 px-3 py-1 rounded-full text-sm font-medium">Language</span>
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-gray-800 mb-3">Travel blog (10+ posts)</div>
+                  <div className="text-3xl font-bold text-green-600 mb-3">=</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-bold text-green-600">0.5 credit in English</span>
+                    <span className="bg-green-600/10 text-green-600 px-3 py-1 rounded-full text-sm font-medium">Language</span>
+                  </div>
                 </div>
               </div>
 
               {/* Physical Education */}
               <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-orange-500">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-lg font-semibold text-gray-800">6 months of soccer team</span>
-                  <span className="text-2xl font-bold text-orange-500">=</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold text-orange-500">1.0 credit in Physical Education</span>
-                  <span className="bg-orange-500/10 text-orange-500 px-3 py-1 rounded-full text-sm font-medium">PE</span>
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-gray-800 mb-3">6 months of soccer team</div>
+                  <div className="text-3xl font-bold text-orange-500 mb-3">=</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-bold text-orange-500">1.0 credit in Physical Education</span>
+                    <span className="bg-orange-500/10 text-orange-500 px-3 py-1 rounded-full text-sm font-medium">PE</span>
+                  </div>
                 </div>
               </div>
 
               {/* Mathematics */}
               <div className="bg-white rounded-xl p-6 shadow-md border-l-4 border-blue-600">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-lg font-semibold text-gray-800">E-commerce store finances</span>
-                  <span className="text-2xl font-bold text-blue-600">=</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-lg font-bold text-blue-600">0.5 credit in Applied Mathematics</span>
-                  <span className="bg-blue-600/10 text-blue-600 px-3 py-1 rounded-full text-sm font-medium">Math</span>
+                <div className="text-center">
+                  <div className="text-lg font-semibold text-gray-800 mb-3">E-commerce store finances</div>
+                  <div className="text-3xl font-bold text-blue-600 mb-3">=</div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg font-bold text-blue-600">0.5 credit in Applied Mathematics</span>
+                    <span className="bg-blue-600/10 text-blue-600 px-3 py-1 rounded-full text-sm font-medium">Math</span>
+                  </div>
                 </div>
               </div>
 
-              <Link 
-                to="/demo"
-                className="inline-flex items-center text-[#ef597b] hover:text-[#e54469] font-medium text-lg mt-6"
-              >
-                <Play className="mr-2 w-5 h-5" />
-                See more examples in demo
-              </Link>
-            </div>
-
-            {/* Right Column - Standalone Accredited Diploma */}
-            <div className="flex justify-center">
-              <div className="bg-white rounded-2xl shadow-2xl p-8 transform rotate-2 max-w-sm border-2 border-gray-100">
-                <div className="border-4 border-[#ef597b]/20 rounded-xl p-6">
-                  <div className="text-center">
-                    <div className="text-[#ef597b] mb-4">
-                      <svg className="w-16 h-16 mx-auto" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                        <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
-                      </svg>
-                    </div>
-                    <h3 className="text-2xl font-bold text-[#ef597b] mb-3">Accredited Diploma</h3>
-                    <div className="h-px bg-gradient-to-r from-transparent via-[#ef597b]/30 to-transparent mb-4"></div>
-                    <div className="space-y-3 text-gray-700">
-                      <p className="text-xl font-semibold">Your Name Here</p>
-                      <p className="text-sm text-gray-600">Accredited Learning Journey</p>
-                      <div className="flex flex-wrap justify-center gap-2 mt-4">
-                        <span className="bg-[#ef597b] text-white px-3 py-1 rounded-full text-sm font-medium">
-                          Fine Arts
-                        </span>
-                        <span className="bg-[#6d469b] text-white px-3 py-1 rounded-full text-sm font-medium">
-                          Computer Science
-                        </span>
-                        <span className="bg-green-600 text-white px-3 py-1 rounded-full text-sm font-medium">
-                          English
-                        </span>
-                      </div>
-                      <div className="mt-6 pt-4 border-t border-gray-200">
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-600">Credits Earned</span>
-                          <span className="font-bold text-[#ef597b]">18.5/24</span>
-                        </div>
-                        <div className="flex justify-between text-sm mt-2">
-                          <span className="text-gray-600">Progress</span>
-                          <span className="font-bold text-[#ef597b]">77%</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                {/* Accredited badge */}
-                <div className="mt-4 flex items-center justify-center">
-                  <div className="flex items-center text-sm text-gray-700 bg-green-50 px-4 py-2 rounded-full border border-green-200">
-                    <svg className="w-4 h-4 mr-2 text-green-600" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
-                      <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <span className="font-medium">Fully Accredited</span>
-                  </div>
-                </div>
+              <div className="text-center mt-8">
+                <Link 
+                  to="/demo"
+                  className="inline-flex items-center text-[#ef597b] hover:text-[#e54469] font-medium text-lg"
+                >
+                  <Play className="mr-2 w-5 h-5" />
+                  See more examples in demo
+                </Link>
               </div>
             </div>
           </div>
@@ -312,7 +262,7 @@ const HomePage = () => {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
+          <div className="grid lg:grid-cols-4 md:grid-cols-2 gap-8 items-start">
             <div className="text-center p-6 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 rounded-xl">
               <div className="w-16 h-16 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mx-auto mb-4">
                 <Award className="w-8 h-8 text-white" />
@@ -341,6 +291,54 @@ const HomePage = () => {
               <p className="text-gray-600 leading-relaxed">
                 Learn at your own pace, following your interests while meeting academic standards.
               </p>
+            </div>
+
+            {/* Diploma Graphic Column */}
+            <div className="flex justify-center lg:col-span-1 md:col-span-2 lg:col-span-1">
+              <div className="bg-white rounded-2xl shadow-xl p-6 transform rotate-2 max-w-xs border-2 border-gray-100">
+                <div className="border-4 border-[#ef597b]/20 rounded-xl p-4">
+                  <div className="text-center">
+                    <div className="text-[#ef597b] mb-3">
+                      <svg className="w-12 h-12 mx-auto" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762zM9.3 16.573A9.026 9.026 0 007 14.935v-3.957l1.818.78a3 3 0 002.364 0l5.508-2.361a11.026 11.026 0 01.25 3.762 1 1 0 01-.89.89 8.968 8.968 0 00-5.35 2.524 1 1 0 01-1.4 0zM6 18a1 1 0 001-1v-2.065a8.935 8.935 0 00-2-.712V17a1 1 0 001 1z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-lg font-bold text-[#ef597b] mb-2">Your Diploma</h3>
+                    <div className="h-px bg-gradient-to-r from-transparent via-[#ef597b]/30 to-transparent mb-3"></div>
+                    <div className="space-y-2 text-gray-700 text-sm">
+                      <p className="font-semibold">Your Name Here</p>
+                      <p className="text-xs text-gray-600">Accredited Learning Journey</p>
+                      <div className="flex flex-wrap justify-center gap-1 mt-3">
+                        <span className="bg-[#ef597b] text-white px-2 py-1 rounded-full text-xs font-medium">
+                          Fine Arts
+                        </span>
+                        <span className="bg-[#6d469b] text-white px-2 py-1 rounded-full text-xs font-medium">
+                          STEM
+                        </span>
+                      </div>
+                      <div className="mt-4 pt-3 border-t border-gray-200">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-600">Credits Earned</span>
+                          <span className="font-bold text-[#ef597b]">18.5/24</span>
+                        </div>
+                        <div className="flex justify-between text-xs mt-1">
+                          <span className="text-gray-600">Progress</span>
+                          <span className="font-bold text-[#ef597b]">77%</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                {/* Accredited badge */}
+                <div className="mt-3 flex items-center justify-center">
+                  <div className="flex items-center text-xs text-gray-700 bg-green-50 px-3 py-1 rounded-full border border-green-200">
+                    <svg className="w-3 h-3 mr-1 text-green-600" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                      <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="font-medium">Fully Accredited</span>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
