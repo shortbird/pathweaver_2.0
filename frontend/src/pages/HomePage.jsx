@@ -6,45 +6,37 @@ import { PhilosophySection } from '../components/ui/PhilosophyCard'
 
 // Activity Card Component for the scrolling section
 const ActivityCard = ({ activity, icon: Icon, color, description, skills, credit, subject }) => (
-  <div className="flex-shrink-0 w-96 h-96 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300 p-8 mx-4 mb-8">
+  <div className="flex-shrink-0 w-96 h-80 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300 p-6 mx-4 mb-8">
     {/* Header with Icon */}
-    <div className="flex items-center mb-6">
-      <div className={`w-14 h-14 rounded-full flex items-center justify-center mr-4`} style={{ backgroundColor: `${color}20` }}>
-        <Icon className="w-7 h-7" style={{ color }} />
+    <div className="flex items-center mb-4">
+      <div className={`w-12 h-12 rounded-full flex items-center justify-center mr-3`} style={{ backgroundColor: `${color}20` }}>
+        <Icon className="w-6 h-6" style={{ color }} />
       </div>
       <div className="flex-1">
-        <div className="text-base font-medium text-gray-600">{subject}</div>
-        <div className="text-xl font-bold" style={{ color }}>{credit} Credit</div>
+        <div className="text-sm font-medium text-gray-600">{subject}</div>
+        <div className="text-lg font-bold" style={{ color }}>{credit} Credit</div>
       </div>
     </div>
 
     {/* Student Description */}
-    <div className="mb-6">
-      <p className="text-gray-800 font-medium text-base leading-relaxed">
+    <div className="mb-4">
+      <p className="text-gray-800 font-medium text-sm leading-relaxed">
         {description}
       </p>
     </div>
 
-    {/* Key Skills */}
-    <div className="mb-6 flex-1">
-      <div className="text-sm text-gray-600 mb-3">Key Skills Demonstrated:</div>
-      <div className="flex flex-wrap gap-2">
-        {skills.map((skill, index) => (
+    {/* Key Skills - Limited to 4 skills max for better fit */}
+    <div className="">
+      <div className="text-xs text-gray-600 mb-2">Key Skills Demonstrated:</div>
+      <div className="flex flex-wrap gap-1">
+        {skills.slice(0, 4).map((skill, index) => (
           <span 
             key={index}
-            className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm"
+            className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs"
           >
             {skill}
           </span>
         ))}
-      </div>
-    </div>
-
-    {/* Trust Indicator */}
-    <div className="mt-auto pt-4">
-      <div className="flex items-center text-sm text-green-700 bg-green-50 px-3 py-2 rounded-full w-fit">
-        <CheckCircle className="w-4 h-4 mr-2" />
-        Approved for Credit
       </div>
     </div>
   </div>
@@ -175,7 +167,7 @@ const HomePage = () => {
     const container = scrollRef.current
     if (!container) return
     
-    const cardWidth = 384 + 32 // Updated card width (w-96) + gap (mx-4 = 16px each side)
+    const cardWidth = 384 + 32 // Card width (w-96) + gap (mx-4 = 16px each side)
     const scrollAmount = cardWidth
     const totalCards = creditActivities.length * 3 // We have 3 copies
     const singleSetWidth = cardWidth * creditActivities.length
