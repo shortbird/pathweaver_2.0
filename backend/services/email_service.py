@@ -282,6 +282,9 @@ class EmailService:
         html_body = f"""
         <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <img src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/logos/icon.jpg" alt="Optio Logo" style="width: 80px; height: 80px; border-radius: 50%;">
+            </div>
             <h1>Welcome to Optio!</h1>
             
             <p>Hi {parent_name},</p>
@@ -294,8 +297,8 @@ class EmailService:
             
             <ol>
                 <li><strong>Explore our demo:</strong> <a href="https://www.optioeducation.com/demo">Take a quick tour</a> to see how Optio works</li>
-                <li><strong>Tell us about your teen:</strong> Reply to this email and share what makes your teen unique - their interests, goals, or challenges</li>
-                <li><strong>Get personalized guidance:</strong> Our team will read every reply and respond with specific thoughts about how Optio could help</li>
+                <li><strong>Tell us about your teen:</strong> Reply to this email and share what makes your teen unique. What are their interests, goals, or challenges</li>
+                <li><strong>Get personalized guidance:</strong> I will read every reply and respond with specific thoughts about how Optio could help</li>
             </ol>
             
             <p><strong>I'd love to hear from you!</strong> What are your teen's biggest interests? What educational challenges are you facing? What are your hopes for their future?</p>
