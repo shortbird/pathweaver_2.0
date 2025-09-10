@@ -291,14 +291,14 @@ class EmailService:
             
             <p>Thank you for your interest in helping your teen{' (age ' + teen_age + ')' if teen_age else ''} build real-world skills and create an impressive portfolio.{' I noticed they\'re passionate about ' + activity + '! That\'s fantastic!' if activity else ''}</p>
             
-            <p>We created Optio because we believe teens learn best when given the freedom to pursue their interests. Our platform helps students earn real high school credit for the learning experiences they have in their lives while building portfolios that showcase their excellent work.</p>
+            <p>We created Optio because we believe teens learn best when given the freedom to pursue their interests. Our platform helps students earn real high school credit for the learning experiences they have in their daily lives while building portfolios that showcase their excellent work.</p>
             
             <h2>Want to learn more?</h2>
             
             <ol>
-                <li><strong>Explore our demo:</strong> <a href="https://www.optioeducation.com/demo">Take a quick tour</a> to see how Optio works</li>
-                <li><strong>Tell us about your teen:</strong> Reply to this email and share what makes your teen unique. What are their interests, goals, or challenges</li>
-                <li><strong>Get personalized guidance:</strong> I will read every reply and respond with specific thoughts about how Optio could help</li>
+                <li><strong>Explore our demo:</strong> <a href="https://www.optioeducation.com/demo">Take a quick tour</a> to see how Optio works.</li>
+                <li><strong>Tell us about your teen:</strong> Reply to this email and share what makes your teen unique. What are their interests, goals, or challenges?</li>
+                <li><strong>Get personalized guidance:</strong> I will read every reply and respond with specific thoughts about how Optio could help your kid customize their own high school education.</li>
             </ol>
             
             <p><strong>I'd love to hear from you!</strong> What are your teen's biggest interests? What educational challenges are you facing? What are your hopes for their future?</p>
@@ -328,9 +328,9 @@ class EmailService:
         
         1. Explore our demo: Take a quick tour at https://www.optioeducation.com/demo to see how Optio works
         
-        2. Tell me about your teen: Reply to this email and share what makes your teen unique - their interests, goals, or challenges
+        2. Tell me about your teen: Reply to this email and share what makes your teen unique. What are their interests, goals, or challenges?
         
-        3. Get personalized guidance: I personally read every reply and will respond with specific thoughts about how Optio could help
+        3. Get personalized guidance: I personally read every reply and will respond with specific thoughts about how Optio could help your kid customize their own high school education.
         
         I'd love to hear from you! What are your teen's biggest interests? What educational challenges are you facing? What are your hopes for their future?
         
