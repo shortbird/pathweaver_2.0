@@ -22,7 +22,6 @@ const PromoLandingPage = () => {
     'Freelance Work',
     'Social Media Marketing',
     'Crypto Trading',
-    'YouTube Channel',
     'Music Production',
     'Film Making',
     'Starting a Business',

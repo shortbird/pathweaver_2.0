@@ -6,33 +6,33 @@ import { PhilosophySection } from '../components/ui/PhilosophyCard'
 
 // Activity Card Component for the scrolling section
 const ActivityCard = ({ activity, icon: Icon, color, quote, skills, credit, subject }) => (
-  <div className="flex-shrink-0 w-80 h-72 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300 p-6">
+  <div className="flex-shrink-0 w-96 h-80 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300 p-8 mx-4">
     {/* Header with Icon */}
-    <div className="flex items-center mb-4">
-      <div className={`w-12 h-12 rounded-full flex items-center justify-center mr-3`} style={{ backgroundColor: `${color}20` }}>
-        <Icon className="w-6 h-6" style={{ color }} />
+    <div className="flex items-center mb-6">
+      <div className={`w-14 h-14 rounded-full flex items-center justify-center mr-4`} style={{ backgroundColor: `${color}20` }}>
+        <Icon className="w-7 h-7" style={{ color }} />
       </div>
       <div className="flex-1">
-        <div className="text-sm font-medium text-gray-600">{subject}</div>
-        <div className="text-lg font-bold" style={{ color }}>{credit} Credit</div>
+        <div className="text-base font-medium text-gray-600">{subject}</div>
+        <div className="text-xl font-bold" style={{ color }}>{credit} Credit</div>
       </div>
     </div>
 
     {/* Parent Quote */}
-    <div className="mb-4">
-      <blockquote className="text-gray-800 font-medium text-sm leading-relaxed">
+    <div className="mb-6">
+      <blockquote className="text-gray-800 font-medium text-base leading-relaxed">
         "{quote}"
       </blockquote>
     </div>
 
     {/* Key Skills */}
-    <div className="mb-4">
-      <div className="text-xs text-gray-600 mb-2">Key Skills Demonstrated:</div>
-      <div className="flex flex-wrap gap-1">
+    <div className="mb-6">
+      <div className="text-sm text-gray-600 mb-3">Key Skills Demonstrated:</div>
+      <div className="flex flex-wrap gap-2">
         {skills.map((skill, index) => (
           <span 
             key={index}
-            className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs"
+            className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm"
           >
             {skill}
           </span>
@@ -41,12 +41,11 @@ const ActivityCard = ({ activity, icon: Icon, color, quote, skills, credit, subj
     </div>
 
     {/* Trust Indicator */}
-    <div className="flex items-center justify-between mt-auto">
-      <div className="flex items-center text-xs text-green-700 bg-green-50 px-2 py-1 rounded-full">
-        <CheckCircle className="w-3 h-3 mr-1" />
-        State Approved
+    <div className="mt-auto">
+      <div className="flex items-center text-sm text-green-700 bg-green-50 px-3 py-2 rounded-full w-fit">
+        <CheckCircle className="w-4 h-4 mr-2" />
+        Approved for Credit
       </div>
-      <div className="text-xs text-gray-500">Portfolio Required</div>
     </div>
   </div>
 )
@@ -131,26 +130,46 @@ const HomePage = () => {
     }
   ]
 
-  // Scrolling functions for credit cards
+  // Infinite scrolling functions for credit cards
   const scroll = (direction) => {
     const container = scrollRef.current
-    const cardWidth = 320 + 16 // card width + gap
-    const scrollAmount = cardWidth * 2 // scroll 2 cards at a time
+    if (!container) return
+    
+    const cardWidth = 384 + 32 // Updated card width (w-96) + gap (mx-4 = 16px each side)
+    const scrollAmount = cardWidth
     
     if (direction === 'left') {
-      container.scrollLeft -= scrollAmount
-      setCurrentCardIndex(Math.max(0, currentCardIndex - 2))
+      // If at the beginning, jump to the end (infinite scroll)
+      if (container.scrollLeft <= 0) {
+        container.scrollLeft = container.scrollWidth - container.clientWidth
+        setCurrentCardIndex(creditActivities.length - 1)
+      } else {
+        container.scrollLeft -= scrollAmount
+        setCurrentCardIndex(Math.max(0, currentCardIndex - 1))
+      }
     } else {
-      container.scrollLeft += scrollAmount  
-      setCurrentCardIndex(Math.min(creditActivities.length - 1, currentCardIndex + 2))
+      // If at the end, jump to the beginning (infinite scroll)
+      if (container.scrollLeft >= container.scrollWidth - container.clientWidth - 10) {
+        container.scrollLeft = 0
+        setCurrentCardIndex(0)
+      } else {
+        container.scrollLeft += scrollAmount
+        setCurrentCardIndex(Math.min(creditActivities.length - 1, currentCardIndex + 1))
+      }
     }
   }
 
   const updateScrollButtons = () => {
     const container = scrollRef.current
     if (container) {
-      setCanScrollLeft(container.scrollLeft > 0)
-      setCanScrollRight(container.scrollLeft < container.scrollWidth - container.clientWidth)
+      // Always enable both buttons for infinite scroll
+      setCanScrollLeft(true)
+      setCanScrollRight(true)
+      
+      // Update current card index based on scroll position
+      const cardWidth = 384 + 32
+      const newIndex = Math.round(container.scrollLeft / cardWidth)
+      setCurrentCardIndex(Math.min(Math.max(0, newIndex), creditActivities.length - 1))
     }
   }
 
@@ -292,20 +311,13 @@ const HomePage = () => {
       {/* Show What You Can Do Section */}
       <div id="demo" className="py-16 bg-gradient-to-br from-purple-50 to-blue-50" role="main">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Show What You Can Do</h2>
-            <p className="text-lg sm:text-xl text-gray-700 mb-8 max-w-3xl mx-auto">
-              Turn real-world activities into official high school credits with clear formulas.
-            </p>
-          </div>
-            
           {/* Mobile-Optimized Scrolling Credit Cards */}
           <div className="max-w-7xl mx-auto">
             <div className="text-center mb-8">
-              <h3 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-3">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
                 Turn Activities Into Credits
-              </h3>
-              <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+              </h2>
+              <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
                 See how real activities become official high school credits
               </p>
             </div>
@@ -327,30 +339,31 @@ const HomePage = () => {
                 style={{
                   scrollbarWidth: 'none',
                   msOverflowStyle: 'none',
-                  WebkitOverflowScrolling: 'touch'
+                  WebkitOverflowScrolling: 'touch',
+                  scrollBehavior: 'smooth'
                 }}
                 onScroll={updateScrollButtons}
               >
                 {creditActivities.map((activity, index) => (
-                  <div key={index} className="snap-start">
+                  <div key={index} className="snap-center flex-shrink-0">
                     <ActivityCard {...activity} />
                   </div>
                 ))}
               </div>
 
-              {/* Desktop Navigation Arrows */}
+              {/* Desktop Navigation Arrows - Always enabled for infinite scroll */}
               <div className="hidden sm:flex absolute top-1/2 -translate-y-1/2 left-0 right-0 justify-between pointer-events-none">
                 <button
                   onClick={() => scroll('left')}
-                  disabled={!canScrollLeft}
-                  className="w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed pointer-events-auto hover:shadow-xl transition-all -ml-6"
+                  className="w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center pointer-events-auto hover:shadow-xl hover:scale-110 transition-all -ml-6"
+                  aria-label="Previous card"
                 >
                   <ChevronLeft className="w-6 h-6 text-gray-600" />
                 </button>
                 <button
                   onClick={() => scroll('right')}
-                  disabled={!canScrollRight}
-                  className="w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed pointer-events-auto hover:shadow-xl transition-all -mr-6"
+                  className="w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center pointer-events-auto hover:shadow-xl hover:scale-110 transition-all -mr-6"
+                  aria-label="Next card"
                 >
                   <ChevronRight className="w-6 h-6 text-gray-600" />
                 </button>
@@ -378,7 +391,7 @@ const HomePage = () => {
               <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 text-sm text-gray-600">
                 <div className="flex items-center">
                   <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
-                  Educator-Reviewed
+                  Reviewed by licensed teachers
                 </div>
                 <div className="flex items-center">
                   <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
