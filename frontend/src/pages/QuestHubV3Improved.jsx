@@ -20,6 +20,7 @@ const QuestHubV3Improved = () => {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedPillar, setSelectedPillar] = useState('all');
+  const [selectedSubject, setSelectedSubject] = useState('all');
   const [showTeamUpModal, setShowTeamUpModal] = useState(false);
   const [selectedQuestForTeamUp, setSelectedQuestForTeamUp] = useState(null);
   const [showQuestSuggestionModal, setShowQuestSuggestionModal] = useState(false);
@@ -46,7 +47,7 @@ const QuestHubV3Improved = () => {
     setPage(1);
     setHasMore(true);
     setError(''); // Clear any previous errors when filters change
-  }, [searchTerm, selectedPillar]);
+  }, [searchTerm, selectedPillar, selectedSubject]);
 
   // Fetch quests when page changes
   useEffect(() => {
@@ -62,7 +63,7 @@ const QuestHubV3Improved = () => {
     if (page === 1) {
       fetchQuests(true);
     }
-  }, [searchTerm, selectedPillar]); // Trigger refetch when filters change
+  }, [searchTerm, selectedPillar, selectedSubject]); // Trigger refetch when filters change
 
   // Reset and refetch on login change
   useEffect(() => {
@@ -114,6 +115,7 @@ const QuestHubV3Improved = () => {
         per_page: 12,
         ...(searchTerm && { search: searchTerm }),
         ...(selectedPillar !== 'all' && { pillar: selectedPillar }),
+        ...(selectedSubject !== 'all' && { subject: selectedSubject }),
         t: Date.now() // Cache-busting parameter
       });
 
@@ -287,6 +289,8 @@ const QuestHubV3Improved = () => {
           onSearchChange={setSearchTerm}
           selectedPillar={selectedPillar}
           onPillarChange={setSelectedPillar}
+          selectedSubject={selectedSubject}
+          onSubjectChange={setSelectedSubject}
           totalResults={totalResults}
         />
 

@@ -566,6 +566,42 @@ const QuestDetailV3 = () => {
                             </div>
                           </div>
 
+                          {/* School Subjects Display */}
+                          {task.school_subjects && task.school_subjects.length > 0 && (
+                            <div className="mb-3">
+                              <div className="flex items-center gap-1 mb-2">
+                                <span className="text-sm text-gray-500 font-medium">School Credit:</span>
+                              </div>
+                              <div className="flex flex-wrap gap-1.5">
+                                {task.school_subjects.map(subject => {
+                                  const subjectNames = {
+                                    'language_arts': 'Language Arts',
+                                    'math': 'Math',
+                                    'science': 'Science',
+                                    'social_studies': 'Social Studies',
+                                    'financial_literacy': 'Financial Literacy',
+                                    'health': 'Health',
+                                    'pe': 'PE',
+                                    'fine_arts': 'Fine Arts',
+                                    'cte': 'CTE',
+                                    'digital_literacy': 'Digital Literacy',
+                                    'electives': 'Electives'
+                                  };
+                                  
+                                  return (
+                                    <div 
+                                      key={subject}
+                                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100"
+                                    >
+                                      <span>📚</span>
+                                      <span>{subjectNames[subject] || subject}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
                           {task.description && (
                             <p className="text-gray-600 mb-3">{task.description}</p>
                           )}

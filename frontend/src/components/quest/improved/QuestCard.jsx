@@ -119,6 +119,61 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
                 })}
             </div>
           )}
+          
+          {/* School Subjects Display */}
+          {(() => {
+            // Extract unique school subjects from all tasks
+            const schoolSubjects = new Set();
+            quest.quest_tasks?.forEach(task => {
+              if (task.school_subjects && Array.isArray(task.school_subjects)) {
+                task.school_subjects.forEach(subject => schoolSubjects.add(subject));
+              }
+            });
+            
+            if (schoolSubjects.size > 0) {
+              const subjectNames = {
+                'language_arts': 'Language Arts',
+                'math': 'Math',
+                'science': 'Science',
+                'social_studies': 'Social Studies',
+                'financial_literacy': 'Financial Literacy',
+                'health': 'Health',
+                'pe': 'PE',
+                'fine_arts': 'Fine Arts',
+                'cte': 'CTE',
+                'digital_literacy': 'Digital Literacy',
+                'electives': 'Electives'
+              };
+              
+              const sortedSubjects = Array.from(schoolSubjects).sort();
+              const displaySubjects = sortedSubjects.slice(0, 4); // Show max 4 subjects
+              
+              return (
+                <div className="mt-3">
+                  <div className="flex items-center gap-1 mb-2">
+                    <span className="text-xs text-gray-500 font-medium">School Credit:</span>
+                  </div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {displaySubjects.map(subject => (
+                      <div 
+                        key={subject}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100"
+                      >
+                        <span>📚</span>
+                        <span>{subjectNames[subject] || subject}</span>
+                      </div>
+                    ))}
+                    {sortedSubjects.length > 4 && (
+                      <div className="inline-flex items-center px-2 py-1 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
+                        +{sortedSubjects.length - 4} more
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </div>
 
         {/* Action Buttons - Cleaner design */}

@@ -7,6 +7,8 @@ const QuestFilters = ({
   onPillarChange,
   selectedDifficulty,
   onDifficultyChange,
+  selectedSubject,
+  onSubjectChange,
   totalResults 
 }) => {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
@@ -25,6 +27,21 @@ const QuestFilters = ({
     { value: 'beginner', label: 'Beginner', color: 'bg-green-100 text-green-700' },
     { value: 'intermediate', label: 'Intermediate', color: 'bg-yellow-100 text-yellow-700' },
     { value: 'advanced', label: 'Advanced', color: 'bg-red-100 text-red-700' }
+  ];
+
+  const subjects = [
+    { value: 'all', label: 'All Subjects' },
+    { value: 'language_arts', label: 'Language Arts' },
+    { value: 'math', label: 'Math' },
+    { value: 'science', label: 'Science' },
+    { value: 'social_studies', label: 'Social Studies' },
+    { value: 'financial_literacy', label: 'Financial Literacy' },
+    { value: 'health', label: 'Health' },
+    { value: 'pe', label: 'PE' },
+    { value: 'fine_arts', label: 'Fine Arts' },
+    { value: 'cte', label: 'CTE' },
+    { value: 'digital_literacy', label: 'Digital Literacy' },
+    { value: 'electives', label: 'Electives' }
   ];
 
   return (
@@ -85,6 +102,9 @@ const QuestFilters = ({
           difficulties={difficulties}
           selectedDifficulty={selectedDifficulty}
           onDifficultyChange={onDifficultyChange}
+          subjects={subjects}
+          selectedSubject={selectedSubject}
+          onSubjectChange={onSubjectChange}
         />
       </div>
 
@@ -98,13 +118,16 @@ const QuestFilters = ({
             difficulties={difficulties}
             selectedDifficulty={selectedDifficulty}
             onDifficultyChange={onDifficultyChange}
+            subjects={subjects}
+            selectedSubject={selectedSubject}
+            onSubjectChange={onSubjectChange}
             mobile={true}
           />
         </div>
       )}
 
       {/* Active Filter Chips */}
-      {(selectedPillar !== 'all' || selectedDifficulty !== 'all') && (
+      {(selectedPillar !== 'all' || selectedDifficulty !== 'all' || selectedSubject !== 'all') && (
         <div className="mt-4 flex flex-wrap gap-2">
           <span className="text-sm text-gray-600">Active filters:</span>
           {selectedPillar !== 'all' && (
@@ -129,6 +152,17 @@ const QuestFilters = ({
               </svg>
             </button>
           )}
+          {selectedSubject !== 'all' && (
+            <button
+              onClick={() => onSubjectChange('all')}
+              className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium hover:bg-blue-200 transition-colors"
+            >
+              📚 {subjects.find(s => s.value === selectedSubject)?.label}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -143,6 +177,9 @@ const FilterContent = memo(({
   difficulties, 
   selectedDifficulty, 
   onDifficultyChange,
+  subjects,
+  selectedSubject,
+  onSubjectChange,
   mobile = false 
 }) => {
   const buttonClass = mobile ? 'text-sm' : '';
@@ -169,6 +206,29 @@ const FilterContent = memo(({
               `}
             >
               {pillar.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* School Subjects */}
+      <div>
+        <h3 className="text-sm font-semibold text-gray-700 mb-3">School Subject</h3>
+        <div className={`${mobile ? 'grid grid-cols-2 gap-2' : 'flex flex-wrap gap-2'}`}>
+          {subjects.map(subject => (
+            <button
+              key={subject.value}
+              onClick={() => onSubjectChange(subject.value)}
+              className={`
+                ${mobile ? 'px-3 py-2' : 'px-4 py-2'} 
+                rounded-lg font-medium transition-all ${buttonClass}
+                ${selectedSubject === subject.value 
+                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }
+              `}
+            >
+              {subject.value === 'all' ? subject.label : `📚 ${subject.label}`}
             </button>
           ))}
         </div>
