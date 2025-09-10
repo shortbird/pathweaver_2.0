@@ -1240,18 +1240,27 @@ def list_quest_ideas(user_id):
         # Get pagination parameters
         page = int(request.args.get('page', 1))
         per_page = min(int(request.args.get('per_page', 20)), 100)
-        status_filter = request.args.get('status', 'all')  # all, pending, approved, rejected
+        status_filter = request.args.get('status', 'all')  # all, pending_review, approved, rejected
+        
+        # Map frontend status names to database status values
+        status_mapping = {
+            'pending': 'pending_review',
+            'pending_review': 'pending_review',
+            'approved': 'approved', 
+            'rejected': 'rejected'
+        }
         
         offset = (page - 1) * per_page
         
         # Build query with user information
         query = supabase.table('quest_ideas')\
-            .select('*, users(first_name, last_name, username)', count='exact')\
+            .select('*, users(first_name, last_name)', count='exact')\
             .order('created_at', desc=True)
         
         # Apply status filter
         if status_filter != 'all':
-            query = query.eq('status', status_filter)
+            db_status = status_mapping.get(status_filter, status_filter)
+            query = query.eq('status', db_status)
         
         # Apply pagination
         query = query.range(offset, offset + per_page - 1)
