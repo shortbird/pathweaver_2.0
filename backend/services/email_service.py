@@ -282,9 +282,9 @@ class EmailService:
         html_body = f"""
         <html>
         <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="text-align: center; margin-bottom: 30px;">
-                <img src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/logos/icon.jpg" alt="Optio Logo" style="width: 80px; height: 80px; border-radius: 50%;">
-            </div>
+
+
+        
             <h1>Welcome to Optio!</h1>
             
             <p>Hi {parent_name},</p>
