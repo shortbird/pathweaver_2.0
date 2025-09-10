@@ -108,8 +108,7 @@ const PromoLandingPage = () => {
                       WebkitBackgroundClip: 'text',
                       backgroundClip: 'text',
                       WebkitTextFillColor: 'transparent',
-                      textShadow: '0 0 30px rgba(255,255,255,0.8)',
-                      filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.3))'
+                      filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))'
                     }}
                   >
                     {activities[currentActivity]}
@@ -365,7 +364,7 @@ const PromoLandingPage = () => {
           </div>
         </div>
       </div>
-      
+
       {/* FAQs */}
       <div className="py-16 bg-gray-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -408,7 +407,7 @@ const PromoLandingPage = () => {
                 How much parent involvement is needed?
               </h3>
               <p className="text-gray-600">
-                Think of our program as a private school completely personalized to your teen. We pair your teen with a licensed teacher who supports them in their personalized learning journey. Your involvement is welcomed, but not required.
+                Think of our program as an online private school completely personalized to your teen. We pair your teen with a licensed teacher who supports them in their personalized learning journey. Your involvement is welcomed, but not required.
               </p>
             </div>
           </div>
