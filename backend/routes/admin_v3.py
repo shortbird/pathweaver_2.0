@@ -1252,9 +1252,9 @@ def list_quest_ideas(user_id):
         
         offset = (page - 1) * per_page
         
-        # Build query with user information
+        # Build query - we'll get user info separately since there's no foreign key relationship
         query = supabase.table('quest_ideas')\
-            .select('*, users(first_name, last_name)', count='exact')\
+            .select('*', count='exact')\
             .order('created_at', desc=True)
         
         # Apply status filter
@@ -1267,9 +1267,29 @@ def list_quest_ideas(user_id):
         
         result = query.execute()
         
+        # Enrich quest ideas with user information
+        quest_ideas_with_users = []
+        if result.data:
+            for idea in result.data:
+                # Get user information for each quest idea
+                try:
+                    user_response = supabase.table('users')\
+                        .select('first_name, last_name')\
+                        .eq('id', idea['user_id'])\
+                        .single().execute()
+                    
+                    if user_response.data:
+                        idea['users'] = user_response.data
+                    else:
+                        idea['users'] = {'first_name': 'Unknown', 'last_name': 'User'}
+                except:
+                    idea['users'] = {'first_name': 'Unknown', 'last_name': 'User'}
+                
+                quest_ideas_with_users.append(idea)
+        
         return jsonify({
             'success': True,
-            'quest_ideas': result.data,
+            'quest_ideas': quest_ideas_with_users,
             'total': result.count,
             'page': page,
             'per_page': per_page,
