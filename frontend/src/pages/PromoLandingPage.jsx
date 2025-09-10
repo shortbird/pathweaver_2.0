@@ -14,15 +14,15 @@ const PromoLandingPage = () => {
   const [submitted, setSubmitted] = useState(false)
 
   const activities = [
-    'YouTube Channel',
+    'Piano Lessons',
     'Community Sports',
-    'App Development',
     'Travel Experiences',
+    'App Development',
     'Internships',
     'Freelance Work',
     'Social Media Marketing',
     'Crypto Trading',
-    'Piano Lessons',
+    'YouTube Channel',
     'Music Production',
     'Film Making',
     'Starting a Business',
@@ -98,7 +98,7 @@ const PromoLandingPage = () => {
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span 
                     key={currentActivity}
-                    className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black animate-fade-in"
+                    className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black animate-fade-in py-2"
                     style={{
                       background: currentActivity % 4 === 0 ? 'linear-gradient(45deg, #FFD700, #FFA500)' :
                                  currentActivity % 4 === 1 ? 'linear-gradient(45deg, #00CED1, #1E90FF)' :
