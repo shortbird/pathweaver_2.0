@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Play, Sparkles, Trophy, Info, X, Award, BookOpen, Users, Music, Code, PenTool, Calculator, CheckCircle, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Play, Sparkles, Trophy, Info, X, Award, BookOpen, Users, Music, Code, PenTool, Calculator, CheckCircle, ChevronLeft, ChevronRight, Camera, Palette, Microscope, Globe, Heart } from 'lucide-react'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
 
 // Activity Card Component for the scrolling section
-const ActivityCard = ({ activity, icon: Icon, color, quote, skills, credit, subject }) => (
-  <div className="flex-shrink-0 w-96 h-80 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300 p-8 mx-4">
+const ActivityCard = ({ activity, icon: Icon, color, description, skills, credit, subject }) => (
+  <div className="flex-shrink-0 w-96 h-96 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300 p-8 mx-4 mb-8">
     {/* Header with Icon */}
     <div className="flex items-center mb-6">
       <div className={`w-14 h-14 rounded-full flex items-center justify-center mr-4`} style={{ backgroundColor: `${color}20` }}>
@@ -18,15 +18,15 @@ const ActivityCard = ({ activity, icon: Icon, color, quote, skills, credit, subj
       </div>
     </div>
 
-    {/* Parent Quote */}
+    {/* Student Description */}
     <div className="mb-6">
-      <blockquote className="text-gray-800 font-medium text-base leading-relaxed">
-        "{quote}"
-      </blockquote>
+      <p className="text-gray-800 font-medium text-base leading-relaxed">
+        {description}
+      </p>
     </div>
 
     {/* Key Skills */}
-    <div className="mb-6">
+    <div className="mb-6 flex-1">
       <div className="text-sm text-gray-600 mb-3">Key Skills Demonstrated:</div>
       <div className="flex flex-wrap gap-2">
         {skills.map((skill, index) => (
@@ -41,7 +41,7 @@ const ActivityCard = ({ activity, icon: Icon, color, quote, skills, credit, subj
     </div>
 
     {/* Trust Indicator */}
-    <div className="mt-auto">
+    <div className="mt-auto pt-4">
       <div className="flex items-center text-sm text-green-700 bg-green-50 px-3 py-2 rounded-full w-fit">
         <CheckCircle className="w-4 h-4 mr-2" />
         Approved for Credit
@@ -93,7 +93,7 @@ const HomePage = () => {
       color: '#ef597b',
       subject: 'Fine Arts',
       credit: '0.5',
-      quote: 'My daughter has been taking piano lessons for 3 months and can now play 5 songs confidently',
+      description: 'Sophia took piano lessons for 6 months and can now play 8 classical pieces, including a Bach invention she performed at her school recital.',
       skills: ['Musical theory', 'Practice discipline', 'Performance', 'Creativity']
     },
     {
@@ -101,7 +101,7 @@ const HomePage = () => {
       color: '#6d469b', 
       subject: 'Computer Science',
       credit: '0.5',
-      quote: 'My son taught himself to code and built an app that helps our family track chores',
+      description: 'Evan taught himself Python programming and built a web app that helps his family track household chores and allowances.',
       skills: ['Programming logic', 'Problem-solving', 'UI design', 'Project management']
     },
     {
@@ -109,15 +109,15 @@ const HomePage = () => {
       color: '#059669',
       subject: 'English',
       credit: '0.5', 
-      quote: 'Our family trip to Europe inspired my teenager to write 12 detailed blog posts',
-      skills: ['Written communication', 'Research', 'Audience awareness', 'Cultural analysis']
+      description: 'Maya traveled through Europe with her family and wrote 15 detailed travel blog posts, documenting cultural experiences and historical insights.',
+      skills: ['Written communication', 'Research', 'Cultural analysis', 'Digital publishing']
     },
     {
       icon: Trophy,
       color: '#ea580c',
       subject: 'Physical Education', 
       credit: '1.0',
-      quote: 'Playing varsity soccer has taught my son leadership and teamwork as team captain',
+      description: 'Marcus played varsity soccer for two years as team captain, leading his team to the state championships while maintaining peak physical condition.',
       skills: ['Physical fitness', 'Leadership', 'Strategic thinking', 'Team collaboration']
     },
     {
@@ -125,38 +125,78 @@ const HomePage = () => {
       color: '#2563eb',
       subject: 'Applied Mathematics',
       credit: '0.5',
-      quote: 'My daughter started selling handmade jewelry and now manages inventory, pricing, and profit/loss',
+      description: 'Zoe started her own handmade jewelry business, managing inventory, calculating profit margins, and analyzing sales data to grow her revenue by 200%.',
       skills: ['Applied mathematics', 'Financial literacy', 'Data analysis', 'Business operations']
+    },
+    {
+      icon: Camera,
+      color: '#7c3aed',
+      subject: 'Digital Media',
+      credit: '0.5',
+      description: 'Alex created a photography portfolio documenting local wildlife, learning advanced camera techniques and post-processing in Photoshop.',
+      skills: ['Technical photography', 'Digital editing', 'Composition', 'Nature observation']
+    },
+    {
+      icon: Palette,
+      color: '#dc2626',
+      subject: 'Visual Arts',
+      credit: '0.5',
+      description: 'Riley completed 20 oil paintings over 8 months, studying color theory and developing their own artistic style for a local gallery exhibition.',
+      skills: ['Color theory', 'Artistic technique', 'Creative expression', 'Art history']
+    },
+    {
+      icon: Microscope,
+      color: '#0891b2',
+      subject: 'Life Sciences',
+      credit: '0.5',
+      description: 'Jordan conducted independent research on local water quality, collecting samples, running tests, and presenting findings to the city council.',
+      skills: ['Scientific method', 'Data collection', 'Analysis', 'Public speaking']
+    },
+    {
+      icon: Globe,
+      color: '#059669',
+      subject: 'Social Studies',
+      credit: '0.5',
+      description: 'Carmen researched her family genealogy, tracing ancestors across three continents and creating a comprehensive historical timeline with cultural context.',
+      skills: ['Historical research', 'Cultural awareness', 'Genealogy', 'Timeline creation']
+    },
+    {
+      icon: Heart,
+      color: '#be185d',
+      subject: 'Community Service',
+      credit: '0.5',
+      description: 'Taylor organized a neighborhood food drive, coordinating with 15 families and local businesses to collect 500+ items for the food bank.',
+      skills: ['Community organizing', 'Leadership', 'Project coordination', 'Social awareness']
     }
   ]
 
-  // Infinite scrolling functions for credit cards
+  // True infinite scrolling functions for credit cards
   const scroll = (direction) => {
     const container = scrollRef.current
     if (!container) return
     
     const cardWidth = 384 + 32 // Updated card width (w-96) + gap (mx-4 = 16px each side)
     const scrollAmount = cardWidth
+    const totalCards = creditActivities.length * 3 // We have 3 copies
+    const singleSetWidth = cardWidth * creditActivities.length
     
     if (direction === 'left') {
-      // If at the beginning, jump to the end (infinite scroll)
-      if (container.scrollLeft <= 0) {
-        container.scrollLeft = container.scrollWidth - container.clientWidth
-        setCurrentCardIndex(creditActivities.length - 1)
-      } else {
-        container.scrollLeft -= scrollAmount
-        setCurrentCardIndex(Math.max(0, currentCardIndex - 1))
+      container.scrollLeft -= scrollAmount
+      // Reset to third set when reaching first set
+      if (container.scrollLeft < scrollAmount) {
+        container.scrollLeft = singleSetWidth * 2 + container.scrollLeft
       }
     } else {
-      // If at the end, jump to the beginning (infinite scroll)
-      if (container.scrollLeft >= container.scrollWidth - container.clientWidth - 10) {
-        container.scrollLeft = 0
-        setCurrentCardIndex(0)
-      } else {
-        container.scrollLeft += scrollAmount
-        setCurrentCardIndex(Math.min(creditActivities.length - 1, currentCardIndex + 1))
+      container.scrollLeft += scrollAmount
+      // Reset to first set when reaching end of third set
+      if (container.scrollLeft >= singleSetWidth * 2.5) {
+        container.scrollLeft = singleSetWidth + (container.scrollLeft - singleSetWidth * 2)
       }
     }
+    
+    // Update current index based on position in the middle set
+    const positionInMiddleSet = (container.scrollLeft - singleSetWidth) / cardWidth
+    setCurrentCardIndex(Math.max(0, Math.min(creditActivities.length - 1, Math.round(positionInMiddleSet))))
   }
 
   const updateScrollButtons = () => {
@@ -168,8 +208,16 @@ const HomePage = () => {
       
       // Update current card index based on scroll position
       const cardWidth = 384 + 32
-      const newIndex = Math.round(container.scrollLeft / cardWidth)
-      setCurrentCardIndex(Math.min(Math.max(0, newIndex), creditActivities.length - 1))
+      const singleSetWidth = cardWidth * creditActivities.length
+      
+      // Calculate position relative to the middle set (second copy)
+      let relativePosition = container.scrollLeft - singleSetWidth
+      if (relativePosition < 0) {
+        relativePosition = container.scrollLeft + singleSetWidth
+      }
+      
+      const newIndex = Math.round(relativePosition / cardWidth) % creditActivities.length
+      setCurrentCardIndex(Math.max(0, Math.min(creditActivities.length - 1, newIndex)))
     }
   }
 
@@ -184,11 +232,17 @@ const HomePage = () => {
     const container = scrollRef.current
     if (container) {
       container.addEventListener('scroll', updateScrollButtons)
+      
+      // Start in the middle set for seamless infinite scroll
+      const cardWidth = 384 + 32
+      const singleSetWidth = cardWidth * creditActivities.length
+      container.scrollLeft = singleSetWidth // Start at second copy
+      
       updateScrollButtons() // Initial check
       
       return () => container.removeEventListener('scroll', updateScrollButtons)
     }
-  }, [])
+  }, [creditActivities.length])
 
   const handleInputChange = (e) => {
     setFormData({
@@ -344,8 +398,9 @@ const HomePage = () => {
                 }}
                 onScroll={updateScrollButtons}
               >
-                {creditActivities.map((activity, index) => (
-                  <div key={index} className="snap-center flex-shrink-0">
+                {/* Duplicate activities for infinite scroll */}
+                {[...creditActivities, ...creditActivities, ...creditActivities].map((activity, index) => (
+                  <div key={`${index}-${Math.floor(index / creditActivities.length)}`} className="snap-center flex-shrink-0">
                     <ActivityCard {...activity} />
                   </div>
                 ))}
