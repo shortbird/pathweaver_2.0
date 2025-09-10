@@ -276,7 +276,7 @@ class EmailService:
     
     def send_promo_welcome_email(self, parent_email: str, parent_name: str, teen_age: str, activity: str = '') -> bool:
         """Send welcome email to parents who fill out the promo form"""
-        subject = "Welcome to Optio - Let's Chat About Your Teen's Future"
+        subject = "Welcome to Optio! Let's Chat About Your Teen's Future"
         
         # Simple HTML version with markdown-like formatting
         html_body = f"""
@@ -288,9 +288,9 @@ class EmailService:
             
             <p>I'm Dr. Tanner Bowman, founder of Optio Education. Thank you for your interest in helping your teen{' (age ' + teen_age + ')' if teen_age else ''} build real-world skills and create an impressive portfolio.{' I noticed they\'re passionate about ' + activity + ' - that\'s fantastic!' if activity else ''}</p>
             
-            <p>I created Optio because I believe teens learn best when they can pursue their interests and document their journey. Our platform helps students earn credit for real-world learning experiences while building portfolios that colleges and employers love.</p>
+            <p>I created Optio because I believe teens learn best when given the freedom to pursue their interests. Our platform helps students earn real high school credit for the learning experiences they have in their lives while building portfolios that showcase their excellent work.</p>
             
-            <h2>Here's what happens next:</h2>
+            <h2>Want to learn more?</h2>
             
             <ol>
                 <li><strong>Explore our demo:</strong> <a href="https://www.optioeducation.com/demo">Take a quick tour</a> to see how Optio works</li>
@@ -318,9 +318,10 @@ class EmailService:
         
         I'm Dr. Tanner Bowman, founder of Optio Education. Thank you for your interest in helping your teen{' (age ' + teen_age + ')' if teen_age else ''} build real-world skills and create an impressive portfolio.{' I noticed they\'re passionate about ' + activity + ' - that\'s fantastic!' if activity else ''}
         
-        I created Optio because I believe teens learn best when they can pursue their interests and document their journey. Our platform helps students earn credit for real-world learning experiences while building portfolios that colleges and employers love.
         
-        Here's what happens next:
+        I created Optio because I believe teens learn best when given the freedom to pursue their interests. Our platform helps students earn real high school credit for the learning experiences they have in their lives while building portfolios that showcase their excellent work.        
+        
+        Want to learn more?
         
         1. Explore our demo: Take a quick tour at https://www.optioeducation.com/demo to see how Optio works
         
