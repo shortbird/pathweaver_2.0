@@ -32,14 +32,10 @@ class QuestAIService:
             'Arts & Creativity'
         ]
         
-        # Subcategories mapping
-        self.subcategories_by_pillar = {
-            'Arts & Creativity': ['Visual Arts', 'Music', 'Drama & Theater', 'Creative Writing', 'Digital Media', 'Design'],
-            'STEM & Logic': ['Mathematics', 'Biology', 'Chemistry', 'Physics', 'Computer Science', 'Engineering', 'Data Science'],
-            'Language & Communication': ['English', 'Foreign Languages', 'Journalism', 'Public Speaking', 'Digital Communication', 'Literature'],
-            'Society & Culture': ['History', 'Geography', 'Social Studies', 'World Cultures', 'Civics & Government', 'Psychology', 'Sociology'],
-            'Life & Wellness': ['Physical Education', 'Health & Nutrition', 'Personal Finance', 'Life Skills', 'Mental Wellness', 'Outdoor Education', 'Sports & Athletics']
-        }
+        # School subjects (separate from pillars)
+        from utils.school_subjects import SCHOOL_SUBJECTS, SCHOOL_SUBJECT_DISPLAY_NAMES
+        self.school_subjects = SCHOOL_SUBJECTS
+        self.school_subject_display_names = SCHOOL_SUBJECT_DISPLAY_NAMES
     
     def generate_quest_from_topic(self, topic: str, learning_objectives: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -145,7 +141,7 @@ class QuestAIService:
             - title: Clear task name
             - description: Simple framework (50-100 words) - provide guidance without being prescriptive
             - pillar: One of [{', '.join(self.valid_pillars)}]
-            - subcategory: Appropriate subcategory for the pillar
+            - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
             - xp_value: XP points (50-300 based on complexity)
             - evidence_prompt: Suggested evidence options - offer multiple ways students could demonstrate learning (written work, video, presentation, model, website, etc.)
 
@@ -245,7 +241,7 @@ class QuestAIService:
            - title: Clear task name
            - description: Simple framework (50-100 words) - provide direction without being prescriptive
            - pillar: One of [{', '.join(self.valid_pillars)}]
-           - subcategory: Appropriate subcategory for the pillar
+           - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
            - xp_value: Points 50-300 based on complexity
            - evidence_prompt: Suggested evidence options - offer multiple ways students could demonstrate learning (written work, video, presentation, model, website, etc.)
            - order_index: Sequential number starting from 1
@@ -337,7 +333,7 @@ class QuestAIService:
                 'title': task.get('title', f'Task {i+1}'),
                 'description': task.get('description', 'Complete this task.'),
                 'pillar': self._validate_pillar(task.get('pillar', 'STEM & Logic')),
-                'subcategory': self._validate_subcategory(task.get('pillar', 'STEM & Logic'), task.get('subcategory', '')),
+                'school_subjects': self._validate_school_subjects(task.get('school_subjects', [])),
                 'xp_value': self._validate_xp(task.get('xp_value', 100)),
                 'evidence_prompt': task.get('evidence_prompt', 'Provide evidence of your completed work.'),
                 'materials_needed': task.get('materials_needed', []),
@@ -372,19 +368,30 @@ class QuestAIService:
         
         return 'STEM & Logic'  # Default fallback
     
-    def _validate_subcategory(self, pillar: str, subcategory: str) -> str:
-        """Validate subcategory for the given pillar"""
-        if not subcategory:
-            # Return first subcategory for the pillar as default
-            return self.subcategories_by_pillar.get(pillar, ['General'])[0]
+    def _validate_school_subjects(self, school_subjects) -> list:
+        """Validate school subjects array"""
+        if not school_subjects:
+            return ['electives']  # Default fallback
         
-        # Check if subcategory is valid for the pillar
-        valid_subcategories = self.subcategories_by_pillar.get(pillar, [])
-        if subcategory in valid_subcategories:
-            return subcategory
+        if not isinstance(school_subjects, list):
+            return ['electives']
         
-        # Return default for pillar
-        return valid_subcategories[0] if valid_subcategories else 'General'
+        # Validate each subject and convert display names to keys
+        validated_subjects = []
+        for subject in school_subjects:
+            # Convert display name to key if needed
+            subject_key = subject.lower().replace(' ', '_')
+            if subject_key in self.school_subjects:
+                validated_subjects.append(subject_key)
+            else:
+                # Check if it matches a display name
+                for key, display_name in self.school_subject_display_names.items():
+                    if subject.lower() == display_name.lower():
+                        validated_subjects.append(key)
+                        break
+        
+        # Return validated subjects or default if none were valid
+        return validated_subjects if validated_subjects else ['electives']
     
     def _validate_xp(self, xp_value: Any) -> int:
         """Validate and normalize XP value"""

@@ -199,6 +199,37 @@ const AIQuestGenerationModal = ({ isOpen, onClose, onQuestGenerated }) => {
                             </div>
                           </div>
                           <p className="text-sm text-gray-600 mb-2">{task.description}</p>
+                          
+                          {/* School Subjects Display */}
+                          {task.school_subjects && task.school_subjects.length > 0 && (
+                            <div className="mb-2">
+                              <span className="text-xs font-medium text-gray-700 mr-2">Diploma Credit:</span>
+                              {task.school_subjects.map((subject, idx) => {
+                                const subjectNames = {
+                                  'language_arts': 'Language Arts',
+                                  'math': 'Math',
+                                  'science': 'Science',
+                                  'social_studies': 'Social Studies',
+                                  'financial_literacy': 'Financial Literacy',
+                                  'health': 'Health',
+                                  'pe': 'PE',
+                                  'fine_arts': 'Fine Arts',
+                                  'cte': 'CTE',
+                                  'digital_literacy': 'Digital Literacy',
+                                  'electives': 'Electives'
+                                };
+                                return (
+                                  <span
+                                    key={idx}
+                                    className="inline-flex items-center px-2 py-1 mr-1 mb-1 text-xs font-medium bg-green-100 text-green-700 rounded-md"
+                                  >
+                                    {subjectNames[subject] || subject}
+                                  </span>
+                                );
+                              })}
+                            </div>
+                          )}
+                          
                           {task.evidence_prompt && (
                             <p className="text-xs text-gray-500">
                               <strong>Evidence:</strong> {task.evidence_prompt}
