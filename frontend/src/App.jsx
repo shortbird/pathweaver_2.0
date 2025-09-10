@@ -9,6 +9,7 @@ import { warmupBackend } from './utils/retryHelper'
 
 import Layout from './components/Layout'
 import HomePage from './pages/HomePage'
+import PromoLandingPage from './pages/PromoLandingPage'
 import DemoPage from './pages/DemoPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -59,6 +60,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Layout />}>
               <Route index element={<HomePage />} />
+              <Route path="promo" element={<PromoLandingPage />} />
               <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />
               <Route path="login" element={<LoginPage />} />
               <Route path="register" element={<RegisterPage />} />
