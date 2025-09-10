@@ -2,6 +2,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 import logging
 from database import get_supabase_client
+from services.email_service import email_service
 
 logger = logging.getLogger(__name__)
 promo_bp = Blueprint('promo', __name__)
@@ -47,6 +48,22 @@ def promo_signup():
         
         if result.data:
             logger.info(f"Promo signup recorded: {email}")
+            
+            # Send welcome email to parent
+            try:
+                email_sent = email_service.send_promo_welcome_email(
+                    parent_email=email,
+                    parent_name=data['parentName'],
+                    teen_age=str(teen_age),
+                    activity=data.get('activity', '')
+                )
+                if email_sent:
+                    logger.info(f"Welcome email sent to {email}")
+                else:
+                    logger.warning(f"Failed to send welcome email to {email}")
+            except Exception as e:
+                logger.error(f"Error sending welcome email to {email}: {str(e)}")
+            
             return jsonify({
                 'success': True,
                 'message': 'Signup recorded successfully',
