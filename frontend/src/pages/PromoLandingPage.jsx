@@ -14,16 +14,15 @@ const PromoLandingPage = () => {
   const [submitted, setSubmitted] = useState(false)
 
   const activities = [
-    'Entrepreneurship',
-    'YouTube Channels',
-    'Stock Trading',
+    'a YouTube Channel',
+    'Community Sports',
     'App Development',
     'Travel Experiences',
     'Internships',
     'Freelance Work',
     'Social Media Marketing',
     'Crypto Trading',
-    'Real Estate',
+    'Piano Lessons',
     'Music Production',
     'Film Making',
     'Starting a Business',
@@ -95,7 +94,7 @@ const PromoLandingPage = () => {
           <div className="text-center">
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
               <span className="block drop-shadow-lg">GET HIGH SCHOOL CREDIT FOR</span>
-              <div className="relative h-24 sm:h-28 mt-4">
+              <div className="relative h-28 sm:h-32 mt-4">
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span 
                     key={currentActivity}
