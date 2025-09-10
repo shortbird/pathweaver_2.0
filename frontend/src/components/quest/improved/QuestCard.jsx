@@ -159,7 +159,6 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
                         key={subject}
                         className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100"
                       >
-                        <span>📚</span>
                         <span>{subjectNames[subject] || subject}</span>
                       </div>
                     ))}
