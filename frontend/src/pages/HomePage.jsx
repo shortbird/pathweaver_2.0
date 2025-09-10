@@ -440,7 +440,7 @@ const HomePage = () => {
               </p>
             </div>
 
-            {/* COMMENTED OUT - Diploma Graphic Column
+{/* COMMENTED OUT - Diploma Graphic Column
             <div className="flex justify-center lg:col-span-1 md:col-span-2 lg:col-span-1">
               <div className="bg-white rounded-2xl shadow-xl p-6 transform rotate-2 max-w-xs border-2 border-gray-100">
                 <div className="border-4 border-[#ef597b]/20 rounded-xl p-4">
@@ -486,7 +486,7 @@ const HomePage = () => {
                 </div>
               </div>
             </div>
-            -->
+            */}
           </div>
         </div>
       </div>
