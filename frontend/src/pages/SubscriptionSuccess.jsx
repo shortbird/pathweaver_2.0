@@ -37,11 +37,18 @@ const SubscriptionSuccess = () => {
                 // Get subscription value based on tier
                 let subscriptionValue = 0;
                 switch (verifyResponse.data.tier) {
+                  case 'supported':
+                    subscriptionValue = 39.99;
+                    break;
+                  case 'academy':
+                    subscriptionValue = 499.99;
+                    break;
+                  // Legacy tier mappings
                   case 'creator':
-                    subscriptionValue = 19.99;
+                    subscriptionValue = 39.99; // Maps to supported
                     break;
                   case 'visionary':
-                    subscriptionValue = 39.99;
+                    subscriptionValue = 499.99; // Maps to academy
                     break;
                   default:
                     subscriptionValue = 0;
