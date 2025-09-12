@@ -260,6 +260,19 @@ const HomePage = () => {
       const result = await response.json()
 
       if (response.ok) {
+        // Track lead conversion from homepage
+        try {
+          if (typeof fbq !== 'undefined') {
+            fbq('track', 'Lead', {
+              content_name: 'Homepage Signup Form',
+              value: 0.00,
+              currency: 'USD'
+            });
+          }
+        } catch (error) {
+          console.error('Meta Pixel tracking error:', error);
+        }
+        
         setIsSubmitting(false)
         setSubmitted(true)
       } else {

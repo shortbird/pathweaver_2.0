@@ -31,6 +31,32 @@ const SubscriptionSuccess = () => {
               current_period_end: verifyResponse.data.period_end
             })
             
+            // Track subscription conversion for Meta Pixel
+            try {
+              if (typeof fbq !== 'undefined') {
+                // Get subscription value based on tier
+                let subscriptionValue = 0;
+                switch (verifyResponse.data.tier) {
+                  case 'creator':
+                    subscriptionValue = 19.99;
+                    break;
+                  case 'visionary':
+                    subscriptionValue = 39.99;
+                    break;
+                  default:
+                    subscriptionValue = 0;
+                }
+                
+                fbq('track', 'Subscribe', {
+                  content_name: `${verifyResponse.data.tier} subscription`,
+                  value: subscriptionValue,
+                  currency: 'USD'
+                });
+              }
+            } catch (error) {
+              console.error('Meta Pixel tracking error:', error);
+            }
+            
             // Update user data with new subscription tier if user is authenticated
             if (user && updateUser) {
               updateUser({

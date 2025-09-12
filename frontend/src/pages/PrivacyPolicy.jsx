@@ -51,6 +51,30 @@ const PrivacyPolicy = () => {
                 <li>Referring website addresses</li>
               </ul>
 
+              <h3 className="text-xl font-semibold mb-3">Advertising and Analytics</h3>
+              <p className="mb-4">
+                We use Meta Pixel (Facebook Pixel) to track website interactions, measure advertising 
+                effectiveness, and optimize our marketing campaigns. This technology:
+              </p>
+              <ul className="list-disc ml-6 mb-4">
+                <li>Tracks page visits, form submissions, and user actions on our website</li>
+                <li>Enables us to measure the effectiveness of our advertisements</li>
+                <li>Helps us create custom audiences for targeted advertising</li>
+                <li>May share your information with Meta (Facebook) for advertising purposes</li>
+              </ul>
+              <p className="mb-4">
+                You can opt out of Meta Pixel tracking by adjusting your Facebook ad preferences or 
+                using browser extensions that block tracking pixels. For more information, visit{' '}
+                <a 
+                  href="https://www.facebook.com/help/568137493302217" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:text-blue-800 underline"
+                >
+                  Facebook's Cookie Policy
+                </a>.
+              </p>
+
               <h3 className="text-xl font-semibold mb-3">Payment Information</h3>
               <p className="mb-4">
                 For paid subscriptions, payment processing is handled by Stripe. We do not store credit 

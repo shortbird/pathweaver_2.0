@@ -129,6 +129,19 @@ export const AuthProvider = ({ children }) => {
         
         api.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`
         
+        // Track registration completion for Meta Pixel
+        try {
+          if (typeof fbq !== 'undefined') {
+            fbq('track', 'CompleteRegistration', {
+              content_name: 'User Registration',
+              value: 0.00,
+              currency: 'USD'
+            });
+          }
+        } catch (error) {
+          console.error('Meta Pixel tracking error:', error);
+        }
+        
         toast.success('Account created successfully!')
         navigate('/dashboard')
       } else {
