@@ -55,13 +55,16 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
       
       // Check for HTTP error status
       if (!response.ok) {
-        const errorMessage = data.error || data.message || 'Failed to complete task';
+        const errorDetail = data.error || data.message;
+        const errorMessage = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail) || 'Failed to complete task';
         throw new Error(errorMessage);
       }
 
       // Check for API-level success flag (backend uses success: true/false)
       if (data.success === false) {
-        throw new Error(data.error || data.message || 'Failed to complete task');
+        const errorDetail = data.error || data.message;
+        const errorMessage = typeof errorDetail === 'string' ? errorDetail : JSON.stringify(errorDetail) || 'Failed to complete task';
+        throw new Error(errorMessage);
       }
 
       // If we get here, the request was successful

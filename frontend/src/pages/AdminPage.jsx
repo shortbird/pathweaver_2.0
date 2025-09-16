@@ -751,7 +751,7 @@ const AdminQuests = () => {
                         <p className="text-xs font-semibold text-gray-500 mb-2">TASKS ({quest.quest_tasks.length}):</p>
                         <div className="space-y-2">
                           {quest.quest_tasks
-                            .sort((a, b) => (a.task_order || 0) - (b.task_order || 0))
+                            .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
                             .map((task, idx) => (
                             <div key={task.id || idx} className="bg-gray-50 p-3 rounded-lg">
                               <div className="flex justify-between items-start">

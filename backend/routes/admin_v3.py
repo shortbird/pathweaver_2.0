@@ -1436,3 +1436,26 @@ def reject_quest_idea(user_id, idea_id):
             'success': False,
             'error': 'Failed to reject quest idea'
         }), 500
+
+@bp.route('/quest-sources', methods=['GET'])
+@require_admin
+def get_quest_sources(user_id):
+    """Get all quest sources with their usage count."""
+    supabase = get_supabase_admin_client()
+    try:
+        # Get all sources
+        sources_response = supabase.table('quest_sources').select('*').execute()
+        if not sources_response.data:
+            return jsonify({'sources': []})
+
+        sources = sources_response.data
+        
+        # Get quest counts for each source
+        for source in sources:
+            count_response = supabase.table('quests').select('id', count='exact').eq('source', source['id']).execute()
+            source['quest_count'] = count_response.count if count_response.count else 0
+
+        return jsonify({'sources': sources})
+    except Exception as e:
+        print(f"Error fetching quest sources: {str(e)}")
+        return jsonify({'error': 'Failed to fetch quest sources'}), 500
