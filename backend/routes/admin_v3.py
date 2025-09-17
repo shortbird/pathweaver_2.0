@@ -1434,9 +1434,8 @@ def approve_quest_idea(user_id, idea_id):
             'status': 'approved'
         }
 
-        # Link to the created quest if provided
-        if approved_quest_id:
-            update_data['approved_quest_id'] = approved_quest_id
+        # Note: approved_quest_id column doesn't exist in quest_ideas table
+        # We'll track the relationship differently or add the column later if needed
         
         result = supabase.table('quest_ideas').update(update_data).eq('id', idea_id).execute()
         

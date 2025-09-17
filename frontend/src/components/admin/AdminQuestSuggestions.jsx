@@ -136,9 +136,7 @@ const AdminQuestSuggestions = () => {
   const handleQuestFormSuccess = async (newQuest) => {
     // Mark the quest idea as having an associated quest
     try {
-      await api.put(`/api/v3/admin/quest-ideas/${selectedIdeaForQuest.id}/approve`, {
-        approved_quest_id: newQuest.id
-      });
+      await api.put(`/api/v3/admin/quest-ideas/${selectedIdeaForQuest.id}/approve`, {});
 
       // Update the quest idea to link it to the created quest
       // This could be done in the backend, but for now we'll just refresh the list
@@ -268,21 +266,10 @@ const AdminQuestSuggestions = () => {
                     </div>
                   )}
 
-                  {idea.status === 'approved' && !idea.approved_quest_id && (
+                  {idea.status === 'approved' && (
                     <div className="flex gap-2 ml-4">
-                      <button
-                        onClick={() => openQuestCreationModal(idea)}
-                        className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 font-medium"
-                      >
-                        Create Quest
-                      </button>
-                    </div>
-                  )}
-
-                  {idea.status === 'approved' && idea.approved_quest_id && (
-                    <div className="flex gap-2 ml-4">
-                      <span className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg font-medium">
-                        ✅ Quest Created
+                      <span className="px-4 py-2 bg-green-50 text-green-600 rounded-lg font-medium">
+                        ✅ Approved
                       </span>
                     </div>
                   )}
