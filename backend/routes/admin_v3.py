@@ -1431,8 +1431,7 @@ def approve_quest_idea(user_id, idea_id):
 
         # Update the quest idea status
         update_data = {
-            'status': 'approved',
-            'updated_at': datetime.utcnow().isoformat()
+            'status': 'approved'
         }
 
         # Link to the created quest if provided
@@ -1467,8 +1466,7 @@ def reject_quest_idea(user_id, idea_id):
 
         # Update the quest idea status
         update_data = {
-            'status': 'rejected',
-            'updated_at': datetime.utcnow().isoformat()
+            'status': 'rejected'
         }
 
         print(f"Attempting to reject quest idea {idea_id} with data: {update_data}")

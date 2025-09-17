@@ -392,10 +392,11 @@ const AdminQuestSuggestions = () => {
             quest_tasks: [{
               title: `Complete ${selectedIdeaForQuest.title}`,
               description: selectedIdeaForQuest.description,
-              pillar: 'critical_thinking', // Default pillar
+              pillar: 'life_wellness', // Default pillar (using database enum value)
               xp_amount: 100, // Default XP
               order_index: 0,
-              is_required: true
+              is_required: true,
+              subject_xp_distribution: {} // Initialize empty distribution to prevent crashes
             }]
           }}
           onClose={handleQuestFormClose}

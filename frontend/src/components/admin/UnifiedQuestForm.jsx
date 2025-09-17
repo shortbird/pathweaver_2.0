@@ -86,13 +86,13 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
     }
   }, [mode, quest])
 
-  // Pillar options
+  // Pillar options (matching database enum values)
   const pillarOptions = [
-    { value: 'STEM & Logic', label: 'STEM & Logic' },
-    { value: 'Life & Wellness', label: 'Life & Wellness' },
-    { value: 'Language & Communication', label: 'Language & Communication' },
-    { value: 'Society & Culture', label: 'Society & Culture' },
-    { value: 'Arts & Creativity', label: 'Arts & Creativity' }
+    { value: 'stem_logic', label: 'STEM & Logic' },
+    { value: 'life_wellness', label: 'Life & Wellness' },
+    { value: 'language_communication', label: 'Language & Communication' },
+    { value: 'society_culture', label: 'Society & Culture' },
+    { value: 'arts_creativity', label: 'Arts & Creativity' }
   ]
 
   // Location type options
@@ -342,6 +342,7 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
   }
 
   const getTotalTaskXP = (task) => {
+    if (!task.subject_xp_distribution) return 0
     return Object.values(task.subject_xp_distribution).reduce((sum, xp) => sum + (xp || 0), 0)
   }
 
