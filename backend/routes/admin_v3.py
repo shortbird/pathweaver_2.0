@@ -1449,11 +1449,21 @@ def get_quest_sources(user_id):
             return jsonify({'sources': []})
 
         sources = sources_response.data
-        
+
         # Get quest counts for each source
         for source in sources:
-            count_response = supabase.table('quests').select('id', count='exact').eq('source', source['id']).execute()
-            source['quest_count'] = count_response.count if count_response.count else 0
+            try:
+                # Use the source identifier (name/key) instead of UUID id
+                source_identifier = source.get('name') or source.get('key') or source.get('id')
+                print(f"Counting quests for source: {source_identifier}")
+
+                count_response = supabase.table('quests').select('id', count='exact').eq('source', source_identifier).execute()
+                source['quest_count'] = count_response.count if count_response.count else 0
+                print(f"Source {source_identifier}: {source['quest_count']} quests")
+
+            except Exception as source_error:
+                print(f"Error counting quests for source {source.get('name', 'unknown')}: {str(source_error)}")
+                source['quest_count'] = 0
 
         return jsonify({'sources': sources})
     except Exception as e:
