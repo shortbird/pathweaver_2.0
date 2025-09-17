@@ -621,66 +621,76 @@ const DiplomaPageV3 = () => {
                 return (
                   <div
                     key={`${achievement.quest.id}-${index}`}
-                    className={`bg-white rounded-xl overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 ${isInProgress ? 'ring-2 ring-blue-200' : ''}`}
+                    className={`bg-white rounded-xl overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 flex flex-col h-full ${isInProgress ? 'ring-2 ring-blue-200' : ''}`}
                     style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                     onClick={() => setSelectedAchievement(achievement)}
                   >
                     <div className={`h-2 bg-gradient-to-r ${gradientClass}`}></div>
-                    <div className="p-6">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex flex-col gap-2">
-                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass}`}>
-                            {displayName}
-                          </span>
-                          {isInProgress && (
-                            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold text-blue-600 bg-blue-100">
-                              In Progress
+                    <div className="p-4 sm:p-6 flex flex-col flex-grow">
+                      {/* Header with badges and date */}
+                      <div className="mb-3">
+                        <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+                          <div className="flex flex-wrap gap-2">
+                            <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass}`}>
+                              {displayName}
                             </span>
-                          )}
+                            {isInProgress && (
+                              <span className="inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-blue-600 bg-blue-100">
+                                In Progress
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-500 shrink-0">
+                            {isInProgress ? formatDate(achievement.started_at) : formatDate(achievement.completed_at)}
+                          </span>
                         </div>
-                        <span className="text-xs text-gray-500">
-                          {isInProgress ? formatDate(achievement.started_at) : formatDate(achievement.completed_at)}
-                        </span>
                       </div>
-                      <h3 className="font-bold text-lg mb-2" style={{ color: '#003f5c' }}>
+
+                      {/* Quest title and description */}
+                      <h3 className="font-bold text-base sm:text-lg mb-2 leading-tight" style={{ color: '#003f5c' }}>
                         {achievement.quest.title}
                       </h3>
-                      <p className="text-sm text-gray-600 mb-4 line-clamp-2">
+                      <p className="text-sm text-gray-600 mb-4 line-clamp-2 flex-grow">
                         {achievement.quest.description || achievement.quest.big_idea}
                       </p>
 
-                      {/* Progress bar for in-progress quests */}
+                      {/* Compact progress bar for in-progress quests */}
                       {isInProgress && achievement.progress && (
                         <div className="mb-4">
-                          <div className="flex justify-between text-xs text-gray-600 mb-1">
-                            <span>Progress</span>
-                            <span>{achievement.progress.completed_tasks}/{achievement.progress.total_tasks} tasks</span>
+                          <div className="flex justify-between items-center text-xs text-gray-600 mb-2">
+                            <span className="font-medium">Progress</span>
+                            <span className="text-blue-600 font-semibold">
+                              {achievement.progress.completed_tasks}/{achievement.progress.total_tasks} tasks
+                            </span>
                           </div>
-                          <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div className="w-full bg-gray-200 rounded-full h-1.5">
                             <div
-                              className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] h-2 rounded-full transition-all duration-300"
+                              className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] h-1.5 rounded-full transition-all duration-300"
                               style={{ width: `${achievement.progress.percentage}%` }}
                             ></div>
                           </div>
                         </div>
                       )}
 
-                      <div className="flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                          <svg className={`w-4 h-4 ${isInProgress ? 'text-blue-500' : 'text-green-500'}`} fill="currentColor" viewBox="0 0 20 20">
-                            {isInProgress ? (
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
-                            ) : (
-                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            )}
-                          </svg>
-                          <span className={`text-sm font-medium ${isInProgress ? 'text-blue-600' : 'text-green-600'}`}>
-                            +{achievement.total_xp_earned} Growth Points{isInProgress ? ' earned so far' : ''}
+                      {/* Bottom section with XP and action link */}
+                      <div className="mt-auto">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                          <div className="flex items-center gap-2">
+                            <svg className={`w-4 h-4 shrink-0 ${isInProgress ? 'text-blue-500' : 'text-green-500'}`} fill="currentColor" viewBox="0 0 20 20">
+                              {isInProgress ? (
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                              ) : (
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              )}
+                            </svg>
+                            <span className={`text-xs sm:text-sm font-medium ${isInProgress ? 'text-blue-600' : 'text-green-600'}`}>
+                              +{achievement.total_xp_earned} Points{isInProgress ? ' so far' : ''}
+                            </span>
+                          </div>
+                          <span className="text-xs sm:text-sm text-[#6d469b] font-medium hover:underline self-start sm:self-auto">
+                            {isInProgress ? 'View Progress →' : 'Explore Journey →'}
                           </span>
                         </div>
-                        <span className="text-sm text-[#6d469b] font-medium hover:underline">
-                          {isInProgress ? 'View Progress →' : 'Explore Journey →'}
-                        </span>
                       </div>
                     </div>
                   </div>
@@ -694,61 +704,63 @@ const DiplomaPageV3 = () => {
             {selectedAchievement && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
-                  <div className="sticky top-0 p-8" style={{ background: 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)' }}>
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h2 className="text-3xl font-bold text-white" style={{ letterSpacing: '-0.5px' }}>
+                  <div className="sticky top-0 p-4 sm:p-8" style={{ background: 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)' }}>
+                    <div className="flex justify-between items-start gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-tight" style={{ letterSpacing: '-0.5px' }}>
                           {selectedAchievement.quest.title}
                         </h2>
-                        <p className="text-white/80 mt-2">
-                          {selectedAchievement.status === 'completed'
-                            ? `Completed on ${formatDate(selectedAchievement.completed_at)}`
-                            : `Started on ${formatDate(selectedAchievement.started_at)}`
-                          }
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <span className="text-white/80 text-sm">
+                            {selectedAchievement.status === 'completed'
+                              ? `Completed on ${formatDate(selectedAchievement.completed_at)}`
+                              : `Started on ${formatDate(selectedAchievement.started_at)}`
+                            }
+                          </span>
                           {selectedAchievement.status === 'in_progress' && selectedAchievement.progress && (
-                            <span className="ml-2 px-2 py-1 bg-white/20 rounded text-xs">
+                            <span className="px-2 py-1 bg-white/20 rounded text-xs text-white font-medium">
                               {selectedAchievement.progress.completed_tasks}/{selectedAchievement.progress.total_tasks} tasks completed
                             </span>
                           )}
-                        </p>
+                        </div>
                       </div>
                       <button
                         onClick={() => setSelectedAchievement(null)}
-                        className="text-white hover:bg-white/20 rounded-full p-2 transition-colors">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        className="text-white hover:bg-white/20 rounded-full p-2 transition-colors shrink-0">
+                        <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                       </button>
                     </div>
                   </div>
 
-                  <div className="p-8">
-                    <div className="mb-8 p-6 rounded-xl" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.05) 0%, rgba(109,70,155,0.05) 100%)', border: '1px solid rgba(109,70,155,0.1)' }}>
-                      <h3 className="text-lg font-bold mb-3" style={{ color: '#6d469b' }}>Adventure Overview</h3>
-                      <p style={{ color: '#003f5c', lineHeight: 1.7 }}>{selectedAchievement.quest.description || selectedAchievement.quest.big_idea || 'A journey of discovery and growth.'}</p>
+                  <div className="p-4 sm:p-8">
+                    <div className="mb-6 sm:mb-8 p-4 sm:p-6 rounded-xl" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.05) 0%, rgba(109,70,155,0.05) 100%)', border: '1px solid rgba(109,70,155,0.1)' }}>
+                      <h3 className="text-base sm:text-lg font-bold mb-3" style={{ color: '#6d469b' }}>Adventure Overview</h3>
+                      <p className="text-sm sm:text-base" style={{ color: '#003f5c', lineHeight: 1.7 }}>{selectedAchievement.quest.description || selectedAchievement.quest.big_idea || 'A journey of discovery and growth.'}</p>
                     </div>
 
                     <div>
-                      <h3 className="text-lg font-bold mb-4" style={{ color: '#003f5c' }}>Learning Journey & Evidence</h3>
+                      <h3 className="text-base sm:text-lg font-bold mb-4" style={{ color: '#003f5c' }}>Learning Journey & Evidence</h3>
                       <div className="space-y-4">
                         {Object.entries(selectedAchievement.task_evidence).map(([taskTitle, evidence], index) => {
                           const displayPillar = pillarDisplayNames[evidence.pillar] || evidence.pillar;
                           const gradientClass = pillarColors[evidence.pillar] || pillarColors['Arts & Creativity'];
-                          
+
                           return (
-                            <div key={taskTitle} className="rounded-xl p-5" style={{ background: 'white', border: '1px solid rgba(109,70,155,0.15)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+                            <div key={taskTitle} className="rounded-xl p-4 sm:p-5" style={{ background: 'white', border: '1px solid rgba(109,70,155,0.15)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                               <div className="mb-3">
                                 <div className="flex items-start gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white flex items-center justify-center text-sm font-bold flex-shrink-0">
+                                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white flex items-center justify-center text-xs sm:text-sm font-bold flex-shrink-0">
                                     {index + 1}
                                   </div>
-                                  <div className="flex-1">
-                                    <h4 className="font-semibold" style={{ color: '#003f5c', fontSize: '16px' }}>{taskTitle}</h4>
-                                    <div className="flex items-center gap-3 mt-2 flex-wrap">
-                                      <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass}`} style={{ boxShadow: '0 2px 8px rgba(109,70,155,0.25)' }}>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-semibold text-sm sm:text-base leading-tight" style={{ color: '#003f5c' }}>{taskTitle}</h4>
+                                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2">
+                                      <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass}`} style={{ boxShadow: '0 2px 8px rgba(109,70,155,0.25)' }}>
                                         {displayPillar}
                                       </span>
-                                      <span className="text-sm font-medium text-green-600">
+                                      <span className="text-xs sm:text-sm font-medium text-green-600">
                                         +{evidence.xp_awarded} Growth Points
                                       </span>
                                       <span className="text-xs text-gray-500">
@@ -758,9 +770,9 @@ const DiplomaPageV3 = () => {
                                   </div>
                                 </div>
                               </div>
-                              
-                              <div className="mt-3 ml-11">
-                                <p className="text-sm font-medium text-gray-700 mb-2">Learning Evidence:</p>
+
+                              <div className="mt-3 ml-10 sm:ml-11">
+                                <p className="text-xs sm:text-sm font-medium text-gray-700 mb-2">Learning Evidence:</p>
                                 {renderEvidence(evidence)}
                               </div>
                             </div>
