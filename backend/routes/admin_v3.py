@@ -1397,7 +1397,11 @@ def list_quest_ideas(user_id):
                         idea['users'] = {'first_name': 'Unknown', 'last_name': 'User'}
                 except:
                     idea['users'] = {'first_name': 'Unknown', 'last_name': 'User'}
-                
+
+                # Normalize status for frontend - map database values to frontend values
+                if idea['status'] == 'pending_review':
+                    idea['status'] = 'pending'
+
                 quest_ideas_with_users.append(idea)
         
         return jsonify({
