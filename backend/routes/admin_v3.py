@@ -95,7 +95,7 @@ def create_quest_v3_clean(user_id):
                 school_subjects = ['electives']
             
             # Validate XP value
-            xp_value = task.get('xp_value', 100)
+            xp_value = task.get('xp_amount', task.get('xp_value', 100))
             if not isinstance(xp_value, (int, float)) or xp_value < 0:
                 return jsonify({'error': f'Task {idx + 1}: XP value must be a positive number'}), 400
 
@@ -318,7 +318,7 @@ def create_quest_v2(user_id):
                     'title': task['title'],
                     'description': task.get('description'),
                     'pillar': task['pillar'],
-                    'xp_amount': task.get('xp_value', 100),  # Map xp_value to xp_amount
+                    'xp_amount': task.get('xp_amount', task.get('xp_value', 100)),  # Accept both field names
                     'evidence_prompt': task.get('evidence_prompt'),
                     'order_index': task.get('order_index', idx),  # Use 0-based indexing consistently
                     'is_required': not task.get('is_optional', False),
@@ -1470,11 +1470,15 @@ def reject_quest_idea(user_id, idea_id):
             'status': 'rejected',
             'updated_at': datetime.utcnow().isoformat()
         }
-        
+
+        print(f"Attempting to reject quest idea {idea_id} with data: {update_data}")
         result = supabase.table('quest_ideas').update(update_data).eq('id', idea_id).execute()
-        
+
+        print(f"Supabase response for reject: {result}")
+
         if not result.data:
-            return jsonify({'error': 'Quest idea not found'}), 404
+            print(f"No data returned from reject update. Full result: {result}")
+            return jsonify({'error': 'Quest idea not found or update failed'}), 404
         
         return jsonify({
             'success': True,
@@ -1484,9 +1488,12 @@ def reject_quest_idea(user_id, idea_id):
         
     except Exception as e:
         print(f"Error rejecting quest idea: {str(e)}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
-            'error': 'Failed to reject quest idea'
+            'error': f'Failed to reject quest idea: {str(e)}'
         }), 500
 
 @bp.route('/quest-ideas/<idea_id>/generate-quest', methods=['POST'])

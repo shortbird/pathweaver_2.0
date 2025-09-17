@@ -243,7 +243,7 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
             evidence_prompt: task.evidence_prompt.trim() || `Provide evidence for completing: ${task.title}`,
             materials_needed: task.materials_needed.filter(m => m.trim()),
             school_subjects: selectedSubjects,
-            xp_value: Object.values(task.subject_xp_distribution).reduce((sum, xp) => sum + (xp || 0), 0),
+            xp_amount: Object.values(task.subject_xp_distribution).reduce((sum, xp) => sum + (xp || 0), 0),
             order_index: index
           }
         }),
