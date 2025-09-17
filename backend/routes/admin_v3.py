@@ -98,12 +98,35 @@ def create_quest_v3_clean(user_id):
             xp_value = task.get('xp_value', 100)
             if not isinstance(xp_value, (int, float)) or xp_value < 0:
                 return jsonify({'error': f'Task {idx + 1}: XP value must be a positive number'}), 400
+
+            # Handle subject XP distribution
+            subject_xp_distribution = task.get('subject_xp_distribution', {})
+            if subject_xp_distribution:
+                # Validate that distribution sums to total XP
+                total_distribution_xp = sum(subject_xp_distribution.values())
+                if total_distribution_xp != xp_value:
+                    return jsonify({'error': f'Task {idx + 1}: Subject XP distribution ({total_distribution_xp}) must equal total XP ({xp_value})'}), 400
+
+                # Validate that all subjects in distribution are in school_subjects
+                for subject in subject_xp_distribution.keys():
+                    if subject not in school_subjects:
+                        return jsonify({'error': f'Task {idx + 1}: Subject XP distribution contains subject "{subject}" not in school_subjects list'}), 400
+            else:
+                # Auto-distribute XP evenly among school subjects
+                if school_subjects:
+                    xp_per_subject = xp_value // len(school_subjects)
+                    remainder = xp_value % len(school_subjects)
+                    subject_xp_distribution = {}
+
+                    for i, subject in enumerate(school_subjects):
+                        subject_xp_distribution[subject] = xp_per_subject + (1 if i < remainder else 0)
             
             validated_task = {
                 'title': task['title'],
                 'description': task.get('description', ''),  # Optional field
                 'pillar': normalized_pillar,  # Use normalized pillar
                 'school_subjects': school_subjects,  # Use normalized school subjects
+                'subject_xp_distribution': subject_xp_distribution,  # NEW: XP distribution by subject
                 'xp_amount': int(xp_value),  # Use xp_amount (database column)
                 'order_index': task.get('order_index', task.get('task_order', idx)),  # Use order_index (database column)
                 'evidence_prompt': task.get('evidence_prompt', f"Provide evidence for completing: {task['title']}"),
@@ -118,6 +141,7 @@ def create_quest_v3_clean(user_id):
             'title': data['title'],
             'big_idea': data.get('big_idea') or data.get('description') or '',
             'header_image_url': data.get('header_image_url'),
+            'material_link': data.get('material_link'),  # NEW: Optional material link
             'is_active': data.get('is_active', True),
             'source': data.get('source', 'optio')
         }
@@ -146,6 +170,7 @@ def create_quest_v3_clean(user_id):
                 'description': task['description'],
                 'pillar': task['pillar'],
                 'school_subjects': task['school_subjects'],
+                'subject_xp_distribution': task['subject_xp_distribution'],  # NEW: XP distribution
                 'xp_amount': task['xp_amount'],
                 'order_index': task['order_index'],
                 'evidence_prompt': task.get('evidence_prompt'),
@@ -596,6 +621,7 @@ def update_quest(user_id, quest_id):
         quest_data = {
             'title': data['title'],
             'big_idea': data['big_idea'],
+            'material_link': data.get('material_link'),  # NEW: Optional material link
             'source': data.get('source', 'optio'),
             'is_active': data.get('is_active', True),
             'updated_at': datetime.utcnow().isoformat()
@@ -603,7 +629,10 @@ def update_quest(user_id, quest_id):
         
         if 'header_image_url' in data:
             quest_data['header_image_url'] = data['header_image_url']
-        
+
+        # Remove None values
+        quest_data = {k: v for k, v in quest_data.items() if v is not None}
+
         quest_response = supabase.table('quests').update(quest_data).eq('id', quest_id).execute()
         
         if not quest_response.data:
@@ -639,7 +668,24 @@ def update_quest(user_id, quest_id):
                         school_subjects = ['electives']  # Default fallback
                 else:
                     school_subjects = ['electives']
-                
+
+                # Handle subject XP distribution for update
+                subject_xp_distribution = task.get('subject_xp_distribution', {})
+                if subject_xp_distribution:
+                    # Validate that distribution sums to total XP
+                    total_distribution_xp = sum(subject_xp_distribution.values())
+                    if total_distribution_xp != task['xp_amount']:
+                        print(f"Warning: Task {idx} XP distribution ({total_distribution_xp}) != total XP ({task['xp_amount']})")
+                        # Auto-fix by redistributing
+                        subject_xp_distribution = {}
+
+                # Auto-distribute XP if not provided or invalid
+                if not subject_xp_distribution:
+                    xp_per_subject = task['xp_amount'] // len(school_subjects)
+                    remainder = task['xp_amount'] % len(school_subjects)
+                    for i, subject in enumerate(school_subjects):
+                        subject_xp_distribution[subject] = xp_per_subject + (1 if i < remainder else 0)
+
                 task_records.append({
                     'quest_id': quest_id,
                     'title': task['title'],
@@ -647,6 +693,7 @@ def update_quest(user_id, quest_id):
                     'xp_amount': task['xp_amount'],
                     'pillar': task['pillar'],
                     'school_subjects': school_subjects,
+                    'subject_xp_distribution': subject_xp_distribution,  # NEW: XP distribution
                     'order_index': idx,
                     'created_at': datetime.utcnow().isoformat()
                 })

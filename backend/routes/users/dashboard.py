@@ -9,6 +9,34 @@ from .helpers import calculate_user_xp, get_user_level, format_skill_data, SKILL
 
 dashboard_bp = Blueprint('dashboard', __name__)
 
+@dashboard_bp.route('/subject-xp', methods=['GET'])
+@require_auth
+def get_user_subject_xp(user_id):
+    """Get user's XP by school subject for diploma credits"""
+    supabase = get_user_client()
+
+    try:
+        # Fetch subject XP data
+        response = supabase.table('user_subject_xp')\
+            .select('school_subject, xp_amount')\
+            .eq('user_id', user_id)\
+            .execute()
+
+        subject_xp = response.data or []
+
+        return jsonify({
+            'success': True,
+            'subject_xp': subject_xp
+        })
+
+    except Exception as e:
+        print(f"Error fetching subject XP: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch subject XP',
+            'subject_xp': []
+        }), 500
+
 def get_recent_completions_combined(supabase, user_id: str, limit: int = 5) -> list:
     """Get combined list of recent task and quest completions."""
     try:

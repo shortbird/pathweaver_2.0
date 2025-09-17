@@ -14,6 +14,7 @@ const DiplomaPageV3 = () => {
   const navigate = useNavigate();
   const [achievements, setAchievements] = useState([]);
   const [totalXP, setTotalXP] = useState({});
+  const [subjectXP, setSubjectXP] = useState({});  // NEW: Subject-specific XP
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAchievement, setSelectedAchievement] = useState(null);
   const [shareableLink, setShareableLink] = useState('');
@@ -67,6 +68,36 @@ const DiplomaPageV3 = () => {
     'society_culture': 'Society & Culture'
   };
 
+  // School subject display names for diploma credits
+  const subjectDisplayNames = {
+    'language_arts': 'Language Arts',
+    'math': 'Mathematics',
+    'science': 'Science',
+    'social_studies': 'Social Studies',
+    'financial_literacy': 'Financial Literacy',
+    'health': 'Health',
+    'pe': 'Physical Education',
+    'fine_arts': 'Fine Arts',
+    'cte': 'Career & Technical Education',
+    'digital_literacy': 'Digital Literacy',
+    'electives': 'Electives'
+  };
+
+  // Subject colors for visual appeal
+  const subjectColors = {
+    'language_arts': 'from-blue-500 to-indigo-600',
+    'math': 'from-green-500 to-emerald-600',
+    'science': 'from-purple-500 to-violet-600',
+    'social_studies': 'from-amber-500 to-orange-600',
+    'financial_literacy': 'from-emerald-500 to-teal-600',
+    'health': 'from-rose-500 to-pink-600',
+    'pe': 'from-cyan-500 to-blue-600',
+    'fine_arts': 'from-[#ef597b] to-[#6d469b]',
+    'cte': 'from-slate-500 to-gray-600',
+    'digital_literacy': 'from-indigo-500 to-blue-600',
+    'electives': 'from-gray-500 to-slate-600'
+  };
+
   useEffect(() => {
     // Scroll to top when component mounts
     window.scrollTo(0, 0);
@@ -74,6 +105,7 @@ const DiplomaPageV3 = () => {
     // Clear previous data when component mounts or dependencies change
     setAchievements([]);
     setTotalXP({});
+    setSubjectXP({});
     setTotalXPCount(0);
     setIsLoading(true);
     
@@ -87,6 +119,7 @@ const DiplomaPageV3 = () => {
       // Authenticated user viewing their own diploma (no params)
       if (hasAccess) {
         fetchAchievements();
+        fetchSubjectXP();  // NEW: Fetch subject-specific XP
         generateShareableLink();
       } else {
         // User doesn't have access, just stop loading
@@ -103,6 +136,7 @@ const DiplomaPageV3 = () => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && user && !slug && !userId && hasAccess) {
         fetchAchievements();
+        fetchSubjectXP();
       }
     };
 
@@ -112,6 +146,7 @@ const DiplomaPageV3 = () => {
     const handleFocus = () => {
       if (user && !slug && !userId && hasAccess) {
         fetchAchievements();
+        fetchSubjectXP();
       }
     };
     
@@ -234,6 +269,38 @@ const DiplomaPageV3 = () => {
       setTotalXPCount(0);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchSubjectXP = async () => {
+    try {
+      const apiBase = import.meta.env.VITE_API_URL || '';
+      const token = localStorage.getItem('access_token');
+
+      const response = await fetch(`${apiBase}/api/v3/users/subject-xp`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Cache-Control': 'no-cache'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // Transform array to object with subject as key
+        const subjectXPMap = {};
+        if (data.subject_xp) {
+          data.subject_xp.forEach(item => {
+            subjectXPMap[item.school_subject] = item.xp_amount;
+          });
+        }
+        setSubjectXP(subjectXPMap);
+      } else {
+        // If endpoint doesn't exist yet, silently handle
+        setSubjectXP({});
+      }
+    } catch (error) {
+      // Silently handle error for now
+      setSubjectXP({});
     }
   };
 
@@ -563,6 +630,72 @@ const DiplomaPageV3 = () => {
         {Object.keys(totalXP).length > 0 && (
           <div className="mb-12 pb-12 border-b border-gray-100">
             <SkillsRadarChart skillsXP={totalXP} />
+          </div>
+        )}
+
+        {/* School Subject Credits Section */}
+        {Object.keys(subjectXP).length > 0 && (
+          <div className="mb-12 pb-12 border-b border-gray-100">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold mb-3" style={{ color: '#003f5c' }}>Diploma Credits</h2>
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                Credits earned across traditional school subjects through evidence-based learning
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {Object.entries(subjectXP)
+                .filter(([_, xp]) => xp > 0)
+                .sort((a, b) => b[1] - a[1])  // Sort by XP descending
+                .map(([subject, xp]) => (
+                  <div
+                    key={subject}
+                    className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+                  >
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`w-12 h-12 rounded-lg bg-gradient-to-r ${subjectColors[subject] || 'from-gray-400 to-gray-500'} flex items-center justify-center flex-shrink-0`}>
+                        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                          <path d="M12 2L2 7v10c0 5.55 3.84 9.739 9 9.99 5.16-.251 9-4.44 9-9.99V7l-10-5z"/>
+                          <path d="M10 17l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+                        </svg>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-2xl font-bold text-gray-800">{xp}</div>
+                        <div className="text-sm text-gray-500">XP</div>
+                      </div>
+                    </div>
+
+                    <h3 className="font-semibold text-gray-800 mb-2">
+                      {subjectDisplayNames[subject] || subject}
+                    </h3>
+
+                    <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
+                      <div
+                        className={`h-2 rounded-full bg-gradient-to-r ${subjectColors[subject] || 'from-gray-400 to-gray-500'}`}
+                        style={{
+                          width: `${Math.min((xp / Math.max(...Object.values(subjectXP))) * 100, 100)}%`
+                        }}
+                      ></div>
+                    </div>
+
+                    <p className="text-xs text-gray-500">
+                      Credit progress based on completed learning tasks
+                    </p>
+                  </div>
+                ))}
+            </div>
+
+            {Object.keys(subjectXP).length === 0 && (
+              <div className="text-center py-12">
+                <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
+                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-medium text-gray-800 mb-2">No Subject Credits Yet</h3>
+                <p className="text-gray-600">Complete learning tasks to earn credits across school subjects</p>
+              </div>
+            )}
           </div>
         )}
 

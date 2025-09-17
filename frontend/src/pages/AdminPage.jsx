@@ -2,9 +2,8 @@ import React, { useState, useEffect, memo } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import AdminQuestManagerV3 from './AdminQuestManagerV3'
 import SourcesManager from '../components/SourcesManager'
-import QuestCreationForm from '../components/admin/QuestCreationForm'
+import UnifiedQuestForm from '../components/admin/UnifiedQuestForm'
 import SiteSettings from '../components/admin/SiteSettings'
 import AdminQuestSuggestions from '../components/admin/AdminQuestSuggestions'
 import { getTierDisplayName } from '../utils/tierMapping'
@@ -665,13 +664,14 @@ const AdminQuests = () => {
       </div>
 
       {showManager && (
-        <AdminQuestManagerV3
+        <UnifiedQuestForm
+          mode="edit"
           quest={editingQuest}
           onClose={() => {
             setShowManager(false)
             setEditingQuest(null)
           }}
-          onSave={handleQuestSave}
+          onSuccess={handleQuestSave}
         />
       )}
 
@@ -682,11 +682,12 @@ const AdminQuests = () => {
       )}
 
       {showCreationForm && (
-        <QuestCreationForm
+        <UnifiedQuestForm
+          mode="create"
           onClose={() => setShowCreationForm(false)}
           onSuccess={(newQuest) => {
             fetchQuests() // Refresh quest list
-            // Success toast is already shown by QuestCreationForm
+            // Success toast is already shown by UnifiedQuestForm
           }}
         />
       )}

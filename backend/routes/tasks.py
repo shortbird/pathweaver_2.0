@@ -200,9 +200,60 @@ def complete_task(user_id: str, task_id: str):
             final_xp,
             f'task_completion:{task_id}'
         )
-        
+
         if not xp_awarded:
             print(f"Warning: Failed to award XP for task {task_id} to user {user_id}")
+
+        # Award subject-specific XP for diploma credits
+        subject_xp_distribution = task_data.get('subject_xp_distribution', {})
+        if subject_xp_distribution:
+            print(f"=== SUBJECT XP TRACKING ===")
+            print(f"Task ID: {task_id}, User ID: {user_id}")
+            print(f"Subject XP Distribution: {subject_xp_distribution}")
+
+            for subject, subject_xp in subject_xp_distribution.items():
+                try:
+                    # Update or insert subject XP
+                    existing_subject_xp = admin_supabase.table('user_subject_xp')\
+                        .select('id, xp_amount')\
+                        .eq('user_id', user_id)\
+                        .eq('school_subject', subject)\
+                        .execute()
+
+                    if existing_subject_xp.data:
+                        # Update existing record
+                        current_xp = existing_subject_xp.data[0]['xp_amount']
+                        new_total = current_xp + subject_xp
+
+                        admin_supabase.table('user_subject_xp')\
+                            .update({
+                                'xp_amount': new_total,
+                                'updated_at': datetime.utcnow().isoformat()
+                            })\
+                            .eq('user_id', user_id)\
+                            .eq('school_subject', subject)\
+                            .execute()
+
+                        print(f"Updated {subject}: {current_xp} + {subject_xp} = {new_total} XP")
+                    else:
+                        # Create new record
+                        admin_supabase.table('user_subject_xp')\
+                            .insert({
+                                'user_id': user_id,
+                                'school_subject': subject,
+                                'xp_amount': subject_xp,
+                                'updated_at': datetime.utcnow().isoformat()
+                            })\
+                            .execute()
+
+                        print(f"Created {subject}: {subject_xp} XP")
+
+                except Exception as e:
+                    print(f"Warning: Failed to award subject XP for {subject}: {e}")
+
+            print("==========================")
+        else:
+            print(f"No subject XP distribution found for task {task_id}")
         
         # Check if all required tasks are completed
         all_required_tasks = supabase.table('quest_tasks')\
