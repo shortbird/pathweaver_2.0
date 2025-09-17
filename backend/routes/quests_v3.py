@@ -621,12 +621,13 @@ def get_user_active_quests(user_id: str):
 @require_auth
 def get_user_completed_quests(user_id: str):
     """
-    Get all completed quests for the current user.
+    Get all completed and in-progress quests for the current user.
     Used for diploma page and achievement display.
+    Now includes quests with submitted tasks even if not fully completed.
     """
     try:
         supabase = get_supabase_client()
-        
+
         # Get user's completed quests
         completed_quests = supabase.table('user_quests')\
             .select('*, quests(*, quest_tasks(*)), user_quest_tasks(*, quest_tasks(*))')\
@@ -634,49 +635,97 @@ def get_user_completed_quests(user_id: str):
             .not_.is_('completed_at', 'null')\
             .order('completed_at', desc=True)\
             .execute()
-        
-        if not completed_quests.data:
-            return jsonify({
-                'success': True,
-                'quests': [],
-                'message': 'No completed quests yet'
-            })
-        
+
+        # Get user's in-progress quests (active with at least one task submitted)
+        in_progress_quests = supabase.table('user_quests')\
+            .select('*, quests(*, quest_tasks(*)), user_quest_tasks(*, quest_tasks(*))')\
+            .eq('user_id', user_id)\
+            .eq('is_active', True)\
+            .is_('completed_at', 'null')\
+            .order('started_at', desc=True)\
+            .execute()
+
         # Process completed quests with evidence
         achievements = []
-        for cq in completed_quests.data:
-            quest = cq.get('quests')
-            if not quest:
-                continue
-            
-            # Organize evidence by task
-            task_evidence = {}
-            for task_completion in cq.get('user_quest_tasks', []):
-                task_data = task_completion.get('quest_tasks')
-                if task_data:
-                    task_evidence[task_data['title']] = {
-                        'evidence_type': task_completion['evidence_type'],
-                        'evidence_content': task_completion['evidence_content'],
-                        'xp_awarded': task_completion['xp_awarded'],
-                        'completed_at': task_completion['completed_at'],
-                        'pillar': task_data['pillar']
+
+        # Add completed quests
+        if completed_quests.data:
+            for cq in completed_quests.data:
+                quest = cq.get('quests')
+                if not quest:
+                    continue
+
+                # Organize evidence by task
+                task_evidence = {}
+                for task_completion in cq.get('user_quest_tasks', []):
+                    task_data = task_completion.get('quest_tasks')
+                    if task_data:
+                        task_evidence[task_data['title']] = {
+                            'evidence_type': task_completion['evidence_type'],
+                            'evidence_content': task_completion['evidence_content'],
+                            'xp_awarded': task_completion['xp_awarded'],
+                            'completed_at': task_completion['completed_at'],
+                            'pillar': task_data['pillar']
+                        }
+
+                achievement = {
+                    'quest': quest,
+                    'completed_at': cq['completed_at'],
+                    'task_evidence': task_evidence,
+                    'total_xp_earned': sum(t['xp_awarded'] for t in cq.get('user_quest_tasks', [])),
+                    'status': 'completed'
+                }
+
+                achievements.append(achievement)
+
+        # Add in-progress quests with at least one submitted task
+        if in_progress_quests.data:
+            for cq in in_progress_quests.data:
+                quest = cq.get('quests')
+                if not quest or not cq.get('user_quest_tasks'):
+                    continue  # Skip quests with no submitted tasks
+
+                # Organize evidence by task
+                task_evidence = {}
+                for task_completion in cq.get('user_quest_tasks', []):
+                    task_data = task_completion.get('quest_tasks')
+                    if task_data:
+                        task_evidence[task_data['title']] = {
+                            'evidence_type': task_completion['evidence_type'],
+                            'evidence_content': task_completion['evidence_content'],
+                            'xp_awarded': task_completion['xp_awarded'],
+                            'completed_at': task_completion['completed_at'],
+                            'pillar': task_data['pillar']
+                        }
+
+                # Calculate progress
+                total_tasks = len(quest.get('quest_tasks', []))
+                completed_tasks = len(task_evidence)
+
+                achievement = {
+                    'quest': quest,
+                    'started_at': cq['started_at'],
+                    'task_evidence': task_evidence,
+                    'total_xp_earned': sum(t['xp_awarded'] for t in cq.get('user_quest_tasks', [])),
+                    'status': 'in_progress',
+                    'progress': {
+                        'completed_tasks': completed_tasks,
+                        'total_tasks': total_tasks,
+                        'percentage': (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
                     }
-            
-            achievement = {
-                'quest': quest,
-                'completed_at': cq['completed_at'],
-                'task_evidence': task_evidence,
-                'total_xp_earned': sum(t['xp_awarded'] for t in cq.get('user_quest_tasks', []))
-            }
-            
-            achievements.append(achievement)
-        
+                }
+
+                achievements.append(achievement)
+
+        # Sort achievements by date (completed_at for completed, started_at for in-progress)
+        achievements.sort(key=lambda x: x.get('completed_at') or x.get('started_at'), reverse=True)
+
         return jsonify({
             'success': True,
             'achievements': achievements,
             'total': len(achievements)
         })
-        
+
     except Exception as e:
         print(f"Error getting completed quests: {str(e)}")
         return jsonify({

@@ -572,7 +572,18 @@ const DiplomaPageV3 = () => {
             <h2 className="text-2xl font-bold" style={{ color: '#003f5c' }}>Learning Journey</h2>
             {achievements.length > 0 && (
               <span className="text-sm text-gray-600">
-                {achievements.length} Adventure{achievements.length === 1 ? '' : 's'} Completed
+                {(() => {
+                  const completedCount = achievements.filter(a => a.status === 'completed').length;
+                  const inProgressCount = achievements.filter(a => a.status === 'in_progress').length;
+
+                  if (completedCount > 0 && inProgressCount > 0) {
+                    return `${completedCount} Completed, ${inProgressCount} In Progress`;
+                  } else if (completedCount > 0) {
+                    return `${completedCount} Adventure${completedCount === 1 ? '' : 's'} Completed`;
+                  } else {
+                    return `${inProgressCount} Adventure${inProgressCount === 1 ? '' : 's'} In Progress`;
+                  }
+                })()}
               </span>
             )}
           </div>
@@ -605,22 +616,30 @@ const DiplomaPageV3 = () => {
                 const pillar = getPillarForQuest();
                 const displayName = pillarDisplayNames[pillar] || pillar;
                 const gradientClass = pillarColors[pillar] || pillarColors['Arts & Creativity'];
+                const isInProgress = achievement.status === 'in_progress';
 
                 return (
-                  <div 
+                  <div
                     key={`${achievement.quest.id}-${index}`}
-                    className="bg-white rounded-xl overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1"
+                    className={`bg-white rounded-xl overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 ${isInProgress ? 'ring-2 ring-blue-200' : ''}`}
                     style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                     onClick={() => setSelectedAchievement(achievement)}
                   >
                     <div className={`h-2 bg-gradient-to-r ${gradientClass}`}></div>
                     <div className="p-6">
                       <div className="flex justify-between items-start mb-3">
-                        <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass}`}>
-                          {displayName}
-                        </span>
+                        <div className="flex flex-col gap-2">
+                          <span className={`inline-block px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass}`}>
+                            {displayName}
+                          </span>
+                          {isInProgress && (
+                            <span className="inline-block px-3 py-1 rounded-full text-xs font-bold text-blue-600 bg-blue-100">
+                              In Progress
+                            </span>
+                          )}
+                        </div>
                         <span className="text-xs text-gray-500">
-                          {formatDate(achievement.completed_at)}
+                          {isInProgress ? formatDate(achievement.started_at) : formatDate(achievement.completed_at)}
                         </span>
                       </div>
                       <h3 className="font-bold text-lg mb-2" style={{ color: '#003f5c' }}>
@@ -629,17 +648,38 @@ const DiplomaPageV3 = () => {
                       <p className="text-sm text-gray-600 mb-4 line-clamp-2">
                         {achievement.quest.description || achievement.quest.big_idea}
                       </p>
+
+                      {/* Progress bar for in-progress quests */}
+                      {isInProgress && achievement.progress && (
+                        <div className="mb-4">
+                          <div className="flex justify-between text-xs text-gray-600 mb-1">
+                            <span>Progress</span>
+                            <span>{achievement.progress.completed_tasks}/{achievement.progress.total_tasks} tasks</span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-2">
+                            <div
+                              className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] h-2 rounded-full transition-all duration-300"
+                              style={{ width: `${achievement.progress.percentage}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex justify-between items-center">
                         <div className="flex items-center gap-2">
-                          <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          <svg className={`w-4 h-4 ${isInProgress ? 'text-blue-500' : 'text-green-500'}`} fill="currentColor" viewBox="0 0 20 20">
+                            {isInProgress ? (
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                            ) : (
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            )}
                           </svg>
-                          <span className="text-sm font-medium text-green-600">
-                            +{achievement.total_xp_earned} Growth Points
+                          <span className={`text-sm font-medium ${isInProgress ? 'text-blue-600' : 'text-green-600'}`}>
+                            +{achievement.total_xp_earned} Growth Points{isInProgress ? ' earned so far' : ''}
                           </span>
                         </div>
                         <span className="text-sm text-[#6d469b] font-medium hover:underline">
-                          Explore Journey →
+                          {isInProgress ? 'View Progress →' : 'Explore Journey →'}
                         </span>
                       </div>
                     </div>
@@ -661,7 +701,15 @@ const DiplomaPageV3 = () => {
                           {selectedAchievement.quest.title}
                         </h2>
                         <p className="text-white/80 mt-2">
-                          Completed on {formatDate(selectedAchievement.completed_at)}
+                          {selectedAchievement.status === 'completed'
+                            ? `Completed on ${formatDate(selectedAchievement.completed_at)}`
+                            : `Started on ${formatDate(selectedAchievement.started_at)}`
+                          }
+                          {selectedAchievement.status === 'in_progress' && selectedAchievement.progress && (
+                            <span className="ml-2 px-2 py-1 bg-white/20 rounded text-xs">
+                              {selectedAchievement.progress.completed_tasks}/{selectedAchievement.progress.total_tasks} tasks completed
+                            </span>
+                          )}
                         </p>
                       </div>
                       <button
@@ -720,13 +768,20 @@ const DiplomaPageV3 = () => {
                         })}
                       </div>
                       
-                      <div className="mt-6 p-4 rounded-lg bg-green-50 border border-green-200">
+                      <div className={`mt-6 p-4 rounded-lg border ${selectedAchievement.status === 'completed' ? 'bg-green-50 border-green-200' : 'bg-blue-50 border-blue-200'}`}>
                         <div className="flex items-center gap-2">
-                          <svg className="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          <svg className={`w-5 h-5 ${selectedAchievement.status === 'completed' ? 'text-green-600' : 'text-blue-600'}`} fill="currentColor" viewBox="0 0 20 20">
+                            {selectedAchievement.status === 'completed' ? (
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            ) : (
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                            )}
                           </svg>
-                          <span className="font-semibold text-green-800">
-                            Total Growth: +{selectedAchievement.total_xp_earned} Points
+                          <span className={`font-semibold ${selectedAchievement.status === 'completed' ? 'text-green-800' : 'text-blue-800'}`}>
+                            {selectedAchievement.status === 'completed'
+                              ? `Total Growth: +${selectedAchievement.total_xp_earned} Points`
+                              : `Growth So Far: +${selectedAchievement.total_xp_earned} Points`
+                            }
                           </span>
                         </div>
                       </div>

@@ -372,17 +372,27 @@ def get_public_diploma_by_user_id(user_id):
         completed_quests = supabase.table('user_quests').select(
             '''
             completed_at,
-            quests:quests!inner(id, title, description, big_idea),
+            quests:quests!inner(id, title, description, big_idea, quest_tasks(*)),
             user_quest_tasks:user_quest_tasks!inner(completed_at, evidence_type, evidence_content, xp_awarded, quest_tasks(title, pillar))
             '''
         ).eq('user_id', user_id).not_.is_('completed_at', 'null').order('completed_at', desc=True).execute()
-        
+
+        # Get user's in-progress quests (active with at least one task submitted)
+        in_progress_quests = supabase.table('user_quests').select(
+            '''
+            started_at,
+            is_active,
+            quests:quests!inner(id, title, description, big_idea, quest_tasks(*)),
+            user_quest_tasks:user_quest_tasks!inner(completed_at, evidence_type, evidence_content, xp_awarded, quest_tasks(title, pillar))
+            '''
+        ).eq('user_id', user_id).eq('is_active', True).is_('completed_at', 'null').order('started_at', desc=True).execute()
+
         # Get XP by skill category from user_skill_xp table
         skill_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()
-        
+
         xp_by_category = {}
         total_xp = 0
-        
+
         if skill_xp.data:
             for record in skill_xp.data:
                 # Handle both old and new column names
@@ -391,15 +401,17 @@ def get_public_diploma_by_user_id(user_id):
                 if category:
                     xp_by_category[category] = xp
                     total_xp += xp
-        
-        # Process completed quests for achievements format
+
+        # Process completed and in-progress quests for achievements format
         achievements = []
+
+        # Add completed quests
         if completed_quests.data:
             for cq in completed_quests.data:
                 quest = cq.get('quests')
                 if not quest:
                     continue
-                
+
                 # Organize evidence by task
                 task_evidence = {}
                 for task_completion in cq.get('user_quest_tasks', []):
@@ -412,15 +424,58 @@ def get_public_diploma_by_user_id(user_id):
                             'completed_at': task_completion.get('completed_at'),
                             'pillar': task_data.get('pillar', 'Arts & Creativity')
                         }
-                
+
                 achievement = {
                     'quest': quest,
                     'completed_at': cq['completed_at'],
                     'task_evidence': task_evidence,
-                    'total_xp_earned': sum(t.get('xp_awarded', 0) for t in cq.get('user_quest_tasks', []))
+                    'total_xp_earned': sum(t.get('xp_awarded', 0) for t in cq.get('user_quest_tasks', [])),
+                    'status': 'completed'
                 }
-                
+
                 achievements.append(achievement)
+
+        # Add in-progress quests with at least one submitted task
+        if in_progress_quests.data:
+            for cq in in_progress_quests.data:
+                quest = cq.get('quests')
+                if not quest or not cq.get('user_quest_tasks'):
+                    continue  # Skip quests with no submitted tasks
+
+                # Organize evidence by task
+                task_evidence = {}
+                for task_completion in cq.get('user_quest_tasks', []):
+                    task_data = task_completion.get('quest_tasks')
+                    if task_data:
+                        task_evidence[task_data['title']] = {
+                            'evidence_type': task_completion.get('evidence_type', 'text'),
+                            'evidence_content': task_completion.get('evidence_content', ''),
+                            'xp_awarded': task_completion.get('xp_awarded', 0),
+                            'completed_at': task_completion.get('completed_at'),
+                            'pillar': task_data.get('pillar', 'Arts & Creativity')
+                        }
+
+                # Calculate progress
+                total_tasks = len(quest.get('quest_tasks', []))
+                completed_tasks = len(task_evidence)
+
+                achievement = {
+                    'quest': quest,
+                    'started_at': cq['started_at'],
+                    'task_evidence': task_evidence,
+                    'total_xp_earned': sum(t.get('xp_awarded', 0) for t in cq.get('user_quest_tasks', [])),
+                    'status': 'in_progress',
+                    'progress': {
+                        'completed_tasks': completed_tasks,
+                        'total_tasks': total_tasks,
+                        'percentage': (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+                    }
+                }
+
+                achievements.append(achievement)
+
+        # Sort achievements by date (completed_at for completed, started_at for in-progress)
+        achievements.sort(key=lambda x: x.get('completed_at') or x.get('started_at'), reverse=True)
         
         return jsonify({
             'student': user.data[0],
