@@ -295,7 +295,7 @@ def create_quest_v2(user_id):
                     'pillar': task['pillar'],
                     'xp_amount': task.get('xp_value', 100),  # Map xp_value to xp_amount
                     'evidence_prompt': task.get('evidence_prompt'),
-                    'order_index': task.get('order_index', idx + 1),  # Use correct database column
+                    'order_index': task.get('order_index', idx),  # Use 0-based indexing consistently
                     'is_required': not task.get('is_optional', False),
                     'is_collaboration_eligible': task.get('collaboration_eligible', True),
                     'created_at': datetime.utcnow().isoformat()

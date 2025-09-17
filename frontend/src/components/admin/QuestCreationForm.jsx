@@ -6,6 +6,7 @@ import api from '../../services/api'
 const QuestCreationForm = ({ onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false)
   const [sources, setSources] = useState([])
+  const [availableSubjects, setAvailableSubjects] = useState([])
   const [showNewSourceForm, setShowNewSourceForm] = useState(false)
   const [errors, setErrors] = useState({})
   const [expandedTasks, setExpandedTasks] = useState({})
@@ -26,9 +27,8 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
         xp_value: 100,
         evidence_prompt: '',
         materials_needed: [],
-        subcategory: '',
-        order_index: 1,
-        task_order: 0
+        school_subjects: [],
+        order_index: 0
       }
     ],
     metadata: {
@@ -49,52 +49,6 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
     { value: 'Arts & Creativity', label: 'Arts & Creativity' }
   ]
 
-  // Subcategories by pillar
-  const subcategoriesByPillar = {
-    'Arts & Creativity': [
-      'Visual Arts',
-      'Music',
-      'Drama & Theater',
-      'Creative Writing',
-      'Digital Media',
-      'Design'
-    ],
-    'STEM & Logic': [
-      'Mathematics',
-      'Biology',
-      'Chemistry',
-      'Physics',
-      'Computer Science',
-      'Engineering',
-      'Data Science'
-    ],
-    'Language & Communication': [
-      'English',
-      'Foreign Languages',
-      'Journalism',
-      'Public Speaking',
-      'Digital Communication',
-      'Literature'
-    ],
-    'Society & Culture': [
-      'History',
-      'Geography',
-      'Social Studies',
-      'World Cultures',
-      'Civics & Government',
-      'Psychology',
-      'Sociology'
-    ],
-    'Life & Wellness': [
-      'Physical Education',
-      'Health & Nutrition',
-      'Personal Finance',
-      'Life Skills',
-      'Mental Wellness',
-      'Outdoor Education',
-      'Sports & Athletics'
-    ]
-  }
 
   // Location type options
   const locationTypes = [
@@ -106,6 +60,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
 
   useEffect(() => {
     fetchSources()
+    fetchSchoolSubjects()
     // Try to load AI Modal component
     loadAIModalComponent()
   }, [])
@@ -174,6 +129,46 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
     }
   }
 
+  const fetchSchoolSubjects = async () => {
+    try {
+      const response = await api.get('/api/v3/admin/school-subjects')
+      if (response.data.success) {
+        setAvailableSubjects(response.data.school_subjects || [])
+      } else {
+        // Fallback subjects if API fails
+        setAvailableSubjects([
+          { key: 'language_arts', name: 'Language Arts', description: 'Reading, writing, literature, and language skills' },
+          { key: 'math', name: 'Math', description: 'Mathematics, algebra, geometry, statistics' },
+          { key: 'science', name: 'Science', description: 'Biology, chemistry, physics, earth science' },
+          { key: 'social_studies', name: 'Social Studies', description: 'History, geography, civics, government' },
+          { key: 'financial_literacy', name: 'Financial Literacy', description: 'Personal finance, budgeting, investing' },
+          { key: 'health', name: 'Health', description: 'Health education, nutrition, wellness' },
+          { key: 'pe', name: 'PE', description: 'Physical education, sports, fitness' },
+          { key: 'fine_arts', name: 'Fine Arts', description: 'Visual arts, music, theater, dance' },
+          { key: 'cte', name: 'CTE', description: 'Career and technical education, vocational skills' },
+          { key: 'digital_literacy', name: 'Digital Literacy', description: 'Technology skills, computer science' },
+          { key: 'electives', name: 'Electives', description: 'Specialized interests and supplemental learning' }
+        ])
+      }
+    } catch (error) {
+      console.error('Error fetching school subjects:', error)
+      // Use fallback subjects
+      setAvailableSubjects([
+        { key: 'language_arts', name: 'Language Arts', description: 'Reading, writing, literature, and language skills' },
+        { key: 'math', name: 'Math', description: 'Mathematics, algebra, geometry, statistics' },
+        { key: 'science', name: 'Science', description: 'Biology, chemistry, physics, earth science' },
+        { key: 'social_studies', name: 'Social Studies', description: 'History, geography, civics, government' },
+        { key: 'financial_literacy', name: 'Financial Literacy', description: 'Personal finance, budgeting, investing' },
+        { key: 'health', name: 'Health', description: 'Health education, nutrition, wellness' },
+        { key: 'pe', name: 'PE', description: 'Physical education, sports, fitness' },
+        { key: 'fine_arts', name: 'Fine Arts', description: 'Visual arts, music, theater, dance' },
+        { key: 'cte', name: 'CTE', description: 'Career and technical education, vocational skills' },
+        { key: 'digital_literacy', name: 'Digital Literacy', description: 'Technology skills, computer science' },
+        { key: 'electives', name: 'Electives', description: 'Specialized interests and supplemental learning' }
+      ])
+    }
+  }
+
   const validateForm = () => {
     const newErrors = {}
     
@@ -193,8 +188,8 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
       if (!task.pillar) {
         newErrors[`task_${index}_pillar`] = 'Pillar is required'
       }
-      if (!task.subcategory) {
-        newErrors[`task_${index}_subcategory`] = 'Subcategory is required'
+      if (!task.school_subjects || task.school_subjects.length === 0) {
+        newErrors[`task_${index}_school_subjects`] = 'At least one school subject is required'
       }
       if (task.xp_value <= 0) {
         newErrors[`task_${index}_xp`] = 'XP must be positive'
@@ -228,8 +223,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
           description: task.description.trim(),
           evidence_prompt: task.evidence_prompt.trim() || `Provide evidence for completing: ${task.title}`,
           materials_needed: task.materials_needed.filter(m => m.trim()),
-          order_index: index + 1,
-          task_order: index
+          order_index: index
         })),
         metadata: formData.metadata.location_type !== 'anywhere' ? formData.metadata : undefined
       }
@@ -256,9 +250,8 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
       xp_value: 100,
       evidence_prompt: '',
       materials_needed: [],
-      subcategory: '',
-      order_index: formData.tasks.length + 1,
-      task_order: formData.tasks.length
+      school_subjects: [],
+      order_index: formData.tasks.length
     }
     
     setFormData({
@@ -276,8 +269,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
     const newTasks = formData.tasks.filter((_, i) => i !== index)
     // Reorder remaining tasks
     newTasks.forEach((task, i) => {
-      task.order_index = i + 1
-      task.task_order = i
+      task.order_index = i
     })
     
     setFormData({
@@ -323,9 +315,9 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
       [field]: value
     }
     
-    // Clear subcategory if pillar changes
+    // Clear school subjects if pillar changes to encourage re-selection
     if (field === 'pillar') {
-      newTasks[index].subcategory = ''
+      newTasks[index].school_subjects = []
     }
     
     setFormData({
@@ -618,28 +610,53 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                       )}
                     </div>
 
-                    <div>
-                      <RequiredFieldLabel>Subject Area</RequiredFieldLabel>
-                      <select
-                        value={task.subcategory}
-                        onChange={(e) => updateTask(index, 'subcategory', e.target.value)}
-                        className={`w-full px-4 py-3 border-2 rounded-lg transition-all focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 ${errors[`task_${index}_subcategory`] ? 'border-red-500' : 'border-gray-300'} ${!task.pillar ? 'bg-gray-100 cursor-not-allowed' : ''}`}
-                        disabled={!task.pillar}
-                      >
-                        <option value="">
-                          {!task.pillar ? 'Select learning pillar first' : 'Choose subject area...'}
-                        </option>
-                        {task.pillar && subcategoriesByPillar[task.pillar]?.map(subcategory => (
-                          <option key={subcategory} value={subcategory}>
-                            {subcategory}
-                          </option>
+                    <div className="md:col-span-2">
+                      <RequiredFieldLabel>School Subjects (Diploma Credit)</RequiredFieldLabel>
+                      <div className="text-xs text-gray-500 mb-3">
+                        Select which school subjects this task provides credit for (appears on diplomas)
+                      </div>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2 max-h-32 overflow-y-auto border rounded-lg p-3 bg-gray-50">
+                        {availableSubjects.map(subject => (
+                          <label key={subject.key} className="flex items-start space-x-2 text-sm cursor-pointer hover:bg-white p-2 rounded transition-colors">
+                            <input
+                              type="checkbox"
+                              checked={task.school_subjects?.includes(subject.key) || false}
+                              onChange={(e) => {
+                                const currentSubjects = task.school_subjects || []
+                                let newSubjects
+                                if (e.target.checked) {
+                                  newSubjects = [...currentSubjects, subject.key]
+                                } else {
+                                  newSubjects = currentSubjects.filter(s => s !== subject.key)
+                                }
+                                updateTask(index, 'school_subjects', newSubjects)
+                              }}
+                              className="mt-0.5 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                            />
+                            <div className="flex-1">
+                              <div className="font-medium text-gray-900">{subject.name}</div>
+                              <div className="text-xs text-gray-500 leading-tight">{subject.description}</div>
+                            </div>
+                          </label>
                         ))}
-                      </select>
-                      {errors[`task_${index}_subcategory`] && (
+                      </div>
+                      {task.school_subjects && task.school_subjects.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {task.school_subjects.map(subjectKey => {
+                            const subject = availableSubjects.find(s => s.key === subjectKey)
+                            return subject ? (
+                              <span key={subjectKey} className="inline-flex items-center px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
+                                {subject.name}
+                              </span>
+                            ) : null
+                          })}
+                        </div>
+                      )}
+                      {errors[`task_${index}_school_subjects`] && (
                         <div className="mt-2 p-3 bg-red-50 border border-red-200 rounded-lg">
                           <p className="text-red-700 text-sm flex items-center">
                             <AlertCircle size={16} className="mr-2 flex-shrink-0" />
-                            {errors[`task_${index}_subcategory`]}
+                            {errors[`task_${index}_school_subjects`]}
                           </p>
                         </div>
                       )}
