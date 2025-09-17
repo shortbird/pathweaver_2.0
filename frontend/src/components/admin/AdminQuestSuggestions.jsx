@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
+import UnifiedQuestForm from './UnifiedQuestForm';
 
 const AdminQuestSuggestions = () => {
   const [questIdeas, setQuestIdeas] = useState([]);
@@ -12,6 +13,8 @@ const AdminQuestSuggestions = () => {
   const [feedback, setFeedback] = useState('');
   const [processing, setProcessing] = useState(false);
   const [questCreationModal, setQuestCreationModal] = useState(null);
+  const [showQuestForm, setShowQuestForm] = useState(false);
+  const [selectedIdeaForQuest, setSelectedIdeaForQuest] = useState(null);
 
   useEffect(() => {
     fetchQuestIdeas();
@@ -122,6 +125,36 @@ const AdminQuestSuggestions = () => {
     setQuestCreationModal(null);
   };
 
+  const handleCreateQuestFromIdea = (idea) => {
+    setSelectedIdeaForQuest(idea);
+    setShowQuestForm(true);
+  };
+
+  const handleQuestFormClose = () => {
+    setShowQuestForm(false);
+    setSelectedIdeaForQuest(null);
+  };
+
+  const handleQuestFormSuccess = async (newQuest) => {
+    // Mark the quest idea as having an associated quest
+    try {
+      await api.put(`/api/v3/admin/quest-ideas/${selectedIdeaForQuest.id}/approve`, {
+        feedback: `Quest created: ${newQuest.title}`
+      });
+
+      // Update the quest idea to link it to the created quest
+      // This could be done in the backend, but for now we'll just refresh the list
+      fetchQuestIdeas();
+
+      setShowQuestForm(false);
+      setSelectedIdeaForQuest(null);
+      toast.success('Quest created successfully from suggestion!');
+    } catch (error) {
+      console.error('Error updating quest idea status:', error);
+      toast.error('Quest created but failed to update suggestion status');
+    }
+  };
+
   const getStatusBadge = (status) => {
     const statusStyles = {
       pending: 'bg-yellow-100 text-yellow-800',
@@ -222,10 +255,10 @@ const AdminQuestSuggestions = () => {
                   {idea.status === 'pending' && (
                     <div className="flex gap-2 ml-4">
                       <button
-                        onClick={() => openFeedbackModal(idea, 'approve')}
-                        className="px-4 py-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 font-medium"
+                        onClick={() => handleCreateQuestFromIdea(idea)}
+                        className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 font-medium"
                       >
-                        Approve
+                        Create This Quest
                       </button>
                       <button
                         onClick={() => openFeedbackModal(idea, 'reject')}
@@ -346,6 +379,29 @@ const AdminQuestSuggestions = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Unified Quest Form */}
+      {showQuestForm && selectedIdeaForQuest && (
+        <UnifiedQuestForm
+          mode="create"
+          quest={{
+            title: selectedIdeaForQuest.title,
+            big_idea: selectedIdeaForQuest.description,
+            source: 'custom',
+            // Pre-fill with one task based on the suggestion
+            quest_tasks: [{
+              title: `Complete ${selectedIdeaForQuest.title}`,
+              description: selectedIdeaForQuest.description,
+              pillar: 'critical_thinking', // Default pillar
+              xp_amount: 100, // Default XP
+              order_index: 0,
+              is_required: true
+            }]
+          }}
+          onClose={handleQuestFormClose}
+          onSuccess={handleQuestFormSuccess}
+        />
       )}
 
       {/* Quest Creation Modal */}

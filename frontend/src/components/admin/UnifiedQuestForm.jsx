@@ -40,9 +40,9 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
     }
   })
 
-  // Initialize form data for edit mode
+  // Initialize form data for edit mode or pre-filled create mode
   useEffect(() => {
-    if (mode === 'edit' && quest) {
+    if ((mode === 'edit' || mode === 'create') && quest) {
       setFormData({
         title: quest.title || '',
         big_idea: quest.big_idea || quest.description || '',
