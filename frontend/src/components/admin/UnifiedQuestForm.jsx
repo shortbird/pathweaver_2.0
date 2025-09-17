@@ -347,13 +347,24 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
   }
 
   const handleAIQuestGenerated = (generatedQuest) => {
+    // Ensure AI-generated tasks have all required fields
+    const normalizedTasks = (generatedQuest.tasks || []).map((task, index) => ({
+      title: task.title || '',
+      description: task.description || '',
+      pillar: task.pillar || 'life_wellness',
+      subject_xp_distribution: task.subject_xp_distribution || {},
+      evidence_prompt: task.evidence_prompt || `Provide evidence for completing: ${task.title}`,
+      materials_needed: task.materials_needed || [],
+      order_index: index
+    }))
+
     setFormData({
       title: generatedQuest.title || '',
       big_idea: generatedQuest.big_idea || '',
       source: 'optio',
       material_link: '',
       is_active: true,
-      tasks: generatedQuest.tasks || [],
+      tasks: normalizedTasks,
       metadata: {
         location_type: 'anywhere',
         location_address: '',
