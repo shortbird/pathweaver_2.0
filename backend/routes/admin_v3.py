@@ -1484,6 +1484,190 @@ def reject_quest_idea(user_id, idea_id):
             'error': 'Failed to reject quest idea'
         }), 500
 
+@bp.route('/quest-ideas/<idea_id>/generate-quest', methods=['POST'])
+@require_admin
+def generate_quest_from_idea(user_id, idea_id):
+    """Generate a complete quest from an approved quest idea using AI"""
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get the quest idea
+        idea_response = supabase.table('quest_ideas').select('*').eq('id', idea_id).single().execute()
+
+        if not idea_response.data:
+            return jsonify({'error': 'Quest idea not found'}), 404
+
+        idea = idea_response.data
+
+        # Check if quest idea is approved
+        if idea['status'] != 'approved':
+            return jsonify({'error': 'Quest idea must be approved before generating quest'}), 400
+
+        # Use AI service to generate quest
+        from services.quest_ai_service import QuestAIService
+        ai_service = QuestAIService()
+
+        # Generate quest from the idea
+        result = ai_service.generate_quest_from_topic(
+            topic=idea['title'],
+            learning_objectives=idea['description']
+        )
+
+        if not result['success']:
+            return jsonify({
+                'success': False,
+                'error': f'AI generation failed: {result["error"]}'
+            }), 500
+
+        generated_quest = result['quest']
+
+        # Create the quest in the database using the existing create quest endpoint logic
+        quest_data = {
+            'title': generated_quest['title'],
+            'big_idea': generated_quest.get('big_idea', generated_quest.get('description', '')),
+            'source': 'custom',
+            'is_active': True,
+            'created_at': datetime.utcnow().isoformat()
+        }
+
+        # Insert quest
+        quest_response = supabase.table('quests').insert(quest_data).execute()
+
+        if not quest_response.data:
+            return jsonify({'error': 'Failed to create quest in database'}), 500
+
+        quest = quest_response.data[0]
+        quest_id = quest['id']
+
+        # Create tasks from generated quest
+        tasks = generated_quest.get('tasks', [])
+        if tasks:
+            task_records = []
+            for idx, task in enumerate(tasks):
+                task_record = {
+                    'quest_id': quest_id,
+                    'title': task['title'],
+                    'description': task.get('description', ''),
+                    'pillar': task.get('pillar', 'critical_thinking'),
+                    'xp_amount': task.get('xp_amount', 100),
+                    'order_index': idx,
+                    'is_required': task.get('is_required', True),
+                    'created_at': datetime.utcnow().isoformat()
+                }
+                task_records.append(task_record)
+
+            # Insert tasks
+            tasks_response = supabase.table('quest_tasks').insert(task_records).execute()
+
+            if not tasks_response.data:
+                # Rollback quest creation if tasks fail
+                supabase.table('quests').delete().eq('id', quest_id).execute()
+                return jsonify({'error': 'Failed to create quest tasks'}), 500
+
+            quest['quest_tasks'] = tasks_response.data
+
+        # Update quest idea to mark it as converted to quest
+        supabase.table('quest_ideas').update({
+            'approved_quest_id': quest_id,
+            'updated_at': datetime.utcnow().isoformat()
+        }).eq('id', idea_id).execute()
+
+        return jsonify({
+            'success': True,
+            'message': 'Quest generated successfully from idea',
+            'quest': quest
+        }), 201
+
+    except Exception as e:
+        print(f"Error generating quest from idea: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': 'Failed to generate quest from idea'
+        }), 500
+
+@bp.route('/quest-ideas/<idea_id>/create-quest-manual', methods=['POST'])
+@require_admin
+def create_quest_from_idea_manual(user_id, idea_id):
+    """Create a basic quest structure from a quest idea for manual completion"""
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get the quest idea
+        idea_response = supabase.table('quest_ideas').select('*').eq('id', idea_id).single().execute()
+
+        if not idea_response.data:
+            return jsonify({'error': 'Quest idea not found'}), 404
+
+        idea = idea_response.data
+
+        # Check if quest idea is approved
+        if idea['status'] != 'approved':
+            return jsonify({'error': 'Quest idea must be approved before creating quest'}), 400
+
+        # Create basic quest structure
+        quest_data = {
+            'title': idea['title'],
+            'big_idea': idea['description'],
+            'source': 'custom',
+            'is_active': False,  # Set as inactive so admin can complete it
+            'created_at': datetime.utcnow().isoformat()
+        }
+
+        # Insert quest
+        quest_response = supabase.table('quests').insert(quest_data).execute()
+
+        if not quest_response.data:
+            return jsonify({'error': 'Failed to create quest in database'}), 500
+
+        quest = quest_response.data[0]
+        quest_id = quest['id']
+
+        # Create a basic task structure for the admin to complete
+        basic_task = {
+            'quest_id': quest_id,
+            'title': f'Complete {idea["title"]}',
+            'description': f'Based on: {idea["description"]}',
+            'pillar': 'critical_thinking',  # Default pillar
+            'xp_amount': 100,  # Default XP
+            'order_index': 0,
+            'is_required': True,
+            'created_at': datetime.utcnow().isoformat()
+        }
+
+        # Insert basic task
+        task_response = supabase.table('quest_tasks').insert(basic_task).execute()
+
+        if not task_response.data:
+            # Rollback quest creation if task fails
+            supabase.table('quests').delete().eq('id', quest_id).execute()
+            return jsonify({'error': 'Failed to create basic quest task'}), 500
+
+        quest['quest_tasks'] = task_response.data
+
+        # Update quest idea to mark it as converted to quest
+        supabase.table('quest_ideas').update({
+            'approved_quest_id': quest_id,
+            'updated_at': datetime.utcnow().isoformat()
+        }).eq('id', idea_id).execute()
+
+        return jsonify({
+            'success': True,
+            'message': 'Basic quest created successfully. Please edit it to add proper tasks and details.',
+            'quest': quest,
+            'redirect_to_edit': True
+        }), 201
+
+    except Exception as e:
+        print(f"Error creating manual quest from idea: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': 'Failed to create quest from idea'
+        }), 500
+
 @bp.route('/quest-sources', methods=['GET'])
 @require_admin
 def get_quest_sources(user_id):

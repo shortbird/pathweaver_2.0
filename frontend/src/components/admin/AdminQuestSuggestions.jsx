@@ -11,6 +11,7 @@ const AdminQuestSuggestions = () => {
   const [feedbackModal, setFeedbackModal] = useState(null);
   const [feedback, setFeedback] = useState('');
   const [processing, setProcessing] = useState(false);
+  const [questCreationModal, setQuestCreationModal] = useState(null);
 
   useEffect(() => {
     fetchQuestIdeas();
@@ -75,6 +76,50 @@ const AdminQuestSuggestions = () => {
   const closeFeedbackModal = () => {
     setFeedbackModal(null);
     setFeedback('');
+  };
+
+  const handleGenerateQuestAI = async (ideaId) => {
+    setProcessing(true);
+    try {
+      const response = await api.post(`/api/v3/admin/quest-ideas/${ideaId}/generate-quest`);
+      toast.success('Quest generated successfully using AI!');
+      setQuestCreationModal(null);
+      fetchQuestIdeas();
+    } catch (error) {
+      console.error('Error generating quest with AI:', error);
+      toast.error(error.response?.data?.error || 'Failed to generate quest using AI');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleCreateQuestManual = async (ideaId) => {
+    setProcessing(true);
+    try {
+      const response = await api.post(`/api/v3/admin/quest-ideas/${ideaId}/create-quest-manual`);
+      toast.success('Basic quest structure created! Please edit it to add proper tasks and details.');
+      setQuestCreationModal(null);
+      fetchQuestIdeas();
+
+      // Optionally redirect to quest edit page
+      if (response.data.redirect_to_edit && response.data.quest) {
+        // You could add navigation here if needed
+        // navigate(`/admin/quests/edit/${response.data.quest.id}`);
+      }
+    } catch (error) {
+      console.error('Error creating manual quest:', error);
+      toast.error(error.response?.data?.error || 'Failed to create quest manually');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const openQuestCreationModal = (idea) => {
+    setQuestCreationModal(idea);
+  };
+
+  const closeQuestCreationModal = () => {
+    setQuestCreationModal(null);
   };
 
   const getStatusBadge = (status) => {
@@ -190,6 +235,25 @@ const AdminQuestSuggestions = () => {
                       </button>
                     </div>
                   )}
+
+                  {idea.status === 'approved' && !idea.approved_quest_id && (
+                    <div className="flex gap-2 ml-4">
+                      <button
+                        onClick={() => openQuestCreationModal(idea)}
+                        className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 font-medium"
+                      >
+                        Create Quest
+                      </button>
+                    </div>
+                  )}
+
+                  {idea.status === 'approved' && idea.approved_quest_id && (
+                    <div className="flex gap-2 ml-4">
+                      <span className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg font-medium">
+                        ✅ Quest Created
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -278,6 +342,64 @@ const AdminQuestSuggestions = () => {
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
                 )}
                 {feedbackModal.action === 'approve' ? 'Approve' : 'Reject'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Quest Creation Modal */}
+      {questCreationModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-xl font-bold mb-4">Create Quest from Idea</h3>
+
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">Quest: "{questCreationModal.title}"</p>
+              <p className="text-sm text-gray-600 mb-4">
+                By: {questCreationModal.users?.first_name} {questCreationModal.users?.last_name}
+              </p>
+              <p className="text-sm text-gray-700 bg-gray-50 p-3 rounded-lg">
+                {questCreationModal.description}
+              </p>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-sm font-medium text-gray-700 mb-3">Choose creation method:</p>
+              <div className="space-y-3">
+                <button
+                  onClick={() => handleGenerateQuestAI(questCreationModal.id)}
+                  disabled={processing}
+                  className="w-full px-4 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 font-medium flex flex-col items-center gap-1"
+                >
+                  <div className="flex items-center gap-2">
+                    {processing && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />}
+                    🤖 Generate with AI
+                  </div>
+                  <span className="text-xs opacity-90">(Creates complete quest with tasks)</span>
+                </button>
+
+                <button
+                  onClick={() => handleCreateQuestManual(questCreationModal.id)}
+                  disabled={processing}
+                  className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium flex flex-col items-center gap-1"
+                >
+                  <div className="flex items-center gap-2">
+                    {processing && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />}
+                    ✏️ Create Manual Template
+                  </div>
+                  <span className="text-xs opacity-90">(Creates basic structure for manual editing)</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={closeQuestCreationModal}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+                disabled={processing}
+              >
+                Cancel
               </button>
             </div>
           </div>
