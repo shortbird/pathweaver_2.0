@@ -1427,14 +1427,17 @@ def approve_quest_idea(user_id, idea_id):
     try:
         supabase = get_supabase_admin_client()
         data = request.get_json()
-        admin_feedback = data.get('feedback', '')
-        
+        approved_quest_id = data.get('approved_quest_id', None)
+
         # Update the quest idea status
         update_data = {
             'status': 'approved',
-            'admin_feedback': admin_feedback,
-            'reviewed_at': datetime.utcnow().isoformat()
+            'updated_at': datetime.utcnow().isoformat()
         }
+
+        # Link to the created quest if provided
+        if approved_quest_id:
+            update_data['approved_quest_id'] = approved_quest_id
         
         result = supabase.table('quest_ideas').update(update_data).eq('id', idea_id).execute()
         
@@ -1461,13 +1464,11 @@ def reject_quest_idea(user_id, idea_id):
     try:
         supabase = get_supabase_admin_client()
         data = request.get_json()
-        admin_feedback = data.get('feedback', '')
-        
+
         # Update the quest idea status
         update_data = {
             'status': 'rejected',
-            'admin_feedback': admin_feedback,
-            'reviewed_at': datetime.utcnow().isoformat()
+            'updated_at': datetime.utcnow().isoformat()
         }
         
         result = supabase.table('quest_ideas').update(update_data).eq('id', idea_id).execute()

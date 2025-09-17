@@ -56,9 +56,7 @@ const AdminQuestSuggestions = () => {
   const handleReject = async (ideaId) => {
     setProcessing(true);
     try {
-      await api.put(`/api/v3/admin/quest-ideas/${ideaId}/reject`, {
-        feedback: feedback
-      });
+      await api.put(`/api/v3/admin/quest-ideas/${ideaId}/reject`, {});
       toast.success('Quest suggestion rejected');
       setFeedbackModal(null);
       setFeedback('');
@@ -139,7 +137,7 @@ const AdminQuestSuggestions = () => {
     // Mark the quest idea as having an associated quest
     try {
       await api.put(`/api/v3/admin/quest-ideas/${selectedIdeaForQuest.id}/approve`, {
-        feedback: `Quest created: ${newQuest.title}`
+        approved_quest_id: newQuest.id
       });
 
       // Update the quest idea to link it to the created quest
@@ -261,8 +259,9 @@ const AdminQuestSuggestions = () => {
                         Create This Quest
                       </button>
                       <button
-                        onClick={() => openFeedbackModal(idea, 'reject')}
+                        onClick={() => handleReject(idea.id)}
                         className="px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 font-medium"
+                        disabled={processing}
                       >
                         Reject
                       </button>
