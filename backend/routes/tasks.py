@@ -11,6 +11,7 @@ from services.xp_service import XPService
 from datetime import datetime
 import os
 import math
+import mimetypes
 from werkzeug.utils import secure_filename
 from typing import Dict, Any, Optional
 
@@ -105,53 +106,75 @@ def complete_task(user_id: str, task_id: str):
             evidence_content = evidence_data['url']
             
         elif evidence_type == 'image':
-            # Handle file upload
+            # Handle file upload to Supabase storage
             if 'file' not in request.files:
                 return jsonify({
                     'success': False,
                     'error': 'File is required for image evidence'
                 }), 400
-            
+
             file = request.files['file']
             if file.filename == '':
                 return jsonify({
                     'success': False,
                     'error': 'No file selected'
                 }), 400
-            
+
             # Validate file extension
             filename = secure_filename(file.filename)
             ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
-            
+
             if ext not in ALLOWED_IMAGE_EXTENSIONS:
                 return jsonify({
                     'success': False,
                     'error': f'Invalid image format. Allowed: {", ".join(ALLOWED_IMAGE_EXTENSIONS)}'
                 }), 400
-            
+
             # Check file size
             file.seek(0, os.SEEK_END)
             file_size = file.tell()
             file.seek(0)
-            
+
             if file_size > MAX_FILE_SIZE:
                 return jsonify({
                     'success': False,
                     'error': f'File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)}MB'
                 }), 400
-            
-            # Save file with unique name
-            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
-            unique_filename = f"{user_id}_{task_id}_{timestamp}_{filename}"
-            file_path = os.path.join(UPLOAD_FOLDER, unique_filename)
-            
-            os.makedirs(UPLOAD_FOLDER, exist_ok=True)
-            file.save(file_path)
-            
-            evidence_data['file_url'] = f"/uploads/evidence/{unique_filename}"
-            evidence_data['file_size'] = file_size
-            evidence_data['original_name'] = filename
-            evidence_content = evidence_data['file_url']
+
+            # Upload to Supabase storage
+            try:
+                # Generate unique filename for Supabase storage
+                timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                unique_filename = f"task-evidence/{user_id}/{task_id}_{timestamp}_{filename}"
+
+                # Read file content
+                file_content = file.read()
+                file.seek(0)  # Reset file pointer
+
+                # Determine content type
+                content_type = file.content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+                # Upload to Supabase storage
+                storage_response = admin_supabase.storage.from_('quest-evidence').upload(
+                    path=unique_filename,
+                    file=file_content,
+                    file_options={"content-type": content_type}
+                )
+
+                # Get public URL
+                public_url = admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename)
+
+                evidence_data['file_url'] = public_url
+                evidence_data['file_size'] = file_size
+                evidence_data['original_name'] = filename
+                evidence_content = public_url
+
+            except Exception as upload_error:
+                print(f"Error uploading to Supabase storage: {str(upload_error)}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to upload image. Please try again.'
+                }), 500
         
         # Validate evidence
         is_valid, error_msg = evidence_service.validate_evidence(evidence_type, evidence_data)
