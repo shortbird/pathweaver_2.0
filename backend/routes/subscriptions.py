@@ -463,17 +463,23 @@ def verify_checkout_session(user_id):
         if not tier:
             price_id = subscription.items.data[0].price.id if subscription.items.data else None
             print(f"Price ID: {price_id}")
-            
-            # Map price IDs to tiers
-            price_to_tier = {
-                'price_1S0Q8lGvmfT5TPrJCgvCew2Q': 'supported',  # Monthly supported
-                'price_1S2QfmGvmfT5TPrJ57QkOpji': 'supported',  # Yearly supported
-                'price_1S2QgAGvmfT5TPrJKZCHLh5C': 'academy',    # Monthly academy
-                'price_1S0QDFGvmfT5TPrJnuzLSTFd': 'academy',    # Yearly academy
-            }
-            
+
+            # Map price IDs to tiers using dynamic config
+            price_to_tier = {}
+            for tier_name, tier_prices in SUBSCRIPTION_PRICES.items():
+                if isinstance(tier_prices, dict):
+                    # New format with monthly/yearly
+                    if tier_prices.get('monthly'):
+                        price_to_tier[tier_prices['monthly']] = tier_name
+                    if tier_prices.get('yearly'):
+                        price_to_tier[tier_prices['yearly']] = tier_name
+                elif tier_prices:
+                    # Legacy format (single price)
+                    price_to_tier[tier_prices] = tier_name
+
             tier = price_to_tier.get(price_id, 'supported')
             print(f"Tier from price mapping: {tier}")
+            print(f"Available price mappings: {price_to_tier}")
         
         # Update user subscription in database - only update tier for now
         supabase = get_supabase_client()
@@ -551,13 +557,18 @@ def get_subscription_status(user_id):
             # Get price ID from subscription
             price_id = subscription['items']['data'][0]['price']['id'] if subscription['items']['data'] else None
             
-            # Map price IDs to tiers (same mapping as verify-session)
-            price_to_tier = {
-                'price_1S0Q8lGvmfT5TPrJCgvCew2Q': 'supported',  # Monthly supported
-                'price_1S2QfmGvmfT5TPrJ57QkOpji': 'supported',  # Yearly supported
-                'price_1S2QgAGvmfT5TPrJKZCHLh5C': 'academy',    # Monthly academy
-                'price_1S0QDFGvmfT5TPrJnuzLSTFd': 'academy',    # Yearly academy
-            }
+            # Map price IDs to tiers using dynamic config (same as verify-session)
+            price_to_tier = {}
+            for tier_name, tier_prices in SUBSCRIPTION_PRICES.items():
+                if isinstance(tier_prices, dict):
+                    # New format with monthly/yearly
+                    if tier_prices.get('monthly'):
+                        price_to_tier[tier_prices['monthly']] = tier_name
+                    if tier_prices.get('yearly'):
+                        price_to_tier[tier_prices['yearly']] = tier_name
+                elif tier_prices:
+                    # Legacy format (single price)
+                    price_to_tier[tier_prices] = tier_name
             
             # Get tier from price mapping or metadata
             current_tier = price_to_tier.get(price_id, 'free')
@@ -835,13 +846,24 @@ def stripe_webhook():
             if user_response.data and len(user_response.data) > 0:
                 user = user_response.data[0]
                 
-                # Determine tier from price ID
+                # Determine tier from price ID using dynamic mapping
                 price_id = subscription['items']['data'][0]['price']['id']
-                new_tier = 'free'
-                for tier, configured_price_id in SUBSCRIPTION_PRICES.items():
-                    if configured_price_id == price_id:
-                        new_tier = tier
-                        break
+
+                # Build price to tier mapping
+                price_to_tier = {}
+                for tier_name, tier_prices in SUBSCRIPTION_PRICES.items():
+                    if isinstance(tier_prices, dict):
+                        # New format with monthly/yearly
+                        if tier_prices.get('monthly'):
+                            price_to_tier[tier_prices['monthly']] = tier_name
+                        if tier_prices.get('yearly'):
+                            price_to_tier[tier_prices['yearly']] = tier_name
+                    elif tier_prices:
+                        # Legacy format (single price)
+                        price_to_tier[tier_prices] = tier_name
+
+                new_tier = price_to_tier.get(price_id, 'free')
+                print(f"Webhook: Price ID {price_id} mapped to tier {new_tier}")
                 
                 # Update user subscription info - only update fields that exist
                 update_data = {'subscription_tier': new_tier}

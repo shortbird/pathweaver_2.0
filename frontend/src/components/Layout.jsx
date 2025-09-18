@@ -139,21 +139,22 @@ const Layout = () => {
                   >
                     {user?.first_name} {user?.last_name}
                   </Link>
-                  <span 
-                    className={`text-xs px-3 py-1 rounded-full font-semibold uppercase tracking-wider ${
+                  <Link
+                    to="/subscription"
+                    className={`text-xs px-3 py-1 rounded-full font-semibold uppercase tracking-wider cursor-pointer hover:opacity-80 transition-opacity ${
                       user?.subscription_tier === 'academy' || user?.subscription_tier === 'enterprise'
-                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-white shadow-md' 
+                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-white shadow-md'
                         : user?.subscription_tier === 'supported' || user?.subscription_tier === 'creator' || user?.subscription_tier === 'premium'
                         ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-md'
                         : 'bg-gray-100 text-gray-600'
                     }`}
-                    title="Subscription tier"
+                    title="Click to manage subscription"
                   >
-                    {user?.subscription_tier === 'free' || user?.subscription_tier === 'explorer' ? 'Free' : 
+                    {user?.subscription_tier === 'free' || user?.subscription_tier === 'explorer' ? 'Free' :
                      user?.subscription_tier === 'supported' || user?.subscription_tier === 'creator' || user?.subscription_tier === 'premium' ? 'Supported' :
                      user?.subscription_tier === 'academy' || user?.subscription_tier === 'enterprise' ? 'Academy' :
                      user?.subscription_tier?.toUpperCase() || 'Free'}
-                  </span>
+                  </Link>
                   <button
                     onClick={handleLogout}
                     className="text-sm font-medium text-text-secondary hover:text-primary transition-colors"
@@ -223,20 +224,24 @@ const Layout = () => {
                 </Link>
               )}
               <div className="border-t border-gray-200 mt-2 pt-2">
-                <div className="block px-4 py-2 text-base font-medium text-gray-700">
+                <Link
+                  to="/subscription"
+                  className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
                   <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold uppercase ${
                     user?.subscription_tier === 'academy' || user?.subscription_tier === 'enterprise'
-                      ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-white' 
+                      ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-white'
                       : user?.subscription_tier === 'supported' || user?.subscription_tier === 'creator' || user?.subscription_tier === 'premium'
                       ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white'
                       : 'bg-gray-100 text-gray-600'
                   }`}>
-                    {user?.subscription_tier === 'free' || user?.subscription_tier === 'explorer' ? 'Free' : 
+                    {user?.subscription_tier === 'free' || user?.subscription_tier === 'explorer' ? 'Free' :
                      user?.subscription_tier === 'supported' || user?.subscription_tier === 'creator' || user?.subscription_tier === 'premium' ? 'Supported' :
                      user?.subscription_tier === 'academy' || user?.subscription_tier === 'enterprise' ? 'Academy' :
                      user?.subscription_tier?.toUpperCase() || 'Free'} Tier
                   </span>
-                </div>
+                </Link>
                 <Link
                   to="/profile"
                   className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"

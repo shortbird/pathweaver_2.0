@@ -11,6 +11,7 @@ const SubscriptionSuccess = () => {
   const { updateUser, user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [subscriptionDetails, setSubscriptionDetails] = useState(null)
+  const [retryCount, setRetryCount] = useState(0)
   
   useEffect(() => {
     const verifySubscription = async () => {
@@ -71,6 +72,26 @@ const SubscriptionSuccess = () => {
                 subscription_tier: verifyResponse.data.tier,
                 subscription_status: verifyResponse.data.status || 'active'
               })
+
+              // Also fetch fresh user data to ensure everything is synced
+              try {
+                const userResponse = await api.get('/api/auth/me')
+                if (userResponse.data) {
+                  updateUser(userResponse.data)
+
+                  // If tier still hasn't updated and we haven't retried too many times, retry
+                  if (userResponse.data.subscription_tier === 'free' && retryCount < 3) {
+                    console.log(`Tier still showing as free, retrying in 2 seconds (attempt ${retryCount + 1}/3)`)
+                    setTimeout(() => {
+                      setRetryCount(prev => prev + 1)
+                      setLoading(true)
+                    }, 2000)
+                    return
+                  }
+                }
+              } catch (error) {
+                console.log('Could not fetch fresh user data:', error)
+              }
             }
             
             toast.success('Welcome to your new subscription plan!')
@@ -99,7 +120,7 @@ const SubscriptionSuccess = () => {
     }
     
     verifySubscription()
-  }, [searchParams]) // Removed updateUser and user to prevent infinite loop
+  }, [searchParams, retryCount]) // Include retryCount to trigger re-verification
   
   const handleContinue = () => {
     navigate('/quests')
@@ -126,6 +147,18 @@ const SubscriptionSuccess = () => {
             Your subscription has been activated successfully.
           </p>
           
+          {/* Loading State */}
+          {loading && (
+            <div className="bg-blue-50 rounded-lg p-4 mb-8">
+              <div className="flex items-center justify-center">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                <span className="text-blue-700">
+                  {retryCount > 0 ? `Confirming subscription update... (${retryCount}/3)` : 'Verifying your subscription...'}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Subscription Details */}
           {!loading && subscriptionDetails && (
             <div className="bg-gray-50 rounded-lg p-4 mb-8">
