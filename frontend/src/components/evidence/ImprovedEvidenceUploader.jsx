@@ -48,7 +48,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
     },
     video: {
       icon: '🎥',
-      label: 'Video Recording',
+      label: 'Video Link',
       color: 'from-orange-500 to-red-500',
       bgColor: 'bg-orange-50',
       borderColor: 'border-orange-200'
@@ -182,10 +182,6 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
       case 'image':
         allowedTypes = ALLOWED_IMAGE_TYPES;
         maxSize = MAX_IMAGE_SIZE;
-        break;
-      case 'video':
-        allowedTypes = ALLOWED_VIDEO_TYPES;
-        maxSize = MAX_VIDEO_SIZE;
         break;
       case 'document':
         allowedTypes = ALLOWED_DOCUMENT_TYPES;
@@ -473,7 +469,6 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
             </p>
             <p className="text-xs text-gray-500">
               {evidenceType === 'image' && 'PNG, JPG, GIF up to 10MB'}
-              {evidenceType === 'video' && 'MP4, WebM, OGG up to 50MB'}
               {evidenceType === 'document' && 'PDF, DOC, DOCX up to 25MB'}
             </p>
             
@@ -548,7 +543,6 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
           onChange={handleFileSelect}
           accept={
             evidenceType === 'image' ? ALLOWED_IMAGE_TYPES.join(',') :
-            evidenceType === 'video' ? ALLOWED_VIDEO_TYPES.join(',') :
             evidenceType === 'document' ? ALLOWED_DOCUMENT_TYPES.join(',') : ''
           }
           className="hidden"
@@ -563,8 +557,8 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
       
       <div className="bg-white rounded-xl p-6 border border-gray-200">
         {evidenceType === 'text' && renderTextInput()}
-        {evidenceType === 'link' && renderLinkInput()}
-        {['image', 'video', 'document'].includes(evidenceType) && renderFileInput()}
+        {(evidenceType === 'link' || evidenceType === 'video') && renderLinkInput()}
+        {['image', 'document'].includes(evidenceType) && renderFileInput()}
         
         {error && (
           <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm flex items-start gap-2">

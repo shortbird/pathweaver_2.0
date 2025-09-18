@@ -30,10 +30,10 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
       // Add evidence data based on type
       if (evidenceType === 'text') {
         formData.append('text_content', evidenceData.content);
-      } else if (evidenceType === 'link') {
+      } else if (evidenceType === 'link' || evidenceType === 'video') {
         formData.append('text_content', evidenceData.url);
         formData.append('link_title', evidenceData.title || '');
-      } else if (['image', 'video', 'document'].includes(evidenceType)) {
+      } else if (['image', 'document'].includes(evidenceType)) {
         if (evidenceData.file) {
           formData.append('file', evidenceData.file);
         } else {

@@ -100,17 +100,17 @@ def complete_task(user_id: str, task_id: str):
             evidence_data['content'] = request.form.get('text_content', '')
             evidence_content = evidence_data['content']
             
-        elif evidence_type == 'link':
+        elif evidence_type == 'link' or evidence_type == 'video':
             evidence_data['url'] = request.form.get('text_content', '')
             evidence_data['title'] = request.form.get('link_title', '')
             evidence_content = evidence_data['url']
             
-        elif evidence_type == 'image':
+        elif evidence_type == 'image' or evidence_type == 'document':
             # Handle file upload to Supabase storage
             if 'file' not in request.files:
                 return jsonify({
                     'success': False,
-                    'error': 'File is required for image evidence'
+                    'error': f'File is required for {evidence_type} evidence'
                 }), 400
 
             file = request.files['file']
@@ -124,10 +124,23 @@ def complete_task(user_id: str, task_id: str):
             filename = secure_filename(file.filename)
             ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
 
-            if ext not in ALLOWED_IMAGE_EXTENSIONS:
+            # Set allowed extensions based on evidence type
+            if evidence_type == 'image':
+                allowed_extensions = ALLOWED_IMAGE_EXTENSIONS
+                max_file_size = MAX_FILE_SIZE
+            elif evidence_type == 'document':
+                allowed_extensions = {'pdf', 'doc', 'docx', 'txt'}
+                max_file_size = 25 * 1024 * 1024  # 25MB for documents
+            else:
                 return jsonify({
                     'success': False,
-                    'error': f'Invalid image format. Extension "{ext}" not allowed. Allowed: {", ".join(ALLOWED_IMAGE_EXTENSIONS)}'
+                    'error': f'Unsupported file evidence type: {evidence_type}'
+                }), 400
+
+            if ext not in allowed_extensions:
+                return jsonify({
+                    'success': False,
+                    'error': f'Invalid {evidence_type} format. Extension "{ext}" not allowed. Allowed: {", ".join(allowed_extensions)}'
                 }), 400
 
             # Check file size
@@ -135,10 +148,10 @@ def complete_task(user_id: str, task_id: str):
             file_size = file.tell()
             file.seek(0)
 
-            if file_size > MAX_FILE_SIZE:
+            if file_size > max_file_size:
                 return jsonify({
                     'success': False,
-                    'error': f'File too large. Maximum size: {MAX_FILE_SIZE // (1024*1024)}MB'
+                    'error': f'File too large. Maximum size: {max_file_size // (1024*1024)}MB'
                 }), 400
 
             # Upload to Supabase storage

@@ -25,6 +25,11 @@ EVIDENCE_RULES = {
         'allowed_extensions': {'jpg', 'jpeg', 'png', 'gif', 'webp'},
         'max_size': 10 * 1024 * 1024,  # 10MB
         'required_fields': ['file_url']
+    },
+    'document': {
+        'allowed_extensions': {'pdf', 'doc', 'docx', 'txt'},
+        'max_size': 25 * 1024 * 1024,  # 25MB
+        'required_fields': ['file_url']
     }
 }
 
@@ -59,10 +64,12 @@ class EvidenceService:
         # Type-specific validation
         if evidence_type == 'text':
             return self._validate_text(evidence_data, rules)
-        elif evidence_type == 'link':
+        elif evidence_type == 'link' or evidence_type == 'video':
             return self._validate_link(evidence_data, rules)
         elif evidence_type == 'image':
             return self._validate_image(evidence_data, rules)
+        elif evidence_type == 'document':
+            return self._validate_document(evidence_data, rules)
         
         return True, None
     
@@ -121,7 +128,26 @@ class EvidenceService:
             return False, f"Image size must not exceed {max_mb}MB"
 
         return True, None
-    
+
+    def _validate_document(self, data: Dict[str, Any], rules: Dict) -> Tuple[bool, Optional[str]]:
+        """Validate document evidence."""
+        file_url = data.get('file_url', '')
+        file_size = data.get('file_size', 0)
+
+        # Skip extension validation if already validated during upload
+        if 'validated_extension' not in data:
+            # Check file extension
+            ext = file_url.split('.')[-1].lower() if '.' in file_url else ''
+            if ext not in rules['allowed_extensions']:
+                return False, f"Invalid document format. Allowed: {', '.join(rules['allowed_extensions'])}"
+
+        # Check file size
+        if file_size > rules['max_size']:
+            max_mb = rules['max_size'] / (1024 * 1024)
+            return False, f"Document size must not exceed {max_mb}MB"
+
+        return True, None
+
     def _contains_script_tags(self, text: str) -> bool:
         """Check if text contains potentially malicious script tags."""
         dangerous_patterns = [
