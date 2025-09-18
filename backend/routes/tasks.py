@@ -130,10 +130,13 @@ def complete_task(user_id: str, task_id: str):
             print(f"Debug: Allowed extensions: {ALLOWED_IMAGE_EXTENSIONS}")
 
             if ext not in ALLOWED_IMAGE_EXTENSIONS:
+                print(f"Debug: Extension validation failed!")
                 return jsonify({
                     'success': False,
                     'error': f'Invalid image format. Extension "{ext}" not allowed. Allowed: {", ".join(ALLOWED_IMAGE_EXTENSIONS)}'
                 }), 400
+
+            print(f"Debug: Extension validation passed!")
 
             # Check file size
             file.seek(0, os.SEEK_END)
@@ -182,12 +185,17 @@ def complete_task(user_id: str, task_id: str):
                 }), 500
         
         # Validate evidence
+        print(f"Debug: About to validate evidence. Type: {evidence_type}, Data keys: {list(evidence_data.keys())}")
         is_valid, error_msg = evidence_service.validate_evidence(evidence_type, evidence_data)
+        print(f"Debug: Evidence validation result: valid={is_valid}, error='{error_msg}'")
         if not is_valid:
+            print(f"Debug: Evidence validation failed with error: {error_msg}")
             return jsonify({
                 'success': False,
                 'error': error_msg
             }), 400
+
+        print(f"Debug: Evidence validation passed!")
         
         # Calculate XP with collaboration bonus
         base_xp = task_data['xp_amount']
