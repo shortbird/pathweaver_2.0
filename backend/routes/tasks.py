@@ -124,10 +124,15 @@ def complete_task(user_id: str, task_id: str):
             filename = secure_filename(file.filename)
             ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
 
+            print(f"Debug: Original filename: {file.filename}")
+            print(f"Debug: Secure filename: {filename}")
+            print(f"Debug: Extracted extension: '{ext}'")
+            print(f"Debug: Allowed extensions: {ALLOWED_IMAGE_EXTENSIONS}")
+
             if ext not in ALLOWED_IMAGE_EXTENSIONS:
                 return jsonify({
                     'success': False,
-                    'error': f'Invalid image format. Allowed: {", ".join(ALLOWED_IMAGE_EXTENSIONS)}'
+                    'error': f'Invalid image format. Extension "{ext}" not allowed. Allowed: {", ".join(ALLOWED_IMAGE_EXTENSIONS)}'
                 }), 400
 
             # Check file size
