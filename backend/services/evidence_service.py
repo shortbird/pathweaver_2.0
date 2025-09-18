@@ -30,6 +30,11 @@ EVIDENCE_RULES = {
         'allowed_extensions': {'pdf', 'doc', 'docx', 'txt'},
         'max_size': 25 * 1024 * 1024,  # 25MB
         'required_fields': ['file_url']
+    },
+    'video': {
+        'url_pattern': r'^https?://.+',
+        'max_length': 500,
+        'required_fields': ['url']
     }
 }
 

@@ -41,7 +41,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
     },
     image: {
       icon: '📸',
-      label: 'Image/Screenshot',
+      label: 'Image',
       color: 'from-green-500 to-emerald-500',
       bgColor: 'bg-green-50',
       borderColor: 'border-green-200'
@@ -55,7 +55,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
     },
     document: {
       icon: '📄',
-      label: 'Document/PDF',
+      label: 'Document',
       color: 'from-gray-500 to-gray-700',
       bgColor: 'bg-gray-50',
       borderColor: 'border-gray-200'

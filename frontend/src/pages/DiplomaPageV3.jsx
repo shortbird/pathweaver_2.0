@@ -382,15 +382,38 @@ const DiplomaPageV3 = () => {
       
       case 'video':
         return (
-          <div className="p-4 rounded-lg" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }}>
-            <video 
-              controls
-              className="max-w-full rounded-lg"
-              src={evidence.evidence_content}
-            />
+          <div className="p-3 bg-orange-50 rounded-lg">
+            <a
+              href={evidence.evidence_content}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-orange-600 hover:text-orange-700 underline text-sm flex items-center"
+            >
+              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M2 6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM5 8a1 1 0 011-1h1a1 1 0 010 2H6a1 1 0 01-1-1zm6 1a1 1 0 100 2h3a1 1 0 100-2H11z" />
+              </svg>
+              Watch Video
+            </a>
           </div>
         );
-      
+
+      case 'document':
+        return (
+          <div className="p-3 bg-gray-50 rounded-lg">
+            <a
+              href={evidence.evidence_content}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-gray-600 hover:text-gray-700 underline text-sm flex items-center"
+            >
+              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+              </svg>
+              View Document
+            </a>
+          </div>
+        );
+
       default:
         return null;
     }
@@ -876,7 +899,9 @@ const DiplomaPageV3 = () => {
                     <div>
                       <h3 className="text-base sm:text-lg font-bold mb-4" style={{ color: '#003f5c' }}>Learning Journey & Evidence</h3>
                       <div className="space-y-4">
-                        {Object.entries(selectedAchievement.task_evidence).map(([taskTitle, evidence], index) => {
+                        {Object.entries(selectedAchievement.task_evidence)
+                          .sort(([, a], [, b]) => new Date(a.completed_at) - new Date(b.completed_at))
+                          .map(([taskTitle, evidence], index) => {
                           const displayPillar = pillarDisplayNames[evidence.pillar] || evidence.pillar;
                           const gradientClass = pillarColors[evidence.pillar] || pillarColors['Arts & Creativity'];
 
