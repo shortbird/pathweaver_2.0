@@ -101,11 +101,9 @@ def create_quest_v3_clean(user_id):
 
             # Handle subject XP distribution
             subject_xp_distribution = task.get('subject_xp_distribution', {})
-            if subject_xp_distribution:
-                # Validate that distribution sums to total XP
-                total_distribution_xp = sum(subject_xp_distribution.values())
-                if total_distribution_xp != xp_value:
-                    return jsonify({'error': f'Task {idx + 1}: Subject XP distribution ({total_distribution_xp}) must equal total XP ({xp_value})'}), 400
+            if subject_xp_distribution and any(v > 0 for v in subject_xp_distribution.values()):
+                # Clean up the distribution - remove zero values
+                subject_xp_distribution = {k: v for k, v in subject_xp_distribution.items() if v > 0}
 
                 # Validate that all subjects in distribution are in school_subjects
                 for subject in subject_xp_distribution.keys():

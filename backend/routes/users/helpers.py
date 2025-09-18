@@ -66,7 +66,7 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                 
                 if normalized_pillar in skill_breakdown:
                     total_xp += xp_amount
-                    skill_breakdown[normalized_pillar] = xp_amount
+                    skill_breakdown[normalized_pillar] += xp_amount
                     print(f"  Mapped '{skill_cat}' -> '{normalized_pillar}': {xp_amount} XP")
                 else:
                     print(f"  WARNING: Category '{skill_cat}' (normalized: '{normalized_pillar}') not in SKILL_CATEGORIES")

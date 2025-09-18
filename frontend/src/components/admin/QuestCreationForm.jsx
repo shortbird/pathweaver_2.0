@@ -28,6 +28,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
         evidence_prompt: '',
         materials_needed: [],
         school_subjects: [],
+        subject_xp_distribution: {},
         order_index: 0
       }
     ],
@@ -251,6 +252,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
       evidence_prompt: '',
       materials_needed: [],
       school_subjects: [],
+      subject_xp_distribution: {},
       order_index: formData.tasks.length
     }
     
@@ -650,6 +652,51 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                               </span>
                             ) : null
                           })}
+                        </div>
+                      )}
+
+                      {/* Subject XP Distribution */}
+                      {task.school_subjects && task.school_subjects.length > 0 && (
+                        <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                          <OptionalFieldLabel>Subject XP Distribution</OptionalFieldLabel>
+                          <div className="text-xs text-gray-600 mb-3">
+                            Specify how much XP each subject should receive (for diploma credits). Total can be different from pillar XP.
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {task.school_subjects.map(subjectKey => {
+                              const subject = availableSubjects.find(s => s.key === subjectKey)
+                              const currentDistribution = task.subject_xp_distribution || {}
+                              return subject ? (
+                                <div key={subjectKey} className="flex items-center space-x-2">
+                                  <label className="text-sm font-medium text-gray-700 min-w-0 flex-1">
+                                    {subject.name}:
+                                  </label>
+                                  <input
+                                    type="number"
+                                    min="0"
+                                    step="10"
+                                    value={currentDistribution[subjectKey] || 0}
+                                    onChange={(e) => {
+                                      const newDistribution = { ...currentDistribution }
+                                      const value = parseInt(e.target.value) || 0
+                                      if (value > 0) {
+                                        newDistribution[subjectKey] = value
+                                      } else {
+                                        delete newDistribution[subjectKey]
+                                      }
+                                      updateTask(index, 'subject_xp_distribution', newDistribution)
+                                    }}
+                                    className="w-20 px-2 py-1 border border-gray-300 rounded text-sm"
+                                    placeholder="0"
+                                  />
+                                  <span className="text-xs text-gray-500">XP</span>
+                                </div>
+                              ) : null
+                            })}
+                          </div>
+                          <div className="mt-2 text-xs text-gray-500">
+                            Leave at 0 to not award XP for that subject. You can distribute XP differently than the main pillar XP.
+                          </div>
                         </div>
                       )}
                       {errors[`task_${index}_school_subjects`] && (
