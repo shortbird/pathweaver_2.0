@@ -107,17 +107,19 @@ class EvidenceService:
         """Validate image evidence."""
         file_url = data.get('file_url', '')
         file_size = data.get('file_size', 0)
-        
-        # Check file extension
-        ext = file_url.split('.')[-1].lower() if '.' in file_url else ''
-        if ext not in rules['allowed_extensions']:
-            return False, f"Invalid image format. Allowed: {', '.join(rules['allowed_extensions'])}"
-        
+
+        # Skip extension validation if already validated during upload
+        if 'validated_extension' not in data:
+            # Check file extension
+            ext = file_url.split('.')[-1].lower() if '.' in file_url else ''
+            if ext not in rules['allowed_extensions']:
+                return False, f"Invalid image format. Allowed: {', '.join(rules['allowed_extensions'])}"
+
         # Check file size
         if file_size > rules['max_size']:
             max_mb = rules['max_size'] / (1024 * 1024)
             return False, f"Image size must not exceed {max_mb}MB"
-        
+
         return True, None
     
     def _contains_script_tags(self, text: str) -> bool:
