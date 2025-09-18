@@ -302,12 +302,12 @@ const QuestDetailV3 = () => {
             e.target.nextSibling.style.display = 'flex';
           }}
         />
-        <div 
+        <div
           className="w-full h-60 bg-gradient-to-br from-[#ef597b] to-[#6d469b] flex items-center justify-center"
           style={{ display: 'none' }}
         >
           <div className="text-white text-center">
-            <div className="text-6xl mb-2">🚀</div>
+            <Target className="w-16 h-16 mx-auto mb-4" />
             <div className="text-xl font-medium">Quest</div>
           </div>
         </div>
@@ -589,11 +589,10 @@ const QuestDetailV3 = () => {
                                   };
                                   
                                   return (
-                                    <div 
+                                    <div
                                       key={subject}
                                       className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100"
                                     >
-                                      <span>📚</span>
                                       <span>{subjectNames[subject] || subject}</span>
                                     </div>
                                   );
@@ -657,7 +656,7 @@ const QuestDetailV3 = () => {
                         
                         {task.is_completed && (
                           <div className="ml-6 px-8 py-3 bg-green-100 text-green-800 rounded-[25px] font-bold">
-                            Completed ✓
+                            Completed
                           </div>
                         )}
                       </div>

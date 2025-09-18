@@ -26,7 +26,7 @@ export const DIPLOMA_PILLARS = {
     gradient: 'from-purple-500 to-pink-500',
     bg: 'bg-purple-100',
     text: 'text-purple-700',
-    icon: '🎨',
+    icon: '',
     competencies: ['Visual Arts', 'Music', 'Drama & Theater', 'Creative Writing', 'Digital Media', 'Design']
   },
   stem_logic: {
@@ -36,7 +36,7 @@ export const DIPLOMA_PILLARS = {
     gradient: 'from-blue-500 to-cyan-500',
     bg: 'bg-blue-100',
     text: 'text-blue-700',
-    icon: '🧠',
+    icon: '',
     competencies: ['Mathematics', 'Biology', 'Chemistry', 'Physics', 'Computer Science', 'Engineering', 'Data Science']
   },
   language_communication: {
@@ -46,7 +46,7 @@ export const DIPLOMA_PILLARS = {
     gradient: 'from-green-500 to-emerald-500',
     bg: 'bg-green-100',
     text: 'text-green-700',
-    icon: '💬',
+    icon: '',
     competencies: ['English', 'Foreign Languages', 'Journalism', 'Public Speaking', 'Digital Communication', 'Literature']
   },
   society_culture: {
@@ -56,7 +56,7 @@ export const DIPLOMA_PILLARS = {
     gradient: 'from-orange-500 to-yellow-500',
     bg: 'bg-orange-100',
     text: 'text-orange-700',
-    icon: '🌍',
+    icon: '',
     competencies: ['History', 'Geography', 'Social Studies', 'World Cultures', 'Civics & Government', 'Psychology', 'Sociology']
   },
   life_wellness: {
@@ -66,7 +66,7 @@ export const DIPLOMA_PILLARS = {
     gradient: 'from-red-500 to-rose-500',
     bg: 'bg-red-100',
     text: 'text-red-700',
-    icon: '🛠️',
+    icon: '',
     competencies: ['Physical Education', 'Health & Nutrition', 'Personal Finance', 'Life Skills', 'Mental Wellness', 'Outdoor Education', 'Sports & Athletics']
   },
   // Keep old pillar definitions for backwards compatibility
@@ -77,7 +77,7 @@ export const DIPLOMA_PILLARS = {
     gradient: 'from-purple-500 to-pink-500',
     bg: 'bg-purple-100',
     text: 'text-purple-700',
-    icon: '🎨',
+    icon: '',
     competencies: ['Visual Arts', 'Music', 'Drama & Theater', 'Creative Writing', 'Digital Media', 'Design']
   },
   critical_thinking: {
@@ -87,7 +87,7 @@ export const DIPLOMA_PILLARS = {
     gradient: 'from-blue-500 to-cyan-500',
     bg: 'bg-blue-100',
     text: 'text-blue-700',
-    icon: '🧠',
+    icon: '',
     competencies: ['Mathematics', 'Biology', 'Chemistry', 'Physics', 'Computer Science', 'Engineering', 'Data Science']
   },
   practical_skills: {
@@ -97,7 +97,7 @@ export const DIPLOMA_PILLARS = {
     gradient: 'from-green-500 to-emerald-500',
     bg: 'bg-green-100',
     text: 'text-green-700',
-    icon: '🛠️',
+    icon: '',
     competencies: ['Physical Education', 'Health & Nutrition', 'Personal Finance', 'Life Skills', 'Mental Wellness', 'Outdoor Education', 'Sports & Athletics']
   },
   communication: {
@@ -107,7 +107,7 @@ export const DIPLOMA_PILLARS = {
     gradient: 'from-orange-500 to-yellow-500',
     bg: 'bg-orange-100',
     text: 'text-orange-700',
-    icon: '💬',
+    icon: '',
     competencies: ['English', 'Foreign Languages', 'Journalism', 'Public Speaking', 'Digital Communication', 'Literature']
   },
   cultural_literacy: {
@@ -117,7 +117,7 @@ export const DIPLOMA_PILLARS = {
     gradient: 'from-red-500 to-rose-500',
     bg: 'bg-red-100',
     text: 'text-red-700',
-    icon: '🌍',
+    icon: '',
     competencies: ['History', 'Geography', 'Social Studies', 'World Cultures', 'Civics & Government', 'Psychology', 'Sociology']
   }
 };
