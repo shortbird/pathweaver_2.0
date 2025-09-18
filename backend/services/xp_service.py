@@ -66,28 +66,28 @@ class XPService:
         # Normalize pillar input (handles display names, old keys, etc.)
         original_pillar = pillar
         
-        # Handle pillar key normalization - we need to store in DB using old keys
-        # but the system should work with both old and new keys
+        # Handle pillar key normalization - we need to store in DB using new keys
+        # Map old pillar keys to new pillar keys for database storage
         pillar_mapping = {
-            'creativity': 'creativity',
-            'critical_thinking': 'critical_thinking',
-            'practical_skills': 'practical_skills',
-            'communication': 'communication',
-            'cultural_literacy': 'cultural_literacy',
-            'arts_creativity': 'creativity',
-            'stem_logic': 'critical_thinking',
-            'life_wellness': 'practical_skills',
-            'language_communication': 'communication',
-            'society_culture': 'cultural_literacy'
+            'creativity': 'arts_creativity',
+            'critical_thinking': 'stem_logic',
+            'practical_skills': 'life_wellness',
+            'communication': 'language_communication',
+            'cultural_literacy': 'society_culture',
+            'arts_creativity': 'arts_creativity',
+            'stem_logic': 'stem_logic',
+            'life_wellness': 'life_wellness',
+            'language_communication': 'language_communication',
+            'society_culture': 'society_culture'
         }
-        
-        # For database storage, we need to use old keys (database constraint)
+
+        # For database storage, we use new pillar keys
         db_pillar = pillar_mapping.get(pillar, pillar)
         print(f"Mapped pillar from '{original_pillar}' to database key '{db_pillar}' for storage")
-        
+
         # Validate that we have a valid pillar for storage
-        valid_storage_pillars = ['creativity', 'critical_thinking', 'practical_skills', 
-                               'communication', 'cultural_literacy']
+        valid_storage_pillars = ['arts_creativity', 'stem_logic', 'life_wellness',
+                               'language_communication', 'society_culture']
         if db_pillar not in valid_storage_pillars:
             print(f"[ERROR] Invalid pillar for database storage: {db_pillar}")
             return False

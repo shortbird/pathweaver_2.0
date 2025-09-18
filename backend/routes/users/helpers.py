@@ -42,8 +42,9 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
             .execute()
         
         print(f"=== XP CALCULATION DEBUG for user {user_id} ===")
+        print(f"Raw skill_xp query response count: {len(skill_xp.data) if skill_xp.data else 0}")
         print(f"Raw skill_xp data: {skill_xp.data}")
-        
+
         if skill_xp.data:
             has_skill_xp_records = True
             for record in skill_xp.data:
