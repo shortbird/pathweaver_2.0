@@ -65,7 +65,7 @@ const SubscriptionPage = () => {
 
     setCanceling(true)
     try {
-      await api.post('/api/subscriptions/cancel')
+      await api.post('/api/subscriptions/cancel', {})
       toast.success('Subscription will be cancelled at the end of the billing period')
       await fetchSubscriptionStatus()
     } catch (error) {
