@@ -3,7 +3,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { handleApiResponse } from '../utils/errorHandling';
 import QuestCard from '../components/quest/improved/QuestCard';
-import QuestFilters from '../components/quest/improved/QuestFilters';
 import TeamUpModal from '../components/quest/TeamUpModal';
 import QuestSuggestionModal from '../components/QuestSuggestionModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -40,9 +39,6 @@ const QuestHubV3Improved = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPillar, setSelectedPillar] = useState('all');
-  const [selectedSubject, setSelectedSubject] = useState('all');
   const [showTeamUpModal, setShowTeamUpModal] = useState(false);
   const [selectedQuestForTeamUp, setSelectedQuestForTeamUp] = useState(null);
   const [showQuestSuggestionModal, setShowQuestSuggestionModal] = useState(false);
@@ -107,9 +103,6 @@ const QuestHubV3Improved = () => {
         const params = new URLSearchParams({
           page: targetPage,
           per_page: 12,
-          ...(searchTerm && { search: searchTerm }),
-          ...(selectedPillar !== 'all' && { pillar: selectedPillar }),
-          ...(selectedSubject !== 'all' && { subject: selectedSubject }),
           t: Date.now()
         });
 
@@ -157,18 +150,9 @@ const QuestHubV3Improved = () => {
       return;
     }
 
-    // Handle initial load and filter/search changes
-    if (searchTerm) {
-      // Debounce search
-      const searchTimeout = setTimeout(() => {
-        fetchData(true, 1);
-      }, 500);
-      return () => clearTimeout(searchTimeout);
-    } else {
-      // Immediate fetch for filters or initial load
-      fetchData(true, 1);
-    }
-  }, [searchTerm, selectedPillar, selectedSubject, page, user, loginTimestamp, hasLoadedOnce]);
+    // Handle initial load
+    fetchData(true, 1);
+  }, [page, user, loginTimestamp, hasLoadedOnce]);
 
   // Reset on location change (when returning to quest hub)
   useEffect(() => {
@@ -247,8 +231,6 @@ const QuestHubV3Improved = () => {
     return hasFeatureAccess(user.subscription_tier, 'supported');
   }, [user]);
 
-  // Featured quests section - memoized to prevent unnecessary re-renders
-  const featuredQuests = useMemo(() => quests.slice(0, 3), [quests]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
@@ -280,37 +262,7 @@ const QuestHubV3Improved = () => {
           )}
         </div>
 
-        {/* Featured Section - Only show when not searching */}
-        {!searchTerm && selectedPillar === 'all' && featuredQuests.length > 0 && (
-          <div className="mb-8">
-            <h2 className="text-2xl font-bold text-gray-900 mb-4">Featured Quests</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              {featuredQuests.map(quest => (
-                <div key={quest.id} className="relative">
-                  <div className="absolute -top-2 -right-2 z-10 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">
-                    FEATURED
-                  </div>
-                  <QuestCard
-                    quest={quest}
-                    onEnroll={handleEnroll}
-                    onTeamUp={handleTeamUp}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* Filters */}
-        <QuestFilters
-          searchTerm={searchTerm}
-          onSearchChange={setSearchTerm}
-          selectedPillar={selectedPillar}
-          onPillarChange={setSelectedPillar}
-          selectedSubject={selectedSubject}
-          onSubjectChange={setSelectedSubject}
-          totalResults={totalResults}
-        />
 
         {/* Error Display */}
         {error && (
@@ -336,15 +288,6 @@ const QuestHubV3Improved = () => {
             </svg>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">No quests found</h3>
             <p className="text-gray-600 mb-6">Try adjusting your filters or check back later for new quests!</p>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setSearchTerm('');
-                setSelectedPillar('all');
-              }}
-            >
-              Clear Filters
-            </Button>
           </div>
         ) : (
           <>
