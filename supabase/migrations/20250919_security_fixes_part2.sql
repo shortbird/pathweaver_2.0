@@ -6,7 +6,10 @@
 -- PHASE 1: Fix Remaining Test/Debug Functions
 -- =============================================================================
 
--- Fix test_login_access function (if it exists)
+-- Drop and recreate test functions to fix return types and add search_path security
+
+-- Fix test_login_access function
+DROP FUNCTION IF EXISTS test_login_access();
 CREATE OR REPLACE FUNCTION test_login_access()
 RETURNS TEXT
 SET search_path = ''
@@ -21,7 +24,8 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Fix test_users_table_access function (if it exists)
+-- Fix test_users_table_access function
+DROP FUNCTION IF EXISTS test_users_table_access();
 CREATE OR REPLACE FUNCTION test_users_table_access()
 RETURNS TEXT
 SET search_path = ''
@@ -38,7 +42,8 @@ EXCEPTION
 END;
 $$ LANGUAGE plpgsql;
 
--- Fix test_railway_connection function (if it exists)
+-- Fix test_railway_connection function
+DROP FUNCTION IF EXISTS test_railway_connection();
 CREATE OR REPLACE FUNCTION test_railway_connection()
 RETURNS TEXT
 SET search_path = ''
@@ -54,6 +59,7 @@ $$ LANGUAGE plpgsql;
 -- =============================================================================
 
 -- Fix update_user_mastery function (if it exists as separate from trigger)
+DROP FUNCTION IF EXISTS update_user_mastery(UUID);
 CREATE OR REPLACE FUNCTION update_user_mastery(p_user_id UUID)
 RETURNS VOID
 SET search_path = ''
