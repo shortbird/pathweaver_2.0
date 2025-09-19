@@ -8,7 +8,7 @@ import toast from 'react-hot-toast'
 const SubscriptionSuccess = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
-  const { updateUser, user } = useAuth()
+  const { updateUser, refreshUser, user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [subscriptionDetails, setSubscriptionDetails] = useState(null)
   const [retryCount, setRetryCount] = useState(0)
@@ -82,30 +82,41 @@ const SubscriptionSuccess = () => {
               // Add a small delay to allow database propagation, then verify
               setTimeout(async () => {
                 try {
-                  const userResponse = await api.get('/api/auth/me')
-                  if (userResponse.data) {
-                    updateUser(userResponse.data)
+                  // Use refreshUser to get fresh data from the backend
+                  const refreshSuccess = await refreshUser()
 
-                    // Check if the tier matches what we expect from verification
-                    const expectedTier = verifyResponse.data.tier
-                    const actualTier = userResponse.data.subscription_tier
+                  if (refreshSuccess) {
+                    // Get the updated user data to verify the tier
+                    const userResponse = await api.get('/api/auth/me')
+                    if (userResponse.data) {
+                      // Check if the tier matches what we expect from verification
+                      const expectedTier = verifyResponse.data.tier
+                      const actualTier = userResponse.data.subscription_tier
 
-                    if (actualTier === expectedTier) {
-                      console.log(`✅ Tier update successful: ${actualTier}`)
-                      // Success! No need to retry
-                      return
-                    } else if (actualTier === 'free' && retryCount < maxRetries) {
-                      const delay = retryDelays[retryCount] || 32000
-                      console.log(`Tier mismatch. Expected: ${expectedTier}, Got: ${actualTier}. Retrying in ${delay/1000}s (attempt ${retryCount + 1}/${maxRetries})`)
-                      setTimeout(() => {
-                        setRetryCount(prev => prev + 1)
-                        setLoading(true)
-                      }, delay)
-                      return
-                    } else if (retryCount >= maxRetries) {
-                      // Max retries reached, show manual refresh option
-                      console.log('Max retries reached, enabling manual refresh option')
-                      setManualRefreshAvailable(true)
+                      if (actualTier === expectedTier) {
+                        console.log(`✅ Tier update successful: ${actualTier}`)
+                        // Success! The refreshUser call should have updated the header nav
+                        return
+                      } else if (actualTier === 'free' && retryCount < maxRetries) {
+                        const delay = retryDelays[retryCount] || 32000
+                        console.log(`Tier mismatch. Expected: ${expectedTier}, Got: ${actualTier}. Retrying in ${delay/1000}s (attempt ${retryCount + 1}/${maxRetries})`)
+                        setTimeout(() => {
+                          setRetryCount(prev => prev + 1)
+                          setLoading(true)
+                        }, delay)
+                        return
+                      } else if (retryCount >= maxRetries) {
+                        // Max retries reached, show manual refresh option
+                        console.log('Max retries reached, enabling manual refresh option')
+                        setManualRefreshAvailable(true)
+                      }
+                    }
+                  } else {
+                    console.log('refreshUser failed, falling back to manual update')
+                    // Fallback: try manual update if refreshUser fails
+                    const userResponse = await api.get('/api/auth/me')
+                    if (userResponse.data) {
+                      updateUser(userResponse.data)
                     }
                   }
                 } catch (error) {
@@ -159,17 +170,21 @@ const SubscriptionSuccess = () => {
       // Call the force refresh endpoint
       await api.post('/api/subscriptions/refresh-subscription')
 
-      // Fetch updated user data
-      const userResponse = await api.get('/api/auth/me')
-      if (userResponse.data) {
-        updateUser(userResponse.data)
+      // Use refreshUser to update the AuthContext state
+      const refreshSuccess = await refreshUser()
 
-        if (userResponse.data.subscription_tier !== 'free') {
+      if (refreshSuccess) {
+        // Verify the updated user data
+        const userResponse = await api.get('/api/auth/me')
+        if (userResponse.data && userResponse.data.subscription_tier !== 'free') {
           toast.success('Subscription status updated successfully!')
         } else {
           toast.error('Unable to update subscription status. Please contact support.')
           setManualRefreshAvailable(true)
         }
+      } else {
+        toast.error('Failed to refresh user data. Please try again.')
+        setManualRefreshAvailable(true)
       }
     } catch (error) {
       console.error('Manual refresh failed:', error)
