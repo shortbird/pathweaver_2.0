@@ -72,36 +72,48 @@ const SubscriptionSuccess = () => {
             
             // Update user data with new subscription tier if user is authenticated
             if (user && updateUser) {
+              // First, immediately update with the verified tier from Stripe
               updateUser({
                 ...user,
                 subscription_tier: verifyResponse.data.tier,
                 subscription_status: verifyResponse.data.status || 'active'
               })
 
-              // Also fetch fresh user data to ensure everything is synced
-              try {
-                const userResponse = await api.get('/api/auth/me')
-                if (userResponse.data) {
-                  updateUser(userResponse.data)
+              // Add a small delay to allow database propagation, then verify
+              setTimeout(async () => {
+                try {
+                  const userResponse = await api.get('/api/auth/me')
+                  if (userResponse.data) {
+                    updateUser(userResponse.data)
 
-                  // If tier still hasn't updated and we haven't retried too many times, retry
-                  if (userResponse.data.subscription_tier === 'free' && retryCount < maxRetries) {
-                    const delay = retryDelays[retryCount] || 32000
-                    console.log(`Tier not updated, retrying in ${delay/1000} seconds (attempt ${retryCount + 1}/${maxRetries})`)
-                    setTimeout(() => {
-                      setRetryCount(prev => prev + 1)
-                      setLoading(true)
-                    }, delay)
-                    return
-                  } else if (userResponse.data.subscription_tier === 'free' && retryCount >= maxRetries) {
-                    // Max retries reached, show manual refresh option
-                    console.log('Max retries reached, enabling manual refresh option')
-                    setManualRefreshAvailable(true)
+                    // Check if the tier matches what we expect from verification
+                    const expectedTier = verifyResponse.data.tier
+                    const actualTier = userResponse.data.subscription_tier
+
+                    if (actualTier === expectedTier) {
+                      console.log(`✅ Tier update successful: ${actualTier}`)
+                      // Success! No need to retry
+                      return
+                    } else if (actualTier === 'free' && retryCount < maxRetries) {
+                      const delay = retryDelays[retryCount] || 32000
+                      console.log(`Tier mismatch. Expected: ${expectedTier}, Got: ${actualTier}. Retrying in ${delay/1000}s (attempt ${retryCount + 1}/${maxRetries})`)
+                      setTimeout(() => {
+                        setRetryCount(prev => prev + 1)
+                        setLoading(true)
+                      }, delay)
+                      return
+                    } else if (retryCount >= maxRetries) {
+                      // Max retries reached, show manual refresh option
+                      console.log('Max retries reached, enabling manual refresh option')
+                      setManualRefreshAvailable(true)
+                    }
                   }
+                } catch (error) {
+                  console.log('Could not fetch fresh user data:', error)
+                  // If we can't fetch user data, still show the verified tier from Stripe
+                  console.log('Using verified tier from Stripe response:', verifyResponse.data.tier)
                 }
-              } catch (error) {
-                console.log('Could not fetch fresh user data:', error)
-              }
+              }, 1000) // 1 second delay to allow database sync
             }
             
             toast.success('Welcome to your new subscription plan!')

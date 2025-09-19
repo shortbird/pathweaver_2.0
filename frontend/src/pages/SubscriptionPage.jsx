@@ -241,7 +241,7 @@ const SubscriptionPage = () => {
                 >
                   {loading ? 'Loading...' : 'Manage Subscription'}
                 </button>
-                {!subscriptionStatus?.cancel_at_period_end && (
+                {subscriptionStatus?.status !== 'canceling' && (
                   <button
                     onClick={handleCancel}
                     disabled={canceling}
@@ -317,7 +317,7 @@ const SubscriptionPage = () => {
                 >
                   {loading ? 'Loading...' : 'Manage Subscription'}
                 </button>
-                {!subscriptionStatus?.cancel_at_period_end && (
+                {subscriptionStatus?.status !== 'canceling' && (
                   <button
                     onClick={handleCancel}
                     disabled={canceling}

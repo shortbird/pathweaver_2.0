@@ -651,33 +651,55 @@ def update_subscription(user_id):
                 cancel_at_period_end=True
             )
             
-            # Update database
+            # Update database using existing columns
             supabase.table('users').update({
-                'subscription_cancel_at_period_end': True
+                'subscription_status': 'canceling'
             }).eq('id', user_id).execute()
             
             return jsonify({'message': 'Subscription will be cancelled at the end of the billing period'}), 200
         
-        # Handle tier change
-        new_price_id = SUBSCRIPTION_PRICES[new_tier]
+        # Handle tier change - get the correct price ID format
+        tier_prices = SUBSCRIPTION_PRICES.get(new_tier)
+        if isinstance(tier_prices, dict):
+            # Use monthly price for downgrades by default
+            new_price_id = tier_prices.get('monthly')
+        else:
+            new_price_id = tier_prices
+
         if not new_price_id:
             return jsonify({'error': f'Price not configured for {new_tier} tier'}), 500
+
+        print(f"Debug - Changing subscription to tier {new_tier} with price ID: {new_price_id}")
         
         # Update subscription with new price
-        stripe.Subscription.modify(
-            subscription.id,
-            items=[{
-                'id': subscription['items']['data'][0]['id'],
-                'price': new_price_id
-            }],
-            proration_behavior='create_prorations'  # Pro-rate the change
-        )
-        
+        try:
+            updated_subscription = stripe.Subscription.modify(
+                subscription.id,
+                items=[{
+                    'id': subscription['items']['data'][0]['id'],
+                    'price': new_price_id
+                }],
+                proration_behavior='create_prorations'  # Pro-rate the change
+            )
+            print(f"Debug - Stripe subscription updated successfully: {updated_subscription.id}")
+        except Exception as stripe_error:
+            print(f"Error updating Stripe subscription: {stripe_error}")
+            return jsonify({'error': f'Failed to update subscription in Stripe: {str(stripe_error)}'}), 500
+
         # Update database
-        supabase.table('users').update({
-            'subscription_tier': new_tier,
-            'subscription_cancel_at_period_end': False
-        }).eq('id', user_id).execute()
+        try:
+            result = supabase.table('users').update({
+                'subscription_tier': new_tier,
+                'subscription_status': 'active'  # Reset status to active when changing tiers
+            }).eq('id', user_id).execute()
+
+            if not result.data:
+                print(f"Warning: Database update returned no data for user {user_id}")
+
+            print(f"Debug - Database updated for user {user_id} to tier {new_tier}")
+        except Exception as db_error:
+            print(f"Error updating database: {db_error}")
+            return jsonify({'error': f'Failed to update user tier in database: {str(db_error)}'}), 500
         
         # Log activity
         supabase.table('activity_log').insert({
@@ -720,15 +742,38 @@ def cancel_subscription(user_id):
         
         # Cancel all active subscriptions at period end
         for subscription in subscriptions.data:
-            stripe.Subscription.modify(
-                subscription.id,
-                cancel_at_period_end=True
-            )
-            
-            # Update database
-            supabase.table('users').update({
-                'subscription_cancel_at_period_end': True
+            try:
+                updated_subscription = stripe.Subscription.modify(
+                    subscription.id,
+                    cancel_at_period_end=True
+                )
+                print(f"Debug - Stripe subscription {subscription.id} marked for cancellation at period end")
+            except Exception as stripe_error:
+                print(f"Error cancelling Stripe subscription {subscription.id}: {stripe_error}")
+                return jsonify({'error': f'Failed to cancel subscription in Stripe: {str(stripe_error)}'}), 500
+
+        # Update database to reflect cancellation status using existing columns
+        try:
+            # Get the subscription end date from Stripe for the database
+            subscription_end_date = None
+            if subscriptions.data:
+                # Convert timestamp to ISO format for database
+                end_timestamp = subscriptions.data[0]['current_period_end']
+                from datetime import datetime
+                subscription_end_date = datetime.fromtimestamp(end_timestamp).isoformat()
+
+            result = supabase.table('users').update({
+                'subscription_status': 'canceling',  # Use existing subscription_status column
+                'subscription_end_date': subscription_end_date  # Set when subscription will end
             }).eq('id', user_id).execute()
+
+            if not result.data:
+                print(f"Warning: Database update for cancellation returned no data for user {user_id}")
+
+            print(f"Debug - Database updated for user {user_id} - subscription marked for cancellation (status: canceling, ends: {subscription_end_date})")
+        except Exception as db_error:
+            print(f"Error updating database for cancellation: {db_error}")
+            return jsonify({'error': f'Failed to update cancellation status: {str(db_error)}'}), 500
         
         # Log activity
         supabase.table('activity_log').insert({
