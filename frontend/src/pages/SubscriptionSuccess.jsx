@@ -11,12 +11,7 @@ const SubscriptionSuccess = () => {
   const { updateUser, refreshUser, user } = useAuth()
   const [loading, setLoading] = useState(true)
   const [subscriptionDetails, setSubscriptionDetails] = useState(null)
-  const [retryCount, setRetryCount] = useState(0)
   const [manualRefreshAvailable, setManualRefreshAvailable] = useState(false)
-
-  // Exponential backoff delays: 2s, 4s, 8s, 16s, 32s
-  const retryDelays = [2000, 4000, 8000, 16000, 32000]
-  const maxRetries = 5
   
   useEffect(() => {
     const verifySubscription = async () => {
@@ -79,52 +74,23 @@ const SubscriptionSuccess = () => {
                 subscription_status: verifyResponse.data.status || 'active'
               })
 
-              // Add a small delay to allow database propagation, then verify
+              // Add a small delay to allow database propagation, then refresh like "refresh account data"
               setTimeout(async () => {
                 try {
-                  // Use refreshUser to get fresh data from the backend
-                  const refreshSuccess = await refreshUser()
-
-                  if (refreshSuccess) {
-                    // Get the updated user data to verify the tier
-                    const userResponse = await api.get('/api/auth/me')
-                    if (userResponse.data) {
-                      // Check if the tier matches what we expect from verification
-                      const expectedTier = verifyResponse.data.tier
-                      const actualTier = userResponse.data.subscription_tier
-
-                      if (actualTier === expectedTier) {
-                        console.log(`✅ Tier update successful: ${actualTier}`)
-                        // Success! The refreshUser call should have updated the header nav
-                        return
-                      } else if (actualTier === 'free' && retryCount < maxRetries) {
-                        const delay = retryDelays[retryCount] || 32000
-                        console.log(`Tier mismatch. Expected: ${expectedTier}, Got: ${actualTier}. Retrying in ${delay/1000}s (attempt ${retryCount + 1}/${maxRetries})`)
-                        setTimeout(() => {
-                          setRetryCount(prev => prev + 1)
-                          setLoading(true)
-                        }, delay)
-                        return
-                      } else if (retryCount >= maxRetries) {
-                        // Max retries reached, show manual refresh option
-                        console.log('Max retries reached, enabling manual refresh option')
-                        setManualRefreshAvailable(true)
-                      }
-                    }
+                  console.log('Auto-refreshing account data after subscription update...')
+                  const success = await refreshUser()
+                  if (success) {
+                    console.log('✅ Account data refreshed successfully')
+                    // Success! This should update the header nav tier badge
                   } else {
-                    console.log('refreshUser failed, falling back to manual update')
-                    // Fallback: try manual update if refreshUser fails
-                    const userResponse = await api.get('/api/auth/me')
-                    if (userResponse.data) {
-                      updateUser(userResponse.data)
-                    }
+                    console.log('Auto-refresh failed, showing manual refresh option')
+                    setManualRefreshAvailable(true)
                   }
                 } catch (error) {
-                  console.log('Could not fetch fresh user data:', error)
-                  // If we can't fetch user data, still show the verified tier from Stripe
-                  console.log('Using verified tier from Stripe response:', verifyResponse.data.tier)
+                  console.log('Auto-refresh error:', error)
+                  setManualRefreshAvailable(true)
                 }
-              }, 1000) // 1 second delay to allow database sync
+              }, 2000) // 2 second delay to allow database sync
             }
             
             toast.success('Welcome to your new subscription plan!')
@@ -153,7 +119,7 @@ const SubscriptionSuccess = () => {
     }
     
     verifySubscription()
-  }, [searchParams, retryCount]) // Include retryCount to trigger re-verification
+  }, [searchParams]) // Run when page loads or URL params change
   
   const handleContinue = () => {
     navigate('/quests')
@@ -218,17 +184,9 @@ const SubscriptionSuccess = () => {
               <div className="flex items-center justify-center">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
                 <span className="text-blue-700">
-                  {retryCount === 0
-                    ? 'Verifying your subscription...'
-                    : `Confirming subscription update... (attempt ${retryCount}/${maxRetries})`
-                  }
+                  Verifying your subscription and updating your account...
                 </span>
               </div>
-              {retryCount > 2 && (
-                <p className="text-xs text-blue-600 mt-2 text-center">
-                  This is taking longer than expected. We're working to sync your subscription status.
-                </p>
-              )}
             </div>
           )}
 
