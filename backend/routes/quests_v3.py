@@ -46,15 +46,116 @@ def list_quests():
         # Calculate offset
         offset = (page - 1) * per_page
         
-        # Build query - include school_subjects in quest_tasks selection
+        # Build base query with joins for filtering
+        # First, we need to filter quests based on their tasks
+        filtered_quest_ids = None
+
+        # Apply pillar filter if provided
+        if pillar_filter and pillar_filter != 'all':
+            pillar_quests = supabase.table('quest_tasks')\
+                .select('quest_id')\
+                .eq('pillar', pillar_filter)\
+                .execute()
+
+            if pillar_quests.data:
+                filtered_quest_ids = set(task['quest_id'] for task in pillar_quests.data)
+            else:
+                # No quests match pillar filter - return empty
+                return jsonify({
+                    'success': True,
+                    'quests': [],
+                    'total': 0,
+                    'page': page,
+                    'per_page': per_page,
+                    'total_pages': 0,
+                    'has_more': False
+                })
+
+        # Apply subject filter if provided
+        if subject_filter and subject_filter != 'all':
+            if subject_filter == 'electives':
+                # For electives, find tasks with no school_subjects or empty array
+                subject_quests = supabase.table('quest_tasks')\
+                    .select('quest_id')\
+                    .is_('school_subjects', 'null')\
+                    .execute()
+
+                # Also check for empty arrays
+                empty_subject_quests = supabase.table('quest_tasks')\
+                    .select('quest_id')\
+                    .eq('school_subjects', [])\
+                    .execute()
+
+                subject_quest_ids = set()
+                if subject_quests.data:
+                    subject_quest_ids.update(task['quest_id'] for task in subject_quests.data)
+                if empty_subject_quests.data:
+                    subject_quest_ids.update(task['quest_id'] for task in empty_subject_quests.data)
+            else:
+                # For other subjects, check if the subject is in the school_subjects array
+                subject_quests = supabase.table('quest_tasks')\
+                    .select('quest_id')\
+                    .contains('school_subjects', [subject_filter])\
+                    .execute()
+
+                subject_quest_ids = set(task['quest_id'] for task in subject_quests.data) if subject_quests.data else set()
+
+            if not subject_quest_ids:
+                # No quests match subject filter - return empty
+                return jsonify({
+                    'success': True,
+                    'quests': [],
+                    'total': 0,
+                    'page': page,
+                    'per_page': per_page,
+                    'total_pages': 0,
+                    'has_more': False
+                })
+
+            # Intersect with pillar filter if both are applied
+            if filtered_quest_ids is not None:
+                filtered_quest_ids = filtered_quest_ids.intersection(subject_quest_ids)
+                if not filtered_quest_ids:
+                    return jsonify({
+                        'success': True,
+                        'quests': [],
+                        'total': 0,
+                        'page': page,
+                        'per_page': per_page,
+                        'total_pages': 0,
+                        'has_more': False
+                    })
+            else:
+                filtered_quest_ids = subject_quest_ids
+
+        # Build main quest query
         query = supabase.table('quests')\
             .select('*, quest_tasks(*)', count='exact')\
-            .eq('is_active', True)\
-            .order('created_at', desc=True)
-        
+            .eq('is_active', True)
+
+        # Apply quest ID filter if we have filters applied
+        if filtered_quest_ids is not None:
+            quest_ids_list = list(filtered_quest_ids)
+            if quest_ids_list:
+                query = query.in_('id', quest_ids_list)
+            else:
+                # No matching quests - return empty
+                return jsonify({
+                    'success': True,
+                    'quests': [],
+                    'total': 0,
+                    'page': page,
+                    'per_page': per_page,
+                    'total_pages': 0,
+                    'has_more': False
+                })
+
         # Apply search filter if provided
         if search:
             query = query.ilike('title', f'%{search}%')
+
+        # Apply ordering
+        query = query.order('created_at', desc=True)
         
         # Apply pagination with error handling
         try:
@@ -175,26 +276,8 @@ def list_quests():
                         for task in quest.get('quest_tasks', []):
                             task['is_completed'] = task['id'] in completed_task_ids
             
-            # Apply pillar filter if specified
-            pillar_matches = not pillar_filter or pillar_filter in pillar_xp
-            
-            # Apply subject filter if specified
-            subject_matches = True
-            if subject_filter:
-                quest_subjects = set()
-                for task in quest.get('quest_tasks', []):
-                    task_subjects = task.get('school_subjects', [])
-                    if isinstance(task_subjects, list) and task_subjects:
-                        quest_subjects.update(task_subjects)
-                
-                # If quest has no school subjects, only match if filtering for 'electives'
-                if not quest_subjects:
-                    subject_matches = subject_filter == 'electives'
-                else:
-                    subject_matches = subject_filter in quest_subjects
-            
-            if pillar_matches and subject_matches:
-                quests.append(quest)
+            # All filtering is now done at the database level
+            quests.append(quest)
         
         # Calculate if there are more pages
         total_pages = (result.count + per_page - 1) // per_page if result.count else 0

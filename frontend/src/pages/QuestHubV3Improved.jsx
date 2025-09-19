@@ -10,6 +10,19 @@ import { SkeletonCard } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 import { hasFeatureAccess } from '../utils/tierMapping';
 
+// Simple debounce utility
+const debounce = (func, wait) => {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+};
+
 const QuestHubV3Improved = () => {
   const { user, loginTimestamp } = useAuth();
   const navigate = useNavigate();
@@ -29,80 +42,94 @@ const QuestHubV3Improved = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalResults, setTotalResults] = useState(0);
   
-  // Ref for infinite scroll
+  // Ref for infinite scroll with debouncing
   const observerRef = useRef();
-  const lastQuestElementRef = useCallback(node => {
-    if (isLoadingMore) return;
-    if (observerRef.current) observerRef.current.disconnect();
-    observerRef.current = new IntersectionObserver(entries => {
-      if (entries[0].isIntersecting && hasMore) {
+  const isLoadingRef = useRef(false);
+
+  // Debounced page increment to prevent rapid firing
+  const debouncedPageIncrement = useCallback(
+    debounce(() => {
+      if (!isLoadingRef.current) {
         setPage(prevPage => prevPage + 1);
       }
-    });
-    if (node) observerRef.current.observe(node);
-  }, [isLoadingMore, hasMore]);
+    }, 100),
+    []
+  );
 
-  // Reset on filter change
+  const lastQuestElementRef = useCallback(node => {
+    if (isLoadingMore || isLoading) return;
+    if (observerRef.current) observerRef.current.disconnect();
+
+    observerRef.current = new IntersectionObserver(
+      entries => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingRef.current) {
+          debouncedPageIncrement();
+        }
+      },
+      {
+        rootMargin: '100px' // Load more content when 100px away from bottom
+      }
+    );
+
+    if (node) observerRef.current.observe(node);
+  }, [isLoadingMore, isLoading, hasMore, debouncedPageIncrement]);
+
+  // Create debounced search handler
+  const debouncedSearch = useCallback(
+    debounce((searchValue) => {
+      setQuests([]);
+      setPage(1);
+      setHasMore(true);
+      setError('');
+    }, 500),
+    []
+  );
+
+  // Handle search term changes with debouncing
+  useEffect(() => {
+    if (searchTerm !== '') {
+      debouncedSearch(searchTerm);
+    }
+    return () => {
+      debouncedSearch.cancel();
+    };
+  }, [searchTerm, debouncedSearch]);
+
+  // Reset and fetch when filters change (non-search)
   useEffect(() => {
     setQuests([]);
     setPage(1);
     setHasMore(true);
-    setError(''); // Clear any previous errors when filters change
-  }, [searchTerm, selectedPillar, selectedSubject]);
+    setError('');
+  }, [selectedPillar, selectedSubject]);
 
-  // Fetch quests when page changes
+  // Main fetch effect - only triggers when page changes or initial load
   useEffect(() => {
-    if (page === 1) {
-      fetchQuests(true);
-    } else {
-      fetchQuests(false);
-    }
-  }, [page]); // Remove fetchQuests from dependencies to avoid circular reference
-
-  // Refetch when filters change (after page has been reset to 1)
-  useEffect(() => {
-    if (page === 1) {
-      fetchQuests(true);
-    }
-  }, [searchTerm, selectedPillar, selectedSubject]); // Trigger refetch when filters change
-
-  // Reset and refetch on login change
-  useEffect(() => {
-    if (loginTimestamp) {
-      setQuests([]);
-      setPage(1);
-      setHasMore(true);
-      fetchQuests(true);
-    }
-  }, [loginTimestamp]); // Remove fetchQuests to avoid circular reference
-
-  // Refresh quest list when navigating back to this page (after completing a quest)
-  useEffect(() => {
-    if (user && location.pathname === '/quests') {
-      // Always refresh when user visits quest hub to ensure latest completion status
-      setQuests([]);
-      setPage(1);
-      setHasMore(true);
-      fetchQuests(true);
-    }
-  }, [location.pathname, user]); // Remove fetchQuests to avoid circular reference
-  
-  // Additional effect to refresh on focus (when user comes back to the tab)
-  useEffect(() => {
-    const handleFocus = () => {
-      if (user && location.pathname === '/quests') {
-        setQuests([]);
-        setPage(1);
-        setHasMore(true);
+    if (user !== undefined) { // Wait for auth to be determined
+      if (page === 1) {
         fetchQuests(true);
+      } else {
+        fetchQuests(false);
       }
-    };
-    
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [user, location.pathname]); // Remove fetchQuests to avoid circular reference
+    }
+  }, [page, searchTerm, selectedPillar, selectedSubject, user, loginTimestamp]);
+
+  // Reset on location change (when returning to quest hub)
+  useEffect(() => {
+    if (location.pathname === '/quests' && hasLoadedOnce) {
+      setQuests([]);
+      setPage(1);
+      setHasMore(true);
+      setError('');
+    }
+  }, [location.pathname, hasLoadedOnce]);
 
   const fetchQuests = useCallback(async (isInitial = true) => {
+    // Prevent concurrent requests
+    if (isLoadingRef.current) return;
+
+    isLoadingRef.current = true;
+
     if (isInitial) {
       setIsLoading(true);
     } else {
@@ -155,6 +182,7 @@ const QuestHubV3Improved = () => {
         setError(errorMsg);
       }
     } finally {
+      isLoadingRef.current = false;
       setIsLoading(false);
       setIsLoadingMore(false);
       if (isInitial) {
