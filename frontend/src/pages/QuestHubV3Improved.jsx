@@ -87,9 +87,7 @@ const QuestHubV3Improved = () => {
 
   // Handle search term changes with debouncing
   useEffect(() => {
-    if (searchTerm !== '') {
-      debouncedSearch(searchTerm);
-    }
+    debouncedSearch(searchTerm);
     return () => {
       debouncedSearch.cancel();
     };
@@ -103,7 +101,7 @@ const QuestHubV3Improved = () => {
     setError('');
   }, [selectedPillar, selectedSubject]);
 
-  // Main fetch effect - only triggers when page changes or initial load
+  // Main fetch effect - triggers when page changes or filters change
   useEffect(() => {
     if (user !== undefined) { // Wait for auth to be determined
       if (page === 1) {
@@ -112,7 +110,14 @@ const QuestHubV3Improved = () => {
         fetchQuests(false);
       }
     }
-  }, [page, searchTerm, selectedPillar, selectedSubject, user, loginTimestamp]);
+  }, [page, selectedPillar, selectedSubject, user, loginTimestamp]);
+
+  // Separate effect for search changes
+  useEffect(() => {
+    if (user !== undefined && page === 1) {
+      fetchQuests(true);
+    }
+  }, [searchTerm]);
 
   // Reset on location change (when returning to quest hub)
   useEffect(() => {
