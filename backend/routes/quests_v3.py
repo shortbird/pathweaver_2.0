@@ -56,10 +56,26 @@ def list_quests():
         if search:
             query = query.ilike('title', f'%{search}%')
         
-        # Apply pagination
-        query = query.range(offset, offset + per_page - 1)
-        
-        result = query.execute()
+        # Apply pagination with error handling
+        try:
+            query = query.range(offset, offset + per_page - 1)
+            result = query.execute()
+        except Exception as e:
+            # Handle 416 "Requested Range Not Satisfiable" errors
+            if "416" in str(e) or "Requested Range Not Satisfiable" in str(e):
+                # Return empty results when offset exceeds total count
+                return jsonify({
+                    'success': True,
+                    'quests': [],
+                    'total': 0,
+                    'page': page,
+                    'per_page': per_page,
+                    'total_pages': 0,
+                    'has_more': False
+                })
+            else:
+                # Re-raise other exceptions
+                raise e
         
         # Process quest data to include task counts and total XP
         quests = []
@@ -180,13 +196,18 @@ def list_quests():
             if pillar_matches and subject_matches:
                 quests.append(quest)
         
+        # Calculate if there are more pages
+        total_pages = (result.count + per_page - 1) // per_page if result.count else 0
+        has_more = page < total_pages
+
         return jsonify({
             'success': True,
             'quests': quests,
             'total': result.count,
             'page': page,
             'per_page': per_page,
-            'total_pages': (result.count + per_page - 1) // per_page
+            'total_pages': total_pages,
+            'has_more': has_more
         })
         
     except Exception as e:

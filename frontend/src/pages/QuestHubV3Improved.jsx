@@ -142,7 +142,7 @@ const QuestHubV3Improved = () => {
       }
       
       setTotalResults(data.total || 0);
-      setHasMore(data.has_more || (data.quests && data.quests.length === 12));
+      setHasMore(data.has_more === true);
     } catch (error) {
       const errorMsg = error.response?.status === 500 
         ? 'Our servers are temporarily unavailable. Please try again in a few moments.'
