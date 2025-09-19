@@ -8,6 +8,7 @@ import TeamUpModal from '../components/quest/TeamUpModal';
 import QuestSuggestionModal from '../components/QuestSuggestionModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
+import { hasFeatureAccess } from '../utils/tierMapping';
 
 const QuestHubV3Improved = () => {
   const { user, loginTimestamp } = useAuth();
@@ -221,12 +222,11 @@ const QuestHubV3Improved = () => {
     // Optionally refresh quests or show additional feedback
   }, []);
 
-  // Check if user can suggest quests (non-free tiers)
+  // Check if user can suggest quests (supported tier and above)
   const canSuggestQuests = useMemo(() => {
     if (!user) return false;
-    const tier = user.subscription_tier;
-    // Allow supported (creator/premium) and academy (enterprise) tiers
-    return tier === 'creator' || tier === 'premium' || tier === 'enterprise' || tier === 'supported';
+    // Use hasFeatureAccess to check if user has at least supported tier access
+    return hasFeatureAccess(user.subscription_tier, 'supported');
   }, [user]);
 
   // Featured quests section - memoized to prevent unnecessary re-renders
