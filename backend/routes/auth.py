@@ -259,6 +259,51 @@ def register():
             print(f"Registration error: {str(e)}")
         raise ExternalServiceError('Supabase', 'Registration service is currently unavailable. Please try again later.', e)
 
+@bp.route('/me', methods=['GET'])
+def get_current_user():
+    """Get current user profile with fresh data"""
+    try:
+        # Verify the JWT token from request headers
+        auth_header = request.headers.get('Authorization')
+        if not auth_header or not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Authorization header required'}), 401
+
+        token = auth_header.split(' ')[1]
+
+        # Verify token with Supabase
+        supabase = get_supabase_client()
+        try:
+            # Get user from token
+            user_response = supabase.auth.get_user(token)
+            if not user_response.user:
+                return jsonify({'error': 'Invalid token'}), 401
+
+            user_id = user_response.user.id
+        except Exception as e:
+            print(f"Token verification failed: {e}")
+            return jsonify({'error': 'Invalid or expired token'}), 401
+
+        # Use admin client to bypass RLS and get fresh data
+        from database import get_supabase_admin_client
+        admin_client = get_supabase_admin_client()
+
+        try:
+            # Fetch complete user profile
+            user_data = admin_client.table('users').select('*').eq('id', user_id).single().execute()
+
+            if user_data.data:
+                return jsonify(user_data.data), 200
+            else:
+                return jsonify({'error': 'User profile not found'}), 404
+
+        except Exception as e:
+            print(f"Error fetching user data: {e}")
+            return jsonify({'error': 'Failed to fetch user profile'}), 500
+
+    except Exception as e:
+        print(f"Unexpected error in /me endpoint: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 @bp.route('/login', methods=['POST'])
 @rate_limit(max_requests=5, window_seconds=60)  # 5 login attempts per minute
 def login():

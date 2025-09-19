@@ -12,6 +12,11 @@ const SubscriptionSuccess = () => {
   const [loading, setLoading] = useState(true)
   const [subscriptionDetails, setSubscriptionDetails] = useState(null)
   const [retryCount, setRetryCount] = useState(0)
+  const [manualRefreshAvailable, setManualRefreshAvailable] = useState(false)
+
+  // Exponential backoff delays: 2s, 4s, 8s, 16s, 32s
+  const retryDelays = [2000, 4000, 8000, 16000, 32000]
+  const maxRetries = 5
   
   useEffect(() => {
     const verifySubscription = async () => {
@@ -80,13 +85,18 @@ const SubscriptionSuccess = () => {
                   updateUser(userResponse.data)
 
                   // If tier still hasn't updated and we haven't retried too many times, retry
-                  if (userResponse.data.subscription_tier === 'free' && retryCount < 3) {
-                    console.log(`Tier still showing as free, retrying in 2 seconds (attempt ${retryCount + 1}/3)`)
+                  if (userResponse.data.subscription_tier === 'free' && retryCount < maxRetries) {
+                    const delay = retryDelays[retryCount] || 32000
+                    console.log(`Tier not updated, retrying in ${delay/1000} seconds (attempt ${retryCount + 1}/${maxRetries})`)
                     setTimeout(() => {
                       setRetryCount(prev => prev + 1)
                       setLoading(true)
-                    }, 2000)
+                    }, delay)
                     return
+                  } else if (userResponse.data.subscription_tier === 'free' && retryCount >= maxRetries) {
+                    // Max retries reached, show manual refresh option
+                    console.log('Max retries reached, enabling manual refresh option')
+                    setManualRefreshAvailable(true)
                   }
                 }
               } catch (error) {
@@ -129,6 +139,34 @@ const SubscriptionSuccess = () => {
   const handleViewDashboard = () => {
     navigate('/dashboard')
   }
+
+  const handleManualRefresh = async () => {
+    setLoading(true)
+    setManualRefreshAvailable(false)
+    try {
+      // Call the force refresh endpoint
+      await api.post('/api/subscriptions/refresh-subscription')
+
+      // Fetch updated user data
+      const userResponse = await api.get('/api/auth/me')
+      if (userResponse.data) {
+        updateUser(userResponse.data)
+
+        if (userResponse.data.subscription_tier !== 'free') {
+          toast.success('Subscription status updated successfully!')
+        } else {
+          toast.error('Unable to update subscription status. Please contact support.')
+          setManualRefreshAvailable(true)
+        }
+      }
+    } catch (error) {
+      console.error('Manual refresh failed:', error)
+      toast.error('Failed to refresh subscription status. Please try again.')
+      setManualRefreshAvailable(true)
+    } finally {
+      setLoading(false)
+    }
+  }
   
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f8b3c5] to-[#b794d6] p-4">
@@ -153,9 +191,34 @@ const SubscriptionSuccess = () => {
               <div className="flex items-center justify-center">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
                 <span className="text-blue-700">
-                  {retryCount > 0 ? `Confirming subscription update... (${retryCount}/3)` : 'Verifying your subscription...'}
+                  {retryCount === 0
+                    ? 'Verifying your subscription...'
+                    : `Confirming subscription update... (attempt ${retryCount}/${maxRetries})`
+                  }
                 </span>
               </div>
+              {retryCount > 2 && (
+                <p className="text-xs text-blue-600 mt-2 text-center">
+                  This is taking longer than expected. We're working to sync your subscription status.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Manual Refresh Option */}
+          {manualRefreshAvailable && !loading && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-8">
+              <h3 className="font-semibold text-yellow-900 mb-2">Subscription Update Pending</h3>
+              <p className="text-sm text-yellow-700 mb-3">
+                Your payment was successful, but we're having trouble updating your subscription status.
+                This sometimes happens and will resolve automatically within a few minutes.
+              </p>
+              <button
+                onClick={handleManualRefresh}
+                className="w-full py-2 px-4 bg-yellow-600 text-white rounded-lg font-medium hover:bg-yellow-700 transition-colors"
+              >
+                Try Again
+              </button>
             </div>
           )}
 

@@ -17,158 +17,19 @@ else:
 # Get tier prices from config
 SUBSCRIPTION_PRICES = Config.STRIPE_TIER_PRICES
 
-@bp.route('/test-checkout-debug', methods=['POST'])
-@require_auth
-def test_checkout_debug(user_id):
-    """Debug endpoint to test checkout flow step by step"""
-    results = {
-        'user_id': user_id,
-        'steps': []
-    }
-    
-    # Step 1: Get user data
-    try:
-        supabase = get_supabase_client()
-        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
-        if not user_response.data or len(user_response.data) == 0:
-            print(f"Debug - No user found for id: {user_id}")
-            return jsonify({'error': 'User not found'}), 404
-        user = user_response.data[0] if user_response.data else None
-        results['steps'].append({
-            'step': 'get_user_data',
-            'status': 'success',
-            'has_stripe_customer': bool(user.get('stripe_customer_id')),
-            'stripe_customer_id': user.get('stripe_customer_id')
-        })
-    except Exception as e:
-        results['steps'].append({
-            'step': 'get_user_data',
-            'status': 'error',
-            'error': str(e)
-        })
-        return jsonify(results), 500
-    
-    # Step 2: Get email if no Stripe customer
-    if not user.get('stripe_customer_id'):
-        try:
-            admin_supabase = get_supabase_admin_client()
-            auth_user = admin_supabase.auth.admin.get_user_by_id(user_id)
-            email = auth_user.user.email if auth_user and auth_user.user else None
-            results['steps'].append({
-                'step': 'get_email',
-                'status': 'success',
-                'email_found': bool(email)
-            })
-        except Exception as e:
-            results['steps'].append({
-                'step': 'get_email',
-                'status': 'error',
-                'error': str(e)
-            })
-            # Don't fail here, continue with no email
-    
-    # Step 3: Test Stripe connection
-    try:
-        import stripe
-        stripe.api_key = Config.STRIPE_SECRET_KEY
-        account = stripe.Account.retrieve()
-        results['steps'].append({
-            'step': 'stripe_connection',
-            'status': 'success',
-            'account_id': account.id
-        })
-    except Exception as e:
-        results['steps'].append({
-            'step': 'stripe_connection',
-            'status': 'error',
-            'error': str(e)
-        })
-    
-    return jsonify(results), 200
-
-@bp.route('/test-user/<user_id>', methods=['GET'])
-def test_user_existence(user_id):
-    """Test if user exists in both auth and public tables"""
-    results = {
-        'user_id': user_id,
-        'auth_user': None,
-        'public_user': None
-    }
-    
-    try:
-        # Check public.users table
-        supabase = get_supabase_client()
-        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
-        results['public_user'] = {
-            'exists': bool(user_response.data and len(user_response.data) > 0),
-            'data': user_response.data[0] if user_response.data else None
-        }
-    except Exception as e:
-        results['public_user'] = {'error': str(e)}
-    
-    try:
-        # Check auth.users table
-        admin_supabase = get_supabase_admin_client()
-        auth_user = admin_supabase.auth.admin.get_user_by_id(user_id)
-        results['auth_user'] = {
-            'exists': bool(auth_user and auth_user.user),
-            'email': auth_user.user.email if auth_user and auth_user.user else None,
-            'created_at': str(auth_user.user.created_at) if auth_user and auth_user.user else None
-        }
-    except Exception as e:
-        if 'not found' in str(e).lower():
-            results['auth_user'] = {'exists': False}
-        else:
-            results['auth_user'] = {'error': str(e)}
-    
-    # Diagnosis
-    if results['auth_user'].get('exists') and not results['public_user'].get('exists'):
-        results['diagnosis'] = 'User exists in auth but not in public.users table - profile setup incomplete'
-    elif not results['auth_user'].get('exists') and results['public_user'].get('exists'):
-        results['diagnosis'] = 'Data inconsistency - user in public table but not in auth'
-    elif results['auth_user'].get('exists') and results['public_user'].get('exists'):
-        results['diagnosis'] = 'User exists in both tables - should work fine'
-    else:
-        results['diagnosis'] = 'User does not exist in either table'
-    
-    return jsonify(results), 200
-
-@bp.route('/test-supabase', methods=['GET'])
-def test_supabase_admin():
-    """Test Supabase admin access (temporary debug endpoint)"""
-    results = {}
-    
-    try:
-        # Test 1: Can we access users table with regular client?
-        supabase = get_supabase_client()
-        users_response = supabase.table('users').select('id').limit(1).execute()
-        results['users_table_access'] = 'OK' if users_response.data is not None else 'FAILED'
-    except Exception as e:
-        results['users_table_access'] = f'ERROR: {str(e)}'
-    
-    try:
-        # Test 2: Can we use admin auth with admin client?
-        admin_supabase = get_supabase_admin_client()
-        # Try to get a user (using a dummy ID that probably doesn't exist)
-        test_user_id = '00000000-0000-0000-0000-000000000000'
-        auth_response = admin_supabase.auth.admin.get_user_by_id(test_user_id)
-        results['admin_auth_access'] = 'OK - admin auth works'
-    except Exception as e:
-        error_msg = str(e)
-        if 'not found' in error_msg.lower():
-            results['admin_auth_access'] = 'OK - admin auth works (user not found as expected)'
-        else:
-            results['admin_auth_access'] = f'ERROR: {error_msg}'
-    
-    # Test 3: Check service key configuration
-    results['service_key_configured'] = bool(Config.SUPABASE_SERVICE_ROLE_KEY)
-    results['service_key_prefix'] = Config.SUPABASE_SERVICE_ROLE_KEY[:20] + '...' if Config.SUPABASE_SERVICE_ROLE_KEY else None
-    
-    return jsonify(results), 200
 
 @bp.route('/config', methods=['GET'])
-def get_stripe_config():
-    """Get Stripe configuration status (for debugging)"""
+@require_auth
+def get_stripe_config(user_id):
+    """Get Stripe configuration status (admin only)"""
+    # Check if user is admin
+    supabase = get_supabase_client()
+    try:
+        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        if not user_response.data or user_response.data.get('role') != 'admin':
+            return jsonify({'error': 'Admin access required'}), 403
+    except Exception as e:
+        return jsonify({'error': 'Failed to verify admin status'}), 500
     config_status = {
         'stripe_configured': bool(Config.STRIPE_SECRET_KEY) and Config.STRIPE_SECRET_KEY not in ['sk_test_your-key', 'your-key'],
         'stripe_key_prefix': Config.STRIPE_SECRET_KEY[:7] if Config.STRIPE_SECRET_KEY else None,
@@ -190,6 +51,90 @@ def get_stripe_config():
             }
     
     return jsonify(config_status), 200
+
+@bp.route('/refresh-subscription', methods=['POST'])
+@require_auth
+def refresh_subscription_status(user_id):
+    """Force refresh subscription status from Stripe and update database"""
+    supabase = get_supabase_client()
+
+    try:
+        # Get user's Stripe customer ID
+        user_response = supabase.table('users').select('stripe_customer_id').eq('id', user_id).execute()
+        if not user_response.data or len(user_response.data) == 0:
+            return jsonify({'error': 'User not found'}), 404
+
+        user = user_response.data[0]
+        stripe_customer_id = user.get('stripe_customer_id')
+
+        if not stripe_customer_id:
+            # User has no Stripe customer - they're on free tier
+            return jsonify({
+                'tier': 'free',
+                'status': 'inactive',
+                'refreshed': True
+            }), 200
+
+        # Get latest subscription from Stripe
+        subscriptions = stripe.Subscription.list(
+            customer=stripe_customer_id,
+            status='all',
+            limit=1
+        )
+
+        if not subscriptions.data:
+            # No subscriptions found - downgrade to free
+            supabase.table('users').update({
+                'subscription_tier': 'free',
+                'subscription_status': 'inactive'
+            }).eq('id', user_id).execute()
+
+            return jsonify({
+                'tier': 'free',
+                'status': 'inactive',
+                'refreshed': True
+            }), 200
+
+        subscription = subscriptions.data[0]
+
+        # Determine tier from price ID
+        price_id = subscription['items']['data'][0]['price']['id'] if subscription['items']['data'] else None
+
+        # Map price IDs to tiers using dynamic config
+        price_to_tier = {}
+        for tier_name, tier_prices in SUBSCRIPTION_PRICES.items():
+            if isinstance(tier_prices, dict):
+                if tier_prices.get('monthly'):
+                    price_to_tier[tier_prices['monthly']] = tier_name
+                if tier_prices.get('yearly'):
+                    price_to_tier[tier_prices['yearly']] = tier_name
+            elif tier_prices:
+                price_to_tier[tier_prices] = tier_name
+
+        current_tier = price_to_tier.get(price_id, 'free')
+
+        # Update database with latest info
+        update_data = {
+            'subscription_tier': current_tier,
+            'subscription_status': subscription['status']
+        }
+
+        result = supabase.table('users').update(update_data).eq('id', user_id).execute()
+
+        if not result.data:
+            return jsonify({'error': 'Failed to update subscription status'}), 500
+
+        return jsonify({
+            'tier': current_tier,
+            'status': subscription['status'],
+            'current_period_end': subscription['current_period_end'],
+            'cancel_at_period_end': subscription['cancel_at_period_end'],
+            'refreshed': True
+        }), 200
+
+    except Exception as e:
+        print(f"Error refreshing subscription status: {str(e)}")
+        return jsonify({'error': 'Failed to refresh subscription status'}), 500
 
 @bp.route('/create-checkout', methods=['POST'])
 @require_auth
@@ -481,25 +426,46 @@ def verify_checkout_session(user_id):
             print(f"Tier from price mapping: {tier}")
             print(f"Available price mappings: {price_to_tier}")
         
-        # Update user subscription in database - only update tier for now
+        # Update user subscription in database with improved error handling
         supabase = get_supabase_client()
+
+        # Prepare update data
+        update_data = {
+            'subscription_tier': tier,
+            'subscription_status': subscription.status
+        }
+
+        # Also update stripe_customer_id if missing
+        if session.customer:
+            update_data['stripe_customer_id'] = session.customer
+
+        # Perform the database update
         try:
-            # Start with just the tier which we know exists
-            update_data = {
-                'subscription_tier': tier
-            }
-            
-            # Try to update subscription_status if column exists
-            try:
-                update_data['subscription_status'] = subscription.status
-            except:
-                pass
-            
             result = supabase.table('users').update(update_data).eq('id', user_id).execute()
-            print(f"User subscription tier updated to: {tier}")
+
+            # Check if update was successful
+            if not result.data:
+                print(f"WARNING: Database update returned no data for user {user_id}")
+                return jsonify({'error': 'Failed to update user subscription in database'}), 500
+
+            print(f"Successfully updated user {user_id} to tier: {tier}")
+
+            # Force a fresh read to confirm the update took effect
+            verification_read = supabase.table('users').select('subscription_tier, stripe_customer_id').eq('id', user_id).single().execute()
+
+            if verification_read.data:
+                actual_tier = verification_read.data.get('subscription_tier')
+                if actual_tier != tier:
+                    print(f"ERROR: Tier verification failed! Expected: {tier}, Actual: {actual_tier}")
+                    return jsonify({'error': 'Database update verification failed'}), 500
+                else:
+                    print(f"Tier update verified successfully: {actual_tier}")
+
         except Exception as update_error:
-            print(f"Error updating user subscription: {update_error}")
-            # Continue anyway - subscription was created successfully
+            print(f"CRITICAL ERROR updating user subscription: {update_error}")
+            import traceback
+            print(f"Update error traceback: {traceback.format_exc()}")
+            return jsonify({'error': f'Failed to update subscription: {str(update_error)}'}), 500
         
         return jsonify({
             'success': True,

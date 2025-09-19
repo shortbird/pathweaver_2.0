@@ -94,6 +94,35 @@ const SubscriptionPage = () => {
           <p className="text-lg text-gray-700 max-w-3xl mx-auto">
             Start with a diploma. Make it valuable through real work.
           </p>
+
+          {/* Billing Period Toggle */}
+          <div className="flex justify-center mt-8 mb-6">
+            <div className="bg-gray-100 p-1 rounded-lg flex">
+              <button
+                onClick={() => setBillingPeriod('monthly')}
+                className={`px-6 py-2 rounded-md transition-colors ${
+                  billingPeriod === 'monthly'
+                    ? 'bg-white text-gray-900 shadow-sm font-medium'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Monthly
+              </button>
+              <button
+                onClick={() => setBillingPeriod('yearly')}
+                className={`px-6 py-2 rounded-md transition-colors ${
+                  billingPeriod === 'yearly'
+                    ? 'bg-white text-gray-900 shadow-sm font-medium'
+                    : 'text-gray-600 hover:text-gray-900'
+                }`}
+              >
+                Yearly
+                <span className="ml-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
+                  Save 17%
+                </span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="grid md:grid-cols-3 gap-8">
@@ -159,7 +188,16 @@ const SubscriptionPage = () => {
               </span>
             </div>
             <h3 className="text-2xl font-bold mb-2">Supported</h3>
-            <p className="text-3xl font-bold mb-1">$39.99<span className="text-lg font-normal text-gray-600">/mo</span></p>
+            <div className="mb-1">
+              {billingPeriod === 'monthly' ? (
+                <p className="text-3xl font-bold">$39.99<span className="text-lg font-normal text-gray-600">/mo</span></p>
+              ) : (
+                <div>
+                  <p className="text-3xl font-bold">$399.99<span className="text-lg font-normal text-gray-600">/yr</span></p>
+                  <p className="text-sm text-green-600 font-medium">$33.33/month • Save $79.89/year</p>
+                </div>
+              )}
+            </div>
             <p className="text-gray-600 mb-6">For dedicated learners ready to grow</p>
             <div className="text-sm font-semibold text-[#ef597b] mb-3">Everything in Free, plus:</div>
             <ul className="space-y-3 mb-8 flex-grow">
@@ -215,7 +253,7 @@ const SubscriptionPage = () => {
               </div>
             ) : (
               <button
-                onClick={() => handleUpgrade('supported', 'monthly')}
+                onClick={() => handleUpgrade('supported', billingPeriod)}
                 disabled={loadingTier !== null}
                 className="block w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-all text-center transform hover:scale-105 disabled:opacity-75"
               >
@@ -232,7 +270,16 @@ const SubscriptionPage = () => {
               </span>
             </div>
             <h3 className="text-2xl font-bold mb-2">Academy</h3>
-            <p className="text-3xl font-bold mb-1">$499.99<span className="text-lg font-normal text-gray-600">/mo</span></p>
+            <div className="mb-1">
+              {billingPeriod === 'monthly' ? (
+                <p className="text-3xl font-bold">$499.99<span className="text-lg font-normal text-gray-600">/mo</span></p>
+              ) : (
+                <div>
+                  <p className="text-3xl font-bold">$4,999.99<span className="text-lg font-normal text-gray-600">/yr</span></p>
+                  <p className="text-sm text-green-600 font-medium">$416.67/month • Save $999.89/year</p>
+                </div>
+              )}
+            </div>
             <p className="text-gray-600 mb-6">A personalized private school experience</p>
             <div className="text-sm font-semibold text-[#6d469b] mb-3">Everything in Supported, plus:</div>
             <ul className="space-y-3 mb-8 flex-grow">
@@ -282,7 +329,7 @@ const SubscriptionPage = () => {
               </div>
             ) : (
               <button
-                onClick={() => handleUpgrade('academy', 'monthly')}
+                onClick={() => handleUpgrade('academy', billingPeriod)}
                 disabled={loadingTier !== null}
                 className="block w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-all text-center transform hover:scale-105 disabled:opacity-75"
               >
