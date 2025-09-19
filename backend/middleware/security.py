@@ -62,7 +62,7 @@ class SecurityMiddleware:
                 # Also skip if it's multipart/form-data (file upload)
                 if request.content_type and 'multipart/form-data' in request.content_type:
                     pass  # Allow multipart/form-data
-                elif not request.is_json and request.content_type != 'application/json':
+                elif not request.is_json and not (request.content_type and request.content_type.startswith('application/json')):
                     abort(400, description="Content-Type must be application/json")
         
         # Sanitize query parameters
