@@ -10,17 +10,25 @@ import { SkeletonCard } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 import { hasFeatureAccess } from '../utils/tierMapping';
 
-// Simple debounce utility
+// Debounce utility with cancel method
 const debounce = (func, wait) => {
   let timeout;
-  return function executedFunction(...args) {
+  const executedFunction = function(...args) {
     const later = () => {
       clearTimeout(timeout);
+      timeout = null;
       func(...args);
     };
     clearTimeout(timeout);
     timeout = setTimeout(later, wait);
   };
+
+  executedFunction.cancel = function() {
+    clearTimeout(timeout);
+    timeout = null;
+  };
+
+  return executedFunction;
 };
 
 const QuestHubV3Improved = () => {
@@ -74,50 +82,93 @@ const QuestHubV3Improved = () => {
     if (node) observerRef.current.observe(node);
   }, [isLoadingMore, isLoading, hasMore, debouncedPageIncrement]);
 
-  // Create debounced search handler
-  const debouncedSearch = useCallback(
-    debounce((searchValue) => {
-      setQuests([]);
-      setPage(1);
-      setHasMore(true);
-      setError('');
-    }, 500),
-    []
-  );
-
-  // Handle search term changes with debouncing
+  // Single effect to handle all data fetching
   useEffect(() => {
-    debouncedSearch(searchTerm);
-    return () => {
-      debouncedSearch.cancel();
-    };
-  }, [searchTerm, debouncedSearch]);
+    // Skip if user auth not determined yet
+    if (user === undefined) return;
 
-  // Reset and fetch when filters change (non-search)
-  useEffect(() => {
-    setQuests([]);
-    setPage(1);
-    setHasMore(true);
-    setError('');
-  }, [selectedPillar, selectedSubject]);
+    // Create local fetch function to avoid dependency issues
+    const fetchData = async (isInitial = true, targetPage = page) => {
+      if (isLoadingRef.current) return;
 
-  // Main fetch effect - triggers when page changes or filters change
-  useEffect(() => {
-    if (user !== undefined) { // Wait for auth to be determined
-      if (page === 1) {
-        fetchQuests(true);
+      isLoadingRef.current = true;
+
+      if (isInitial) {
+        setIsLoading(true);
+        setQuests([]);
+        setPage(1);
+        setHasMore(true);
+        setError('');
       } else {
-        fetchQuests(false);
+        setIsLoadingMore(true);
       }
-    }
-  }, [page, selectedPillar, selectedSubject, user, loginTimestamp]);
 
-  // Separate effect for search changes
-  useEffect(() => {
-    if (user !== undefined && page === 1) {
-      fetchQuests(true);
+      try {
+        const params = new URLSearchParams({
+          page: targetPage,
+          per_page: 12,
+          ...(searchTerm && { search: searchTerm }),
+          ...(selectedPillar !== 'all' && { pillar: selectedPillar }),
+          ...(selectedSubject !== 'all' && { subject: selectedSubject }),
+          t: Date.now()
+        });
+
+        const apiBase = import.meta.env.VITE_API_URL || '';
+        const response = await fetch(`${apiBase}/api/v3/quests?${params}`, {
+          headers: user ? {
+            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+          } : {},
+          cache: 'no-cache'
+        });
+
+        if (!response.ok) {
+          throw new Error('Unable to load quests at this time. Please check your internet connection and try again.');
+        }
+
+        const data = await response.json();
+
+        if (isInitial) {
+          setQuests(data.quests || []);
+          setHasLoadedOnce(true);
+        } else {
+          setQuests(prev => [...prev, ...(data.quests || [])]);
+        }
+
+        setTotalResults(data.total || 0);
+        setHasMore(data.has_more === true);
+      } catch (error) {
+        const errorMsg = 'Unable to load quests at this time. Please check your connection and refresh the page.';
+        if (!isInitial || hasLoadedOnce) {
+          setError(errorMsg);
+        }
+      } finally {
+        isLoadingRef.current = false;
+        setIsLoading(false);
+        setIsLoadingMore(false);
+        if (isInitial) {
+          setHasLoadedOnce(true);
+        }
+      }
+    };
+
+    // Handle page changes (infinite scroll)
+    if (page > 1) {
+      fetchData(false, page);
+      return;
     }
-  }, [searchTerm]);
+
+    // Handle initial load and filter/search changes
+    if (searchTerm) {
+      // Debounce search
+      const searchTimeout = setTimeout(() => {
+        fetchData(true, 1);
+      }, 500);
+      return () => clearTimeout(searchTimeout);
+    } else {
+      // Immediate fetch for filters or initial load
+      fetchData(true, 1);
+    }
+  }, [searchTerm, selectedPillar, selectedSubject, page, user, loginTimestamp, hasLoadedOnce]);
 
   // Reset on location change (when returning to quest hub)
   useEffect(() => {
@@ -129,72 +180,6 @@ const QuestHubV3Improved = () => {
     }
   }, [location.pathname, hasLoadedOnce]);
 
-  const fetchQuests = useCallback(async (isInitial = true) => {
-    // Prevent concurrent requests
-    if (isLoadingRef.current) return;
-
-    isLoadingRef.current = true;
-
-    if (isInitial) {
-      setIsLoading(true);
-    } else {
-      setIsLoadingMore(true);
-    }
-    setError('');
-
-    try {
-      const params = new URLSearchParams({
-        page,
-        per_page: 12,
-        ...(searchTerm && { search: searchTerm }),
-        ...(selectedPillar !== 'all' && { pillar: selectedPillar }),
-        ...(selectedSubject !== 'all' && { subject: selectedSubject }),
-        t: Date.now() // Cache-busting parameter
-      });
-
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/api/v3/quests?${params}`, {
-        headers: user ? {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        } : {},
-        cache: 'no-cache' // Ensure fresh data
-      });
-
-      if (!response.ok) {
-        throw new Error('Unable to load quests at this time. Please check your internet connection and try again.');
-      }
-
-      const data = await response.json();
-      
-      if (isInitial) {
-        setQuests(data.quests || []);
-        setHasLoadedOnce(true);
-      } else {
-        setQuests(prev => [...prev, ...(data.quests || [])]);
-      }
-      
-      setTotalResults(data.total || 0);
-      setHasMore(data.has_more === true);
-    } catch (error) {
-      const errorMsg = error.response?.status === 500 
-        ? 'Our servers are temporarily unavailable. Please try again in a few moments.'
-        : error.response?.status === 404
-        ? 'No quests found. Check back later for new adventures!'
-        : 'Unable to load quests at this time. Please check your connection and refresh the page.'
-      
-      // Only show error if we're not loading for the first time or if we've loaded before
-      if (!isInitial || hasLoadedOnce) {
-        setError(errorMsg);
-      }
-    } finally {
-      isLoadingRef.current = false;
-      setIsLoading(false);
-      setIsLoadingMore(false);
-      if (isInitial) {
-        setHasLoadedOnce(true);
-      }
-    }
-  }, [page, searchTerm, selectedPillar, selectedSubject, user]);
 
   const handleEnroll = useCallback(async (questId) => {
     if (!user) {
