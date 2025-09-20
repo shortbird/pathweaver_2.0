@@ -349,6 +349,17 @@ const DiplomaPageV3 = () => {
   };
 
   const renderEvidence = (evidence) => {
+    // Handle new multi-format evidence
+    if (evidence.evidence_type === 'multi_format') {
+      const MultiFormatEvidenceDisplay = React.lazy(() => import('../components/diploma/MultiFormatEvidenceDisplay'));
+      return (
+        <React.Suspense fallback={<div className="p-4 bg-gray-50 rounded-lg"><p className="text-sm text-gray-500">Loading evidence...</p></div>}>
+          <MultiFormatEvidenceDisplay blocks={evidence.evidence_blocks} />
+        </React.Suspense>
+      );
+    }
+
+    // Handle legacy single-format evidence
     switch (evidence.evidence_type) {
       case 'text':
         return (

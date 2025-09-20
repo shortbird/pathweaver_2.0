@@ -377,6 +377,15 @@ def get_public_diploma_by_user_id(user_id):
             '''
         ).eq('user_id', user_id).not_.is_('completed_at', 'null').order('completed_at', desc=True).execute()
 
+        # Also get new multi-format evidence documents for completed tasks
+        evidence_documents = supabase.table('user_task_evidence_documents').select(
+            '''
+            *,
+            evidence_document_blocks(*),
+            quest_tasks(title, pillar)
+            '''
+        ).eq('user_id', user_id).eq('status', 'completed').execute()
+
         # Get user's in-progress quests (active with at least one task submitted)
         in_progress_quests = supabase.table('user_quests').select(
             '''
@@ -412,8 +421,10 @@ def get_public_diploma_by_user_id(user_id):
                 if not quest:
                     continue
 
-                # Organize evidence by task
+                # Organize evidence by task - support both old and new format
                 task_evidence = {}
+
+                # First, add legacy single-format evidence
                 for task_completion in cq.get('user_quest_tasks', []):
                     task_data = task_completion.get('quest_tasks')
                     if task_data:
@@ -422,8 +433,26 @@ def get_public_diploma_by_user_id(user_id):
                             'evidence_content': task_completion.get('evidence_content', ''),
                             'xp_awarded': task_completion.get('xp_awarded', 0),
                             'completed_at': task_completion.get('completed_at'),
-                            'pillar': task_data.get('pillar', 'Arts & Creativity')
+                            'pillar': task_data.get('pillar', 'Arts & Creativity'),
+                            'is_legacy': True
                         }
+
+                # Then, overlay with new multi-format evidence if available
+                quest_tasks = quest.get('quest_tasks', [])
+                for task in quest_tasks:
+                    # Find multi-format evidence for this task
+                    for doc in evidence_documents.data:
+                        doc_task = doc.get('quest_tasks')
+                        if doc_task and doc_task['title'] == task['title']:
+                            # Replace legacy evidence with multi-format evidence
+                            task_evidence[task['title']] = {
+                                'evidence_type': 'multi_format',
+                                'evidence_blocks': doc.get('evidence_document_blocks', []),
+                                'xp_awarded': task_evidence.get(task['title'], {}).get('xp_awarded', 0),
+                                'completed_at': doc.get('completed_at'),
+                                'pillar': doc_task.get('pillar', 'Arts & Creativity'),
+                                'is_legacy': False
+                            }
 
                 achievement = {
                     'quest': quest,
