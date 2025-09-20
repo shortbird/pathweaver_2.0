@@ -360,6 +360,141 @@ def upload_block_file(user_id: str, block_id: str):
             'error': 'Failed to process file upload'
         }), 500
 
+def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], status: str = 'completed'):
+    """
+    Process evidence document completion - extracted from save_evidence_document
+    """
+    try:
+        supabase = get_user_client()
+        admin_supabase = get_supabase_admin_client()
+
+        # Validate task exists and user is enrolled
+        task_check = supabase.table('quest_tasks')\
+            .select('quest_id, title, xp_amount, pillar')\
+            .eq('id', task_id)\
+            .execute()
+
+        if not task_check.data:
+            return {
+                'success': False,
+                'error': 'Task not found'
+            }
+
+        quest_id = task_check.data[0]['quest_id']
+
+        # Check if user is enrolled in the quest
+        enrollment = supabase.table('user_quests')\
+            .select('id')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .eq('is_active', True)\
+            .execute()
+
+        if not enrollment.data:
+            return {
+                'success': False,
+                'error': 'You must be enrolled in the quest to complete tasks'
+            }
+
+        # Get or update evidence document
+        document_response = supabase.table('user_task_evidence_documents')\
+            .select('*')\
+            .eq('user_id', user_id)\
+            .eq('task_id', task_id)\
+            .execute()
+
+        if document_response.data:
+            # Update existing document
+            document_id = document_response.data[0]['id']
+
+            update_data = {
+                'updated_at': datetime.utcnow().isoformat(),
+                'status': status
+            }
+
+            if status == 'completed':
+                update_data['completed_at'] = datetime.utcnow().isoformat()
+
+            supabase.table('user_task_evidence_documents')\
+                .update(update_data)\
+                .eq('id', document_id)\
+                .execute()
+        else:
+            return {
+                'success': False,
+                'error': 'No evidence document found'
+            }
+
+        # Update content blocks
+        update_document_blocks(supabase, document_id, blocks)
+
+        # If completing the task, award XP
+        xp_awarded = 0
+        has_collaboration = False
+        quest_completed = False
+
+        if status == 'completed':
+            # Check if this task was already completed
+            existing_completion = supabase.table('quest_task_completions')\
+                .select('id')\
+                .eq('user_id', user_id)\
+                .eq('task_id', task_id)\
+                .execute()
+
+            if not existing_completion.data:
+                # Award XP for task completion
+                task_data = task_check.data[0]
+                base_xp = task_data.get('xp_amount', 0)
+
+                # Calculate XP with collaboration bonus if applicable
+                final_xp, has_collaboration = xp_service.calculate_task_xp(
+                    user_id, task_id, quest_id, base_xp
+                )
+
+                # Create task completion record using new system
+                completion = supabase.table('quest_task_completions')\
+                    .insert({
+                        'user_id': user_id,
+                        'quest_id': quest_id,
+                        'task_id': task_id,
+                        'evidence_url': None,  # Multi-format evidence stored separately
+                        'evidence_text': f'Multi-format evidence document (Document ID: {document_id})',
+                        'completed_at': datetime.utcnow().isoformat()
+                    })\
+                    .execute()
+
+                if completion.data:
+                    # Award XP to user
+                    task_pillar = task_data.get('pillar', 'creativity')
+                    xp_awarded = final_xp
+
+                    xp_service.award_xp(
+                        user_id,
+                        task_pillar,
+                        final_xp,
+                        f'task_completion:{task_id}'
+                    )
+
+                    # Check if quest is now completed
+                    quest_completed = check_quest_completion(supabase, user_id, quest_id)
+
+        return {
+            'success': True,
+            'message': 'Task completed successfully',
+            'document_id': document_id,
+            'status': status,
+            'xp_awarded': xp_awarded,
+            'has_collaboration_bonus': has_collaboration,
+            'quest_completed': quest_completed
+        }
+
+    except Exception as e:
+        print(f"Error processing evidence completion: {str(e)}")
+        return {
+            'success': False,
+            'error': 'Failed to complete task'
+        }
+
 def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
     """
     Update the content blocks for a document.
@@ -497,8 +632,32 @@ def complete_task_with_evidence(user_id: str, task_id: str):
                 'error': 'Evidence document is empty. Please add content before completing.'
             }), 400
 
-        # Update document status to completed and process completion
-        return save_evidence_document(user_id, task_id)
+        # Get current blocks
+        current_blocks_response = supabase.table('evidence_document_blocks')\
+            .select('*')\
+            .eq('document_id', document['id'])\
+            .order('order_index')\
+            .execute()
+
+        # Transform blocks to the format expected by the completion function
+        blocks = []
+        for block in current_blocks_response.data or []:
+            # Clean up content to remove any temporary blob URLs
+            content = block['content'].copy() if block['content'] else {}
+            if 'url' in content and content['url'] and content['url'].startswith('blob:'):
+                # Remove blob URLs as they're temporary
+                content.pop('url', None)
+
+            blocks.append({
+                'id': block['id'],
+                'type': block['block_type'],  # Convert block_type to type
+                'content': content,
+                'order': block['order_index']
+            })
+
+        # Process completion using the same logic as save_evidence_document
+        response = process_evidence_completion(user_id, task_id, blocks, 'completed')
+        return jsonify(response)
 
     except Exception as e:
         print(f"Error completing task with evidence: {str(e)}")
