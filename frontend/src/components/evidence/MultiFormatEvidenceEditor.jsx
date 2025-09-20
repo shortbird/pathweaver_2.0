@@ -102,7 +102,16 @@ const MultiFormatEvidenceEditor = ({
       if (response.success) {
         if (response.document) {
           setDocumentStatus(response.document.status);
-          setBlocks(response.blocks || []);
+
+          // Transform database blocks to frontend format
+          const transformedBlocks = (response.blocks || []).map(block => ({
+            id: block.id,
+            type: block.block_type, // Database uses block_type, frontend expects type
+            content: block.content,
+            order: block.order_index
+          }));
+
+          setBlocks(transformedBlocks);
           if (response.document.updated_at) {
             setLastSaved(new Date(response.document.updated_at));
           }
