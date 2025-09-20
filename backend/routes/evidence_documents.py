@@ -392,14 +392,15 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
                 'order_index': index
             }
 
-            if block.get('id'):
-                # Update existing block
+            block_id = block.get('id')
+            if block_id and block_id in existing_block_ids:
+                # Update existing block (only if it actually exists in database)
                 supabase.table('evidence_document_blocks')\
                     .update(block_data)\
-                    .eq('id', block['id'])\
+                    .eq('id', block_id)\
                     .execute()
             else:
-                # Create new block
+                # Create new block (either no ID or ID doesn't exist in database)
                 supabase.table('evidence_document_blocks')\
                     .insert(block_data)\
                     .execute()
