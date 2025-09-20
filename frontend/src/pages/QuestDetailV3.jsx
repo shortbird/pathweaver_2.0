@@ -655,8 +655,19 @@ const QuestDetailV3 = () => {
                         )}
                         
                         {task.is_completed && (
-                          <div className="ml-6 px-8 py-3 bg-green-100 text-green-800 rounded-[25px] font-bold">
-                            Completed
+                          <div className="ml-6 flex items-center gap-3">
+                            <div className="px-8 py-3 bg-green-100 text-green-800 rounded-[25px] font-bold">
+                              Completed
+                            </div>
+                            <button
+                              onClick={() => {
+                                setSelectedTask(task);
+                                setShowTaskModal(true);
+                              }}
+                              className="px-6 py-3 bg-gray-100 text-gray-700 rounded-[25px] hover:bg-gray-200 transition-all duration-300 font-medium border border-gray-300"
+                            >
+                              Edit Evidence
+                            </button>
                           </div>
                         )}
                       </div>

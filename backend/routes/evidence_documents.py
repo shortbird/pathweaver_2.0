@@ -173,7 +173,7 @@ def save_evidence_document(user_id: str, task_id: str):
             existing_completion = supabase.table('quest_task_completions')\
                 .select('id')\
                 .eq('user_id', user_id)\
-                .eq('task_id', task_id)\
+                .eq('quest_task_id', task_id)\
                 .execute()
 
             if not existing_completion.data:
@@ -191,7 +191,7 @@ def save_evidence_document(user_id: str, task_id: str):
                     .insert({
                         'user_id': user_id,
                         'quest_id': quest_id,
-                        'task_id': task_id,
+                        'quest_task_id': task_id,  # Use quest_task_id to match existing system
                         'evidence_url': None,  # Multi-format evidence stored separately
                         'evidence_text': f'Multi-format evidence document (Document ID: {document_id})',
                         'completed_at': datetime.utcnow().isoformat()
@@ -438,7 +438,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
             existing_completion = supabase.table('quest_task_completions')\
                 .select('id')\
                 .eq('user_id', user_id)\
-                .eq('task_id', task_id)\
+                .eq('quest_task_id', task_id)\
                 .execute()
 
             if not existing_completion.data:
@@ -456,7 +456,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
                     .insert({
                         'user_id': user_id,
                         'quest_id': quest_id,
-                        'task_id': task_id,
+                        'quest_task_id': task_id,  # Use quest_task_id to match existing system
                         'evidence_url': None,  # Multi-format evidence stored separately
                         'evidence_text': f'Multi-format evidence document (Document ID: {document_id})',
                         'completed_at': datetime.utcnow().isoformat()
