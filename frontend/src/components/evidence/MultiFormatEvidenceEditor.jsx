@@ -159,21 +159,20 @@ const MultiFormatEvidenceEditor = ({
     try {
       setIsLoading(true);
 
-      // First save the current state
-      await evidenceDocumentService.saveDocument(taskId, blocks, 'completed');
-
-      // Then complete the task
-      const response = await evidenceDocumentService.completeTask(taskId);
+      // Save the document with 'completed' status - this handles both saving and completion
+      const response = await evidenceDocumentService.saveDocument(taskId, blocks, 'completed');
 
       if (response.success) {
         setDocumentStatus('completed');
         setSaveStatus('saved');
         if (onComplete) {
           onComplete({
-            xp_awarded: response.xp_awarded,
-            has_collaboration_bonus: response.has_collaboration_bonus,
-            quest_completed: response.quest_completed,
-            message: `Task completed! You earned ${response.xp_awarded} XP`
+            xp_awarded: response.xp_awarded || 0,
+            has_collaboration_bonus: response.has_collaboration_bonus || false,
+            quest_completed: response.quest_completed || false,
+            message: response.xp_awarded
+              ? `Task completed! You earned ${response.xp_awarded} XP`
+              : 'Task completed successfully!'
           });
         }
       } else {
