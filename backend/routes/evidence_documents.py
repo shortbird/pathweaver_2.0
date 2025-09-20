@@ -170,7 +170,7 @@ def save_evidence_document(user_id: str, task_id: str):
 
         if status == 'completed':
             # Check if this task was already completed
-            existing_completion = supabase.table('quest_task_completions')\
+            existing_completion = supabase.table('user_quest_tasks')\
                 .select('id')\
                 .eq('user_id', user_id)\
                 .eq('quest_task_id', task_id)\
@@ -186,14 +186,28 @@ def save_evidence_document(user_id: str, task_id: str):
                     user_id, task_id, quest_id, base_xp
                 )
 
-                # Create task completion record using new system
-                completion = supabase.table('quest_task_completions')\
+                # Get user_quest_id for the completion record
+                user_quest_response = supabase.table('user_quests')\
+                    .select('id')\
+                    .eq('user_id', user_id)\
+                    .eq('quest_id', quest_id)\
+                    .eq('is_active', True)\
+                    .execute()
+
+                if not user_quest_response.data:
+                    raise Exception('User not enrolled in quest')
+
+                user_quest_id = user_quest_response.data[0]['id']
+
+                # Create task completion record using V3 system
+                completion = supabase.table('user_quest_tasks')\
                     .insert({
                         'user_id': user_id,
-                        'quest_id': quest_id,
-                        'quest_task_id': task_id,  # Use quest_task_id to match existing system
-                        'evidence_url': None,  # Multi-format evidence stored separately
-                        'evidence_text': f'Multi-format evidence document (Document ID: {document_id})',
+                        'quest_task_id': task_id,
+                        'user_quest_id': user_quest_id,
+                        'evidence_type': 'document',
+                        'evidence_content': f'Multi-format evidence document (Document ID: {document_id})',
+                        'xp_awarded': final_xp,
                         'completed_at': datetime.utcnow().isoformat()
                     })\
                     .execute()
@@ -435,7 +449,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
 
         if status == 'completed':
             # Check if this task was already completed
-            existing_completion = supabase.table('quest_task_completions')\
+            existing_completion = supabase.table('user_quest_tasks')\
                 .select('id')\
                 .eq('user_id', user_id)\
                 .eq('quest_task_id', task_id)\
@@ -451,14 +465,28 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
                     user_id, task_id, quest_id, base_xp
                 )
 
-                # Create task completion record using new system
-                completion = supabase.table('quest_task_completions')\
+                # Get user_quest_id for the completion record
+                user_quest_response = supabase.table('user_quests')\
+                    .select('id')\
+                    .eq('user_id', user_id)\
+                    .eq('quest_id', quest_id)\
+                    .eq('is_active', True)\
+                    .execute()
+
+                if not user_quest_response.data:
+                    raise Exception('User not enrolled in quest')
+
+                user_quest_id = user_quest_response.data[0]['id']
+
+                # Create task completion record using V3 system
+                completion = supabase.table('user_quest_tasks')\
                     .insert({
                         'user_id': user_id,
-                        'quest_id': quest_id,
-                        'quest_task_id': task_id,  # Use quest_task_id to match existing system
-                        'evidence_url': None,  # Multi-format evidence stored separately
-                        'evidence_text': f'Multi-format evidence document (Document ID: {document_id})',
+                        'quest_task_id': task_id,
+                        'user_quest_id': user_quest_id,
+                        'evidence_type': 'document',
+                        'evidence_content': f'Multi-format evidence document (Document ID: {document_id})',
+                        'xp_awarded': final_xp,
                         'completed_at': datetime.utcnow().isoformat()
                     })\
                     .execute()
@@ -566,14 +594,27 @@ def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
         else:
             required_task_ids = {task['id'] for task in required_tasks.data}
 
-        # Get completed tasks by this user
-        completed_tasks = supabase.table('quest_task_completions')\
-            .select('task_id')\
+        # Get completed tasks by this user for this quest
+        # First get the user_quest record to filter by
+        user_quest = supabase.table('user_quests')\
+            .select('id')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
+            .eq('is_active', True)\
             .execute()
 
-        completed_task_ids = {task['task_id'] for task in completed_tasks.data}
+        if not user_quest.data:
+            return False  # User not enrolled in quest
+
+        user_quest_id = user_quest.data[0]['id']
+
+        completed_tasks = supabase.table('user_quest_tasks')\
+            .select('quest_task_id')\
+            .eq('user_id', user_id)\
+            .eq('user_quest_id', user_quest_id)\
+            .execute()
+
+        completed_task_ids = {task['quest_task_id'] for task in completed_tasks.data}
 
         # Check if all required tasks are completed
         if required_task_ids and required_task_ids.issubset(completed_task_ids):
