@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { handleApiResponse } from '../utils/errorHandling';
 import { getPillarData } from '../utils/pillarMappings';
 import { hasFeatureAccess } from '../utils/tierMapping';
-import TaskCompletionModal from '../components/quest/TaskCompletionModal';
+import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import LearningLogSection from '../components/quest/LearningLogSection';
 import TeamUpModal from '../components/quest/TeamUpModal';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
@@ -696,7 +696,7 @@ const QuestDetailV3 = () => {
 
       {/* Modals */}
       {showTaskModal && selectedTask && (
-        <TaskCompletionModal
+        <TaskEvidenceModal
           task={selectedTask}
           questId={quest.id}
           onComplete={handleTaskCompletion}

@@ -10,7 +10,7 @@ from routes.settings import settings_bp
 from routes.promo import promo_bp
 
 # Import V3 routes
-from routes import quests_v3, tasks, collaborations, learning_logs_v3, admin_v3, quest_sources
+from routes import quests_v3, tasks, collaborations, learning_logs_v3, admin_v3, quest_sources, evidence_documents
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -63,6 +63,7 @@ app.register_blueprint(promo_bp, url_prefix='/api/promo')  # /api/promo
 # Register V3 routes
 app.register_blueprint(quests_v3.bp)  # /api/v3/quests (blueprint has url_prefix='/api/v3/quests')
 app.register_blueprint(tasks.bp)      # /api/v3/tasks (blueprint has url_prefix='/api/v3/tasks')
+app.register_blueprint(evidence_documents.bp)  # /api/v3/evidence (blueprint has url_prefix='/api/v3/evidence')
 app.register_blueprint(admin_v3.bp)   # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
 app.register_blueprint(quest_sources.bp)  # /api/v3/admin/quest-sources (blueprint has url_prefix='/api/v3/admin/quest-sources')
 app.register_blueprint(collaborations.bp)  # /api/v3/collaborations (blueprint has url_prefix='/api/v3/collaborations')
