@@ -42,7 +42,6 @@ def get_evidence_document(user_id: str, task_id: str):
             .select('*')\
             .eq('user_id', user_id)\
             .eq('task_id', task_id)\
-            .single()\
             .execute()
 
         if not document_response.data:
@@ -53,7 +52,7 @@ def get_evidence_document(user_id: str, task_id: str):
                 'blocks': []
             })
 
-        document = document_response.data
+        document = document_response.data[0]
 
         # Get all content blocks for this document
         blocks_response = supabase.table('evidence_document_blocks')\
@@ -94,7 +93,6 @@ def save_evidence_document(user_id: str, task_id: str):
         task_check = supabase.table('quest_tasks')\
             .select('quest_id, title')\
             .eq('id', task_id)\
-            .single()\
             .execute()
 
         if not task_check.data:
@@ -103,7 +101,7 @@ def save_evidence_document(user_id: str, task_id: str):
                 'error': 'Task not found'
             }), 404
 
-        quest_id = task_check.data['quest_id']
+        quest_id = task_check.data[0]['quest_id']
 
         # Check if user is enrolled in the quest
         enrollment = supabase.table('user_quests')\
@@ -180,7 +178,7 @@ def save_evidence_document(user_id: str, task_id: str):
 
             if not existing_completion.data:
                 # Award XP for task completion
-                task_data = task_check.data
+                task_data = task_check.data[0]
                 base_xp = task_data.get('xp_amount', 0)
 
                 # Calculate XP with collaboration bonus if applicable
@@ -476,7 +474,6 @@ def complete_task_with_evidence(user_id: str, task_id: str):
             .select('*')\
             .eq('user_id', user_id)\
             .eq('task_id', task_id)\
-            .single()\
             .execute()
 
         if not document_response.data:
@@ -485,7 +482,7 @@ def complete_task_with_evidence(user_id: str, task_id: str):
                 'error': 'No evidence document found. Please add some evidence first.'
             }), 400
 
-        document = document_response.data
+        document = document_response.data[0]
 
         # Check if document has content blocks
         blocks_response = supabase.table('evidence_document_blocks')\

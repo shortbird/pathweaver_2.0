@@ -16,6 +16,7 @@ const MultiFormatEvidenceEditor = ({
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [activeBlock, setActiveBlock] = useState(null);
   const [documentStatus, setDocumentStatus] = useState('draft');
+  const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const fileInputRef = useRef(null);
   const autoSaverRef = useRef(null);
 
@@ -255,16 +256,24 @@ const MultiFormatEvidenceEditor = ({
 
   const handleFileUpload = async (file, blockId) => {
     try {
-      const response = await evidenceDocumentService.uploadBlockFile(blockId, file);
-      if (response.success) {
-        return response.file_url;
-      } else {
-        throw new Error(response.error || 'Upload failed');
-      }
+      // For now, create a local URL and let the save process handle the actual upload
+      // This is a temporary solution until we implement proper file handling
+      const localUrl = URL.createObjectURL(file);
+
+      // Store file info for later upload during save
+      const fileInfo = {
+        file: file,
+        localUrl: localUrl,
+        name: file.name,
+        size: file.size,
+        type: file.type
+      };
+
+      return fileInfo;
     } catch (error) {
-      console.error('File upload error:', error);
+      console.error('File preparation error:', error);
       if (onError) {
-        onError(`Failed to upload file: ${error.message}`);
+        onError(`Failed to prepare file: ${error.message}`);
       }
       throw error;
     }
@@ -315,8 +324,12 @@ const MultiFormatEvidenceEditor = ({
             fileInputRef.current.onchange = async (e) => {
               const file = e.target.files[0];
               if (file) {
-                const url = await handleFileUpload(file, block.id);
-                updateBlock(block.id, { url, alt: file.name });
+                const fileInfo = await handleFileUpload(file, block.id);
+                updateBlock(block.id, {
+                  url: fileInfo.localUrl,
+                  alt: file.name,
+                  _fileToUpload: file // Store file for later upload
+                });
               }
             };
             fileInputRef.current.click();
@@ -454,8 +467,13 @@ const MultiFormatEvidenceEditor = ({
             fileInputRef.current.onchange = async (e) => {
               const file = e.target.files[0];
               if (file) {
-                const url = await handleFileUpload(file, block.id);
-                updateBlock(block.id, { url, filename: file.name, title: file.name });
+                const fileInfo = await handleFileUpload(file, block.id);
+                updateBlock(block.id, {
+                  url: fileInfo.localUrl,
+                  filename: file.name,
+                  title: file.name,
+                  _fileToUpload: file // Store file for later upload
+                });
               }
             };
             fileInputRef.current.click();
@@ -602,11 +620,14 @@ const MultiFormatEvidenceEditor = ({
 
           {documentStatus === 'draft' && blocks.length > 0 && (
             <button
-              onClick={handleCompleteTask}
+              onClick={() => setShowCompleteConfirm(true)}
               disabled={isLoading}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all disabled:opacity-50"
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all disabled:opacity-50 flex items-center gap-2"
             >
-              {isLoading ? 'Completing...' : 'Mark Complete'}
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
+              {isLoading ? 'Submitting Task...' : 'Submit Task for XP'}
             </button>
           )}
 
@@ -685,6 +706,62 @@ const MultiFormatEvidenceEditor = ({
         type="file"
         className="hidden"
       />
+
+      {/* Task Completion Confirmation Modal */}
+      {showCompleteConfirm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md mx-4 shadow-xl">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Submit Task for XP</h3>
+                <p className="text-sm text-gray-600">Are you ready to complete this task?</p>
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <p className="text-sm text-gray-700 mb-3">
+                This will mark the task as completed and award you XP points. You can still edit your evidence later, but the task will be marked as done.
+              </p>
+              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <p className="text-xs text-blue-700 font-medium mb-1">What happens next:</p>
+                <ul className="text-xs text-blue-600 space-y-1">
+                  <li>• Your evidence will be saved</li>
+                  <li>• Task will be marked as completed</li>
+                  <li>• XP will be awarded to your profile</li>
+                  <li>• Evidence becomes part of your portfolio</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowCompleteConfirm(false)}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowCompleteConfirm(false);
+                  handleCompleteTask();
+                }}
+                disabled={isLoading}
+                className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                {isLoading ? 'Submitting...' : 'Submit for XP'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
