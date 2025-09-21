@@ -91,7 +91,7 @@ def save_evidence_document(user_id: str, task_id: str):
 
         # Validate task exists and user is enrolled
         task_check = supabase.table('quest_tasks')\
-            .select('quest_id, title')\
+            .select('quest_id, title, xp_amount, pillar')\
             .eq('id', task_id)\
             .execute()
 
