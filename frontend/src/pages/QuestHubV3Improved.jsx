@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from '
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { handleApiResponse } from '../utils/errorHandling';
+import { useIsMounted, useObserver, useDebounceWithCleanup, useSafeAsync } from '../hooks/useMemoryLeakFix';
 import QuestCard from '../components/quest/improved/QuestCard';
 import TeamUpModal from '../components/quest/TeamUpModal';
 import QuestSuggestionModal from '../components/QuestSuggestionModal';
@@ -45,28 +46,24 @@ const QuestHubV3Improved = () => {
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [totalResults, setTotalResults] = useState(0);
-  
-  // Ref for infinite scroll with debouncing
-  const observerRef = useRef();
+
+  // Memory leak prevention hooks
+  const isMounted = useIsMounted();
+  const safeAsync = useSafeAsync();
   const isLoadingRef = useRef(false);
 
-  // Debounced page increment to prevent rapid firing
-  const debouncedPageIncrement = useCallback(
-    debounce(() => {
-      if (!isLoadingRef.current) {
-        setPage(prevPage => prevPage + 1);
-      }
-    }, 100),
-    []
-  );
+  // Memory-safe debounced page increment
+  const { debouncedFn: debouncedPageIncrement } = useDebounceWithCleanup(() => {
+    if (!isLoadingRef.current && isMounted()) {
+      setPage(prevPage => prevPage + 1);
+    }
+  }, 100);
 
-  const lastQuestElementRef = useCallback(node => {
-    if (isLoadingMore || isLoading) return;
-    if (observerRef.current) observerRef.current.disconnect();
-
-    observerRef.current = new IntersectionObserver(
+  // Memory-safe intersection observer
+  const setupObserver = useObserver((node) => {
+    return new IntersectionObserver(
       entries => {
-        if (entries[0].isIntersecting && hasMore && !isLoadingRef.current) {
+        if (entries[0].isIntersecting && hasMore && !isLoadingRef.current && isMounted()) {
           debouncedPageIncrement();
         }
       },
@@ -74,20 +71,28 @@ const QuestHubV3Improved = () => {
         rootMargin: '100px' // Load more content when 100px away from bottom
       }
     );
+  });
 
-    if (node) observerRef.current.observe(node);
-  }, [isLoadingMore, isLoading, hasMore, debouncedPageIncrement]);
+  const lastQuestElementRef = useCallback(node => {
+    if (isLoadingMore || isLoading || !node) return;
 
-  // Single effect to handle all data fetching
+    const observer = setupObserver(node);
+    observer.observe(node);
+  }, [isLoadingMore, isLoading, hasMore, debouncedPageIncrement, setupObserver]);
+
+  // Memory-safe data fetching effect
   useEffect(() => {
     // Skip if user auth not determined yet
     if (user === undefined) return;
 
-    // Create local fetch function to avoid dependency issues
+    // Create abort-safe fetch function
     const fetchData = async (isInitial = true, targetPage = page) => {
       if (isLoadingRef.current) return;
 
       isLoadingRef.current = true;
+
+      // Only update state if component is still mounted
+      if (!isMounted()) return;
 
       if (isInitial) {
         setIsLoading(true);
@@ -99,7 +104,7 @@ const QuestHubV3Improved = () => {
         setIsLoadingMore(true);
       }
 
-      try {
+      const result = await safeAsync(async (signal) => {
         const params = new URLSearchParams({
           page: targetPage,
           per_page: 12,
@@ -111,14 +116,20 @@ const QuestHubV3Improved = () => {
           headers: user ? {
             'Authorization': `Bearer ${localStorage.getItem('access_token')}`
           } : {},
-          cache: 'no-cache'
+          cache: 'no-cache',
+          signal // Add abort signal for cancellation
         });
 
         if (!response.ok) {
           throw new Error('Unable to load quests at this time. Please check your internet connection and try again.');
         }
 
-        const data = await response.json();
+        return await response.json();
+      });
+
+      // Only process result if component is still mounted and operation wasn't aborted
+      if (result.success && isMounted()) {
+        const data = result.data;
 
         if (isInitial) {
           setQuests(data.quests || []);
@@ -129,12 +140,15 @@ const QuestHubV3Improved = () => {
 
         setTotalResults(data.total || 0);
         setHasMore(data.has_more === true);
-      } catch (error) {
+      } else if (result.error && !result.aborted && isMounted()) {
         const errorMsg = 'Unable to load quests at this time. Please check your connection and refresh the page.';
         if (!isInitial || hasLoadedOnce) {
           setError(errorMsg);
         }
-      } finally {
+      }
+
+      // Cleanup loading state if component is still mounted
+      if (isMounted()) {
         isLoadingRef.current = false;
         setIsLoading(false);
         setIsLoadingMore(false);
@@ -152,7 +166,7 @@ const QuestHubV3Improved = () => {
 
     // Handle initial load
     fetchData(true, 1);
-  }, [page, user, loginTimestamp, hasLoadedOnce]);
+  }, [page, user, loginTimestamp, hasLoadedOnce, isMounted, safeAsync]);
 
   // Reset on location change (when returning to quest hub)
   useEffect(() => {

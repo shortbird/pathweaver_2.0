@@ -8,6 +8,7 @@ from database import get_supabase_client, get_supabase_admin_client
 from utils.auth.decorators import require_auth, require_paid_tier
 from utils.source_utils import get_quest_header_image
 from utils.user_sync import ensure_user_exists, get_user_name
+from services.quest_optimization import quest_optimization_service
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -50,83 +51,22 @@ def list_quests():
         # First, we need to filter quests based on their tasks
         filtered_quest_ids = None
 
-        # Apply pillar filter if provided
-        if pillar_filter and pillar_filter != 'all':
-            pillar_quests = supabase.table('quest_tasks')\
-                .select('quest_id')\
-                .eq('pillar', pillar_filter)\
-                .execute()
+        # Use optimized filtering service
+        filtered_quest_ids = quest_optimization_service.get_quest_filtering_optimization(
+            pillar_filter, subject_filter
+        )
 
-            if pillar_quests.data:
-                filtered_quest_ids = set(task['quest_id'] for task in pillar_quests.data)
-            else:
-                # No quests match pillar filter - return empty
-                return jsonify({
-                    'success': True,
-                    'quests': [],
-                    'total': 0,
-                    'page': page,
-                    'per_page': per_page,
-                    'total_pages': 0,
-                    'has_more': False
-                })
-
-        # Apply subject filter if provided
-        if subject_filter and subject_filter != 'all':
-            if subject_filter == 'electives':
-                # For electives, find tasks with no school_subjects or empty array
-                subject_quests = supabase.table('quest_tasks')\
-                    .select('quest_id')\
-                    .is_('school_subjects', 'null')\
-                    .execute()
-
-                # Also check for empty arrays
-                empty_subject_quests = supabase.table('quest_tasks')\
-                    .select('quest_id')\
-                    .eq('school_subjects', [])\
-                    .execute()
-
-                subject_quest_ids = set()
-                if subject_quests.data:
-                    subject_quest_ids.update(task['quest_id'] for task in subject_quests.data)
-                if empty_subject_quests.data:
-                    subject_quest_ids.update(task['quest_id'] for task in empty_subject_quests.data)
-            else:
-                # For other subjects, check if the subject is in the school_subjects array
-                subject_quests = supabase.table('quest_tasks')\
-                    .select('quest_id')\
-                    .contains('school_subjects', [subject_filter])\
-                    .execute()
-
-                subject_quest_ids = set(task['quest_id'] for task in subject_quests.data) if subject_quests.data else set()
-
-            if not subject_quest_ids:
-                # No quests match subject filter - return empty
-                return jsonify({
-                    'success': True,
-                    'quests': [],
-                    'total': 0,
-                    'page': page,
-                    'per_page': per_page,
-                    'total_pages': 0,
-                    'has_more': False
-                })
-
-            # Intersect with pillar filter if both are applied
-            if filtered_quest_ids is not None:
-                filtered_quest_ids = filtered_quest_ids.intersection(subject_quest_ids)
-                if not filtered_quest_ids:
-                    return jsonify({
-                        'success': True,
-                        'quests': [],
-                        'total': 0,
-                        'page': page,
-                        'per_page': per_page,
-                        'total_pages': 0,
-                        'has_more': False
-                    })
-            else:
-                filtered_quest_ids = subject_quest_ids
+        # Handle empty filter results
+        if filtered_quest_ids is not None and len(filtered_quest_ids) == 0:
+            return jsonify({
+                'success': True,
+                'quests': [],
+                'total': 0,
+                'page': page,
+                'per_page': per_page,
+                'total_pages': 0,
+                'has_more': False
+            })
 
         # Build main quest query
         query = supabase.table('quests')\
@@ -203,81 +143,14 @@ def list_quests():
                 source_header = get_quest_header_image(quest)
                 if source_header:
                     quest['header_image_url'] = source_header
-            
-            # Add user enrollment data if authenticated
-            if user_id:
-                # Get ANY enrollment for this user and quest
-                enrollment = supabase.table('user_quests')\
-                    .select('*')\
-                    .eq('user_id', user_id)\
-                    .eq('quest_id', quest['id'])\
-                    .execute()
-                
-                if enrollment.data:
-                    print(f"[DEBUG] Found enrollment for quest {quest['id'][:8]}: {enrollment.data[0]}")
-                    # Find the active enrollment - consider is_active=None as active
-                    active_enrollment = None
-                    completed_enrollment = None
-                    
-                    for enr in enrollment.data:
-                        # Check if completed
-                        if enr.get('completed_at'):
-                            completed_enrollment = enr
-                        # Check if not completed and is_active is not explicitly False
-                        elif enr.get('is_active') is not False:
-                            active_enrollment = enr
-                            print(f"[DEBUG] Found ACTIVE enrollment: is_active={enr.get('is_active')}")
-                    
-                    # Prioritize completed enrollment if it exists
-                    if completed_enrollment:
-                        quest['completed_enrollment'] = completed_enrollment
-                        
-                        # Add progress information for completed quest
-                        completed_tasks_result = supabase.table('user_quest_tasks')\
-                            .select('quest_task_id')\
-                            .eq('user_quest_id', completed_enrollment['id'])\
-                            .execute()
-                        
-                        completed_task_count = len(completed_tasks_result.data) if completed_tasks_result.data else 0
-                        total_tasks = len(quest.get('quest_tasks', []))
-                        
-                        quest['progress'] = {
-                            'completed_tasks': completed_task_count,
-                            'total_tasks': total_tasks,
-                            'percentage': 100  # Always 100% for completed quests
-                        }
-                        
-                        # Mark all tasks as completed for completed quest
-                        completed_task_ids = {t['quest_task_id'] for t in completed_tasks_result.data} if completed_tasks_result.data else set()
-                        for task in quest.get('quest_tasks', []):
-                            task['is_completed'] = task['id'] in completed_task_ids
-                            
-                    # Include active enrollment only if no completed enrollment exists
-                    elif active_enrollment:
-                        quest['user_enrollment'] = active_enrollment
-                        
-                        # Add progress information
-                        completed_tasks_result = supabase.table('user_quest_tasks')\
-                            .select('quest_task_id')\
-                            .eq('user_quest_id', active_enrollment['id'])\
-                            .execute()
-                        
-                        completed_task_count = len(completed_tasks_result.data) if completed_tasks_result.data else 0
-                        total_tasks = len(quest.get('quest_tasks', []))
-                        
-                        quest['progress'] = {
-                            'completed_tasks': completed_task_count,
-                            'total_tasks': total_tasks,
-                            'percentage': (completed_task_count / total_tasks * 100) if total_tasks > 0 else 0
-                        }
-                        
-                        # Mark completed tasks (same logic as quest detail endpoint)
-                        completed_task_ids = {t['quest_task_id'] for t in completed_tasks_result.data} if completed_tasks_result.data else set()
-                        for task in quest.get('quest_tasks', []):
-                            task['is_completed'] = task['id'] in completed_task_ids
-            
-            # All filtering is now done at the database level
+
+            # Add quest to list (user enrollment data will be added in batch)
             quests.append(quest)
+
+        # OPTIMIZATION: Add user enrollment data using batch queries instead of N+1
+        if user_id and quests:
+            print(f"[OPTIMIZATION] Using batch queries for {len(quests)} quests instead of {len(quests) * 2} individual queries")
+            quests = quest_optimization_service.enrich_quests_with_user_data(quests, user_id)
         
         # Calculate if there are more pages
         total_pages = (result.count + per_page - 1) // per_page if result.count else 0

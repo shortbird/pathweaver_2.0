@@ -5,6 +5,7 @@ from utils.validation import validate_registration_data, sanitize_input
 from utils.session_manager import session_manager
 from middleware.rate_limiter import rate_limit
 from middleware.error_handler import ValidationError, AuthenticationError, ExternalServiceError, ConflictError
+from middleware.csrf_protection import get_csrf_token
 from utils.retry_handler import retry_database_operation
 from legal_versions import CURRENT_TOS_VERSION, CURRENT_PRIVACY_POLICY_VERSION
 import re
@@ -481,24 +482,41 @@ def logout():
 
 @bp.route('/refresh', methods=['POST'])
 def refresh_token():
-    data = request.json
+    # Try to refresh using httpOnly cookies first
+    refresh_result = session_manager.refresh_session()
+
+    if refresh_result:
+        new_access_token, new_refresh_token = refresh_result
+
+        # Create response with new tokens in cookies
+        response = make_response(jsonify({
+            'message': 'Tokens refreshed successfully'
+        }), 200)
+
+        # Set new secure cookies
+        session_manager.set_auth_cookies(response, session_manager.get_current_user_id())
+
+        return response
+
+    # Fallback to legacy refresh token method for backward compatibility
+    data = request.json if request.json else {}
     refresh_token = data.get('refresh_token')
-    
+
     if not refresh_token:
         return jsonify({'error': 'No refresh token provided'}), 401
-    
+
     supabase = get_supabase_client()
-    
+
     try:
         auth_response = supabase.auth.refresh_session(refresh_token)
-        
+
         if auth_response.session:
             return jsonify({
                 'session': auth_response.session.model_dump()
             }), 200
         else:
             return jsonify({'error': 'Failed to refresh token'}), 401
-            
+
     except Exception as e:
         return jsonify({'error': str(e)}), 400
 
@@ -565,5 +583,37 @@ def resend_verification():
     except Exception as e:
         print(f"[RESEND_VERIFICATION] Error: {str(e)}")
         return jsonify({'error': 'Failed to resend verification email'}), 500
+
+@bp.route('/csrf-token', methods=['GET'])
+def get_csrf_token_endpoint():
+    """Get CSRF token for frontend requests"""
+    try:
+        token = get_csrf_token()
+
+        if not token:
+            # If CSRF is not available, generate a simple token for compatibility
+            import secrets
+            token = secrets.token_urlsafe(32)
+
+        response = make_response(jsonify({
+            'csrf_token': token
+        }), 200)
+
+        # Set CSRF token in cookie for double-submit pattern
+        response.set_cookie(
+            'csrf_token',
+            token,
+            max_age=3600,  # 1 hour
+            httponly=False,  # JavaScript needs to read this
+            secure=os.getenv('FLASK_ENV') == 'production',
+            samesite='Strict' if os.getenv('FLASK_ENV') == 'production' else 'Lax',
+            path='/'
+        )
+
+        return response
+
+    except Exception as e:
+        print(f"Error generating CSRF token: {str(e)}")
+        return jsonify({'error': 'Failed to generate CSRF token'}), 500
 
 

@@ -8,6 +8,7 @@ from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth
 from services.evidence_service import EvidenceService
 from services.xp_service import XPService
+from services.atomic_quest_service import atomic_quest_service
 from datetime import datetime
 import os
 import math

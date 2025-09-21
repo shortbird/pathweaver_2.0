@@ -5,25 +5,27 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Enable sending cookies with requests
 })
 
-// Helper function to get auth headers for fetch requests
+// Helper function to get auth headers for fetch requests (backward compatibility)
+// Note: This is now primarily for backward compatibility - cookies are preferred
 export const getAuthHeaders = () => {
-  const token = localStorage.getItem('access_token')
   const headers = {
     'Content-Type': 'application/json',
-  }
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`
   }
   return headers
 }
 
+// Remove localStorage token handling - rely on httpOnly cookies
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
+    // Add CSRF token for state-changing requests
+    if (['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase())) {
+      const csrfToken = getCsrfToken()
+      if (csrfToken) {
+        config.headers['X-CSRF-Token'] = csrfToken
+      }
     }
     return config
   },
@@ -32,52 +34,60 @@ api.interceptors.request.use(
   }
 )
 
+// Function to get CSRF token from meta tag or cookie
+function getCsrfToken() {
+  // First try to get from meta tag (if set by server)
+  const metaTag = document.querySelector('meta[name="csrf-token"]')
+  if (metaTag) {
+    return metaTag.getAttribute('content')
+  }
+
+  // Fallback to reading from cookie (double-submit pattern)
+  const cookies = document.cookie.split(';')
+  for (let cookie of cookies) {
+    const [name, value] = cookie.trim().split('=')
+    if (name === 'csrf_token') {
+      return decodeURIComponent(value)
+    }
+  }
+
+  return null
+}
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
-    
-    // Don't retry refresh if the failing request is already a refresh attempt
-    if (error.response?.status === 401 && 
-        !originalRequest._retry && 
+
+    // Handle 401 responses by attempting token refresh
+    if (error.response?.status === 401 &&
+        !originalRequest._retry &&
         !originalRequest.url?.includes('/auth/refresh')) {
       originalRequest._retry = true
-      
+
       try {
-        const refresh_token = localStorage.getItem('refresh_token')
-        
-        // Only attempt refresh if we have a refresh token
-        if (!refresh_token) {
-          throw new Error('No refresh token available')
+        // Attempt to refresh tokens using httpOnly cookies
+        const response = await api.post('/api/auth/refresh')
+
+        // If refresh succeeds, retry the original request
+        if (response.status === 200) {
+          return api(originalRequest)
         }
-        
-        const response = await api.post('/api/auth/refresh', { refresh_token })
-        const { session } = response.data
-        
-        localStorage.setItem('access_token', session.access_token)
-        localStorage.setItem('refresh_token', session.refresh_token)
-        
-        api.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`
-        originalRequest.headers.Authorization = `Bearer ${session.access_token}`
-        
-        return api(originalRequest)
       } catch (refreshError) {
-        // Clear auth data
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
+        // Clear any user data from localStorage (keep for user profile cache)
         localStorage.removeItem('user')
-        
+
         // Only redirect to login if we're not already on auth pages
         const authPaths = ['/login', '/register', '/email-verification', '/']
         const currentPath = window.location.pathname
         if (!authPaths.includes(currentPath)) {
           window.location.href = '/login'
         }
-        
+
         return Promise.reject(refreshError)
       }
     }
-    
+
     return Promise.reject(error)
   }
 )
