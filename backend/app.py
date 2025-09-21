@@ -154,14 +154,8 @@ def debug_user_tier(user_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.before_request
-def handle_preflight():
-    if request.method == "OPTIONS":
-        response = make_response()
-        response.headers.add("Access-Control-Allow-Origin", "*")
-        response.headers.add('Access-Control-Allow-Headers', "*")
-        response.headers.add('Access-Control-Allow-Methods', "*")
-        return response
+# Preflight requests are now handled by Flask-CORS middleware
+# No manual handling needed
 
 # Error handlers are now managed by error_handler middleware
 
