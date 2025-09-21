@@ -82,6 +82,10 @@ except Exception as e:
     print(f"Warning: Quest AI routes not available: {e}")
 
 
+@app.route('/')
+def root():
+    return jsonify({'message': 'Optio API Server', 'status': 'running'}), 200
+
 @app.route('/api/health')
 def health_check():
     return jsonify({'status': 'healthy'}), 200

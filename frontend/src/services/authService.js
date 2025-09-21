@@ -22,7 +22,7 @@ class AuthService {
    */
   async initializeCSRF() {
     try {
-      const response = await api.get('/api/auth/csrf-token')
+      const response = await api.get('/csrf-token')
       this.csrfToken = response.data.csrf_token
     } catch (error) {
       console.warn('Failed to initialize CSRF token:', error)
