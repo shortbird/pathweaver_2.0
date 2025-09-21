@@ -88,9 +88,6 @@ export function useObserver(createObserver) {
       if (typeof observerRef.current.disconnect === 'function') {
         observerRef.current.disconnect()
       }
-      if (typeof observerRef.current.unobserve === 'function') {
-        observerRef.current.unobserve()
-      }
     }
 
     // Create new observer
@@ -104,9 +101,6 @@ export function useObserver(createObserver) {
       if (observerRef.current) {
         if (typeof observerRef.current.disconnect === 'function') {
           observerRef.current.disconnect()
-        }
-        if (typeof observerRef.current.unobserve === 'function') {
-          observerRef.current.unobserve()
         }
       }
     }

@@ -72,7 +72,7 @@ def configure_cors(app):
              r"/portfolio/*": {"origins": allowed_origins},
              r"/csrf-token": {"origins": allowed_origins}
          },
-         allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-CSRF-Token"],
+         allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-CSRF-Token", "Cache-Control"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
          supports_credentials=True,
          max_age=3600)

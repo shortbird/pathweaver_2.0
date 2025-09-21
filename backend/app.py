@@ -52,6 +52,8 @@ error_handler.init_app(app)
 app.register_blueprint(auth.bp, url_prefix='/api/auth')
 app.register_blueprint(subscriptions.bp, url_prefix='/api/subscriptions')
 app.register_blueprint(users.bp, url_prefix='/api/users')
+# Also register users blueprint under v3 for compatibility
+app.register_blueprint(users.bp, url_prefix='/api/v3/users')
 app.register_blueprint(community.bp, url_prefix='/api/community')
 app.register_blueprint(portfolio.bp, url_prefix='/api/portfolio')
 app.register_blueprint(quest_ideas_bp, url_prefix='/api')
