@@ -271,9 +271,19 @@ def accept_friend_request(user_id, friendship_id):
 
         # Update friendship status using admin client to bypass RLS
         print(f"[ACCEPT_FRIEND] Updating friendship {friendship_id} to accepted status")
-        response = admin_supabase.table('friendships').update({
-            'status': 'accepted'
-        }).eq('id', friendship_id).execute()
+
+        # Ensure friendship_id is an integer (Supabase expects correct type)
+        try:
+            friendship_id_int = int(friendship_id)
+        except ValueError:
+            print(f"[ACCEPT_FRIEND] Invalid friendship ID: {friendship_id}")
+            return jsonify({'error': 'Invalid friendship ID'}), 400
+
+        # Simple update without any additional parameters that might trigger auto-timestamps
+        response = admin_supabase.table('friendships')\
+            .update({'status': 'accepted'})\
+            .eq('id', friendship_id_int)\
+            .execute()
 
         print(f"[ACCEPT_FRIEND] Update response: {response}")
 
