@@ -222,25 +222,38 @@ def send_friend_request(user_id):
 @require_paid_tier
 def accept_friend_request(user_id, friendship_id):
     supabase = get_supabase_client()
-    
+
     try:
+        print(f"[ACCEPT_FRIEND] User {user_id} attempting to accept friendship {friendship_id}")
+
         friendship_result = supabase.table('friendships').select('*').eq('id', friendship_id).execute()
         friendship = {'data': friendship_result.data[0] if friendship_result.data else None}
-        
+
+        print(f"[ACCEPT_FRIEND] Friendship data: {friendship['data']}")
+
         if not friendship['data']:
+            print(f"[ACCEPT_FRIEND] Friend request not found for ID: {friendship_id}")
             return jsonify({'error': 'Friend request not found'}), 404
-        
+
         if friendship['data']['addressee_id'] != user_id:
+            print(f"[ACCEPT_FRIEND] Unauthorized: addressee_id {friendship['data']['addressee_id']} != user_id {user_id}")
             return jsonify({'error': 'Unauthorized'}), 403
-        
+
         if friendship['data']['status'] != 'pending':
+            print(f"[ACCEPT_FRIEND] Status not pending: {friendship['data']['status']}")
             return jsonify({'error': 'Friend request already processed'}), 400
         
         # Update friendship status (critical operation)
         response = supabase.table('friendships').update({
             'status': 'accepted'
         }).eq('id', friendship_id).execute()
-        
+
+        print(f"[ACCEPT_FRIEND] Update response: {response}")
+
+        if not response.data:
+            print(f"[ACCEPT_FRIEND] No data returned from update operation")
+            return jsonify({'error': 'Failed to update friendship status'}), 500
+
         # Log activity (non-critical - don't fail if this fails)
         try:
             supabase.table('activity_log').insert({
@@ -250,11 +263,13 @@ def accept_friend_request(user_id, friendship_id):
             }).execute()
         except Exception as log_error:
             print(f"Warning: Failed to log activity: {log_error}")
-        
+
         return jsonify(response.data[0]), 200
-        
+
     except Exception as e:
-        return jsonify({'error': str(e)}), 400
+        print(f"[ACCEPT_FRIEND] Error: {str(e)}")
+        print(f"[ACCEPT_FRIEND] Error type: {type(e).__name__}")
+        return jsonify({'error': f'Failed to accept friend request: {str(e)}'}), 500
 
 @bp.route('/friends/decline/<friendship_id>', methods=['DELETE'])
 @require_auth
