@@ -272,6 +272,15 @@ def accept_friend_request(user_id, friendship_id):
     except Exception as e:
         print(f"[ACCEPT_FRIEND] Error: {str(e)}")
         print(f"[ACCEPT_FRIEND] Error type: {type(e).__name__}")
+
+        # Check if it's a Supabase error with more details
+        if hasattr(e, 'details'):
+            print(f"[ACCEPT_FRIEND] Error details: {e.details}")
+        if hasattr(e, 'code'):
+            print(f"[ACCEPT_FRIEND] Error code: {e.code}")
+        if hasattr(e, 'message'):
+            print(f"[ACCEPT_FRIEND] Error message: {e.message}")
+
         return jsonify({'error': f'Failed to accept friend request: {str(e)}'}), 500
 
 @bp.route('/friends/decline/<friendship_id>', methods=['DELETE'])
