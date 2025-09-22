@@ -68,9 +68,18 @@ def configure_cors(app):
     
     CORS(app,
          resources={
-             r"/api/*": {"origins": allowed_origins},
-             r"/portfolio/*": {"origins": allowed_origins},
-             r"/csrf-token": {"origins": allowed_origins}
+             r"/api/*": {
+                 "origins": allowed_origins,
+                 "supports_credentials": True
+             },
+             r"/portfolio/*": {
+                 "origins": allowed_origins,
+                 "supports_credentials": True
+             },
+             r"/csrf-token": {
+                 "origins": allowed_origins,
+                 "supports_credentials": True
+             }
          },
          allow_headers=["Content-Type", "Authorization", "X-Requested-With", "X-CSRF-Token", "Cache-Control"],
          methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
