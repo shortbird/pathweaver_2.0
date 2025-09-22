@@ -222,6 +222,8 @@ def send_friend_request(user_id):
 @require_paid_tier
 def accept_friend_request(user_id, friendship_id):
     supabase = get_supabase_client()
+    from database import get_supabase_admin_client
+    admin_supabase = get_supabase_admin_client()
 
     try:
         print(f"[ACCEPT_FRIEND] User {user_id} attempting to accept friendship {friendship_id}")
@@ -242,9 +244,10 @@ def accept_friend_request(user_id, friendship_id):
         if friendship['data']['status'] != 'pending':
             print(f"[ACCEPT_FRIEND] Status not pending: {friendship['data']['status']}")
             return jsonify({'error': 'Friend request already processed'}), 400
-        
-        # Update friendship status (critical operation)
-        response = supabase.table('friendships').update({
+
+        # Update friendship status using admin client to bypass RLS
+        print(f"[ACCEPT_FRIEND] Updating friendship {friendship_id} to accepted status")
+        response = admin_supabase.table('friendships').update({
             'status': 'accepted'
         }).eq('id', friendship_id).execute()
 
