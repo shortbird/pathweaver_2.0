@@ -420,13 +420,22 @@ def get_active_collaborations(user_id: str):
     """
     try:
         supabase = get_supabase_client()
-        
+
         # Get collaborations where user is either requester or partner
-        collaborations = supabase.table('quest_collaborations')\
-            .select('*, quests(id, title, header_image_url)')\
-            .eq('status', 'accepted')\
-            .or_(f'requester_id.eq.{user_id},partner_id.eq.{user_id}')\
-            .execute()
+        try:
+            collaborations = supabase.table('quest_collaborations')\
+                .select('*, quests(id, title, header_image_url)')\
+                .eq('status', 'accepted')\
+                .or_(f'requester_id.eq.{user_id},partner_id.eq.{user_id}')\
+                .execute()
+        except Exception as db_error:
+            print(f"Error getting active collaborations: {str(db_error)}")
+            # Return empty result instead of crashing
+            return jsonify({
+                'success': True,
+                'collaborations': [],
+                'message': 'Temporarily unable to load collaborations'
+            }), 200
         
         if not collaborations.data:
             return jsonify({

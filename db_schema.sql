@@ -112,6 +112,16 @@ CREATE TABLE public.diplomas (
   created_at timestamp without time zone DEFAULT now(),
   CONSTRAINT diplomas_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.evidence_document_blocks (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  document_id uuid NOT NULL,
+  block_type text NOT NULL CHECK (block_type = ANY (ARRAY['text'::text, 'image'::text, 'video'::text, 'link'::text, 'document'::text])),
+  content jsonb NOT NULL,
+  order_index integer NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT evidence_document_blocks_pkey PRIMARY KEY (id),
+  CONSTRAINT evidence_document_blocks_document_id_fkey FOREIGN KEY (document_id) REFERENCES public.user_task_evidence_documents(id)
+);
 CREATE TABLE public.friendships (
   id integer NOT NULL DEFAULT nextval('friendships_id_seq'::regclass),
   requester_id uuid,
@@ -360,6 +370,15 @@ CREATE TABLE public.role_change_log (
   CONSTRAINT role_change_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT role_change_log_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.users(id)
 );
+CREATE TABLE public.security_warnings_documentation (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  warning_type character varying NOT NULL,
+  description text NOT NULL,
+  required_action text NOT NULL,
+  responsible_party character varying NOT NULL,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT security_warnings_documentation_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.site_settings (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   logo_url text,
@@ -466,6 +485,20 @@ CREATE TABLE public.user_subject_xp (
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT user_subject_xp_pkey PRIMARY KEY (id),
   CONSTRAINT user_subject_xp_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.user_task_evidence_documents (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  quest_id uuid NOT NULL,
+  task_id uuid NOT NULL,
+  status text NOT NULL DEFAULT 'draft'::text CHECK (status = ANY (ARRAY['draft'::text, 'completed'::text])),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  completed_at timestamp with time zone,
+  CONSTRAINT user_task_evidence_documents_pkey PRIMARY KEY (id),
+  CONSTRAINT user_task_evidence_documents_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT user_task_evidence_documents_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id),
+  CONSTRAINT user_task_evidence_documents_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.quest_tasks(id)
 );
 CREATE TABLE public.user_xp (
   id integer NOT NULL DEFAULT nextval('user_xp_id_seq'::regclass),

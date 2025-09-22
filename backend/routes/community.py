@@ -12,28 +12,41 @@ def get_friends(user_id):
     supabase = get_supabase_client()
     from database import get_supabase_admin_client
     admin_supabase = get_supabase_admin_client()
-    
+
     try:
         print(f"[GET_FRIENDS] Fetching friends for user: {user_id}")
-        
-        # Get friendships where user is the requester (without joins first)
-        friendships_as_requester = supabase.table('friendships')\
-            .select('*')\
-            .eq('requester_id', user_id)\
-            .execute()
-        
-        print(f"[GET_FRIENDS] Friendships as requester: {len(friendships_as_requester.data or [])} found")
-        
-        # Get friendships where user is the addressee (without joins first)
-        friendships_as_addressee = supabase.table('friendships')\
-            .select('*')\
-            .eq('addressee_id', user_id)\
-            .execute()
-        
-        print(f"[GET_FRIENDS] Friendships as addressee: {len(friendships_as_addressee.data or [])} found")
-        
-        # Combine both results
-        all_friendships = (friendships_as_requester.data or []) + (friendships_as_addressee.data or [])
+
+        # Use a single query with OR condition to reduce database connections
+        try:
+            friendships = supabase.table('friendships')\
+                .select('*')\
+                .or_(f'requester_id.eq.{user_id},addressee_id.eq.{user_id}')\
+                .execute()
+
+            all_friendships = friendships.data or []
+            print(f"[GET_FRIENDS] Total friendships found: {len(all_friendships)}")
+
+        except Exception as db_error:
+            print(f"[GET_FRIENDS] Database error: {str(db_error)}")
+            print(f"[GET_FRIENDS] Falling back to separate queries")
+
+            # Fallback to separate queries if OR fails
+            friendships_as_requester = supabase.table('friendships')\
+                .select('*')\
+                .eq('requester_id', user_id)\
+                .execute()
+
+            print(f"[GET_FRIENDS] Friendships as requester: {len(friendships_as_requester.data or [])} found")
+
+            friendships_as_addressee = supabase.table('friendships')\
+                .select('*')\
+                .eq('addressee_id', user_id)\
+                .execute()
+
+            print(f"[GET_FRIENDS] Friendships as addressee: {len(friendships_as_addressee.data or [])} found")
+
+            # Combine both results
+            all_friendships = (friendships_as_requester.data or []) + (friendships_as_addressee.data or [])
         
         friends = []
         pending_requests = []
@@ -69,6 +82,17 @@ def get_friends(user_id):
         import traceback
         print(f"[GET_FRIENDS] Error: {str(e)}", file=sys.stderr, flush=True)
         print(f"[GET_FRIENDS] Full traceback: {traceback.format_exc()}", file=sys.stderr, flush=True)
+
+        # Handle specific connection errors gracefully
+        error_message = str(e)
+        if "Resource temporarily unavailable" in error_message or "[Errno 11]" in error_message:
+            return jsonify({
+                'success': True,
+                'friends': [],
+                'pending_requests': [],
+                'message': 'Temporarily unable to load friends. Please try again.'
+            }), 200
+
         return jsonify({'error': str(e)}), 400
 
 @bp.route('/friends/request', methods=['POST'])
