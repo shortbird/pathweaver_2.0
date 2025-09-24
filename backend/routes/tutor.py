@@ -134,6 +134,9 @@ def send_message(user_id: str):
     except ValidationError as e:
         return error_response(str(e), status_code=400, error_code="validation_error")
     except Exception as e:
+        import traceback
+        print(f"ERROR in send_message: {str(e)}")
+        print(f"TRACEBACK: {traceback.format_exc()}")
         return error_response(f"Failed to process message: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/conversations', methods=['GET'])
@@ -387,6 +390,9 @@ def get_conversation_starters(user_id: str):
         })
 
     except Exception as e:
+        import traceback
+        print(f"ERROR in get_conversation_starters: {str(e)}")
+        print(f"TRACEBACK: {traceback.format_exc()}")
         return error_response(f"Failed to get conversation starters: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/usage', methods=['GET'])
@@ -430,7 +436,47 @@ def get_usage_stats(user_id: str):
         return success_response({'usage': usage_data})
 
     except Exception as e:
+        import traceback
+        print(f"ERROR in get_usage_stats: {str(e)}")
+        print(f"TRACEBACK: {traceback.format_exc()}")
         return error_response(f"Failed to get usage stats: {str(e)}", status_code=500, error_code="internal_error")
+
+@bp.route('/debug', methods=['GET'])
+@require_auth
+def debug_tutor_service(user_id: str):
+    """Debug endpoint to test tutor service initialization"""
+    try:
+        # Test 1: Basic response
+        print(f"DEBUG: Testing endpoint for user {user_id}")
+
+        # Test 2: Test tutor_tier_service
+        print("DEBUG: Testing tutor_tier_service...")
+        message_status = tutor_tier_service.can_send_message(user_id)
+        print(f"DEBUG: Tier service works: {message_status}")
+
+        # Test 3: Test AITutorService initialization
+        print("DEBUG: Testing AITutorService initialization...")
+        test_service = AITutorService()
+        print("DEBUG: AITutorService initialized successfully")
+
+        # Test 4: Test context building
+        print("DEBUG: Testing context building...")
+        supabase = get_user_client(user_id)
+        context = _build_tutor_context(supabase, user_id)
+        print(f"DEBUG: Context built: {context}")
+
+        return success_response({
+            'debug': 'All tests passed',
+            'user_id': user_id,
+            'message_status': message_status,
+            'context_mode': context.conversation_mode.value
+        })
+
+    except Exception as e:
+        import traceback
+        print(f"DEBUG ERROR: {str(e)}")
+        print(f"DEBUG TRACEBACK: {traceback.format_exc()}")
+        return error_response(f"Debug failed: {str(e)}", status_code=500, error_code="debug_error")
 
 @bp.route('/tier-info', methods=['GET'])
 @require_auth
