@@ -12,7 +12,7 @@ from enum import Enum
 import google.generativeai as genai
 
 from services.safety_service import SafetyService, SafetyLevel
-from utils.pillar_utils import get_pillar_display_name
+from utils.pillar_utils import get_pillar_name
 
 class ConversationMode(Enum):
     """Different modes for AI tutor conversations"""
@@ -443,7 +443,7 @@ CREATIVE MODE:
 
         if context.current_task:
             task_pillar = context.current_task.get('pillar', '')
-            pillar_display = get_pillar_display_name(task_pillar)
+            pillar_display = get_pillar_name(task_pillar)
             starters.append(f"Need help with your {pillar_display} task?")
 
         # General starters
