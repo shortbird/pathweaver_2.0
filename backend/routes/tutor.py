@@ -28,9 +28,18 @@ def get_tutor_service():
     global tutor_service
     if tutor_service is None:
         try:
+            import os
+            print(f"DEBUG: Initializing AITutorService...")
+            print(f"DEBUG: GEMINI_API_KEY present: {'GEMINI_API_KEY' in os.environ}")
+            print(f"DEBUG: GOOGLE_API_KEY present: {'GOOGLE_API_KEY' in os.environ}")
             tutor_service = AITutorService()
+            print("DEBUG: AITutorService initialized successfully")
         except Exception as e:
             print(f"CRITICAL: Failed to initialize AITutorService: {e}")
+            print(f"DEBUG: Exception type: {type(e).__name__}")
+            print(f"DEBUG: Exception args: {e.args}")
+            import traceback
+            traceback.print_exc()
             raise Exception(f"Tutor service unavailable: {e}")
     return tutor_service
 
