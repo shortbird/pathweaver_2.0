@@ -19,9 +19,20 @@ from utils.api_response import success_response, error_response
 
 bp = Blueprint('tutor', __name__, url_prefix='/api/tutor')
 
-# Initialize services
-tutor_service = AITutorService()
+# Initialize services (lazy loading to prevent module-level errors)
+tutor_service = None
 safety_service = SafetyService()
+
+def get_tutor_service():
+    """Get tutor service with lazy initialization"""
+    global tutor_service
+    if tutor_service is None:
+        try:
+            tutor_service = AITutorService()
+        except Exception as e:
+            print(f"CRITICAL: Failed to initialize AITutorService: {e}")
+            raise Exception(f"Tutor service unavailable: {e}")
+    return tutor_service
 
 @bp.route('/chat', methods=['POST'])
 @require_auth
@@ -89,7 +100,7 @@ def send_message(user_id: str):
         )
 
         # Process message with AI tutor
-        tutor_response = tutor_service.process_message(message, context)
+        tutor_response = get_tutor_service().process_message(message, context)
 
         if not tutor_response['success']:
             return error_response(
@@ -382,7 +393,7 @@ def get_conversation_starters(user_id: str):
         context = _build_tutor_context(supabase, user_id)
 
         # Get conversation starters
-        starters = tutor_service.get_conversation_starters(context)
+        starters = get_tutor_service().get_conversation_starters(context)
 
         return success_response({
             'starters': starters,
@@ -456,7 +467,7 @@ def debug_tutor_service(user_id: str):
 
         # Test 3: Test AITutorService initialization
         print("DEBUG: Testing AITutorService initialization...")
-        test_service = AITutorService()
+        test_service = get_tutor_service()
         print("DEBUG: AITutorService initialized successfully")
 
         # Test 4: Test context building
