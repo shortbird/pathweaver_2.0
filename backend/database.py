@@ -60,11 +60,23 @@ def get_user_client(token: Optional[str] = None) -> Client:
             token = auth_header.replace('Bearer ', '')
     
     if token:
-        # Create client with user's token for proper RLS enforcement
-        client = create_client(Config.SUPABASE_URL, Config.SUPABASE_ANON_KEY)
-        # Set the auth header with the user's token
-        client.auth.set_session(access_token=token, refresh_token="")
-        return client
+        # Validate JWT token format before using
+        token_parts = token.split('.')
+        if len(token_parts) != 3:
+            print(f"WARNING: Invalid JWT token format - expected 3 parts, got {len(token_parts)}")
+            # Return anonymous client for invalid tokens
+            return get_supabase_client()
+
+        try:
+            # Create client with user's token for proper RLS enforcement
+            client = create_client(Config.SUPABASE_URL, Config.SUPABASE_ANON_KEY)
+            # Set the auth header with the user's token
+            client.auth.set_session(access_token=token, refresh_token="")
+            return client
+        except Exception as e:
+            print(f"ERROR: Failed to set auth session with token: {e}")
+            # Return anonymous client if token setup fails
+            return get_supabase_client()
     else:
         # No token, return anonymous client
         return get_supabase_client()

@@ -71,7 +71,7 @@ def send_message(user_id: str):
                 }
             )
 
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         # Get or create conversation
         if conversation_id:
@@ -155,7 +155,7 @@ def send_message(user_id: str):
 def get_conversations(user_id: str):
     """Get user's tutor conversations"""
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         # Get query parameters
         limit = min(int(request.args.get('limit', 20)), 100)
@@ -189,7 +189,7 @@ def get_conversations(user_id: str):
 def get_conversation(user_id: str, conversation_id: str):
     """Get specific conversation with messages"""
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         # Verify conversation ownership
         conversation = _get_conversation(supabase, conversation_id, user_id)
@@ -221,7 +221,7 @@ def update_conversation(user_id: str, conversation_id: str):
     """Update conversation settings"""
     try:
         data = request.get_json()
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         # Verify conversation ownership
         conversation = _get_conversation(supabase, conversation_id, user_id)
@@ -265,7 +265,7 @@ def update_conversation(user_id: str, conversation_id: str):
 def get_settings(user_id: str):
     """Get user's tutor settings"""
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         settings = supabase.table('tutor_settings').select('*').eq('user_id', user_id).execute()
 
@@ -285,7 +285,7 @@ def update_settings(user_id: str):
     """Update user's tutor settings"""
     try:
         data = request.get_json()
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         update_data = {}
 
@@ -345,7 +345,7 @@ def report_content(user_id: str):
         reason = data['reason']
         description = data.get('description', '')
 
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         # Verify message ownership
         message = supabase.table('tutor_messages').select('''
@@ -387,7 +387,7 @@ def report_content(user_id: str):
 def get_conversation_starters(user_id: str):
     """Get conversation starters based on user's current context"""
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         # Build basic context
         context = _build_tutor_context(supabase, user_id)
@@ -415,7 +415,7 @@ def get_usage_stats(user_id: str):
         message_status = tutor_tier_service.can_send_message(user_id)
         feature_access = tutor_tier_service.get_feature_access(user_id)
 
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         # Get today's analytics
         today = date.today().isoformat()
@@ -472,7 +472,7 @@ def debug_tutor_service(user_id: str):
 
         # Test 4: Test context building
         print("DEBUG: Testing context building...")
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
         context = _build_tutor_context(supabase, user_id)
         print(f"DEBUG: Context built: {context}")
 
