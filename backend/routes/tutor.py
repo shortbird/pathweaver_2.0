@@ -132,9 +132,9 @@ def send_message(user_id: str):
         })
 
     except ValidationError as e:
-        return error_response(str(e), "validation_error", status_code=400)
+        return error_response(str(e), status_code=400, error_code="validation_error")
     except Exception as e:
-        return error_response(f"Failed to process message: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to process message: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/conversations', methods=['GET'])
 @require_auth
@@ -168,7 +168,7 @@ def get_conversations(user_id: str):
         })
 
     except Exception as e:
-        return error_response(f"Failed to get conversations: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to get conversations: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/conversations/<conversation_id>', methods=['GET'])
 @require_auth
@@ -180,7 +180,7 @@ def get_conversation(user_id: str, conversation_id: str):
         # Verify conversation ownership
         conversation = _get_conversation(supabase, conversation_id, user_id)
         if not conversation:
-            return error_response("Conversation not found", "not_found", status_code=404)
+            return error_response("Conversation not found", status_code=404, error_code="not_found")
 
         # Get messages
         messages_limit = min(int(request.args.get('limit', 50)), 100)
@@ -199,7 +199,7 @@ def get_conversation(user_id: str, conversation_id: str):
         })
 
     except Exception as e:
-        return error_response(f"Failed to get conversation: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to get conversation: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/conversations/<conversation_id>', methods=['PUT'])
 @require_auth
@@ -212,7 +212,7 @@ def update_conversation(user_id: str, conversation_id: str):
         # Verify conversation ownership
         conversation = _get_conversation(supabase, conversation_id, user_id)
         if not conversation:
-            return error_response("Conversation not found", "not_found", status_code=404)
+            return error_response("Conversation not found", status_code=404, error_code="not_found")
 
         update_data = {}
 
@@ -242,9 +242,9 @@ def update_conversation(user_id: str, conversation_id: str):
         return success_response({'message': 'No updates provided'})
 
     except ValidationError as e:
-        return error_response(str(e), "validation_error", status_code=400)
+        return error_response(str(e), status_code=400, error_code="validation_error")
     except Exception as e:
-        return error_response(f"Failed to update conversation: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to update conversation: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/settings', methods=['GET'])
 @require_auth
@@ -263,7 +263,7 @@ def get_settings(user_id: str):
         return success_response({'settings': settings.data})
 
     except Exception as e:
-        return error_response(f"Failed to get settings: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to get settings: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/settings', methods=['PUT'])
 @require_auth
@@ -313,9 +313,9 @@ def update_settings(user_id: str):
         return success_response({'message': 'No updates provided'})
 
     except ValidationError as e:
-        return error_response(str(e), "validation_error", status_code=400)
+        return error_response(str(e), status_code=400, error_code="validation_error")
     except Exception as e:
-        return error_response(f"Failed to update settings: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to update settings: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/report', methods=['POST'])
 @require_auth
@@ -340,7 +340,7 @@ def report_content(user_id: str):
         ''').eq('id', message_id).single().execute()
 
         if not message.data or message.data['tutor_conversations']['user_id'] != user_id:
-            return error_response("Message not found", "not_found", status_code=404)
+            return error_response("Message not found", status_code=404, error_code="not_found")
 
         # Create safety report
         report = {
@@ -364,9 +364,9 @@ def report_content(user_id: str):
         })
 
     except ValidationError as e:
-        return error_response(str(e), "validation_error", status_code=400)
+        return error_response(str(e), status_code=400, error_code="validation_error")
     except Exception as e:
-        return error_response(f"Failed to submit report: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to submit report: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/starters', methods=['GET'])
 @require_auth
@@ -387,7 +387,7 @@ def get_conversation_starters(user_id: str):
         })
 
     except Exception as e:
-        return error_response(f"Failed to get conversation starters: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to get conversation starters: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/usage', methods=['GET'])
 @require_auth
@@ -429,7 +429,7 @@ def get_usage_stats(user_id: str):
         return success_response({'usage': usage_data})
 
     except Exception as e:
-        return error_response(f"Failed to get usage stats: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to get usage stats: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/tier-info', methods=['GET'])
 @require_auth
@@ -462,7 +462,7 @@ def get_tier_info(user_id: str):
         })
 
     except Exception as e:
-        return error_response(f"Failed to get tier info: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to get tier info: {str(e)}", status_code=500, error_code="internal_error")
 
 # Helper functions
 
@@ -607,4 +607,4 @@ def handle_validation_error(error):
 
 @bp.errorhandler(AuthorizationError)
 def handle_authorization_error(error):
-    return error_response(str(error), "authorization_error", status_code=403)
+    return error_response(str(error), status_code=403, error_code="authorization_error")
