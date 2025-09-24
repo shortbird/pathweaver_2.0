@@ -404,7 +404,7 @@ def get_usage_stats(user_id: str):
         today = date.today().isoformat()
         today_analytics = supabase.table('tutor_analytics').select('*').eq(
             'user_id', user_id
-        ).eq('date', today).single().execute()
+        ).eq('date', today).execute()
 
         usage_data = {
             'daily_limit': message_status['limit'],
@@ -415,11 +415,12 @@ def get_usage_stats(user_id: str):
             'feature_access': feature_access
         }
 
-        if today_analytics.data:
+        if today_analytics.data and len(today_analytics.data) > 0:
+            analytics_data = today_analytics.data[0]
             usage_data.update({
-                'topics_discussed': today_analytics.data.get('topics_discussed', []),
-                'learning_pillars_covered': today_analytics.data.get('learning_pillars_covered', []),
-                'engagement_score': today_analytics.data.get('engagement_score', 0.0)
+                'topics_discussed': analytics_data.get('topics_discussed', []),
+                'learning_pillars_covered': analytics_data.get('learning_pillars_covered', []),
+                'engagement_score': analytics_data.get('engagement_score', 0.0)
             })
 
         # Get overall stats
@@ -520,12 +521,13 @@ def _build_tutor_context(supabase, user_id: str, conversation: Optional[Dict] = 
 
     try:
         # Get user settings
-        settings = supabase.table('tutor_settings').select('*').eq('user_id', user_id).single().execute()
-        if settings.data:
-            context.user_age = settings.data.get('age_verification')
-            context.learning_style = settings.data.get('learning_style')
-            if settings.data.get('preferred_mode'):
-                context.conversation_mode = ConversationMode(settings.data['preferred_mode'])
+        settings = supabase.table('tutor_settings').select('*').eq('user_id', user_id).execute()
+        if settings.data and len(settings.data) > 0:
+            settings_data = settings.data[0]
+            context.user_age = settings_data.get('age_verification')
+            context.learning_style = settings_data.get('learning_style')
+            if settings_data.get('preferred_mode'):
+                context.conversation_mode = ConversationMode(settings_data['preferred_mode'])
 
         # Get recent messages for context
         if conversation:
