@@ -7,13 +7,13 @@
 - Always commit and push changes automatically unless explicitly told otherwise
 - The diploma page is the CORE offering - students use it on resumes to showcase education
 - Keep this documentation up to date with code changes
-- Follow core_philosophy.md for all updates
+- Follow core_philosophy.md for all updates - "The Process Is The Goal"
 - Never use emojis
 
 **DEVELOPMENT WORKFLOW:**
 - **Development**: Push to `develop` branch for immediate live testing on dev environment
 - **Production**: Deploy to `main` branch only when ready for production release
-- **Branch Strategy**: 
+- **Branch Strategy**:
   - `develop` → https://optio-dev-frontend.onrender.com & https://optio-dev-backend.onrender.com
   - `main` → https://www.optioeducation.com & https://optio-prod-backend.onrender.com
 - **Testing Process**: Always test changes in dev environment first, then merge to main for production
@@ -27,6 +27,12 @@
 - **Tier Layout**: All tier cards use flexbox with buttons aligned at bottom
 - **Favicon**: Located at `https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/logos/icon.jpg`
 - **NEVER USE EMOJIS**: Avoid emojis in UI components, text, or any user-facing content. Use proper icons, SVGs, or design elements instead. Emojis can cause encoding issues and look unprofessional.
+
+**CORE PHILOSOPHY:**
+- **Foundation**: "The Process Is The Goal" - learning is about who you become through the journey
+- **Present-Focused Value**: Celebrate growth happening RIGHT NOW, not future potential
+- **Internal Motivation**: Focus on how learning FEELS, not how it LOOKS
+- **Process Celebration**: Every step, attempt, and mistake is valuable
 
 ## Project Overview
 
@@ -63,39 +69,58 @@ backend/
 │   │   ├── quest_management.py   # Quest CRUD operations
 │   │   ├── quest_ideas.py        # Quest suggestions & AI generation
 │   │   └── quest_sources.py      # Quest source management
+│   ├── users/               # User-specific routes
+│   │   ├── completed_quests.py   # Quest completion history
+│   │   ├── dashboard.py          # User dashboard data
+│   │   ├── profile.py            # User profile management
+│   │   └── transcript.py         # Academic transcript
+│   ├── admin_v3.py          # Core admin functions
+│   ├── auth.py              # Authentication & JWT
+│   ├── collaborations.py    # Team-up invitations (paid tier)
+│   ├── community.py         # Friends system (paid tier)
+│   ├── evidence_documents.py # Evidence file uploads
+│   ├── learning_logs_v3.py  # Learning reflections
+│   ├── portfolio.py         # Diploma/portfolio (CORE)
+│   ├── promo.py             # Promo codes
 │   ├── quests_v3.py         # V3 quest system
+│   ├── ratings.py           # Quest ratings & feedback
+│   ├── settings.py          # User settings
+│   ├── subscriptions.py     # Stripe subscription management
 │   ├── tasks.py             # Task completions
-│   ├── quest_submissions.py # Custom quests
-│   ├── portfolio.py         # Diploma/portfolio
-│   └── admin_v3.py          # Core admin functions
+│   └── uploads.py           # File upload handling
 ├── services/         # Business logic
-│   ├── quest_optimization.py    # N+1 query elimination
-│   └── atomic_quest_service.py  # Race condition prevention
-├── hooks/            # Memory leak prevention
-│   └── useMemoryLeakFix.js      # Safe async operations
-├── migrations/       # Database performance indexes
-│   ├── 001_add_performance_indexes.sql
-│   ├── 002_add_evidence_indexes.sql
-│   └── 003_add_user_activity_indexes.sql
-└── middleware/       # Security, rate limiting, CSRF
+│   ├── atomic_quest_service.py  # Race condition prevention
+│   └── quest_optimization.py    # N+1 query elimination
+├── middleware/       # Security & request handling
+│   ├── csrf_protection.py       # CSRF token management
+│   ├── error_handler.py         # Global error handling
+│   ├── rate_limiter.py          # API rate limiting
+│   └── security.py              # Security headers
+├── utils/           # Shared utilities
+│   ├── auth/                    # Authentication utilities
+│   │   ├── decorators.py        # @require_auth, @require_paid_tier
+│   │   └── helpers.py           # JWT validation helpers
+│   └── validation/              # Input validation
+└── database.py      # Supabase client management
 
 frontend/src/
 ├── pages/
-│   ├── QuestHubV3Improved.jsx  # Quest hub (memory optimized)
-│   ├── DiplomaPageV3.jsx       # CORE FEATURE
-│   ├── CustomizeQuestPage.jsx  # Quest submissions
 │   ├── AdminPage.jsx           # Admin dashboard (modular)
-│   └── DemoPage.jsx            # Interactive demo experience
+│   ├── DiplomaPageV3.jsx       # CORE FEATURE
+│   ├── FriendsPage.jsx         # Community features (paid tier)
+│   ├── HomePage.jsx            # Landing page
+│   ├── QuestDetailV3.jsx       # Individual quest page
+│   ├── QuestHubV3Improved.jsx  # Quest hub (memory optimized)
+│   └── SubscriptionPage.jsx    # Stripe subscription management
 ├── components/
 │   ├── admin/        # Extracted admin components
 │   │   ├── AdminDashboard.jsx   # Dashboard overview
 │   │   ├── AdminQuests.jsx      # Quest management
 │   │   ├── AdminUsers.jsx       # User management
-│   │   ├── UserDetailsModal.jsx # User profile modal
-│   │   └── BulkEmailModal.jsx   # Bulk email functionality
+│   │   └── AdminQuestSuggestions.jsx # Quest idea approval
 │   ├── diploma/      # Diploma components
-│   ├── demo/        # Demo feature components
-│   └── ui/          # Reusable UI components
+│   ├── demo/         # Demo feature components
+│   └── ui/           # Reusable UI components
 ├── hooks/            # Custom hooks
 │   └── useMemoryLeakFix.js      # Memory leak prevention
 └── services/
@@ -112,6 +137,7 @@ frontend/src/
 - username, first_name, last_name
 - role (student/parent/advisor/admin)
 - subscription_tier (explorer/creator/visionary)
+- created_at, updated_at
 
 **quests**
 - id (UUID, PK)
@@ -119,25 +145,28 @@ frontend/src/
 - source (khan_academy/brilliant/custom)
 - is_v3 (boolean - true for current system)
 - is_active
+- created_at, updated_at
 - Note: pillar and xp_value are legacy fields (V3 uses task-level)
 
 **quest_tasks** (V3 - stores task details)
 - id (UUID, PK)
-- quest_id
+- quest_id (FK to quests)
 - title, description
 - pillar (STEM & Logic, Life & Wellness, Language & Communication, Society & Culture, Arts & Creativity)
 - xp_value (XP for completing this task)
 - order_index, is_required
+- created_at, updated_at
 
 **quest_task_completions** (V3 - tracks completion)
 - id (UUID, PK)
 - user_id, quest_id, task_id
 - evidence_url, evidence_text
 - completed_at
+- xp_awarded (calculated from task)
 
-**user_skill_xp** (XP tracking)
+**user_skill_xp** (XP tracking by pillar)
 - user_id, pillar, xp_amount
-- Updated when tasks are completed
+- Updated atomically when tasks are completed
 
 **quest_submissions** (Custom quest requests)
 - id (UUID, PK)
@@ -147,19 +176,89 @@ frontend/src/
 - make_public (boolean)
 - status (pending/approved/rejected)
 - approved_quest_id (if approved)
+- created_at, updated_at
 
 **user_quests** (Quest enrollment)
 - user_id, quest_id
 - is_active (false = abandoned)
 - started_at, completed_at
 
+### Community & Social Features
+
+**friendships** (Friends system - paid tier only)
+- id (UUID, PK)
+- requester_id, addressee_id (both FK to users)
+- status (pending/accepted/rejected)
+- created_at, updated_at
+- Note: Updated via bypass function to avoid timestamp triggers
+
+**collaboration_invitations** (Team-up system - paid tier only)
+- id (UUID, PK)
+- sender_id, receiver_id (both FK to users)
+- quest_id (FK to quests)
+- status (pending/accepted/rejected/cancelled)
+- message (optional)
+- created_at, updated_at
+
+**quest_ratings** (Quest feedback system)
+- id (UUID, PK)
+- user_id, quest_id
+- rating (1-5 stars)
+- feedback_text (optional)
+- created_at, updated_at
+
+### Additional Features
+
+**learning_logs_v3** (Learning reflections)
+- id (UUID, PK)
+- user_id, quest_id
+- log_text, reflection_type
+- created_at, updated_at
+
+**evidence_documents** (File uploads for evidence)
+- id (UUID, PK)
+- user_id, task_completion_id
+- file_name, file_type, file_size
+- file_url (Supabase storage)
+- created_at
+
+**promo_codes** (Promotional codes)
+- id (UUID, PK)
+- code (unique)
+- discount_type, discount_value
+- valid_from, valid_until
+- max_uses, current_uses
+- is_active
+
 ## Key API Endpoints
 
-### Quests & Tasks
-- GET /api/v3/quests - List quests
+### Authentication (httpOnly cookies + CSRF)
+- POST /api/auth/login - Login with email/password
+- POST /api/auth/register - Create new account
+- POST /api/auth/refresh - Refresh JWT tokens
+- POST /api/auth/logout - Clear auth cookies
+- GET /api/auth/csrf-token - Get CSRF token for frontend
+
+### Quests & Tasks (V3 System)
+- GET /api/v3/quests - List active quests
 - POST /api/v3/quests/:id/start - Start quest
-- POST /api/v3/tasks/:taskId/complete - Submit evidence
-- GET /api/v3/quests/:id/progress - Check progress
+- GET /api/v3/quests/:id/progress - Check quest progress
+- POST /api/v3/tasks/:taskId/complete - Submit task evidence
+- GET /api/v3/tasks/:taskId - Get task details
+
+### User Management
+- GET /api/users/:userId/dashboard - Dashboard data
+- GET /api/users/:userId/profile - User profile
+- PUT /api/users/:userId/profile - Update profile
+- GET /api/users/:userId/completed-quests - Quest history
+- GET /api/users/:userId/transcript - Academic transcript
+
+### Community Features (Paid Tier Only)
+- GET /api/community/friends - List friends
+- POST /api/community/friends/request - Send friend request
+- PUT /api/community/friends/:id/accept - Accept friend request
+- POST /api/v3/collaborations/invite - Send collaboration invite
+- GET /api/v3/collaborations - List collaboration invites
 
 ### Admin API (Modular)
 - **User Management**: /api/v3/admin/users/* - User CRUD, roles, subscriptions
@@ -167,42 +266,67 @@ frontend/src/
 - **Quest Ideas**: /api/v3/admin/quest-ideas/* - Quest suggestions workflow
 - **Quest Sources**: /api/v3/admin/quest-sources - Source management
 
-### Custom Quest Submissions
-- POST /api/v3/quests/submissions - Submit custom quest
-- GET /api/v3/admin/quest-ideas - View submissions (admin)
-- PUT /api/v3/admin/quest-ideas/:id/approve - Approve quest
-
-### Portfolio/Diploma (CORE)
+### Portfolio/Diploma (CORE FEATURE)
 - GET /api/portfolio/:slug - Public portfolio view
 - GET /api/portfolio/diploma/:userId - Get diploma data
+- PUT /api/portfolio/:userId/settings - Update portfolio settings
+
+### Additional Features
+- POST /api/uploads - File upload handling
+- POST /api/evidence-documents - Upload evidence files
+- GET /api/learning-logs/:questId - Get learning logs
+- POST /api/learning-logs - Create learning reflection
+- POST /api/quest-ratings - Rate completed quest
+- POST /api/subscriptions/create - Create Stripe subscription
+- GET /api/health - Health check endpoint
 
 ## Key Features
 
-### Demo Experience
-- Interactive demo at /demo for prospective users
-- Persona-based experience (student/parent)
-- Sample quest completion workflow
-- Auto-scroll navigation between steps
-
-### V3 Quest System
-- **Task-based structure**: Each quest has multiple tasks
+### V3 Quest System (Current Implementation)
+- **Task-based structure**: Each quest contains multiple tasks with individual XP values
 - **Per-task configuration**: Each task has its own pillar and XP value
-- **Evidence submission**: Text, images, videos, documents
+- **Evidence submission**: Text, images, videos, documents via evidence_documents table
 - **Completion bonus**: 50% XP bonus for completing all tasks (rounded to nearest 50)
-- **Custom quests**: Students can submit quest ideas for approval
+- **Custom quests**: Students can submit quest ideas for admin approval
+- **Race condition prevention**: Atomic quest completion with optimistic locking
+- **Performance optimized**: N+1 query elimination reduces database calls by ~80%
 
-### Diploma Page (MOST IMPORTANT)
-- Public-facing portfolio at /diploma/:userId or /portfolio/:slug
-- Displays completed quests with evidence
-- Shows XP breakdown by skill pillar with radar chart visualization
-- Professional design for resume use
-- Must reflect Optio brand positively
-- Auto-scrolls to top when navigating between sections
+### Diploma Page (CORE PRODUCT)
+- **Public portfolio**: /diploma/:userId or /portfolio/:slug routes
+- **Evidence showcase**: Displays completed quests with submitted evidence
+- **XP visualization**: Radar chart showing skill pillar breakdown
+- **Professional design**: Resume-ready presentation reflecting Optio brand
+- **SEO optimized**: Meta tags for sharing on social platforms
+- **Auto-navigation**: Scrolls to top when navigating between sections
+- **Critical importance**: This is what students showcase to employers
 
-### XP Calculation
-- XP awarded per task completion, not per quest
-- Stored in user_skill_xp table by pillar
-- Completion bonus applied when all tasks done
+### Community Features (Paid Tier Only)
+- **Friends system**: Add friends, view friend activity
+- **Collaboration invites**: Team up on quests with friends
+- **Friend requests**: Send/accept/reject friendship requests
+- **Activity sharing**: See friends' quest completions and achievements
+- **Database optimization**: Friendship updates use bypass function to avoid timestamp triggers
+
+### Authentication & Security
+- **httpOnly cookies**: JWT tokens stored in secure httpOnly cookies
+- **CSRF protection**: Double-submit cookie pattern for state-changing requests
+- **RLS enforcement**: Row Level Security via user-authenticated Supabase clients
+- **Token refresh**: Automatic token renewal without user intervention
+- **XSS prevention**: No JavaScript-accessible token storage
+
+### Additional Features
+- **Learning logs**: Reflection system for deeper learning engagement
+- **Quest ratings**: 1-5 star rating system with optional feedback
+- **Evidence documents**: File upload system for rich evidence submission
+- **Promo codes**: Discount system for subscription management
+- **Subscription tiers**: Explorer (free), Creator, Visionary with Stripe integration
+
+### XP System & Skill Progression
+- **XP Per Task**: Each task has individual XP value based on difficulty and pillar
+- **Completion Bonus**: 50% bonus XP when completing all tasks in a quest (rounded to nearest 50)
+- **Five Skill Pillars**: STEM & Logic, Life & Wellness, Language & Communication, Society & Culture, Arts & Creativity
+- **Achievement Levels**: Explorer (0 XP) → Builder (250 XP) → Creator (750 XP) → Scholar (1,500 XP) → Sage (3,000 XP)
+- **Atomic Updates**: XP stored in user_skill_xp table with race condition prevention
 
 ## Environment Variables
 
@@ -288,63 +412,73 @@ mcp__render__list_logs(resource, limit, filters)
 - **Prod Backend**: `srv-d2to00vfte5s73ae9310` (optio-prod-backend)
 - **Prod Frontend**: `srv-d2to04vfte5s73ae97ag` (optio-prod-frontend)
 
-**Legacy Services (DELETE THESE - no longer needed):**
-- `srv-d2tnouh5pdvs739ohha0` (optio-backend-dev-v2)
-- `srv-d2tnm1uuk2gs73d2cqk0` (optio-backend-dev-new)
-- `srv-d2tnm3re5dus73e155u0` (optio-frontend-dev-new)
-- `srv-d2s8ravdiees73bfll10` (optio-frontend-dev)
-- `srv-d2s8r8be5dus73ddp8h0` (optio-backend-dev)
-- `srv-d2r79t7diees73dvcbig` (Optio_FE)
-- `srv-d2po3n6r433s73dhcuig` (Optio)
-
 **MCP Benefits:**
 - Real-time deployment monitoring
 - Environment variable management without manual dashboard access
 - Log analysis for debugging issues
 - Automated service health checks
 
+## Common Issues & Troubleshooting
+
+### Authentication Issues
+- **401 Unauthorized**: Check if user is logged in, verify JWT token in httpOnly cookies
+- **CSRF Token Missing**: Ensure X-CSRF-Token header is included in state-changing requests
+- **CORS Errors**: Verify FRONTEND_URL environment variable matches the requesting domain
+- **withCredentials**: All API calls must include `withCredentials: true` for cookie authentication
+
+### Database Connection Issues
+- **Connection Timeout**: Use database connection retry logic in community.py pattern
+- **RLS Violations**: Use get_user_client() instead of get_supabase_admin_client() for user operations
+- **Friendship Updates**: Use bypass function to avoid timestamp trigger issues
+
+### Recent Bug Fixes Applied
+- **Friendship Update Errors**: Added database function to bypass timestamp triggers (commit: 8039407)
+- **CORS Policy Errors**: Added manual CORS headers and supports_credentials configuration (commit: 8aed486)
+- **404 Authentication Errors**: Fixed CSRF endpoint routing and added root route support (commit: 90e2b40)
+- **Blueprint Conflicts**: Resolved v3 users route blueprint name conflicts (commit: 8dc54e0)
+
+### Performance Optimization Patterns
+- **N+1 Query Prevention**: Use quest_optimization.py service for bulk data loading
+- **Memory Leak Prevention**: Use useMemoryLeakFix.js hook for React components
+- **Race Condition Prevention**: Use atomic_quest_service.py for quest completions
+- **Database Indexing**: Comprehensive indexes applied for frequent query patterns
+
+### File Upload Issues
+- **Blob URL Errors**: Ensure proper blob URL handling in evidence_documents.py
+- **CORS for File Uploads**: Verify upload endpoints have proper CORS configuration
+- **File Size Limits**: Check Supabase storage limits and backend validation
+
 ## Development Guidelines
 
-- Follow PEP 8 for Python
-- Use functional React components with hooks
-- TailwindCSS for styling
-- Test in production environment
-- Update this doc when making schema changes
+### Code Standards
+- **Python**: Follow PEP 8, use type hints, implement proper error handling
+- **React**: Use functional components with hooks, implement memory leak prevention
+- **Database**: Use proper client selection (admin vs user), implement RLS correctly
+- **API Design**: RESTful endpoints, proper HTTP status codes, comprehensive error messages
+- **Security**: Always use httpOnly cookies, implement CSRF protection, validate inputs
 
-## Security & Performance Enhancements (2024-12)
+### Testing & Deployment
+- **Environment Strategy**: Test in dev environment first, then deploy to production
+- **Branch Management**: Use develop branch for testing, main for production releases
+- **Error Handling**: Implement comprehensive error logging and user feedback
+- **Performance**: Use optimization patterns from services/ directory
 
-### Security Improvements
-- **JWT Security**: Migrated from localStorage to secure httpOnly cookies
-- **CSRF Protection**: Implemented double-submit cookie pattern for state-changing requests
-- **XSS Prevention**: Eliminated JavaScript-accessible token storage
-- **Session Security**: Enhanced with httpOnly and secure cookie flags
+### Code Architecture Principles
+- **Modular Design**: Keep components and modules focused on single responsibilities
+- **Security First**: Never expose sensitive data, use proper authentication patterns
+- **Performance Conscious**: Prevent N+1 queries, use appropriate database indexes
+- **User Experience**: Follow core_philosophy.md for messaging and UX patterns
 
-### Performance Optimizations
-- **Database Indexes**: Comprehensive indexing strategy for frequent queries
-- **N+1 Query Elimination**: Reduced database calls by ~80% in quest loading
-- **Memory Leak Prevention**: Custom React hooks for safe async operations
-- **Race Condition Prevention**: Atomic quest completion with optimistic locking
+### Recent Architectural Improvements (2024)
+- **Backend Modularization**: Split monolithic files into focused modules
+- **Security Enhancement**: Migrated to httpOnly cookies with CSRF protection
+- **Performance Optimization**: Reduced database calls by ~80% through query optimization
+- **Memory Management**: Implemented custom React hooks for leak prevention
+- **Race Condition Prevention**: Added atomic operations for critical paths
 
-### Code Architecture
-- **Backend Modularization**: Split 1720-line admin_v3.py into focused modules
-- **Frontend Component Extraction**: Reduced AdminPage.jsx from 1958 to 60 lines
-- **Single Responsibility**: Each module/component has clear, focused purpose
-- **Maintainability**: 97% reduction in monolithic code complexity
-
-### Database Migrations
-Manual application required for production:
-```bash
-# Apply during low-traffic maintenance window
-psql -f backend/migrations/001_add_performance_indexes.sql
-psql -f backend/migrations/002_add_evidence_indexes.sql
-psql -f backend/migrations/003_add_user_activity_indexes.sql
-```
-
-## Critical Notes
-
-- The diploma page is the core product - prioritize its quality
-- Custom quests allow student-generated content
-- Always maintain backwards compatibility with existing data
-- Security: All authentication now uses secure httpOnly cookies
-- Performance: Database queries optimized with comprehensive indexing
-- Architecture: Code is now modular and maintainable
+### Key Files to Reference
+- **Core Philosophy**: `core_philosophy.md` - Essential for all user-facing features
+- **Authentication**: `backend/middleware/csrf_protection.py` - CSRF implementation
+- **Database**: `backend/database.py` - Proper client usage patterns
+- **API Client**: `frontend/src/services/api.js` - httpOnly cookie authentication
+- **Memory Safety**: `frontend/src/hooks/useMemoryLeakFix.js` - React optimization
