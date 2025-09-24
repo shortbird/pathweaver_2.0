@@ -218,9 +218,9 @@ class TutorTierService:
             supabase = get_supabase_admin_client()
             settings = supabase.table('tutor_settings').select(
                 'messages_used_today, daily_message_limit, last_reset_date'
-            ).eq('user_id', user_id).single().execute()
+            ).eq('user_id', user_id).execute()
 
-            if not settings.data:
+            if not settings.data or len(settings.data) == 0:
                 # Create default settings
                 self._create_default_settings(user_id, limits)
                 return {
@@ -230,12 +230,13 @@ class TutorTierService:
                     'limit': limits.daily_message_limit
                 }
 
-            messages_used = settings.data.get('messages_used_today', 0)
-            daily_limit = settings.data.get('daily_message_limit', limits.daily_message_limit)
+            settings_data = settings.data[0]
+            messages_used = settings_data.get('messages_used_today', 0)
+            daily_limit = settings_data.get('daily_message_limit', limits.daily_message_limit)
 
             # Reset if it's a new day
             from datetime import date
-            last_reset = settings.data.get('last_reset_date')
+            last_reset = settings_data.get('last_reset_date')
             if not last_reset or last_reset != date.today().isoformat():
                 messages_used = 0
                 supabase.table('tutor_settings').update({
