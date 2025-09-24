@@ -109,7 +109,17 @@ def send_message(user_id: str):
         )
 
         # Process message with AI tutor
-        tutor_response = get_tutor_service().process_message(message, context)
+        print("DEBUG: About to call get_tutor_service()")
+        try:
+            tutor_service = get_tutor_service()
+            print("DEBUG: Got tutor service, processing message...")
+            tutor_response = tutor_service.process_message(message, context)
+            print("DEBUG: AI tutor processing completed")
+        except Exception as e:
+            print(f"DEBUG: Exception during tutor service call: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
 
         if not tutor_response['success']:
             return error_response(
