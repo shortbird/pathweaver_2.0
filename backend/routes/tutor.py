@@ -105,8 +105,8 @@ def send_message(user_id: str):
         if not tutor_response['success']:
             return error_response(
                 tutor_response.get('response', 'Failed to process message'),
-                tutor_response.get('error', 'processing_failed'),
-                status_code=500
+                status_code=500,
+                error_code=tutor_response.get('error', 'processing_failed')
             )
 
         # Store AI response
