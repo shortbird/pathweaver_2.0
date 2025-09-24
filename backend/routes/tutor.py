@@ -680,6 +680,50 @@ def _schedule_parent_notification(user_id: str, conversation_id: str, message_co
     except Exception as e:
         print(f"Failed to schedule parent notification: {e}")
 
+@bp.route('/test-service', methods=['GET'])
+def test_tutor_service():
+    """Simple test endpoint to isolate AITutorService initialization error"""
+    try:
+        import os
+        print("=== TUTOR SERVICE TEST STARTED ===")
+
+        # Test environment variables
+        gemini_present = 'GEMINI_API_KEY' in os.environ
+        google_present = 'GOOGLE_API_KEY' in os.environ
+        print(f"GEMINI_API_KEY present: {gemini_present}")
+        print(f"GOOGLE_API_KEY present: {google_present}")
+
+        # Test import
+        print("Testing AITutorService import...")
+        from services.ai_tutor_service import AITutorService
+        print("Import successful")
+
+        # Test initialization
+        print("Testing AITutorService initialization...")
+        service = AITutorService()
+        print("Initialization successful")
+
+        return {
+            'status': 'success',
+            'message': 'AITutorService initialized successfully',
+            'gemini_key_present': gemini_present,
+            'google_key_present': google_present
+        }
+
+    except Exception as e:
+        import traceback
+        error_details = {
+            'status': 'error',
+            'error': str(e),
+            'type': type(e).__name__,
+            'traceback': traceback.format_exc()
+        }
+        print(f"=== TUTOR SERVICE TEST ERROR ===")
+        print(f"Error: {str(e)}")
+        print(f"Type: {type(e).__name__}")
+        print(f"Traceback: {traceback.format_exc()}")
+        return error_details, 500
+
 # Error handlers
 @bp.errorhandler(ValidationError)
 def handle_validation_error(error):
