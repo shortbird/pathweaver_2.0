@@ -190,18 +190,23 @@ class TutorTierService:
         try:
             supabase = get_supabase_admin_client()
 
-            user = supabase.table('users').select('subscription_tier').eq(
+            # Use execute() instead of single() to avoid blocking/timeout issues
+            result = supabase.table('users').select('subscription_tier').eq(
                 'id', user_id
-            ).single().execute()
+            ).execute()
 
-            if not user.data:
+            if not result.data or len(result.data) == 0:
+                logger.warning(f"No user found with id {user_id}, defaulting to FREE tier")
                 return TutorTier.FREE
 
-            subscription_tier = user.data.get('subscription_tier', 'free')
-            return self.tier_mappings.get(subscription_tier, TutorTier.FREE)
+            subscription_tier = result.data[0].get('subscription_tier', 'free')
+            mapped_tier = self.tier_mappings.get(subscription_tier, TutorTier.FREE)
+            logger.debug(f"User {user_id} has tier: {subscription_tier} -> {mapped_tier}")
+            return mapped_tier
 
         except Exception as e:
             logger.error(f"Failed to get user tier for {user_id}: {e}")
+            # Return FREE tier as fallback to allow chat to continue
             return TutorTier.FREE
 
     def get_tier_limits(self, tier: TutorTier) -> TierLimits:
