@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, date
 from typing import Dict, List, Optional, Any
 import uuid
+import logging
 
 from database import get_user_client, get_supabase_admin_client
 from utils.auth.decorators import require_auth
@@ -19,6 +20,9 @@ from utils.api_response import success_response, error_response
 
 bp = Blueprint('tutor', __name__, url_prefix='/api/tutor')
 
+# Set up logging
+logger = logging.getLogger(__name__)
+
 # Initialize services (lazy loading to prevent module-level errors)
 tutor_service = None
 safety_service = SafetyService()
@@ -29,16 +33,24 @@ def get_tutor_service():
     if tutor_service is None:
         try:
             import os
-            print(f"DEBUG: Initializing AITutorService...")
-            print(f"DEBUG: GEMINI_API_KEY present: {'GEMINI_API_KEY' in os.environ}")
-            print(f"DEBUG: GOOGLE_API_KEY present: {'GOOGLE_API_KEY' in os.environ}")
+            logger.info("Initializing AITutorService...")
+            print("TUTOR SERVICE: Initializing AITutorService...")
+            logger.info(f"GEMINI_API_KEY present: {'GEMINI_API_KEY' in os.environ}")
+            print(f"TUTOR SERVICE: GEMINI_API_KEY present: {'GEMINI_API_KEY' in os.environ}")
+            logger.info(f"GOOGLE_API_KEY present: {'GOOGLE_API_KEY' in os.environ}")
+            print(f"TUTOR SERVICE: GOOGLE_API_KEY present: {'GOOGLE_API_KEY' in os.environ}")
             tutor_service = AITutorService()
-            print("DEBUG: AITutorService initialized successfully")
+            logger.info("AITutorService initialized successfully")
+            print("TUTOR SERVICE: AITutorService initialized successfully")
         except Exception as e:
-            print(f"CRITICAL: Failed to initialize AITutorService: {e}")
-            print(f"DEBUG: Exception type: {type(e).__name__}")
-            print(f"DEBUG: Exception args: {e.args}")
+            logger.error(f"CRITICAL: Failed to initialize AITutorService: {e}")
+            print(f"TUTOR SERVICE CRITICAL: Failed to initialize AITutorService: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            print(f"TUTOR SERVICE: Exception type: {type(e).__name__}")
+            logger.error(f"Exception args: {e.args}")
+            print(f"TUTOR SERVICE: Exception args: {e.args}")
             import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             traceback.print_exc()
             raise Exception(f"Tutor service unavailable: {e}")
     return tutor_service
@@ -109,15 +121,20 @@ def send_message(user_id: str):
         )
 
         # Process message with AI tutor
-        print("DEBUG: About to call get_tutor_service()")
+        logger.info("About to call get_tutor_service()")
+        print("TUTOR DEBUG: About to call get_tutor_service()")
         try:
             tutor_service = get_tutor_service()
-            print("DEBUG: Got tutor service, processing message...")
+            logger.info("Got tutor service, processing message...")
+            print("TUTOR DEBUG: Got tutor service, processing message...")
             tutor_response = tutor_service.process_message(message, context)
-            print("DEBUG: AI tutor processing completed")
+            logger.info("AI tutor processing completed")
+            print("TUTOR DEBUG: AI tutor processing completed")
         except Exception as e:
-            print(f"DEBUG: Exception during tutor service call: {e}")
+            logger.error(f"Exception during tutor service call: {e}")
+            print(f"TUTOR DEBUG: Exception during tutor service call: {e}")
             import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             traceback.print_exc()
             raise
 
@@ -162,10 +179,18 @@ def send_message(user_id: str):
         })
 
     except ValidationError as e:
+        logger.error(f"ValidationError in send_message: {str(e)}")
         return error_response(str(e), status_code=400, error_code="validation_error")
     except Exception as e:
         import traceback
-        print(f"ERROR in send_message: {str(e)}")
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"CRITICAL ERROR in send_message: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"TRACEBACK: {traceback.format_exc()}")
+        # Also print to ensure it shows up somewhere
+        print(f"CRITICAL ERROR in send_message: {str(e)}")
+        print(f"Exception type: {type(e).__name__}")
         print(f"TRACEBACK: {traceback.format_exc()}")
         return error_response(f"Failed to process message: {str(e)}", status_code=500, error_code="internal_error")
 
