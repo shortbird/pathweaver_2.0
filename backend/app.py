@@ -83,6 +83,14 @@ try:
 except Exception as e:
     print(f"Warning: Quest AI routes not available: {e}")
 
+# Register AI Tutor blueprint
+try:
+    from routes import tutor
+    app.register_blueprint(tutor.bp)  # /api/tutor
+    print("AI Tutor routes registered successfully")
+except Exception as e:
+    print(f"Warning: AI Tutor routes not available: {e}")
+
 
 @app.route('/', methods=['GET', 'HEAD'])
 def root():
