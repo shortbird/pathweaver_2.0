@@ -3,6 +3,7 @@ import { Outlet, Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import { hasFeatureAccess } from '../utils/tierMapping'
+import TutorWidget from './tutor/TutorWidget'
 
 const Layout = () => {
   const { user, logout, isAuthenticated } = useAuth()
@@ -275,6 +276,13 @@ const Layout = () => {
           </p>
         </div>
       </footer>
+
+      {/* Global OptioBot - Float over all authenticated pages */}
+      {isAuthenticated && (
+        <TutorWidget
+          position="bottom-right"
+        />
+      )}
     </div>
   )
 }
