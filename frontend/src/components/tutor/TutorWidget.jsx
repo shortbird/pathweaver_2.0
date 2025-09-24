@@ -14,39 +14,20 @@ const TutorWidget = ({
   const [usageStats, setUsageStats] = useState(null);
   const [contextHelp, setContextHelp] = useState([]);
 
-  // Load usage stats and context help
+  // Load usage stats
   useEffect(() => {
     loadUsageStats();
-    generateContextHelp();
   }, [currentQuest, currentTask]);
 
   const loadUsageStats = async () => {
     try {
-      const response = await api.get('/tutor/usage');
+      const response = await api.get('/api/tutor/usage');
       setUsageStats(response.data.usage);
     } catch (error) {
       console.error('Failed to load usage stats:', error);
     }
   };
 
-  const generateContextHelp = () => {
-    const help = [];
-
-    if (currentTask) {
-      help.push(`Need help with "${currentTask.title}"?`);
-      help.push(`Ask about ${currentTask.pillar} concepts`);
-    } else if (currentQuest) {
-      help.push(`Questions about "${currentQuest.title}"?`);
-      help.push('Ask for examples or explanations');
-    } else {
-      help.push('What are you curious about?');
-      help.push('Ask me to explain any concept');
-    }
-
-    help.push('Need study tips?');
-    setContextHelp(help);
-    setHasNewSuggestions(true);
-  };
 
   const toggleWidget = () => {
     setIsOpen(!isOpen);
@@ -89,28 +70,6 @@ const TutorWidget = ({
 
   return (
     <div className={`fixed ${getPositionClasses()} z-40 ${className}`}>
-      {/* Context Help Popup */}
-      {!isOpen && hasNewSuggestions && contextHelp.length > 0 && (
-        <div className="bg-white rounded-lg shadow-lg p-3 max-w-xs mb-4 animate-bounce-in">
-          <div className="flex items-start space-x-2">
-            <HelpCircle className="w-4 h-4 text-[#6d469b] flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm text-gray-600 mb-2">I can help you with:</p>
-              <ul className="space-y-1">
-                {contextHelp.slice(0, 2).map((help, index) => (
-                  <li key={index} className="text-xs text-gray-500">• {help}</li>
-                ))}
-              </ul>
-            </div>
-            <button
-              onClick={() => setHasNewSuggestions(false)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Chat Interface (when open) */}
       {isOpen && (
@@ -139,9 +98,6 @@ const TutorWidget = ({
         ) : (
           <>
             <Bot className="w-6 h-6 text-white" />
-            {hasNewSuggestions && (
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
-            )}
           </>
         )}
       </button>

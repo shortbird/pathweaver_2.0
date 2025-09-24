@@ -3,11 +3,11 @@ import { Send, Bot, User, AlertTriangle, Star, Lightbulb, MessageSquare } from '
 import api from '../../services/api';
 
 const CONVERSATION_MODES = [
-  { value: 'study_buddy', label: 'Study Buddy', icon: '🤝', description: 'Casual and encouraging' },
-  { value: 'teacher', label: 'Teacher', icon: '🎓', description: 'Structured lessons' },
-  { value: 'discovery', label: 'Explorer', icon: '🔍', description: 'Question-based learning' },
-  { value: 'review', label: 'Reviewer', icon: '📚', description: 'Review and practice' },
-  { value: 'creative', label: 'Creator', icon: '🎨', description: 'Creative brainstorming' }
+  { value: 'study_buddy', label: 'Study Buddy', description: 'Casual and encouraging' },
+  { value: 'teacher', label: 'Teacher', description: 'Structured lessons' },
+  { value: 'discovery', label: 'Explorer', description: 'Question-based learning' },
+  { value: 'review', label: 'Reviewer', description: 'Review and practice' },
+  { value: 'creative', label: 'Creator', description: 'Creative brainstorming' }
 ];
 
 const ChatInterface = ({
@@ -56,13 +56,13 @@ const ChatInterface = ({
   const loadConversation = async () => {
     try {
       if (conversationId) {
-        const response = await api.get(`/tutor/conversations/${conversationId}`);
+        const response = await api.get(`/api/tutor/conversations/${conversationId}`);
         setConversation(response.data.conversation);
         setMessages(response.data.messages || []);
         setSelectedMode(response.data.conversation.conversation_mode || 'study_buddy');
       } else {
         // Load conversation starters
-        const startersResponse = await api.get('/tutor/starters');
+        const startersResponse = await api.get('/api/tutor/starters');
         setSuggestions(startersResponse.data.starters || []);
       }
     } catch (error) {
@@ -73,7 +73,7 @@ const ChatInterface = ({
 
   const loadUsageStats = async () => {
     try {
-      const response = await api.get('/tutor/usage');
+      const response = await api.get('/api/tutor/usage');
       setUsageStats(response.data.usage);
     } catch (error) {
       console.error('Failed to load usage stats:', error);
@@ -98,7 +98,7 @@ const ChatInterface = ({
     setMessages(prev => [...prev, userMessage]);
 
     try {
-      const response = await api.post('/tutor/chat', {
+      const response = await api.post('/api/tutor/chat', {
         message,
         conversation_id: conversationId,
         mode: selectedMode,
@@ -129,7 +129,7 @@ const ChatInterface = ({
 
       // Show XP bonus notification if earned
       if (response.data.xp_bonus_awarded) {
-        showNotification('Great engagement! You earned bonus XP! 🌟', 'success');
+        showNotification('Great engagement! You earned bonus XP!', 'success');
       }
 
     } catch (error) {
@@ -161,7 +161,7 @@ const ChatInterface = ({
 
     if (conversation?.id) {
       try {
-        await api.put(`/tutor/conversations/${conversation.id}`, {
+        await api.put(`/api/tutor/conversations/${conversation.id}`, {
           conversation_mode: newMode
         });
       } catch (error) {
@@ -179,7 +179,7 @@ const ChatInterface = ({
 
   const reportMessage = async (messageId) => {
     try {
-      await api.post('/tutor/report', {
+      await api.post('/api/tutor/report', {
         message_id: messageId,
         reason: 'inappropriate_content',
         description: 'User reported this message'
@@ -219,7 +219,7 @@ const ChatInterface = ({
               onClick={() => setShowModeSelector(!showModeSelector)}
               className="bg-white/20 text-white px-3 py-1 rounded-full text-sm hover:bg-white/30 transition-colors"
             >
-              {currentModeInfo?.icon} {currentModeInfo?.label}
+              {currentModeInfo?.label}
             </button>
 
             {showModeSelector && (
@@ -234,7 +234,6 @@ const ChatInterface = ({
                       }`}
                     >
                       <div className="flex items-center space-x-3">
-                        <span className="text-lg">{mode.icon}</span>
                         <div>
                           <div className="font-medium text-gray-900">{mode.label}</div>
                           <div className="text-sm text-gray-500">{mode.description}</div>
@@ -252,7 +251,7 @@ const ChatInterface = ({
               onClick={onClose}
               className="text-white/80 hover:text-white"
             >
-              ✕
+              ×
             </button>
           )}
         </div>
