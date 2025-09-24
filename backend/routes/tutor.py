@@ -253,14 +253,14 @@ def get_settings(user_id: str):
     try:
         supabase = get_user_client(user_id)
 
-        settings = supabase.table('tutor_settings').select('*').eq('user_id', user_id).single().execute()
+        settings = supabase.table('tutor_settings').select('*').eq('user_id', user_id).execute()
 
-        if not settings.data:
+        if not settings.data or len(settings.data) == 0:
             # Create default settings
             default_settings = _create_default_settings(supabase, user_id)
             return success_response({'settings': default_settings})
 
-        return success_response({'settings': settings.data})
+        return success_response({'settings': settings.data[0]})
 
     except Exception as e:
         return error_response(f"Failed to get settings: {str(e)}", status_code=500, error_code="internal_error")
@@ -474,8 +474,10 @@ def _get_conversation(supabase, conversation_id: str, user_id: str) -> Optional[
     try:
         result = supabase.table('tutor_conversations').select('*').eq(
             'id', conversation_id
-        ).eq('user_id', user_id).single().execute()
-        return result.data
+        ).eq('user_id', user_id).execute()
+        if result.data and len(result.data) > 0:
+            return result.data[0]
+        return None
     except Exception:
         return None
 
