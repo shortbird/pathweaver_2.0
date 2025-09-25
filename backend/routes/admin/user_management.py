@@ -2,12 +2,13 @@
 Admin User Management Routes
 
 Handles user CRUD operations, subscription management, role changes,
-and user status updates for admin interface.
+user status updates, and chat log viewing for admin interface.
 """
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
+from utils.api_response import success_response, error_response
 from datetime import datetime, timedelta
 import json
 
@@ -335,3 +336,75 @@ def delete_user(user_id, target_user_id):
             'success': False,
             'error': f'Failed to delete user: {str(e)}'
         }), 500
+
+@bp.route('/users/<user_id>/conversations', methods=['GET'])
+@require_admin
+def get_user_conversations(admin_user_id, user_id):
+    """Get all conversations for a specific user (admin only)"""
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get query parameters
+        limit = min(int(request.args.get('limit', 50)), 100)
+        offset = int(request.args.get('offset', 0))
+
+        # Get user's conversations
+        conversations_query = supabase.table('tutor_conversations').select('''
+            id, title, conversation_mode, quest_id, task_id,
+            is_active, message_count, last_message_at, created_at,
+            quests(title),
+            quest_tasks(title, pillar)
+        ''').eq('user_id', user_id).order('last_message_at', desc=True).range(offset, offset + limit - 1)
+
+        conversations_result = conversations_query.execute()
+
+        # Get user info for context
+        user_query = supabase.table('users').select('id, first_name, last_name, email').eq('id', user_id).single()
+        user_result = user_query.execute()
+
+        return success_response({
+            'user': user_result.data,
+            'conversations': conversations_result.data,
+            'total': len(conversations_result.data),
+            'limit': limit,
+            'offset': offset
+        })
+
+    except Exception as e:
+        print(f"Error fetching user conversations: {str(e)}")
+        return error_response(f"Failed to fetch conversations: {str(e)}", status_code=500, error_code="internal_error")
+
+@bp.route('/conversations/<conversation_id>', methods=['GET'])
+@require_admin
+def get_conversation_details(admin_user_id, conversation_id):
+    """Get conversation details with all messages (admin only)"""
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get conversation details with user info
+        conversation_query = supabase.table('tutor_conversations').select('''
+            id, title, conversation_mode, quest_id, task_id, user_id,
+            is_active, message_count, last_message_at, created_at,
+            users(first_name, last_name, email),
+            quests(title),
+            quest_tasks(title, pillar)
+        ''').eq('id', conversation_id).single()
+
+        conversation_result = conversation_query.execute()
+
+        # Get all messages for this conversation
+        messages_query = supabase.table('tutor_messages').select('''
+            id, role, content, safety_level, created_at, context_data
+        ''').eq('conversation_id', conversation_id).order('created_at')
+
+        messages_result = messages_query.execute()
+
+        return success_response({
+            'conversation': conversation_result.data,
+            'messages': messages_result.data,
+            'message_count': len(messages_result.data)
+        })
+
+    except Exception as e:
+        print(f"Error fetching conversation details: {str(e)}")
+        return error_response(f"Failed to fetch conversation details: {str(e)}", status_code=500, error_code="internal_error")
