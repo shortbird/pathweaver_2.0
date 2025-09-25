@@ -58,7 +58,7 @@ const OptioBotModal = ({
       />
 
       {/* Modal */}
-      <div className="absolute inset-4 bg-white rounded-2xl shadow-2xl flex flex-col">
+      <div className="absolute inset-x-4 inset-y-8 max-w-4xl mx-auto bg-white rounded-2xl shadow-2xl flex flex-col">
         {/* Single Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-t-2xl">
           <div className="flex items-center space-x-4">
@@ -126,7 +126,7 @@ const OptioBotModal = ({
             selectedMode={selectedMode}
             hideHeader={true}
             className="h-full border-0 shadow-none rounded-none"
-            onConversationCreate={setConversationId}
+            onConversationCreate={(id) => setConversationId(id)}
           />
         </div>
       </div>

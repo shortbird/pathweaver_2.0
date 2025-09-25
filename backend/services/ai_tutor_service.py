@@ -198,13 +198,32 @@ LEARNING PILLARS:
             task_pillar = context.current_task.get('pillar', 'General')
             base_prompt += f"CURRENT TASK: {task_title} (Pillar: {task_pillar})\n"
 
-        # Add conversation history context
+        # Add conversation history context (filter out quest-specific references)
         if context.previous_messages:
             recent_context = context.previous_messages[-3:]  # Last 3 messages for context
             base_prompt += "\nRECENT CONVERSATION:\n"
             for msg in recent_context:
                 role = "Student" if msg.get('role') == 'user' else "You"
-                base_prompt += f"{role}: {msg.get('content', '')}\n"
+                content = msg.get('content', '')
+
+                # Filter out specific quest references to make OptioBot truly global
+                quest_references = [
+                    "Journey Through Middle-earth",
+                    "your quest",
+                    "this quest",
+                    "current quest",
+                    "quest you're on",
+                    "in your journey through",
+                    "in this adventure"
+                ]
+
+                # Remove quest-specific references but preserve the general conversation flow
+                filtered_content = content
+                for ref in quest_references:
+                    # Use case-insensitive replacement
+                    filtered_content = re.sub(re.escape(ref), "your learning", filtered_content, flags=re.IGNORECASE)
+
+                base_prompt += f"{role}: {filtered_content}\n"
 
         # Mode-specific instructions
         mode_instructions = self._get_mode_instructions(context.conversation_mode)

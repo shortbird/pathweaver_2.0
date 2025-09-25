@@ -66,7 +66,10 @@ const ChatInterface = ({
       }
     } catch (error) {
       console.error('Failed to load conversation:', error);
-      setError('Failed to load conversation');
+      // Don't show error to user, just start a fresh conversation instead
+      if (onConversationCreate) {
+        onConversationCreate(null); // Clear the conversation ID to start fresh
+      }
     }
   };
 

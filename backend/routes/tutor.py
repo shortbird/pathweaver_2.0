@@ -689,15 +689,8 @@ def _build_tutor_context(supabase, user_id: str, conversation: Optional[Dict] = 
             ).order('created_at', desc=True).limit(5).execute()
             context.previous_messages = messages.data
 
-        # Get user's current active quest
-        active_quest = supabase.table('user_quests').select('''
-            quest_id,
-            quests!inner(id, title, description)
-        ''').eq('user_id', user_id).eq('is_active', True).limit(1).execute()
-
-        if active_quest.data:
-            quest_data = active_quest.data[0]['quests']
-            context.current_quest = quest_data
+        # Don't automatically fetch quest context - OptioBot is now global
+        # Quest context will only be included if explicitly passed from frontend
 
     except Exception as e:
         # If context building fails, use defaults
