@@ -138,37 +138,64 @@ def send_message(user_id: str):
             traceback.print_exc()
             raise
 
+        logger.info("Checking tutor response success status...")
         if not tutor_response['success']:
+            logger.error(f"Tutor response failed: {tutor_response}")
             return error_response(
                 tutor_response.get('response', 'Failed to process message'),
                 status_code=500,
                 error_code=tutor_response.get('error', 'processing_failed')
             )
 
+        logger.info("Tutor response successful, storing AI message...")
         # Store AI response
-        ai_message = _store_message(
-            supabase, conversation_id, 'assistant', tutor_response['response'], user_id,
-            metadata={
-                'safety_level': tutor_response.get('safety_level'),
-                'suggestions': tutor_response.get('suggestions'),
-                'next_questions': tutor_response.get('next_questions'),
-                'xp_bonus_eligible': tutor_response.get('xp_bonus_eligible', False)
-            }
-        )
+        try:
+            ai_message = _store_message(
+                supabase, conversation_id, 'assistant', tutor_response['response'], user_id,
+                metadata={
+                    'safety_level': tutor_response.get('safety_level'),
+                    'suggestions': tutor_response.get('suggestions'),
+                    'next_questions': tutor_response.get('next_questions'),
+                    'xp_bonus_eligible': tutor_response.get('xp_bonus_eligible', False)
+                }
+            )
+            logger.info(f"AI message stored successfully with ID: {ai_message['id']}")
+        except Exception as e:
+            logger.error(f"Failed to store AI message: {e}")
+            raise
 
+        logger.info("Incrementing message usage...")
         # Increment message usage through tier service
-        supabase_admin = get_supabase_admin_client()
-        supabase_admin.rpc('increment_message_usage', {'p_user_id': user_id}).execute()
+        try:
+            supabase_admin = get_supabase_admin_client()
+            supabase_admin.rpc('increment_message_usage', {'p_user_id': user_id}).execute()
+            logger.info("Message usage incremented successfully")
+        except Exception as e:
+            logger.error(f"Failed to increment message usage: {e}")
+            raise
 
         # Award XP bonus if eligible
         if tutor_response.get('xp_bonus_eligible', False):
-            _award_tutor_xp_bonus(supabase, user_id, ai_message['id'])
+            logger.info("Awarding XP bonus...")
+            try:
+                _award_tutor_xp_bonus(supabase, user_id, ai_message['id'])
+                logger.info("XP bonus awarded successfully")
+            except Exception as e:
+                logger.error(f"Failed to award XP bonus: {e}")
+                # Don't raise here as it's not critical
 
         # Notify parents if needed
         if tutor_response.get('requires_parent_notification', False):
-            _schedule_parent_notification(user_id, conversation_id, message)
+            logger.info("Scheduling parent notification...")
+            try:
+                _schedule_parent_notification(user_id, conversation_id, message)
+                logger.info("Parent notification scheduled")
+            except Exception as e:
+                logger.error(f"Failed to schedule parent notification: {e}")
+                # Don't raise here as it's not critical
 
-        return success_response({
+        logger.info("Preparing success response...")
+        response_data = {
             'conversation_id': conversation_id,
             'message_id': ai_message['id'],
             'response': tutor_response['response'],
@@ -176,7 +203,9 @@ def send_message(user_id: str):
             'next_questions': tutor_response.get('next_questions', []),
             'xp_bonus_awarded': tutor_response.get('xp_bonus_eligible', False),
             'mode': conversation_mode
-        })
+        }
+        logger.info(f"Returning success response with data keys: {list(response_data.keys())}")
+        return success_response(response_data)
 
     except ValidationError as e:
         logger.error(f"ValidationError in send_message: {str(e)}")
