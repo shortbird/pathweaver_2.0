@@ -21,7 +21,7 @@ const ChatLogsModal = ({ user, onClose }) => {
     try {
       setLoading(true)
       const response = await api.get(`/api/v3/admin/users/${user.id}/conversations`)
-      setConversations(response.data.conversations || [])
+      setConversations(response.data.data.conversations || [])
     } catch (error) {
       console.error('Error fetching conversations:', error)
       toast.error('Failed to load user conversations')
@@ -34,8 +34,8 @@ const ChatLogsModal = ({ user, onClose }) => {
     try {
       setLoadingConversation(true)
       const response = await api.get(`/api/v3/admin/conversations/${conversationId}`)
-      setSelectedConversation(response.data.conversation)
-      setMessages(response.data.messages || [])
+      setSelectedConversation(response.data.data.conversation)
+      setMessages(response.data.data.messages || [])
     } catch (error) {
       console.error('Error fetching conversation:', error)
       toast.error('Failed to load conversation details')
