@@ -195,6 +195,9 @@ def send_message(user_id: str):
                 # Don't raise here as it's not critical
 
         logger.info("Preparing success response...")
+        logger.info(f"Tutor response content: '{tutor_response.get('response', 'NO RESPONSE KEY')}'")
+        logger.info(f"Tutor response keys: {list(tutor_response.keys()) if isinstance(tutor_response, dict) else 'NOT A DICT'}")
+
         response_data = {
             'conversation_id': conversation_id,
             'message_id': ai_message['id'],
@@ -204,7 +207,8 @@ def send_message(user_id: str):
             'xp_bonus_awarded': tutor_response.get('xp_bonus_eligible', False),
             'mode': conversation_mode
         }
-        logger.info(f"Returning success response with data keys: {list(response_data.keys())}")
+        logger.info(f"Final response data: {response_data}")
+        logger.info(f"Response content length: {len(response_data.get('response', ''))}")
         return success_response(response_data)
 
     except ValidationError as e:
