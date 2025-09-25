@@ -108,30 +108,32 @@ const ChatInterface = ({
 
       // Add AI response to messages
       console.log('API Response:', response.data);
-      console.log('Response content:', response.data.response);
+      console.log('Response data:', response.data.data);
+      const responseData = response.data.data || response.data;
+      console.log('Response content:', responseData.response);
       const aiMessage = {
-        id: response.data.message_id,
+        id: responseData.message_id,
         role: 'assistant',
-        content: response.data.response,
+        content: responseData.response,
         created_at: new Date().toISOString()
       };
       console.log('AI Message object:', aiMessage);
       setMessages(prev => [...prev, aiMessage]);
 
       // Update conversation ID if this was the first message
-      if (!conversationId && response.data.conversation_id) {
-        setConversation({ id: response.data.conversation_id });
+      if (!conversationId && responseData.conversation_id) {
+        setConversation({ id: responseData.conversation_id });
       }
 
       // Update suggestions and questions
-      setSuggestions(response.data.suggestions || []);
-      setNextQuestions(response.data.next_questions || []);
+      setSuggestions(responseData.suggestions || []);
+      setNextQuestions(responseData.next_questions || []);
 
       // Update usage stats
       await loadUsageStats();
 
       // Show XP bonus notification if earned
-      if (response.data.xp_bonus_awarded) {
+      if (responseData.xp_bonus_awarded) {
         showNotification('Great engagement! You earned bonus XP!', 'success');
       }
 
