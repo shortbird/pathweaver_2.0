@@ -24,8 +24,13 @@ ALTER FUNCTION public.update_conversation_stats()
 -- Recreate functions that may not exist yet but are referenced in code
 -- These will be created with secure search_path from the start
 
--- 5. Create/Update update_friendship_status function (used in community.py)
-CREATE OR REPLACE FUNCTION public.update_friendship_status(
+-- 5. Fix update_friendship_status function (used in community.py)
+-- Drop and recreate to ensure correct signature and security settings
+DROP FUNCTION IF EXISTS public.update_friendship_status(INTEGER, TEXT);
+DROP FUNCTION IF EXISTS public.update_friendship_status(INT, TEXT);
+DROP FUNCTION IF EXISTS public.update_friendship_status;
+
+CREATE FUNCTION public.update_friendship_status(
     friendship_id INTEGER,
     new_status TEXT
 )
@@ -40,8 +45,11 @@ $$ LANGUAGE plpgsql
 SET search_path = public, pg_temp
 SECURITY DEFINER;
 
--- 6. Create/Update initialize_user_skills function
-CREATE OR REPLACE FUNCTION public.initialize_user_skills(
+-- 6. Fix initialize_user_skills function
+DROP FUNCTION IF EXISTS public.initialize_user_skills(UUID);
+DROP FUNCTION IF EXISTS public.initialize_user_skills;
+
+CREATE FUNCTION public.initialize_user_skills(
     p_user_id UUID
 )
 RETURNS VOID AS $$
@@ -60,8 +68,11 @@ $$ LANGUAGE plpgsql
 SET search_path = public, pg_temp
 SECURITY DEFINER;
 
--- 7. Create/Update calculate_mastery_level function (if needed in DB)
-CREATE OR REPLACE FUNCTION public.calculate_mastery_level(
+-- 7. Fix calculate_mastery_level function (if needed in DB)
+DROP FUNCTION IF EXISTS public.calculate_mastery_level(INTEGER);
+DROP FUNCTION IF EXISTS public.calculate_mastery_level;
+
+CREATE FUNCTION public.calculate_mastery_level(
     total_xp INTEGER
 )
 RETURNS TEXT AS $$
@@ -82,8 +93,11 @@ $$ LANGUAGE plpgsql
 SET search_path = public, pg_temp
 IMMUTABLE;
 
--- 8. Create/Update update_user_mastery function (used in xp_service.py)
-CREATE OR REPLACE FUNCTION public.update_user_mastery(
+-- 8. Fix update_user_mastery function (used in xp_service.py)
+DROP FUNCTION IF EXISTS public.update_user_mastery(UUID);
+DROP FUNCTION IF EXISTS public.update_user_mastery;
+
+CREATE FUNCTION public.update_user_mastery(
     p_user_id UUID
 )
 RETURNS TEXT AS $$
@@ -111,9 +125,12 @@ $$ LANGUAGE plpgsql
 SET search_path = public, pg_temp
 SECURITY DEFINER;
 
--- 9. Create/Update reorder_evidence_blocks function (if needed)
+-- 9. Fix reorder_evidence_blocks function (if needed)
 -- This function may be used for evidence document ordering
-CREATE OR REPLACE FUNCTION public.reorder_evidence_blocks(
+DROP FUNCTION IF EXISTS public.reorder_evidence_blocks(UUID, INTEGER[]);
+DROP FUNCTION IF EXISTS public.reorder_evidence_blocks;
+
+CREATE FUNCTION public.reorder_evidence_blocks(
     p_task_completion_id UUID,
     p_new_order INTEGER[]
 )
@@ -139,9 +156,12 @@ $$ LANGUAGE plpgsql
 SET search_path = public, pg_temp
 SECURITY DEFINER;
 
--- 10. Create/Update update_evidence_document_updated_at function
+-- 10. Fix update_evidence_document_updated_at function
 -- This might be a trigger function for evidence documents
-CREATE OR REPLACE FUNCTION public.update_evidence_document_updated_at()
+DROP FUNCTION IF EXISTS public.update_evidence_document_updated_at();
+DROP FUNCTION IF EXISTS public.update_evidence_document_updated_at;
+
+CREATE FUNCTION public.update_evidence_document_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
     NEW.updated_at = CURRENT_TIMESTAMP;
