@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bot, MessageSquare, X, HelpCircle } from 'lucide-react';
 import ChatInterface from './ChatInterface';
+import OptioBotModal from './OptioBotModal';
 import api from '../../services/api';
 
 const TutorWidget = ({
@@ -9,7 +10,7 @@ const TutorWidget = ({
   position = 'bottom-right',
   className = ''
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [hasNewSuggestions, setHasNewSuggestions] = useState(false);
   const [usageStats, setUsageStats] = useState(null);
   const [contextHelp, setContextHelp] = useState([]);
@@ -29,9 +30,9 @@ const TutorWidget = ({
   };
 
 
-  const toggleWidget = () => {
-    setIsOpen(!isOpen);
-    if (!isOpen) {
+  const toggleModal = () => {
+    setIsModalOpen(!isModalOpen);
+    if (!isModalOpen) {
       setHasNewSuggestions(false);
     }
   };
@@ -69,46 +70,39 @@ const TutorWidget = ({
   }
 
   return (
-    <div className={`fixed ${getPositionClasses()} z-40 ${className}`}>
+    <>
+      {/* Floating Button */}
+      <div className={`fixed ${getPositionClasses()} z-40 ${className}`}>
+        {/* Toggle Button */}
+        <button
+          onClick={toggleModal}
+          className="w-14 h-14 rounded-full shadow-lg transition-all duration-300 bg-gradient-to-r from-[#ef597b] to-[#6d469b] hover:shadow-xl hover:scale-105 flex items-center justify-center relative"
+          title="Chat with OptioBot"
+        >
+          <Bot className="w-6 h-6 text-white" />
 
-      {/* Chat Interface (when open) */}
-      {isOpen && (
-        <div className="w-96 h-[600px] mb-4 animate-slide-up">
-          <ChatInterface
-            currentQuest={currentQuest}
-            currentTask={currentTask}
-            onClose={() => setIsOpen(false)}
-            className="h-full"
-          />
-        </div>
-      )}
+          {/* Notification indicator */}
+          {hasNewSuggestions && (
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
+          )}
+        </button>
 
-      {/* Toggle Button */}
-      <button
-        onClick={toggleWidget}
-        className={`w-14 h-14 rounded-full shadow-lg transition-all duration-300 ${
-          isOpen
-            ? 'bg-gray-500 hover:bg-gray-600'
-            : 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] hover:shadow-xl hover:scale-105'
-        } flex items-center justify-center relative`}
-        title={isOpen ? 'Close tutor' : 'Chat with OptioBot'}
-      >
-        {isOpen ? (
-          <X className="w-6 h-6 text-white" />
-        ) : (
-          <>
-            <Bot className="w-6 h-6 text-white" />
-          </>
+        {/* Message Counter */}
+        {usageStats && (
+          <div className="absolute -top-2 -left-2 bg-white text-xs text-gray-600 px-2 py-1 rounded-full shadow border">
+            {usageStats.messages_remaining} left
+          </div>
         )}
-      </button>
+      </div>
 
-      {/* Message Counter */}
-      {!isOpen && usageStats && (
-        <div className="absolute -top-2 -left-2 bg-white text-xs text-gray-600 px-2 py-1 rounded-full shadow border">
-          {usageStats.messages_remaining} left
-        </div>
-      )}
-    </div>
+      {/* Full Screen Modal */}
+      <OptioBotModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        currentQuest={currentQuest}
+        currentTask={currentTask}
+      />
+    </>
   );
 };
 

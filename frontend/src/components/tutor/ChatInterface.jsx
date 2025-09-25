@@ -107,17 +107,13 @@ const ChatInterface = ({
       });
 
       // Add AI response to messages
-      console.log('API Response:', response.data);
-      console.log('Response data:', response.data.data);
       const responseData = response.data.data || response.data;
-      console.log('Response content:', responseData.response);
       const aiMessage = {
         id: responseData.message_id,
         role: 'assistant',
         content: responseData.response,
         created_at: new Date().toISOString()
       };
-      console.log('AI Message object:', aiMessage);
       setMessages(prev => [...prev, aiMessage]);
 
       // Update conversation ID if this was the first message
@@ -295,9 +291,7 @@ const ChatInterface = ({
           </div>
         )}
 
-        {messages.map((message) => {
-          console.log('Rendering message:', message);
-          return (
+        {messages.map((message) => (
           <div
             key={message.id}
             className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}
@@ -334,8 +328,7 @@ const ChatInterface = ({
               </div>
             </div>
           </div>
-        );
-        })}
+        ))}
 
         {isLoading && (
           <div className="flex justify-start">
