@@ -106,10 +106,17 @@ const SubscriptionSuccess = () => {
       } catch (error) {
         console.error('Error verifying subscription:', error)
         
-        // If authentication error, user might need to log in
+        // If authentication error, don't immediately log out - the payment may have succeeded
         if (error.response?.status === 401) {
-          toast.error('Please log in to complete your subscription setup.')
-          setTimeout(() => navigate('/login'), 2000)
+          console.log('Authentication error during subscription verification - payment may have succeeded')
+
+          // Show a different message that doesn't panic the user
+          toast.error('Your payment was processed, but we need you to log in to complete setup.')
+
+          // Set a flag to show manual refresh option instead of auto-redirecting
+          setManualRefreshAvailable(true)
+
+          // Don't force navigate to login - let user stay on this page
         } else {
           toast.error('There was an issue verifying your subscription. Please contact support.')
         }
@@ -192,18 +199,25 @@ const SubscriptionSuccess = () => {
 
           {/* Manual Refresh Option */}
           {manualRefreshAvailable && !loading && (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-8">
-              <h3 className="font-semibold text-yellow-900 mb-2">Subscription Update Pending</h3>
-              <p className="text-sm text-yellow-700 mb-3">
-                Your payment was successful, but we're having trouble updating your subscription status.
-                This sometimes happens and will resolve automatically within a few minutes.
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-8">
+              <h3 className="font-semibold text-blue-900 mb-2">Complete Your Subscription Setup</h3>
+              <p className="text-sm text-blue-700 mb-3">
+                Your payment was processed successfully! To finish setting up your subscription and access your new features, please log in to your account.
               </p>
-              <button
-                onClick={handleManualRefresh}
-                className="w-full py-2 px-4 bg-yellow-600 text-white rounded-lg font-medium hover:bg-yellow-700 transition-colors"
-              >
-                Try Again
-              </button>
+              <div className="space-y-2">
+                <button
+                  onClick={() => navigate('/login')}
+                  className="w-full py-2 px-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg font-medium hover:opacity-90 transition-opacity"
+                >
+                  Log In to Complete Setup
+                </button>
+                <button
+                  onClick={handleManualRefresh}
+                  className="w-full py-2 px-4 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
             </div>
           )}
 
