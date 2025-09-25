@@ -188,13 +188,14 @@ LEARNING PILLARS:
         if context.user_age:
             base_prompt += f"USER AGE: {context.user_age} years old\n"
 
-        if context.current_quest:
-            quest_title = context.current_quest.get('title', 'Unknown Quest')
+        # Only include quest/task context if actually provided
+        if context.current_quest and context.current_quest.get('title'):
+            quest_title = context.current_quest.get('title')
             base_prompt += f"CURRENT QUEST: {quest_title}\n"
 
-        if context.current_task:
-            task_title = context.current_task.get('title', 'Unknown Task')
-            task_pillar = context.current_task.get('pillar', 'Unknown')
+        if context.current_task and context.current_task.get('title'):
+            task_title = context.current_task.get('title')
+            task_pillar = context.current_task.get('pillar', 'General')
             base_prompt += f"CURRENT TASK: {task_title} (Pillar: {task_pillar})\n"
 
         # Add conversation history context
@@ -305,28 +306,33 @@ CREATIVE MODE:
         """Generate helpful suggestions based on context"""
         suggestions = []
 
-        if context.current_quest:
+        # Only add quest-specific suggestions if there's actually a quest
+        if context.current_quest and context.current_quest.get('title'):
             suggestions.append(f"Ask about concepts in your current quest: {context.current_quest.get('title')}")
 
-        if context.current_task:
+        if context.current_task and context.current_task.get('pillar'):
             pillar = context.current_task.get('pillar')
-            if pillar:
-                suggestions.append(f"Explore more {pillar} topics")
+            suggestions.append(f"Explore more {pillar} topics")
 
-        # General learning suggestions
+        # General learning suggestions (always available)
         general_suggestions = [
             "Ask 'What if...' questions about any topic",
             "Share what you're curious about today",
             "Describe something you created or discovered",
             "Ask for help understanding a concept",
-            "Request examples or analogies"
+            "Request examples or analogies",
+            "Explore math, science, or creative topics",
+            "Get help with writing or communication skills",
+            "Learn about history, culture, or wellness"
         ]
 
-        # Add 2-3 random general suggestions
+        # Fill remaining slots with random general suggestions
         import random
-        suggestions.extend(random.sample(general_suggestions, min(2, len(general_suggestions))))
+        needed = 3 - len(suggestions)  # Always show 3 suggestions total
+        available = [s for s in general_suggestions if s not in suggestions]
+        suggestions.extend(random.sample(available, min(needed, len(available))))
 
-        return suggestions[:4]  # Limit to 4 suggestions
+        return suggestions[:3]  # Limit to 3 suggestions
 
     def _generate_next_questions(self, response: str, context: TutorContext) -> List[str]:
         """Generate follow-up questions to continue learning"""

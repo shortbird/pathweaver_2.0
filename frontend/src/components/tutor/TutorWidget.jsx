@@ -99,8 +99,8 @@ const TutorWidget = ({
       <OptioBotModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        currentQuest={currentQuest}
-        currentTask={currentTask}
+        currentQuest={null}
+        currentTask={null}
       />
     </>
   );
