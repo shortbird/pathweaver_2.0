@@ -62,7 +62,7 @@ EXCEPTION
     WHEN OTHERS THEN NULL;
 END $$;
 
-CREATE FUNCTION public.update_friendship_status(
+CREATE OR REPLACE FUNCTION public.update_friendship_status(
     friendship_id INTEGER,
     new_status TEXT
 )
@@ -80,7 +80,7 @@ SECURITY DEFINER;
 DROP FUNCTION IF EXISTS public.calculate_mastery_level(INTEGER);
 DROP FUNCTION IF EXISTS public.calculate_mastery_level;
 
-CREATE FUNCTION public.calculate_mastery_level(
+CREATE OR REPLACE FUNCTION public.calculate_mastery_level(
     total_xp INTEGER
 )
 RETURNS TEXT AS $$
@@ -113,7 +113,7 @@ EXCEPTION
     WHEN OTHERS THEN NULL;
 END $$;
 
-CREATE FUNCTION public.initialize_user_skills()
+CREATE OR REPLACE FUNCTION public.initialize_user_skills()
 RETURNS TRIGGER AS $$
 BEGIN
     -- Minimal trigger function that doesn't reference tables
@@ -128,7 +128,7 @@ SECURITY DEFINER;
 DROP FUNCTION IF EXISTS public.update_user_mastery(UUID);
 DROP FUNCTION IF EXISTS public.update_user_mastery;
 
-CREATE FUNCTION public.update_user_mastery(
+CREATE OR REPLACE FUNCTION public.update_user_mastery(
     p_user_id UUID
 )
 RETURNS TEXT AS $$
@@ -152,7 +152,7 @@ EXCEPTION
     WHEN OTHERS THEN NULL;
 END $$;
 
-CREATE FUNCTION public.reorder_evidence_blocks(
+CREATE OR REPLACE FUNCTION public.reorder_evidence_blocks(
     p_task_completion_id UUID,
     p_new_order INTEGER[]
 )
@@ -175,10 +175,10 @@ EXCEPTION
     WHEN OTHERS THEN NULL;
 END $$;
 
-CREATE FUNCTION public.update_evidence_document_updated_at()
+CREATE OR REPLACE FUNCTION public.update_evidence_document_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
-    -- Minimal trigger function
+    -- Minimal trigger function with secure search_path
     NEW.updated_at = CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
