@@ -88,10 +88,14 @@ backend/
 │   ├── settings.py          # User settings
 │   ├── subscriptions.py     # Stripe subscription management
 │   ├── tasks.py             # Task completions
+│   ├── tutor.py             # AI Tutor features
 │   └── uploads.py           # File upload handling
 ├── services/         # Business logic
 │   ├── atomic_quest_service.py  # Race condition prevention
 │   └── quest_optimization.py    # N+1 query elimination
+├── scripts/          # Database & maintenance scripts
+│   ├── apply_performance_indexes.py  # Database optimization
+│   └── simple_indexes.py             # Index management
 ├── middleware/       # Security & request handling
 │   ├── csrf_protection.py       # CSRF token management
 │   ├── error_handler.py         # Global error handling
@@ -107,12 +111,23 @@ backend/
 frontend/src/
 ├── pages/
 │   ├── AdminPage.jsx           # Admin dashboard (modular)
+│   ├── DashboardPage.jsx       # User dashboard
+│   ├── DemoPage.jsx            # Demo features
 │   ├── DiplomaPageV3.jsx       # CORE FEATURE
+│   ├── EmailVerificationPage.jsx  # Email verification
 │   ├── FriendsPage.jsx         # Community features (paid tier)
 │   ├── HomePage.jsx            # Landing page
+│   ├── LoginPage.jsx           # Authentication
+│   ├── PrivacyPolicy.jsx       # Legal pages
+│   ├── ProfilePage.jsx         # User profile management
+│   ├── PromoLandingPage.jsx    # Promotional campaigns
 │   ├── QuestDetailV3.jsx       # Individual quest page
 │   ├── QuestHubV3Improved.jsx  # Quest hub (memory optimized)
-│   └── SubscriptionPage.jsx    # Stripe subscription management
+│   ├── RegisterPage.jsx        # User registration
+│   ├── SubscriptionPage.jsx    # Stripe subscription management
+│   ├── SubscriptionSuccess.jsx # Subscription confirmation
+│   ├── SubscriptionCancel.jsx  # Subscription cancellation
+│   └── TermsOfService.jsx      # Legal pages
 ├── components/
 │   ├── admin/        # Extracted admin components
 │   │   ├── AdminDashboard.jsx   # Dashboard overview
@@ -121,6 +136,10 @@ frontend/src/
 │   │   └── AdminQuestSuggestions.jsx # Quest idea approval
 │   ├── diploma/      # Diploma components
 │   ├── demo/         # Demo feature components
+│   ├── tutor/        # AI Tutor components
+│   │   ├── ChatInterface.jsx    # Tutor chat interface
+│   │   ├── TutorWidget.jsx      # Tutor widget
+│   │   └── ParentDashboard.jsx  # Parent tutor dashboard
 │   └── ui/           # Reusable UI components
 ├── hooks/            # Custom hooks
 │   └── useMemoryLeakFix.js      # Memory leak prevention
@@ -231,6 +250,39 @@ frontend/src/
 - max_uses, current_uses
 - is_active
 
+### AI Tutor System Tables
+
+**tutor_conversations** (Chat conversations)
+- id (UUID, PK)
+- user_id (FK to users)
+- mode (enum: study_buddy, teacher, discovery, review, creative)
+- title, context
+- is_active
+- created_at, updated_at
+
+**tutor_messages** (Individual messages)
+- id (UUID, PK)
+- conversation_id (FK to tutor_conversations)
+- user_id (FK to users)
+- role (user/assistant)
+- content, tokens_used
+- safety_level (enum: safe, warning, blocked, requires_review)
+- created_at
+
+**tutor_settings** (User tutor preferences)
+- user_id (FK to users, PK)
+- default_mode, safety_mode
+- max_tokens_per_message
+- parent_oversight_enabled
+- updated_at
+
+**tutor_safety_logs** (Safety monitoring)
+- id (UUID, PK)
+- user_id, message_id
+- flagged_content, safety_score
+- action_taken, reviewed_by
+- created_at
+
 ## Key API Endpoints
 
 ### Authentication (httpOnly cookies + CSRF)
@@ -271,6 +323,13 @@ frontend/src/
 - GET /api/portfolio/:slug - Public portfolio view
 - GET /api/portfolio/diploma/:userId - Get diploma data
 - PUT /api/portfolio/:userId/settings - Update portfolio settings
+
+### AI Tutor Features
+- POST /api/tutor/chat - Send message to AI tutor
+- GET /api/tutor/conversations/:userId - Get user's tutor conversations
+- POST /api/tutor/conversations - Create new tutor conversation
+- GET /api/tutor/parent-dashboard/:userId - Get parent dashboard data
+- POST /api/tutor/feedback - Submit tutor feedback
 
 ### Additional Features
 - POST /api/uploads - File upload handling
@@ -314,6 +373,13 @@ frontend/src/
 - **RLS enforcement**: Row Level Security via user-authenticated Supabase clients
 - **Token refresh**: Automatic token renewal without user intervention
 - **XSS prevention**: No JavaScript-accessible token storage
+
+### AI Tutor System
+- **Conversational AI**: Interactive chat interface powered by OpenAI/Gemini APIs
+- **Learning assistance**: Context-aware help with quest tasks and general learning
+- **Parent dashboard**: Oversight tools for parents to monitor student progress
+- **Conversation history**: Persistent chat sessions for continuity
+- **Feedback system**: Quality assurance and improvement tracking
 
 ### Additional Features
 - **Learning logs**: Reflection system for deeper learning engagement
