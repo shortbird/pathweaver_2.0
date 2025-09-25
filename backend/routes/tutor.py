@@ -482,18 +482,30 @@ def get_conversation_starters(user_id: str):
 def get_usage_stats(user_id: str):
     """Get user's tutor usage statistics"""
     try:
-        # Get usage stats from tier service
-        message_status = tutor_tier_service.can_send_message(user_id)
-        feature_access = tutor_tier_service.get_feature_access(user_id)
+        logger.info(f"Getting usage stats for user: {user_id}")
 
+        # Get usage stats from tier service
+        logger.info("Calling tutor_tier_service.can_send_message...")
+        message_status = tutor_tier_service.can_send_message(user_id)
+        logger.info(f"Message status result: {message_status}")
+
+        logger.info("Calling tutor_tier_service.get_feature_access...")
+        feature_access = tutor_tier_service.get_feature_access(user_id)
+        logger.info(f"Feature access result: {feature_access}")
+
+        logger.info("Getting Supabase client...")
         supabase = get_supabase_admin_client()
 
         # Get today's analytics
+        logger.info("Fetching today's analytics...")
         today = date.today().isoformat()
+        logger.info(f"Today's date: {today}")
         today_analytics = supabase.table('tutor_analytics').select('*').eq(
             'user_id', user_id
         ).eq('date', today).execute()
+        logger.info(f"Analytics query result: {len(today_analytics.data) if today_analytics.data else 0} records")
 
+        logger.info("Building usage data...")
         usage_data = {
             'daily_limit': message_status['limit'],
             'messages_used_today': message_status.get('messages_used', 0),
@@ -504,6 +516,7 @@ def get_usage_stats(user_id: str):
         }
 
         if today_analytics.data and len(today_analytics.data) > 0:
+            logger.info("Adding analytics data...")
             analytics_data = today_analytics.data[0]
             usage_data.update({
                 'topics_discussed': analytics_data.get('topics_discussed', []),
@@ -512,13 +525,19 @@ def get_usage_stats(user_id: str):
             })
 
         # Get overall stats
+        logger.info("Fetching conversation count...")
         total_conversations = supabase.table('tutor_conversations').select('id', count='exact').eq('user_id', user_id).execute()
         usage_data['total_conversations'] = total_conversations.count if total_conversations.count else 0
+        logger.info(f"Total conversations: {usage_data['total_conversations']}")
 
+        logger.info("Returning usage data...")
         return success_response({'usage': usage_data})
 
     except Exception as e:
         import traceback
+        logger.error(f"ERROR in get_usage_stats: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"TRACEBACK: {traceback.format_exc()}")
         print(f"ERROR in get_usage_stats: {str(e)}")
         print(f"TRACEBACK: {traceback.format_exc()}")
         return error_response(f"Failed to get usage stats: {str(e)}", status_code=500, error_code="internal_error")
