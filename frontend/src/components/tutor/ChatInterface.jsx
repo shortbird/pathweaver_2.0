@@ -33,6 +33,7 @@ const ChatInterface = ({
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
+  const justCreatedConversation = useRef(false);
 
   // Scroll to bottom when new messages arrive
   const scrollToBottom = useCallback(() => {
@@ -45,7 +46,14 @@ const ChatInterface = ({
 
   // Load conversation and usage stats on mount
   useEffect(() => {
-    loadConversation();
+    // Only reload conversation if we didn't just create it
+    if (conversationId && !justCreatedConversation.current) {
+      loadConversation();
+    }
+    // Reset the flag after checking
+    if (justCreatedConversation.current) {
+      justCreatedConversation.current = false;
+    }
     loadUsageStats();
   }, [conversationId]);
 
@@ -121,6 +129,8 @@ const ChatInterface = ({
       // Update conversation ID if this was the first message
       if (!conversationId && responseData.conversation_id) {
         setConversation({ id: responseData.conversation_id });
+        // Mark that we just created this conversation to prevent reload
+        justCreatedConversation.current = true;
         // Notify parent component about the new conversation
         if (onConversationCreate) {
           onConversationCreate(responseData.conversation_id);
