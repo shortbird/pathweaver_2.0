@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Send, Bot, User, AlertTriangle, MessageSquare } from 'lucide-react';
 import api from '../../services/api';
+import { renderMarkdown } from '../../utils/markdownRenderer';
 
 const CONVERSATION_MODES = [
   { value: 'study_buddy', label: 'Study Buddy', description: 'Casual and encouraging' },
@@ -310,7 +311,7 @@ const ChatInterface = ({
             <div
               className={`max-w-[80%] ${
                 message.role === 'user'
-                  ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-l-2xl rounded-tr-2xl'
+                  ? 'bg-[#6d469b] text-white rounded-l-2xl rounded-tr-2xl'
                   : 'bg-gray-100 text-gray-800 rounded-r-2xl rounded-tl-2xl'
               } p-3 shadow-sm`}
             >
@@ -319,7 +320,11 @@ const ChatInterface = ({
                   <Bot className="w-5 h-5 text-[#6d469b] flex-shrink-0 mt-0.5" />
                 )}
                 <div className="flex-1">
-                  <p className="whitespace-pre-wrap">{message.content}</p>
+                  <div className="prose prose-sm max-w-none">
+                    {message.role === 'assistant' ? renderMarkdown(message.content) : (
+                      <p className="whitespace-pre-wrap">{message.content}</p>
+                    )}
+                  </div>
                   {message.role === 'assistant' && (
                     <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-200">
                       <div className="text-xs text-gray-500">
