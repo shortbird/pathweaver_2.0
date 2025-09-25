@@ -19,11 +19,11 @@ const TaskCard = ({ task, index, isCompleted, isEnrolled, onComplete, hasCollabo
     : task.xp_amount;
 
   return (
-    <div 
+    <div
       className={`
-        relative rounded-xl transition-all duration-300 overflow-hidden
-        ${isCompleted 
-          ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300' 
+        relative rounded-xl transition-all duration-300 overflow-hidden touch-manipulation
+        ${isCompleted
+          ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-300'
           : `bg-white border-2 ${style.border} hover:shadow-lg hover:-translate-y-0.5`
         }
       `}
@@ -39,7 +39,7 @@ const TaskCard = ({ task, index, isCompleted, isEnrolled, onComplete, hasCollabo
         )}
       </div>
 
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {/* Header */}
         <div className="flex items-start justify-between mb-3">
           <div className="flex-1 pl-6">
@@ -56,7 +56,7 @@ const TaskCard = ({ task, index, isCompleted, isEnrolled, onComplete, hasCollabo
                 {task.description.length > 100 && (
                   <button
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="text-sm text-[#6d469b] hover:text-[#5c3a82] font-medium mt-1"
+                    className="text-sm text-[#6d469b] hover:text-[#5c3a82] font-medium mt-1 py-1 px-2 -mx-2 rounded touch-manipulation transition-colors hover:bg-purple-50"
                   >
                     {isExpanded ? 'Show less' : 'Show more'}
                   </button>
@@ -67,8 +67,8 @@ const TaskCard = ({ task, index, isCompleted, isEnrolled, onComplete, hasCollabo
         </div>
 
         {/* XP and Skill Badge Row */}
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between flex-wrap gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
             {/* Skill Pillar Badge */}
             <div className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full ${style.bg} ${style.text} text-sm font-medium`}>
               <span>{style.icon}</span>
@@ -136,9 +136,9 @@ const TaskCard = ({ task, index, isCompleted, isEnrolled, onComplete, hasCollabo
           {isEnrolled && !isCompleted && (
             <Button
               variant="primary"
-              size="sm"
+              size="md"
               onClick={() => onComplete(task)}
-              className="min-w-[100px]"
+              className="min-w-[120px] sm:min-w-[100px] !min-h-[44px] touch-manipulation"
             >
               Complete
             </Button>
@@ -146,7 +146,7 @@ const TaskCard = ({ task, index, isCompleted, isEnrolled, onComplete, hasCollabo
 
           {/* Completed Status */}
           {isCompleted && (
-            <div className="flex items-center gap-2 text-green-600">
+            <div className="flex items-center gap-2 text-green-600 min-h-[44px]">
               <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
               <span className="text-sm font-medium">Completed</span>
             </div>

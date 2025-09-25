@@ -61,21 +61,21 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   };
 
   return (
-    <div 
-      className="group bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100"
+    <div
+      className="group bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100 touch-manipulation"
       onClick={handleCardClick}
     >
       {/* Visual Header - Smaller and more subtle */}
       <div className={`h-2 bg-gradient-to-r ${dominantPillarGradient}`} />
       
       {/* Content Section */}
-      <div className="p-6">
+      <div className="p-4 sm:p-6">
         {/* Title and Description - More prominent */}
         <div className="mb-4">
-          <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-[#6d469b] transition-colors line-clamp-2">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 group-hover:text-[#6d469b] transition-colors line-clamp-2 leading-tight">
             {quest.title}
           </h3>
-          <p className="text-gray-600 text-sm line-clamp-3 leading-relaxed">
+          <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">
             {quest.big_idea || quest.description}
           </p>
         </div>
@@ -176,36 +176,36 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
         </div>
 
         {/* Action Buttons - Cleaner design */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 sm:gap-3">
           {isCompleted ? (
             // Quest is completed - show diploma button
             <Button
               variant="primary"
-              size="sm"
-              className="flex-1 !bg-gradient-to-r !from-emerald-500 !to-green-500 hover:!from-emerald-600 hover:!to-green-600"
+              size="md"
+              className="flex-1 !bg-gradient-to-r !from-emerald-500 !to-green-500 hover:!from-emerald-600 hover:!to-green-600 !min-h-[48px] touch-manipulation"
               onClick={(e) => {
                 e.stopPropagation();
                 navigate('/diploma');
               }}
             >
-              <CheckCircle className="w-4 h-4 mr-2" />
-              Completed! View Diploma
+              <CheckCircle className="w-4 h-4 mr-2 flex-shrink-0" />
+              <span className="truncate">Completed! View Diploma</span>
             </Button>
           ) : isEnrolled ? (
             // Quest is in progress - show continue button
             <Button
               variant="success"
-              size="sm"
-              className="flex-1"
+              size="md"
+              className="flex-1 !min-h-[48px] touch-manipulation"
               onClick={(e) => {
                 e.stopPropagation();
                 navigate(`/quests/${quest.id}`);
               }}
             >
-              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              Continue Quest
+              <span className="truncate">Continue Quest</span>
             </Button>
           ) : (
             // Quest not started - show different buttons based on tier
@@ -215,18 +215,19 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
                 <>
                   <Button
                     variant="primary"
-                    size="sm"
-                    className="flex-1"
+                    size="md"
+                    className="flex-1 !min-h-[48px] touch-manipulation"
                     onClick={handleEnroll}
                     loading={isEnrolling}
                   >
-                    Start Quest
+                    <span className="truncate">Start Quest</span>
                   </Button>
                   
                   <button
                     onClick={handleTeamUpClick}
-                    className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors group/team"
+                    className="p-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors group/team min-h-[48px] min-w-[48px] flex items-center justify-center touch-manipulation"
                     title="Team up for bonus XP!"
+                    aria-label="Team up for bonus XP"
                   >
                     <svg className="w-5 h-5 text-gray-600 group-hover/team:text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
@@ -237,15 +238,15 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
                 // Free tier users - show upgrade button
                 <Button
                   variant="secondary"
-                  size="sm"
-                  className="flex-1 !bg-gray-100 !text-gray-600 hover:!bg-gray-200"
+                  size="md"
+                  className="flex-1 !bg-gray-100 !text-gray-600 hover:!bg-gray-200 !min-h-[48px] touch-manipulation"
                   onClick={(e) => {
                     e.stopPropagation();
                     navigate('/subscription');
                   }}
                 >
-                  <Lock className="w-4 h-4 mr-2" />
-                  Upgrade to Start
+                  <Lock className="w-4 h-4 mr-2 flex-shrink-0" />
+                  <span className="truncate">Upgrade to Start</span>
                 </Button>
               )}
             </>

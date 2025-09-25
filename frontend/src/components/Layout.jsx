@@ -119,8 +119,9 @@ const Layout = () => {
               {/* Mobile menu button */}
               {isAuthenticated && (
                 <button
-                  className="sm:hidden p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100"
+                  className="sm:hidden p-3 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation transition-colors"
                   onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+                  aria-label={mobileMenuOpen ? "Close mobile menu" : "Open mobile menu"}
                 >
                   <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     {mobileMenuOpen ? (
@@ -185,32 +186,32 @@ const Layout = () => {
         
         {/* Mobile menu dropdown */}
         {isAuthenticated && mobileMenuOpen && (
-          <div className="sm:hidden border-t border-gray-200">
+          <div className="sm:hidden border-t border-gray-200 animate-fade-in">
             <div className="pt-2 pb-3 space-y-1">
               <Link
                 to="/dashboard"
-                className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                className="block px-6 py-4 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 min-h-[44px] flex items-center touch-manipulation transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Dashboard
               </Link>
               <Link
                 to="/quests"
-                className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                className="block px-6 py-4 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 min-h-[44px] flex items-center touch-manipulation transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Quests
               </Link>
               <Link
                 to="/friends"
-                className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                className="block px-6 py-4 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 min-h-[44px] flex items-center touch-manipulation transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Friends
               </Link>
               <Link
                 to="/diploma"
-                className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                className="block px-6 py-4 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 min-h-[44px] flex items-center touch-manipulation transition-colors"
                 onClick={() => setMobileMenuOpen(false)}
               >
                 My Diploma
@@ -218,7 +219,7 @@ const Layout = () => {
               {user?.role === 'admin' && (
                 <Link
                   to="/admin"
-                  className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                  className="block px-6 py-4 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 min-h-[44px] flex items-center touch-manipulation transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Admin
@@ -227,7 +228,7 @@ const Layout = () => {
               <div className="border-t border-gray-200 mt-2 pt-2">
                 <Link
                   to="/subscription"
-                  className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                  className="block px-6 py-4 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 min-h-[44px] flex items-center touch-manipulation transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   <span className={`inline-block px-2 py-1 rounded-full text-xs font-semibold uppercase ${
@@ -245,7 +246,7 @@ const Layout = () => {
                 </Link>
                 <Link
                   to="/profile"
-                  className="block px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                  className="block px-6 py-4 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 min-h-[44px] flex items-center touch-manipulation transition-colors"
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   {user?.first_name} {user?.last_name}
@@ -255,7 +256,7 @@ const Layout = () => {
                     handleLogout()
                     setMobileMenuOpen(false)
                   }}
-                  className="block w-full text-left px-4 py-2 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50"
+                  className="block w-full text-left px-6 py-4 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 min-h-[44px] flex items-center touch-manipulation transition-colors"
                 >
                   Logout
                 </button>

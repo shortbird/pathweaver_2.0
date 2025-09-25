@@ -340,24 +340,24 @@ const HomePage = () => {
                 Turn your real-world passions into an accredited diploma.
               </p>
 
-              {/* Enhanced CTAs with better contrast */}
+              {/* Enhanced CTAs with better contrast and mobile touch targets */}
               {!isAuthenticated && (
-                <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-                  <Link 
-                    to="/demo" 
-                    className="bg-white text-[#ef597b] hover:bg-gray-100 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center"
+                <div className="flex flex-col gap-4 justify-center items-center max-w-sm mx-auto sm:max-w-none sm:flex-row">
+                  <Link
+                    to="/demo"
+                    className="bg-white text-[#ef597b] hover:bg-gray-100 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center min-h-[52px] touch-manipulation"
                     aria-describedby="demo-description"
                   >
-                    <Play className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform" aria-hidden="true" />
+                    <Play className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0" aria-hidden="true" />
                     Try 2-Min Demo
                   </Link>
                   <span id="demo-description" className="sr-only">
                     Try our 2-minute interactive demo to see how Optio works
                   </span>
-                  
-                  <Link 
-                    to="/register" 
-                    className="bg-[#6d469b] text-white px-8 py-4 rounded-lg font-medium inline-flex items-center hover:bg-[#5d3689] transition-all w-full sm:w-auto justify-center shadow-lg"
+
+                  <Link
+                    to="/register"
+                    className="bg-[#6d469b] text-white px-8 py-4 rounded-lg font-medium inline-flex items-center hover:bg-[#5d3689] transition-all w-full sm:w-auto justify-center shadow-lg min-h-[52px] touch-manipulation"
                   >
                     Start Free
                   </Link>
@@ -383,23 +383,24 @@ const HomePage = () => {
 
             {/* Touch-friendly scroll hint for mobile */}
             <div className="flex items-center justify-center mb-4 sm:hidden">
-              <div className="flex items-center text-sm text-gray-500">
-                <ChevronLeft className="w-4 h-4 mr-1" />
-                <span>Swipe to see examples</span>
-                <ChevronRight className="w-4 h-4 ml-1" />
+              <div className="flex items-center text-sm text-gray-500 bg-white rounded-full px-4 py-2 shadow-sm border">
+                <ChevronLeft className="w-4 h-4 mr-1 animate-pulse" />
+                <span className="font-medium">Swipe to see examples</span>
+                <ChevronRight className="w-4 h-4 ml-1 animate-pulse" />
               </div>
             </div>
 
             {/* Horizontal Scrolling Cards Container */}
             <div className="relative">
-              <div 
+              <div
                 ref={scrollRef}
-                className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4 px-6 sm:px-0"
+                className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4 px-4 sm:px-6 -mx-4 sm:mx-0 scroll-smooth-mobile"
                 style={{
                   scrollbarWidth: 'none',
                   msOverflowStyle: 'none',
                   WebkitOverflowScrolling: 'touch',
-                  scrollBehavior: 'smooth'
+                  scrollBehavior: 'smooth',
+                  touchAction: 'pan-x'
                 }}
                 onScroll={updateScrollButtons}
               >
@@ -415,14 +416,14 @@ const HomePage = () => {
               <div className="hidden sm:flex absolute top-1/2 -translate-y-1/2 left-0 right-0 justify-between pointer-events-none">
                 <button
                   onClick={() => scroll('left')}
-                  className="w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center pointer-events-auto hover:shadow-xl hover:scale-110 transition-all -ml-6"
+                  className="w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center pointer-events-auto hover:shadow-xl hover:scale-110 transition-all -ml-6 min-h-[48px] touch-manipulation"
                   aria-label="Previous card"
                 >
                   <ChevronLeft className="w-6 h-6 text-gray-600" />
                 </button>
                 <button
                   onClick={() => scroll('right')}
-                  className="w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center pointer-events-auto hover:shadow-xl hover:scale-110 transition-all -mr-6"
+                  className="w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center pointer-events-auto hover:shadow-xl hover:scale-110 transition-all -mr-6 min-h-[48px] touch-manipulation"
                   aria-label="Next card"
                 >
                   <ChevronRight className="w-6 h-6 text-gray-600" />
