@@ -178,7 +178,11 @@ SECURITY DEFINER;
 
 -- 9. Fix reorder_evidence_blocks function (if needed)
 -- This function may be used for evidence document ordering
+-- Handle trigger dependencies first
+DROP TRIGGER IF EXISTS evidence_blocks_reorder_insert ON evidence_document_blocks;
+DROP TRIGGER IF EXISTS evidence_blocks_reorder_delete ON evidence_document_blocks;
 DROP FUNCTION IF EXISTS public.reorder_evidence_blocks(UUID, INTEGER[]);
+DROP FUNCTION IF EXISTS public.reorder_evidence_blocks();
 DROP FUNCTION IF EXISTS public.reorder_evidence_blocks;
 
 CREATE FUNCTION public.reorder_evidence_blocks(
@@ -206,6 +210,12 @@ END;
 $$ LANGUAGE plpgsql
 SET search_path = public, pg_temp
 SECURITY DEFINER;
+
+-- Note: Original triggers were dropped to allow function security fix
+-- If triggers are needed, they should be recreated based on actual business requirements
+-- The triggers that were dropped were:
+-- - evidence_blocks_reorder_insert on evidence_document_blocks
+-- - evidence_blocks_reorder_delete on evidence_document_blocks
 
 -- 10. Fix update_evidence_document_updated_at function
 -- This might be a trigger function for evidence documents
