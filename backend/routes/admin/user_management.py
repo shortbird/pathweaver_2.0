@@ -381,16 +381,24 @@ def get_conversation_details(admin_user_id, conversation_id):
     try:
         supabase = get_supabase_admin_client()
 
-        # Get conversation details with user info
+        # Get conversation details (without user join - auth.users not accessible via PostgREST)
         conversation_query = supabase.table('tutor_conversations').select('''
             id, title, conversation_mode, quest_id, task_id, user_id,
             is_active, message_count, last_message_at, created_at,
-            users(first_name, last_name, email),
             quests(title),
             quest_tasks(title, pillar)
         ''').eq('id', conversation_id).single()
 
         conversation_result = conversation_query.execute()
+
+        # Get user info separately from public.users table
+        if conversation_result.data:
+            user_query = supabase.table('users').select('first_name, last_name, email').eq('id', conversation_result.data['user_id']).single()
+            user_result = user_query.execute()
+
+            # Add user info to conversation data
+            if user_result.data:
+                conversation_result.data['user'] = user_result.data
 
         # Get all messages for this conversation
         messages_query = supabase.table('tutor_messages').select('''
