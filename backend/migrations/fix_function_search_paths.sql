@@ -76,7 +76,21 @@ DROP FUNCTION IF EXISTS public.initialize_user_skills;
 -- Create trigger version (no parameters, uses NEW directly)
 CREATE FUNCTION public.initialize_user_skills()
 RETURNS TRIGGER AS $$
+DECLARE
+    table_exists BOOLEAN;
 BEGIN
+    -- Check if user_skill_xp table exists
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'user_skill_xp'
+    ) INTO table_exists;
+
+    IF NOT table_exists THEN
+        -- Table doesn't exist, just return
+        RETURN NEW;
+    END IF;
+
     -- Initialize user skill XP for all pillars if not exists
     INSERT INTO user_skill_xp (user_id, pillar, xp_amount)
     VALUES
@@ -98,7 +112,21 @@ CREATE FUNCTION public.initialize_user_skills_for_user(
     p_user_id UUID
 )
 RETURNS VOID AS $$
+DECLARE
+    table_exists BOOLEAN;
 BEGIN
+    -- Check if user_skill_xp table exists
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'user_skill_xp'
+    ) INTO table_exists;
+
+    IF NOT table_exists THEN
+        -- Table doesn't exist, function is a placeholder
+        RETURN;
+    END IF;
+
     -- Initialize user skill XP for all pillars if not exists
     INSERT INTO user_skill_xp (user_id, pillar, xp_amount)
     VALUES
@@ -155,7 +183,27 @@ RETURNS TEXT AS $$
 DECLARE
     total_xp INTEGER;
     mastery_level TEXT;
+    skill_table_exists BOOLEAN;
+    users_table_exists BOOLEAN;
 BEGIN
+    -- Check if required tables exist
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'user_skill_xp'
+    ) INTO skill_table_exists;
+
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'users'
+    ) INTO users_table_exists;
+
+    IF NOT skill_table_exists THEN
+        -- Return default level if skill table doesn't exist
+        RETURN 'Explorer';
+    END IF;
+
     -- Calculate total XP across all pillars
     SELECT COALESCE(SUM(xp_amount), 0) INTO total_xp
     FROM user_skill_xp
@@ -164,11 +212,21 @@ BEGIN
     -- Calculate mastery level
     mastery_level := calculate_mastery_level(total_xp);
 
-    -- Update user's mastery level if it exists in users table
-    UPDATE users
-    SET mastery_level = mastery_level,
-        updated_at = CURRENT_TIMESTAMP
-    WHERE id = p_user_id;
+    -- Update user's mastery level if users table exists and has mastery_level column
+    IF users_table_exists THEN
+        -- Check if mastery_level column exists before updating
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema = 'public'
+            AND table_name = 'users'
+            AND column_name = 'mastery_level'
+        ) THEN
+            UPDATE users
+            SET mastery_level = mastery_level,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = p_user_id;
+        END IF;
+    END IF;
 
     RETURN mastery_level;
 END;
@@ -194,7 +252,20 @@ DECLARE
     evidence_id UUID;
     new_position INTEGER;
     i INTEGER := 1;
+    table_exists BOOLEAN;
 BEGIN
+    -- Check if evidence_documents table exists
+    SELECT EXISTS (
+        SELECT 1 FROM information_schema.tables
+        WHERE table_schema = 'public'
+        AND table_name = 'evidence_documents'
+    ) INTO table_exists;
+
+    IF NOT table_exists THEN
+        -- Table doesn't exist, function is a placeholder
+        RETURN;
+    END IF;
+
     -- Update evidence document order based on provided array
     FOREACH evidence_id IN ARRAY p_new_order
     LOOP
