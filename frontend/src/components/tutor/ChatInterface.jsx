@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Bot, User, AlertTriangle, Star, Lightbulb, MessageSquare } from 'lucide-react';
+import { Send, Bot, User, AlertTriangle, MessageSquare } from 'lucide-react';
 import api from '../../services/api';
 
 const CONVERSATION_MODES = [
@@ -15,15 +15,18 @@ const ChatInterface = ({
   currentQuest = null,
   currentTask = null,
   onClose = null,
-  className = ''
+  selectedMode: propSelectedMode = null,
+  hideHeader = false,
+  className = '',
+  onConversationCreate = null
 }) => {
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversation, setConversation] = useState(null);
-  const [selectedMode, setSelectedMode] = useState('study_buddy');
-  const [suggestions, setSuggestions] = useState([]);
-  const [nextQuestions, setNextQuestions] = useState([]);
+  const [internalSelectedMode, setInternalSelectedMode] = useState('study_buddy');
+  const selectedMode = propSelectedMode || internalSelectedMode;
+  const setSelectedMode = propSelectedMode ? () => {} : setInternalSelectedMode;
   const [usageStats, setUsageStats] = useState(null);
   const [error, setError] = useState(null);
   const [showModeSelector, setShowModeSelector] = useState(false);
@@ -60,10 +63,6 @@ const ChatInterface = ({
         setConversation(response.data.conversation);
         setMessages(response.data.messages || []);
         setSelectedMode(response.data.conversation.conversation_mode || 'study_buddy');
-      } else {
-        // Load conversation starters
-        const startersResponse = await api.get('/api/tutor/starters');
-        setSuggestions(startersResponse.data.starters || []);
       }
     } catch (error) {
       console.error('Failed to load conversation:', error);
@@ -119,11 +118,12 @@ const ChatInterface = ({
       // Update conversation ID if this was the first message
       if (!conversationId && responseData.conversation_id) {
         setConversation({ id: responseData.conversation_id });
+        // Notify parent component about the new conversation
+        if (onConversationCreate) {
+          onConversationCreate(responseData.conversation_id);
+        }
       }
 
-      // Update suggestions and questions
-      setSuggestions(responseData.suggestions || []);
-      setNextQuestions(responseData.next_questions || []);
 
       // Update usage stats
       await loadUsageStats();
@@ -151,10 +151,6 @@ const ChatInterface = ({
     }
   };
 
-  const handleSuggestionClick = (suggestion) => {
-    setInputMessage(suggestion);
-    inputRef.current?.focus();
-  };
 
   const handleModeChange = async (newMode) => {
     setSelectedMode(newMode);
@@ -200,63 +196,65 @@ const ChatInterface = ({
   const currentModeInfo = CONVERSATION_MODES.find(mode => mode.value === selectedMode);
 
   return (
-    <div className={`flex flex-col h-full bg-white rounded-lg shadow-lg ${className}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-t-lg">
-        <div className="flex items-center space-x-3">
-          <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-            <Bot className="w-6 h-6 text-[#6d469b]" />
+    <div className={`flex flex-col h-full bg-white ${hideHeader ? '' : 'rounded-lg shadow-lg'} ${className}`}>
+      {/* Header - Only show if not hidden */}
+      {!hideHeader && (
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-t-lg">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
+              <Bot className="w-6 h-6 text-[#6d469b]" />
+            </div>
+            <div>
+              <h3 className="text-white font-semibold">OptioBot</h3>
+              <p className="text-white/80 text-sm">Your learning companion</p>
+            </div>
           </div>
-          <div>
-            <h3 className="text-white font-semibold">OptioBot</h3>
-            <p className="text-white/80 text-sm">Your learning companion</p>
-          </div>
-        </div>
 
-        <div className="flex items-center space-x-2">
-          {/* Mode Selector */}
-          <div className="relative">
-            <button
-              onClick={() => setShowModeSelector(!showModeSelector)}
-              className="bg-white/20 text-white px-3 py-1 rounded-full text-sm hover:bg-white/30 transition-colors"
-            >
-              {currentModeInfo?.label}
-            </button>
+          <div className="flex items-center space-x-2">
+            {/* Mode Selector */}
+            <div className="relative">
+              <button
+                onClick={() => setShowModeSelector(!showModeSelector)}
+                className="bg-white/20 text-white px-3 py-1 rounded-full text-sm hover:bg-white/30 transition-colors"
+              >
+                {currentModeInfo?.label}
+              </button>
 
-            {showModeSelector && (
-              <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border z-50">
-                <div className="p-2">
-                  {CONVERSATION_MODES.map(mode => (
-                    <button
-                      key={mode.value}
-                      onClick={() => handleModeChange(mode.value)}
-                      className={`w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors ${
-                        selectedMode === mode.value ? 'bg-purple-50 border border-purple-200' : ''
-                      }`}
-                    >
-                      <div className="flex items-center space-x-3">
-                        <div>
-                          <div className="font-medium text-gray-900">{mode.label}</div>
-                          <div className="text-sm text-gray-500">{mode.description}</div>
+              {showModeSelector && (
+                <div className="absolute top-full right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border z-50">
+                  <div className="p-2">
+                    {CONVERSATION_MODES.map(mode => (
+                      <button
+                        key={mode.value}
+                        onClick={() => handleModeChange(mode.value)}
+                        className={`w-full text-left p-3 rounded-lg hover:bg-gray-50 transition-colors ${
+                          selectedMode === mode.value ? 'bg-purple-50 border border-purple-200' : ''
+                        }`}
+                      >
+                        <div className="flex items-center space-x-3">
+                          <div>
+                            <div className="font-medium text-gray-900">{mode.label}</div>
+                            <div className="text-sm text-gray-500">{mode.description}</div>
+                          </div>
                         </div>
-                      </div>
-                    </button>
-                  ))}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-              </div>
+              )}
+            </div>
+
+            {onClose && (
+              <button
+                onClick={onClose}
+                className="text-white/80 hover:text-white"
+              >
+                ×
+              </button>
             )}
           </div>
-
-          {onClose && (
-            <button
-              onClick={onClose}
-              className="text-white/80 hover:text-white"
-            >
-              ×
-            </button>
-          )}
         </div>
-      </div>
+      )}
 
       {/* Usage Stats */}
       {usageStats && (
@@ -358,47 +356,6 @@ const ChatInterface = ({
         </div>
       )}
 
-      {/* Suggestions */}
-      {suggestions.length > 0 && (
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
-          <div className="flex items-center space-x-2 mb-2">
-            <Lightbulb className="w-4 h-4 text-[#6d469b]" />
-            <span className="text-sm font-medium text-gray-700">Suggestions:</span>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {suggestions.slice(0, 3).map((suggestion, index) => (
-              <button
-                key={index}
-                onClick={() => handleSuggestionClick(suggestion)}
-                className="text-sm bg-white text-[#6d469b] px-3 py-1 rounded-full border border-[#6d469b]/20 hover:bg-[#6d469b]/5 transition-colors"
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Next Questions */}
-      {nextQuestions.length > 0 && (
-        <div className="p-4 border-t border-gray-200 bg-blue-50">
-          <div className="flex items-center space-x-2 mb-2">
-            <Star className="w-4 h-4 text-blue-600" />
-            <span className="text-sm font-medium text-gray-700">Keep exploring:</span>
-          </div>
-          <div className="space-y-1">
-            {nextQuestions.slice(0, 3).map((question, index) => (
-              <button
-                key={index}
-                onClick={() => handleSuggestionClick(question)}
-                className="block w-full text-left text-sm text-blue-600 hover:text-blue-800 hover:bg-blue-100 p-2 rounded transition-colors"
-              >
-                {question}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* Input */}
       <div className="p-4 border-t border-gray-200 bg-white">
