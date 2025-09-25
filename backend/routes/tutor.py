@@ -7,6 +7,7 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, date
 from typing import Dict, List, Optional, Any
 import uuid
+import logging
 
 from database import get_user_client, get_supabase_admin_client
 from utils.auth.decorators import require_auth
@@ -19,9 +20,40 @@ from utils.api_response import success_response, error_response
 
 bp = Blueprint('tutor', __name__, url_prefix='/api/tutor')
 
-# Initialize services
-tutor_service = AITutorService()
+# Set up logging
+logger = logging.getLogger(__name__)
+
+# Initialize services (lazy loading to prevent module-level errors)
+tutor_service = None
 safety_service = SafetyService()
+
+def get_tutor_service():
+    """Get tutor service with lazy initialization"""
+    global tutor_service
+    if tutor_service is None:
+        try:
+            import os
+            logger.info("Initializing AITutorService...")
+            print("TUTOR SERVICE: Initializing AITutorService...")
+            logger.info(f"GEMINI_API_KEY present: {'GEMINI_API_KEY' in os.environ}")
+            print(f"TUTOR SERVICE: GEMINI_API_KEY present: {'GEMINI_API_KEY' in os.environ}")
+            logger.info(f"GOOGLE_API_KEY present: {'GOOGLE_API_KEY' in os.environ}")
+            print(f"TUTOR SERVICE: GOOGLE_API_KEY present: {'GOOGLE_API_KEY' in os.environ}")
+            tutor_service = AITutorService()
+            logger.info("AITutorService initialized successfully")
+            print("TUTOR SERVICE: AITutorService initialized successfully")
+        except Exception as e:
+            logger.error(f"CRITICAL: Failed to initialize AITutorService: {e}")
+            print(f"TUTOR SERVICE CRITICAL: Failed to initialize AITutorService: {e}")
+            logger.error(f"Exception type: {type(e).__name__}")
+            print(f"TUTOR SERVICE: Exception type: {type(e).__name__}")
+            logger.error(f"Exception args: {e.args}")
+            print(f"TUTOR SERVICE: Exception args: {e.args}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            traceback.print_exc()
+            raise Exception(f"Tutor service unavailable: {e}")
+    return tutor_service
 
 @bp.route('/chat', methods=['POST'])
 @require_auth
@@ -60,7 +92,7 @@ def send_message(user_id: str):
                 }
             )
 
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         # Get or create conversation
         if conversation_id:
@@ -89,39 +121,84 @@ def send_message(user_id: str):
         )
 
         # Process message with AI tutor
-        tutor_response = tutor_service.process_message(message, context)
+        logger.info("About to call get_tutor_service()")
+        print("TUTOR DEBUG: About to call get_tutor_service()")
+        try:
+            tutor_service = get_tutor_service()
+            logger.info("Got tutor service, processing message...")
+            print("TUTOR DEBUG: Got tutor service, processing message...")
+            tutor_response = tutor_service.process_message(message, context)
+            logger.info("AI tutor processing completed")
+            print("TUTOR DEBUG: AI tutor processing completed")
+        except Exception as e:
+            logger.error(f"Exception during tutor service call: {e}")
+            print(f"TUTOR DEBUG: Exception during tutor service call: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
+            traceback.print_exc()
+            raise
 
+        logger.info("Checking tutor response success status...")
         if not tutor_response['success']:
+            logger.error(f"Tutor response failed: {tutor_response}")
             return error_response(
                 tutor_response.get('response', 'Failed to process message'),
-                tutor_response.get('error', 'processing_failed'),
-                status_code=500
+                status_code=500,
+                error_code=tutor_response.get('error', 'processing_failed')
             )
 
+        logger.info("Tutor response successful, storing AI message...")
         # Store AI response
-        ai_message = _store_message(
-            supabase, conversation_id, 'assistant', tutor_response['response'], user_id,
-            metadata={
-                'safety_level': tutor_response.get('safety_level'),
-                'suggestions': tutor_response.get('suggestions'),
-                'next_questions': tutor_response.get('next_questions'),
-                'xp_bonus_eligible': tutor_response.get('xp_bonus_eligible', False)
-            }
-        )
+        try:
+            ai_message = _store_message(
+                supabase, conversation_id, 'assistant', tutor_response['response'], user_id,
+                metadata={
+                    'safety_level': tutor_response.get('safety_level'),
+                    'suggestions': tutor_response.get('suggestions'),
+                    'next_questions': tutor_response.get('next_questions'),
+                    'xp_bonus_eligible': tutor_response.get('xp_bonus_eligible', False)
+                }
+            )
+            logger.info(f"AI message stored successfully with ID: {ai_message['id']}")
+        except Exception as e:
+            logger.error(f"Failed to store AI message: {e}")
+            raise
 
+        logger.info("Incrementing message usage...")
         # Increment message usage through tier service
-        supabase_admin = get_supabase_admin_client()
-        supabase_admin.rpc('increment_message_usage', {'p_user_id': user_id}).execute()
+        try:
+            supabase_admin = get_supabase_admin_client()
+            supabase_admin.rpc('increment_message_usage', {'p_user_id': user_id}).execute()
+            logger.info("Message usage incremented successfully")
+        except Exception as e:
+            logger.error(f"Failed to increment message usage: {e}")
+            raise
 
         # Award XP bonus if eligible
         if tutor_response.get('xp_bonus_eligible', False):
-            _award_tutor_xp_bonus(supabase, user_id, ai_message['id'])
+            logger.info("Awarding XP bonus...")
+            try:
+                _award_tutor_xp_bonus(supabase, user_id, ai_message['id'])
+                logger.info("XP bonus awarded successfully")
+            except Exception as e:
+                logger.error(f"Failed to award XP bonus: {e}")
+                # Don't raise here as it's not critical
 
         # Notify parents if needed
         if tutor_response.get('requires_parent_notification', False):
-            _schedule_parent_notification(user_id, conversation_id, message)
+            logger.info("Scheduling parent notification...")
+            try:
+                _schedule_parent_notification(user_id, conversation_id, message)
+                logger.info("Parent notification scheduled")
+            except Exception as e:
+                logger.error(f"Failed to schedule parent notification: {e}")
+                # Don't raise here as it's not critical
 
-        return success_response({
+        logger.info("Preparing success response...")
+        logger.info(f"Tutor response content: '{tutor_response.get('response', 'NO RESPONSE KEY')}'")
+        logger.info(f"Tutor response keys: {list(tutor_response.keys()) if isinstance(tutor_response, dict) else 'NOT A DICT'}")
+
+        response_data = {
             'conversation_id': conversation_id,
             'message_id': ai_message['id'],
             'response': tutor_response['response'],
@@ -129,19 +206,31 @@ def send_message(user_id: str):
             'next_questions': tutor_response.get('next_questions', []),
             'xp_bonus_awarded': tutor_response.get('xp_bonus_eligible', False),
             'mode': conversation_mode
-        })
+        }
+        logger.info(f"Final response data: {response_data}")
+        logger.info(f"Response content length: {len(response_data.get('response', ''))}")
+        return success_response(response_data)
 
     except ValidationError as e:
-        return error_response(str(e), "validation_error", status_code=400)
+        logger.error(f"ValidationError in send_message: {str(e)}")
+        return error_response(str(e), status_code=400, error_code="validation_error")
     except Exception as e:
-        return error_response(f"Failed to process message: {str(e)}", "internal_error", status_code=500)
+        import traceback
+        logger.error(f"CRITICAL ERROR in send_message: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"TRACEBACK: {traceback.format_exc()}")
+        # Also print to ensure it shows up somewhere
+        print(f"CRITICAL ERROR in send_message: {str(e)}")
+        print(f"Exception type: {type(e).__name__}")
+        print(f"TRACEBACK: {traceback.format_exc()}")
+        return error_response(f"Failed to process message: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/conversations', methods=['GET'])
 @require_auth
 def get_conversations(user_id: str):
     """Get user's tutor conversations"""
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         # Get query parameters
         limit = min(int(request.args.get('limit', 20)), 100)
@@ -168,19 +257,19 @@ def get_conversations(user_id: str):
         })
 
     except Exception as e:
-        return error_response(f"Failed to get conversations: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to get conversations: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/conversations/<conversation_id>', methods=['GET'])
 @require_auth
 def get_conversation(user_id: str, conversation_id: str):
     """Get specific conversation with messages"""
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         # Verify conversation ownership
         conversation = _get_conversation(supabase, conversation_id, user_id)
         if not conversation:
-            return error_response("Conversation not found", "not_found", status_code=404)
+            return error_response("Conversation not found", status_code=404, error_code="not_found")
 
         # Get messages
         messages_limit = min(int(request.args.get('limit', 50)), 100)
@@ -199,7 +288,7 @@ def get_conversation(user_id: str, conversation_id: str):
         })
 
     except Exception as e:
-        return error_response(f"Failed to get conversation: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to get conversation: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/conversations/<conversation_id>', methods=['PUT'])
 @require_auth
@@ -207,12 +296,12 @@ def update_conversation(user_id: str, conversation_id: str):
     """Update conversation settings"""
     try:
         data = request.get_json()
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         # Verify conversation ownership
         conversation = _get_conversation(supabase, conversation_id, user_id)
         if not conversation:
-            return error_response("Conversation not found", "not_found", status_code=404)
+            return error_response("Conversation not found", status_code=404, error_code="not_found")
 
         update_data = {}
 
@@ -242,28 +331,28 @@ def update_conversation(user_id: str, conversation_id: str):
         return success_response({'message': 'No updates provided'})
 
     except ValidationError as e:
-        return error_response(str(e), "validation_error", status_code=400)
+        return error_response(str(e), status_code=400, error_code="validation_error")
     except Exception as e:
-        return error_response(f"Failed to update conversation: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to update conversation: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/settings', methods=['GET'])
 @require_auth
 def get_settings(user_id: str):
     """Get user's tutor settings"""
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
-        settings = supabase.table('tutor_settings').select('*').eq('user_id', user_id).single().execute()
+        settings = supabase.table('tutor_settings').select('*').eq('user_id', user_id).execute()
 
-        if not settings.data:
+        if not settings.data or len(settings.data) == 0:
             # Create default settings
             default_settings = _create_default_settings(supabase, user_id)
             return success_response({'settings': default_settings})
 
-        return success_response({'settings': settings.data})
+        return success_response({'settings': settings.data[0]})
 
     except Exception as e:
-        return error_response(f"Failed to get settings: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to get settings: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/settings', methods=['PUT'])
 @require_auth
@@ -271,7 +360,7 @@ def update_settings(user_id: str):
     """Update user's tutor settings"""
     try:
         data = request.get_json()
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         update_data = {}
 
@@ -313,9 +402,9 @@ def update_settings(user_id: str):
         return success_response({'message': 'No updates provided'})
 
     except ValidationError as e:
-        return error_response(str(e), "validation_error", status_code=400)
+        return error_response(str(e), status_code=400, error_code="validation_error")
     except Exception as e:
-        return error_response(f"Failed to update settings: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to update settings: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/report', methods=['POST'])
 @require_auth
@@ -331,7 +420,7 @@ def report_content(user_id: str):
         reason = data['reason']
         description = data.get('description', '')
 
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         # Verify message ownership
         message = supabase.table('tutor_messages').select('''
@@ -340,7 +429,7 @@ def report_content(user_id: str):
         ''').eq('id', message_id).single().execute()
 
         if not message.data or message.data['tutor_conversations']['user_id'] != user_id:
-            return error_response("Message not found", "not_found", status_code=404)
+            return error_response("Message not found", status_code=404, error_code="not_found")
 
         # Create safety report
         report = {
@@ -364,22 +453,22 @@ def report_content(user_id: str):
         })
 
     except ValidationError as e:
-        return error_response(str(e), "validation_error", status_code=400)
+        return error_response(str(e), status_code=400, error_code="validation_error")
     except Exception as e:
-        return error_response(f"Failed to submit report: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to submit report: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/starters', methods=['GET'])
 @require_auth
 def get_conversation_starters(user_id: str):
     """Get conversation starters based on user's current context"""
     try:
-        supabase = get_user_client(user_id)
+        supabase = get_supabase_admin_client()
 
         # Build basic context
         context = _build_tutor_context(supabase, user_id)
 
         # Get conversation starters
-        starters = tutor_service.get_conversation_starters(context)
+        starters = get_tutor_service().get_conversation_starters(context)
 
         return success_response({
             'starters': starters,
@@ -387,25 +476,40 @@ def get_conversation_starters(user_id: str):
         })
 
     except Exception as e:
-        return error_response(f"Failed to get conversation starters: {str(e)}", "internal_error", status_code=500)
+        import traceback
+        print(f"ERROR in get_conversation_starters: {str(e)}")
+        print(f"TRACEBACK: {traceback.format_exc()}")
+        return error_response(f"Failed to get conversation starters: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/usage', methods=['GET'])
 @require_auth
 def get_usage_stats(user_id: str):
     """Get user's tutor usage statistics"""
     try:
-        # Get usage stats from tier service
-        message_status = tutor_tier_service.can_send_message(user_id)
-        feature_access = tutor_tier_service.get_feature_access(user_id)
+        logger.info(f"Getting usage stats for user: {user_id}")
 
-        supabase = get_user_client(user_id)
+        # Get usage stats from tier service
+        logger.info("Calling tutor_tier_service.can_send_message...")
+        message_status = tutor_tier_service.can_send_message(user_id)
+        logger.info(f"Message status result: {message_status}")
+
+        logger.info("Calling tutor_tier_service.get_feature_access...")
+        feature_access = tutor_tier_service.get_feature_access(user_id)
+        logger.info(f"Feature access result: {feature_access}")
+
+        logger.info("Getting Supabase client...")
+        supabase = get_supabase_admin_client()
 
         # Get today's analytics
+        logger.info("Fetching today's analytics...")
         today = date.today().isoformat()
+        logger.info(f"Today's date: {today}")
         today_analytics = supabase.table('tutor_analytics').select('*').eq(
             'user_id', user_id
-        ).eq('date', today).single().execute()
+        ).eq('date', today).execute()
+        logger.info(f"Analytics query result: {len(today_analytics.data) if today_analytics.data else 0} records")
 
+        logger.info("Building usage data...")
         usage_data = {
             'daily_limit': message_status['limit'],
             'messages_used_today': message_status.get('messages_used', 0),
@@ -415,21 +519,69 @@ def get_usage_stats(user_id: str):
             'feature_access': feature_access
         }
 
-        if today_analytics.data:
+        if today_analytics.data and len(today_analytics.data) > 0:
+            logger.info("Adding analytics data...")
+            analytics_data = today_analytics.data[0]
             usage_data.update({
-                'topics_discussed': today_analytics.data.get('topics_discussed', []),
-                'learning_pillars_covered': today_analytics.data.get('learning_pillars_covered', []),
-                'engagement_score': today_analytics.data.get('engagement_score', 0.0)
+                'topics_discussed': analytics_data.get('topics_discussed', []),
+                'learning_pillars_covered': analytics_data.get('learning_pillars_covered', []),
+                'engagement_score': analytics_data.get('engagement_score', 0.0)
             })
 
         # Get overall stats
+        logger.info("Fetching conversation count...")
         total_conversations = supabase.table('tutor_conversations').select('id', count='exact').eq('user_id', user_id).execute()
         usage_data['total_conversations'] = total_conversations.count if total_conversations.count else 0
+        logger.info(f"Total conversations: {usage_data['total_conversations']}")
 
+        logger.info("Returning usage data...")
         return success_response({'usage': usage_data})
 
     except Exception as e:
-        return error_response(f"Failed to get usage stats: {str(e)}", "internal_error", status_code=500)
+        import traceback
+        logger.error(f"ERROR in get_usage_stats: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.error(f"TRACEBACK: {traceback.format_exc()}")
+        print(f"ERROR in get_usage_stats: {str(e)}")
+        print(f"TRACEBACK: {traceback.format_exc()}")
+        return error_response(f"Failed to get usage stats: {str(e)}", status_code=500, error_code="internal_error")
+
+@bp.route('/debug', methods=['GET'])
+@require_auth
+def debug_tutor_service(user_id: str):
+    """Debug endpoint to test tutor service initialization"""
+    try:
+        # Test 1: Basic response
+        print(f"DEBUG: Testing endpoint for user {user_id}")
+
+        # Test 2: Test tutor_tier_service
+        print("DEBUG: Testing tutor_tier_service...")
+        message_status = tutor_tier_service.can_send_message(user_id)
+        print(f"DEBUG: Tier service works: {message_status}")
+
+        # Test 3: Test AITutorService initialization
+        print("DEBUG: Testing AITutorService initialization...")
+        test_service = get_tutor_service()
+        print("DEBUG: AITutorService initialized successfully")
+
+        # Test 4: Test context building
+        print("DEBUG: Testing context building...")
+        supabase = get_supabase_admin_client()
+        context = _build_tutor_context(supabase, user_id)
+        print(f"DEBUG: Context built: {context}")
+
+        return success_response({
+            'debug': 'All tests passed',
+            'user_id': user_id,
+            'message_status': message_status,
+            'context_mode': context.conversation_mode.value
+        })
+
+    except Exception as e:
+        import traceback
+        print(f"DEBUG ERROR: {str(e)}")
+        print(f"DEBUG TRACEBACK: {traceback.format_exc()}")
+        return error_response(f"Debug failed: {str(e)}", status_code=500, error_code="debug_error")
 
 @bp.route('/tier-info', methods=['GET'])
 @require_auth
@@ -462,7 +614,7 @@ def get_tier_info(user_id: str):
         })
 
     except Exception as e:
-        return error_response(f"Failed to get tier info: {str(e)}", "internal_error", status_code=500)
+        return error_response(f"Failed to get tier info: {str(e)}", status_code=500, error_code="internal_error")
 
 # Helper functions
 
@@ -473,8 +625,10 @@ def _get_conversation(supabase, conversation_id: str, user_id: str) -> Optional[
     try:
         result = supabase.table('tutor_conversations').select('*').eq(
             'id', conversation_id
-        ).eq('user_id', user_id).single().execute()
-        return result.data
+        ).eq('user_id', user_id).execute()
+        if result.data and len(result.data) > 0:
+            return result.data[0]
+        return None
     except Exception:
         return None
 
@@ -520,12 +674,13 @@ def _build_tutor_context(supabase, user_id: str, conversation: Optional[Dict] = 
 
     try:
         # Get user settings
-        settings = supabase.table('tutor_settings').select('*').eq('user_id', user_id).single().execute()
-        if settings.data:
-            context.user_age = settings.data.get('age_verification')
-            context.learning_style = settings.data.get('learning_style')
-            if settings.data.get('preferred_mode'):
-                context.conversation_mode = ConversationMode(settings.data['preferred_mode'])
+        settings = supabase.table('tutor_settings').select('*').eq('user_id', user_id).execute()
+        if settings.data and len(settings.data) > 0:
+            settings_data = settings.data[0]
+            context.user_age = settings_data.get('age_verification')
+            context.learning_style = settings_data.get('learning_style')
+            if settings_data.get('preferred_mode'):
+                context.conversation_mode = ConversationMode(settings_data['preferred_mode'])
 
         # Get recent messages for context
         if conversation:
@@ -534,15 +689,8 @@ def _build_tutor_context(supabase, user_id: str, conversation: Optional[Dict] = 
             ).order('created_at', desc=True).limit(5).execute()
             context.previous_messages = messages.data
 
-        # Get user's current active quest
-        active_quest = supabase.table('user_quests').select('''
-            quest_id,
-            quests!inner(id, title, description)
-        ''').eq('user_id', user_id).eq('is_active', True).limit(1).execute()
-
-        if active_quest.data:
-            quest_data = active_quest.data[0]['quests']
-            context.current_quest = quest_data
+        # Don't automatically fetch quest context - OptioBot is now global
+        # Quest context will only be included if explicitly passed from frontend
 
     except Exception as e:
         # If context building fails, use defaults
@@ -600,6 +748,50 @@ def _schedule_parent_notification(user_id: str, conversation_id: str, message_co
     except Exception as e:
         print(f"Failed to schedule parent notification: {e}")
 
+@bp.route('/test-service', methods=['GET'])
+def test_tutor_service():
+    """Simple test endpoint to isolate AITutorService initialization error"""
+    try:
+        import os
+        print("=== TUTOR SERVICE TEST STARTED ===")
+
+        # Test environment variables
+        gemini_present = 'GEMINI_API_KEY' in os.environ
+        google_present = 'GOOGLE_API_KEY' in os.environ
+        print(f"GEMINI_API_KEY present: {gemini_present}")
+        print(f"GOOGLE_API_KEY present: {google_present}")
+
+        # Test import
+        print("Testing AITutorService import...")
+        from services.ai_tutor_service import AITutorService
+        print("Import successful")
+
+        # Test initialization
+        print("Testing AITutorService initialization...")
+        service = AITutorService()
+        print("Initialization successful")
+
+        return {
+            'status': 'success',
+            'message': 'AITutorService initialized successfully',
+            'gemini_key_present': gemini_present,
+            'google_key_present': google_present
+        }
+
+    except Exception as e:
+        import traceback
+        error_details = {
+            'status': 'error',
+            'error': str(e),
+            'type': type(e).__name__,
+            'traceback': traceback.format_exc()
+        }
+        print(f"=== TUTOR SERVICE TEST ERROR ===")
+        print(f"Error: {str(e)}")
+        print(f"Type: {type(e).__name__}")
+        print(f"Traceback: {traceback.format_exc()}")
+        return error_details, 500
+
 # Error handlers
 @bp.errorhandler(ValidationError)
 def handle_validation_error(error):
@@ -607,4 +799,4 @@ def handle_validation_error(error):
 
 @bp.errorhandler(AuthorizationError)
 def handle_authorization_error(error):
-    return error_response(str(error), "authorization_error", status_code=403)
+    return error_response(str(error), status_code=403, error_code="authorization_error")

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Bot, MessageSquare, X, HelpCircle } from 'lucide-react';
 import ChatInterface from './ChatInterface';
+import OptioBotModal from './OptioBotModal';
 import api from '../../services/api';
 
 const TutorWidget = ({
@@ -9,48 +10,77 @@ const TutorWidget = ({
   position = 'bottom-right',
   className = ''
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [hasNewSuggestions, setHasNewSuggestions] = useState(false);
   const [usageStats, setUsageStats] = useState(null);
   const [contextHelp, setContextHelp] = useState([]);
+  const [persistentConversationId, setPersistentConversationId] = useState(null);
 
-  // Load usage stats and context help
+  // Load persistent conversation ID on mount
+  useEffect(() => {
+    loadPersistedConversationId();
+    loadUsageStats();
+  }, []);
+
+  // Load usage stats when context changes
   useEffect(() => {
     loadUsageStats();
-    generateContextHelp();
   }, [currentQuest, currentTask]);
+
+  const loadPersistedConversationId = () => {
+    try {
+      const saved = localStorage.getItem('optiobot-conversation');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const now = new Date();
+        const savedDate = new Date(parsed.timestamp);
+
+        // Keep conversation for 24 hours
+        if (now - savedDate < 24 * 60 * 60 * 1000) {
+          setPersistentConversationId(parsed.conversationId);
+        } else {
+          // Clear expired conversation
+          localStorage.removeItem('optiobot-conversation');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load persisted conversation:', error);
+      localStorage.removeItem('optiobot-conversation');
+    }
+  };
+
+  const persistConversationId = (conversationId) => {
+    try {
+      if (conversationId) {
+        localStorage.setItem('optiobot-conversation', JSON.stringify({
+          conversationId,
+          timestamp: new Date().toISOString()
+        }));
+      }
+      setPersistentConversationId(conversationId);
+    } catch (error) {
+      console.error('Failed to persist conversation:', error);
+    }
+  };
+
+  const startNewConversation = () => {
+    localStorage.removeItem('optiobot-conversation');
+    setPersistentConversationId(null);
+  };
 
   const loadUsageStats = async () => {
     try {
-      const response = await api.get('/tutor/usage');
+      const response = await api.get('/api/tutor/usage');
       setUsageStats(response.data.usage);
     } catch (error) {
       console.error('Failed to load usage stats:', error);
     }
   };
 
-  const generateContextHelp = () => {
-    const help = [];
 
-    if (currentTask) {
-      help.push(`Need help with "${currentTask.title}"?`);
-      help.push(`Ask about ${currentTask.pillar} concepts`);
-    } else if (currentQuest) {
-      help.push(`Questions about "${currentQuest.title}"?`);
-      help.push('Ask for examples or explanations');
-    } else {
-      help.push('What are you curious about?');
-      help.push('Ask me to explain any concept');
-    }
-
-    help.push('Need study tips?');
-    setContextHelp(help);
-    setHasNewSuggestions(true);
-  };
-
-  const toggleWidget = () => {
-    setIsOpen(!isOpen);
-    if (!isOpen) {
+  const toggleModal = () => {
+    setIsModalOpen(!isModalOpen);
+    if (!isModalOpen) {
       setHasNewSuggestions(false);
     }
   };
@@ -88,71 +118,42 @@ const TutorWidget = ({
   }
 
   return (
-    <div className={`fixed ${getPositionClasses()} z-40 ${className}`}>
-      {/* Context Help Popup */}
-      {!isOpen && hasNewSuggestions && contextHelp.length > 0 && (
-        <div className="bg-white rounded-lg shadow-lg p-3 max-w-xs mb-4 animate-bounce-in">
-          <div className="flex items-start space-x-2">
-            <HelpCircle className="w-4 h-4 text-[#6d469b] flex-shrink-0 mt-0.5" />
-            <div className="flex-1">
-              <p className="text-sm text-gray-600 mb-2">I can help you with:</p>
-              <ul className="space-y-1">
-                {contextHelp.slice(0, 2).map((help, index) => (
-                  <li key={index} className="text-xs text-gray-500">• {help}</li>
-                ))}
-              </ul>
-            </div>
-            <button
-              onClick={() => setHasNewSuggestions(false)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-3 h-3" />
-            </button>
+    <>
+      {/* Floating Button */}
+      <div className={`fixed ${getPositionClasses()} z-40 ${className}`}>
+        {/* Toggle Button */}
+        <button
+          onClick={toggleModal}
+          className="w-14 h-14 rounded-full shadow-lg transition-all duration-300 bg-gradient-to-r from-[#ef597b] to-[#6d469b] hover:shadow-xl hover:scale-105 flex items-center justify-center relative"
+          title="Chat with OptioBot"
+        >
+          <Bot className="w-6 h-6 text-white" />
+
+          {/* Notification indicator */}
+          {hasNewSuggestions && (
+            <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
+          )}
+        </button>
+
+        {/* Message Counter */}
+        {usageStats && (
+          <div className="absolute -top-2 -left-2 bg-white text-xs text-gray-600 px-2 py-1 rounded-full shadow border">
+            {usageStats.messages_remaining} left
           </div>
-        </div>
-      )}
-
-      {/* Chat Interface (when open) */}
-      {isOpen && (
-        <div className="w-96 h-[600px] mb-4 animate-slide-up">
-          <ChatInterface
-            currentQuest={currentQuest}
-            currentTask={currentTask}
-            onClose={() => setIsOpen(false)}
-            className="h-full"
-          />
-        </div>
-      )}
-
-      {/* Toggle Button */}
-      <button
-        onClick={toggleWidget}
-        className={`w-14 h-14 rounded-full shadow-lg transition-all duration-300 ${
-          isOpen
-            ? 'bg-gray-500 hover:bg-gray-600'
-            : 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] hover:shadow-xl hover:scale-105'
-        } flex items-center justify-center relative`}
-        title={isOpen ? 'Close tutor' : 'Chat with OptioBot'}
-      >
-        {isOpen ? (
-          <X className="w-6 h-6 text-white" />
-        ) : (
-          <>
-            <Bot className="w-6 h-6 text-white" />
-            {hasNewSuggestions && (
-              <div className="absolute -top-1 -right-1 w-3 h-3 bg-yellow-400 rounded-full animate-pulse"></div>
-            )}
-          </>
         )}
-      </button>
+      </div>
 
-      {/* Message Counter */}
-      {!isOpen && usageStats && (
-        <div className="absolute -top-2 -left-2 bg-white text-xs text-gray-600 px-2 py-1 rounded-full shadow border">
-          {usageStats.messages_remaining} left
-        </div>
-      )}
-    </div>
+      {/* Full Screen Modal */}
+      <OptioBotModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        currentQuest={null}
+        currentTask={null}
+        conversationId={persistentConversationId}
+        onConversationCreate={persistConversationId}
+        onStartNewConversation={startNewConversation}
+      />
+    </>
   );
 };
 

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { getTierDisplayName } from '../../utils/tierMapping'
 import UserDetailsModal from './UserDetailsModal'
 import BulkEmailModal from './BulkEmailModal'
+import ChatLogsModal from './ChatLogsModal'
 
 const AdminUsers = () => {
   const [users, setUsers] = useState([])
@@ -19,11 +20,9 @@ const AdminUsers = () => {
   const [selectedUsers, setSelectedUsers] = useState(new Set())
   const [showUserModal, setShowUserModal] = useState(false)
   const [showBulkEmailModal, setShowBulkEmailModal] = useState(false)
+  const [showChatLogsModal, setShowChatLogsModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
-  const [showRoleModal, setShowRoleModal] = useState(false)
-  const [roleChangeUser, setRoleChangeUser] = useState(null)
-  const [newRole, setNewRole] = useState('')
-  const [roleChangeReason, setRoleChangeReason] = useState('')
+  const [chatLogsUser, setChatLogsUser] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const usersPerPage = 20
@@ -117,31 +116,9 @@ const AdminUsers = () => {
     }
   }
 
-  const handleChangeRole = (user) => {
-    setRoleChangeUser(user)
-    setNewRole(user.role || 'student')
-    setRoleChangeReason('')
-    setShowRoleModal(true)
-  }
-
-  const handleSubmitRoleChange = async () => {
-    if (!roleChangeUser || !newRole) return
-
-    try {
-      const response = await api.put(`/api/v3/admin/users/${roleChangeUser.id}/role`, {
-        role: newRole,
-        reason: roleChangeReason || 'Role change requested by admin'
-      })
-
-      toast.success(`Role updated to ${response.data.display_name}`)
-      setShowRoleModal(false)
-      setRoleChangeUser(null)
-      setNewRole('')
-      setRoleChangeReason('')
-      fetchUsers() // Refresh the user list
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to update role')
-    }
+  const handleViewChatLogs = (user) => {
+    setChatLogsUser(user)
+    setShowChatLogsModal(true)
   }
 
   const handleResetPassword = async (userId, userEmail) => {
@@ -349,30 +326,16 @@ const AdminUsers = () => {
                     <button
                       onClick={() => handleEditUser(user)}
                       className="text-blue-600 hover:text-blue-900"
-                      title="Edit User"
+                      title="Edit User Profile & Role"
                     >
                       Edit
                     </button>
                     <button
-                      onClick={() => handleChangeRole(user)}
+                      onClick={() => handleViewChatLogs(user)}
                       className="text-purple-600 hover:text-purple-900"
-                      title="Change Role"
+                      title="View Chat Logs"
                     >
-                      Role
-                    </button>
-                    <button
-                      onClick={() => handleResetPassword(user.id, user.email)}
-                      className="text-yellow-600 hover:text-yellow-900"
-                      title="Reset Password"
-                    >
-                      Reset
-                    </button>
-                    <button
-                      onClick={() => handleToggleUserStatus(user.id, user.status || 'active')}
-                      className="text-orange-600 hover:text-orange-900"
-                      title={user.status === 'active' ? 'Disable Account' : 'Enable Account'}
-                    >
-                      {user.status === 'active' ? 'Disable' : 'Enable'}
+                      Chats
                     </button>
                     <button
                       onClick={() => handleDeleteUser(user.id)}
@@ -466,89 +429,15 @@ const AdminUsers = () => {
         />
       )}
 
-      {/* Role Change Modal */}
-      {showRoleModal && roleChangeUser && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 max-w-md w-full">
-            <h3 className="text-lg font-semibold mb-4">Change User Role</h3>
-
-            <div className="mb-4">
-              <p className="text-sm text-gray-600 mb-2">
-                Changing role for: <span className="font-semibold">{roleChangeUser.first_name} {roleChangeUser.last_name}</span>
-              </p>
-              <p className="text-sm text-gray-600">
-                Current role: <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getRoleBadge(roleChangeUser.role || 'student')}`}>
-                  {getRoleDisplayName(roleChangeUser.role || 'student')}
-                </span>
-              </p>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                New Role
-              </label>
-              <select
-                value={newRole}
-                onChange={(e) => setNewRole(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="student">Student</option>
-                <option value="parent">Parent</option>
-                <option value="advisor">Advisor</option>
-                <option value="admin">Administrator</option>
-              </select>
-            </div>
-
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Reason for Change (Optional)
-              </label>
-              <textarea
-                value={roleChangeReason}
-                onChange={(e) => setRoleChangeReason(e.target.value)}
-                placeholder="Enter reason for role change..."
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                rows="3"
-              />
-            </div>
-
-            {/* Role Descriptions */}
-            <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-              <p className="text-xs font-semibold text-gray-700 mb-1">Role Descriptions:</p>
-              <ul className="text-xs text-gray-600 space-y-1">
-                <li><span className="font-semibold">Student:</span> Can complete quests and build diploma</li>
-                <li><span className="font-semibold">Parent:</span> Can view linked children's progress</li>
-                <li><span className="font-semibold">Advisor:</span> Can manage student groups</li>
-                <li><span className="font-semibold">Admin:</span> Full system access</li>
-              </ul>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                onClick={() => {
-                  setShowRoleModal(false)
-                  setRoleChangeUser(null)
-                  setNewRole('')
-                  setRoleChangeReason('')
-                }}
-                className="px-4 py-2 text-gray-700 bg-gray-200 rounded-lg hover:bg-gray-300"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleSubmitRoleChange}
-                disabled={newRole === (roleChangeUser.role || 'student')}
-                className={`px-4 py-2 rounded-lg ${
-                  newRole === (roleChangeUser.role || 'student')
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                Update Role
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Chat Logs Modal */}
+      {showChatLogsModal && chatLogsUser && (
+        <ChatLogsModal
+          user={chatLogsUser}
+          onClose={() => {
+            setShowChatLogsModal(false)
+            setChatLogsUser(null)
+          }}
+        />
       )}
     </div>
   )

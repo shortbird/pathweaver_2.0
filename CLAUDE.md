@@ -3,7 +3,8 @@
 ## User Preferences & Guidelines
 
 **IMPORTANT INSTRUCTIONS:**
-- Always test in production, not locally
+- **NEVER RUN LOCALLY** - Always test in the develop branch deployment at https://optio-dev-frontend.onrender.com
+- **ALWAYS PUSH TO DEVELOP** - Push all changes to the develop branch for immediate live testing
 - Always commit and push changes automatically unless explicitly told otherwise
 - The diploma page is the CORE offering - students use it on resumes to showcase education
 - Keep this documentation up to date with code changes

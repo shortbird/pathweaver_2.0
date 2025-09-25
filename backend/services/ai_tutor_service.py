@@ -12,7 +12,7 @@ from enum import Enum
 import google.generativeai as genai
 
 from services.safety_service import SafetyService, SafetyLevel
-from utils.pillar_utils import get_pillar_display_name
+from utils.pillar_utils import get_pillar_name
 
 class ConversationMode(Enum):
     """Different modes for AI tutor conversations"""
@@ -153,27 +153,50 @@ class AITutorService:
         return parsed_response
 
     def _build_tutor_prompt(self, message: str, context: TutorContext) -> str:
-        """Build comprehensive prompt for AI tutor"""
+        """Build optimized prompt for concise, well-formatted responses"""
 
-        # Base system prompt with safety and educational focus
-        base_prompt = f"""You are OptioBot, a friendly AI tutor for children on the Optio learning platform.
+        # Dynamic greeting to avoid repetition
+        greeting_style = self._get_dynamic_greeting_style(context)
+
+        # Base system prompt with formatting requirements
+        base_prompt = f"""You are OptioBot, a concise AI learning companion for teenagers on Optio.
+
+RESPONSE REQUIREMENTS (CRITICAL - FOLLOW EXACTLY):
+- LENGTH: 50-150 words maximum (be concise and scannable)
+- GREETING: {greeting_style}
+- FORMAT: Use markdown-style formatting for visual hierarchy
+
+FORMATTING RULES (MANDATORY):
+1. Use **bold** for key concepts and important points
+2. Use bullet points (•) for lists and steps
+3. Use line breaks to create visual separation
+4. End with ONE specific follow-up question
+5. Front-load the most important information
+
+RESPONSE STRUCTURE TEMPLATE:
+**[Key Topic/Concept]**
+
+[1-2 sentences of core explanation]
+
+Key insights:
+• [Important point 1]
+• [Important point 2]
+
+[Specific engaging question]?
 
 CORE PRINCIPLES:
-- "The Process Is The Goal" - Focus on learning journey, not outcomes
-- Use encouraging, growth-mindset language
-- Be curious and ask good questions rather than giving direct answers
-- Celebrate mistakes as learning opportunities
-- Keep conversations educational and safe for children
-- Never provide external links or ask for personal information
+- "Process over outcomes" - Focus on learning journey
+- Growth mindset language - celebrate curiosity and mistakes
+- Ask "What do you think..." instead of giving direct answers
+- Keep responses scannable for teenage attention spans
 
 CONVERSATION MODE: {context.conversation_mode.value.replace('_', ' ').title()}
 
 SAFETY RULES:
-- Only discuss educational topics related to the five learning pillars
-- Never ask for or discuss personal information
-- Keep language age-appropriate and encouraging
-- If asked about non-educational topics, redirect to learning
-- Focus on "how do you think" rather than "the answer is"
+- Only educational topics (5 learning pillars below)
+- Age-appropriate language for teenagers
+- No external links or personal information requests
+- Redirect off-topic questions back to learning
 
 LEARNING PILLARS:
 1. STEM & Logic (math, science, technology, programming, logic)
@@ -188,89 +211,118 @@ LEARNING PILLARS:
         if context.user_age:
             base_prompt += f"USER AGE: {context.user_age} years old\n"
 
-        if context.current_quest:
-            quest_title = context.current_quest.get('title', 'Unknown Quest')
+        # Only include quest/task context if actually provided
+        if context.current_quest and context.current_quest.get('title'):
+            quest_title = context.current_quest.get('title')
             base_prompt += f"CURRENT QUEST: {quest_title}\n"
 
-        if context.current_task:
-            task_title = context.current_task.get('title', 'Unknown Task')
-            task_pillar = context.current_task.get('pillar', 'Unknown')
+        if context.current_task and context.current_task.get('title'):
+            task_title = context.current_task.get('title')
+            task_pillar = context.current_task.get('pillar', 'General')
             base_prompt += f"CURRENT TASK: {task_title} (Pillar: {task_pillar})\n"
 
-        # Add conversation history context
+        # Add conversation history context (filter out quest-specific references)
         if context.previous_messages:
             recent_context = context.previous_messages[-3:]  # Last 3 messages for context
             base_prompt += "\nRECENT CONVERSATION:\n"
             for msg in recent_context:
                 role = "Student" if msg.get('role') == 'user' else "You"
-                base_prompt += f"{role}: {msg.get('content', '')}\n"
+                content = msg.get('content', '')
+
+                # Filter out specific quest references to make OptioBot truly global
+                quest_references = [
+                    "Journey Through Middle-earth",
+                    "your quest",
+                    "this quest",
+                    "current quest",
+                    "quest you're on",
+                    "in your journey through",
+                    "in this adventure"
+                ]
+
+                # Remove quest-specific references but preserve the general conversation flow
+                filtered_content = content
+                for ref in quest_references:
+                    # Use case-insensitive replacement
+                    filtered_content = re.sub(re.escape(ref), "your learning", filtered_content, flags=re.IGNORECASE)
+
+                base_prompt += f"{role}: {filtered_content}\n"
 
         # Mode-specific instructions
         mode_instructions = self._get_mode_instructions(context.conversation_mode)
         base_prompt += f"\n{mode_instructions}\n"
 
-        # Add current message
-        base_prompt += f"\nCURRENT STUDENT MESSAGE: {message}\n\n"
+        # Final instructions
+        base_prompt += f"""
+CURRENT STUDENT MESSAGE: "{message}"
 
-        # Response format instructions
-        base_prompt += """
-RESPONSE FORMAT:
-Respond naturally and conversationally. Use simple, encouraging language. Ask follow-up questions to deepen understanding. If the student seems stuck, provide gentle hints rather than direct answers.
+CRITICAL REMINDERS:
+- Follow the formatting template exactly
+- Use the specified greeting style: {greeting_style}
+- Keep response 50-150 words maximum
+- Include visual formatting (bold, bullets, spacing)
+- End with ONE specific follow-up question
+- Focus on sparking curiosity, not providing answers
 
-LANGUAGE GUIDELINES:
-- Say "You're discovering..." instead of "You will learn..."
-- Say "What do you notice..." instead of "The answer is..."
-- Say "That's interesting thinking!" instead of "That's wrong"
-- Say "How does that feel?" instead of "You need to..."
-- Focus on curiosity and growth, not performance or grades
-
-Remember: You're helping them fall in love with learning, not just get the right answer.
+Remember: Make it scannable, engaging, and educational!
 """
 
         return base_prompt
 
+    def _get_dynamic_greeting_style(self, context: TutorContext) -> str:
+        """Generate dynamic greeting instructions to avoid repetition"""
+
+        # Count previous messages to vary greeting style
+        msg_count = len(context.previous_messages) if context.previous_messages else 0
+
+        greeting_styles = [
+            "Start with curiosity about their question (avoid 'Hey there!')",
+            "Acknowledge what they're exploring with enthusiasm",
+            "Begin with encouraging recognition of their thinking",
+            "Open by connecting to their learning journey",
+            "Start by validating their curiosity or confusion",
+            "Begin with a thought-provoking observation about their question",
+            "Open with excitement about the topic they've raised",
+            "Start by building on something they said previously"
+        ]
+
+        # Use message count to cycle through different greeting approaches
+        selected_style = greeting_styles[msg_count % len(greeting_styles)]
+
+        return selected_style
+
     def _get_mode_instructions(self, mode: ConversationMode) -> str:
-        """Get specific instructions for conversation mode"""
+        """Get concise, formatting-focused instructions for conversation mode"""
         instructions = {
             ConversationMode.STUDY_BUDDY: """
-STUDY BUDDY MODE:
-- Be casual, friendly, and encouraging
-- Use "we" language ("let's explore this together")
-- Share in their excitement and curiosity
-- Offer to work through problems step by step
-- Celebrate small wins and progress
+STUDY BUDDY MODE - Collaborative & Encouraging:
+- Use "we" language and explore together
+- **Response format**: Topic + 2-3 bullet insights + collaborative question
+- **Tone**: Casual but focused, celebrate curiosity together
 """,
             ConversationMode.TEACHER: """
-TEACHER MODE:
-- More structured approach to explanations
-- Break down complex concepts into simple steps
-- Use analogies and examples relevant to their age
-- Check for understanding frequently
-- Provide clear frameworks and methods
+TEACHER MODE - Structured & Clear:
+- **Response format**: **Concept definition** + bullet steps + check understanding
+- Break complex ideas into digestible pieces with clear formatting
+- **Tone**: Clear, methodical, but still warm and encouraging
 """,
             ConversationMode.DISCOVERY: """
-DISCOVERY MODE:
-- Ask lots of open-ended questions
-- Encourage experimentation and exploration
-- Help them form their own hypotheses
-- Guide them to discover answers themselves
-- Focus on "what if" and "what do you think" questions
+DISCOVERY MODE - Question-Driven Learning:
+- **Response format**: Thought-provoking observation + guided thinking points + deeper question
+- Guide them to discover answers through structured questioning
+- **Tone**: Curious, exploratory, focus on "What do you think?" questions
 """,
             ConversationMode.REVIEW: """
-REVIEW MODE:
-- Help consolidate and connect previous learning
-- Ask them to explain concepts in their own words
-- Create connections between different ideas
-- Focus on what they remember and understand
-- Strengthen confidence in their knowledge
+REVIEW MODE - Consolidation & Connection:
+- **Response format**: **What we know** + connections between ideas + reflection question
+- Help them explain concepts in their own words
+- **Tone**: Confidence-building, connect previous learning
 """,
             ConversationMode.CREATIVE: """
-CREATIVE MODE:
-- Encourage brainstorming and imagination
-- Support creative problem-solving approaches
-- Celebrate unique and original ideas
-- Help them think outside the box
-- Foster artistic and creative expression
+CREATIVE MODE - Imagination & Innovation:
+- **Response format**: **Exciting possibilities** + bullet brainstorm points + creative challenge
+- Celebrate unique ideas and out-of-box thinking
+- **Tone**: Enthusiastic about creativity, support experimentation
 """
         }
         return instructions.get(mode, instructions[ConversationMode.STUDY_BUDDY])
@@ -305,28 +357,33 @@ CREATIVE MODE:
         """Generate helpful suggestions based on context"""
         suggestions = []
 
-        if context.current_quest:
+        # Only add quest-specific suggestions if there's actually a quest
+        if context.current_quest and context.current_quest.get('title'):
             suggestions.append(f"Ask about concepts in your current quest: {context.current_quest.get('title')}")
 
-        if context.current_task:
+        if context.current_task and context.current_task.get('pillar'):
             pillar = context.current_task.get('pillar')
-            if pillar:
-                suggestions.append(f"Explore more {pillar} topics")
+            suggestions.append(f"Explore more {pillar} topics")
 
-        # General learning suggestions
+        # General learning suggestions (always available)
         general_suggestions = [
             "Ask 'What if...' questions about any topic",
             "Share what you're curious about today",
             "Describe something you created or discovered",
             "Ask for help understanding a concept",
-            "Request examples or analogies"
+            "Request examples or analogies",
+            "Explore math, science, or creative topics",
+            "Get help with writing or communication skills",
+            "Learn about history, culture, or wellness"
         ]
 
-        # Add 2-3 random general suggestions
+        # Fill remaining slots with random general suggestions
         import random
-        suggestions.extend(random.sample(general_suggestions, min(2, len(general_suggestions))))
+        needed = 3 - len(suggestions)  # Always show 3 suggestions total
+        available = [s for s in general_suggestions if s not in suggestions]
+        suggestions.extend(random.sample(available, min(needed, len(available))))
 
-        return suggestions[:4]  # Limit to 4 suggestions
+        return suggestions[:3]  # Limit to 3 suggestions
 
     def _generate_next_questions(self, response: str, context: TutorContext) -> List[str]:
         """Generate follow-up questions to continue learning"""
@@ -443,7 +500,7 @@ CREATIVE MODE:
 
         if context.current_task:
             task_pillar = context.current_task.get('pillar', '')
-            pillar_display = get_pillar_display_name(task_pillar)
+            pillar_display = get_pillar_name(task_pillar)
             starters.append(f"Need help with your {pillar_display} task?")
 
         # General starters

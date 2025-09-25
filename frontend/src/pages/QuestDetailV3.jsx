@@ -7,7 +7,6 @@ import { hasFeatureAccess } from '../utils/tierMapping';
 import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import LearningLogSection from '../components/quest/LearningLogSection';
 import TeamUpModal from '../components/quest/TeamUpModal';
-import TutorWidget, { QuestTutorHelper } from '../components/tutor/TutorWidget';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
 import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -374,13 +373,6 @@ const QuestDetailV3 = () => {
         )}
       </div>
 
-      {/* AI Tutor Helper */}
-      {quest.user_enrollment && (
-        <QuestTutorHelper
-          quest={quest}
-          currentTask={selectedTask || quest.tasks?.find(t => !t.completion)}
-        />
-      )}
 
       {/* 3. Progress Dashboard */}
       {(quest.user_enrollment || isQuestCompleted) && (
@@ -732,14 +724,6 @@ const QuestDetailV3 = () => {
         />
       )}
 
-      {/* Floating AI Tutor Widget */}
-      {quest.user_enrollment && (
-        <TutorWidget
-          currentQuest={quest}
-          currentTask={selectedTask || quest.tasks?.find(t => !t.completion)}
-          position="bottom-right"
-        />
-      )}
     </div>
   );
 };

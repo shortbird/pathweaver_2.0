@@ -178,6 +178,34 @@ class ValidationSchema:
         
         return len(errors) == 0, errors
 
+# Utility validation functions
+def validate_required_fields(data: Dict[str, Any], required_fields: List[str]) -> None:
+    """
+    Validate that required fields are present in data
+    Raises ValueError if any required field is missing
+    """
+    missing_fields = []
+    for field in required_fields:
+        if field not in data or data[field] is None or data[field] == "":
+            missing_fields.append(field)
+
+    if missing_fields:
+        raise ValueError(f"Missing required fields: {', '.join(missing_fields)}")
+
+def validate_string_length(value: str, field_name: str, min_length: int = 0, max_length: int = 255) -> None:
+    """
+    Validate string length
+    Raises ValueError if string is too short or too long
+    """
+    if value is None:
+        value = ""
+
+    if len(value) < min_length:
+        raise ValueError(f"{field_name} must be at least {min_length} characters long")
+
+    if len(value) > max_length:
+        raise ValueError(f"{field_name} must not exceed {max_length} characters")
+
 # Example schemas
 USER_REGISTRATION_SCHEMA = ValidationSchema({
     'email': EmailField(required=True),

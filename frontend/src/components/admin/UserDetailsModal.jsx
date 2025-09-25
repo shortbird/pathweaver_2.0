@@ -8,9 +8,11 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     first_name: user.first_name || '',
     last_name: user.last_name || '',
     email: user.email || '',
+    role: user.role || 'student',
     subscription_tier: user.subscription_tier || 'free',
     subscription_expires: user.subscription_expires || ''
   })
+  const [roleChangeReason, setRoleChangeReason] = useState('')
   const [loading, setLoading] = useState(false)
   const [userActivity, setUserActivity] = useState(null)
 
@@ -72,6 +74,51 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     }
   }
 
+  const handleUpdateRole = async () => {
+    const roleDisplayNames = {
+      student: 'Student',
+      parent: 'Parent',
+      advisor: 'Advisor',
+      admin: 'Administrator'
+    };
+    const displayName = roleDisplayNames[formData.role] || formData.role;
+    if (window.confirm(`Change role to ${displayName}?`)) {
+      setLoading(true)
+      try {
+        await api.put(`/api/v3/admin/users/${user.id}/role`, {
+          role: formData.role,
+          reason: roleChangeReason || 'Role change requested by admin'
+        })
+        toast.success('Role updated successfully')
+        onSave()
+      } catch (error) {
+        toast.error('Failed to update role')
+      } finally {
+        setLoading(false)
+      }
+    }
+  }
+
+  const getRoleDisplayName = (role) => {
+    const roleNames = {
+      student: 'Student',
+      parent: 'Parent',
+      advisor: 'Advisor',
+      admin: 'Administrator'
+    }
+    return roleNames[role] || role
+  }
+
+  const getRoleBadge = (role) => {
+    const colors = {
+      student: 'bg-blue-100 text-blue-700',
+      parent: 'bg-green-100 text-green-700',
+      advisor: 'bg-yellow-100 text-yellow-700',
+      admin: 'bg-red-100 text-red-700'
+    }
+    return colors[role] || 'bg-gray-100 text-gray-700'
+  }
+
   const getPillarColor = (pillar) => {
     const colors = {
       creativity: 'bg-purple-100 text-purple-700',
@@ -101,7 +148,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
         {/* Tabs */}
         <div className="flex border-b">
-          {['profile', 'subscription', 'activity'].map((tab) => (
+          {['profile', 'role', 'subscription', 'activity'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -188,6 +235,72 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
               >
                 {loading ? 'Saving...' : 'Save Profile Changes'}
+              </button>
+            </div>
+          )}
+
+          {activeTab === 'role' && (
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Current Role
+                </label>
+                <span className={`px-3 py-2 rounded-full text-sm font-semibold ${getRoleBadge(user.role || 'student')}`}>
+                  {getRoleDisplayName(user.role || 'student')}
+                </span>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  New Role
+                </label>
+                <select
+                  name="role"
+                  value={formData.role}
+                  onChange={handleInputChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="student">Student</option>
+                  <option value="parent">Parent</option>
+                  <option value="advisor">Advisor</option>
+                  <option value="admin">Administrator</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Reason for Change (Optional)
+                </label>
+                <textarea
+                  value={roleChangeReason}
+                  onChange={(e) => setRoleChangeReason(e.target.value)}
+                  placeholder="Enter reason for role change..."
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  rows="3"
+                />
+              </div>
+
+              {/* Role Descriptions */}
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="text-sm font-semibold text-gray-700 mb-2">Role Descriptions:</p>
+                <ul className="text-sm text-gray-600 space-y-2">
+                  <li><span className="font-semibold">Student:</span> Can complete quests and build diploma</li>
+                  <li><span className="font-semibold">Parent:</span> Can view linked children's progress</li>
+                  <li><span className="font-semibold">Advisor:</span> Can manage student groups and provide guidance</li>
+                  <li><span className="font-semibold">Admin:</span> Full system access and user management</li>
+                </ul>
+              </div>
+
+              <button
+                onClick={handleUpdateRole}
+                disabled={loading || formData.role === (user.role || 'student')}
+                className={`w-full py-2 rounded-lg ${
+                  formData.role === (user.role || 'student')
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-purple-600 text-white hover:bg-purple-700'
+                } disabled:bg-gray-400`}
+              >
+                {loading ? 'Updating...' : 'Update Role'}
               </button>
             </div>
           )}
