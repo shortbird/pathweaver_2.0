@@ -70,9 +70,31 @@ SECURITY DEFINER;
 -- Handle trigger dependencies first
 DROP TRIGGER IF EXISTS initialize_user_skills_trigger ON users;
 DROP FUNCTION IF EXISTS public.initialize_user_skills(UUID);
+DROP FUNCTION IF EXISTS public.initialize_user_skills();
 DROP FUNCTION IF EXISTS public.initialize_user_skills;
 
-CREATE FUNCTION public.initialize_user_skills(
+-- Create trigger version (no parameters, uses NEW directly)
+CREATE FUNCTION public.initialize_user_skills()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Initialize user skill XP for all pillars if not exists
+    INSERT INTO user_skill_xp (user_id, pillar, xp_amount)
+    VALUES
+        (NEW.id, 'STEM & Logic', 0),
+        (NEW.id, 'Life & Wellness', 0),
+        (NEW.id, 'Language & Communication', 0),
+        (NEW.id, 'Society & Culture', 0),
+        (NEW.id, 'Arts & Creativity', 0)
+    ON CONFLICT (user_id, pillar) DO NOTHING;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql
+SET search_path = public, pg_temp
+SECURITY DEFINER;
+
+-- Create standalone version (with parameters for direct calls)
+CREATE FUNCTION public.initialize_user_skills_for_user(
     p_user_id UUID
 )
 RETURNS VOID AS $$
@@ -95,7 +117,7 @@ SECURITY DEFINER;
 CREATE TRIGGER initialize_user_skills_trigger
     AFTER INSERT ON users
     FOR EACH ROW
-    EXECUTE FUNCTION initialize_user_skills(NEW.id);
+    EXECUTE FUNCTION initialize_user_skills();
 
 -- 7. Fix calculate_mastery_level function (if needed in DB)
 DROP FUNCTION IF EXISTS public.calculate_mastery_level(INTEGER);
@@ -224,14 +246,16 @@ END $$;
 
 -- Grant appropriate permissions for these functions
 GRANT EXECUTE ON FUNCTION public.update_friendship_status(INTEGER, TEXT) TO authenticated, service_role;
-GRANT EXECUTE ON FUNCTION public.initialize_user_skills(UUID) TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.initialize_user_skills() TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION public.initialize_user_skills_for_user(UUID) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.calculate_mastery_level(INTEGER) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.update_user_mastery(UUID) TO authenticated, service_role;
 GRANT EXECUTE ON FUNCTION public.reorder_evidence_blocks(UUID, INTEGER[]) TO authenticated, service_role;
 
 -- Add comments for documentation
 COMMENT ON FUNCTION public.update_friendship_status IS 'Updates friendship status with secure search_path';
-COMMENT ON FUNCTION public.initialize_user_skills IS 'Initializes user skill XP for all pillars';
+COMMENT ON FUNCTION public.initialize_user_skills IS 'Trigger function to initialize user skill XP for all pillars';
+COMMENT ON FUNCTION public.initialize_user_skills_for_user IS 'Initializes user skill XP for all pillars (standalone version)';
 COMMENT ON FUNCTION public.calculate_mastery_level IS 'Calculates mastery level from total XP';
 COMMENT ON FUNCTION public.update_user_mastery IS 'Updates user mastery level based on total XP';
 COMMENT ON FUNCTION public.reorder_evidence_blocks IS 'Reorders evidence documents for a task completion';
