@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Bot, X } from 'lucide-react';
+import { Bot, X, RotateCcw } from 'lucide-react';
 import ChatInterface from './ChatInterface';
 
 const CONVERSATION_MODES = [
@@ -14,11 +14,13 @@ const OptioBotModal = ({
   isOpen,
   onClose,
   currentQuest = null,
-  currentTask = null
+  currentTask = null,
+  conversationId = null,
+  onConversationCreate = null,
+  onStartNewConversation = null
 }) => {
   const [selectedMode, setSelectedMode] = useState('study_buddy');
   const [showModeSelector, setShowModeSelector] = useState(false);
-  const [conversationId, setConversationId] = useState(null);
 
   // Close modal on Escape key
   useEffect(() => {
@@ -72,6 +74,21 @@ const OptioBotModal = ({
           </div>
 
           <div className="flex items-center space-x-4">
+            {/* New Conversation Button */}
+            {conversationId && onStartNewConversation && (
+              <button
+                onClick={() => {
+                  onStartNewConversation();
+                  setShowModeSelector(false);
+                }}
+                className="bg-white/20 text-white px-3 py-2 rounded-full text-sm hover:bg-white/30 transition-colors flex items-center space-x-1"
+                title="Start new conversation"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>New Chat</span>
+              </button>
+            )}
+
             {/* Mode Selector */}
             <div className="relative">
               <button
@@ -126,7 +143,7 @@ const OptioBotModal = ({
             selectedMode={selectedMode}
             hideHeader={true}
             className="h-full border-0 shadow-none rounded-none"
-            onConversationCreate={(id) => setConversationId(id)}
+            onConversationCreate={onConversationCreate}
           />
         </div>
       </div>

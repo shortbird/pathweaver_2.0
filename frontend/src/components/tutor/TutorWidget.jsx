@@ -14,11 +14,59 @@ const TutorWidget = ({
   const [hasNewSuggestions, setHasNewSuggestions] = useState(false);
   const [usageStats, setUsageStats] = useState(null);
   const [contextHelp, setContextHelp] = useState([]);
+  const [persistentConversationId, setPersistentConversationId] = useState(null);
 
-  // Load usage stats
+  // Load persistent conversation ID on mount
+  useEffect(() => {
+    loadPersistedConversationId();
+    loadUsageStats();
+  }, []);
+
+  // Load usage stats when context changes
   useEffect(() => {
     loadUsageStats();
   }, [currentQuest, currentTask]);
+
+  const loadPersistedConversationId = () => {
+    try {
+      const saved = localStorage.getItem('optiobot-conversation');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const now = new Date();
+        const savedDate = new Date(parsed.timestamp);
+
+        // Keep conversation for 24 hours
+        if (now - savedDate < 24 * 60 * 60 * 1000) {
+          setPersistentConversationId(parsed.conversationId);
+        } else {
+          // Clear expired conversation
+          localStorage.removeItem('optiobot-conversation');
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load persisted conversation:', error);
+      localStorage.removeItem('optiobot-conversation');
+    }
+  };
+
+  const persistConversationId = (conversationId) => {
+    try {
+      if (conversationId) {
+        localStorage.setItem('optiobot-conversation', JSON.stringify({
+          conversationId,
+          timestamp: new Date().toISOString()
+        }));
+      }
+      setPersistentConversationId(conversationId);
+    } catch (error) {
+      console.error('Failed to persist conversation:', error);
+    }
+  };
+
+  const startNewConversation = () => {
+    localStorage.removeItem('optiobot-conversation');
+    setPersistentConversationId(null);
+  };
 
   const loadUsageStats = async () => {
     try {
@@ -101,6 +149,9 @@ const TutorWidget = ({
         onClose={() => setIsModalOpen(false)}
         currentQuest={null}
         currentTask={null}
+        conversationId={persistentConversationId}
+        onConversationCreate={persistConversationId}
+        onStartNewConversation={startNewConversation}
       />
     </>
   );
