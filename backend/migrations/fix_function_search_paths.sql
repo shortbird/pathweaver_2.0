@@ -6,20 +6,41 @@
 -- This prevents SQL injection attacks through search_path manipulation
 
 -- 1. Fix check_daily_message_limit function
-ALTER FUNCTION public.check_daily_message_limit(UUID)
-    SET search_path = public, pg_temp;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'check_daily_message_limit') THEN
+        ALTER FUNCTION public.check_daily_message_limit(UUID)
+            SET search_path = public, pg_temp;
+    END IF;
+END $$;
 
 -- 2. Fix increment_message_usage function
-ALTER FUNCTION public.increment_message_usage(UUID)
-    SET search_path = public, pg_temp;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'increment_message_usage') THEN
+        ALTER FUNCTION public.increment_message_usage(UUID)
+            SET search_path = public, pg_temp;
+    END IF;
+END $$;
 
 -- 3. Fix reset_daily_message_limits function
-ALTER FUNCTION public.reset_daily_message_limits()
-    SET search_path = public, pg_temp;
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'reset_daily_message_limits') THEN
+        ALTER FUNCTION public.reset_daily_message_limits()
+            SET search_path = public, pg_temp;
+    END IF;
+END $$;
 
 -- 4. Fix update_conversation_stats function
-ALTER FUNCTION public.update_conversation_stats()
-    SET search_path = public, pg_temp;
+-- Check if function exists before altering
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM pg_proc WHERE proname = 'update_conversation_stats') THEN
+        ALTER FUNCTION public.update_conversation_stats()
+            SET search_path = public, pg_temp;
+    END IF;
+END $$;
 
 -- Recreate functions that may not exist yet but are referenced in code
 -- These will be created with secure search_path from the start
@@ -46,6 +67,8 @@ SET search_path = public, pg_temp
 SECURITY DEFINER;
 
 -- 6. Fix initialize_user_skills function
+-- Handle trigger dependencies first
+DROP TRIGGER IF EXISTS initialize_user_skills_trigger ON users;
 DROP FUNCTION IF EXISTS public.initialize_user_skills(UUID);
 DROP FUNCTION IF EXISTS public.initialize_user_skills;
 
@@ -67,6 +90,12 @@ END;
 $$ LANGUAGE plpgsql
 SET search_path = public, pg_temp
 SECURITY DEFINER;
+
+-- Recreate the trigger if it was being used
+CREATE TRIGGER initialize_user_skills_trigger
+    AFTER INSERT ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION initialize_user_skills(NEW.id);
 
 -- 7. Fix calculate_mastery_level function (if needed in DB)
 DROP FUNCTION IF EXISTS public.calculate_mastery_level(INTEGER);
@@ -158,6 +187,8 @@ SECURITY DEFINER;
 
 -- 10. Fix update_evidence_document_updated_at function
 -- This might be a trigger function for evidence documents
+-- Handle trigger dependencies first
+DROP TRIGGER IF EXISTS trigger_update_evidence_document_updated_at ON evidence_documents;
 DROP FUNCTION IF EXISTS public.update_evidence_document_updated_at();
 DROP FUNCTION IF EXISTS public.update_evidence_document_updated_at;
 
