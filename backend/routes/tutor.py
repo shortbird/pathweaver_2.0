@@ -183,8 +183,6 @@ def send_message(user_id: str):
         return error_response(str(e), status_code=400, error_code="validation_error")
     except Exception as e:
         import traceback
-        import logging
-        logger = logging.getLogger(__name__)
         logger.error(f"CRITICAL ERROR in send_message: {str(e)}")
         logger.error(f"Exception type: {type(e).__name__}")
         logger.error(f"TRACEBACK: {traceback.format_exc()}")
