@@ -74,11 +74,9 @@ api.interceptors.response.use(
           return api(originalRequest)
         }
       } catch (refreshError) {
-        // Clear any user data from localStorage (keep for user profile cache)
-        localStorage.removeItem('user')
-
-        // Only redirect to login if we're not already on auth pages
-        const authPaths = ['/login', '/register', '/email-verification', '/']
+        // For httpOnly cookie auth, the server handles session cleanup
+        // Only redirect to login if we're not already on auth pages or subscription success
+        const authPaths = ['/login', '/register', '/email-verification', '/', '/subscription/success']
         const currentPath = window.location.pathname
         if (!authPaths.includes(currentPath)) {
           window.location.href = '/login'

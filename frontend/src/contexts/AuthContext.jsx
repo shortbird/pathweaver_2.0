@@ -37,16 +37,23 @@ export const AuthProvider = ({ children }) => {
   })
 
   useEffect(() => {
-    // Check for existing session on mount
-    const token = localStorage.getItem('access_token')
-
-    if (token) {
-      setSession({ access_token: token })
-      setLoginTimestamp(Date.now())
-      api.defaults.headers.common['Authorization'] = `Bearer ${token}`
+    // For httpOnly cookie authentication, we need to check with the server
+    const checkSession = async () => {
+      try {
+        const response = await api.get('/api/auth/me')
+        if (response.data) {
+          setSession({ authenticated: true })
+          setLoginTimestamp(Date.now())
+        }
+      } catch (error) {
+        // No valid session
+        setSession(null)
+      } finally {
+        setLoading(false)
+      }
     }
 
-    setLoading(false)
+    checkSession()
   }, [])
 
   const login = async (email, password) => {
@@ -54,14 +61,11 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/api/auth/login', { email, password })
       const { user: loginUser, session: loginSession } = response.data
 
-      setSession(loginSession)
+      setSession({ authenticated: true })
       setLoginTimestamp(Date.now()) // Force refresh of data
 
-      localStorage.setItem('access_token', loginSession.access_token)
-      localStorage.setItem('refresh_token', loginSession.refresh_token)
-      // Remove localStorage user caching - React Query will handle this
-
-      api.defaults.headers.common['Authorization'] = `Bearer ${loginSession.access_token}`
+      // httpOnly cookies handle authentication automatically
+      // No need to manage tokens in localStorage or headers
 
       // Update React Query cache with fresh user data
       queryClient.setQueryData(queryKeys.user.profile('current'), loginUser)
@@ -131,14 +135,11 @@ export const AuthProvider = ({ children }) => {
       }
       
       if (session) {
-        setSession(session)
+        setSession({ authenticated: true })
         setLoginTimestamp(Date.now()) // Force refresh of data
 
-        localStorage.setItem('access_token', session.access_token)
-        localStorage.setItem('refresh_token', session.refresh_token)
-        // Remove localStorage user caching - React Query will handle this
-
-        api.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`
+        // httpOnly cookies handle authentication automatically
+        // No need to manage tokens in localStorage or headers
 
         // Update React Query cache with fresh user data
         queryClient.setQueryData(queryKeys.user.profile('current'), user)
@@ -212,11 +213,8 @@ export const AuthProvider = ({ children }) => {
       setSession(null)
       setLoginTimestamp(null) // Clear timestamp on logout
 
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
-      // Remove localStorage user cleanup - React Query handles this
-
-      delete api.defaults.headers.common['Authorization']
+      // httpOnly cookies are cleared by the server
+      // No need to manage tokens in localStorage or headers
 
       // Clear all React Query cache on logout
       queryClient.clear()
@@ -227,25 +225,13 @@ export const AuthProvider = ({ children }) => {
   }
 
   const refreshToken = async () => {
-    const refresh_token = localStorage.getItem('refresh_token')
-    
-    if (!refresh_token) {
-      await logout()
-      return false
-    }
-    
     try {
-      const response = await api.post('/api/auth/refresh', { refresh_token })
-      const { session } = response.data
-      
-      setSession(session)
-      
-      localStorage.setItem('access_token', session.access_token)
-      localStorage.setItem('refresh_token', session.refresh_token)
-      
-      api.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`
-      
-      return true
+      const response = await api.post('/api/auth/refresh')
+
+      if (response.status === 200) {
+        setSession({ authenticated: true })
+        return true
+      }
     } catch (error) {
       await logout()
       return false
@@ -258,7 +244,7 @@ export const AuthProvider = ({ children }) => {
   }
 
   const refreshUser = async () => {
-    if (!user?.id || !session?.access_token) {
+    if (!user?.id || !session?.authenticated) {
       return false
     }
 
