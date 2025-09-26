@@ -1,9 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
+import { useQuestDetail, useEnrollQuest, useCompleteTask } from '../hooks/api/useQuests';
+import { useQuestCollaborations } from '../hooks/api/useFriends';
 import { handleApiResponse } from '../utils/errorHandling';
 import { getPillarData } from '../utils/pillarMappings';
 import { hasFeatureAccess } from '../utils/tierMapping';
+import { queryKeys } from '../utils/queryKeys';
 import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import LearningLogSection from '../components/quest/LearningLogSection';
 import TeamUpModal from '../components/quest/TeamUpModal';
@@ -11,73 +15,75 @@ import CollaborationBadge from '../components/ui/CollaborationBadge';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
 import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
-import api, { collaborationAPI } from '../services/api';
 
 const QuestDetailV3 = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [quest, setQuest] = useState(null);
-  
+  const queryClient = useQueryClient();
+
+  // Use React Query hooks for data fetching
+  const {
+    data: quest,
+    isLoading,
+    error,
+    refetch: refetchQuest
+  } = useQuestDetail(id, {
+    enabled: !!id,
+  });
+
+  const {
+    data: collaborationData,
+    isLoading: isLoadingCollaborations,
+  } = useQuestCollaborations(id, {
+    enabled: !!id && !!user && hasFeatureAccess(user?.subscription_tier, 'supported'),
+  });
+
+  // React Query mutations
+  const enrollMutation = useEnrollQuest();
+  const completeTaskMutation = useCompleteTask();
+
   // Check if user can start quests (requires paid tier)
   const canStartQuests = hasFeatureAccess(user?.subscription_tier, 'supported');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showTeamUpModal, setShowTeamUpModal] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState(new Set());
-  const [isRefreshing, setIsRefreshing] = useState(false);
-  const [isEnrolling, setIsEnrolling] = useState(false);
-  const [pendingInvite, setPendingInvite] = useState(null);
-  const [isLoadingInvite, setIsLoadingInvite] = useState(false);
 
-  useEffect(() => {
-    fetchQuestDetails();
-    if (user && hasFeatureAccess(user?.subscription_tier, 'supported')) {
-      fetchQuestCollaborations();
-    }
-  }, [id, user]); // Also refetch when user login state changes
+  // Get pending invitation from collaboration data
+  const pendingInvite = collaborationData?.received_invitations?.find(invite =>
+    invite.quest?.id === id && invite.status === 'pending'
+  ) || null;
 
-  const fetchQuestDetails = async () => {
-    try {
-      const response = await api.get(`/api/v3/quests/${id}?t=${Date.now()}`);
-      setQuest(response.data.quest);
-      setError(''); // Clear any previous errors
-    } catch (error) {
-      const errorMsg = error.response?.status === 404
-        ? 'This quest could not be found. It may have been removed or is no longer available.'
-        : error.response?.status === 403
-        ? 'You do not have permission to view this quest.'
-        : 'Unable to load quest details. Please refresh the page and try again.'
-      setError(errorMsg);
-      throw error; // Re-throw so handleTaskCompletion can catch it
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  // Handle error display
+  if (error) {
+    const errorMsg = error.response?.status === 404
+      ? 'This quest could not be found. It may have been removed or is no longer available.'
+      : error.response?.status === 403
+      ? 'You do not have permission to view this quest.'
+      : 'Unable to load quest details. Please refresh the page and try again.';
 
-  const fetchQuestCollaborations = async () => {
-    if (!user || !id) return;
-
-    setIsLoadingInvite(true);
-    try {
-      const response = await collaborationAPI.getQuestCollaborations(id);
-
-      // Look for a pending received invitation for this quest
-      const receivedInvitations = response.data.received_invitations || [];
-      const pendingReceived = receivedInvitations.find(invite =>
-        invite.quest?.id === id && invite.status === 'pending'
-      );
-
-      setPendingInvite(pendingReceived || null);
-    } catch (error) {
-      console.error('Failed to fetch quest collaborations:', error);
-      // Don't show error to user - this is optional functionality
-    } finally {
-      setIsLoadingInvite(false);
-    }
-  };
+    return (
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Quest Not Found</h2>
+          <p className="text-gray-600 mb-4">{errorMsg}</p>
+          <button
+            onClick={() => refetchQuest()}
+            className="px-4 py-2 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-lg hover:shadow-lg transition-all mr-4"
+          >
+            Retry
+          </button>
+          <button
+            onClick={() => navigate('/quests')}
+            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-all"
+          >
+            Back to Quests
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleEnroll = async () => {
     if (!user) {
@@ -85,21 +91,7 @@ const QuestDetailV3 = () => {
       return;
     }
 
-    if (isEnrolling) return;
-    
-    setIsEnrolling(true);
-    try {
-      const response = await api.post(`/api/v3/quests/${id}/enroll`);
-      toast.success('Successfully enrolled in quest!');
-      // Force refresh immediately to update state
-      setIsRefreshing(true);
-      await fetchQuestDetails();
-      setIsRefreshing(false);
-    } catch (error) {
-      toast.error('Failed to enroll in quest');
-    } finally {
-      setIsEnrolling(false);
-    }
+    enrollMutation.mutate(id);
   };
 
   const handleEndQuest = async () => {
@@ -119,34 +111,13 @@ const QuestDetailV3 = () => {
   const handleTaskCompletion = async (completionData) => {
     setShowTaskModal(false);
     setSelectedTask(null);
-    
-    // Show success message if provided
-    if (completionData?.message) {
-      toast.success(completionData.message);
-    }
-    
-    // Show refreshing indicator and refresh quest data
-    setIsRefreshing(true);
-    try {
-      // If quest was just completed, wait a moment for database commit
-      if (completionData?.quest_completed) {
-        await new Promise(resolve => setTimeout(resolve, 1000));
-      }
-      
-      await fetchQuestDetails();
-      
-      // If quest is completed, show special celebration after data refresh
-      if (completionData?.quest_completed) {
-        setTimeout(() => {
-          toast.success('Quest Complete! You earned the completion bonus!', {
-            duration: 5000,
-          });
-        }, 500);
-      }
-    } catch (error) {
-      toast.error('Failed to refresh quest data');
-    } finally {
-      setIsRefreshing(false);
+
+    // Use React Query mutation for task completion
+    if (selectedTask && completionData) {
+      completeTaskMutation.mutate({
+        taskId: selectedTask.id,
+        evidence: completionData
+      });
     }
   };
 

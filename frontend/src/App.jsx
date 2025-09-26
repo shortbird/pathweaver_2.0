@@ -29,7 +29,22 @@ import SubscriptionCancel from './pages/SubscriptionCancel'
 import AdminPage from './pages/AdminPage'
 import PrivateRoute from './components/PrivateRoute'
 
-const queryClient = new QueryClient()
+// Configure React Query with proper defaults for data freshness
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 30 * 1000, // Data is fresh for 30 seconds
+      cacheTime: 5 * 60 * 1000, // Cache data for 5 minutes
+      refetchOnWindowFocus: true, // Refetch when window regains focus
+      refetchOnReconnect: true, // Refetch when reconnecting
+      retry: 3, // Retry failed requests 3 times
+      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    },
+    mutations: {
+      retry: 2, // Retry mutations twice on failure
+    },
+  },
+})
 
 function App() {
   // Warm up the backend service on app load (helps with Render cold starts)

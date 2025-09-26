@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { friendsAPI, collaborationAPI } from '../services/api'
-import api from '../services/api'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
+import { useFriends, useSendFriendRequest, useAcceptFriendRequest, useDeclineFriendRequest, useCancelFriendRequest, useCollaborations } from '../hooks/api/useFriends'
 import { hasFeatureAccess } from '../utils/tierMapping'
 import StatusBadge from '../components/ui/StatusBadge'
 import CollaborationBadge from '../components/ui/CollaborationBadge'
@@ -12,20 +11,45 @@ import { UserPlusIcon, ClockIcon, CheckCircleIcon, UsersIcon, PaperAirplaneIcon 
 const FriendsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [friends, setFriends] = useState([])
-  const [pendingRequests, setPendingRequests] = useState([])
-  const [sentRequests, setSentRequests] = useState([])
-  const [teamInvitations, setTeamInvitations] = useState([])
-  const [sentTeamInvitations, setSentTeamInvitations] = useState([])
-  const [activeCollaborations, setActiveCollaborations] = useState([])
+
+  // React Query hooks
+  const {
+    data: friendsData,
+    isLoading: loadingFriends,
+  } = useFriends(user?.id, {
+    enabled: !!user?.id && hasFeatureAccess(user?.subscription_tier, 'supported'),
+  });
+
+  const {
+    data: collaborationsData,
+    isLoading: loadingCollaborations,
+  } = useCollaborations(user?.id, {
+    enabled: !!user?.id && hasFeatureAccess(user?.subscription_tier, 'supported'),
+  });
+
+  // Mutations
+  const sendFriendRequestMutation = useSendFriendRequest();
+  const acceptFriendRequestMutation = useAcceptFriendRequest();
+  const declineFriendRequestMutation = useDeclineFriendRequest();
+  const cancelFriendRequestMutation = useCancelFriendRequest();
+
+  // Local state
   const [email, setEmail] = useState('')
-  const [loading, setLoading] = useState(true)
-  const [sending, setSending] = useState(false)
   const [returnToQuest, setReturnToQuest] = useState(null)
   const [activeTab, setActiveTab] = useState('incoming')
 
   // Check if user has access to friends feature
   const hasAccess = hasFeatureAccess(user?.subscription_tier, 'supported');
+
+  // Extract data from React Query responses
+  const friends = friendsData?.friends || [];
+  const pendingRequests = friendsData?.pending_requests || [];
+  const sentRequests = friendsData?.sent_requests || [];
+  const teamInvitations = collaborationsData?.received_invitations || [];
+  const sentTeamInvitations = collaborationsData?.sent_invitations || [];
+  const activeCollaborations = collaborationsData?.active_collaborations || [];
+
+  const loading = loadingFriends || loadingCollaborations;
 
   useEffect(() => {
     // Check if we should return to a quest after adding friends
@@ -72,38 +96,21 @@ const FriendsPage = () => {
       return
     }
 
-    setSending(true)
-    try {
-      await friendsAPI.sendFriendRequest(email.trim())
-      if (returnToQuest) {
-        toast.success('Friend request sent! Once accepted, you can team up on the quest.')
-      } else {
-        toast.success('Friend request sent!')
+    sendFriendRequestMutation.mutate(email.trim(), {
+      onSuccess: () => {
+        if (returnToQuest) {
+          toast.success('Friend request sent! Once accepted, you can team up on the quest.')
+        } else {
+          toast.success('Friend request sent!')
+        }
+        setEmail('')
+        setActiveTab('sent') // Switch to sent tab to show the new request
       }
-      setEmail('')
-      setActiveTab('sent') // Switch to sent tab to show the new request
-      fetchFriends()
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to send friend request')
-    } finally {
-      setSending(false)
-    }
+    })
   }
 
   const acceptRequest = async (friendshipId) => {
-    try {
-      await friendsAPI.acceptFriendRequest(friendshipId)
-      toast.success('Friend request accepted!')
-
-      // Refresh friends list (don't fail silently if this fails)
-      try {
-        await fetchFriends()
-      } catch (refreshError) {
-        // Don't show error toast since the main operation succeeded
-      }
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to accept friend request')
-    }
+    acceptFriendRequestMutation.mutate(friendshipId)
   }
 
   const declineRequest = async (friendshipId) => {

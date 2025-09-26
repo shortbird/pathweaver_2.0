@@ -1,8 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
 import api from '../services/api'
 import { retryWithBackoff } from '../utils/retryHelper'
+import { queryKeys } from '../utils/queryKeys'
 
 const AuthContext = createContext()
 
@@ -15,59 +17,69 @@ export const useAuth = () => {
 }
 
 export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null)
   const [loading, setLoading] = useState(true)
   const [session, setSession] = useState(null)
   const [loginTimestamp, setLoginTimestamp] = useState(null)
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
+  // Use React Query to manage user data instead of localStorage
+  const { data: user, isLoading: userLoading, refetch: refetchUser } = useQuery({
+    queryKey: queryKeys.user.profile('current'),
+    queryFn: async () => {
+      const response = await api.get('/api/auth/me')
+      return response.data
+    },
+    enabled: !!session, // Only fetch if we have a session
+    staleTime: 5 * 60 * 1000, // Consider user data fresh for 5 minutes
+    cacheTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
+    retry: 1, // Only retry once for auth checks
+  })
 
   useEffect(() => {
+    // Check for existing session on mount
     const token = localStorage.getItem('access_token')
-    const userData = localStorage.getItem('user')
-    
-    if (token && userData) {
+
+    if (token) {
       setSession({ access_token: token })
-      const parsedUser = JSON.parse(userData)
-      setUser(parsedUser)
-      setLoginTimestamp(Date.now()) // Set timestamp when restoring session
+      setLoginTimestamp(Date.now())
       api.defaults.headers.common['Authorization'] = `Bearer ${token}`
-      
     }
-    
+
     setLoading(false)
   }, [])
 
   const login = async (email, password) => {
     try {
       const response = await api.post('/api/auth/login', { email, password })
-      const { user, session } = response.data
-      
-      setUser(user)
-      setSession(session)
+      const { user: loginUser, session: loginSession } = response.data
+
+      setSession(loginSession)
       setLoginTimestamp(Date.now()) // Force refresh of data
-      
-      localStorage.setItem('access_token', session.access_token)
-      localStorage.setItem('refresh_token', session.refresh_token)
-      localStorage.setItem('user', JSON.stringify(user))
-      
-      api.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`
-      
+
+      localStorage.setItem('access_token', loginSession.access_token)
+      localStorage.setItem('refresh_token', loginSession.refresh_token)
+      // Remove localStorage user caching - React Query will handle this
+
+      api.defaults.headers.common['Authorization'] = `Bearer ${loginSession.access_token}`
+
+      // Update React Query cache with fresh user data
+      queryClient.setQueryData(queryKeys.user.profile('current'), loginUser)
+
       // Check if user is new (created within the last 5 minutes)
-      const createdAt = new Date(user.created_at)
+      const createdAt = new Date(loginUser.created_at)
       const now = new Date()
       const timeDiff = now - createdAt
       const isNewUser = timeDiff < 5 * 60 * 1000 // 5 minutes in milliseconds
-      
+
       if (isNewUser) {
-        toast.success(`Welcome to Optio, ${user.first_name}!`)
+        toast.success(`Welcome to Optio, ${loginUser.first_name}!`)
       } else {
         toast.success('Welcome back!')
       }
-      
-      
+
       navigate('/dashboard')
-      
+
       return { success: true }
     } catch (error) {
       // Handle nested error structure from backend
@@ -119,15 +131,17 @@ export const AuthProvider = ({ children }) => {
       }
       
       if (session) {
-        setUser(user)
         setSession(session)
         setLoginTimestamp(Date.now()) // Force refresh of data
-        
+
         localStorage.setItem('access_token', session.access_token)
         localStorage.setItem('refresh_token', session.refresh_token)
-        localStorage.setItem('user', JSON.stringify(user))
-        
+        // Remove localStorage user caching - React Query will handle this
+
         api.defaults.headers.common['Authorization'] = `Bearer ${session.access_token}`
+
+        // Update React Query cache with fresh user data
+        queryClient.setQueryData(queryKeys.user.profile('current'), user)
         
         // Track registration completion for Meta Pixel
         try {
@@ -195,16 +209,18 @@ export const AuthProvider = ({ children }) => {
       await api.post('/api/auth/logout')
     } catch (error) {
     } finally {
-      setUser(null)
       setSession(null)
       setLoginTimestamp(null) // Clear timestamp on logout
-      
+
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
-      localStorage.removeItem('user')
-      
+      // Remove localStorage user cleanup - React Query handles this
+
       delete api.defaults.headers.common['Authorization']
-      
+
+      // Clear all React Query cache on logout
+      queryClient.clear()
+
       toast.success('Logged out successfully')
       navigate('/')
     }
@@ -237,8 +253,8 @@ export const AuthProvider = ({ children }) => {
   }
 
   const updateUser = (userData) => {
-    setUser(userData)
-    localStorage.setItem('user', JSON.stringify(userData))
+    // Update React Query cache instead of localStorage
+    queryClient.setQueryData(queryKeys.user.profile('current'), userData)
   }
 
   const refreshUser = async () => {
@@ -247,16 +263,9 @@ export const AuthProvider = ({ children }) => {
     }
 
     try {
-      // Call the dashboard endpoint to get fresh user data
-      const response = await api.get('/api/users/dashboard')
-      if (response.data?.user) {
-        const freshUserData = response.data.user
-        setUser(freshUserData)
-        localStorage.setItem('user', JSON.stringify(freshUserData))
-        console.log('User data refreshed successfully', freshUserData)
-        return true
-      }
-      return false
+      // Refetch user data using React Query
+      await refetchUser()
+      return true
     } catch (error) {
       console.error('Failed to refresh user data:', error)
       return false
@@ -266,7 +275,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     user,
     session,
-    loading,
+    loading: loading || userLoading,
     login,
     register,
     logout,

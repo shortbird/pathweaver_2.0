@@ -1,7 +1,8 @@
 import React, { useEffect, useState, useMemo, useCallback, memo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import api from '../services/api'
+import { useUserDashboard } from '../hooks/api/useUserData'
+import { usePortfolio } from '../hooks/api/usePortfolio'
 import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
 import { DIPLOMA_PILLARS, getPillarName, getPillarData, getPillarGradient } from '../utils/pillarMappings'
 import { getTierDisplayName } from '../utils/tierMapping'
@@ -349,9 +350,26 @@ const CompletedQuests = memo(({ activeQuests }) => {
 
 const DashboardPage = () => {
   const { user, loginTimestamp } = useAuth()
-  const [dashboardData, setDashboardData] = useState(null)
-  const [portfolioData, setPortfolioData] = useState(null)
-  const [loading, setLoading] = useState(true)
+
+  // Use React Query hooks for data fetching
+  const {
+    data: dashboardData,
+    isLoading: dashboardLoading,
+    error: dashboardError,
+    refetch: refetchDashboard
+  } = useUserDashboard(user?.id, {
+    enabled: !!user?.id,
+    refetchInterval: 30000, // Auto-refresh every 30 seconds
+  })
+
+  const {
+    data: portfolioData,
+    isLoading: portfolioLoading,
+  } = usePortfolio(user?.id, {
+    enabled: !!user?.id && !dashboardData?.skill_xp?.length, // Only fetch if dashboard lacks XP data
+  })
+
+  const loading = dashboardLoading || portfolioLoading
 
   // Use the 5 Diploma Pillars with updated keys
   const skillCategoryNames = useMemo(() => {
@@ -364,39 +382,25 @@ const DashboardPage = () => {
     }
   }, [])
 
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      const response = await api.get('/api/users/dashboard')
-      setDashboardData(response.data)
-    } catch (error) {
-    } finally {
-      setLoading(false)
+  // Listen for task completion events to refresh data
+  useEffect(() => {
+    const handleTaskComplete = () => {
+      refetchDashboard()
     }
-  }, [])
 
-  const fetchPortfolioData = useCallback(async () => {
-    if (!user?.id) {
-      return
+    const handleQuestComplete = () => {
+      refetchDashboard()
     }
-    try {
-      const response = await api.get(`/api/portfolio/user/${user.id}`)
-      
-      // Only set portfolio data if it has actual XP data
-      // This prevents overwriting good dashboard data with empty portfolio data
-      if (response.data?.skill_xp && response.data.skill_xp.length > 0) {
-        const hasActualXP = response.data.skill_xp.some(s => 
-          (s.xp_amount && s.xp_amount > 0) || (s.total_xp && s.total_xp > 0)
-        )
-        if (hasActualXP || response.data.total_xp > 0) {
-          setPortfolioData(response.data)
-        } else {
-        }
-      }
-    } catch (error) {
-      // Don't let portfolio failure affect the dashboard
-      // The dashboard data should have everything we need
+
+    // Listen for custom events that could be triggered from task completion
+    window.addEventListener('taskCompleted', handleTaskComplete)
+    window.addEventListener('questCompleted', handleQuestComplete)
+
+    return () => {
+      window.removeEventListener('taskCompleted', handleTaskComplete)
+      window.removeEventListener('questCompleted', handleQuestComplete)
     }
-  }, [user?.id])
+  }, [refetchDashboard])
 
   // Transform skill XP data for charts using memoization
   // IMPORTANT: All hooks must be called before any conditional returns
@@ -495,48 +499,23 @@ const DashboardPage = () => {
       })
   }, [skillXPData, skillCategoryNames])
 
-  // useEffect must be called after all other hooks
-  useEffect(() => {
-    if (user?.id) {
-      // Clear old data when login changes
-      setDashboardData(null)
-      setPortfolioData(null)
-      setLoading(true)
-      
-      fetchDashboardData()
-      // Removed fetchPortfolioData() to prevent data conflicts
-    }
-  }, [user?.id, loginTimestamp, fetchDashboardData, fetchPortfolioData])
-  
-  // Refresh dashboard data every 30 seconds to reflect task completions
-  useEffect(() => {
-    if (!user?.id) return
-    
-    const interval = setInterval(() => {
-      fetchDashboardData()
-      // Removed fetchPortfolioData() to prevent data conflicts
-    }, 30000) // 30 seconds
-    
-    return () => clearInterval(interval)
-  }, [user?.id, fetchDashboardData, fetchPortfolioData])
-  
-  // Listen for task completion events
-  useEffect(() => {
-    const handleTaskComplete = () => {
-      // Refresh data when a task is completed
-      fetchDashboardData()
-      // Removed fetchPortfolioData() to prevent data conflicts
-    }
-    
-    // Listen for custom event that could be triggered from task completion
-    window.addEventListener('taskCompleted', handleTaskComplete)
-    window.addEventListener('questCompleted', handleTaskComplete)
-    
-    return () => {
-      window.removeEventListener('taskCompleted', handleTaskComplete)
-      window.removeEventListener('questCompleted', handleTaskComplete)
-    }
-  }, [fetchDashboardData, fetchPortfolioData])
+  // Show error state if dashboard fails to load
+  if (dashboardError) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Unable to load dashboard</h2>
+          <p className="text-gray-600 mb-4">Please try refreshing the page</p>
+          <button
+            onClick={() => refetchDashboard()}
+            className="px-4 py-2 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-lg hover:shadow-lg transition-all"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
 
   // Early return for loading state - MUST be after all hooks
   if (loading) {
