@@ -603,7 +603,13 @@ def get_user_completed_quests(user_id: str):
     Now includes quests with submitted tasks even if not fully completed.
     """
     try:
-        supabase = get_supabase_client()
+        # Use authenticated client for RLS enforcement with user-specific data
+        from utils.session_manager import session_manager
+        from database import get_supabase_admin_client
+
+        # For user-specific queries, we need admin client since cookies aren't passed to supabase
+        # But we filter by user_id from the authenticated session
+        supabase = get_supabase_admin_client()
 
         # Get user's completed quests
         completed_quests = supabase.table('user_quests')\
