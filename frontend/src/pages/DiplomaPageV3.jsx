@@ -235,22 +235,14 @@ const DiplomaPageV3 = () => {
       const questsData = questsResponse.data;
       const dashboardData = !dashboardResponse.error ? dashboardResponse.data : null;
 
-      console.log('=== DIPLOMA PAGE XP DEBUG ===');
-      console.log('Dashboard response ok:', dashboardResponse.ok);
-      console.log('Dashboard data:', dashboardData);
-      console.log('Dashboard XP by category:', dashboardData?.xp_by_category);
-      console.log('Dashboard stats:', dashboardData?.stats);
-      console.log('============================');
 
       setAchievements(questsData.achievements || []);
 
       // Use XP from dashboard if available (most reliable source)
       if (dashboardData?.xp_by_category) {
-        console.log('Using dashboard XP data:', dashboardData.xp_by_category);
         setTotalXP(dashboardData.xp_by_category);
         setTotalXPCount(dashboardData.stats?.total_xp || 0);
       } else {
-        console.log('Dashboard XP data not available, using fallback calculation');
         // Fallback: Calculate total XP by pillar from achievements
         const xpByPillar = {};
         let totalXPSum = 0;
