@@ -387,22 +387,6 @@ const FriendsPage = () => {
                 onClick={setActiveTab}
                 icon={CheckCircleIcon}
               />
-              <TabButton
-                id="team-invites"
-                label="Team Invites"
-                count={teamInvitations.length}
-                isActive={activeTab === 'team-invites'}
-                onClick={setActiveTab}
-                icon={UsersIcon}
-              />
-              <TabButton
-                id="sent-team-invites"
-                label="Sent Invites"
-                count={sentTeamInvitations.length}
-                isActive={activeTab === 'sent-team-invites'}
-                onClick={setActiveTab}
-                icon={PaperAirplaneIcon}
-              />
             </div>
 
             {/* Tab Content */}
@@ -533,155 +517,221 @@ const FriendsPage = () => {
                 </div>
               )}
 
-              {activeTab === 'team-invites' && (
-                <div>
-                  {teamInvitations.length === 0 ? (
-                    <div className="text-center py-8">
-                      <UsersIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-600">No pending team-up invitations</p>
-                      <p className="text-sm text-gray-500 mt-1">When friends invite you to team up on quests, they'll appear here</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {teamInvitations.map(invite => (
-                        <div key={invite.id} className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-start gap-3">
-                              <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-bold">
-                                {invite.sender?.first_name?.[0]?.toUpperCase() || '?'}
-                              </div>
-                              <div>
-                                <h3 className="font-semibold text-gray-900">
-                                  {invite.sender?.first_name} {invite.sender?.last_name}
-                                </h3>
-                                <p className="text-sm text-purple-700 mt-1">
-                                  Quest: {invite.quest?.title}
-                                </p>
-                                <CollaborationBadge status={invite.status} showXpBonus={false} className="mt-1" />
-                                <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+            </div>
+          </div>
+
+          {/* Team-Up Management Container */}
+          <div className="bg-white rounded-xl shadow-lg mb-6">
+            <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-t-xl">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <UsersIcon className="w-6 h-6" />
+                  <h2 className="text-xl font-bold">Team-Up Center</h2>
+                </div>
+                <button
+                  onClick={() => {
+                    fetchTeamInvitations();
+                    toast.success('Refreshed team-up data');
+                  }}
+                  className="bg-white/20 text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-white/30 transition-colors"
+                >
+                  Refresh
+                </button>
+              </div>
+              <p className="text-purple-100 text-sm mt-1">Collaborate with friends to earn 2x XP</p>
+            </div>
+
+            <div className="p-6">
+              {/* Team-Up Stats Row */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-purple-600">{teamInvitations.length}</div>
+                  <div className="text-sm text-purple-700">Incoming Invites</div>
+                </div>
+                <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-blue-600">{sentTeamInvitations.length}</div>
+                  <div className="text-sm text-blue-700">Sent Invites</div>
+                </div>
+                <div className="bg-gradient-to-br from-green-50 to-green-100 p-4 rounded-lg text-center">
+                  <div className="text-2xl font-bold text-green-600">{activeCollaborations.length}</div>
+                  <div className="text-sm text-green-700">Active Teams</div>
+                </div>
+              </div>
+
+              {/* Incoming Team Invites */}
+              {teamInvitations.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <UsersIcon className="w-5 h-5 text-purple-600" />
+                    Incoming Team-Up Invites ({teamInvitations.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {teamInvitations.map(invite => (
+                      <div key={invite.id} className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3 flex-1">
+                            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
+                              {invite.sender?.first_name?.[0]?.toUpperCase() || '?'}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-semibold text-gray-900">
+                                {invite.sender?.first_name} {invite.sender?.last_name}
+                              </h4>
+                              <p className="text-sm text-purple-700 mt-1 truncate">
+                                Quest: {invite.quest?.title}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2 mt-2">
+                                <CollaborationBadge status={invite.status} showXpBonus={false} />
+                                <div className="flex items-center gap-1 text-xs text-gray-500">
                                   <ClockIcon className="w-3 h-3" />
                                   <span>{formatTimeAgo(invite.created_at)}</span>
                                 </div>
-                                {invite.message && (
-                                  <p className="text-xs text-gray-600 mt-2 italic">"{invite.message}"</p>
-                                )}
                               </div>
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => acceptTeamInvite(invite.id, invite.quest?.id)}
-                                className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-full text-sm font-semibold hover:shadow-lg transition-all duration-300"
-                              >
-                                Accept
-                              </button>
-                              <button
-                                onClick={() => declineTeamInvite(invite.id)}
-                                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm font-medium hover:bg-gray-200 transition-colors"
-                              >
-                                Decline
-                              </button>
+                              {invite.message && (
+                                <p className="text-xs text-gray-600 mt-2 italic">"{invite.message}"</p>
+                              )}
                             </div>
                           </div>
+                          <div className="flex flex-col sm:flex-row gap-2 ml-3">
+                            <button
+                              onClick={() => acceptTeamInvite(invite.id, invite.quest?.id)}
+                              className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all duration-300"
+                            >
+                              Accept
+                            </button>
+                            <button
+                              onClick={() => declineTeamInvite(invite.id)}
+                              className="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+                            >
+                              Decline
+                            </button>
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
-              {activeTab === 'sent-team-invites' && (
-                <div>
-                  {sentTeamInvitations.length === 0 ? (
-                    <div className="text-center py-8">
-                      <PaperAirplaneIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                      <p className="text-gray-600">No sent team-up invitations</p>
-                      <p className="text-sm text-gray-500 mt-1">Team-up invitations you send will be tracked here</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {sentTeamInvitations.map(invite => (
-                        <div key={invite.id} className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-start gap-3">
-                              <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full flex items-center justify-center text-white font-bold">
-                                {invite.partner?.first_name?.[0]?.toUpperCase() || '?'}
-                              </div>
-                              <div>
-                                <h3 className="font-semibold text-gray-900">
-                                  {invite.partner?.first_name} {invite.partner?.last_name}
-                                </h3>
-                                <p className="text-sm text-blue-700 mt-1">
-                                  Quest: {invite.quest?.title}
-                                </p>
-                                <CollaborationBadge status={invite.status} showXpBonus={false} className="mt-1" />
-                                <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+              {/* Sent Team Invites */}
+              {sentTeamInvitations.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <PaperAirplaneIcon className="w-5 h-5 text-blue-600" />
+                    Sent Team-Up Invites ({sentTeamInvitations.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {sentTeamInvitations.map(invite => (
+                      <div key={invite.id} className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3 flex-1">
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
+                              {invite.partner?.first_name?.[0]?.toUpperCase() || '?'}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-semibold text-gray-900">
+                                {invite.partner?.first_name} {invite.partner?.last_name}
+                              </h4>
+                              <p className="text-sm text-blue-700 mt-1 truncate">
+                                Quest: {invite.quest?.title}
+                              </p>
+                              <div className="flex flex-wrap items-center gap-2 mt-2">
+                                <CollaborationBadge status={invite.status} showXpBonus={false} />
+                                <div className="flex items-center gap-1 text-xs text-gray-500">
                                   <ClockIcon className="w-3 h-3" />
                                   <span>Sent {formatTimeAgo(invite.created_at)}</span>
                                 </div>
-                                {invite.message && (
-                                  <p className="text-xs text-gray-600 mt-2 italic">"{invite.message}"</p>
-                                )}
                               </div>
-                            </div>
-                            <div className="flex gap-2">
-                              {invite.status === 'pending' && (
-                                <button
-                                  onClick={() => cancelTeamInvite(invite.id)}
-                                  className="text-red-600 hover:text-red-800 text-sm font-medium px-3 py-1 hover:bg-red-50 rounded transition-colors"
-                                >
-                                  Cancel
-                                </button>
-                              )}
-                              {invite.status === 'accepted' && (
-                                <button
-                                  onClick={() => navigate(`/quests/${invite.quest?.id}`)}
-                                  className="bg-green-600 text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-green-700 transition-colors"
-                                >
-                                  View Quest
-                                </button>
+                              {invite.message && (
+                                <p className="text-xs text-gray-600 mt-2 italic">"{invite.message}"</p>
                               )}
                             </div>
                           </div>
+                          <div className="flex flex-col gap-2 ml-3">
+                            {invite.status === 'pending' && (
+                              <button
+                                onClick={() => cancelTeamInvite(invite.id)}
+                                className="text-red-600 hover:text-red-800 text-sm font-medium px-3 py-1 hover:bg-red-50 rounded transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            )}
+                            {invite.status === 'accepted' && (
+                              <button
+                                onClick={() => navigate(`/quests/${invite.quest?.id}`)}
+                                className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                              >
+                                View Quest
+                              </button>
+                            )}
+                          </div>
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Active Collaborations */}
+              {activeCollaborations.length > 0 && (
+                <div className="mb-6">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <CheckCircleIcon className="w-5 h-5 text-green-600" />
+                    Active Team-Ups ({activeCollaborations.length})
+                  </h3>
+                  <div className="space-y-3">
+                    {activeCollaborations.map(collab => (
+                      <div key={collab.id} className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-start gap-3 flex-1">
+                            <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-400 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
+                              {collab.partner?.first_name?.[0]?.toUpperCase() || '?'}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-semibold text-gray-900">
+                                {collab.partner?.first_name} {collab.partner?.last_name}
+                              </h4>
+                              <p className="text-sm text-green-700 mt-1 truncate">
+                                Quest: {collab.quest?.title}
+                              </p>
+                              <div className="flex items-center gap-2 mt-2">
+                                <span className="bg-green-600 text-white px-2 py-1 rounded-full text-xs font-medium">
+                                  2x XP Active
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex flex-col gap-2 ml-3">
+                            <button
+                              onClick={() => navigate(`/quests/${collab.quest?.id}`)}
+                              className="bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-green-700 transition-colors"
+                            >
+                              View Quest
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Empty State */}
+              {teamInvitations.length === 0 && sentTeamInvitations.length === 0 && activeCollaborations.length === 0 && (
+                <div className="text-center py-12">
+                  <UsersIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Team-Up Activity</h3>
+                  <p className="text-gray-500 mb-4">Start collaborating with friends to earn 2x XP on quests!</p>
+                  <button
+                    onClick={() => navigate('/quests')}
+                    className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-6 py-3 rounded-lg font-medium hover:shadow-lg transition-all duration-300"
+                  >
+                    Browse Quests
+                  </button>
                 </div>
               )}
             </div>
           </div>
-
-
-
-          {activeCollaborations.length > 0 && (
-            <div className="card mb-6">
-              <h2 className="text-xl font-semibold mb-4">Active Team-Ups</h2>
-              <div className="space-y-3">
-                {activeCollaborations.map(collab => (
-                  <div
-                    key={collab.id}
-                    className="p-3 bg-green-50 border border-green-200 rounded-lg"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-green-900">
-                          {collab.quest.title}
-                        </p>
-                        <p className="text-sm text-green-700">
-                          Partner: {collab.partner.first_name} {collab.partner.last_name}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <span className="text-xs bg-green-600 text-white px-2 py-1 rounded">
-                          2x XP Active
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
         </div>
 
