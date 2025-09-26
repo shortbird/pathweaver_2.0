@@ -125,6 +125,7 @@ def get_recent_activity(user_id):
     supabase = get_supabase_admin_client()
 
     try:
+        now = datetime.utcnow()
         # Get recent quest completions (simplified query to avoid foreign key issues)
         try:
             recent_completions = supabase.table('quest_task_completions')\
@@ -145,11 +146,10 @@ def get_recent_activity(user_id):
             print(f"Error getting recent users: {e}", file=sys.stderr, flush=True)
             recent_users = type('obj', (object,), {'data': []})()
 
-        # Get recent quest submissions (simplified query)
+        # Get recent quest submissions (remove created_at since it doesn't exist)
         try:
             recent_submissions = supabase.table('quest_submissions')\
-                .select('user_id, title, created_at')\
-                .order('created_at', desc=True)\
+                .select('user_id, title')\
                 .limit(5).execute()
         except Exception as e:
             print(f"Error getting recent submissions: {e}", file=sys.stderr, flush=True)
@@ -176,11 +176,11 @@ def get_recent_activity(user_id):
                 'description': f"joined Optio with {user['subscription_tier']} subscription"
             })
 
-        # Add quest submissions (simplified)
+        # Add quest submissions (simplified, without timestamp since created_at doesn't exist)
         for submission in recent_submissions.data or []:
             activities.append({
                 'type': 'quest_submission',
-                'timestamp': submission['created_at'],
+                'timestamp': now.isoformat(),  # Use current time since no created_at
                 'user_name': 'Student',  # Simplified - would need separate lookup for names
                 'description': f"submitted custom quest: '{submission['title']}'"
             })
@@ -324,10 +324,13 @@ def get_system_health(user_id):
             .is_('completed_at', 'null')\
             .lt('started_at', stalled_threshold.isoformat()).execute()
 
-        # Check quest submission backlog
-        old_submissions = supabase.table('quest_submissions').select('id', count='exact')\
-            .eq('status', 'pending')\
-            .lt('created_at', week_ago.isoformat()).execute()
+        # Check quest submission backlog (remove date filter since created_at doesn't exist)
+        try:
+            old_submissions = supabase.table('quest_submissions').select('id', count='exact')\
+                .eq('status', 'pending').execute()
+        except Exception as e:
+            print(f"Error getting old submissions: {e}", file=sys.stderr, flush=True)
+            old_submissions = type('obj', (object,), {'count': 0})()
 
         # Calculate platform health score (0-100)
         health_score = 100
