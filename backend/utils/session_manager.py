@@ -26,13 +26,6 @@ class SessionManager:
         # Use secure cookies for both production and Render dev environment
         self.cookie_secure = is_production or is_on_render
         self.cookie_samesite = 'None' if (is_production or is_on_render) else 'Lax'
-
-        # Debug logging
-        print(f"[SESSION_MANAGER] FRONTEND_URL: {frontend_url}")
-        print(f"[SESSION_MANAGER] is_on_render: {is_on_render}")
-        print(f"[SESSION_MANAGER] is_production: {is_production}")
-        print(f"[SESSION_MANAGER] cookie_secure: {self.cookie_secure}")
-        print(f"[SESSION_MANAGER] cookie_samesite: {self.cookie_samesite}")
         
     def generate_access_token(self, user_id: str) -> str:
         """Generate a JWT access token"""
@@ -79,9 +72,6 @@ class SessionManager:
         access_token = self.generate_access_token(user_id)
         refresh_token = self.generate_refresh_token(user_id)
 
-        print(f"[SESSION_MANAGER] Setting cookies for user: {user_id}")
-        print(f"[SESSION_MANAGER] Cookie settings - secure: {self.cookie_secure}, samesite: {self.cookie_samesite}")
-
         # Set access token cookie
         response.set_cookie(
             'access_token',
@@ -104,7 +94,6 @@ class SessionManager:
             path='/'  # Available to all paths
         )
 
-        print(f"[SESSION_MANAGER] Cookies set successfully")
         return response
     
     def clear_auth_cookies(self, response):
@@ -117,25 +106,18 @@ class SessionManager:
         """Get current user ID from cookie or Authorization header"""
         # First try to get from cookie
         access_token = request.cookies.get('access_token')
-        print(f"[SESSION_MANAGER] Cookie access_token present: {access_token is not None}")
 
         # Fallback to Authorization header for backward compatibility
         if not access_token:
             auth_header = request.headers.get('Authorization', '')
             if auth_header.startswith('Bearer '):
                 access_token = auth_header.replace('Bearer ', '')
-                print(f"[SESSION_MANAGER] Using Authorization header fallback")
-            else:
-                print(f"[SESSION_MANAGER] No Authorization header found")
 
         if not access_token:
-            print(f"[SESSION_MANAGER] No access token found in cookies or headers")
             return None
 
         payload = self.verify_access_token(access_token)
-        user_id = payload.get('user_id') if payload else None
-        print(f"[SESSION_MANAGER] Extracted user_id: {user_id}")
-        return user_id
+        return payload.get('user_id') if payload else None
     
     def refresh_session(self) -> Optional[tuple]:
         """Refresh the session using refresh token"""
