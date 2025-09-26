@@ -23,7 +23,7 @@ python-dateutil==2.9.0.post0
 requests==2.32.5
 bleach==6.2.0
 python-magic==0.4.27
-psutil==6.1.0
+psutil==6.1.0  # Memory monitoring dependency
 
 # Dependencies (auto-installed)
 annotated-types==0.7.0
