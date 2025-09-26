@@ -493,7 +493,7 @@ def refresh_token():
     refresh_result = session_manager.refresh_session()
 
     if refresh_result:
-        new_access_token, new_refresh_token = refresh_result
+        new_access_token, new_refresh_token, user_id = refresh_result
 
         # Create response with new tokens in cookies
         response = make_response(jsonify({
@@ -501,7 +501,7 @@ def refresh_token():
         }), 200)
 
         # Set new secure cookies
-        session_manager.set_auth_cookies(response, session_manager.get_current_user_id())
+        session_manager.set_auth_cookies(response, user_id)
 
         return response
 

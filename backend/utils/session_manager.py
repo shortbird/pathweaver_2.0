@@ -17,8 +17,14 @@ class SessionManager:
             raise ValueError("JWT_SECRET_KEY, SECRET_KEY, or FLASK_SECRET_KEY environment variable must be set")
         self.access_token_expiry = timedelta(minutes=15)  # Short-lived access token
         self.refresh_token_expiry = timedelta(days=7)  # Longer-lived refresh token
-        self.cookie_secure = os.getenv('FLASK_ENV') == 'production'
-        self.cookie_samesite = 'None' if os.getenv('FLASK_ENV') == 'production' else 'Lax'
+
+        # Check if we're on Render (both dev and prod environments need secure cookies for cross-origin)
+        is_on_render = 'onrender.com' in os.getenv('FRONTEND_URL', '')
+        is_production = os.getenv('FLASK_ENV') == 'production'
+
+        # Use secure cookies for both production and Render dev environment
+        self.cookie_secure = is_production or is_on_render
+        self.cookie_samesite = 'None' if (is_production or is_on_render) else 'Lax'
         
     def generate_access_token(self, user_id: str) -> str:
         """Generate a JWT access token"""
@@ -115,23 +121,23 @@ class SessionManager:
     def refresh_session(self) -> Optional[tuple]:
         """Refresh the session using refresh token"""
         refresh_token = request.cookies.get('refresh_token')
-        
+
         if not refresh_token:
             return None
-        
+
         payload = self.verify_refresh_token(refresh_token)
         if not payload:
             return None
-        
+
         user_id = payload.get('user_id')
         if not user_id:
             return None
-        
+
         # Generate new tokens
         new_access_token = self.generate_access_token(user_id)
         new_refresh_token = self.generate_refresh_token(user_id)
-        
-        return new_access_token, new_refresh_token
+
+        return new_access_token, new_refresh_token, user_id
 
 # Global session manager instance
 session_manager = SessionManager()
