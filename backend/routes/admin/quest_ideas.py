@@ -12,6 +12,17 @@ from datetime import datetime
 
 bp = Blueprint('admin_quest_ideas', __name__, url_prefix='/api/v3/admin')
 
+# Lazy loading for AI service to save memory
+_quest_ai_service = None
+
+def get_quest_ai_service():
+    """Get quest AI service with lazy initialization"""
+    global _quest_ai_service
+    if _quest_ai_service is None:
+        from services.quest_ai_service import QuestAIService
+        _quest_ai_service = QuestAIService()
+    return _quest_ai_service
+
 @bp.route('/quest-ideas', methods=['GET'])
 @require_admin
 def list_quest_ideas(user_id):
@@ -182,8 +193,7 @@ def generate_quest_from_idea(user_id, idea_id):
             return jsonify({'error': 'Quest idea must be approved before generating quest'}), 400
 
         # Use AI service to generate quest
-        from services.quest_ai_service import QuestAIService
-        ai_service = QuestAIService()
+        ai_service = get_quest_ai_service()
 
         # Generate quest from the idea
         result = ai_service.generate_quest_from_topic(

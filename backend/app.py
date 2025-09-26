@@ -15,6 +15,7 @@ from routes.admin import user_management, quest_management, quest_ideas, quest_s
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
+from middleware.memory_monitor import memory_monitor
 
 # Optional CSRF protection (not critical for JWT-based auth)
 try:
@@ -32,7 +33,7 @@ if not os.getenv('FLASK_ENV'):
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
-app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max request size
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max request size (matches upload limit)
 
 # Configure security middleware
 security_middleware.init_app(app)
@@ -47,6 +48,9 @@ configure_cors(app)
 
 # Configure error handling middleware - MUST come after CORS
 error_handler.init_app(app)
+
+# Configure memory monitoring
+memory_monitor.init_app(app)
 
 # Register existing routes
 app.register_blueprint(auth.bp, url_prefix='/api/auth')

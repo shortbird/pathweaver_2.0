@@ -175,35 +175,47 @@ def get_trends_data(user_id):
         days_back = 30
         now = datetime.utcnow()
 
-        # Generate date range
-        dates = []
-        for i in range(days_back):
-            dates.append((now - timedelta(days=i)).date())
-        dates.reverse()  # Oldest first
+        # Calculate date range boundaries
+        start_date = (now - timedelta(days=days_back)).date()
+        end_date = now.date()
 
-        # Get daily user signups
-        daily_signups = {}
-        for date in dates:
-            next_date = date + timedelta(days=1)
-            signups = supabase.table('users').select('id', count='exact')\
-                .gte('created_at', date.isoformat())\
-                .lt('created_at', next_date.isoformat()).execute()
-            daily_signups[date.isoformat()] = signups.count or 0
-
-        # Get daily quest completions
-        daily_completions = {}
-        for date in dates:
-            next_date = date + timedelta(days=1)
-            completions = supabase.table('quest_task_completions').select('id', count='exact')\
-                .gte('completed_at', date.isoformat())\
-                .lt('completed_at', next_date.isoformat()).execute()
-            daily_completions[date.isoformat()] = completions.count or 0
-
-        # Get XP distribution by pillar
-        xp_by_pillar = supabase.table('user_skill_xp')\
-            .select('pillar, xp_amount')\
+        # Get all user signups in date range (single query)
+        signups_result = supabase.table('users')\
+            .select('created_at')\
+            .gte('created_at', start_date.isoformat())\
+            .lte('created_at', end_date.isoformat())\
             .execute()
 
+        # Get all quest completions in date range (single query)
+        completions_result = supabase.table('quest_task_completions')\
+            .select('completed_at')\
+            .gte('completed_at', start_date.isoformat())\
+            .lte('completed_at', end_date.isoformat())\
+            .execute()
+
+        # Process data by day (client-side aggregation to save memory)
+        daily_signups = {}
+        daily_completions = {}
+
+        # Initialize dates
+        for i in range(days_back):
+            date = (now - timedelta(days=i)).date()
+            daily_signups[date.isoformat()] = 0
+            daily_completions[date.isoformat()] = 0
+
+        # Count signups per day
+        for signup in signups_result.data or []:
+            signup_date = datetime.fromisoformat(signup['created_at'].replace('Z', '+00:00')).date()
+            if signup_date >= start_date:
+                daily_signups[signup_date.isoformat()] = daily_signups.get(signup_date.isoformat(), 0) + 1
+
+        # Count completions per day
+        for completion in completions_result.data or []:
+            completion_date = datetime.fromisoformat(completion['completed_at'].replace('Z', '+00:00')).date()
+            if completion_date >= start_date:
+                daily_completions[completion_date.isoformat()] = daily_completions.get(completion_date.isoformat(), 0) + 1
+
+        # Get XP distribution by pillar (aggregated to reduce memory usage)
         pillar_totals = {
             'STEM & Logic': 0,
             'Life & Wellness': 0,
@@ -212,10 +224,22 @@ def get_trends_data(user_id):
             'Arts & Creativity': 0
         }
 
-        for record in xp_by_pillar.data or []:
-            pillar = record['pillar']
-            if pillar in pillar_totals:
-                pillar_totals[pillar] += record['xp_amount'] or 0
+        # Get aggregated XP by pillar to avoid loading all records into memory
+        for pillar in pillar_totals.keys():
+            try:
+                xp_result = supabase.table('user_skill_xp')\
+                    .select('xp_amount')\
+                    .eq('pillar', pillar)\
+                    .limit(1000)\
+                    .execute()
+
+                # Sum the XP amounts
+                total_xp = sum(record['xp_amount'] or 0 for record in xp_result.data or [])
+                pillar_totals[pillar] = total_xp
+
+            except Exception as e:
+                print(f"Error getting XP for pillar {pillar}: {e}")
+                pillar_totals[pillar] = 0
 
         # Get most popular quests (by completion count)
         popular_quests_query = supabase.table('quest_task_completions')\
@@ -239,8 +263,8 @@ def get_trends_data(user_id):
                 'xp_by_pillar': pillar_totals,
                 'popular_quests': popular_quests_data,
                 'date_range': {
-                    'start': dates[0].isoformat(),
-                    'end': dates[-1].isoformat()
+                    'start': start_date.isoformat(),
+                    'end': end_date.isoformat()
                 }
             }
         })

@@ -5,11 +5,21 @@ Provides AI-powered quest generation and enhancement capabilities.
 
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth, require_admin
-from services.quest_ai_service import QuestAIService
 from utils.validation.sanitizers import sanitize_search_input, sanitize_integer
 import json
 
 bp = Blueprint('quest_ai', __name__, url_prefix='/api/v3/quest-ai')
+
+# Lazy loading for AI service to save memory
+_quest_ai_service = None
+
+def get_quest_ai_service():
+    """Get quest AI service with lazy initialization"""
+    global _quest_ai_service
+    if _quest_ai_service is None:
+        from services.quest_ai_service import QuestAIService
+        _quest_ai_service = QuestAIService()
+    return _quest_ai_service
 
 @bp.route('/generate', methods=['POST'])
 @require_admin
@@ -37,8 +47,8 @@ def generate_quest_from_topic(user_id: str):
         # Optional fields with validation
         learning_objectives = sanitize_search_input(data.get('learning_objectives', ''), max_length=500)
         
-        # Initialize AI service
-        ai_service = QuestAIService()
+        # Get AI service with lazy initialization
+        ai_service = get_quest_ai_service()
         
         # Generate quest
         result = ai_service.generate_quest_from_topic(
@@ -96,8 +106,8 @@ def enhance_quest_description(user_id: str):
                 'error': 'Current description is required'
             }), 400
         
-        # Initialize AI service
-        ai_service = QuestAIService()
+        # Get AI service with lazy initialization
+        ai_service = get_quest_ai_service()
         
         # Enhance description
         result = ai_service.enhance_quest_description(title, current_description)
@@ -155,8 +165,8 @@ def suggest_tasks_for_quest(user_id: str):
         # Optional task count with validation
         target_task_count = sanitize_integer(data.get('target_task_count', 4), default=4, min_val=3, max_val=6)
         
-        # Initialize AI service
-        ai_service = QuestAIService()
+        # Get AI service with lazy initialization
+        ai_service = get_quest_ai_service()
         
         # Generate tasks
         result = ai_service.suggest_tasks_for_quest(title, description, target_task_count)
@@ -203,8 +213,8 @@ def validate_quest_quality(user_id: str):
                 'error': 'Quest data is required'
             }), 400
         
-        # Initialize AI service
-        ai_service = QuestAIService()
+        # Get AI service with lazy initialization
+        ai_service = get_quest_ai_service()
         
         # Validate quest
         result = ai_service.validate_quest_quality(quest_data)
@@ -259,8 +269,8 @@ def enhance_student_quest_idea(user_id: str):
                 'error': 'Quest description is required'
             }), 400
         
-        # Initialize AI service
-        ai_service = QuestAIService()
+        # Get AI service with lazy initialization
+        ai_service = get_quest_ai_service()
         
         # First enhance the description
         enhanced_desc_result = ai_service.enhance_quest_description(title, description)
