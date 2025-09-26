@@ -7,6 +7,25 @@ import BarChart from './charts/BarChart'
 import LineChart from './charts/LineChart'
 import HealthScore from './charts/HealthScore'
 
+// Icon components for better consistency
+const RefreshIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+  </svg>
+)
+
+const TrendUpIcon = () => (
+  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+  </svg>
+)
+
+const AlertIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 18.5c-.77.833.192 2.5 1.732 2.5z" />
+  </svg>
+)
+
 const AdminDashboard = () => {
   const [overviewData, setOverviewData] = useState(null)
   const [activityData, setActivityData] = useState(null)
@@ -14,6 +33,7 @@ const AdminDashboard = () => {
   const [healthData, setHealthData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     fetchAllData()
@@ -25,6 +45,7 @@ const AdminDashboard = () => {
 
   const fetchAllData = async () => {
     try {
+      if (!loading) setRefreshing(true)
       setLoading(true)
 
       // Fetch all analytics data in parallel
@@ -46,6 +67,7 @@ const AdminDashboard = () => {
       toast.error('Failed to load dashboard data')
     } finally {
       setLoading(false)
+      setRefreshing(false)
     }
   }
 
@@ -57,138 +79,296 @@ const AdminDashboard = () => {
     })
   }
 
+  // Helper function to get priority level for alerts
+  const getPriorityLevel = () => {
+    if (!overviewData) return 'normal'
+
+    const { pending_submissions = 0, health_score = 100 } = overviewData
+
+    if (pending_submissions > 10 || health_score < 70) return 'high'
+    if (pending_submissions > 5 || health_score < 85) return 'medium'
+    return 'normal'
+  }
+
+  // Helper function to format numbers with appropriate units
+  const formatMetricValue = (value, type = 'number') => {
+    if (!value && value !== 0) return '0'
+
+    switch (type) {
+      case 'percentage':
+        return `${value}%`
+      case 'xp':
+        return value >= 1000 ? `${(value / 1000).toFixed(1)}k` : value.toLocaleString()
+      default:
+        return value.toLocaleString()
+    }
+  }
+
+  const priorityLevel = getPriorityLevel()
+
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Analytics Dashboard</h2>
-          {lastUpdated && (
-            <p className="text-sm text-gray-500 mt-1">
-              Last updated: {lastUpdated.toLocaleTimeString()}
-            </p>
-          )}
+    <div className="min-h-screen bg-gray-50">
+      {/* Header Section */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div className="flex items-center space-x-4">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Platform Analytics</h1>
+                <div className="flex items-center space-x-4 mt-2">
+                  {lastUpdated && (
+                    <p className="text-sm text-gray-500">
+                      Last updated: {lastUpdated.toLocaleTimeString()}
+                    </p>
+                  )}
+                  {priorityLevel !== 'normal' && (
+                    <div className={`flex items-center space-x-1 px-2 py-1 rounded-full text-xs font-medium ${
+                      priorityLevel === 'high'
+                        ? 'bg-red-100 text-red-800'
+                        : 'bg-yellow-100 text-yellow-800'
+                    }`}>
+                      <AlertIcon />
+                      <span>{priorityLevel === 'high' ? 'Urgent Action Required' : 'Attention Needed'}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className={`flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:shadow-lg transition-all duration-200 ${
+                  refreshing ? 'opacity-75 cursor-not-allowed' : ''
+                }`}
+              >
+                <RefreshIcon />
+                <span>{refreshing ? 'Refreshing...' : 'Refresh'}</span>
+              </button>
+            </div>
+          </div>
         </div>
-        <button
-          onClick={handleRefresh}
-          className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:shadow-lg transition-all duration-200"
-        >
-          Refresh Data
-        </button>
       </div>
 
-      {/* Key Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <MetricCard
-          title="Active Students"
-          value={overviewData?.active_users}
-          subtitle="This week"
-          icon="👥"
-          loading={loading}
-        />
-        <MetricCard
-          title="Quest Completions"
-          value={overviewData?.quest_completions_today}
-          subtitle="Today"
-          icon="✅"
-          gradient={false}
-          loading={loading}
-        />
-        <MetricCard
-          title="XP Earned"
-          value={overviewData?.total_xp_week}
-          subtitle="This week"
-          icon="⭐"
-          loading={loading}
-        />
-        <MetricCard
-          title="New Users"
-          value={overviewData?.new_users_week}
-          subtitle="This week"
-          icon="👋"
-          gradient={false}
-          loading={loading}
-        />
-      </div>
+      {/* Main Dashboard Content */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
-      {/* Secondary Metrics */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <MetricCard
-          title="Pending Reviews"
-          value={overviewData?.pending_submissions}
-          subtitle="Quest submissions"
-          icon="📝"
-          gradient={overviewData?.pending_submissions > 0}
-          loading={loading}
-        />
-        <MetricCard
-          title="Total Users"
-          value={overviewData?.total_users}
-          subtitle="All time"
-          icon="🌟"
-          gradient={false}
-          loading={loading}
-        />
-        <MetricCard
-          title="Engagement Rate"
-          value={overviewData?.engagement_rate}
-          subtitle="%"
-          icon="📊"
-          gradient={false}
-          loading={loading}
-        />
-      </div>
+        {/* Platform Health Status */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-gray-900">Platform Health</h2>
+            <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
+              (healthData?.health_score || 100) >= 85
+                ? 'bg-green-100 text-green-800'
+                : (healthData?.health_score || 100) >= 70
+                ? 'bg-yellow-100 text-yellow-800'
+                : 'bg-red-100 text-red-800'
+            }`}>
+              {(healthData?.health_score || 100) >= 85 ? 'Healthy' :
+               (healthData?.health_score || 100) >= 70 ? 'Warning' : 'Critical'}
+            </div>
+          </div>
+          <HealthScore
+            score={healthData?.health_score}
+            alerts={healthData?.alerts}
+            loading={loading}
+          />
+        </div>
 
-      {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Activity Feed */}
-        <ActivityFeed activities={activityData} loading={loading} />
+        {/* Key Performance Indicators */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-1">Active Students</p>
+                <p className="text-3xl font-bold text-gray-900">{formatMetricValue(overviewData?.active_users)}</p>
+                <p className="text-sm text-gray-500 mt-1">This week</p>
+              </div>
+              <div className="h-12 w-12 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                </svg>
+              </div>
+            </div>
+          </div>
 
-        {/* System Health */}
-        <HealthScore
-          score={healthData?.health_score}
-          alerts={healthData?.alerts}
-          loading={loading}
-        />
-      </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-1">Quest Completions</p>
+                <p className="text-3xl font-bold text-gray-900">{formatMetricValue(overviewData?.quest_completions_today)}</p>
+                <p className="text-sm text-gray-500 mt-1">Today</p>
+              </div>
+              <div className="h-12 w-12 bg-green-100 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+            </div>
+          </div>
 
-      {/* Trends Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* User Growth Chart */}
-        <LineChart
-          data={trendsData?.daily_signups}
-          title="Daily User Signups (Last 30 Days)"
-          loading={loading}
-        />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-1">XP Earned</p>
+                <p className="text-3xl font-bold text-gray-900">{formatMetricValue(overviewData?.total_xp_week, 'xp')}</p>
+                <p className="text-sm text-gray-500 mt-1">This week</p>
+              </div>
+              <div className="h-12 w-12 bg-yellow-100 rounded-xl flex items-center justify-center">
+                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+              </div>
+            </div>
+          </div>
 
-        {/* Quest Completions Chart */}
-        <LineChart
-          data={trendsData?.daily_completions}
-          title="Daily Quest Completions (Last 30 Days)"
-          loading={loading}
-        />
-      </div>
+          <div className={`rounded-xl shadow-sm border-2 p-6 ${
+            (overviewData?.pending_submissions || 0) > 5
+              ? 'bg-red-50 border-red-200'
+              : 'bg-white border-gray-200'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600 mb-1">Pending Reviews</p>
+                <p className={`text-3xl font-bold ${
+                  (overviewData?.pending_submissions || 0) > 5 ? 'text-red-600' : 'text-gray-900'
+                }`}>
+                  {formatMetricValue(overviewData?.pending_submissions)}
+                </p>
+                <p className="text-sm text-gray-500 mt-1">Quest submissions</p>
+              </div>
+              <div className={`h-12 w-12 rounded-xl flex items-center justify-center ${
+                (overviewData?.pending_submissions || 0) > 5
+                  ? 'bg-red-200'
+                  : 'bg-blue-100'
+              }`}>
+                <svg className={`w-6 h-6 ${
+                  (overviewData?.pending_submissions || 0) > 5 ? 'text-red-600' : 'text-blue-600'
+                }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      {/* Bottom Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* XP Distribution */}
-        <BarChart
-          data={trendsData?.xp_by_pillar}
-          title="XP Distribution by Skill Pillar"
-          xLabel="Skill Pillars"
-          yLabel="Total XP"
-          loading={loading}
-        />
+        {/* Secondary Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">User Growth</h3>
+              <TrendUpIcon />
+            </div>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Total Users</span>
+                <span className="font-semibold text-gray-900">{formatMetricValue(overviewData?.total_users)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">New This Week</span>
+                <span className="font-semibold text-green-600">+{formatMetricValue(overviewData?.new_users_week)}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-gray-600">Engagement Rate</span>
+                <span className="font-semibold text-gray-900">{formatMetricValue(overviewData?.engagement_rate, 'percentage')}</span>
+              </div>
+            </div>
+          </div>
 
-        {/* Subscription Distribution */}
-        <BarChart
-          data={overviewData?.subscription_distribution}
-          title="User Subscription Distribution"
-          xLabel="Subscription Tiers"
-          yLabel="Number of Users"
-          loading={loading}
-        />
-      </div>
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Subscription Tiers</h3>
+            </div>
+            <div className="space-y-3">
+              {overviewData?.subscription_distribution?.map((tier, index) => (
+                <div key={index} className="flex justify-between items-center">
+                  <span className="text-sm text-gray-600 capitalize">{tier.tier}</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-semibold text-gray-900">{tier.count}</span>
+                    <div className={`w-12 h-2 rounded-full ${
+                      tier.tier === 'explorer' ? 'bg-gray-300' :
+                      tier.tier === 'creator' ? 'bg-blue-300' : 'bg-purple-300'
+                    }`}></div>
+                  </div>
+                </div>
+              )) || (
+                <div className="text-sm text-gray-500 text-center py-4">No subscription data available</div>
+              )}
+            </div>
+          </div>
+
+          <ActivityFeed activities={activityData} loading={loading} />
+        </div>
+
+        {/* Analytics & Trends Section */}
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-semibold text-gray-900">Platform Analytics & Trends</h2>
+            <div className="text-sm text-gray-500">Last 30 days</div>
+          </div>
+
+          {/* Trends Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">User Growth Trend</h3>
+                <div className="flex items-center space-x-2 text-sm text-green-600">
+                  <TrendUpIcon />
+                  <span>Growing</span>
+                </div>
+              </div>
+              <LineChart
+                data={trendsData?.daily_signups}
+                title=""
+                loading={loading}
+              />
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Quest Completion Trend</h3>
+                <div className="text-sm text-gray-500">Daily completions</div>
+              </div>
+              <LineChart
+                data={trendsData?.daily_completions}
+                title=""
+                loading={loading}
+              />
+            </div>
+          </div>
+
+          {/* Distribution Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Learning Focus Areas</h3>
+                <div className="text-sm text-gray-500">XP by skill pillar</div>
+              </div>
+              <BarChart
+                data={trendsData?.xp_by_pillar}
+                title=""
+                xLabel=""
+                yLabel="Total XP"
+                loading={loading}
+              />
+            </div>
+
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-900">Revenue Distribution</h3>
+                <div className="text-sm text-gray-500">Users by tier</div>
+              </div>
+              <BarChart
+                data={overviewData?.subscription_distribution}
+                title=""
+                xLabel=""
+                yLabel="Number of Users"
+                loading={loading}
+              />
+            </div>
+          </div>
+        </div>
 
       {/* Quick Actions */}
       <div className="bg-white rounded-lg shadow p-6">

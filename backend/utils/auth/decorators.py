@@ -53,9 +53,9 @@ def require_admin(f):
         supabase = get_authenticated_supabase_client()
 
         try:
-            user = supabase.table('users').select('role').eq('id', user_id).single().execute()
+            user = supabase.table('users').select('role').eq('id', user_id).execute()
 
-            if not user.data or user.data.get('role') not in ['admin', 'educator']:
+            if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['admin', 'educator']:
                 raise AuthorizationError('Admin access required')
 
             return f(user_id, *args, **kwargs)
@@ -92,9 +92,9 @@ def require_role(*allowed_roles):
             supabase = get_authenticated_supabase_client()
 
             try:
-                user = supabase.table('users').select('role').eq('id', user_id).single().execute()
+                user = supabase.table('users').select('role').eq('id', user_id).execute()
 
-                if not user.data or user.data.get('role') not in allowed_roles:
+                if not user.data or len(user.data) == 0 or user.data[0].get('role') not in allowed_roles:
                     raise AuthorizationError(f'Required role: {", ".join(allowed_roles)}')
 
                 return f(user_id, *args, **kwargs)
@@ -131,12 +131,12 @@ def require_paid_tier(f):
         supabase = get_authenticated_supabase_client()
 
         try:
-            user = supabase.table('users').select('subscription_tier').eq('id', user_id).single().execute()
+            user = supabase.table('users').select('subscription_tier').eq('id', user_id).execute()
 
-            if not user.data:
+            if not user.data or len(user.data) == 0:
                 raise AuthorizationError('User not found')
 
-            subscription_tier = user.data.get('subscription_tier', 'free')
+            subscription_tier = user.data[0].get('subscription_tier', 'free')
 
             # Allow paid tiers based on actual database schema
             # Database schema: ['explorer', 'creator', 'visionary', 'enterprise'] plus legacy values
