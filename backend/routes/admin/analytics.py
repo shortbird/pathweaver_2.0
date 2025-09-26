@@ -34,9 +34,9 @@ def get_overview_metrics(user_id):
             .gte('created_at', week_ago.isoformat()).execute()
         new_users_count = new_users_week.count or 0
 
-        # Get active users (logged in within 7 days)
+        # Get active users (active within 7 days)
         active_users_result = supabase.table('users').select('id', count='exact')\
-            .gte('last_login_at', week_ago.isoformat()).execute()
+            .gte('last_active', week_ago.isoformat()).execute()
         active_users = active_users_result.count or 0
 
         # Get quest completions this week
@@ -215,7 +215,7 @@ def get_trends_data(user_id):
             if completion_date >= start_date:
                 daily_completions[completion_date.isoformat()] = daily_completions.get(completion_date.isoformat(), 0) + 1
 
-        # Get XP distribution by pillar (aggregated to reduce memory usage)
+        # Get XP distribution by pillar (aggregated approach)
         pillar_totals = {
             'STEM & Logic': 0,
             'Life & Wellness': 0,
@@ -224,22 +224,22 @@ def get_trends_data(user_id):
             'Arts & Creativity': 0
         }
 
-        # Get aggregated XP by pillar to avoid loading all records into memory
-        for pillar in pillar_totals.keys():
-            try:
-                xp_result = supabase.table('user_skill_xp')\
-                    .select('xp_amount')\
-                    .eq('pillar', pillar)\
-                    .limit(1000)\
-                    .execute()
+        # Get all XP records and aggregate them client-side to avoid URL encoding issues
+        try:
+            all_xp_result = supabase.table('user_skill_xp')\
+                .select('pillar, xp_amount')\
+                .execute()
 
-                # Sum the XP amounts
-                total_xp = sum(record['xp_amount'] or 0 for record in xp_result.data or [])
-                pillar_totals[pillar] = total_xp
+            # Aggregate XP by pillar
+            for record in all_xp_result.data or []:
+                pillar = record.get('pillar')
+                xp_amount = record.get('xp_amount', 0)
+                if pillar in pillar_totals:
+                    pillar_totals[pillar] += xp_amount
 
-            except Exception as e:
-                print(f"Error getting XP for pillar {pillar}: {e}")
-                pillar_totals[pillar] = 0
+        except Exception as e:
+            print(f"Error getting XP data: {e}")
+            # Keep default zeros if there's an error
 
         # Get most popular quests (by completion count)
         popular_quests_query = supabase.table('quest_task_completions')\
@@ -289,7 +289,7 @@ def get_system_health(user_id):
         # Check for inactive users (no activity in 30+ days)
         inactive_threshold = now - timedelta(days=30)
         inactive_users = supabase.table('users').select('id', count='exact')\
-            .lt('last_login_at', inactive_threshold.isoformat()).execute()
+            .lt('last_active', inactive_threshold.isoformat()).execute()
 
         # Check for stalled quests (started but no progress in 14+ days)
         stalled_threshold = now - timedelta(days=14)
