@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
 import { useFriends, useSendFriendRequest, useAcceptFriendRequest, useDeclineFriendRequest, useCancelFriendRequest, useCollaborations } from '../hooks/api/useFriends'
+import { friendsAPI, collaborationAPI } from '../services/api'
+import api from '../services/api'
 import { hasFeatureAccess } from '../utils/tierMapping'
 import StatusBadge from '../components/ui/StatusBadge'
 import CollaborationBadge from '../components/ui/CollaborationBadge'
@@ -37,19 +39,30 @@ const FriendsPage = () => {
   const [email, setEmail] = useState('')
   const [returnToQuest, setReturnToQuest] = useState(null)
   const [activeTab, setActiveTab] = useState('incoming')
+  const [sending, setSending] = useState(false)
+  const [friends, setFriends] = useState([])
+  const [pendingRequests, setPendingRequests] = useState([])
+  const [sentRequests, setSentRequests] = useState([])
+  const [teamInvitations, setTeamInvitations] = useState([])
+  const [sentTeamInvitations, setSentTeamInvitations] = useState([])
+  const [activeCollaborations, setActiveCollaborations] = useState([])
+  const [loading, setLoading] = useState(true)
 
   // Check if user has access to friends feature
   const hasAccess = hasFeatureAccess(user?.subscription_tier, 'supported');
 
-  // Extract data from React Query responses
-  const friends = friendsData?.friends || [];
-  const pendingRequests = friendsData?.pending_requests || [];
-  const sentRequests = friendsData?.sent_requests || [];
-  const teamInvitations = collaborationsData?.received_invitations || [];
-  const sentTeamInvitations = collaborationsData?.sent_invitations || [];
-  const activeCollaborations = collaborationsData?.active_collaborations || [];
+  // Use React Query data if available, otherwise use local state
+  const queryFriends = friendsData?.friends || [];
+  const queryPendingRequests = friendsData?.pending_requests || [];
+  const querySentRequests = friendsData?.sent_requests || [];
+  const queryTeamInvitations = collaborationsData?.received_invitations || [];
+  const querySentTeamInvitations = collaborationsData?.sent_invitations || [];
+  const queryActiveCollaborations = collaborationsData?.active_collaborations || [];
 
-  const loading = loadingFriends || loadingCollaborations;
+  // Merge query data with local state
+  const allFriends = [...friends, ...queryFriends];
+  const allPendingRequests = [...pendingRequests, ...queryPendingRequests];
+  const allSentRequests = [...sentRequests, ...querySentRequests];
 
   useEffect(() => {
     // Check if we should return to a quest after adding friends
