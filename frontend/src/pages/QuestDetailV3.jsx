@@ -44,6 +44,7 @@ const QuestDetailV3 = () => {
 
   // Get loading states from mutations
   const isEnrolling = enrollMutation.isPending;
+  const isRefreshing = completeTaskMutation.isPending;
 
   // Check if user can start quests (requires paid tier)
   const canStartQuests = hasFeatureAccess(user?.subscription_tier, 'supported');
