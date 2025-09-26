@@ -522,23 +522,23 @@ const FriendsPage = () => {
 
           {/* Team-Up Management Container */}
           <div className="bg-white rounded-xl shadow-lg mb-6">
-            <div className="bg-gradient-to-r from-purple-500 to-pink-500 text-white p-4 rounded-t-xl">
+            <div className="p-6 border-b">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <UsersIcon className="w-6 h-6" />
-                  <h2 className="text-xl font-bold">Team-Up Center</h2>
+                  <UsersIcon className="w-6 h-6 text-purple-600" />
+                  <h2 className="text-xl font-bold text-gray-900">Team-Up Center</h2>
                 </div>
                 <button
                   onClick={() => {
                     fetchTeamInvitations();
                     toast.success('Refreshed team-up data');
                   }}
-                  className="bg-white/20 text-white px-3 py-1 rounded-full text-sm font-medium hover:bg-white/30 transition-colors"
+                  className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium hover:bg-gray-200 transition-colors"
                 >
                   Refresh
                 </button>
               </div>
-              <p className="text-purple-100 text-sm mt-1">Collaborate with friends to earn 2x XP</p>
+              <p className="text-gray-600 text-sm mt-1">Collaborate with friends to earn 2x XP</p>
             </div>
 
             <div className="p-6">
