@@ -226,7 +226,11 @@ export const AuthProvider = ({ children }) => {
 
   const refreshToken = async () => {
     try {
-      const response = await api.post('/api/auth/refresh')
+      const response = await api.post('/api/auth/refresh', {}, {
+        headers: {
+          'Content-Type': undefined // Remove default content-type
+        }
+      })
 
       if (response.status === 200) {
         setSession({ authenticated: true })

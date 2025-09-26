@@ -66,8 +66,12 @@ api.interceptors.response.use(
       originalRequest._retry = true
 
       try {
-        // Attempt to refresh tokens using httpOnly cookies
-        const response = await api.post('/api/auth/refresh')
+        // Attempt to refresh tokens using httpOnly cookies (no body, no content-type)
+        const response = await api.post('/api/auth/refresh', {}, {
+          headers: {
+            'Content-Type': undefined // Remove default content-type
+          }
+        })
 
         // If refresh succeeds, retry the original request
         if (response.status === 200) {
