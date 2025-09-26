@@ -370,41 +370,111 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-      {/* Quick Actions */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <button
-            onClick={() => window.location.href = '/admin/users'}
-            className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors"
-          >
-            <div className="text-2xl mb-2">👥</div>
-            <div className="text-sm font-medium">Manage Users</div>
-            <div className="text-xs text-gray-500">View and edit user accounts</div>
-          </button>
+        {/* Administrative Actions */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-semibold text-gray-900">Administrative Actions</h2>
+            <div className="text-sm text-gray-500">Quick access to key functions</div>
+          </div>
 
-          <button
-            onClick={() => window.location.href = '/admin/quests'}
-            className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors"
-          >
-            <div className="text-2xl mb-2">🎯</div>
-            <div className="text-sm font-medium">Manage Quests</div>
-            <div className="text-xs text-gray-500">Create and edit quests</div>
-          </button>
-
-          <button
-            onClick={() => window.location.href = '/admin/submissions'}
-            className="relative p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-purple-300 hover:bg-purple-50 transition-colors"
-          >
-            {overviewData?.pending_submissions > 0 && (
-              <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs rounded-full w-6 h-6 flex items-center justify-center">
-                {overviewData.pending_submissions}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            {/* User Management */}
+            <button
+              onClick={() => window.location.href = '/admin/users'}
+              className="group relative p-6 bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl hover:from-blue-100 hover:to-blue-200 transition-all duration-200 text-left"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-3 bg-blue-500 rounded-lg">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                  </svg>
+                </div>
+                <svg className="w-5 h-5 text-blue-400 group-hover:text-blue-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
               </div>
-            )}
-            <div className="text-2xl mb-2">📝</div>
-            <div className="text-sm font-medium">Review Submissions</div>
-            <div className="text-xs text-gray-500">Approve custom quests</div>
-          </button>
+              <h3 className="font-semibold text-gray-900 mb-1">User Management</h3>
+              <p className="text-sm text-gray-600">Manage accounts, roles, and subscriptions</p>
+            </button>
+
+            {/* Quest Management */}
+            <button
+              onClick={() => window.location.href = '/admin/quests'}
+              className="group relative p-6 bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-xl hover:from-green-100 hover:to-green-200 transition-all duration-200 text-left"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-3 bg-green-500 rounded-lg">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <svg className="w-5 h-5 text-green-400 group-hover:text-green-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-1">Quest Management</h3>
+              <p className="text-sm text-gray-600">Create, edit, and organize learning quests</p>
+            </button>
+
+            {/* Review Submissions */}
+            <button
+              onClick={() => window.location.href = '/admin/submissions'}
+              className={`group relative p-6 rounded-xl transition-all duration-200 text-left border ${
+                (overviewData?.pending_submissions || 0) > 0
+                  ? 'bg-gradient-to-br from-red-50 to-red-100 border-red-200 hover:from-red-100 hover:to-red-200'
+                  : 'bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 hover:from-purple-100 hover:to-purple-200'
+              }`}
+            >
+              {(overviewData?.pending_submissions || 0) > 0 && (
+                <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-8 h-8 flex items-center justify-center animate-pulse">
+                  {overviewData.pending_submissions}
+                </div>
+              )}
+              <div className="flex items-center justify-between mb-3">
+                <div className={`p-3 rounded-lg ${
+                  (overviewData?.pending_submissions || 0) > 0 ? 'bg-red-500' : 'bg-purple-500'
+                }`}>
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                  </svg>
+                </div>
+                <svg className={`w-5 h-5 transition-colors ${
+                  (overviewData?.pending_submissions || 0) > 0
+                    ? 'text-red-400 group-hover:text-red-600'
+                    : 'text-purple-400 group-hover:text-purple-600'
+                }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-1">Review Submissions</h3>
+              <p className="text-sm text-gray-600">
+                {(overviewData?.pending_submissions || 0) > 0
+                  ? `${overviewData.pending_submissions} submissions awaiting review`
+                  : 'All submissions reviewed'
+                }
+              </p>
+            </button>
+
+            {/* System Settings */}
+            <button
+              onClick={() => window.location.href = '/admin/settings'}
+              className="group relative p-6 bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 rounded-xl hover:from-gray-100 hover:to-gray-200 transition-all duration-200 text-left"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="p-3 bg-gray-500 rounded-lg">
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+                <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-1">Platform Settings</h3>
+              <p className="text-sm text-gray-600">Configure system settings and preferences</p>
+            </button>
+          </div>
         </div>
       </div>
     </div>
