@@ -92,4 +92,22 @@ api.interceptors.response.use(
   }
 )
 
+// Friend management API methods
+export const friendsAPI = {
+  // Get all friends data including sent/received requests
+  getFriends: () => api.get('/api/community/friends'),
+
+  // Send friend request by email
+  sendFriendRequest: (email) => api.post('/api/community/friends/request', { email }),
+
+  // Accept incoming friend request
+  acceptFriendRequest: (friendshipId) => api.post(`/api/community/friends/accept/${friendshipId}`),
+
+  // Decline incoming friend request
+  declineFriendRequest: (friendshipId) => api.delete(`/api/community/friends/decline/${friendshipId}`),
+
+  // Cancel sent friend request
+  cancelFriendRequest: (friendshipId) => api.delete(`/api/community/friends/cancel/${friendshipId}`)
+}
+
 export default api

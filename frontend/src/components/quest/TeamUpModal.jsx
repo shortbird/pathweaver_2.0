@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { handleApiResponse } from '../../utils/errorHandling';
+import api from '../../services/api';
 
 const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
   const navigate = useNavigate();
@@ -37,21 +38,8 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
 
   const fetchFriends = async () => {
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const url = `${apiBase}/api/community/friends`;
-      
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch friends');
-      }
-
-      const data = await response.json();
-      setFriends(data.friends || []);
+      const response = await api.get('/api/community/friends');
+      setFriends(response.data.friends || []);
     } catch (error) {
       setError('Failed to load friends list');
     } finally {
@@ -64,38 +52,25 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
     setError('');
 
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/api/v3/collaborations/invite`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          quest_id: quest.id,
-          friend_id: friend.id
-        })
+      const response = await api.post('/api/v3/collaborations/invite', {
+        quest_id: quest.id,
+        friend_id: friend.id
       });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to send invitation');
-      }
 
       // Mark friend as invited
       setInvitedFriends(prev => new Set([...prev, friend.id]));
-      
+
       // Show success message
       const friendName = friend.username || `${friend.first_name} ${friend.last_name}`;
       onInviteSent({
         friend: friend,
         quest: quest,
-        message: data.message || `Invitation sent to ${friendName}!`
+        message: response.data.message || `Invitation sent to ${friendName}!`
       });
 
     } catch (error) {
-      setError(error.message || 'Failed to send invitation');
+      const errorMessage = error.response?.data?.error || error.message || 'Failed to send invitation';
+      setError(errorMessage);
     } finally {
       setSendingInvite(null);
     }

@@ -13,7 +13,7 @@ CREATE TABLE public.advisor_group_members (
   group_id uuid NOT NULL,
   student_id uuid NOT NULL,
   joined_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT advisor_group_members_pkey PRIMARY KEY (group_id, student_id),
+  CONSTRAINT advisor_group_members_pkey PRIMARY KEY (student_id, group_id),
   CONSTRAINT advisor_group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.advisor_groups(id),
   CONSTRAINT advisor_group_members_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users(id)
 );
@@ -128,6 +128,7 @@ CREATE TABLE public.friendships (
   addressee_id uuid,
   status USER-DEFINED DEFAULT 'pending'::friendship_status,
   created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT friendships_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.leaderboards (
@@ -402,6 +403,112 @@ CREATE TABLE public.submissions (
   ai_validation_summary text,
   status text,
   user_quest_id uuid
+);
+CREATE TABLE public.tutor_analytics (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  date date NOT NULL DEFAULT CURRENT_DATE,
+  messages_sent integer DEFAULT 0,
+  topics_discussed ARRAY,
+  learning_pillars_covered ARRAY,
+  average_session_length integer,
+  xp_bonuses_earned integer DEFAULT 0,
+  safety_flags integer DEFAULT 0,
+  engagement_score numeric,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT tutor_analytics_pkey PRIMARY KEY (id),
+  CONSTRAINT tutor_analytics_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.tutor_conversations (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  title character varying,
+  conversation_mode USER-DEFINED DEFAULT 'study_buddy'::conversation_mode,
+  quest_id uuid,
+  task_id uuid,
+  is_active boolean DEFAULT true,
+  message_count integer DEFAULT 0,
+  total_tokens integer DEFAULT 0,
+  last_message_at timestamp with time zone DEFAULT now(),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT tutor_conversations_pkey PRIMARY KEY (id),
+  CONSTRAINT tutor_conversations_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT tutor_conversations_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id),
+  CONSTRAINT tutor_conversations_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.quest_tasks(id)
+);
+CREATE TABLE public.tutor_messages (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  conversation_id uuid NOT NULL,
+  role USER-DEFINED NOT NULL,
+  content text NOT NULL,
+  tokens_used integer DEFAULT 0,
+  safety_level USER-DEFINED DEFAULT 'safe'::safety_level,
+  safety_reasons ARRAY,
+  flagged_terms ARRAY,
+  context_data jsonb,
+  xp_bonus_awarded boolean DEFAULT false,
+  parent_notified boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT tutor_messages_pkey PRIMARY KEY (id),
+  CONSTRAINT tutor_messages_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.tutor_conversations(id)
+);
+CREATE TABLE public.tutor_parent_access (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  parent_user_id uuid NOT NULL,
+  child_user_id uuid NOT NULL,
+  access_level character varying DEFAULT 'full'::character varying,
+  notification_frequency character varying DEFAULT 'daily'::character varying,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT tutor_parent_access_pkey PRIMARY KEY (id),
+  CONSTRAINT tutor_parent_access_parent_user_id_fkey FOREIGN KEY (parent_user_id) REFERENCES auth.users(id),
+  CONSTRAINT tutor_parent_access_child_user_id_fkey FOREIGN KEY (child_user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.tutor_safety_reports (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  conversation_id uuid,
+  message_id uuid,
+  incident_type character varying NOT NULL,
+  safety_level USER-DEFINED NOT NULL,
+  original_message text NOT NULL,
+  flagged_terms ARRAY,
+  safety_reasons ARRAY,
+  confidence_score numeric,
+  admin_reviewed boolean DEFAULT false,
+  admin_notes text,
+  parent_notified boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  reviewed_at timestamp with time zone,
+  CONSTRAINT tutor_safety_reports_pkey PRIMARY KEY (id),
+  CONSTRAINT tutor_safety_reports_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
+  CONSTRAINT tutor_safety_reports_conversation_id_fkey FOREIGN KEY (conversation_id) REFERENCES public.tutor_conversations(id),
+  CONSTRAINT tutor_safety_reports_message_id_fkey FOREIGN KEY (message_id) REFERENCES public.tutor_messages(id)
+);
+CREATE TABLE public.tutor_settings (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL UNIQUE,
+  preferred_mode USER-DEFINED DEFAULT 'study_buddy'::conversation_mode,
+  daily_message_limit integer DEFAULT 50,
+  messages_used_today integer DEFAULT 0,
+  last_reset_date date DEFAULT CURRENT_DATE,
+  parent_monitoring_enabled boolean DEFAULT true,
+  notification_preferences jsonb DEFAULT '{}'::jsonb,
+  age_verification integer,
+  learning_style character varying,
+  topic_restrictions ARRAY,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT tutor_settings_pkey PRIMARY KEY (id),
+  CONSTRAINT tutor_settings_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.tutor_tier_limits (
+  tier character varying NOT NULL,
+  daily_message_limit integer NOT NULL,
+  features ARRAY DEFAULT '{}'::text[],
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT tutor_tier_limits_pkey PRIMARY KEY (tier)
 );
 CREATE TABLE public.user_achievements (
   id integer NOT NULL DEFAULT nextval('user_achievements_id_seq'::regclass),

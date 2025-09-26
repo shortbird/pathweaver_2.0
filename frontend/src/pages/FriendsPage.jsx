@@ -1,21 +1,26 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { friendsAPI } from '../services/api'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
 import { hasFeatureAccess } from '../utils/tierMapping'
+import StatusBadge from '../components/ui/StatusBadge'
+import { UserPlusIcon, ClockIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
 
 const FriendsPage = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [friends, setFriends] = useState([])
   const [pendingRequests, setPendingRequests] = useState([])
+  const [sentRequests, setSentRequests] = useState([])
   const [teamInvitations, setTeamInvitations] = useState([])
   const [activeCollaborations, setActiveCollaborations] = useState([])
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [returnToQuest, setReturnToQuest] = useState(null)
+  const [activeTab, setActiveTab] = useState('incoming')
 
   // Check if user has access to friends feature
   const hasAccess = hasFeatureAccess(user?.subscription_tier, 'supported');
@@ -40,9 +45,10 @@ const FriendsPage = () => {
 
   const fetchFriends = async () => {
     try {
-      const response = await api.get('/api/community/friends')
-      setFriends(response.data.friends)
-      setPendingRequests(response.data.pending_requests)
+      const response = await friendsAPI.getFriends()
+      setFriends(response.data.friends || [])
+      setPendingRequests(response.data.pending_requests || [])
+      setSentRequests(response.data.sent_requests || [])
     } catch (error) {
       console.error('Failed to load friends:', error)
       if (error.response?.status === 404) {
@@ -66,13 +72,14 @@ const FriendsPage = () => {
 
     setSending(true)
     try {
-      await api.post('/api/community/friends/request', { email })
+      await friendsAPI.sendFriendRequest(email.trim())
       if (returnToQuest) {
         toast.success('Friend request sent! Once accepted, you can team up on the quest.')
       } else {
         toast.success('Friend request sent!')
       }
       setEmail('')
+      setActiveTab('sent') // Switch to sent tab to show the new request
       fetchFriends()
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to send friend request')
@@ -83,9 +90,9 @@ const FriendsPage = () => {
 
   const acceptRequest = async (friendshipId) => {
     try {
-      const response = await api.post(`/api/community/friends/accept/${friendshipId}`, {})
+      await friendsAPI.acceptFriendRequest(friendshipId)
       toast.success('Friend request accepted!')
-      
+
       // Refresh friends list (don't fail silently if this fails)
       try {
         await fetchFriends()
@@ -99,13 +106,56 @@ const FriendsPage = () => {
 
   const declineRequest = async (friendshipId) => {
     try {
-      await api.delete(`/api/community/friends/decline/${friendshipId}`)
+      await friendsAPI.declineFriendRequest(friendshipId)
       toast.success('Friend request declined')
       fetchFriends()
     } catch (error) {
       toast.error('Failed to decline friend request')
     }
   }
+
+  const cancelRequest = async (friendshipId) => {
+    try {
+      await friendsAPI.cancelFriendRequest(friendshipId)
+      toast.success('Friend request cancelled')
+      fetchFriends()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to cancel friend request')
+    }
+  }
+
+  // Helper function to format time ago
+  const formatTimeAgo = (timestamp) => {
+    if (!timestamp) return ''
+    const now = new Date()
+    const time = new Date(timestamp)
+    const diffInHours = Math.floor((now - time) / (1000 * 60 * 60))
+
+    if (diffInHours < 1) return 'Just now'
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`
+    const diffInDays = Math.floor(diffInHours / 24)
+    return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`
+  }
+
+  // Tab component for friend requests
+  const TabButton = ({ id, label, count, isActive, onClick, icon: Icon }) => (
+    <button
+      onClick={() => onClick(id)}
+      className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${
+        isActive
+          ? 'border-purple-500 text-purple-600 bg-purple-50'
+          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+      }`}
+    >
+      <Icon className="w-4 h-4" />
+      {label}
+      {count > 0 && (
+        <span className="ml-1 bg-purple-100 text-purple-600 px-2 py-0.5 rounded-full text-xs font-semibold">
+          {count}
+        </span>
+      )}
+    </button>
+  )
 
   const fetchTeamInvitations = async () => {
     try {
@@ -295,6 +345,166 @@ const FriendsPage = () => {
             </form>
           </div>
 
+          {/* Friends Management with Tabs */}
+          <div className="bg-white rounded-xl shadow-lg mb-6">
+            {/* Tab Navigation */}
+            <div className="flex border-b">
+              <TabButton
+                id="incoming"
+                label="Incoming Requests"
+                count={pendingRequests.length}
+                isActive={activeTab === 'incoming'}
+                onClick={setActiveTab}
+                icon={UserPlusIcon}
+              />
+              <TabButton
+                id="sent"
+                label="Sent Requests"
+                count={sentRequests.length}
+                isActive={activeTab === 'sent'}
+                onClick={setActiveTab}
+                icon={ClockIcon}
+              />
+              <TabButton
+                id="friends"
+                label="My Friends"
+                count={friends.length}
+                isActive={activeTab === 'friends'}
+                onClick={setActiveTab}
+                icon={CheckCircleIcon}
+              />
+            </div>
+
+            {/* Tab Content */}
+            <div className="p-6">
+              {activeTab === 'incoming' && (
+                <div>
+                  {pendingRequests.length === 0 ? (
+                    <div className="text-center py-8">
+                      <UserPlusIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-600">No pending friend requests</p>
+                      <p className="text-sm text-gray-500 mt-1">When someone sends you a friend request, it will appear here</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {pendingRequests.map(request => (
+                        <div key={request.friendship_id} className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-bold">
+                                {request.requester.first_name?.[0]?.toUpperCase() || '?'}
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-gray-900">
+                                  {request.requester.first_name} {request.requester.last_name}
+                                </h3>
+                                <p className="text-sm text-gray-600">Wants to connect with you</p>
+                                <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                  <ClockIcon className="w-3 h-3" />
+                                  <span>{formatTimeAgo(request.created_at)}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => acceptRequest(request.friendship_id)}
+                                className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-full text-sm font-semibold hover:shadow-lg transition-all duration-300"
+                              >
+                                Accept
+                              </button>
+                              <button
+                                onClick={() => declineRequest(request.friendship_id)}
+                                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm font-medium hover:bg-gray-200 transition-colors"
+                              >
+                                Decline
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'sent' && (
+                <div>
+                  {sentRequests.length === 0 ? (
+                    <div className="text-center py-8">
+                      <ClockIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-600">No sent friend requests</p>
+                      <p className="text-sm text-gray-500 mt-1">Friend requests you send will be tracked here</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {sentRequests.map(request => (
+                        <div key={request.friendship_id} className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-bold">
+                                {request.addressee.first_name?.[0]?.toUpperCase() || '?'}
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-gray-900">
+                                  {request.addressee.first_name} {request.addressee.last_name}
+                                </h3>
+                                <StatusBadge status={request.status} />
+                                <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                  <ClockIcon className="w-3 h-3" />
+                                  <span>Sent {formatTimeAgo(request.created_at)}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              {request.status === 'pending' && (
+                                <button
+                                  onClick={() => cancelRequest(request.friendship_id)}
+                                  className="text-red-600 hover:text-red-800 text-sm font-medium"
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'friends' && (
+                <div>
+                  {friends.length === 0 ? (
+                    <div className="text-center py-8">
+                      <CheckCircleIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-600">No friends yet</p>
+                      <p className="text-sm text-gray-500 mt-1">Send friend requests to connect with other learners!</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {friends.map(friend => (
+                        <div key={friend.id} className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-gradient-to-br from-green-400 to-emerald-400 rounded-full flex items-center justify-center text-white font-bold">
+                              {friend.first_name?.[0]?.toUpperCase() || '?'}
+                            </div>
+                            <div>
+                              <h3 className="font-semibold text-gray-900">
+                                {friend.first_name} {friend.last_name}
+                              </h3>
+                              <p className="text-sm text-gray-600">Learning partner</p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
           {(teamInvitations.length > 0 || true) && (
             <div className="card mb-6">
               <div className="flex justify-between items-center mb-4">
@@ -354,39 +564,6 @@ const FriendsPage = () => {
             </div>
           )}
 
-          {pendingRequests.length > 0 && (
-            <div className="card mb-6">
-              <h2 className="text-xl font-semibold mb-4">Friend Requests</h2>
-              <div className="space-y-3">
-                {pendingRequests.map(request => (
-                  <div
-                    key={request.friendship_id}
-                    className="flex items-center justify-between p-3 bg-yellow-50 rounded-lg"
-                  >
-                    <div>
-                      <p className="font-medium">
-                        {request.requester.first_name} {request.requester.last_name}
-                      </p>
-                    </div>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => acceptRequest(request.friendship_id)}
-                        className="bg-emerald-500 text-white px-4 py-2 rounded-[20px] text-sm font-semibold hover:bg-emerald-600 hover:-translate-y-0.5 transition-all duration-300"
-                      >
-                        Accept
-                      </button>
-                      <button
-                        onClick={() => declineRequest(request.friendship_id)}
-                        className="bg-red-500 text-white px-4 py-2 rounded-[20px] text-sm font-semibold hover:bg-red-600 hover:-translate-y-0.5 transition-all duration-300"
-                      >
-                        Decline
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {activeCollaborations.length > 0 && (
             <div className="card mb-6">
@@ -418,27 +595,6 @@ const FriendsPage = () => {
             </div>
           )}
 
-          <div className="card">
-            <h2 className="text-xl font-semibold mb-4">My Friends ({friends.length})</h2>
-            {friends.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {friends.map(friend => (
-                  <div
-                    key={friend.id}
-                    className="p-4 bg-background rounded-lg"
-                  >
-                    <p className="font-medium">
-                      {friend.first_name} {friend.last_name}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="text-gray-600">
-                You haven't added any friends yet. Send friend requests to connect with other learners!
-              </p>
-            )}
-          </div>
         </div>
 
         <div>

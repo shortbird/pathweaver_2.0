@@ -50,7 +50,8 @@ def get_friends(user_id):
         
         friends = []
         pending_requests = []
-        
+        sent_requests = []
+
         # Now fetch user data for each friendship
         for friendship in all_friendships:
             print(f"[GET_FRIENDS] Processing friendship: {friendship}")
@@ -62,20 +63,35 @@ def get_friends(user_id):
                 friend_result = admin_supabase.table('users').select('*').eq('id', friend_id).execute()
                 if friend_result.data and len(friend_result.data) > 0:
                     friends.append(friend_result.data[0])
-            elif friendship['status'] == 'pending' and friendship['addressee_id'] == user_id:
-                # Fetch requester's user data for pending requests using admin client
-                requester_result = admin_supabase.table('users').select('*').eq('id', friendship['requester_id']).execute()
-                if requester_result.data and len(requester_result.data) > 0:
-                    pending_requests.append({
-                        'friendship_id': friendship['id'],
-                        'requester': requester_result.data[0]
-                    })
-        
-        print(f"[GET_FRIENDS] Returning {len(friends)} friends and {len(pending_requests)} pending requests")
-        
+            elif friendship['status'] == 'pending':
+                if friendship['addressee_id'] == user_id:
+                    # Incoming pending request - fetch requester's data
+                    requester_result = admin_supabase.table('users').select('*').eq('id', friendship['requester_id']).execute()
+                    if requester_result.data and len(requester_result.data) > 0:
+                        pending_requests.append({
+                            'friendship_id': friendship['id'],
+                            'requester': requester_result.data[0],
+                            'created_at': friendship.get('created_at'),
+                            'updated_at': friendship.get('updated_at')
+                        })
+                elif friendship['requester_id'] == user_id:
+                    # Outgoing pending request - fetch addressee's data
+                    addressee_result = admin_supabase.table('users').select('*').eq('id', friendship['addressee_id']).execute()
+                    if addressee_result.data and len(addressee_result.data) > 0:
+                        sent_requests.append({
+                            'friendship_id': friendship['id'],
+                            'addressee': addressee_result.data[0],
+                            'status': friendship['status'],
+                            'created_at': friendship.get('created_at'),
+                            'updated_at': friendship.get('updated_at')
+                        })
+
+        print(f"[GET_FRIENDS] Returning {len(friends)} friends, {len(pending_requests)} pending requests, and {len(sent_requests)} sent requests")
+
         return jsonify({
             'friends': friends,
-            'pending_requests': pending_requests
+            'pending_requests': pending_requests,
+            'sent_requests': sent_requests
         }), 200
         
     except Exception as e:
@@ -90,6 +106,7 @@ def get_friends(user_id):
                 'success': True,
                 'friends': [],
                 'pending_requests': [],
+                'sent_requests': [],
                 'message': 'Temporarily unable to load friends. Please try again.'
             }), 200
 
@@ -367,22 +384,69 @@ def accept_friend_request(user_id, friendship_id):
 @require_paid_tier
 def decline_friend_request(user_id, friendship_id):
     supabase = get_supabase_client()
-    
+
     try:
         friendship_result = supabase.table('friendships').select('*').eq('id', friendship_id).execute()
         friendship = {'data': friendship_result.data[0] if friendship_result.data else None}
-        
+
         if not friendship['data']:
             return jsonify({'error': 'Friend request not found'}), 404
-        
+
         if friendship['data']['addressee_id'] != user_id and friendship['data']['requester_id'] != user_id:
             return jsonify({'error': 'Unauthorized'}), 403
-        
+
         supabase.table('friendships').delete().eq('id', friendship_id).execute()
-        
+
         return jsonify({'message': 'Friend request declined'}), 200
-        
+
     except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@bp.route('/friends/cancel/<friendship_id>', methods=['DELETE'])
+@require_auth
+@require_paid_tier
+def cancel_friend_request(user_id, friendship_id):
+    supabase = get_supabase_client()
+
+    try:
+        print(f"[CANCEL_FRIEND] User {user_id} attempting to cancel friendship {friendship_id}")
+
+        friendship_result = supabase.table('friendships').select('*').eq('id', friendship_id).execute()
+        friendship = {'data': friendship_result.data[0] if friendship_result.data else None}
+
+        if not friendship['data']:
+            print(f"[CANCEL_FRIEND] Friend request not found for ID: {friendship_id}")
+            return jsonify({'error': 'Friend request not found'}), 404
+
+        # Only the requester can cancel their own request
+        if friendship['data']['requester_id'] != user_id:
+            print(f"[CANCEL_FRIEND] Unauthorized: requester_id {friendship['data']['requester_id']} != user_id {user_id}")
+            return jsonify({'error': 'You can only cancel your own friend requests'}), 403
+
+        # Only pending requests can be cancelled
+        if friendship['data']['status'] != 'pending':
+            print(f"[CANCEL_FRIEND] Status not pending: {friendship['data']['status']}")
+            return jsonify({'error': 'Can only cancel pending friend requests'}), 400
+
+        # Delete the friendship record
+        delete_result = supabase.table('friendships').delete().eq('id', friendship_id).execute()
+
+        print(f"[CANCEL_FRIEND] Delete result: {delete_result}")
+
+        # Try to log activity but don't fail if it doesn't work
+        try:
+            supabase.table('activity_log').insert({
+                'user_id': user_id,
+                'event_type': 'friend_request_cancelled',
+                'event_details': {'addressee_id': friendship['data']['addressee_id']}
+            }).execute()
+        except Exception as log_error:
+            print(f"[CANCEL_FRIEND] Failed to log activity: {log_error}")
+
+        return jsonify({'message': 'Friend request cancelled successfully'}), 200
+
+    except Exception as e:
+        print(f"[CANCEL_FRIEND] Error: {str(e)}")
         return jsonify({'error': str(e)}), 400
 
 @bp.route('/quests/<quest_id>/invite', methods=['POST'])
