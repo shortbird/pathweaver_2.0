@@ -600,21 +600,21 @@ const DiplomaPageV3 = () => {
       {/* Hero Section with Professional Diploma Title */}
       <div className="relative overflow-hidden bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white">
         <div className="absolute inset-0 bg-black opacity-10"></div>
-        <div className="relative max-w-7xl mx-auto px-4 py-16">
+        <div className="relative max-w-7xl mx-auto px-4 py-12">
           <div className="text-center max-w-4xl mx-auto">
-            <div className="mb-4">
-              <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/15 backdrop-blur-sm rounded-full text-white/80 text-sm font-medium mb-4">
+            <div className="mb-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-white/15 backdrop-blur-sm rounded-full text-white/80 text-sm font-medium mb-3">
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M5 13.18v4L12 21l7-3.82v-4L12 17l-7-3.82zM12 3L1 9l11 6 9-4.909V17h2V9L12 3z"/>
                 </svg>
                 Portfolio Diploma
               </div>
             </div>
-            <h1 className="text-5xl font-bold mb-6" style={{ letterSpacing: '-1px' }}>
+            <h1 className="text-4xl font-bold mb-4" style={{ letterSpacing: '-1px' }}>
               {getStudentName()}
             </h1>
-            <div className="text-lg md:text-xl text-white/95 mb-8 leading-relaxed">
-              <p className="mb-2">
+            <div className="text-base md:text-lg text-white/95 mb-6 leading-relaxed">
+              <p className="mb-1">
                 has accepted the responsibility to self-validate their education.
               </p>
               <p className="text-white/80">

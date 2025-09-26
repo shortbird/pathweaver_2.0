@@ -41,11 +41,10 @@ export const queryKeys = {
     questCollaborations: (questId) => [...queryKeys.social.all, 'questCollaborations', questId],
   },
 
-  // Learning logs and evidence
-  learning: {
-    all: ['learning'],
-    logs: (questId) => [...queryKeys.learning.all, 'logs', questId],
-    evidence: (taskId) => [...queryKeys.learning.all, 'evidence', taskId],
+  // Evidence
+  evidence: {
+    all: ['evidence'],
+    task: (taskId) => [...queryKeys.evidence.all, 'task', taskId],
   },
 
   // Admin queries
@@ -103,7 +102,6 @@ export const mutationKeys = {
   sendCollaboration: 'sendCollaboration',
   acceptCollaboration: 'acceptCollaboration',
 
-  // Learning mutations
-  createLearningLog: 'createLearningLog',
+  // Evidence mutations
   uploadEvidence: 'uploadEvidence',
 }

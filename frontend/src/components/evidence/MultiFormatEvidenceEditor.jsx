@@ -13,7 +13,6 @@ const MultiFormatEvidenceEditor = ({
   const [isLoading, setIsLoading] = useState(true);
   const [lastSaved, setLastSaved] = useState(null);
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved', 'saving', 'unsaved'
-  const [showAddMenu, setShowAddMenu] = useState(false);
   const [activeBlock, setActiveBlock] = useState(null);
   const [documentStatus, setDocumentStatus] = useState('draft');
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
@@ -662,50 +661,28 @@ const MultiFormatEvidenceEditor = ({
         </Droppable>
       </DragDropContext>
 
-      {/* Add Block Button */}
+      {/* Content Block Options - Direct Display */}
       <div className="mt-6">
-        {showAddMenu ? (
-          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-lg">
-            <div className="flex items-center justify-between mb-3">
-              <h4 className="text-sm font-semibold text-gray-700">Add Content Block</h4>
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <h4 className="text-sm font-semibold text-gray-700 mb-3">Add Content Block</h4>
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+            {Object.entries(blockTypes).map(([type, config]) => (
               <button
-                onClick={() => setShowAddMenu(false)}
-                className="text-gray-400 hover:text-gray-600"
+                key={type}
+                onClick={() => addBlock(type)}
+                className={`
+                  p-3 rounded-lg border-2 transition-all duration-200 hover:shadow-md
+                  ${config.borderColor} ${config.bgColor} border-opacity-50 hover:border-opacity-100
+                `}
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-2xl">{config.icon}</span>
+                  <span className="text-xs font-medium text-gray-700">{config.label}</span>
+                </div>
               </button>
-            </div>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              {Object.entries(blockTypes).map(([type, config]) => (
-                <button
-                  key={type}
-                  onClick={() => addBlock(type)}
-                  className={`
-                    p-3 rounded-lg border-2 transition-all duration-200 hover:shadow-md
-                    ${config.borderColor} ${config.bgColor} border-opacity-50 hover:border-opacity-100
-                  `}
-                >
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-2xl">{config.icon}</span>
-                    <span className="text-xs font-medium text-gray-700">{config.label}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
+            ))}
           </div>
-        ) : (
-          <button
-            onClick={() => setShowAddMenu(true)}
-            className="w-full p-4 border-2 border-dashed border-gray-300 rounded-xl text-gray-600 hover:border-gray-400 hover:text-gray-700 transition-colors flex items-center justify-center gap-2"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            <span className="font-medium">Add Content Block</span>
-          </button>
-        )}
+        </div>
       </div>
 
       {/* Hidden file input */}

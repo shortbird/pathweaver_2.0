@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Outlet, Link, useNavigate } from 'react-router-dom'
+import { Outlet, Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import { hasFeatureAccess } from '../utils/tierMapping'
@@ -8,9 +8,28 @@ import TutorWidget from './tutor/TutorWidget'
 const Layout = () => {
   const { user, logout, isAuthenticated } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [portfolioSlug, setPortfolioSlug] = React.useState(null)
   const [siteSettings, setSiteSettings] = React.useState(null)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+
+  const isActiveRoute = (path) => {
+    return location.pathname === path || location.pathname.startsWith(path + '/')
+  }
+
+  const getNavLinkClasses = (path) => {
+    const baseClasses = "inline-flex items-center px-1 pt-1 text-sm font-medium transition-colors"
+    return isActiveRoute(path)
+      ? `${baseClasses} text-[#ef597b] border-b-2 border-[#ef597b] font-semibold`
+      : `${baseClasses} text-text-secondary hover:text-primary`
+  }
+
+  const getMobileNavLinkClasses = (path) => {
+    const baseClasses = "block px-6 py-4 text-base font-medium min-h-[44px] flex items-center touch-manipulation transition-colors"
+    return isActiveRoute(path)
+      ? `${baseClasses} text-[#ef597b] bg-purple-50 border-r-4 border-[#ef597b] font-semibold`
+      : `${baseClasses} text-gray-700 hover:text-gray-900 hover:bg-gray-50`
+  }
 
   const handleLogout = async () => {
     await logout()
@@ -106,7 +125,7 @@ const Layout = () => {
                   {user?.role === 'admin' && (
                     <Link
                       to="/admin"
-                      className="inline-flex items-center px-1 pt-1 text-sm font-medium text-text-secondary hover:text-primary transition-colors"
+                      className={getNavLinkClasses('/admin')}
                     >
                       Admin
                     </Link>
@@ -190,28 +209,28 @@ const Layout = () => {
             <div className="pt-2 pb-3 space-y-1">
               <Link
                 to="/dashboard"
-                className="block px-6 py-4 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 min-h-[44px] flex items-center touch-manipulation transition-colors"
+                className={getMobileNavLinkClasses('/dashboard')}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Dashboard
               </Link>
               <Link
                 to="/quests"
-                className="block px-6 py-4 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 min-h-[44px] flex items-center touch-manipulation transition-colors"
+                className={getMobileNavLinkClasses('/quests')}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Quests
               </Link>
               <Link
                 to="/friends"
-                className="block px-6 py-4 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 min-h-[44px] flex items-center touch-manipulation transition-colors"
+                className={getMobileNavLinkClasses('/friends')}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Friends
               </Link>
               <Link
                 to="/diploma"
-                className="block px-6 py-4 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 min-h-[44px] flex items-center touch-manipulation transition-colors"
+                className={getMobileNavLinkClasses('/diploma')}
                 onClick={() => setMobileMenuOpen(false)}
               >
                 My Diploma
@@ -219,7 +238,7 @@ const Layout = () => {
               {user?.role === 'admin' && (
                 <Link
                   to="/admin"
-                  className="block px-6 py-4 text-base font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50 min-h-[44px] flex items-center touch-manipulation transition-colors"
+                  className={getMobileNavLinkClasses('/admin')}
                   onClick={() => setMobileMenuOpen(false)}
                 >
                   Admin

@@ -193,7 +193,6 @@ export const successMessages = {
   'collaboration/sent': 'Team-up invitation sent!',
   'collaboration/accepted': 'Team-up invitation accepted!',
   'evidence/uploaded': 'Evidence uploaded successfully!',
-  'log/saved': 'Learning log saved!',
   'settings/updated': 'Settings updated successfully!'
 };
 

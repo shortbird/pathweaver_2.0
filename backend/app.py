@@ -10,7 +10,7 @@ from routes.settings import settings_bp
 from routes.promo import promo_bp
 
 # Import V3 routes
-from routes import quests_v3, tasks, collaborations, learning_logs_v3, admin_v3, quest_sources, evidence_documents
+from routes import quests_v3, tasks, collaborations, admin_v3, quest_sources, evidence_documents
 from routes.admin import user_management, quest_management, quest_ideas, quest_sources as admin_quest_sources, analytics
 from cors_config import configure_cors
 from middleware.security import security_middleware
@@ -79,7 +79,6 @@ app.register_blueprint(admin_quest_sources.bp)  # /api/v3/admin (blueprint has u
 app.register_blueprint(analytics.bp)  # /api/v3/admin/analytics (blueprint has url_prefix='/api/v3/admin/analytics')
 app.register_blueprint(quest_sources.bp)  # /api/v3/admin/quest-sources (blueprint has url_prefix='/api/v3/admin/quest-sources')
 app.register_blueprint(collaborations.bp)  # /api/v3/collaborations (blueprint has url_prefix='/api/v3/collaborations')
-app.register_blueprint(learning_logs_v3.bp)  # /api/v3/logs (blueprint has url_prefix='/api/v3/logs')
 # Conditionally import and register Quest AI blueprint
 try:
     from routes import quest_ai
