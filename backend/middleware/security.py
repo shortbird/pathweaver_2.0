@@ -54,8 +54,8 @@ class SecurityMiddleware:
         
         # Validate content type for POST/PUT/PATCH requests
         if request.method in ['POST', 'PUT', 'PATCH']:
-            # Skip JSON validation for file uploads, task completions, logout, and collaboration endpoints
-            skip_endpoints = ['upload', 'complete', 'auth.logout', 'collaborations.accept_invitation', 'collaborations.decline_invitation']
+            # Skip JSON validation for file uploads, task completions, logout, refresh, and collaboration endpoints
+            skip_endpoints = ['upload', 'complete', 'auth.logout', 'auth.refresh', 'collaborations.accept_invitation', 'collaborations.decline_invitation']
             should_skip = request.endpoint and any(endpoint in request.endpoint for endpoint in skip_endpoints)
             
             if not should_skip:
