@@ -7,9 +7,11 @@ import { hasFeatureAccess } from '../utils/tierMapping';
 import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import LearningLogSection from '../components/quest/LearningLogSection';
 import TeamUpModal from '../components/quest/TeamUpModal';
+import CollaborationBadge from '../components/ui/CollaborationBadge';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
-import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock } from 'lucide-react';
+import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
+import api, { collaborationAPI } from '../services/api';
 
 const QuestDetailV3 = () => {
   const { id } = useParams();
@@ -27,32 +29,20 @@ const QuestDetailV3 = () => {
   const [expandedTasks, setExpandedTasks] = useState(new Set());
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEnrolling, setIsEnrolling] = useState(false);
+  const [pendingInvite, setPendingInvite] = useState(null);
+  const [isLoadingInvite, setIsLoadingInvite] = useState(false);
 
   useEffect(() => {
     fetchQuestDetails();
+    if (user && hasFeatureAccess(user?.subscription_tier, 'supported')) {
+      fetchQuestCollaborations();
+    }
   }, [id, user]); // Also refetch when user login state changes
 
   const fetchQuestDetails = async () => {
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const token = localStorage.getItem('access_token');
-      const headers = {};
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await fetch(`${apiBase}/api/v3/quests/${id}?t=${Date.now()}`, {
-        headers,
-        cache: 'no-cache' // Ensure fresh data is fetched
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch quest details');
-      }
-
-      const data = await response.json();
-      setQuest(data.quest);
+      const response = await api.get(`/api/v3/quests/${id}?t=${Date.now()}`);
+      setQuest(response.data.quest);
       setError(''); // Clear any previous errors
     } catch (error) {
       const errorMsg = error.response?.status === 404
@@ -67,6 +57,28 @@ const QuestDetailV3 = () => {
     }
   };
 
+  const fetchQuestCollaborations = async () => {
+    if (!user || !id) return;
+
+    setIsLoadingInvite(true);
+    try {
+      const response = await collaborationAPI.getQuestCollaborations(id);
+
+      // Look for a pending received invitation for this quest
+      const receivedInvitations = response.data.received_invitations || [];
+      const pendingReceived = receivedInvitations.find(invite =>
+        invite.quest?.id === id && invite.status === 'pending'
+      );
+
+      setPendingInvite(pendingReceived || null);
+    } catch (error) {
+      console.error('Failed to fetch quest collaborations:', error);
+      // Don't show error to user - this is optional functionality
+    } finally {
+      setIsLoadingInvite(false);
+    }
+  };
+
   const handleEnroll = async () => {
     if (!user) {
       navigate('/login');
@@ -77,25 +89,12 @@ const QuestDetailV3 = () => {
     
     setIsEnrolling(true);
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/api/v3/quests/${id}/enroll`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const data = await response.json();
-      handleApiResponse(response, data, 'Failed to enroll');
-
-      if (response.ok) {
-        toast.success('Successfully enrolled in quest!');
-        // Force refresh immediately to update state
-        setIsRefreshing(true);
-        await fetchQuestDetails();
-        setIsRefreshing(false);
-      }
+      const response = await api.post(`/api/v3/quests/${id}/enroll`);
+      toast.success('Successfully enrolled in quest!');
+      // Force refresh immediately to update state
+      setIsRefreshing(true);
+      await fetchQuestDetails();
+      setIsRefreshing(false);
     } catch (error) {
       toast.error('Failed to enroll in quest');
     } finally {
@@ -108,21 +107,9 @@ const QuestDetailV3 = () => {
 
     if (window.confirm('Are you sure you want to finish this quest? This will end your active enrollment and save your progress.')) {
       try {
-        const apiBase = import.meta.env.VITE_API_URL || '';
-        const response = await fetch(`${apiBase}/api/v3/quests/${id}/end`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-            'Content-Type': 'application/json'
-          }
-        });
-
-        if (response.ok) {
-          toast.success('Quest finished successfully!');
-          navigate('/diploma'); // Navigate to diploma to show achievement
-        } else {
-          throw new Error('Failed to end quest');
-        }
+        await api.post(`/api/v3/quests/${id}/end`);
+        toast.success('Quest finished successfully!');
+        navigate('/diploma'); // Navigate to diploma to show achievement
       } catch (error) {
         toast.error('Failed to finish quest');
       }
@@ -168,11 +155,41 @@ const QuestDetailV3 = () => {
     if (inviteData?.message) {
       toast.success(inviteData.message);
     }
-    
+
     // Refresh quest details to show any new collaboration status
     try {
       await fetchQuestDetails();
+      await fetchQuestCollaborations();
     } catch (error) {
+    }
+  };
+
+  const handleAcceptInvite = async (inviteId) => {
+    try {
+      await collaborationAPI.acceptInvite(inviteId);
+      toast.success('Team-up invitation accepted! You now earn 2x XP on this quest.');
+
+      // Refresh both quest details and collaboration status
+      await Promise.all([
+        fetchQuestDetails(),
+        fetchQuestCollaborations()
+      ]);
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || 'Failed to accept invitation';
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleDeclineInvite = async (inviteId) => {
+    try {
+      await collaborationAPI.declineInvite(inviteId);
+      toast.success('Team-up invitation declined.');
+
+      // Refresh collaboration status
+      await fetchQuestCollaborations();
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || 'Failed to decline invitation';
+      toast.error(errorMessage);
     }
   };
 
@@ -334,6 +351,46 @@ const QuestDetailV3 = () => {
           </div>
         </div>
       </div>
+
+      {/* Team-up Invitation Banner */}
+      {pendingInvite && (
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-6 mb-6">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="flex items-center mb-3">
+                <UserPlus className="w-6 h-6 text-purple-600 mr-3" />
+                <h3 className="text-lg font-bold text-purple-900">Team-up Invitation</h3>
+                <CollaborationBadge status="pending" className="ml-3" />
+              </div>
+              <p className="text-purple-800 mb-4">
+                <span className="font-medium">
+                  {pendingInvite.sender?.first_name} {pendingInvite.sender?.last_name}
+                </span>
+                {' '}has invited you to team up on this quest! Work together and earn double XP for all tasks.
+              </p>
+              {pendingInvite.message && (
+                <div className="bg-white/50 rounded-lg p-3 mb-4">
+                  <p className="text-purple-700 text-sm italic">"{pendingInvite.message}"</p>
+                </div>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-3">
+            <button
+              onClick={() => handleAcceptInvite(pendingInvite.id)}
+              className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-300 font-medium"
+            >
+              Accept & Team Up
+            </button>
+            <button
+              onClick={() => handleDeclineInvite(pendingInvite.id)}
+              className="px-6 py-3 bg-white text-red-600 border-2 border-red-200 rounded-lg hover:bg-red-50 hover:border-red-300 transition-all duration-300 font-medium"
+            >
+              Decline
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* 2. Quest Metadata Strip */}
       <div className="bg-white rounded-xl shadow-md p-4 mb-6">

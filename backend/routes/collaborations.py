@@ -168,77 +168,127 @@ def send_collaboration_invite(user_id: str):
 @bp.route('/invites', methods=['GET'])
 @require_auth
 @require_paid_tier
-def get_pending_invites(user_id: str):
+def get_all_invites(user_id: str):
     """
-    Get all pending team-up invitations for the current user.
+    Get all team-up invitations for the current user (received and sent).
     """
     try:
         supabase = get_supabase_client()
-        
+
         print(f"Fetching invitations for user: {user_id}")
-        
-        # Get invitations where user is the partner
-        invitations = supabase.table('quest_collaborations')\
-            .select('*')\
-            .eq('partner_id', user_id)\
-            .eq('status', 'pending')\
-            .order('created_at', desc=True)\
-            .execute()
-        
-        print(f"Found {len(invitations.data or [])} pending invitations")
-        
-        if not invitations.data:
+
+        # Get all invitations where user is either partner or requester
+        try:
+            all_invitations = supabase.table('quest_collaborations')\
+                .select('*')\
+                .or_(f'partner_id.eq.{user_id},requester_id.eq.{user_id}')\
+                .order('created_at', desc=True)\
+                .execute()
+        except Exception as db_error:
+            print(f"Database error getting invitations: {str(db_error)}")
+            # Fallback to separate queries
+            received_invitations = supabase.table('quest_collaborations')\
+                .select('*')\
+                .eq('partner_id', user_id)\
+                .order('created_at', desc=True)\
+                .execute()
+
+            sent_invitations = supabase.table('quest_collaborations')\
+                .select('*')\
+                .eq('requester_id', user_id)\
+                .order('created_at', desc=True)\
+                .execute()
+
+            # Combine results
+            all_invitations_data = (received_invitations.data or []) + (sent_invitations.data or [])
+            all_invitations = type('MockResponse', (), {'data': all_invitations_data})()
+
+        print(f"Found {len(all_invitations.data or [])} total invitations")
+
+        if not all_invitations.data:
             return jsonify({
                 'success': True,
                 'invitations': [],
-                'message': 'No pending invitations'
+                'sent_invitations': [],
+                'message': 'No invitations'
             })
-        
-        # Format invitations for display - fetch related data separately
-        formatted_invites = []
-        for invite in invitations.data:
+
+        # Separate and format invitations
+        formatted_received = []
+        formatted_sent = []
+
+        for invite in all_invitations.data:
             # Get quest details
             quest = supabase.table('quests')\
                 .select('id, title, header_image_url')\
                 .eq('id', invite['quest_id'])\
                 .single()\
                 .execute()
-            
-            # Get requester details - ensure user exists first
-            requester_data = ensure_user_exists(invite['requester_id'])
-            
-            if requester_data:
-                requester_info = {
-                    'id': invite['requester_id'],
-                    'first_name': requester_data.get('first_name', 'User'),
-                    'last_name': requester_data.get('last_name', 'Account'),
-                    'avatar_url': requester_data.get('avatar_url')
-                }
-            else:
-                # Fallback if user can't be found/created
-                requester_info = {
-                    'id': invite['requester_id'],
-                    'first_name': 'User',
-                    'last_name': 'Account',
-                    'avatar_url': None
-                }
-            
-            formatted_invites.append({
-                'id': invite['id'],
-                'quest': quest.data if quest.data else None,
-                'requester': requester_info,
-                'created_at': invite['created_at'],
-                'status': invite['status']
-            })
-        
+
+            if invite['partner_id'] == user_id:
+                # This is a received invitation
+                requester_data = ensure_user_exists(invite['requester_id'])
+
+                if requester_data:
+                    requester_info = {
+                        'id': invite['requester_id'],
+                        'first_name': requester_data.get('first_name', 'User'),
+                        'last_name': requester_data.get('last_name', 'Account'),
+                        'avatar_url': requester_data.get('avatar_url')
+                    }
+                else:
+                    requester_info = {
+                        'id': invite['requester_id'],
+                        'first_name': 'User',
+                        'last_name': 'Account',
+                        'avatar_url': None
+                    }
+
+                formatted_received.append({
+                    'id': invite['id'],
+                    'quest': quest.data if quest.data else None,
+                    'requester': requester_info,
+                    'created_at': invite['created_at'],
+                    'status': invite['status']
+                })
+
+            elif invite['requester_id'] == user_id:
+                # This is a sent invitation
+                partner_data = ensure_user_exists(invite['partner_id'])
+
+                if partner_data:
+                    partner_info = {
+                        'id': invite['partner_id'],
+                        'first_name': partner_data.get('first_name', 'User'),
+                        'last_name': partner_data.get('last_name', 'Account'),
+                        'avatar_url': partner_data.get('avatar_url')
+                    }
+                else:
+                    partner_info = {
+                        'id': invite['partner_id'],
+                        'first_name': 'User',
+                        'last_name': 'Account',
+                        'avatar_url': None
+                    }
+
+                formatted_sent.append({
+                    'id': invite['id'],
+                    'quest': quest.data if quest.data else None,
+                    'partner': partner_info,
+                    'created_at': invite['created_at'],
+                    'status': invite['status']
+                })
+
         return jsonify({
             'success': True,
-            'invitations': formatted_invites,
-            'total': len(formatted_invites)
+            'invitations': formatted_received,  # Received invitations (backward compatibility)
+            'sent_invitations': formatted_sent,  # Sent invitations
+            'total_received': len(formatted_received),
+            'total_sent': len(formatted_sent)
         })
-        
+
     except Exception as e:
-        print(f"Error getting pending invites: {str(e)}")
+        print(f"Error getting invitations: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch invitations'
@@ -409,6 +459,179 @@ def decline_invitation(user_id: str, invite_id: str):
         return jsonify({
             'success': False,
             'error': 'Failed to decline invitation'
+        }), 500
+
+@bp.route('/<invite_id>/cancel', methods=['DELETE'])
+@require_auth
+@require_paid_tier
+def cancel_invitation(user_id: str, invite_id: str):
+    """
+    Cancel a team-up invitation that the user sent.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        print(f"User {user_id} attempting to cancel invitation {invite_id}")
+
+        # Get the invitation
+        invitation = supabase.table('quest_collaborations')\
+            .select('id, requester_id, status')\
+            .eq('id', invite_id)\
+            .eq('requester_id', user_id)\
+            .single()\
+            .execute()
+
+        if not invitation.data:
+            print(f"Invitation not found or unauthorized for ID: {invite_id}")
+            return jsonify({
+                'success': False,
+                'error': 'Invitation not found or you can only cancel your own invitations'
+            }), 404
+
+        # Only pending invitations can be cancelled
+        if invitation.data['status'] != 'pending':
+            print(f"Invitation status is not pending: {invitation.data['status']}")
+            return jsonify({
+                'success': False,
+                'error': 'Can only cancel pending invitations'
+            }), 400
+
+        # Delete the invitation record
+        deleted = supabase.table('quest_collaborations')\
+            .delete()\
+            .eq('id', invite_id)\
+            .execute()
+
+        print(f"Delete result: {deleted}")
+
+        if not deleted.data:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to cancel invitation'
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'message': 'Team-up invitation cancelled successfully'
+        })
+
+    except Exception as e:
+        print(f"Error cancelling invitation: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to cancel invitation'
+        }), 500
+
+@bp.route('/quest/<quest_id>', methods=['GET'])
+@require_auth
+@require_paid_tier
+def get_quest_invitations(user_id: str, quest_id: str):
+    """
+    Get invitations and collaborations for a specific quest.
+    Returns pending invitations for the user and active collaborators.
+    """
+    try:
+        supabase = get_supabase_client()
+
+        print(f"Getting quest invitations for user {user_id} on quest {quest_id}")
+
+        # Get any pending invitation for this user to this quest
+        pending_invitation = supabase.table('quest_collaborations')\
+            .select('*')\
+            .eq('quest_id', quest_id)\
+            .eq('partner_id', user_id)\
+            .eq('status', 'pending')\
+            .execute()
+
+        # Get any active collaboration for this user on this quest
+        active_collaboration = supabase.table('quest_collaborations')\
+            .select('*')\
+            .eq('quest_id', quest_id)\
+            .eq('status', 'accepted')\
+            .or_(f'partner_id.eq.{user_id},requester_id.eq.{user_id}')\
+            .execute()
+
+        # Get all active collaborators for this quest (for display)
+        all_collaborators = supabase.table('quest_collaborations')\
+            .select('requester_id, partner_id')\
+            .eq('quest_id', quest_id)\
+            .eq('status', 'accepted')\
+            .execute()
+
+        # Format pending invitation if exists
+        formatted_invitation = None
+        if pending_invitation.data:
+            invite = pending_invitation.data[0]
+            # Get requester info
+            requester_data = ensure_user_exists(invite['requester_id'])
+            if requester_data:
+                requester_info = {
+                    'id': invite['requester_id'],
+                    'first_name': requester_data.get('first_name', 'User'),
+                    'last_name': requester_data.get('last_name', 'Account'),
+                    'avatar_url': requester_data.get('avatar_url')
+                }
+            else:
+                requester_info = {
+                    'id': invite['requester_id'],
+                    'first_name': 'User',
+                    'last_name': 'Account',
+                    'avatar_url': None
+                }
+
+            formatted_invitation = {
+                'id': invite['id'],
+                'requester': requester_info,
+                'created_at': invite['created_at'],
+                'status': invite['status']
+            }
+
+        # Format active collaboration if exists
+        formatted_collaboration = None
+        if active_collaboration.data:
+            collab = active_collaboration.data[0]
+            partner_id = collab['partner_id'] if collab['requester_id'] == user_id else collab['requester_id']
+
+            partner_data = ensure_user_exists(partner_id)
+            if partner_data:
+                partner_info = {
+                    'id': partner_id,
+                    'first_name': partner_data.get('first_name', 'User'),
+                    'last_name': partner_data.get('last_name', 'Account'),
+                    'avatar_url': partner_data.get('avatar_url')
+                }
+            else:
+                partner_info = {
+                    'id': partner_id,
+                    'first_name': 'User',
+                    'last_name': 'Account',
+                    'avatar_url': None
+                }
+
+            formatted_collaboration = {
+                'id': collab['id'],
+                'partner': partner_info,
+                'accepted_at': collab.get('accepted_at'),
+                'role': 'requester' if collab['requester_id'] == user_id else 'partner'
+            }
+
+        # Count total collaborators on this quest
+        collaborator_count = len(all_collaborators.data or []) * 2  # Each collaboration involves 2 people
+
+        return jsonify({
+            'success': True,
+            'quest_id': quest_id,
+            'pending_invitation': formatted_invitation,
+            'active_collaboration': formatted_collaboration,
+            'total_collaborators': collaborator_count,
+            'has_team_up_available': formatted_invitation is not None or formatted_collaboration is not None
+        })
+
+    except Exception as e:
+        print(f"Error getting quest invitations: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch quest collaborations'
         }), 500
 
 @bp.route('/active', methods=['GET'])

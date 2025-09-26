@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { handleApiResponse } from '../../utils/errorHandling';
-import api from '../../services/api';
+import { friendsAPI, collaborationAPI } from '../../services/api';
+import CollaborationBadge from '../ui/CollaborationBadge';
+import toast from 'react-hot-toast';
 
 const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
   const navigate = useNavigate();
   const [friends, setFriends] = useState([]);
   const [invitedFriends, setInvitedFriends] = useState(new Set());
+  const [collaborationStatus, setCollaborationStatus] = useState(new Map()); // Track collaboration status per friend
   const [sendingInvite, setSendingInvite] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -33,14 +36,59 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
   }
 
   useEffect(() => {
-    fetchFriends();
+    fetchFriendsAndCollaborations();
   }, []);
 
-  const fetchFriends = async () => {
+  const fetchFriendsAndCollaborations = async () => {
     try {
-      const response = await api.get('/api/community/friends');
-      setFriends(response.data.friends || []);
+      // Fetch friends and collaboration data in parallel
+      const [friendsResponse, collaborationsResponse] = await Promise.all([
+        friendsAPI.getFriends(),
+        collaborationAPI.getInvites()
+      ]);
+
+      const friendsList = friendsResponse.data.friends || [];
+      setFriends(friendsList);
+
+      // Build collaboration status map
+      const statusMap = new Map();
+      const invitedSet = new Set();
+
+      // Process sent invitations for this quest
+      if (collaborationsResponse.data.sent_invitations) {
+        collaborationsResponse.data.sent_invitations
+          .filter(invite => invite.quest?.id === quest.id)
+          .forEach(invite => {
+            statusMap.set(invite.partner.id, {
+              status: invite.status,
+              inviteId: invite.id,
+              type: 'sent'
+            });
+            if (invite.status === 'pending') {
+              invitedSet.add(invite.partner.id);
+            }
+          });
+      }
+
+      // Process active collaborations
+      const activeResponse = await collaborationAPI.getActive();
+      if (activeResponse.data.collaborations) {
+        activeResponse.data.collaborations
+          .filter(collab => collab.quest?.id === quest.id)
+          .forEach(collab => {
+            statusMap.set(collab.partner.id, {
+              status: 'accepted',
+              collaborationId: collab.id,
+              type: 'active'
+            });
+          });
+      }
+
+      setCollaborationStatus(statusMap);
+      setInvitedFriends(invitedSet);
+
     } catch (error) {
+      console.error('Failed to load friends and collaborations:', error);
       setError('Failed to load friends list');
     } finally {
       setIsLoading(false);
@@ -52,27 +100,77 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
     setError('');
 
     try {
-      const response = await api.post('/api/v3/collaborations/invite', {
-        quest_id: quest.id,
-        friend_id: friend.id
-      });
+      const response = await collaborationAPI.sendInvite(quest.id, friend.id);
 
-      // Mark friend as invited
+      // Mark friend as invited and update collaboration status
       setInvitedFriends(prev => new Set([...prev, friend.id]));
+      setCollaborationStatus(prev => new Map(prev).set(friend.id, {
+        status: 'pending',
+        type: 'sent'
+      }));
 
       // Show success message
-      const friendName = friend.username || `${friend.first_name} ${friend.last_name}`;
-      onInviteSent({
-        friend: friend,
-        quest: quest,
-        message: response.data.message || `Invitation sent to ${friendName}!`
-      });
+      const friendName = `${friend.first_name} ${friend.last_name}`;
+      toast.success(`Team-up invitation sent to ${friendName}!`);
+
+      if (onInviteSent) {
+        onInviteSent({
+          friend: friend,
+          quest: quest,
+          message: response.data.message || `Invitation sent to ${friendName}!`
+        });
+      }
 
     } catch (error) {
       const errorMessage = error.response?.data?.error || error.message || 'Failed to send invitation';
       setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setSendingInvite(null);
+    }
+  };
+
+  const getButtonState = (friend) => {
+    const status = collaborationStatus.get(friend.id);
+
+    if (!status) {
+      return {
+        disabled: false,
+        text: 'Invite to Team Up',
+        style: 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white',
+        action: () => handleSendInvite(friend)
+      };
+    }
+
+    switch (status.status) {
+      case 'pending':
+        return {
+          disabled: true,
+          text: 'Invitation Sent',
+          style: 'bg-yellow-100 text-yellow-800',
+          action: null
+        };
+      case 'accepted':
+        return {
+          disabled: true,
+          text: 'Already Teamed Up',
+          style: 'bg-green-100 text-green-800',
+          action: null
+        };
+      case 'declined':
+        return {
+          disabled: false,
+          text: 'Re-invite',
+          style: 'bg-blue-100 text-blue-800 hover:bg-blue-200',
+          action: () => handleSendInvite(friend)
+        };
+      default:
+        return {
+          disabled: false,
+          text: 'Invite to Team Up',
+          style: 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white',
+          action: () => handleSendInvite(friend)
+        };
     }
   };
 
@@ -155,42 +253,42 @@ const TeamUpModal = ({ quest, onClose, onInviteSent }) => {
                   <p className="text-center text-gray-500 py-4">No friends found</p>
                 ) : (
                   <div className="space-y-2">
-                    {filteredFriends.map(friend => (
-                      <div
-                        key={friend.id}
-                        className="flex items-center p-3 rounded-lg border border-gray-200 hover:border-purple-300 transition-all"
-                      >
-                        <div className="flex items-center flex-1">
-                          <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-bold">
-                            {friend.username?.[0]?.toUpperCase() || friend.first_name?.[0]?.toUpperCase() || '?'}
+                    {filteredFriends.map(friend => {
+                      const buttonState = getButtonState(friend);
+                      const collaborationInfo = collaborationStatus.get(friend.id);
+
+                      return (
+                        <div
+                          key={friend.id}
+                          className="flex items-center p-3 rounded-lg border border-gray-200 hover:border-purple-300 transition-all"
+                        >
+                          <div className="flex items-center flex-1">
+                            <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-bold">
+                              {friend.first_name?.[0]?.toUpperCase() || '?'}
+                            </div>
+                            <div className="ml-3">
+                              <p className="font-medium text-gray-900">
+                                {`${friend.first_name} ${friend.last_name}`}
+                              </p>
+                              {collaborationInfo && (
+                                <CollaborationBadge
+                                  status={collaborationInfo.status}
+                                  showXpBonus={collaborationInfo.status === 'accepted'}
+                                  className="mt-1"
+                                />
+                              )}
+                            </div>
                           </div>
-                          <div className="ml-3">
-                            <p className="font-medium text-gray-900">
-                              {friend.username || `${friend.first_name} ${friend.last_name}`}
-                            </p>
-                            {friend.total_xp && (
-                              <p className="text-xs text-gray-500">{friend.total_xp} XP</p>
-                            )}
-                          </div>
-                        </div>
-                        {invitedFriends.has(friend.id) ? (
-                          <span className="text-green-600 text-sm font-medium flex items-center">
-                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                            </svg>
-                            Invited
-                          </span>
-                        ) : (
                           <button
-                            onClick={() => handleSendInvite(friend)}
-                            disabled={sendingInvite === friend.id}
-                            className="px-4 py-1.5 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                            onClick={buttonState.action}
+                            disabled={buttonState.disabled || sendingInvite === friend.id}
+                            className={`px-4 py-1.5 text-sm rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${buttonState.style}`}
                           >
-                            {sendingInvite === friend.id ? 'Inviting...' : 'Invite to Quest'}
+                            {sendingInvite === friend.id ? 'Inviting...' : buttonState.text}
                           </button>
-                        )}
-                      </div>
-                    ))}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>

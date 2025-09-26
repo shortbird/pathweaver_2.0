@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { friendsAPI } from '../services/api'
+import { friendsAPI, collaborationAPI } from '../services/api'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
 import { hasFeatureAccess } from '../utils/tierMapping'
 import StatusBadge from '../components/ui/StatusBadge'
-import { UserPlusIcon, ClockIcon, CheckCircleIcon } from '@heroicons/react/24/outline'
+import CollaborationBadge from '../components/ui/CollaborationBadge'
+import { UserPlusIcon, ClockIcon, CheckCircleIcon, UsersIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline'
 
 const FriendsPage = () => {
   const navigate = useNavigate();
@@ -15,6 +16,7 @@ const FriendsPage = () => {
   const [pendingRequests, setPendingRequests] = useState([])
   const [sentRequests, setSentRequests] = useState([])
   const [teamInvitations, setTeamInvitations] = useState([])
+  const [sentTeamInvitations, setSentTeamInvitations] = useState([])
   const [activeCollaborations, setActiveCollaborations] = useState([])
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(true)
@@ -159,11 +161,13 @@ const FriendsPage = () => {
 
   const fetchTeamInvitations = async () => {
     try {
-      const response = await api.get('/api/v3/collaborations/invites')
-      setTeamInvitations(response.data.invitations || [])
-      if (response.data.invitations && response.data.invitations.length > 0) {
-      }
+      const response = await collaborationAPI.getInvites()
+
+      // Separate received and sent invitations
+      setTeamInvitations(response.data.received_invitations || [])
+      setSentTeamInvitations(response.data.sent_invitations || [])
     } catch (error) {
+      console.error('Failed to fetch team invitations:', error)
     }
   }
 
@@ -177,7 +181,7 @@ const FriendsPage = () => {
 
   const acceptTeamInvite = async (inviteId, questId) => {
     try {
-      await api.post(`/api/v3/collaborations/${inviteId}/accept`, {})
+      await collaborationAPI.acceptInvite(inviteId)
       toast.success('Team invitation accepted! You\'ll earn 2x XP together!')
       fetchTeamInvitations()
       fetchActiveCollaborations()
@@ -192,11 +196,21 @@ const FriendsPage = () => {
 
   const declineTeamInvite = async (inviteId) => {
     try {
-      await api.post(`/api/v3/collaborations/${inviteId}/decline`, {})
+      await collaborationAPI.declineInvite(inviteId)
       toast.success('Team invitation declined')
       fetchTeamInvitations()
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to decline team invitation')
+    }
+  }
+
+  const cancelTeamInvite = async (inviteId) => {
+    try {
+      await collaborationAPI.cancelInvite(inviteId)
+      toast.success('Team invitation cancelled')
+      fetchTeamInvitations()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to cancel team invitation')
     }
   }
 
@@ -373,6 +387,22 @@ const FriendsPage = () => {
                 onClick={setActiveTab}
                 icon={CheckCircleIcon}
               />
+              <TabButton
+                id="team-invites"
+                label="Team Invites"
+                count={teamInvitations.length}
+                isActive={activeTab === 'team-invites'}
+                onClick={setActiveTab}
+                icon={UsersIcon}
+              />
+              <TabButton
+                id="sent-team-invites"
+                label="Sent Invites"
+                count={sentTeamInvitations.length}
+                isActive={activeTab === 'sent-team-invites'}
+                onClick={setActiveTab}
+                icon={PaperAirplaneIcon}
+              />
             </div>
 
             {/* Tab Content */}
@@ -502,67 +532,125 @@ const FriendsPage = () => {
                   )}
                 </div>
               )}
+
+              {activeTab === 'team-invites' && (
+                <div>
+                  {teamInvitations.length === 0 ? (
+                    <div className="text-center py-8">
+                      <UsersIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-600">No pending team-up invitations</p>
+                      <p className="text-sm text-gray-500 mt-1">When friends invite you to team up on quests, they'll appear here</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {teamInvitations.map(invite => (
+                        <div key={invite.id} className="p-4 bg-gradient-to-r from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white font-bold">
+                                {invite.sender?.first_name?.[0]?.toUpperCase() || '?'}
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-gray-900">
+                                  {invite.sender?.first_name} {invite.sender?.last_name}
+                                </h3>
+                                <p className="text-sm text-purple-700 mt-1">
+                                  Quest: {invite.quest?.title}
+                                </p>
+                                <CollaborationBadge status={invite.status} showXpBonus={false} className="mt-1" />
+                                <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                  <ClockIcon className="w-3 h-3" />
+                                  <span>{formatTimeAgo(invite.created_at)}</span>
+                                </div>
+                                {invite.message && (
+                                  <p className="text-xs text-gray-600 mt-2 italic">"{invite.message}"</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => acceptTeamInvite(invite.id, invite.quest?.id)}
+                                className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-full text-sm font-semibold hover:shadow-lg transition-all duration-300"
+                              >
+                                Accept
+                              </button>
+                              <button
+                                onClick={() => declineTeamInvite(invite.id)}
+                                className="bg-gray-100 text-gray-700 px-4 py-2 rounded-full text-sm font-medium hover:bg-gray-200 transition-colors"
+                              >
+                                Decline
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'sent-team-invites' && (
+                <div>
+                  {sentTeamInvitations.length === 0 ? (
+                    <div className="text-center py-8">
+                      <PaperAirplaneIcon className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                      <p className="text-gray-600">No sent team-up invitations</p>
+                      <p className="text-sm text-gray-500 mt-1">Team-up invitations you send will be tracked here</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {sentTeamInvitations.map(invite => (
+                        <div key={invite.id} className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start gap-3">
+                              <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-purple-400 rounded-full flex items-center justify-center text-white font-bold">
+                                {invite.partner?.first_name?.[0]?.toUpperCase() || '?'}
+                              </div>
+                              <div>
+                                <h3 className="font-semibold text-gray-900">
+                                  {invite.partner?.first_name} {invite.partner?.last_name}
+                                </h3>
+                                <p className="text-sm text-blue-700 mt-1">
+                                  Quest: {invite.quest?.title}
+                                </p>
+                                <CollaborationBadge status={invite.status} showXpBonus={false} className="mt-1" />
+                                <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">
+                                  <ClockIcon className="w-3 h-3" />
+                                  <span>Sent {formatTimeAgo(invite.created_at)}</span>
+                                </div>
+                                {invite.message && (
+                                  <p className="text-xs text-gray-600 mt-2 italic">"{invite.message}"</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex gap-2">
+                              {invite.status === 'pending' && (
+                                <button
+                                  onClick={() => cancelTeamInvite(invite.id)}
+                                  className="text-red-600 hover:text-red-800 text-sm font-medium px-3 py-1 hover:bg-red-50 rounded transition-colors"
+                                >
+                                  Cancel
+                                </button>
+                              )}
+                              {invite.status === 'accepted' && (
+                                <button
+                                  onClick={() => navigate(`/quests/${invite.quest?.id}`)}
+                                  className="bg-green-600 text-white px-4 py-2 rounded-full text-sm font-medium hover:bg-green-700 transition-colors"
+                                >
+                                  View Quest
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 
-          {(teamInvitations.length > 0 || true) && (
-            <div className="card mb-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">Team-Up Invitations</h2>
-                <button
-                  onClick={() => {
-                    fetchTeamInvitations();
-                    toast.success('Refreshed invitations');
-                  }}
-                  className="text-sm bg-purple-100 text-primary px-3 py-1 rounded-full font-semibold hover:bg-purple-200 transition-colors"
-                >
-                  Refresh
-                </button>
-              </div>
-              <div className="space-y-3">
-                {teamInvitations.length === 0 ? (
-                  <p className="text-gray-500 text-center py-4">
-                    No pending team invitations
-                  </p>
-                ) : (
-                  teamInvitations.map(invite => (
-                  <div
-                    key={invite.id}
-                    className="p-4 bg-purple-50 border border-purple-200 rounded-lg"
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <p className="font-medium text-purple-900">
-                          {invite.requester.first_name} {invite.requester.last_name} invited you to team up!
-                        </p>
-                        <p className="text-sm text-purple-700 mt-1">
-                          Quest: {invite.quest.title}
-                        </p>
-                        <p className="text-xs text-purple-600 mt-2">
-                          🎯 Complete together for 2x XP bonus
-                        </p>
-                      </div>
-                      <div className="flex gap-2 ml-4">
-                        <button
-                          onClick={() => acceptTeamInvite(invite.id, invite.quest.id)}
-                          className="bg-primary text-white px-4 py-2 rounded-[20px] text-sm font-semibold hover:bg-primary-dark hover:-translate-y-0.5 transition-all duration-300"
-                        >
-                          Accept
-                        </button>
-                        <button
-                          onClick={() => declineTeamInvite(invite.id)}
-                          className="bg-gray-600 text-white px-3 py-1 rounded text-sm hover:bg-gray-700"
-                        >
-                          Decline
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                ))
-                )}
-              </div>
-            </div>
-          )}
 
 
           {activeCollaborations.length > 0 && (
