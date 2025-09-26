@@ -10,6 +10,7 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
 from datetime import datetime, timedelta
 import json
+import sys
 
 bp = Blueprint('admin_analytics', __name__, url_prefix='/api/v3/admin/analytics')
 
@@ -88,7 +89,7 @@ def get_overview_metrics(user_id):
         })
 
     except Exception as e:
-        print(f"Error getting overview metrics: {str(e)}")
+        print(f"Error getting overview metrics: {str(e)}", file=sys.stderr, flush=True)
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve overview metrics'
@@ -158,7 +159,7 @@ def get_recent_activity(user_id):
         })
 
     except Exception as e:
-        print(f"Error getting recent activity: {str(e)}")
+        print(f"Error getting recent activity: {str(e)}", file=sys.stderr, flush=True)
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve recent activity'
@@ -217,11 +218,11 @@ def get_trends_data(user_id):
 
         # Get XP distribution by pillar (aggregated approach)
         pillar_totals = {
-            'STEM & Logic': 0,
-            'Life & Wellness': 0,
-            'Language & Communication': 0,
-            'Society & Culture': 0,
-            'Arts & Creativity': 0
+            'STEM and Logic': 0,
+            'Life and Wellness': 0,
+            'Language and Communication': 0,
+            'Society and Culture': 0,
+            'Arts and Creativity': 0
         }
 
         # Get all XP records and aggregate them client-side to avoid URL encoding issues
@@ -238,21 +239,28 @@ def get_trends_data(user_id):
                     pillar_totals[pillar] += xp_amount
 
         except Exception as e:
-            print(f"Error getting XP data: {e}")
+            print(f"Error getting XP data: {e}", file=sys.stderr, flush=True)
             # Keep default zeros if there's an error
 
-        # Get most popular quests (by completion count)
-        popular_quests_query = supabase.table('quest_task_completions')\
-            .select('quests!inner(id, title), count:id', count='exact')\
-            .group_by('quests.id, quests.title')\
-            .order('count', desc=True)\
-            .limit(5)
-
+        # Get most popular quests (by completion count) - use client-side aggregation
         try:
-            popular_quests = popular_quests_query.execute()
-            popular_quests_data = popular_quests.data or []
-        except:
-            # If the query fails, provide empty data
+            all_completions = supabase.table('quest_task_completions')\
+                .select('quests!inner(id, title)')\
+                .execute()
+
+            # Count completions per quest on client side
+            quest_counts = {}
+            for completion in all_completions.data or []:
+                quest_id = completion['quests']['id']
+                quest_title = completion['quests']['title']
+                if quest_id not in quest_counts:
+                    quest_counts[quest_id] = {'id': quest_id, 'title': quest_title, 'count': 0}
+                quest_counts[quest_id]['count'] += 1
+
+            # Sort by count and take top 5
+            popular_quests_data = sorted(quest_counts.values(), key=lambda x: x['count'], reverse=True)[:5]
+        except Exception as e:
+            print(f"Error getting popular quests: {e}", file=sys.stderr, flush=True)
             popular_quests_data = []
 
         return jsonify({
@@ -270,7 +278,7 @@ def get_trends_data(user_id):
         })
 
     except Exception as e:
-        print(f"Error getting trends data: {str(e)}")
+        print(f"Error getting trends data: {str(e)}", file=sys.stderr, flush=True)
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve trends data'
@@ -354,7 +362,7 @@ def get_system_health(user_id):
         })
 
     except Exception as e:
-        print(f"Error getting system health: {str(e)}")
+        print(f"Error getting system health: {str(e)}", file=sys.stderr, flush=True)
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve system health'

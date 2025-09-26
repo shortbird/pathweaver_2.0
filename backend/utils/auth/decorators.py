@@ -1,5 +1,6 @@
 """Authentication decorators"""
 
+import sys
 from functools import wraps
 from flask import request, jsonify
 from database import get_authenticated_supabase_client
@@ -63,7 +64,7 @@ def require_admin(f):
         except (AuthenticationError, AuthorizationError):
             raise
         except Exception as e:
-            print(f"Error verifying admin status: {str(e)}")
+            print(f"Error verifying admin status: {str(e)}", file=sys.stderr, flush=True)
             raise AuthorizationError('Failed to verify admin status')
 
     return decorated_function
@@ -102,7 +103,7 @@ def require_role(*allowed_roles):
             except (AuthenticationError, AuthorizationError):
                 raise
             except Exception as e:
-                print(f"Error verifying user role: {str(e)}")
+                print(f"Error verifying user role: {str(e)}", file=sys.stderr, flush=True)
                 raise AuthorizationError('Failed to verify user role')
 
         return decorated_function
@@ -142,7 +143,6 @@ def require_paid_tier(f):
             # Database schema: ['explorer', 'creator', 'visionary', 'enterprise'] plus legacy values
             # Where: creator/premium = Supported tier, visionary/enterprise = Academy tier
             allowed_tiers = ['creator', 'visionary', 'enterprise', 'premium', 'supported', 'academy']
-            import sys
             print(f"[REQUIRE_PAID_TIER] User {user_id} has tier: '{subscription_tier}', allowed tiers: {allowed_tiers}", file=sys.stderr, flush=True)
             if subscription_tier not in allowed_tiers:
                 return jsonify({
