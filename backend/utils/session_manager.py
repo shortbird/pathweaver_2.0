@@ -12,13 +12,13 @@ class SessionManager:
     """Manages secure session tokens using httpOnly cookies"""
     
     def __init__(self):
-        self.secret_key = os.getenv('JWT_SECRET_KEY') or os.getenv('SECRET_KEY')
+        self.secret_key = os.getenv('JWT_SECRET_KEY') or os.getenv('SECRET_KEY') or os.getenv('FLASK_SECRET_KEY')
         if not self.secret_key:
-            raise ValueError("JWT_SECRET_KEY or SECRET_KEY environment variable must be set")
+            raise ValueError("JWT_SECRET_KEY, SECRET_KEY, or FLASK_SECRET_KEY environment variable must be set")
         self.access_token_expiry = timedelta(minutes=15)  # Short-lived access token
         self.refresh_token_expiry = timedelta(days=7)  # Longer-lived refresh token
         self.cookie_secure = os.getenv('FLASK_ENV') == 'production'
-        self.cookie_samesite = 'Strict' if os.getenv('FLASK_ENV') == 'production' else 'Lax'
+        self.cookie_samesite = 'None' if os.getenv('FLASK_ENV') == 'production' else 'Lax'
         
     def generate_access_token(self, user_id: str) -> str:
         """Generate a JWT access token"""
@@ -84,7 +84,7 @@ class SessionManager:
             httponly=True,
             secure=self.cookie_secure,
             samesite=self.cookie_samesite,
-            path='/api/auth/refresh'  # Restrict to refresh endpoint
+            path='/'  # Available to all paths
         )
         
         return response
