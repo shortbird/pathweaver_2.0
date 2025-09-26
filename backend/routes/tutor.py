@@ -500,15 +500,6 @@ def get_usage_stats(user_id: str):
         logger.info("Getting Supabase client...")
         supabase = get_supabase_admin_client()
 
-        # Get today's analytics
-        logger.info("Fetching today's analytics...")
-        today = date.today().isoformat()
-        logger.info(f"Today's date: {today}")
-        today_analytics = supabase.table('tutor_analytics').select('*').eq(
-            'user_id', user_id
-        ).eq('date', today).execute()
-        logger.info(f"Analytics query result: {len(today_analytics.data) if today_analytics.data else 0} records")
-
         logger.info("Building usage data...")
         usage_data = {
             'daily_limit': message_status['limit'],
@@ -516,23 +507,43 @@ def get_usage_stats(user_id: str):
             'messages_remaining': message_status['messages_remaining'],
             'tier_name': message_status['tier'],
             'tier_features': message_status.get('tier_features', []),
-            'feature_access': feature_access
+            'feature_access': feature_access,
+            'topics_discussed': [],
+            'learning_pillars_covered': [],
+            'engagement_score': 0.0,
+            'total_conversations': 0
         }
 
-        if today_analytics.data and len(today_analytics.data) > 0:
-            logger.info("Adding analytics data...")
-            analytics_data = today_analytics.data[0]
-            usage_data.update({
-                'topics_discussed': analytics_data.get('topics_discussed', []),
-                'learning_pillars_covered': analytics_data.get('learning_pillars_covered', []),
-                'engagement_score': analytics_data.get('engagement_score', 0.0)
-            })
+        # Try to get today's analytics with error handling
+        try:
+            logger.info("Fetching today's analytics...")
+            today = date.today().isoformat()
+            logger.info(f"Today's date: {today}")
+            today_analytics = supabase.table('tutor_analytics').select('*').eq(
+                'user_id', user_id
+            ).eq('date', today).execute()
+            logger.info(f"Analytics query result: {len(today_analytics.data) if today_analytics.data else 0} records")
 
-        # Get overall stats
-        logger.info("Fetching conversation count...")
-        total_conversations = supabase.table('tutor_conversations').select('id', count='exact').eq('user_id', user_id).execute()
-        usage_data['total_conversations'] = total_conversations.count if total_conversations.count else 0
-        logger.info(f"Total conversations: {usage_data['total_conversations']}")
+            if today_analytics.data and len(today_analytics.data) > 0:
+                logger.info("Adding analytics data...")
+                analytics_data = today_analytics.data[0]
+                usage_data.update({
+                    'topics_discussed': analytics_data.get('topics_discussed', []),
+                    'learning_pillars_covered': analytics_data.get('learning_pillars_covered', []),
+                    'engagement_score': analytics_data.get('engagement_score', 0.0)
+                })
+        except Exception as analytics_error:
+            logger.warning(f"Failed to fetch analytics (using defaults): {analytics_error}")
+
+        # Try to get overall stats with error handling
+        try:
+            logger.info("Fetching conversation count...")
+            total_conversations = supabase.table('tutor_conversations').select('id', count='exact').eq('user_id', user_id).execute()
+            usage_data['total_conversations'] = total_conversations.count if total_conversations.count else 0
+            logger.info(f"Total conversations: {usage_data['total_conversations']}")
+        except Exception as conv_error:
+            logger.warning(f"Failed to fetch conversation count (using default): {conv_error}")
+            usage_data['total_conversations'] = 0
 
         logger.info("Returning usage data...")
         return success_response({'usage': usage_data})
