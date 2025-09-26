@@ -29,15 +29,8 @@ export const useDiploma = (slug, userId) => {
 
   const fetchPublicDiplomaByUserId = useCallback(async () => {
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/api/portfolio/diploma/${userId}`);
-      
-      if (!response.ok) {
-        throw new Error('Failed to fetch diploma');
-      }
-      
-      const data = await response.json();
-      setDiploma(data);
+      const response = await api.get(`/api/portfolio/diploma/${userId}`);
+      setDiploma(response.data);
     } catch (error) {
       const errorInfo = formatErrorMessage(
         error.response?.status === 404 ? 'diploma/not-found' : 'diploma/private'
@@ -50,31 +43,27 @@ export const useDiploma = (slug, userId) => {
 
   const fetchAchievements = useCallback(async () => {
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const token = localStorage.getItem('access_token');
-      
-      // Fetch both completed quests and user XP data
+      // Fetch both completed quests and user XP data using api service with cookies
       const [questsResponse, dashboardResponse] = await Promise.all([
-        fetch(`${apiBase}/api/v3/quests/completed?t=${Date.now()}`, {
+        api.get(`/api/v3/quests/completed?t=${Date.now()}`, {
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Cache-Control': 'no-cache'
           }
-        }),
-        fetch(`${apiBase}/api/users/dashboard?t=${Date.now()}`, {
+        }).catch(error => ({ error, status: error.response?.status })),
+        api.get(`/api/users/dashboard?t=${Date.now()}`, {
           headers: {
-            'Authorization': `Bearer ${token}`,
             'Cache-Control': 'no-cache'
           }
-        })
+        }).catch(error => ({ error, status: error.response?.status }))
       ]);
 
-      if (!questsResponse.ok) {
+      // Handle quests response
+      if (questsResponse.error) {
         // If no achievements, that's okay - show empty state
         if (questsResponse.status === 404) {
           // Still try to get XP from dashboard
-          if (dashboardResponse.ok) {
-            const dashboardData = await dashboardResponse.json();
+          if (!dashboardResponse.error) {
+            const dashboardData = dashboardResponse.data;
             setTotalXP(dashboardData.xp_by_category || {});
             setTotalXPCount(dashboardData.stats?.total_xp || 0);
           } else {
@@ -88,8 +77,8 @@ export const useDiploma = (slug, userId) => {
         throw new Error('Failed to fetch achievements');
       }
 
-      const questsData = await questsResponse.json();
-      const dashboardData = dashboardResponse.ok ? await dashboardResponse.json() : null;
+      const questsData = questsResponse.data;
+      const dashboardData = !dashboardResponse.error ? dashboardResponse.data : null;
       
       setAchievements(questsData.achievements || []);
 

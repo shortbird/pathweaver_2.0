@@ -44,9 +44,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
       const apiBase = import.meta.env.VITE_API_URL || '';
       const response = await fetch(`${apiBase}/api/v3/tasks/${task.id}/complete`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        },
+        credentials: 'include', // Send cookies for authentication
         body: formData
       });
 

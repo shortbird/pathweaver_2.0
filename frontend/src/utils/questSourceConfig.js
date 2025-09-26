@@ -41,18 +41,12 @@ const fetchQuestSources = async () => {
   
   try {
     const apiBase = import.meta.env.VITE_API_URL || '';
-    const token = localStorage.getItem('access_token');
-    const headers = {
-      'Content-Type': 'application/json'
-    };
-    
-    // Only add auth header if token exists (allows public access)
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-    
+
     const response = await fetch(`${apiBase}/api/v3/quests/sources`, {
-      headers
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      credentials: 'include' // Send cookies for authentication
     });
     
     // If request fails (e.g., not authenticated), return empty array to use fallbacks

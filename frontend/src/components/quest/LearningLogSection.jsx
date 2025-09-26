@@ -19,9 +19,7 @@ const LearningLogSection = ({ userQuestId, isOwner = true }) => {
     try {
       const apiBase = import.meta.env.VITE_API_URL || '';
       const response = await fetch(`${apiBase}/api/v3/logs/${userQuestId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        }
+        credentials: 'include'
       });
 
       if (!response.ok) {
@@ -52,9 +50,9 @@ const LearningLogSection = ({ userQuestId, isOwner = true }) => {
       const response = await fetch(`${apiBase}/api/v3/logs/${userQuestId}/entry`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
           'Content-Type': 'application/json'
         },
+        credentials: 'include',
         body: JSON.stringify({
           log_entry: newEntry
         })
@@ -90,9 +88,7 @@ const LearningLogSection = ({ userQuestId, isOwner = true }) => {
       const apiBase = import.meta.env.VITE_API_URL || '';
       const response = await fetch(`${apiBase}/api/v3/logs/${logId}`, {
         method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        }
+        credentials: 'include'
       });
 
       if (!response.ok) {

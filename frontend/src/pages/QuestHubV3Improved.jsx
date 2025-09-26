@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, memo, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
+import api from '../services/api';
 import { handleApiResponse } from '../utils/errorHandling';
 import { useIsMounted, useObserver, useDebounceWithCleanup, useSafeAsync } from '../hooks/useMemoryLeakFix';
 import QuestCard from '../components/quest/improved/QuestCard';
@@ -111,20 +112,14 @@ const QuestHubV3Improved = () => {
           t: Date.now()
         });
 
-        const apiBase = import.meta.env.VITE_API_URL || '';
-        const response = await fetch(`${apiBase}/api/v3/quests?${params}`, {
-          headers: user ? {
-            'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-          } : {},
-          cache: 'no-cache',
+        const response = await api.get(`/api/v3/quests?${params}`, {
+          headers: {
+            'Cache-Control': 'no-cache'
+          },
           signal // Add abort signal for cancellation
         });
 
-        if (!response.ok) {
-          throw new Error('Unable to load quests at this time. Please check your internet connection and try again.');
-        }
-
-        return await response.json();
+        return response.data;
       });
 
       // Only process result if component is still mounted and operation wasn't aborted
@@ -186,17 +181,9 @@ const QuestHubV3Improved = () => {
     }
 
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/api/v3/quests/${questId}/enroll`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`,
-          'Content-Type': 'application/json'
-        }
-      });
-
-      const data = await response.json();
-      handleApiResponse(response, data, 'Failed to enroll');
+      const response = await api.post(`/api/v3/quests/${questId}/enroll`);
+      const data = response.data;
+      handleApiResponse({ ok: true, status: 200 }, data, 'Failed to enroll');
 
       // Update quest in state
       setQuests(quests.map(q => 
