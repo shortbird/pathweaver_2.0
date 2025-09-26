@@ -85,12 +85,22 @@ def get_overview_metrics(user_id):
             .eq('status', 'pending').execute()
         pending_count = pending_submissions.count or 0
 
-        # Get subscription distribution
-        subscription_stats = {}
+        # Get subscription distribution (return as array for frontend)
+        subscription_stats = []
         for tier in ['explorer', 'creator', 'visionary']:
-            tier_count = supabase.table('users').select('id', count='exact')\
-                .eq('subscription_tier', tier).execute()
-            subscription_stats[tier] = tier_count.count or 0
+            try:
+                tier_count = supabase.table('users').select('id', count='exact')\
+                    .eq('subscription_tier', tier).execute()
+                subscription_stats.append({
+                    'tier': tier,
+                    'count': tier_count.count or 0
+                })
+            except Exception as e:
+                print(f"Error getting {tier} tier count: {e}", file=sys.stderr, flush=True)
+                subscription_stats.append({
+                    'tier': tier,
+                    'count': 0
+                })
 
         # Calculate engagement rate (active users / total users)
         engagement_rate = round((active_users / total_users * 100) if total_users > 0 else 0, 1)
