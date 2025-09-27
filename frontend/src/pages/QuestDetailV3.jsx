@@ -462,10 +462,18 @@ const QuestDetailV3 = () => {
       )}
 
       {/* 4. Call-to-Action Buttons */}
-      {(!quest.user_enrollment || isQuestCompleted) && (
+      {(isQuestCompleted || !quest.user_enrollment) && (
         <div className="bg-white rounded-xl shadow-md p-6 mb-8">
           <div className="flex gap-4">
-            {!quest.user_enrollment ? (
+            {isQuestCompleted ? (
+              <button
+                onClick={() => navigate('/diploma')}
+                className="flex-1 bg-emerald-500 text-white py-4 px-8 rounded-[30px] hover:bg-emerald-600 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
+              >
+                <Award className="w-5 h-5 inline mr-2" />
+                Complete! View on Diploma
+              </button>
+            ) : !quest.user_enrollment ? (
               <>
                 {canStartQuests ? (
                   // Paid tier users - show normal start and team up buttons
@@ -506,14 +514,6 @@ const QuestDetailV3 = () => {
                   </>
                 )}
               </>
-            ) : isQuestCompleted ? (
-              <button
-                onClick={() => navigate('/diploma')}
-                className="flex-1 bg-emerald-500 text-white py-4 px-8 rounded-[30px] hover:bg-emerald-600 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
-              >
-                <Award className="w-5 h-5 inline mr-2" />
-                View Achievement on Diploma
-              </button>
             ) : null}
           </div>
         </div>
