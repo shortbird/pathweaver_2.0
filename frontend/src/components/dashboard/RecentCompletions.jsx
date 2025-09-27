@@ -55,19 +55,23 @@ const RecentCompletions = ({ recentItems }) => {
           return (
             <div
               key={item.id || idx}
-              className="p-4 bg-gradient-to-r from-gray-50 to-white border border-gray-200 rounded-lg hover:shadow-md transition-all duration-200"
+              className={`p-4 rounded-lg transition-all duration-200 ${
+                isTask
+                  ? 'bg-gradient-to-r from-gray-50 to-white border border-gray-200 hover:shadow-md'
+                  : 'bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 hover:shadow-lg hover:border-purple-300'
+              }`}
             >
               <div className="flex items-start gap-4">
                 {/* Icon */}
-                <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                <div className={`rounded-lg flex items-center justify-center flex-shrink-0 ${
                   isTask
-                    ? (pillarData ? `${pillarData.bg} ${pillarData.text}` : 'bg-blue-100 text-blue-600')
-                    : 'bg-purple-100 text-purple-600'
+                    ? `w-10 h-10 ${pillarData ? `${pillarData.bg} ${pillarData.text}` : 'bg-blue-100 text-blue-600'}`
+                    : 'w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-500 text-white shadow-lg'
                 }`}>
                   {isTask ? (
                     <CheckCircleIcon className="w-5 h-5" />
                   ) : (
-                    <TrophyIcon className="w-5 h-5" />
+                    <TrophyIcon className="w-6 h-6" />
                   )}
                 </div>
 
@@ -75,7 +79,11 @@ const RecentCompletions = ({ recentItems }) => {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-semibold text-gray-900 truncate">
+                      <h3 className={`truncate ${
+                        isTask
+                          ? 'text-sm font-semibold text-gray-900'
+                          : 'text-base font-bold text-purple-900'
+                      }`}>
                         {item.title}
                       </h3>
 
@@ -86,14 +94,20 @@ const RecentCompletions = ({ recentItems }) => {
                         </p>
                       )}
 
+                      {!isTask && (
+                        <p className="text-sm text-purple-700 mt-1 font-medium">
+                          Quest Completed!
+                        </p>
+                      )}
+
                       {/* Type and Pillar badges */}
                       <div className="flex items-center flex-wrap gap-2 mt-2">
                         <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
                           isTask
                             ? 'bg-blue-50 text-blue-700 border-blue-200'
-                            : 'bg-purple-50 text-purple-700 border-purple-200'
+                            : 'bg-purple-100 text-purple-800 border-purple-300 font-semibold'
                         }`}>
-                          {isTask ? 'Task' : 'Quest'}
+                          {isTask ? 'Task' : 'Quest Complete'}
                         </span>
 
                         {/* Pillar badge for tasks */}
@@ -107,7 +121,11 @@ const RecentCompletions = ({ recentItems }) => {
 
                     {/* XP and time */}
                     <div className="text-right flex-shrink-0 ml-4">
-                      <div className="text-lg font-bold text-emerald-600">
+                      <div className={`font-bold ${
+                        isTask
+                          ? 'text-lg text-emerald-600'
+                          : 'text-xl text-purple-600'
+                      }`}>
                         +{item.xp || item.xp_awarded || 0} XP
                       </div>
                       <div className="flex items-center gap-1 text-xs text-gray-500 mt-1">

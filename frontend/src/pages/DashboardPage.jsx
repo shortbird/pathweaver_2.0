@@ -303,36 +303,14 @@ const DashboardPage = () => {
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                     }}
                   />
-                  <defs>
-                    <linearGradient id="artsGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="#a855f7" />
-                      <stop offset="100%" stopColor="#ec4899" />
-                    </linearGradient>
-                    <linearGradient id="stemGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="#3b82f6" />
-                      <stop offset="100%" stopColor="#06b6d4" />
-                    </linearGradient>
-                    <linearGradient id="languageGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="#10b981" />
-                      <stop offset="100%" stopColor="#059669" />
-                    </linearGradient>
-                    <linearGradient id="societyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="#f97316" />
-                      <stop offset="100%" stopColor="#eab308" />
-                    </linearGradient>
-                    <linearGradient id="lifeGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                      <stop offset="0%" stopColor="#ef4444" />
-                      <stop offset="100%" stopColor="#f43f5e" />
-                    </linearGradient>
-                  </defs>
                   <Bar dataKey="xp" radius={[4, 4, 0, 0]}>
                     {skillXPData.map((entry, index) => {
                       let fillColor = "#6d469b"; // fallback
-                      if (entry.category === 'Arts & Creativity') fillColor = "url(#artsGradient)";
-                      else if (entry.category === 'STEM & Logic') fillColor = "url(#stemGradient)";
-                      else if (entry.category === 'Language & Communication') fillColor = "url(#languageGradient)";
-                      else if (entry.category === 'Society & Culture') fillColor = "url(#societyGradient)";
-                      else if (entry.category === 'Life & Wellness') fillColor = "url(#lifeGradient)";
+                      if (entry.category === 'Arts & Creativity') fillColor = "#a855f7"; // purple-500
+                      else if (entry.category === 'STEM & Logic') fillColor = "#3b82f6"; // blue-500
+                      else if (entry.category === 'Language & Communication') fillColor = "#10b981"; // green-500
+                      else if (entry.category === 'Society & Culture') fillColor = "#f97316"; // orange-500
+                      else if (entry.category === 'Life & Wellness') fillColor = "#ef4444"; // red-500
 
                       return <Cell key={`cell-${index}`} fill={fillColor} />;
                     })}

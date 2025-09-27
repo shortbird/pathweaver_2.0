@@ -25,34 +25,86 @@ SUBJECT_TO_SKILL_MAP = {
 
 def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
     """
-    Calculate user's total XP and breakdown by skill category
-    
+    Calculate user's total XP and breakdown by skill category from V3 system
+
     Returns:
         Tuple of (total_xp, skill_breakdown_dict)
     """
     total_xp = 0
     skill_breakdown = {cat: 0 for cat in SKILL_CATEGORIES}
-    has_skill_xp_records = False
-    
+
+    try:
+        # V3 System: Get XP from completed tasks in user_quest_tasks table
+        completed_tasks = supabase.table('user_quest_tasks')\
+            .select('xp_awarded, quest_tasks(pillar)')\
+            .eq('user_id', user_id)\
+            .not_.is_('completed_at', 'null')\
+            .execute()
+
+        print(f"=== XP CALCULATION DEBUG for user {user_id} ===")
+        print(f"Found {len(completed_tasks.data) if completed_tasks.data else 0} completed tasks")
+
+        if completed_tasks.data:
+            for task in completed_tasks.data:
+                xp_awarded = task.get('xp_awarded', 0)
+                task_info = task.get('quest_tasks', {})
+                pillar = task_info.get('pillar') if task_info else None
+
+                print(f"Processing task: XP={xp_awarded}, Pillar={pillar}")
+
+                if xp_awarded and pillar:
+                    # Handle both old and new pillar keys - map old to new
+                    pillar_mapping = {
+                        'creativity': 'arts_creativity',
+                        'critical_thinking': 'stem_logic',
+                        'practical_skills': 'life_wellness',
+                        'communication': 'language_communication',
+                        'cultural_literacy': 'society_culture'
+                    }
+
+                    # Convert old pillar keys to new ones
+                    normalized_pillar = pillar_mapping.get(pillar, pillar)
+
+                    if normalized_pillar in skill_breakdown:
+                        total_xp += xp_awarded
+                        skill_breakdown[normalized_pillar] += xp_awarded
+                        print(f"  Added {xp_awarded} XP to {normalized_pillar}")
+                    else:
+                        print(f"  WARNING: Unknown pillar '{pillar}' (normalized: '{normalized_pillar}')")
+
+        print(f"Final total XP: {total_xp}")
+        print(f"Final skill_breakdown: {skill_breakdown}")
+        print("=======================================")
+
+    except Exception as e:
+        print(f"Error calculating XP from V3 tasks: {str(e)}")
+        # Fallback to old method if V3 fails
+        return calculate_xp_from_legacy_tables(supabase, user_id)
+
+    return total_xp, skill_breakdown
+
+def calculate_xp_from_legacy_tables(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
+    """
+    Legacy XP calculation from user_skill_xp table (fallback)
+    """
+    total_xp = 0
+    skill_breakdown = {cat: 0 for cat in SKILL_CATEGORIES}
+
     try:
         # Get skill-based XP from user_skill_xp table - uses 'pillar' and 'xp_amount' columns
         skill_xp = supabase.table('user_skill_xp')\
             .select('pillar, xp_amount')\
             .eq('user_id', user_id)\
             .execute()
-        
-        print(f"=== XP CALCULATION DEBUG for user {user_id} ===")
+
+        print(f"=== LEGACY XP CALCULATION for user {user_id} ===")
         print(f"Raw skill_xp query response count: {len(skill_xp.data) if skill_xp.data else 0}")
-        print(f"Raw skill_xp data: {skill_xp.data}")
 
         if skill_xp.data:
-            has_skill_xp_records = True
             for record in skill_xp.data:
-                print(f"Processing record: {record}")
                 xp_amount = record.get('xp_amount', 0)
-                skill_cat = record.get('pillar')  # Column is named 'pillar' not 'skill_category'
-                print(f"  Category: {skill_cat}, XP: {xp_amount}")
-                
+                skill_cat = record.get('pillar')
+
                 # Handle both old and new pillar keys - map old to new
                 pillar_mapping = {
                     'creativity': 'arts_creativity',
@@ -61,66 +113,19 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                     'communication': 'language_communication',
                     'cultural_literacy': 'society_culture'
                 }
-                
+
                 # Convert old pillar keys to new ones
                 normalized_pillar = pillar_mapping.get(skill_cat, skill_cat)
-                
+
                 if normalized_pillar in skill_breakdown:
                     total_xp += xp_amount
                     skill_breakdown[normalized_pillar] += xp_amount
-                    print(f"  Mapped '{skill_cat}' -> '{normalized_pillar}': {xp_amount} XP")
-                else:
-                    print(f"  WARNING: Category '{skill_cat}' (normalized: '{normalized_pillar}') not in SKILL_CATEGORIES")
-        print(f"Final skill_breakdown: {skill_breakdown}")
-        print("=======================================")
+
+        print(f"Legacy total XP: {total_xp}")
+        print("======================================")
     except Exception as e:
-        print(f"Error getting skill XP: {str(e)}")
-    
-    # Check if user has completed quests
-    try:
-        completed_count = supabase.table('user_quests')\
-            .select('id', count='exact')\
-            .eq('user_id', user_id)\
-            .not_.is_('completed_at', 'null')\
-            .execute()
-        has_completed_quests = completed_count.count > 0 if hasattr(completed_count, 'count') else False
-    except:
-        has_completed_quests = False
-        
-    # If user has completed quests but no XP, recalculate and save
-    # Skip recalculation if we already have records (even if they're 0, they might be getting updated)
-    if has_completed_quests and total_xp == 0 and not has_skill_xp_records:
-        print(f"User {user_id} has completed quests but no XP records - recalculating...")
-        total_xp, skill_breakdown = calculate_xp_from_quests(supabase, user_id)
-        
-        # Save the calculated XP to the database
-        if total_xp > 0:
-            for category, xp in skill_breakdown.items():
-                if xp > 0:
-                    try:
-                        # Check if record exists - use 'pillar' column
-                        existing = supabase.table('user_skill_xp')\
-                            .select('id')\
-                            .eq('user_id', user_id)\
-                            .eq('pillar', category)\
-                            .execute()
-                        
-                        if existing.data:
-                            # Update existing record - use 'xp_amount' column
-                            supabase.table('user_skill_xp').update({
-                                'xp_amount': xp
-                            }).eq('user_id', user_id).eq('pillar', category).execute()
-                        else:
-                            # Create new record - use 'pillar' and 'xp_amount' columns
-                            supabase.table('user_skill_xp').insert({
-                                'user_id': user_id,
-                                'pillar': category,
-                                'xp_amount': xp
-                            }).execute()
-                        print(f"Saved XP for {category}: {xp}")
-                    except Exception as e:
-                        print(f"Error saving XP for {category}: {str(e)}")
-    
+        print(f"Error getting legacy skill XP: {str(e)}")
+
     return total_xp, skill_breakdown
 
 def calculate_xp_from_quests(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
