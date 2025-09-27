@@ -107,10 +107,16 @@ def get_dashboard(user_id):
         
         # Calculate completion stats
         completion_stats = get_completion_stats(supabase, user_id)
-        
+
         # Get task completion count
         tasks_completed = get_tasks_completed_count(supabase, user_id)
-        
+
+        # Get enhanced streak data
+        streak_data = get_enhanced_streak_data(supabase, user_id)
+
+        # Get additional stats
+        additional_stats = get_additional_stats(supabase, user_id)
+
         # Build dashboard response
         dashboard_data = {
             'user': user.data,
@@ -120,7 +126,17 @@ def get_dashboard(user_id):
                 'quests_completed': completion_stats['completed'],
                 'quests_in_progress': len(active_quests),
                 'tasks_completed': tasks_completed,
-                'streak': completion_stats.get('streak', 0)
+                'streak': completion_stats.get('streak', 0),
+                # Enhanced streak data
+                'task_streak_current': streak_data['task_streak']['current'],
+                'task_streak_best': streak_data['task_streak']['best'],
+                'login_streak_current': streak_data['login_streak']['current'],
+                'login_streak_best': streak_data['login_streak']['best'],
+                'weekly_active_days': streak_data['weekly_active_days'],
+                # Additional stats
+                'favorite_pillar': additional_stats['favorite_pillar'],
+                'avg_xp_per_day': additional_stats['avg_xp_per_day'],
+                'most_productive_day': additional_stats['most_productive_day']
             },
             'xp_by_category': skill_breakdown,
             'skill_xp_data': skill_data,
@@ -438,16 +454,159 @@ def calculate_streak(supabase, user_id: str) -> int:
             .order('completed_at', desc=True)\
             .limit(30)\
             .execute()
-        
+
         if not recent.data:
             return 0
-        
+
         # Simple streak: count consecutive days with completions
         # This is a basic implementation - enhance as needed
         return min(len(recent.data), 7)  # Cap at 7 for now
-        
+
     except:
         return 0
+
+def get_enhanced_streak_data(supabase, user_id: str) -> dict:
+    """Get comprehensive streak and activity data"""
+    try:
+        from datetime import datetime, timedelta, timezone
+
+        # Get task completion streaks
+        task_completions = supabase.table('user_quest_tasks')\
+            .select('completed_at')\
+            .eq('user_id', user_id)\
+            .order('completed_at', desc=True)\
+            .limit(60)\
+            .execute()
+
+        # Get login streaks (based on quest/task activity as proxy)
+        login_activity = supabase.table('user_quest_tasks')\
+            .select('completed_at')\
+            .eq('user_id', user_id)\
+            .order('completed_at', desc=True)\
+            .limit(30)\
+            .execute()
+
+        def calculate_consecutive_days(completions):
+            if not completions:
+                return {'current': 0, 'best': 0}
+
+            # Convert to dates and get unique days
+            dates = set()
+            for completion in completions:
+                try:
+                    dt = datetime.fromisoformat(completion['completed_at'].replace('Z', '+00:00'))
+                    dates.add(dt.date())
+                except:
+                    continue
+
+            if not dates:
+                return {'current': 0, 'best': 0}
+
+            # Sort dates
+            sorted_dates = sorted(dates, reverse=True)
+
+            # Calculate current streak
+            current_streak = 0
+            yesterday = datetime.now(timezone.utc).date()
+
+            for date in sorted_dates:
+                if date == yesterday or (yesterday - date).days <= 1:
+                    current_streak += 1
+                    yesterday = date - timedelta(days=1)
+                else:
+                    break
+
+            # Calculate best streak
+            best_streak = 0
+            temp_streak = 1
+
+            for i in range(1, len(sorted_dates)):
+                if (sorted_dates[i-1] - sorted_dates[i]).days == 1:
+                    temp_streak += 1
+                else:
+                    best_streak = max(best_streak, temp_streak)
+                    temp_streak = 1
+
+            best_streak = max(best_streak, temp_streak)
+
+            return {'current': current_streak, 'best': best_streak}
+
+        task_streaks = calculate_consecutive_days(task_completions.data or [])
+        login_streaks = calculate_consecutive_days(login_activity.data or [])
+
+        return {
+            'task_streak': task_streaks,
+            'login_streak': login_streaks,
+            'weekly_active_days': min(len(set(
+                datetime.fromisoformat(c['completed_at'].replace('Z', '+00:00')).date()
+                for c in (task_completions.data or [])[-7:]
+                if c.get('completed_at')
+            )), 7)
+        }
+
+    except Exception as e:
+        print(f"Error calculating enhanced streaks: {e}")
+        return {
+            'task_streak': {'current': 0, 'best': 0},
+            'login_streak': {'current': 0, 'best': 0},
+            'weekly_active_days': 0
+        }
+
+def get_additional_stats(supabase, user_id: str) -> dict:
+    """Get additional dashboard statistics"""
+    try:
+        from datetime import datetime, timedelta, timezone
+
+        # Get favorite pillar (most XP earned)
+        user_xp = supabase.table('user_skill_xp')\
+            .select('pillar, xp_amount')\
+            .eq('user_id', user_id)\
+            .execute()
+
+        favorite_pillar = 'None'
+        if user_xp.data:
+            max_xp = max(user_xp.data, key=lambda x: x['xp_amount'])
+            favorite_pillar = max_xp['pillar'].replace('_', ' ').title()
+
+        # Calculate average XP per day (last 30 days)
+        thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        recent_tasks = supabase.table('user_quest_tasks')\
+            .select('xp_awarded, completed_at')\
+            .eq('user_id', user_id)\
+            .gte('completed_at', thirty_days_ago)\
+            .execute()
+
+        total_recent_xp = sum(task.get('xp_awarded', 0) for task in (recent_tasks.data or []))
+        avg_xp_per_day = round(total_recent_xp / 30, 1)
+
+        # Get most productive day of week
+        day_counts = {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0}  # Monday = 0
+        for task in (recent_tasks.data or []):
+            try:
+                dt = datetime.fromisoformat(task['completed_at'].replace('Z', '+00:00'))
+                day_counts[dt.weekday()] += 1
+            except:
+                continue
+
+        most_productive_day = 'Not enough data'
+        if any(count > 0 for count in day_counts.values()):
+            day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
+            best_day_index = max(day_counts, key=day_counts.get)
+            most_productive_day = day_names[best_day_index]
+
+        return {
+            'favorite_pillar': favorite_pillar,
+            'avg_xp_per_day': avg_xp_per_day,
+            'most_productive_day': most_productive_day
+        }
+
+    except Exception as e:
+        print(f"Error calculating additional stats: {e}")
+        return {
+            'favorite_pillar': 'None',
+            'avg_xp_per_day': 0,
+            'most_productive_day': 'Not enough data'
+        }
 
 def extract_xp_rewards(quest: dict) -> dict:
     """Extract XP rewards from quest data"""

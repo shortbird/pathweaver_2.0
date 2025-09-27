@@ -18,7 +18,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   const totalXP = quest.total_xp || 0;
   const taskCount = quest.task_count || 0;
   const isEnrolled = quest.user_enrollment;
-  const isCompleted = quest.completed_enrollment;
+  const isCompleted = quest.completed_enrollment || (quest.progress && quest.progress.percentage === 100);
 
   // Get dominant pillar for visual accent
   const pillarBreakdown = quest.pillar_breakdown || {};
