@@ -87,7 +87,8 @@ def get_overview_metrics(user_id):
 
         # Get subscription distribution (return as array for frontend)
         subscription_stats = []
-        for tier in ['explorer', 'creator', 'visionary']:
+        # Use all valid subscription tiers from database schema
+        for tier in ['free', 'explorer', 'supported', 'creator', 'premium', 'academy', 'visionary', 'enterprise']:
             try:
                 tier_count = supabase.table('users').select('id', count='exact')\
                     .eq('subscription_tier', tier).execute()
@@ -136,9 +137,14 @@ def get_overview_metrics(user_id):
                 'pending_submissions': 0,
                 'engagement_rate': 0,
                 'subscription_distribution': [
+                    {'tier': 'free', 'count': 0},
                     {'tier': 'explorer', 'count': 0},
+                    {'tier': 'supported', 'count': 0},
                     {'tier': 'creator', 'count': 0},
-                    {'tier': 'visionary', 'count': 0}
+                    {'tier': 'premium', 'count': 0},
+                    {'tier': 'academy', 'count': 0},
+                    {'tier': 'visionary', 'count': 0},
+                    {'tier': 'enterprise', 'count': 0}
                 ],
                 'last_updated': datetime.utcnow().isoformat()
             }
@@ -172,10 +178,11 @@ def get_recent_activity(user_id):
             print(f"Error getting recent users: {e}", file=sys.stderr, flush=True)
             recent_users = type('obj', (object,), {'data': []})()
 
-        # Get recent quest submissions (remove created_at since it doesn't exist)
+        # Get recent quest submissions with proper timestamp
         try:
             recent_submissions = supabase.table('quest_submissions')\
-                .select('user_id, title')\
+                .select('user_id, title, submitted_at')\
+                .order('submitted_at', desc=True)\
                 .limit(5).execute()
         except Exception as e:
             print(f"Error getting recent submissions: {e}", file=sys.stderr, flush=True)
@@ -202,11 +209,11 @@ def get_recent_activity(user_id):
                 'description': f"joined Optio with {user['subscription_tier']} subscription"
             })
 
-        # Add quest submissions (simplified, without timestamp since created_at doesn't exist)
+        # Add quest submissions with proper timestamp
         for submission in recent_submissions.data or []:
             activities.append({
                 'type': 'quest_submission',
-                'timestamp': now.isoformat(),  # Use current time since no created_at
+                'timestamp': submission.get('submitted_at', now.isoformat()),
                 'user_name': 'Student',  # Simplified - would need separate lookup for names
                 'description': f"submitted custom quest: '{submission['title']}'"
             })
@@ -280,11 +287,11 @@ def get_trends_data(user_id):
 
         # Get XP distribution by pillar (aggregated approach)
         pillar_totals = {
-            'STEM and Logic': 0,
-            'Life and Wellness': 0,
-            'Language and Communication': 0,
-            'Society and Culture': 0,
-            'Arts and Creativity': 0
+            'STEM & Logic': 0,
+            'Life & Wellness': 0,
+            'Language & Communication': 0,
+            'Society & Culture': 0,
+            'Arts & Creativity': 0
         }
 
         # Get all XP records and aggregate them client-side to avoid URL encoding issues
@@ -330,11 +337,11 @@ def get_trends_data(user_id):
                 'daily_signups': {},
                 'daily_completions': {},
                 'xp_by_pillar': {
-                    'STEM and Logic': 0,
-                    'Life and Wellness': 0,
-                    'Language and Communication': 0,
-                    'Society and Culture': 0,
-                    'Arts and Creativity': 0
+                    'STEM & Logic': 0,
+                    'Life & Wellness': 0,
+                    'Language & Communication': 0,
+                    'Society & Culture': 0,
+                    'Arts & Creativity': 0
                 },
                 'popular_quests': [],
                 'date_range': {
