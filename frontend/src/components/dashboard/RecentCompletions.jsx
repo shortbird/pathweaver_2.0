@@ -86,19 +86,19 @@ const RecentCompletions = ({ recentItems }) => {
                         </p>
                       )}
 
-                      {/* Type badge */}
-                      <div className="flex items-center gap-2 mt-2">
-                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                      {/* Type and Pillar badges */}
+                      <div className="flex items-center flex-wrap gap-2 mt-2">
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
                           isTask
-                            ? 'bg-blue-100 text-blue-800'
-                            : 'bg-purple-100 text-purple-800'
+                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                            : 'bg-purple-50 text-purple-700 border-purple-200'
                         }`}>
-                          {isTask ? '📝 Task' : '🏆 Quest'}
+                          {isTask ? 'Task' : 'Quest'}
                         </span>
 
                         {/* Pillar badge for tasks */}
                         {isTask && pillarData && (
-                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${pillarData.bg} ${pillarData.text}`}>
+                          <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${pillarData.bg} ${pillarData.text} ${pillarData.bg.replace('bg-', 'border-').replace('100', '200')}`}>
                             {pillarData.name}
                           </span>
                         )}

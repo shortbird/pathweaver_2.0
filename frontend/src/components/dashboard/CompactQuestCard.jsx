@@ -76,7 +76,7 @@ const CompactQuestCard = ({ quest }) => {
         className={`w-full px-3 py-2 rounded-md text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
           isCompleted
             ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100'
-            : 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-md'
+            : 'bg-green-500 text-white hover:bg-green-600 hover:shadow-md'
         }`}
       >
         {isCompleted ? (

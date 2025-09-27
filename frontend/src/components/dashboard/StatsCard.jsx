@@ -85,20 +85,20 @@ const StatsCard = ({ stats }) => {
       </div>
 
       {/* Main Stats Grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
         {statItems.map((stat, index) => {
           const Icon = stat.icon;
           return (
             <div key={index} className={`${stat.color} rounded-lg p-4 border border-gray-200`}>
               <div className="flex items-center gap-3">
-                <div className={`p-2 ${stat.bgColor} rounded-lg`}>
+                <div className={`p-2 ${stat.bgColor} rounded-lg flex-shrink-0`}>
                   <Icon className="w-5 h-5" />
                 </div>
-                <div>
-                  <div className="text-2xl font-bold">
+                <div className="min-w-0 flex-1">
+                  <div className="text-xl font-bold">
                     {stat.value}{stat.suffix || ''}
                   </div>
-                  <div className="text-sm opacity-75">{stat.label}</div>
+                  <div className="text-sm opacity-75 leading-tight">{stat.label}</div>
                 </div>
               </div>
             </div>
@@ -112,11 +112,11 @@ const StatsCard = ({ stats }) => {
         <div className="space-y-3">
           {additionalStats.map((stat, index) => (
             <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-              <div className="flex items-center gap-3">
-                <span className="text-lg">{stat.icon}</span>
-                <span className="text-sm font-medium text-gray-700">{stat.label}</span>
+              <div className="flex items-center gap-3 min-w-0 flex-1">
+                <span className="text-lg flex-shrink-0">{stat.icon}</span>
+                <span className="text-sm font-medium text-gray-700 truncate">{stat.label}</span>
               </div>
-              <span className="text-sm font-semibold text-gray-900">{stat.value}</span>
+              <span className="text-sm font-semibold text-gray-900 ml-3 flex-shrink-0">{stat.value}</span>
             </div>
           ))}
         </div>

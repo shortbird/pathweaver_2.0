@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
 import { usePortfolio } from '../hooks/api/usePortfolio'
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts'
+import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts'
 import { DIPLOMA_PILLARS, getPillarName, getPillarData, getPillarGradient } from '../utils/pillarMappings'
 import { getTierDisplayName } from '../utils/tierMapping'
 import CompactQuestCard from '../components/dashboard/CompactQuestCard'
@@ -38,8 +38,8 @@ const ActiveQuests = memo(({ activeQuests }) => {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-      {allQuests.slice(0, 8).map(quest => (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {allQuests.slice(0, 6).map(quest => (
         <CompactQuestCard key={quest.id || quest.quest_id} quest={quest} />
       ))}
     </div>
@@ -243,149 +243,167 @@ const DashboardPage = () => {
         </p>
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      {/* Stacked Content Layout */}
+      <div className="space-y-8">
 
-        {/* Left Column - Quests and Charts */}
-        <div className="lg:col-span-2 space-y-6">
+        {/* Active Quests Panel */}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
+                <RocketLaunchIcon className="w-5 h-5 text-white" />
+              </div>
+              <h2 className="text-xl font-bold text-gray-900">Your Quests</h2>
+            </div>
+            <Link
+              to="/quests"
+              className="text-sm text-purple-600 hover:text-purple-800 font-medium transition-colors"
+            >
+              Browse All Quests →
+            </Link>
+          </div>
+          <ActiveQuests activeQuests={dashboardData?.active_quests} />
+        </div>
 
-          {/* Active Quests Panel */}
+        {/* Enhanced Stats Card */}
+        <StatsCard stats={dashboardData?.stats} />
+
+        {/* Skills Charts */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Bar Chart */}
           <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
-                  <RocketLaunchIcon className="w-5 h-5 text-white" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900">Your Quests</h2>
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center">
+                <ChartBarIcon className="w-5 h-5 text-white" />
               </div>
-              <Link
-                to="/quests"
-                className="text-sm text-purple-600 hover:text-purple-800 font-medium transition-colors"
-              >
-                Browse All Quests →
-              </Link>
+              <h2 className="text-xl font-bold text-gray-900">Skill Progress</h2>
             </div>
-            <ActiveQuests activeQuests={dashboardData?.active_quests} />
+{totalXP > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={skillXPData} margin={{ top: 10, right: 10, bottom: 70, left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="category"
+                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }}
+                    angle={-35}
+                    textAnchor="end"
+                    height={80}
+                    interval={0}
+                  />
+                  <YAxis
+                    tick={{ fontSize: 11, fill: '#64748b' }}
+                    domain={[0, maxCategoryXP + 100]}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      fontSize: 12,
+                      backgroundColor: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
+                  <defs>
+                    <linearGradient id="artsGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#a855f7" />
+                      <stop offset="100%" stopColor="#ec4899" />
+                    </linearGradient>
+                    <linearGradient id="stemGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#3b82f6" />
+                      <stop offset="100%" stopColor="#06b6d4" />
+                    </linearGradient>
+                    <linearGradient id="languageGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#10b981" />
+                      <stop offset="100%" stopColor="#059669" />
+                    </linearGradient>
+                    <linearGradient id="societyGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#f97316" />
+                      <stop offset="100%" stopColor="#eab308" />
+                    </linearGradient>
+                    <linearGradient id="lifeGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#ef4444" />
+                      <stop offset="100%" stopColor="#f43f5e" />
+                    </linearGradient>
+                  </defs>
+                  <Bar dataKey="xp" radius={[4, 4, 0, 0]}>
+                    {skillXPData.map((entry, index) => {
+                      let fillColor = "#6d469b"; // fallback
+                      if (entry.category === 'Arts & Creativity') fillColor = "url(#artsGradient)";
+                      else if (entry.category === 'STEM & Logic') fillColor = "url(#stemGradient)";
+                      else if (entry.category === 'Language & Communication') fillColor = "url(#languageGradient)";
+                      else if (entry.category === 'Society & Culture') fillColor = "url(#societyGradient)";
+                      else if (entry.category === 'Life & Wellness') fillColor = "url(#lifeGradient)";
+
+                      return <Cell key={`cell-${index}`} fill={fillColor} />;
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-center py-12">
+                <ChartBarIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-600">Complete quests to see your skill progress!</p>
+              </div>
+            )}
           </div>
 
-          {/* Skills Charts */}
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-            {/* Bar Chart */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center">
-                  <ChartBarIcon className="w-5 h-5 text-white" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900">Skill Progress</h2>
+          {/* Radar Chart */}
+          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                <StarIcon className="w-5 h-5 text-white" />
               </div>
-              {totalXP > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={skillXPData} margin={{ top: 10, right: 10, bottom: 70, left: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                    <XAxis
-                      dataKey="category"
-                      tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }}
-                      angle={-35}
-                      textAnchor="end"
-                      height={80}
-                      interval={0}
-                    />
-                    <YAxis
-                      tick={{ fontSize: 11, fill: '#64748b' }}
-                      domain={[0, maxCategoryXP + 100]}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        fontSize: 12,
-                        backgroundColor: 'white',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                      }}
-                    />
-                    <defs>
-                      <linearGradient id="skillGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                        <stop offset="0%" stopColor="#ef597b" />
-                        <stop offset="100%" stopColor="#6d469b" />
-                      </linearGradient>
-                    </defs>
-                    <Bar dataKey="xp" fill="url(#skillGradient)" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="text-center py-12">
-                  <ChartBarIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-600">Complete quests to see your skill progress!</p>
-                </div>
-              )}
+              <h2 className="text-xl font-bold text-gray-900">Skill Balance</h2>
             </div>
-
-            {/* Radar Chart */}
-            <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                  <StarIcon className="w-5 h-5 text-white" />
-                </div>
-                <h2 className="text-xl font-bold text-gray-900">Skill Balance</h2>
+            {totalXP > 0 ? (
+              <ResponsiveContainer width="100%" height={300}>
+                <RadarChart data={skillXPData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                  <PolarGrid stroke="#f1f5f9" strokeWidth={1} />
+                  <PolarAngleAxis
+                    dataKey="category"
+                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }}
+                  />
+                  <PolarRadiusAxis
+                    angle={90}
+                    domain={[0, maxCategoryXP + 100]}
+                    tick={false}
+                    axisLine={false}
+                  />
+                  <defs>
+                    <linearGradient id="radarGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                      <stop offset="0%" stopColor="#ef597b" stopOpacity={0.8} />
+                      <stop offset="100%" stopColor="#6d469b" stopOpacity={0.8} />
+                    </defs>
+                  <Radar
+                    name="XP"
+                    dataKey="xp"
+                    stroke="#6d469b"
+                    fill="url(#radarGradient)"
+                    strokeWidth={2}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      fontSize: 12,
+                      backgroundColor: 'white',
+                      border: '1px solid #e2e8f0',
+                      borderRadius: '8px',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="text-center py-12">
+                <StarIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-600">Your skill radar will appear as you progress!</p>
               </div>
-              {totalXP > 0 ? (
-                <ResponsiveContainer width="100%" height={300}>
-                  <RadarChart data={skillXPData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                    <PolarGrid stroke="#f1f5f9" strokeWidth={1} />
-                    <PolarAngleAxis
-                      dataKey="category"
-                      tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }}
-                    />
-                    <PolarRadiusAxis
-                      angle={90}
-                      domain={[0, maxCategoryXP + 100]}
-                      tick={false}
-                      axisLine={false}
-                    />
-                    <defs>
-                      <linearGradient id="radarGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#ef597b" stopOpacity={0.8} />
-                        <stop offset="100%" stopColor="#6d469b" stopOpacity={0.8} />
-                      </linearGradient>
-                    </defs>
-                    <Radar
-                      name="XP"
-                      dataKey="xp"
-                      stroke="#6d469b"
-                      fill="url(#radarGradient)"
-                      strokeWidth={2}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        fontSize: 12,
-                        backgroundColor: 'white',
-                        border: '1px solid #e2e8f0',
-                        borderRadius: '8px',
-                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                      }}
-                    />
-                  </RadarChart>
-                </ResponsiveContainer>
-              ) : (
-                <div className="text-center py-12">
-                  <StarIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-600">Your skill radar will appear as you progress!</p>
-                </div>
-              )}
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Right Column - Stats and Recent Activity */}
-        <div className="space-y-6">
+        {/* Recent Completions */}
+        <RecentCompletions recentItems={dashboardData?.recent_completions} />
 
-          {/* Enhanced Stats Card */}
-          <StatsCard stats={dashboardData?.stats} />
-
-          {/* Recent Completions */}
-          <RecentCompletions recentItems={dashboardData?.recent_completions} />
-
-        </div>
       </div>
 
       {/* Upgrade Prompt for Explorer Tier */}
