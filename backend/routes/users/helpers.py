@@ -45,12 +45,13 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
         print(f"Found {len(completed_tasks.data) if completed_tasks.data else 0} completed tasks")
 
         if completed_tasks.data:
-            for task in completed_tasks.data:
+            print(f"Processing {len(completed_tasks.data)} completed tasks...")
+            for i, task in enumerate(completed_tasks.data):
                 xp_awarded = task.get('xp_awarded', 0)
                 task_info = task.get('quest_tasks', {})
                 pillar = task_info.get('pillar') if task_info else None
 
-                print(f"Processing task: XP={xp_awarded}, Pillar={pillar}")
+                print(f"Task {i+1}: XP={xp_awarded}, Pillar='{pillar}', Task_info_keys={list(task_info.keys()) if task_info else 'None'}")
 
                 if xp_awarded and pillar:
                     # Handle both old and new pillar keys - map old to new
@@ -59,18 +60,30 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                         'critical_thinking': 'stem_logic',
                         'practical_skills': 'life_wellness',
                         'communication': 'language_communication',
-                        'cultural_literacy': 'society_culture'
+                        'cultural_literacy': 'society_culture',
+                        # Also handle any other variations that might exist
+                        'life_skills': 'life_wellness',
+                        'wellness': 'life_wellness'
                     }
 
                     # Convert old pillar keys to new ones
                     normalized_pillar = pillar_mapping.get(pillar, pillar)
+                    print(f"  Mapping '{pillar}' -> '{normalized_pillar}'")
 
                     if normalized_pillar in skill_breakdown:
                         total_xp += xp_awarded
                         skill_breakdown[normalized_pillar] += xp_awarded
-                        print(f"  Added {xp_awarded} XP to {normalized_pillar}")
+                        print(f"  ✓ Added {xp_awarded} XP to {normalized_pillar} (total now: {skill_breakdown[normalized_pillar]})")
                     else:
-                        print(f"  WARNING: Unknown pillar '{pillar}' (normalized: '{normalized_pillar}')")
+                        print(f"  ❌ WARNING: Unknown pillar '{pillar}' (normalized: '{normalized_pillar}') not in {list(skill_breakdown.keys())}")
+                elif not xp_awarded:
+                    print(f"  ⚠️ Skipping task - no XP awarded")
+                elif not pillar:
+                    print(f"  ⚠️ Skipping task - no pillar specified")
+
+            print(f"After processing all tasks - skill breakdown: {skill_breakdown}")
+        else:
+            print("No completed tasks found")
 
         print(f"Final total XP: {total_xp}")
         print(f"Final skill_breakdown: {skill_breakdown}")
