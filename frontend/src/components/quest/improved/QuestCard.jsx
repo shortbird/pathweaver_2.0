@@ -189,7 +189,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
               }}
             >
               <CheckCircle className="w-4 h-4 mr-2 flex-shrink-0" />
-              <span className="truncate">Completed! View Diploma</span>
+              <span className="truncate">Complete! View on Diploma</span>
             </Button>
           ) : isEnrolled ? (
             // Quest is in progress - show continue button
