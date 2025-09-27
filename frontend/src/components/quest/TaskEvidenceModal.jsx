@@ -8,17 +8,6 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
 
   const handleComplete = (completionData) => {
     setSuccessMessage(completionData.message);
-
-    // Auto-close after showing success message
-    setTimeout(() => {
-      onComplete({
-        task,
-        xp_awarded: completionData.xp_awarded,
-        message: completionData.message,
-        quest_completed: completionData.quest_completed,
-        has_collaboration_bonus: completionData.has_collaboration_bonus
-      });
-    }, 2000);
   };
 
   const handleError = (errorMessage) => {
@@ -95,11 +84,27 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
             {/* Success Message */}
             {successMessage && (
               <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg text-green-700">
-                <div className="flex items-center gap-2">
-                  <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                <div className="flex items-start gap-2">
+                  <svg className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <span className="font-medium">{successMessage}</span>
+                  <div className="flex-1">
+                    <div className="font-medium mb-3">{successMessage}</div>
+                    <button
+                      onClick={() => {
+                        onComplete({
+                          task,
+                          xp_awarded: null,
+                          message: successMessage,
+                          quest_completed: false,
+                          has_collaboration_bonus: false
+                        });
+                      }}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
+                    >
+                      Close
+                    </button>
+                  </div>
                 </div>
               </div>
             )}

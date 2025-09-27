@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
-import { useQuestDetail, useEnrollQuest, useCompleteTask } from '../hooks/api/useQuests';
+import { useQuestDetail, useEnrollQuest, useCompleteTask, useEndQuest } from '../hooks/api/useQuests';
 import { useQuestCollaborations } from '../hooks/api/useFriends';
 import { handleApiResponse } from '../utils/errorHandling';
 import { getPillarData } from '../utils/pillarMappings';
@@ -41,6 +41,7 @@ const QuestDetailV3 = () => {
   // React Query mutations
   const enrollMutation = useEnrollQuest();
   const completeTaskMutation = useCompleteTask();
+  const endQuestMutation = useEndQuest();
 
   // Get loading states from mutations
   const isEnrolling = enrollMutation.isPending;
@@ -101,27 +102,22 @@ const QuestDetailV3 = () => {
     if (!quest.user_enrollment) return;
 
     if (window.confirm('Are you sure you want to finish this quest? This will end your active enrollment and save your progress.')) {
-      try {
-        await api.post(`/api/v3/quests/${id}/end`);
-        toast.success('Quest finished successfully!');
-        navigate('/diploma'); // Navigate to diploma to show achievement
-      } catch (error) {
-        toast.error('Failed to finish quest');
-      }
+      endQuestMutation.mutate(id, {
+        onSuccess: () => {
+          navigate('/diploma'); // Navigate to diploma to show achievement
+        }
+      });
     }
   };
 
   const handleTaskCompletion = async (completionData) => {
+    // Task is already completed by MultiFormatEvidenceEditor
+    // Just close the modal and invalidate cache
     setShowTaskModal(false);
     setSelectedTask(null);
 
-    // Use React Query mutation for task completion
-    if (selectedTask && completionData) {
-      completeTaskMutation.mutate({
-        taskId: selectedTask.id,
-        evidence: completionData
-      });
-    }
+    // Force refresh quest data to show updated completion status
+    refetch();
   };
 
   const handleInviteSent = async (inviteData) => {
@@ -274,7 +270,7 @@ const QuestDetailV3 = () => {
   const completedTasks = quest.quest_tasks?.filter(task => task.is_completed).length || 0;
   const totalTasks = quest.quest_tasks?.length || 0;
   const progressPercentage = quest.progress?.percentage || (totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0);
-  const isQuestCompleted = quest.completed_enrollment && quest.completed_enrollment.completed_at;
+  const isQuestCompleted = quest.completed_enrollment || (quest.progress && quest.progress.percentage === 100);
   const { baseXP, bonusXP, totalXP, earnedXP, earnedBonusXP } = calculateXP();
   const pillarBreakdown = getPillarBreakdown();
   const locationDisplay = getLocationDisplay();
@@ -704,9 +700,10 @@ const QuestDetailV3 = () => {
         <div className="bg-white rounded-xl shadow-md p-6 text-center">
           <button
             onClick={handleEndQuest}
-            className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-[25px] hover:shadow-[0_6px_20px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold"
+            disabled={endQuestMutation.isPending}
+            className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-[25px] hover:shadow-[0_6px_20px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Finish Quest
+            {endQuestMutation.isPending ? 'Finishing...' : 'Finish Quest'}
           </button>
         </div>
       )}

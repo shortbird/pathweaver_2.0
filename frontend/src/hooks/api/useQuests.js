@@ -145,6 +145,30 @@ export const useAbandonQuest = () => {
 }
 
 /**
+ * Hook for ending/finishing a quest
+ */
+export const useEndQuest = () => {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationKey: [mutationKeys.endQuest],
+    mutationFn: async (questId) => {
+      const response = await api.post(`/api/v3/quests/${questId}/end`)
+      return response.data
+    },
+    onSuccess: (data, questId) => {
+      // Invalidate quest-related queries
+      queryKeys.invalidateQuests(queryClient)
+
+      toast.success(data.message || 'Quest finished successfully!')
+    },
+    onError: (error) => {
+      toast.error(error.response?.data?.error || 'Failed to finish quest')
+    },
+  })
+}
+
+/**
  * Hook for fetching quest tasks
  */
 export const useQuestTasks = (questId, options = {}) => {
