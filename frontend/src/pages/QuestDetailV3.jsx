@@ -112,11 +112,26 @@ const QuestDetailV3 = () => {
 
   const handleTaskCompletion = async (completionData) => {
     // Task is already completed by MultiFormatEvidenceEditor
-    // Just close the modal and invalidate cache
+    // Optimistically update the task completion status in cache
+    if (selectedTask) {
+      queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
+        if (!oldData) return oldData;
+
+        return {
+          ...oldData,
+          quest_tasks: oldData.quest_tasks?.map(task =>
+            task.id === selectedTask.id
+              ? { ...task, is_completed: true }
+              : task
+          ) || []
+        };
+      });
+    }
+
     setShowTaskModal(false);
     setSelectedTask(null);
 
-    // Force refresh quest data to show updated completion status
+    // Also trigger a background refetch to sync with server
     refetch();
   };
 
