@@ -373,7 +373,8 @@ const DashboardPage = () => {
                     <linearGradient id="radarGradient" x1="0%" y1="0%" x2="100%" y2="0%">
                       <stop offset="0%" stopColor="#ef597b" stopOpacity={0.8} />
                       <stop offset="100%" stopColor="#6d469b" stopOpacity={0.8} />
-                    </defs>
+                    </linearGradient>
+                  </defs>
                   <Radar
                     name="XP"
                     dataKey="xp"
