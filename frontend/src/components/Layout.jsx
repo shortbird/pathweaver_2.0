@@ -100,25 +100,25 @@ const Layout = () => {
                 <div className="hidden sm:ml-6 sm:flex sm:space-x-8">
                   <Link
                     to="/dashboard"
-                    className="inline-flex items-center px-1 pt-1 text-sm font-medium text-text-secondary hover:text-primary transition-colors"
+                    className={getNavLinkClasses('/dashboard')}
                   >
                     Dashboard
                   </Link>
                   <Link
                     to="/quests"
-                    className="inline-flex items-center px-1 pt-1 text-sm font-medium text-text-secondary hover:text-primary transition-colors"
+                    className={getNavLinkClasses('/quests')}
                   >
                     Quests
                   </Link>
                   <Link
                     to="/friends"
-                    className="inline-flex items-center px-1 pt-1 text-sm font-medium text-text-secondary hover:text-primary transition-colors"
+                    className={getNavLinkClasses('/friends')}
                   >
                     Friends
                   </Link>
                   <Link
                     to="/diploma"
-                    className="inline-flex items-center px-1 pt-1 text-sm font-medium text-text-secondary hover:text-primary transition-colors"
+                    className={getNavLinkClasses('/diploma')}
                   >
                     My Diploma
                   </Link>
