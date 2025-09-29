@@ -10,6 +10,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isEnrolling, setIsEnrolling] = useState(false);
+  const [showTaskPreview, setShowTaskPreview] = useState(false);
   
   // Check if user can start quests (requires paid tier)
   const canStartQuests = hasFeatureAccess(user?.subscription_tier, 'supported');
@@ -19,6 +20,8 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   const taskCount = quest.task_count || 0;
   const isEnrolled = quest.user_enrollment;
   const isCompleted = quest.completed_enrollment || (quest.progress && quest.progress.percentage === 100);
+  const progressPercentage = quest.progress?.percentage || 0;
+  const completedTasks = quest.progress?.completed_tasks || 0;
 
   // Get dominant pillar for visual accent
   const pillarBreakdown = quest.pillar_breakdown || {};
@@ -62,8 +65,10 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
 
   return (
     <div
-      className="group bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100 touch-manipulation"
+      className="group bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100 touch-manipulation relative"
       onClick={handleCardClick}
+      onMouseEnter={() => setShowTaskPreview(true)}
+      onMouseLeave={() => setShowTaskPreview(false)}
     >
       {/* Visual Header - Smaller and more subtle */}
       <div className={`h-2 bg-gradient-to-r ${dominantPillarGradient}`} />
@@ -107,10 +112,20 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
                 .sort(([_, a], [__, b]) => b - a)
                 .map(([pillar, xp]) => {
                   const pillarData = getPillarData(pillar);
+                  // Use solid colors for pillar badges
+                  const solidColors = {
+                    'stem_logic': 'bg-blue-500 text-white',
+                    'arts_creativity': 'bg-purple-500 text-white',
+                    'language_communication': 'bg-green-500 text-white',
+                    'society_culture': 'bg-orange-500 text-white',
+                    'life_wellness': 'bg-red-500 text-white'
+                  };
+                  const solidColor = solidColors[pillar] || 'bg-gray-500 text-white';
+
                   return (
-                    <div 
+                    <div
                       key={pillar}
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${pillarData.bg} ${pillarData.text} text-xs font-medium`}
+                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${solidColor} text-xs font-medium`}
                     >
                       <span>{pillarData.name}</span>
                       <span className="font-bold">+{xp}</span>
@@ -253,19 +268,57 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
           )}
         </div>
 
-        {/* Enrollment Status Indicator */}
+        {/* Progress Bar and Status */}
         {isCompleted ? (
-          <div className="mt-3 flex items-center gap-2 text-xs text-emerald-600">
-            <div className="w-2 h-2 bg-emerald-500 rounded-full" />
-            <span>Completed</span>
+          <div className="mt-3">
+            <div className="flex items-center gap-2 text-xs text-emerald-600 mb-2">
+              <CheckCircle className="w-4 h-4" />
+              <span className="font-medium">Completed</span>
+            </div>
+            <div className="w-full bg-emerald-100 rounded-full h-2">
+              <div className="bg-emerald-500 h-2 rounded-full w-full" />
+            </div>
           </div>
-        ) : isEnrolled && (
-          <div className="mt-3 flex items-center gap-2 text-xs text-green-600">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-            <span>In Progress</span>
+        ) : isEnrolled && progressPercentage > 0 ? (
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
+              <span className="font-medium">Progress: {completedTasks}/{taskCount} tasks</span>
+              <span className="font-bold">{Math.round(progressPercentage)}%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className={`bg-gradient-to-r ${dominantPillarGradient} h-2 rounded-full transition-all duration-300`}
+                style={{ width: `${progressPercentage}%` }}
+              />
+            </div>
           </div>
-        )}
+        ) : isEnrolled ? (
+          <div className="mt-3 flex items-center gap-2 text-xs text-blue-600">
+            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
+            <span>Ready to start</span>
+          </div>
+        ) : null}
       </div>
+
+      {/* Task Preview Tooltip */}
+      {showTaskPreview && quest.quest_tasks && quest.quest_tasks.length > 0 && (
+        <div className="absolute top-2 right-2 bg-white border border-gray-200 rounded-lg shadow-lg p-3 max-w-xs z-10 transform -translate-y-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
+          <div className="text-xs font-semibold text-gray-700 mb-2">First Tasks:</div>
+          <div className="space-y-1">
+            {quest.quest_tasks.slice(0, 3).map((task, index) => (
+              <div key={task.id || index} className="flex items-start gap-2">
+                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-1.5 flex-shrink-0" />
+                <div className="text-xs text-gray-600 line-clamp-2">{task.title}</div>
+              </div>
+            ))}
+            {quest.quest_tasks.length > 3 && (
+              <div className="text-xs text-gray-500 italic mt-2">
+                +{quest.quest_tasks.length - 3} more tasks...
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 };

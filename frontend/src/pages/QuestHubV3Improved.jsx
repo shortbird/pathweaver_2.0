@@ -5,6 +5,8 @@ import api from '../services/api';
 import { handleApiResponse } from '../utils/errorHandling';
 import { useIsMounted, useObserver, useDebounceWithCleanup, useSafeAsync } from '../hooks/useMemoryLeakFix';
 import QuestCard from '../components/quest/improved/QuestCard';
+import QuestListItem from '../components/quest/improved/QuestListItem';
+import QuestFilters from '../components/quest/improved/QuestFilters';
 import TeamUpModal from '../components/quest/TeamUpModal';
 import QuestSuggestionModal from '../components/QuestSuggestionModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -48,6 +50,14 @@ const QuestHubV3Improved = () => {
   const [hasMore, setHasMore] = useState(true);
   const [totalResults, setTotalResults] = useState(0);
 
+  // Filter state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedPillar, setSelectedPillar] = useState('all');
+  const [selectedDifficulty, setSelectedDifficulty] = useState('all');
+  const [selectedSubject, setSelectedSubject] = useState('all');
+  const [sortBy, setSortBy] = useState('newest');
+  const [viewMode, setViewMode] = useState('grid');
+
   // Memory leak prevention hooks
   const isMounted = useIsMounted();
   const safeAsync = useSafeAsync();
@@ -59,6 +69,15 @@ const QuestHubV3Improved = () => {
       setPage(prevPage => prevPage + 1);
     }
   }, 100);
+
+  // Debounced search function
+  const { debouncedFn: debouncedSearch } = useDebounceWithCleanup(() => {
+    if (isMounted()) {
+      setPage(1);
+      setQuests([]);
+      setHasMore(true);
+    }
+  }, 300);
 
   // Memory-safe intersection observer
   const setupObserver = useObserver((node) => {
@@ -112,6 +131,23 @@ const QuestHubV3Improved = () => {
           t: Date.now()
         });
 
+        // Add filter parameters
+        if (searchTerm.trim()) {
+          params.append('search', searchTerm.trim());
+        }
+        if (selectedPillar !== 'all') {
+          params.append('pillar', selectedPillar);
+        }
+        if (selectedDifficulty !== 'all') {
+          params.append('difficulty', selectedDifficulty);
+        }
+        if (selectedSubject !== 'all') {
+          params.append('subject', selectedSubject);
+        }
+        if (sortBy) {
+          params.append('sort', sortBy);
+        }
+
         const response = await api.get(`/api/v3/quests?${params}`, {
           headers: {
             'Cache-Control': 'no-cache'
@@ -161,7 +197,7 @@ const QuestHubV3Improved = () => {
 
     // Handle initial load
     fetchData(true, 1);
-  }, [page, user, loginTimestamp, hasLoadedOnce, isMounted, safeAsync]);
+  }, [page, user, loginTimestamp, hasLoadedOnce, isMounted, safeAsync, searchTerm, selectedPillar, selectedDifficulty, selectedSubject, sortBy]);
 
   // Reset on location change (when returning to quest hub)
   useEffect(() => {
@@ -232,6 +268,44 @@ const QuestHubV3Improved = () => {
     return hasFeatureAccess(user.subscription_tier, 'supported');
   }, [user]);
 
+  // Filter handlers
+  const handleSearchChange = useCallback((value) => {
+    setSearchTerm(value);
+    debouncedSearch();
+  }, [debouncedSearch]);
+
+  const handlePillarChange = useCallback((pillar) => {
+    setSelectedPillar(pillar);
+    setPage(1);
+    setQuests([]);
+    setHasMore(true);
+  }, []);
+
+  const handleDifficultyChange = useCallback((difficulty) => {
+    setSelectedDifficulty(difficulty);
+    setPage(1);
+    setQuests([]);
+    setHasMore(true);
+  }, []);
+
+  const handleSubjectChange = useCallback((subject) => {
+    setSelectedSubject(subject);
+    setPage(1);
+    setQuests([]);
+    setHasMore(true);
+  }, []);
+
+  const handleSortChange = useCallback((sort) => {
+    setSortBy(sort);
+    setPage(1);
+    setQuests([]);
+    setHasMore(true);
+  }, []);
+
+  const handleViewModeChange = useCallback((mode) => {
+    setViewMode(mode);
+  }, []);
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
@@ -263,7 +337,26 @@ const QuestHubV3Improved = () => {
           )}
         </div>
 
-
+        {/* Quest Filters - Sticky Toolbar */}
+        <div className="sticky top-0 z-20 bg-white/80 backdrop-blur-sm border-b border-gray-200 mb-6 -mx-4 px-4 py-4">
+          <div className="max-w-7xl mx-auto">
+            <QuestFilters
+              searchTerm={searchTerm}
+              onSearchChange={handleSearchChange}
+              selectedPillar={selectedPillar}
+              onPillarChange={handlePillarChange}
+              selectedDifficulty={selectedDifficulty}
+              onDifficultyChange={handleDifficultyChange}
+              selectedSubject={selectedSubject}
+              onSubjectChange={handleSubjectChange}
+              sortBy={sortBy}
+              onSortChange={handleSortChange}
+              viewMode={viewMode}
+              onViewModeChange={handleViewModeChange}
+              totalResults={totalResults}
+            />
+          </div>
+        </div>
 
         {/* Error Display */}
         {error && (
@@ -292,31 +385,60 @@ const QuestHubV3Improved = () => {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {quests.map((quest, index) => {
-                // Attach ref to last element for infinite scroll
-                if (quests.length === index + 1) {
-                  return (
-                    <div ref={lastQuestElementRef} key={quest.id}>
+            {/* Quest Display - Grid or List View */}
+            {viewMode === 'grid' ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {quests.map((quest, index) => {
+                  // Attach ref to last element for infinite scroll
+                  if (quests.length === index + 1) {
+                    return (
+                      <div ref={lastQuestElementRef} key={quest.id}>
+                        <QuestCard
+                          quest={quest}
+                          onEnroll={handleEnroll}
+                          onTeamUp={handleTeamUp}
+                        />
+                      </div>
+                    );
+                  } else {
+                    return (
                       <QuestCard
+                        key={quest.id}
                         quest={quest}
                         onEnroll={handleEnroll}
                         onTeamUp={handleTeamUp}
                       />
-                    </div>
-                  );
-                } else {
-                  return (
-                    <QuestCard
-                      key={quest.id}
-                      quest={quest}
-                      onEnroll={handleEnroll}
-                      onTeamUp={handleTeamUp}
-                    />
-                  );
-                }
-              })}
-            </div>
+                    );
+                  }
+                })}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {quests.map((quest, index) => {
+                  // Attach ref to last element for infinite scroll
+                  if (quests.length === index + 1) {
+                    return (
+                      <div ref={lastQuestElementRef} key={quest.id}>
+                        <QuestListItem
+                          quest={quest}
+                          onEnroll={handleEnroll}
+                          onTeamUp={handleTeamUp}
+                        />
+                      </div>
+                    );
+                  } else {
+                    return (
+                      <QuestListItem
+                        key={quest.id}
+                        quest={quest}
+                        onEnroll={handleEnroll}
+                        onTeamUp={handleTeamUp}
+                      />
+                    );
+                  }
+                })}
+              </div>
+            )}
 
             {/* Loading More Indicator */}
             {isLoadingMore && (

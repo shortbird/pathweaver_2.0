@@ -1,25 +1,29 @@
 import React, { useState, memo } from 'react';
 
-const QuestFilters = ({ 
-  searchTerm, 
-  onSearchChange, 
-  selectedPillar, 
+const QuestFilters = ({
+  searchTerm,
+  onSearchChange,
+  selectedPillar,
   onPillarChange,
   selectedDifficulty,
   onDifficultyChange,
   selectedSubject,
   onSubjectChange,
-  totalResults 
+  sortBy,
+  onSortChange,
+  viewMode,
+  onViewModeChange,
+  totalResults
 }) => {
   const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
 
   const pillars = [
-    { value: 'all', label: 'All Skills', color: 'from-gray-600 to-gray-700' },
-    { value: 'stem_logic', label: 'STEM & Logic', color: 'from-blue-500 to-cyan-500' },
-    { value: 'life_wellness', label: 'Life & Wellness', color: 'from-green-500 to-emerald-500' },
-    { value: 'language_communication', label: 'Language & Communication', color: 'from-orange-500 to-yellow-500' },
-    { value: 'society_culture', label: 'Society & Culture', color: 'from-red-500 to-rose-500' },
-    { value: 'arts_creativity', label: 'Arts & Creativity', color: 'from-purple-500 to-pink-500' }
+    { value: 'all', label: 'All Skills', color: 'bg-gray-600 text-white' },
+    { value: 'stem_logic', label: 'STEM & Logic', color: 'bg-blue-500 text-white' },
+    { value: 'life_wellness', label: 'Life & Wellness', color: 'bg-red-500 text-white' },
+    { value: 'language_communication', label: 'Language & Communication', color: 'bg-green-500 text-white' },
+    { value: 'society_culture', label: 'Society & Culture', color: 'bg-orange-500 text-white' },
+    { value: 'arts_creativity', label: 'Arts & Creativity', color: 'bg-purple-500 text-white' }
   ];
 
   const difficulties = [
@@ -44,32 +48,100 @@ const QuestFilters = ({
     { value: 'electives', label: 'Electives' }
   ];
 
+  const sortOptions = [
+    { value: 'newest', label: 'Newest First' },
+    { value: 'popular', label: 'Most Popular' },
+    { value: 'xp_high', label: 'Highest XP' },
+    { value: 'xp_low', label: 'Lowest XP' },
+    { value: 'alphabetical', label: 'A-Z' }
+  ];
+
   return (
     <div className="mb-8">
-      {/* Search Bar with Results Count */}
-      <div className="mb-4">
-        <div className="relative">
-          <input
-            type="text"
-            placeholder="Search quests by title or description..."
-            value={searchTerm}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:border-[#6d469b] focus:ring-2 focus:ring-[#6d469b]/20 transition-all"
-          />
-          <svg 
-            className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" 
-            fill="none" 
-            stroke="currentColor" 
-            viewBox="0 0 24 24"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          {totalResults !== undefined && (
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-500">
-              {totalResults} {totalResults === 1 ? 'quest' : 'quests'} found
-            </span>
+      {/* Search Bar and Sort Options */}
+      <div className="mb-4 space-y-3">
+        <div className="flex gap-3">
+          {/* Search Input */}
+          <div className="relative flex-1">
+            <input
+              type="text"
+              placeholder="Search quests by title or description..."
+              value={searchTerm}
+              onChange={(e) => onSearchChange(e.target.value)}
+              className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:border-[#6d469b] focus:ring-2 focus:ring-[#6d469b]/20 transition-all"
+            />
+            <svg
+              className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+
+          {/* Sort Dropdown */}
+          <div className="relative">
+            <select
+              value={sortBy || 'newest'}
+              onChange={(e) => onSortChange && onSortChange(e.target.value)}
+              className="appearance-none bg-white border border-gray-200 rounded-xl px-4 py-3 pr-10 focus:border-[#6d469b] focus:ring-2 focus:ring-[#6d469b]/20 transition-all text-sm font-medium text-gray-700"
+            >
+              {sortOptions.map(option => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <svg
+              className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </div>
+
+          {/* View Mode Toggle */}
+          {onViewModeChange && (
+            <div className="flex border border-gray-200 rounded-xl overflow-hidden">
+              <button
+                onClick={() => onViewModeChange('grid')}
+                className={`px-3 py-3 transition-all ${
+                  viewMode === 'grid'
+                    ? 'bg-[#6d469b] text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+                title="Grid View"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM5 11a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM11 5a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V5zM11 13a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => onViewModeChange('list')}
+                className={`px-3 py-3 transition-all ${
+                  viewMode === 'list'
+                    ? 'bg-[#6d469b] text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+                title="List View"
+              >
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
           )}
         </div>
+
+        {/* Results Count */}
+        {totalResults !== undefined && (
+          <div className="text-sm text-gray-500">
+            {totalResults} {totalResults === 1 ? 'quest' : 'quests'} found
+          </div>
+        )}
       </div>
 
       {/* Mobile Filter Toggle */}
@@ -95,7 +167,7 @@ const QuestFilters = ({
 
       {/* Desktop Filters (always visible) */}
       <div className="hidden md:block bg-white rounded-xl border border-gray-200 p-6">
-        <FilterContent 
+        <FilterContent
           pillars={pillars}
           selectedPillar={selectedPillar}
           onPillarChange={onPillarChange}
@@ -111,7 +183,7 @@ const QuestFilters = ({
       {/* Mobile Filters (collapsible) */}
       {mobileFiltersOpen && (
         <div className="md:hidden bg-white rounded-xl border border-gray-200 p-4 animate-slideDown">
-          <FilterContent 
+          <FilterContent
             pillars={pillars}
             selectedPillar={selectedPillar}
             onPillarChange={onPillarChange}
@@ -195,12 +267,10 @@ const FilterContent = memo(({
               key={pillar.value}
               onClick={() => onPillarChange(pillar.value)}
               className={`
-                ${mobile ? 'px-3 py-2' : 'px-4 py-2'} 
+                ${mobile ? 'px-3 py-2' : 'px-4 py-2'}
                 rounded-lg font-medium transition-all ${buttonClass}
-                ${selectedPillar === pillar.value 
-                  ? pillar.color 
-                    ? `bg-gradient-to-r ${pillar.color} text-white shadow-md` 
-                    : 'bg-gray-900 text-white'
+                ${selectedPillar === pillar.value
+                  ? `${pillar.color} shadow-md`
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }
               `}
