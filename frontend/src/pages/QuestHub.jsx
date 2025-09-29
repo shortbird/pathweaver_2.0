@@ -34,7 +34,7 @@ const debounce = (func, wait) => {
   return executedFunction;
 };
 
-const QuestHubV3Improved = () => {
+const QuestHub = () => {
   const { user, loginTimestamp } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -488,4 +488,4 @@ const QuestHubV3Improved = () => {
   );
 };
 
-export default memo(QuestHubV3Improved);
+export default memo(QuestHub);

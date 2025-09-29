@@ -15,7 +15,7 @@ import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
 import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const QuestDetailV3 = () => {
+const QuestDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -745,4 +745,4 @@ const QuestDetailV3 = () => {
   );
 };
 
-export default QuestDetailV3;
+export default QuestDetail;

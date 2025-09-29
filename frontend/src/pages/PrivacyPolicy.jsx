@@ -36,7 +36,6 @@ const PrivacyPolicy = () => {
               <p className="mb-4">As you use our platform, we collect:</p>
               <ul className="list-disc ml-6 mb-4">
                 <li>Quest completion data</li>
-                <li>Learning logs and reflections</li>
                 <li>Evidence of learning (images, documents, videos)</li>
                 <li>Portfolio content</li>
                 <li>XP and achievement data</li>

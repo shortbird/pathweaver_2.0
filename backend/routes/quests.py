@@ -12,7 +12,7 @@ from services.quest_optimization import quest_optimization_service
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
-bp = Blueprint('quests_v3', __name__, url_prefix='/api/v3/quests')
+bp = Blueprint('quests', __name__, url_prefix='/api/quests')
 
 @bp.route('', methods=['GET'])
 def list_quests():

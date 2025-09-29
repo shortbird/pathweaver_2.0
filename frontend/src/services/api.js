@@ -115,25 +115,25 @@ export const friendsAPI = {
 // Collaboration/Team-up management API methods
 export const collaborationAPI = {
   // Get all invitations (received and sent)
-  getInvites: () => api.get('/api/v3/collaborations/invites'),
+  getInvites: () => api.get('/api/collaborations/invites'),
 
   // Get active collaborations
-  getActive: () => api.get('/api/v3/collaborations/active'),
+  getActive: () => api.get('/api/collaborations/active'),
 
   // Get quest-specific invitations and collaborations
-  getQuestCollaborations: (questId) => api.get(`/api/v3/collaborations/quest/${questId}`),
+  getQuestCollaborations: (questId) => api.get(`/api/collaborations/quest/${questId}`),
 
   // Send team-up invitation
-  sendInvite: (questId, friendId) => api.post('/api/v3/collaborations/invite', { quest_id: questId, friend_id: friendId }),
+  sendInvite: (questId, friendId) => api.post('/api/collaborations/invite', { quest_id: questId, friend_id: friendId }),
 
   // Accept team-up invitation
-  acceptInvite: (inviteId) => api.post(`/api/v3/collaborations/${inviteId}/accept`),
+  acceptInvite: (inviteId) => api.post(`/api/collaborations/${inviteId}/accept`),
 
   // Decline team-up invitation
-  declineInvite: (inviteId) => api.post(`/api/v3/collaborations/${inviteId}/decline`),
+  declineInvite: (inviteId) => api.post(`/api/collaborations/${inviteId}/decline`),
 
   // Cancel sent team-up invitation
-  cancelInvite: (inviteId) => api.delete(`/api/v3/collaborations/${inviteId}/cancel`)
+  cancelInvite: (inviteId) => api.delete(`/api/collaborations/${inviteId}/cancel`)
 }
 
 export default api

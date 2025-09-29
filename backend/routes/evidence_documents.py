@@ -15,7 +15,7 @@ from werkzeug.utils import secure_filename
 from typing import Dict, Any, Optional, List
 import json
 
-bp = Blueprint('evidence_documents', __name__, url_prefix='/api/v3/evidence')
+bp = Blueprint('evidence_documents', __name__, url_prefix='/api/evidence')
 
 # Initialize services
 evidence_service = EvidenceService()

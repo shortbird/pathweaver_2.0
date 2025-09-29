@@ -15,7 +15,7 @@ import {
   meetsGraduationRequirements
 } from '../utils/creditRequirements';
 
-const DiplomaPageV3 = () => {
+const DiplomaPage = () => {
   const { user, loginTimestamp } = useAuth();
   const { slug, userId } = useParams();
   const navigate = useNavigate();
@@ -1212,4 +1212,4 @@ const DiplomaPageV3 = () => {
   );
 };
 
-export default memo(DiplomaPageV3);
+export default memo(DiplomaPage);

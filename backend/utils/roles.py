@@ -48,7 +48,6 @@ class RolePermissions:
             'diploma': ['view_own', 'edit_own'],
             'collaborations': ['send', 'receive'],
             'profile': ['view_others', 'edit_own'],
-            'learning_logs': ['create', 'edit_own', 'delete_own'],
             'admin_panel': []
         },
         UserRole.PARENT.value: {
@@ -56,7 +55,6 @@ class RolePermissions:
             'diploma': ['view_children'],
             'collaborations': [],
             'profile': ['view_children', 'edit_own'],
-            'learning_logs': ['view_children'],
             'admin_panel': []
         },
         UserRole.ADVISOR.value: {
@@ -64,7 +62,6 @@ class RolePermissions:
             'diploma': ['view_students'],
             'collaborations': [],
             'profile': ['view_students', 'edit_own'],
-            'learning_logs': ['view_students'],
             'admin_panel': ['view_analytics', 'view_students']
         },
         UserRole.ADMIN.value: {
@@ -72,7 +69,6 @@ class RolePermissions:
             'diploma': ['view_all', 'edit_all'],
             'collaborations': ['view_all', 'manage'],
             'profile': ['view_all', 'edit_all'],
-            'learning_logs': ['view_all', 'edit_all', 'delete_all'],
             'admin_panel': ['full_access']
         }
     }
@@ -157,7 +153,7 @@ def requires_parent_child_link(parent_id: str, child_id: str, action: str) -> bo
     """Check if a parent-child relationship is required for an action"""
     # Define actions that require parent-child relationship
     restricted_actions = {
-        'view_diploma', 'view_progress', 'view_learning_logs'
+        'view_diploma', 'view_progress'
     }
     return action in restricted_actions
 
@@ -165,6 +161,6 @@ def requires_advisor_student_link(advisor_id: str, student_id: str, action: str)
     """Check if an advisor-student relationship is required for an action"""
     # Define actions that require advisor-student relationship
     restricted_actions = {
-        'view_progress', 'view_learning_logs', 'generate_report'
+        'view_progress', 'generate_report'
     }
     return action in restricted_actions

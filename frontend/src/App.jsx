@@ -17,10 +17,10 @@ import EmailVerificationPage from './pages/EmailVerificationPage'
 import DashboardPage from './pages/DashboardPage'
 import TermsOfService from './pages/TermsOfService'
 import PrivacyPolicy from './pages/PrivacyPolicy'
-// V3 Quest Pages
-import QuestHubV3 from './pages/QuestHubV3Improved'
-import QuestDetailV3 from './pages/QuestDetailV3'
-import DiplomaPageV3 from './pages/DiplomaPageV3'
+// Quest Pages
+import QuestHub from './pages/QuestHub'
+import QuestDetail from './pages/QuestDetail'
+import DiplomaPage from './pages/DiplomaPage'
 import ProfilePage from './pages/ProfilePage'
 import FriendsPage from './pages/FriendsPage'
 import SubscriptionPage from './pages/SubscriptionPage'
@@ -81,17 +81,17 @@ function App() {
               <Route path="email-verification" element={<EmailVerificationPage />} />
               <Route path="terms" element={<TermsOfService />} />
               <Route path="privacy" element={<PrivacyPolicy />} />
-              <Route path="portfolio/:slug" element={<DiplomaPageV3 />} />
-              <Route path="diploma/:userId" element={<DiplomaPageV3 />} />
+              <Route path="portfolio/:slug" element={<DiplomaPage />} />
+              <Route path="diploma/:userId" element={<DiplomaPage />} />
               <Route path="subscription/success" element={<SubscriptionSuccess />} />
               <Route path="subscription/cancel" element={<SubscriptionCancel />} />
               
               <Route element={<PrivateRoute />}>
                 <Route path="dashboard" element={<DashboardPage />} />
-                {/* V3 Quest Routes */}
-                <Route path="quests" element={<QuestHubV3 />} />
-                <Route path="quests/:id" element={<QuestDetailV3 />} />
-                <Route path="diploma" element={<DiplomaPageV3 />} />
+                {/* Quest Routes */}
+                <Route path="quests" element={<QuestHub />} />
+                <Route path="quests/:id" element={<QuestDetail />} />
+                <Route path="diploma" element={<DiplomaPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="friends" element={<FriendsPage />} />
                 <Route path="subscription" element={<SubscriptionPage />} />

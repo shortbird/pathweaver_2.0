@@ -8,7 +8,7 @@ import json
 import base64
 import uuid
 
-bp = Blueprint('admin_v3', __name__, url_prefix='/api/v3/admin')
+bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
 @bp.route('/school-subjects', methods=['GET'])
 def get_school_subjects():

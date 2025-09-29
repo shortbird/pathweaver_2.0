@@ -80,7 +80,6 @@ backend/
 │   ├── collaborations.py    # Team-up invitations (paid tier)
 │   ├── community.py         # Friends system (paid tier)
 │   ├── evidence_documents.py # Evidence file uploads
-│   ├── learning_logs_v3.py  # Learning reflections
 │   ├── portfolio.py         # Diploma/portfolio (CORE)
 │   ├── promo.py             # Promo codes
 │   ├── quests_v3.py         # V3 quest system
@@ -229,11 +228,6 @@ frontend/src/
 
 ### Additional Features
 
-**learning_logs_v3** (Learning reflections)
-- id (UUID, PK)
-- user_id, quest_id
-- log_text, reflection_type
-- created_at, updated_at
 
 **evidence_documents** (File uploads for evidence)
 - id (UUID, PK)
@@ -334,8 +328,6 @@ frontend/src/
 ### Additional Features
 - POST /api/uploads - File upload handling
 - POST /api/evidence-documents - Upload evidence files
-- GET /api/learning-logs/:questId - Get learning logs
-- POST /api/learning-logs - Create learning reflection
 - POST /api/quest-ratings - Rate completed quest
 - POST /api/subscriptions/create - Create Stripe subscription
 - GET /api/health - Health check endpoint
@@ -382,7 +374,6 @@ frontend/src/
 - **Feedback system**: Quality assurance and improvement tracking
 
 ### Additional Features
-- **Learning logs**: Reflection system for deeper learning engagement
 - **Quest ratings**: 1-5 star rating system with optional feedback
 - **Evidence documents**: File upload system for rich evidence submission
 - **Promo codes**: Discount system for subscription management

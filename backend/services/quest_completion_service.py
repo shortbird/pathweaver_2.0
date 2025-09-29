@@ -65,11 +65,6 @@ Return a valid JSON object with EXACTLY this structure:
   "real_world_bonus": [
     {"description": "bonus challenge", "xp_amount": 50}
   ],
-  "log_bonus": {
-    "description": "Keep a learning log",
-    "prompt": "Reflect on your journey",
-    "xp_amount": 25
-  },
   "heads_up": "string - safety or important considerations",
   "location": "string - where to do this quest",
   "skill_xp_awards": [
@@ -197,12 +192,6 @@ Return ONLY a valid JSON object with all quest fields completed. Ensure all arra
             if 'collaboration_bonus' not in completed_quest:
                 completed_quest['collaboration_bonus'] = '2x XP when working with others'
             
-            if 'log_bonus' not in completed_quest:
-                completed_quest['log_bonus'] = {
-                    'description': 'Keep a learning log',
-                    'prompt': 'Document your discoveries, challenges, and breakthroughs',
-                    'xp_amount': 25
-                }
             
             return completed_quest
             
