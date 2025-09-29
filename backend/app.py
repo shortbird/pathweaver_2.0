@@ -10,7 +10,7 @@ from routes.settings import settings_bp
 from routes.promo import promo_bp
 
 # Import routes
-from routes import quests, tasks, collaborations, admin, quest_sources, evidence_documents
+from routes import quests, tasks, collaborations, admin_core, quest_sources, evidence_documents
 from routes.admin import user_management, quest_management, quest_ideas, quest_sources as admin_quest_sources, analytics
 from cors_config import configure_cors
 from middleware.security import security_middleware
@@ -71,7 +71,7 @@ app.register_blueprint(promo_bp, url_prefix='/api/promo')  # /api/promo
 app.register_blueprint(quests.bp)  # /api/quests (blueprint has url_prefix='/api/quests')
 app.register_blueprint(tasks.bp)      # /api/tasks (blueprint has url_prefix='/api/tasks')
 app.register_blueprint(evidence_documents.bp)  # /api/evidence (blueprint has url_prefix='/api/evidence')
-app.register_blueprint(admin.bp)   # /api/admin (blueprint has url_prefix='/api/admin')
+app.register_blueprint(admin_core.bp)   # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(user_management.bp)  # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
 app.register_blueprint(quest_management.bp)  # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
 app.register_blueprint(quest_ideas.bp)  # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
