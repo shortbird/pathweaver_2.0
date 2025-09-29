@@ -3,10 +3,17 @@ import { useAuth } from '../contexts/AuthContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import SkillsRadarChart from '../components/diploma/SkillsRadarChart';
+import AccreditedDiplomaModal from '../components/diploma/AccreditedDiplomaModal';
 import { SkeletonDiplomaHeader, SkeletonStats, SkeletonAchievementGrid } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 import { formatErrorMessage } from '../utils/errorMessages';
 import { hasFeatureAccess } from '../utils/tierMapping';
+import {
+  getAllCreditProgress,
+  calculateTotalCredits,
+  TOTAL_CREDITS_REQUIRED,
+  meetsGraduationRequirements
+} from '../utils/creditRequirements';
 
 const DiplomaPageV3 = () => {
   const { user, loginTimestamp } = useAuth();
@@ -23,6 +30,7 @@ const DiplomaPageV3 = () => {
   const [previewMode, setPreviewMode] = useState(false);
   const [totalXPCount, setTotalXPCount] = useState(0);
   const [showDiplomaExplanation, setShowDiplomaExplanation] = useState(false);
+  const [showAccreditedDiplomaModal, setShowAccreditedDiplomaModal] = useState(false);
 
   // Check if user has access to diploma feature
   const hasAccess = hasFeatureAccess(user?.subscription_tier, 'supported');
@@ -661,70 +669,154 @@ const DiplomaPageV3 = () => {
         )}
 
         {/* School Subject Credits Section */}
-        {Object.keys(subjectXP).length > 0 && (
-          <div className="mb-12 pb-12 border-b border-gray-100">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-3" style={{ color: '#003f5c' }}>Diploma Credits</h2>
-              <p className="text-gray-600 max-w-2xl mx-auto">
-                Credits earned across traditional school subjects through evidence-based learning
-              </p>
-            </div>
+        {(() => {
+          const creditProgress = getAllCreditProgress(subjectXP);
+          const totalCreditsEarned = calculateTotalCredits(subjectXP);
+          const meetsRequirements = meetsGraduationRequirements(subjectXP);
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {Object.entries(subjectXP)
-                .filter(([_, xp]) => xp > 0)
-                .sort((a, b) => b[1] - a[1])  // Sort by XP descending
-                .map(([subject, xp]) => (
+          return (
+            <div className="mb-12 pb-12 border-b border-gray-100">
+              <div className="text-center mb-8">
+                <h2 className="text-3xl font-bold mb-3" style={{ color: '#003f5c' }}>Diploma Credits</h2>
+                <p className="text-gray-600 max-w-2xl mx-auto mb-4">
+                  Progress toward an accredited high school diploma through evidence-based learning
+                </p>
+                <button
+                  onClick={() => setShowAccreditedDiplomaModal(true)}
+                  className="inline-flex items-center gap-2 text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-4 py-2 rounded-lg transition-all duration-200 text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>How does this work?</span>
+                </button>
+              </div>
+
+              {/* Total Credits Progress */}
+              <div className="max-w-2xl mx-auto mb-8">
+                <div className={`p-6 rounded-xl border-2 ${
+                  meetsRequirements
+                    ? 'bg-green-50 border-green-200'
+                    : 'bg-blue-50 border-blue-200'
+                }`}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-gray-800">Total Credits Progress</h3>
+                      <p className="text-gray-600 text-sm">
+                        {meetsRequirements
+                          ? 'Congratulations! You meet graduation requirements!'
+                          : `${(TOTAL_CREDITS_REQUIRED - totalCreditsEarned).toFixed(1)} credits remaining for graduation`
+                        }
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-2xl font-bold text-gray-800">
+                        {totalCreditsEarned.toFixed(1)}/{TOTAL_CREDITS_REQUIRED}
+                      </div>
+                      <div className="text-sm text-gray-500">Credits</div>
+                    </div>
+                  </div>
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div
+                      className={`h-3 rounded-full transition-all duration-500 ${
+                        meetsRequirements
+                          ? 'bg-gradient-to-r from-green-400 to-green-600'
+                          : 'bg-gradient-to-r from-[#ef597b] to-[#6d469b]'
+                      }`}
+                      style={{
+                        width: `${Math.min((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
+                      }}
+                    ></div>
+                  </div>
+                  <div className="text-center mt-2 text-sm text-gray-600">
+                    {Math.round((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100)}% Complete
+                  </div>
+                </div>
+              </div>
+
+              {/* Subject Credits Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {creditProgress.map((credit) => (
                   <div
-                    key={subject}
-                    className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 hover:shadow-md transition-shadow"
+                    key={credit.subject}
+                    className={`bg-white rounded-xl p-6 shadow-sm border transition-all duration-200 hover:shadow-md ${
+                      credit.isComplete
+                        ? 'border-green-200 bg-green-50'
+                        : credit.creditsEarned > 0
+                          ? 'border-blue-200'
+                          : 'border-gray-100'
+                    }`}
                   >
                     <div className="flex items-center justify-between mb-4">
-                      <div className={`w-12 h-12 rounded-lg bg-gradient-to-r ${subjectColors[subject] || 'from-gray-400 to-gray-500'} flex items-center justify-center flex-shrink-0`}>
-                        <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
-                          <path d="M12 2L2 7v10c0 5.55 3.84 9.739 9 9.99 5.16-.251 9-4.44 9-9.99V7l-10-5z"/>
-                          <path d="M10 17l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
-                        </svg>
+                      <div className={`w-12 h-12 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                        credit.isComplete
+                          ? 'bg-gradient-to-r from-green-400 to-green-600'
+                          : credit.creditsEarned > 0
+                            ? `bg-gradient-to-r ${subjectColors[credit.subject] || 'from-gray-400 to-gray-500'}`
+                            : 'bg-gray-200'
+                      }`}>
+                        {credit.isComplete ? (
+                          <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                          </svg>
+                        ) : (
+                          <svg className={`w-6 h-6 ${
+                            credit.creditsEarned > 0 ? 'text-white' : 'text-gray-400'
+                          }`} fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M12 2L2 7v10c0 5.55 3.84 9.739 9 9.99 5.16-.251 9-4.44 9-9.99V7l-10-5z"/>
+                            <path d="M10 17l-4-4 1.41-1.41L10 14.17l6.59-6.59L18 9l-8 8z"/>
+                          </svg>
+                        )}
                       </div>
                       <div className="text-right">
-                        <div className="text-2xl font-bold text-gray-800">{xp}</div>
-                        <div className="text-sm text-gray-500">XP</div>
+                        <div className="text-lg font-bold text-gray-800">
+                          {credit.creditsEarned.toFixed(1)}/{credit.creditsRequired}
+                        </div>
+                        <div className="text-xs text-gray-500">Credits</div>
                       </div>
                     </div>
 
                     <h3 className="font-semibold text-gray-800 mb-2">
-                      {subjectDisplayNames[subject] || subject}
+                      {credit.displayName}
                     </h3>
 
                     <div className="w-full bg-gray-200 rounded-full h-2 mb-3">
                       <div
-                        className={`h-2 rounded-full bg-gradient-to-r ${subjectColors[subject] || 'from-gray-400 to-gray-500'}`}
+                        className={`h-2 rounded-full transition-all duration-300 ${
+                          credit.isComplete
+                            ? 'bg-gradient-to-r from-green-400 to-green-600'
+                            : credit.creditsEarned > 0
+                              ? `bg-gradient-to-r ${subjectColors[credit.subject] || 'from-gray-400 to-gray-500'}`
+                              : 'bg-gray-300'
+                        }`}
                         style={{
-                          width: `${Math.min((xp / Math.max(...Object.values(subjectXP))) * 100, 100)}%`
+                          width: `${credit.progressPercentage}%`
                         }}
                       ></div>
                     </div>
 
-                    <p className="text-xs text-gray-500">
-                      Credit progress based on completed learning tasks
-                    </p>
+                    <div className="flex justify-between items-center mb-2">
+                      <span className="text-xs text-gray-500">
+                        {Math.round(credit.progressPercentage)}% Complete
+                      </span>
+                      {credit.xpEarned > 0 && (
+                        <span className="text-xs text-gray-500">
+                          {credit.xpEarned} XP
+                        </span>
+                      )}
+                    </div>
+
+                    {credit.creditsEarned === 0 && (
+                      <p className="text-xs text-gray-400 italic">
+                        No progress yet - start learning to earn credits!
+                      </p>
+                    )}
                   </div>
                 ))}
-            </div>
-
-            {Object.keys(subjectXP).length === 0 && (
-              <div className="text-center py-12">
-                <div className="w-16 h-16 mx-auto mb-4 bg-gray-100 rounded-full flex items-center justify-center">
-                  <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg font-medium text-gray-800 mb-2">No Subject Credits Yet</h3>
-                <p className="text-gray-600">Complete learning tasks to earn credits across school subjects</p>
               </div>
-            )}
-          </div>
-        )}
+            </div>
+          );
+        })()}
 
         {/* Learning Journey Section */}
         <div className="mb-8 pt-8">
@@ -1054,6 +1146,12 @@ const DiplomaPageV3 = () => {
             </div>
           </div>
         )}
+
+        {/* Accredited Diploma Modal */}
+        <AccreditedDiplomaModal
+          isOpen={showAccreditedDiplomaModal}
+          onClose={() => setShowAccreditedDiplomaModal(false)}
+        />
       </div>
     </div>
   );
