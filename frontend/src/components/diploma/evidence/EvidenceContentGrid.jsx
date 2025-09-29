@@ -119,7 +119,9 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
       <div className={`grid gap-3 ${getGridClasses('link', resources.length)}`}>
         {resources.map((block) => {
           const rawUrl = block.content.url;
-          if (!rawUrl || rawUrl === '' || rawUrl === 'undefined') {
+          console.log('Multi-format evidence URL debug:', { blockId: block.id, rawUrl, content: block.content });
+
+          if (!rawUrl || rawUrl === '' || rawUrl === 'undefined' || rawUrl === 'null') {
             return (
               <div key={block.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <p className="text-gray-500 text-sm">Link not available</p>
@@ -127,24 +129,60 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
             );
           }
 
-          // Ensure URL has proper protocol
-          const formattedUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
+          // More robust URL validation and formatting
+          let formattedUrl = rawUrl.trim();
 
-          // Safe hostname extraction
+          // Check if it's a valid URL pattern
+          if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+            // Try to detect if it looks like a domain/URL
+            if (formattedUrl.includes('.') || formattedUrl.startsWith('www.')) {
+              formattedUrl = `https://${formattedUrl}`;
+            } else {
+              // If it doesn't look like a URL, show error
+              return (
+                <div key={block.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <p className="text-gray-500 text-sm">Invalid link format: {rawUrl}</p>
+                </div>
+              );
+            }
+          }
+
+          // Final validation - try to construct URL
           let hostname = 'External Link';
           try {
-            hostname = new URL(formattedUrl).hostname;
+            const urlObj = new URL(formattedUrl);
+            hostname = urlObj.hostname;
+            // Additional validation - make sure it's not empty or invalid
+            if (!hostname || hostname === 'undefined' || hostname === 'null') {
+              throw new Error('Invalid hostname');
+            }
           } catch (error) {
-            console.warn('Invalid URL:', rawUrl);
+            console.warn('Invalid URL after formatting:', formattedUrl, error);
+            return (
+              <div key={block.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <p className="text-gray-500 text-sm">Invalid URL format</p>
+              </div>
+            );
           }
+
+          const handleLinkClick = (e) => {
+            e.preventDefault();
+            console.log('Opening URL:', formattedUrl);
+            try {
+              window.open(formattedUrl, '_blank', 'noopener,noreferrer');
+            } catch (error) {
+              console.error('Failed to open URL:', formattedUrl, error);
+              // Fallback to direct assignment
+              window.open(formattedUrl, '_blank');
+            }
+          };
 
           return (
             <a
               key={block.id}
               href={formattedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-[#6d469b]/30 transition-all duration-300"
+              onClick={handleLinkClick}
+              className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-[#6d469b]/30 transition-all duration-300 cursor-pointer"
             >
               <div className="flex items-start space-x-3">
                 <div className="w-10 h-10 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-lg flex items-center justify-center flex-shrink-0">
@@ -186,7 +224,9 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
       <div className={`grid gap-3 ${getGridClasses('document', documents.length)}`}>
         {documents.map((block) => {
           const rawUrl = block.content.url;
-          if (!rawUrl || rawUrl === '' || rawUrl === 'undefined') {
+          console.log('Multi-format document URL debug:', { blockId: block.id, rawUrl, content: block.content });
+
+          if (!rawUrl || rawUrl === '' || rawUrl === 'undefined' || rawUrl === 'null') {
             return (
               <div key={block.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <p className="text-gray-500 text-sm">Document not available</p>
@@ -194,16 +234,53 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
             );
           }
 
-          // Ensure URL has proper protocol
-          const formattedUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
+          // More robust URL validation and formatting
+          let formattedUrl = rawUrl.trim();
+
+          // Check if it's a valid URL pattern
+          if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+            // Try to detect if it looks like a domain/URL
+            if (formattedUrl.includes('.') || formattedUrl.startsWith('www.')) {
+              formattedUrl = `https://${formattedUrl}`;
+            } else {
+              // If it doesn't look like a URL, show error
+              return (
+                <div key={block.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <p className="text-gray-500 text-sm">Invalid document format: {rawUrl}</p>
+                </div>
+              );
+            }
+          }
+
+          // Final validation - try to construct URL
+          try {
+            new URL(formattedUrl);
+          } catch (error) {
+            console.warn('Invalid document URL after formatting:', formattedUrl, error);
+            return (
+              <div key={block.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <p className="text-gray-500 text-sm">Invalid document URL format</p>
+              </div>
+            );
+          }
+
+          const handleDocumentClick = (e) => {
+            e.preventDefault();
+            console.log('Opening document URL:', formattedUrl);
+            try {
+              window.open(formattedUrl, '_blank', 'noopener,noreferrer');
+            } catch (error) {
+              console.error('Failed to open document URL:', formattedUrl, error);
+              window.open(formattedUrl, '_blank');
+            }
+          };
 
           return (
             <a
               key={block.id}
               href={formattedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-[#6d469b]/30 transition-all duration-300"
+              onClick={handleDocumentClick}
+              className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-[#6d469b]/30 transition-all duration-300 cursor-pointer"
             >
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gradient-to-r from-gray-400 to-gray-600 rounded-lg flex items-center justify-center flex-shrink-0">
@@ -240,7 +317,9 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
       <div className={`grid gap-3 ${getGridClasses('video', videos.length)}`}>
         {videos.map((block) => {
           const rawUrl = block.content.url;
-          if (!rawUrl || rawUrl === '' || rawUrl === 'undefined') {
+          console.log('Multi-format video URL debug:', { blockId: block.id, rawUrl, content: block.content });
+
+          if (!rawUrl || rawUrl === '' || rawUrl === 'undefined' || rawUrl === 'null') {
             return (
               <div key={block.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
                 <p className="text-gray-500 text-sm">Video not available</p>
@@ -248,16 +327,53 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
             );
           }
 
-          // Ensure URL has proper protocol
-          const formattedUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
+          // More robust URL validation and formatting
+          let formattedUrl = rawUrl.trim();
+
+          // Check if it's a valid URL pattern
+          if (!formattedUrl.startsWith('http://') && !formattedUrl.startsWith('https://')) {
+            // Try to detect if it looks like a domain/URL
+            if (formattedUrl.includes('.') || formattedUrl.startsWith('www.')) {
+              formattedUrl = `https://${formattedUrl}`;
+            } else {
+              // If it doesn't look like a URL, show error
+              return (
+                <div key={block.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                  <p className="text-gray-500 text-sm">Invalid video format: {rawUrl}</p>
+                </div>
+              );
+            }
+          }
+
+          // Final validation - try to construct URL
+          try {
+            new URL(formattedUrl);
+          } catch (error) {
+            console.warn('Invalid video URL after formatting:', formattedUrl, error);
+            return (
+              <div key={block.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <p className="text-gray-500 text-sm">Invalid video URL format</p>
+              </div>
+            );
+          }
+
+          const handleVideoClick = (e) => {
+            e.preventDefault();
+            console.log('Opening video URL:', formattedUrl);
+            try {
+              window.open(formattedUrl, '_blank', 'noopener,noreferrer');
+            } catch (error) {
+              console.error('Failed to open video URL:', formattedUrl, error);
+              window.open(formattedUrl, '_blank');
+            }
+          };
 
           return (
             <a
               key={block.id}
               href={formattedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="group bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-lg p-4 hover:shadow-md hover:border-orange-300 transition-all duration-300"
+              onClick={handleVideoClick}
+              className="group bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-lg p-4 hover:shadow-md hover:border-orange-300 transition-all duration-300 cursor-pointer"
             >
               <div className="flex items-center space-x-3">
                 <div className="w-10 h-10 bg-gradient-to-r from-orange-400 to-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
