@@ -281,7 +281,7 @@ def get_all_invites(user_id: str):
 
         return jsonify({
             'success': True,
-            'invitations': formatted_received,  # Received invitations (backward compatibility)
+            'received_invitations': formatted_received,  # Received invitations
             'sent_invitations': formatted_sent,  # Sent invitations
             'total_received': len(formatted_received),
             'total_sent': len(formatted_sent)
