@@ -153,7 +153,7 @@ export const useEndQuest = () => {
   return useMutation({
     mutationKey: [mutationKeys.endQuest],
     mutationFn: async (questId) => {
-      const response = await api.post(`/api/v3/quests/${questId}/end`)
+      const response = await api.post(`/api/v3/quests/${questId}/end`, {})
       return response.data
     },
     onSuccess: (data, questId) => {
