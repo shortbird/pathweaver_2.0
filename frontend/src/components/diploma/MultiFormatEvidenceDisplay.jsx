@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import EvidenceContentGrid from './evidence/EvidenceContentGrid';
 import EvidenceLightbox from './evidence/EvidenceLightbox';
+import EvidenceViewerModal from './evidence/EvidenceViewerModal';
 import { useEvidenceLightbox } from '../../hooks/useEvidenceLightbox';
 import { useExpandableContent } from '../../hooks/useExpandableContent';
 
 const MultiFormatEvidenceDisplay = ({ blocks = [] }) => {
+  const [viewerContent, setViewerContent] = useState(null);
   // Sort blocks by order_index
   const sortedBlocks = blocks
     .filter(block => block && block.block_type && block.content)
@@ -43,6 +45,10 @@ const MultiFormatEvidenceDisplay = ({ blocks = [] }) => {
     openLightbox(image, index, images);
   };
 
+  const handleOpenContent = (block) => {
+    setViewerContent(block);
+  };
+
   // Handle expand toggle from grid
   const handleExpandToggle = (blockId) => {
     toggleExpanded(blockId);
@@ -79,6 +85,7 @@ const MultiFormatEvidenceDisplay = ({ blocks = [] }) => {
         onImageClick={handleImageClick}
         onExpandToggle={handleExpandToggle}
         expandedBlocks={expandedBlocks}
+        onOpenContent={handleOpenContent}
       />
 
       {/* Lightbox for images */}
@@ -89,6 +96,14 @@ const MultiFormatEvidenceDisplay = ({ blocks = [] }) => {
         onClose={closeLightbox}
         onNext={goToNext}
         onPrevious={goToPrevious}
+      />
+
+      {/* Viewer for other content types */}
+      <EvidenceViewerModal
+        isOpen={!!viewerContent}
+        onClose={() => setViewerContent(null)}
+        blockType={viewerContent?.block_type}
+        content={viewerContent?.content}
       />
     </>
   );
