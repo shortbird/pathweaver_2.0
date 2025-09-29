@@ -10,7 +10,6 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isEnrolling, setIsEnrolling] = useState(false);
-  const [showTaskPreview, setShowTaskPreview] = useState(false);
   
   // Check if user can start quests (requires paid tier)
   const canStartQuests = hasFeatureAccess(user?.subscription_tier, 'supported');
@@ -67,8 +66,6 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
     <div
       className="group bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100 touch-manipulation relative"
       onClick={handleCardClick}
-      onMouseEnter={() => setShowTaskPreview(true)}
-      onMouseLeave={() => setShowTaskPreview(false)}
     >
       {/* Visual Header - Smaller and more subtle */}
       <div className={`h-2 bg-gradient-to-r ${dominantPillarGradient}`} />
@@ -300,25 +297,6 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
         ) : null}
       </div>
 
-      {/* Task Preview Tooltip */}
-      {showTaskPreview && quest.quest_tasks && quest.quest_tasks.length > 0 && (
-        <div className="absolute top-2 right-2 bg-white border border-gray-200 rounded-lg shadow-lg p-3 max-w-xs z-10 transform -translate-y-2 opacity-0 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-200">
-          <div className="text-xs font-semibold text-gray-700 mb-2">First Tasks:</div>
-          <div className="space-y-1">
-            {quest.quest_tasks.slice(0, 3).map((task, index) => (
-              <div key={task.id || index} className="flex items-start gap-2">
-                <div className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-1.5 flex-shrink-0" />
-                <div className="text-xs text-gray-600 line-clamp-2">{task.title}</div>
-              </div>
-            ))}
-            {quest.quest_tasks.length > 3 && (
-              <div className="text-xs text-gray-500 italic mt-2">
-                +{quest.quest_tasks.length - 3} more tasks...
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 };
