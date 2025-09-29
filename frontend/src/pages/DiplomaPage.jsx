@@ -208,7 +208,7 @@ const DiplomaPage = () => {
     try {
       // Fetch both completed quests and user XP data using api service with cookies
       const [questsResponse, dashboardResponse] = await Promise.all([
-        api.get(`/api/v3/quests/completed?t=${Date.now()}`, {
+        api.get(`/api/quests/completed?t=${Date.now()}`, {
           headers: {
             'Cache-Control': 'no-cache'
           }

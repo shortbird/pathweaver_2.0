@@ -42,7 +42,7 @@ const fetchQuestSources = async () => {
   try {
     const apiBase = import.meta.env.VITE_API_URL || '';
 
-    const response = await fetch(`${apiBase}/api/v3/quests/sources`, {
+    const response = await fetch(`${apiBase}/api/quests/sources`, {
       headers: {
         'Content-Type': 'application/json'
       },

@@ -29,7 +29,7 @@ export const useQuests = (searchTerm = '', selectedPillar = 'all', initialPage =
       });
 
       const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/api/v3/quests?${params}`, {
+      const response = await fetch(`${apiBase}/api/quests?${params}`, {
         credentials: user ? 'include' : 'omit', // Send cookies for authenticated users
         cache: 'no-cache' // Ensure fresh data
       });

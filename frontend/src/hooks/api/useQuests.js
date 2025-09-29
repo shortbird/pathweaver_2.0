@@ -11,7 +11,7 @@ export const useQuests = (filters = {}, options = {}) => {
     queryKey: queryKeys.quests.list(filters),
     queryFn: async () => {
       const params = new URLSearchParams(filters).toString()
-      const response = await api.get(`/api/v3/quests?${params}`)
+      const response = await api.get(`/api/quests?${params}`)
       return response.data
     },
     ...options,
@@ -25,7 +25,7 @@ export const useQuestDetail = (questId, options = {}) => {
   return useQuery({
     queryKey: queryKeys.quests.detail(questId),
     queryFn: async () => {
-      const response = await api.get(`/api/v3/quests/${questId}?t=${Date.now()}`)
+      const response = await api.get(`/api/quests/${questId}?t=${Date.now()}`)
       return response.data.quest
     },
     enabled: !!questId,
@@ -72,7 +72,7 @@ export const useEnrollQuest = () => {
   return useMutation({
     mutationKey: [mutationKeys.enrollQuest],
     mutationFn: async (questId) => {
-      const response = await api.post(`/api/v3/quests/${questId}/enroll`)
+      const response = await api.post(`/api/quests/${questId}/enroll`)
       return response.data
     },
     onSuccess: (data, questId) => {
@@ -100,7 +100,7 @@ export const useCompleteTask = () => {
   return useMutation({
     mutationKey: [mutationKeys.completeTask],
     mutationFn: async ({ taskId, evidence }) => {
-      const response = await api.post(`/api/v3/tasks/${taskId}/complete`, evidence)
+      const response = await api.post(`/api/tasks/${taskId}/complete`, evidence)
       return response.data
     },
     onSuccess: (data, variables) => {
@@ -129,7 +129,7 @@ export const useAbandonQuest = () => {
   return useMutation({
     mutationKey: [mutationKeys.abandonQuest],
     mutationFn: async (questId) => {
-      const response = await api.post(`/api/v3/quests/${questId}/abandon`)
+      const response = await api.post(`/api/quests/${questId}/abandon`)
       return response.data
     },
     onSuccess: (data, questId) => {
@@ -153,7 +153,7 @@ export const useEndQuest = () => {
   return useMutation({
     mutationKey: [mutationKeys.endQuest],
     mutationFn: async (questId) => {
-      const response = await api.post(`/api/v3/quests/${questId}/end`, {})
+      const response = await api.post(`/api/quests/${questId}/end`, {})
       return response.data
     },
     onSuccess: (data, questId) => {
@@ -175,7 +175,7 @@ export const useQuestTasks = (questId, options = {}) => {
   return useQuery({
     queryKey: queryKeys.quests.tasks(questId),
     queryFn: async () => {
-      const response = await api.get(`/api/v3/quests/${questId}/tasks`)
+      const response = await api.get(`/api/quests/${questId}/tasks`)
       return response.data
     },
     enabled: !!questId,
@@ -190,7 +190,7 @@ export const useQuestProgress = (userId, questId, options = {}) => {
   return useQuery({
     queryKey: queryKeys.quests.progress(userId, questId),
     queryFn: async () => {
-      const response = await api.get(`/api/v3/quests/${questId}/progress`)
+      const response = await api.get(`/api/quests/${questId}/progress`)
       return response.data
     },
     enabled: !!(userId && questId),

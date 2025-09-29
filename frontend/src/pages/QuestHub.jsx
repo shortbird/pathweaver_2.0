@@ -148,7 +148,7 @@ const QuestHub = () => {
           params.append('sort', sortBy);
         }
 
-        const response = await api.get(`/api/v3/quests?${params}`, {
+        const response = await api.get(`/api/quests?${params}`, {
           headers: {
             'Cache-Control': 'no-cache'
           },
@@ -217,7 +217,7 @@ const QuestHub = () => {
     }
 
     try {
-      const response = await api.post(`/api/v3/quests/${questId}/enroll`);
+      const response = await api.post(`/api/quests/${questId}/enroll`);
       const data = response.data;
       handleApiResponse({ ok: true, status: 200 }, data, 'Failed to enroll');
 
