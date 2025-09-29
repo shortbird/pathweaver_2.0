@@ -117,37 +117,59 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
         Resources & Links ({resources.length})
       </h4>
       <div className={`grid gap-3 ${getGridClasses('link', resources.length)}`}>
-        {resources.map((block) => (
-          <a
-            key={block.id}
-            href={block.content.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-[#6d469b]/30 transition-all duration-300"
-          >
-            <div className="flex items-start space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5z" clipRule="evenodd" />
-                </svg>
+        {resources.map((block) => {
+          const rawUrl = block.content.url;
+          if (!rawUrl || rawUrl === '' || rawUrl === 'undefined') {
+            return (
+              <div key={block.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <p className="text-gray-500 text-sm">Link not available</p>
               </div>
-              <div className="flex-1 min-w-0">
-                <h5 className="font-medium text-gray-900 group-hover:text-[#6d469b] transition-colors line-clamp-1">
-                  {block.content.title || 'External Resource'}
-                </h5>
-                {block.content.description && (
-                  <p className="text-sm text-gray-600 mt-1 line-clamp-2">{block.content.description}</p>
-                )}
-                <div className="flex items-center mt-2 text-xs text-gray-500">
-                  <span className="truncate">{new URL(block.content.url).hostname}</span>
-                  <svg className="w-3 h-3 ml-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+            );
+          }
+
+          // Ensure URL has proper protocol
+          const formattedUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
+
+          // Safe hostname extraction
+          let hostname = 'External Link';
+          try {
+            hostname = new URL(formattedUrl).hostname;
+          } catch (error) {
+            console.warn('Invalid URL:', rawUrl);
+          }
+
+          return (
+            <a
+              key={block.id}
+              href={formattedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-[#6d469b]/30 transition-all duration-300"
+            >
+              <div className="flex items-start space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5z" clipRule="evenodd" />
                   </svg>
                 </div>
+                <div className="flex-1 min-w-0">
+                  <h5 className="font-medium text-gray-900 group-hover:text-[#6d469b] transition-colors line-clamp-1">
+                    {block.content.title || 'External Resource'}
+                  </h5>
+                  {block.content.description && (
+                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">{block.content.description}</p>
+                  )}
+                  <div className="flex items-center mt-2 text-xs text-gray-500">
+                    <span className="truncate">{hostname}</span>
+                    <svg className="w-3 h-3 ml-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
+                    </svg>
+                  </div>
+                </div>
               </div>
-            </div>
-          </a>
-        ))}
+            </a>
+          );
+        })}
       </div>
     </div>
   );
@@ -162,32 +184,46 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
         Documents ({documents.length})
       </h4>
       <div className={`grid gap-3 ${getGridClasses('document', documents.length)}`}>
-        {documents.map((block) => (
-          <a
-            key={block.id}
-            href={block.content.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-[#6d469b]/30 transition-all duration-300"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-gray-400 to-gray-600 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+        {documents.map((block) => {
+          const rawUrl = block.content.url;
+          if (!rawUrl || rawUrl === '' || rawUrl === 'undefined') {
+            return (
+              <div key={block.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <p className="text-gray-500 text-sm">Document not available</p>
+              </div>
+            );
+          }
+
+          // Ensure URL has proper protocol
+          const formattedUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
+
+          return (
+            <a
+              key={block.id}
+              href={formattedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-[#6d469b]/30 transition-all duration-300"
+            >
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-gray-400 to-gray-600 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h5 className="font-medium text-gray-900 group-hover:text-[#6d469b] transition-colors line-clamp-1">
+                    {block.content.title || block.content.filename || 'Document'}
+                  </h5>
+                  <p className="text-sm text-gray-600 mt-1">Click to view document</p>
+                </div>
+                <svg className="w-4 h-4 text-gray-400 group-hover:text-[#6d469b] transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
                 </svg>
               </div>
-              <div className="flex-1 min-w-0">
-                <h5 className="font-medium text-gray-900 group-hover:text-[#6d469b] transition-colors line-clamp-1">
-                  {block.content.title || block.content.filename || 'Document'}
-                </h5>
-                <p className="text-sm text-gray-600 mt-1">Click to view document</p>
-              </div>
-              <svg className="w-4 h-4 text-gray-400 group-hover:text-[#6d469b] transition-colors" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-              </svg>
-            </div>
-          </a>
-        ))}
+            </a>
+          );
+        })}
       </div>
     </div>
   );
@@ -202,32 +238,46 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
         Videos ({videos.length})
       </h4>
       <div className={`grid gap-3 ${getGridClasses('video', videos.length)}`}>
-        {videos.map((block) => (
-          <a
-            key={block.id}
-            href={block.content.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="group bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-lg p-4 hover:shadow-md hover:border-orange-300 transition-all duration-300"
-          >
-            <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-r from-orange-400 to-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+        {videos.map((block) => {
+          const rawUrl = block.content.url;
+          if (!rawUrl || rawUrl === '' || rawUrl === 'undefined') {
+            return (
+              <div key={block.id} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                <p className="text-gray-500 text-sm">Video not available</p>
+              </div>
+            );
+          }
+
+          // Ensure URL has proper protocol
+          const formattedUrl = rawUrl.startsWith('http') ? rawUrl : `https://${rawUrl}`;
+
+          return (
+            <a
+              key={block.id}
+              href={formattedUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="group bg-gradient-to-r from-orange-50 to-red-50 border border-orange-200 rounded-lg p-4 hover:shadow-md hover:border-orange-300 transition-all duration-300"
+            >
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 bg-gradient-to-r from-orange-400 to-red-500 rounded-lg flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h5 className="font-medium text-gray-900 group-hover:text-orange-600 transition-colors line-clamp-1">
+                    {block.content.title || 'Video Content'}
+                  </h5>
+                  <p className="text-sm text-gray-600 mt-1">Click to watch video</p>
+                </div>
+                <svg className="w-4 h-4 text-gray-400 group-hover:text-orange-500 transition-colors" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
                 </svg>
               </div>
-              <div className="flex-1 min-w-0">
-                <h5 className="font-medium text-gray-900 group-hover:text-orange-600 transition-colors line-clamp-1">
-                  {block.content.title || 'Video Content'}
-                </h5>
-                <p className="text-sm text-gray-600 mt-1">Click to watch video</p>
-              </div>
-              <svg className="w-4 h-4 text-gray-400 group-hover:text-orange-500 transition-colors" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-              </svg>
-            </div>
-          </a>
-        ))}
+            </a>
+          );
+        })}
       </div>
     </div>
   );
