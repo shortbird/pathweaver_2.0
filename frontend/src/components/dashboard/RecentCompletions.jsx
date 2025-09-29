@@ -1,12 +1,15 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import {
   CheckCircleIcon,
   TrophyIcon,
   ClockIcon
 } from '@heroicons/react/24/outline';
 import { getPillarData } from '../../utils/pillarMappings';
+import { useAuth } from '../../contexts/AuthContext';
 
 const RecentCompletions = ({ recentItems }) => {
+  const { user } = useAuth();
   if (!recentItems || recentItems.length === 0) {
     return (
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
@@ -142,11 +145,14 @@ const RecentCompletions = ({ recentItems }) => {
       </div>
 
       {/* View more link */}
-      {recentItems.length >= 5 && (
+      {recentItems.length >= 5 && user?.id && (
         <div className="mt-6 text-center">
-          <button className="text-sm text-purple-600 hover:text-purple-800 font-medium">
-            View All Completions →
-          </button>
+          <Link
+            to={`/diploma/${user.id}`}
+            className="text-sm text-purple-600 hover:text-purple-800 font-medium transition-colors"
+          >
+            view all completions on diploma →
+          </Link>
         </div>
       )}
     </div>
