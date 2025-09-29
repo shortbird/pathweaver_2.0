@@ -428,9 +428,10 @@ def get_public_diploma_by_user_id(user_id):
                 for task_completion in cq.get('user_quest_tasks', []):
                     task_data = task_completion.get('quest_tasks')
                     if task_data:
+                        evidence_content = task_completion.get('evidence_content', '') or ''
                         task_evidence[task_data['title']] = {
                             'evidence_type': task_completion.get('evidence_type', 'text'),
-                            'evidence_content': task_completion.get('evidence_content', ''),
+                            'evidence_content': evidence_content,
                             'xp_awarded': task_completion.get('xp_awarded', 0),
                             'completed_at': task_completion.get('completed_at'),
                             'pillar': task_data.get('pillar', 'Arts & Creativity'),
