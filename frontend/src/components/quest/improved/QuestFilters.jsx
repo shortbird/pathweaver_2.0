@@ -57,21 +57,21 @@ const QuestFilters = ({
   ];
 
   return (
-    <div className="mb-8">
+    <div className="mb-4">
       {/* Search Bar and Sort Options */}
-      <div className="mb-4 space-y-3">
+      <div className="mb-3 space-y-2">
         <div className="flex gap-3">
           {/* Search Input */}
           <div className="relative flex-1">
             <input
               type="text"
-              placeholder="Search quests by title or description..."
+              placeholder="Search quests..."
               value={searchTerm}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:border-[#6d469b] focus:ring-2 focus:ring-[#6d469b]/20 transition-all"
+              className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200 focus:border-[#6d469b] focus:ring-2 focus:ring-[#6d469b]/20 transition-all text-sm"
             />
             <svg
-              className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -85,7 +85,7 @@ const QuestFilters = ({
             <select
               value={sortBy || 'newest'}
               onChange={(e) => onSortChange && onSortChange(e.target.value)}
-              className="appearance-none bg-white border border-gray-200 rounded-xl px-4 py-3 pr-10 focus:border-[#6d469b] focus:ring-2 focus:ring-[#6d469b]/20 transition-all text-sm font-medium text-gray-700"
+              className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 pr-8 focus:border-[#6d469b] focus:ring-2 focus:ring-[#6d469b]/20 transition-all text-sm font-medium text-gray-700"
             >
               {sortOptions.map(option => (
                 <option key={option.value} value={option.value}>
@@ -105,10 +105,10 @@ const QuestFilters = ({
 
           {/* View Mode Toggle */}
           {onViewModeChange && (
-            <div className="flex border border-gray-200 rounded-xl overflow-hidden">
+            <div className="flex border border-gray-200 rounded-lg overflow-hidden">
               <button
                 onClick={() => onViewModeChange('grid')}
-                className={`px-3 py-3 transition-all ${
+                className={`px-2 py-2 transition-all ${
                   viewMode === 'grid'
                     ? 'bg-[#6d469b] text-white'
                     : 'bg-white text-gray-600 hover:bg-gray-50'
@@ -121,7 +121,7 @@ const QuestFilters = ({
               </button>
               <button
                 onClick={() => onViewModeChange('list')}
-                className={`px-3 py-3 transition-all ${
+                className={`px-2 py-2 transition-all ${
                   viewMode === 'list'
                     ? 'bg-[#6d469b] text-white'
                     : 'bg-white text-gray-600 hover:bg-gray-50'
@@ -138,8 +138,8 @@ const QuestFilters = ({
 
         {/* Results Count */}
         {totalResults !== undefined && (
-          <div className="text-sm text-gray-500">
-            {totalResults} {totalResults === 1 ? 'quest' : 'quests'} found
+          <div className="text-xs text-gray-500">
+            {totalResults} {totalResults === 1 ? 'quest' : 'quests'}
           </div>
         )}
       </div>
@@ -166,7 +166,7 @@ const QuestFilters = ({
       </button>
 
       {/* Desktop Filters (always visible) */}
-      <div className="hidden md:block bg-white rounded-xl border border-gray-200 p-6">
+      <div className="hidden md:block bg-white rounded-lg border border-gray-200 p-4">
         <FilterContent
           pillars={pillars}
           selectedPillar={selectedPillar}
@@ -182,7 +182,7 @@ const QuestFilters = ({
 
       {/* Mobile Filters (collapsible) */}
       {mobileFiltersOpen && (
-        <div className="md:hidden bg-white rounded-xl border border-gray-200 p-4 animate-slideDown">
+        <div className="md:hidden bg-white rounded-lg border border-gray-200 p-3 animate-slideDown">
           <FilterContent
             pillars={pillars}
             selectedPillar={selectedPillar}
@@ -257,20 +257,20 @@ const FilterContent = memo(({
   const buttonClass = mobile ? 'text-sm' : '';
 
   return (
-    <div className={`${mobile ? 'space-y-4' : 'space-y-6'}`}>
+    <div className={`${mobile ? 'space-y-3' : 'space-y-4'}`}>
       {/* Skill Pillars */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Skill Area</h3>
+        <h3 className="text-xs font-semibold text-gray-700 mb-2">Skill Area</h3>
         <div className={`${mobile ? 'grid grid-cols-2 gap-2' : 'flex flex-wrap gap-2'}`}>
           {pillars.map(pillar => (
             <button
               key={pillar.value}
               onClick={() => onPillarChange(pillar.value)}
               className={`
-                ${mobile ? 'px-3 py-2' : 'px-4 py-2'}
-                rounded-lg font-medium transition-all ${buttonClass}
+                ${mobile ? 'px-2 py-1' : 'px-3 py-1'}
+                rounded font-medium transition-all text-xs
                 ${selectedPillar === pillar.value
-                  ? `${pillar.color} shadow-md`
+                  ? `${pillar.color} shadow-sm`
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }
               `}
@@ -283,17 +283,17 @@ const FilterContent = memo(({
 
       {/* School Subjects */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3">Diploma Credit</h3>
+        <h3 className="text-xs font-semibold text-gray-700 mb-2">Diploma Credit</h3>
         <div className={`${mobile ? 'grid grid-cols-2 gap-2' : 'flex flex-wrap gap-2'}`}>
           {subjects.map(subject => (
             <button
               key={subject.value}
               onClick={() => onSubjectChange(subject.value)}
               className={`
-                ${mobile ? 'px-3 py-2' : 'px-4 py-2'} 
-                rounded-lg font-medium transition-all ${buttonClass}
-                ${selectedSubject === subject.value 
-                  ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-md' 
+                ${mobile ? 'px-2 py-1' : 'px-3 py-1'}
+                rounded font-medium transition-all text-xs
+                ${selectedSubject === subject.value
+                  ? 'bg-blue-500 text-white shadow-sm'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }
               `}
