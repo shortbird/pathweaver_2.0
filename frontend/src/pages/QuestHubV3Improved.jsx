@@ -337,8 +337,8 @@ const QuestHubV3Improved = () => {
           )}
         </div>
 
-        {/* Quest Filters - Compact Sticky Toolbar */}
-        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-gray-200 mb-6 -mx-4 px-4 py-2">
+        {/* Quest Filters - Clean Sticky Toolbar */}
+        <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b border-gray-200 mb-6 -mx-4 px-4 py-4">
           <div className="max-w-7xl mx-auto">
             <QuestFilters
               searchTerm={searchTerm}
