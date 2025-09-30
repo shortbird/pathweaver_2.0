@@ -195,42 +195,74 @@ def export_user_data(current_user):
         }
 
         # Get user profile
-        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
-        if user_response.data:
-            export_data['profile'] = user_response.data[0]
+        try:
+            user_response = supabase.table('users').select('*').eq('id', user_id).execute()
+            if user_response.data:
+                export_data['profile'] = user_response.data[0]
+        except Exception as e:
+            print(f"Error fetching user profile: {str(e)}")
+            export_data['profile'] = None
 
         # Get diploma/portfolio
-        diploma_response = supabase.table('diplomas').select('*').eq('user_id', user_id).execute()
-        if diploma_response.data:
-            export_data['diploma'] = diploma_response.data[0]
+        try:
+            diploma_response = supabase.table('diplomas').select('*').eq('user_id', user_id).execute()
+            if diploma_response.data:
+                export_data['diploma'] = diploma_response.data[0]
+        except Exception as e:
+            print(f"Error fetching diploma: {str(e)}")
+            export_data['diploma'] = None
 
         # Get skill XP
-        skills_response = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()
-        export_data['skills'] = skills_response.data if skills_response.data else []
+        try:
+            skills_response = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()
+            export_data['skills'] = skills_response.data if skills_response.data else []
+        except Exception as e:
+            print(f"Error fetching skills: {str(e)}")
+            export_data['skills'] = []
 
         # Get quest enrollments
-        quests_response = supabase.table('user_quests').select('*').eq('user_id', user_id).execute()
-        export_data['enrolled_quests'] = quests_response.data if quests_response.data else []
+        try:
+            quests_response = supabase.table('user_quests').select('*').eq('user_id', user_id).execute()
+            export_data['enrolled_quests'] = quests_response.data if quests_response.data else []
+        except Exception as e:
+            print(f"Error fetching quest enrollments: {str(e)}")
+            export_data['enrolled_quests'] = []
 
         # Get completed tasks
-        tasks_response = supabase.table('quest_task_completions').select('*').eq('user_id', user_id).execute()
-        export_data['completed_tasks'] = tasks_response.data if tasks_response.data else []
+        try:
+            tasks_response = supabase.table('quest_task_completions').select('*').eq('user_id', user_id).execute()
+            export_data['completed_tasks'] = tasks_response.data if tasks_response.data else []
+        except Exception as e:
+            print(f"Error fetching completed tasks: {str(e)}")
+            export_data['completed_tasks'] = []
 
         # Get evidence documents
-        evidence_response = supabase.table('user_task_evidence_documents').select('*').eq('user_id', user_id).execute()
-        export_data['evidence_documents'] = evidence_response.data if evidence_response.data else []
+        try:
+            evidence_response = supabase.table('evidence_document_blocks').select('*').eq('user_id', user_id).execute()
+            export_data['evidence_documents'] = evidence_response.data if evidence_response.data else []
+        except Exception as e:
+            print(f"Error fetching evidence documents: {str(e)}")
+            export_data['evidence_documents'] = []
 
         # Get friendships
-        friendships_response = supabase.table('friendships').select('*').or_(
-            f'requester_id.eq.{user_id},addressee_id.eq.{user_id}'
-        ).execute()
-        export_data['friendships'] = friendships_response.data if friendships_response.data else []
+        try:
+            friendships_response = supabase.table('friendships').select('*').or_(
+                f'requester_id.eq.{user_id},addressee_id.eq.{user_id}'
+            ).execute()
+            export_data['friendships'] = friendships_response.data if friendships_response.data else []
+        except Exception as e:
+            print(f"Error fetching friendships: {str(e)}")
+            export_data['friendships'] = []
 
         # Get quest collaborations
-        collabs_response = supabase.table('quest_collaborations').select('*').or_(
-            f'requester_id.eq.{user_id},partner_id.eq.{user_id}'
-        ).execute()
-        export_data['collaborations'] = collabs_response.data if collabs_response.data else []
+        try:
+            collabs_response = supabase.table('quest_collaborations').select('*').or_(
+                f'requester_id.eq.{user_id},partner_id.eq.{user_id}'
+            ).execute()
+            export_data['collaborations'] = collabs_response.data if collabs_response.data else []
+        except Exception as e:
+            print(f"Error fetching collaborations: {str(e)}")
+            export_data['collaborations'] = []
 
         # Get tutor conversations (if exists)
         try:
