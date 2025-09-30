@@ -233,7 +233,7 @@ frontend/src/
 ### Additional Features
 
 
-**evidence_documents** (File uploads for evidence)
+**evidence_document_blocks** (File uploads for evidence)
 - id (UUID, PK)
 - user_id, task_completion_id
 - file_name, file_type, file_size
@@ -341,7 +341,7 @@ frontend/src/
 ### Quest System (Current Implementation)
 - **Task-based structure**: Each quest contains multiple tasks with individual XP values
 - **Per-task configuration**: Each task has its own pillar and XP value
-- **Evidence submission**: Text, images, videos, documents via evidence_documents table
+- **Evidence submission**: Text, images, videos, documents via evidence_document_blocks table
 - **Completion bonus**: 50% XP bonus for completing all tasks (rounded to nearest 50)
 - **Custom quests**: Students can submit quest ideas for admin approval
 - **Race condition prevention**: Atomic quest completion with optimistic locking
