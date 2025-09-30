@@ -8,96 +8,6 @@
       "PERFORMANCE"
     ],
     "description": "Detects if calls to \\`current_setting()\\` and \\`auth.<function>()\\` in RLS policies are being unnecessarily re-evaluated for each row",
-    "detail": "Table \\`public.friendships\\` has a row level security policy \\`Users can update friendships they're part of\\` that re-evaluates current_setting() or auth.<function>() for each row. This produces suboptimal query performance at scale. Resolve the issue by replacing \\`auth.<function>()\\` with \\`(select auth.<function>())\\`. See [docs](https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select) for more info.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan",
-    "metadata": {
-      "name": "friendships",
-      "type": "table",
-      "schema": "public"
-    },
-    "cache_key": "auth_rls_init_plan_public_friendships_Users can update friendships they're part of"
-  },
-  {
-    "name": "auth_rls_initplan",
-    "title": "Auth RLS Initialization Plan",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "PERFORMANCE"
-    ],
-    "description": "Detects if calls to \\`current_setting()\\` and \\`auth.<function>()\\` in RLS policies are being unnecessarily re-evaluated for each row",
-    "detail": "Table \\`public.friendships\\` has a row level security policy \\`friendships_update_involved\\` that re-evaluates current_setting() or auth.<function>() for each row. This produces suboptimal query performance at scale. Resolve the issue by replacing \\`auth.<function>()\\` with \\`(select auth.<function>())\\`. See [docs](https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select) for more info.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan",
-    "metadata": {
-      "name": "friendships",
-      "type": "table",
-      "schema": "public"
-    },
-    "cache_key": "auth_rls_init_plan_public_friendships_friendships_update_involved"
-  },
-  {
-    "name": "auth_rls_initplan",
-    "title": "Auth RLS Initialization Plan",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "PERFORMANCE"
-    ],
-    "description": "Detects if calls to \\`current_setting()\\` and \\`auth.<function>()\\` in RLS policies are being unnecessarily re-evaluated for each row",
-    "detail": "Table \\`public.diplomas\\` has a row level security policy \\`diplomas_update_own\\` that re-evaluates current_setting() or auth.<function>() for each row. This produces suboptimal query performance at scale. Resolve the issue by replacing \\`auth.<function>()\\` with \\`(select auth.<function>())\\`. See [docs](https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select) for more info.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan",
-    "metadata": {
-      "name": "diplomas",
-      "type": "table",
-      "schema": "public"
-    },
-    "cache_key": "auth_rls_init_plan_public_diplomas_diplomas_update_own"
-  },
-  {
-    "name": "auth_rls_initplan",
-    "title": "Auth RLS Initialization Plan",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "PERFORMANCE"
-    ],
-    "description": "Detects if calls to \\`current_setting()\\` and \\`auth.<function>()\\` in RLS policies are being unnecessarily re-evaluated for each row",
-    "detail": "Table \\`public.user_skill_details\\` has a row level security policy \\`Service role can manage skill details\\` that re-evaluates current_setting() or auth.<function>() for each row. This produces suboptimal query performance at scale. Resolve the issue by replacing \\`auth.<function>()\\` with \\`(select auth.<function>())\\`. See [docs](https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select) for more info.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan",
-    "metadata": {
-      "name": "user_skill_details",
-      "type": "table",
-      "schema": "public"
-    },
-    "cache_key": "auth_rls_init_plan_public_user_skill_details_Service role can manage skill details"
-  },
-  {
-    "name": "auth_rls_initplan",
-    "title": "Auth RLS Initialization Plan",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "PERFORMANCE"
-    ],
-    "description": "Detects if calls to \\`current_setting()\\` and \\`auth.<function>()\\` in RLS policies are being unnecessarily re-evaluated for each row",
-    "detail": "Table \\`public.user_xp\\` has a row level security policy \\`Service role can manage all XP\\` that re-evaluates current_setting() or auth.<function>() for each row. This produces suboptimal query performance at scale. Resolve the issue by replacing \\`auth.<function>()\\` with \\`(select auth.<function>())\\`. See [docs](https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select) for more info.",
-    "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan",
-    "metadata": {
-      "name": "user_xp",
-      "type": "table",
-      "schema": "public"
-    },
-    "cache_key": "auth_rls_init_plan_public_user_xp_Service role can manage all XP"
-  },
-  {
-    "name": "auth_rls_initplan",
-    "title": "Auth RLS Initialization Plan",
-    "level": "WARN",
-    "facing": "EXTERNAL",
-    "categories": [
-      "PERFORMANCE"
-    ],
-    "description": "Detects if calls to \\`current_setting()\\` and \\`auth.<function>()\\` in RLS policies are being unnecessarily re-evaluated for each row",
     "detail": "Table \\`public.user_xp\\` has a row level security policy \\`user_xp_update_own\\` that re-evaluates current_setting() or auth.<function>() for each row. This produces suboptimal query performance at scale. Resolve the issue by replacing \\`auth.<function>()\\` with \\`(select auth.<function>())\\`. See [docs](https://supabase.com/docs/guides/database/postgres/row-level-security#call-functions-with-select) for more info.",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0003_auth_rls_initplan",
     "metadata": {
@@ -2474,7 +2384,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`anon\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`anon\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2492,7 +2402,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`anon\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_insert_auth}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`anon\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_insert_auth}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2510,7 +2420,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`anon\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_select_all}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`anon\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_select_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2528,7 +2438,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`anon\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_update_own}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`anon\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_update_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2546,7 +2456,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticated\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticated\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2564,7 +2474,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticated\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_insert_auth}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticated\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_insert_auth}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2582,7 +2492,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticated\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_select_all}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticated\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_select_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2600,7 +2510,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticated\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_update_own}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticated\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_update_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2618,7 +2528,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticator\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticator\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2636,7 +2546,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticator\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_insert_auth}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticator\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_insert_auth}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2654,7 +2564,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticator\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_select_all}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticator\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_select_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2672,7 +2582,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticator\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_update_own}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`authenticator\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_update_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2690,7 +2600,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2708,7 +2618,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_insert_auth}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_insert_auth}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2726,7 +2636,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_select_all}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_select_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2744,7 +2654,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_update_own}\\`",
+    "detail": "Table \\`public.quest_ideas\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage own quest ideas\",\"Users can manage their own quest ideas\",quest_ideas_admin_all,quest_ideas_update_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ideas",
@@ -2906,7 +2816,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`anon\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`anon\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -2924,7 +2834,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`anon\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_insert_own}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`anon\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_insert_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -2942,7 +2852,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`anon\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_select_all}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`anon\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_select_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -2960,7 +2870,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`anon\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_update_own}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`anon\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_update_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -2978,7 +2888,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticated\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticated\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -2996,7 +2906,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticated\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_insert_own}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticated\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_insert_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -3014,7 +2924,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticated\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_select_all}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticated\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_select_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -3032,7 +2942,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticated\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_update_own}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticated\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_update_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -3050,7 +2960,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticator\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticator\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -3068,7 +2978,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticator\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_insert_own}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticator\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_insert_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -3086,7 +2996,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticator\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_select_all}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticator\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_select_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -3104,7 +3014,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticator\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_update_own}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`authenticator\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_update_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -3122,7 +3032,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`DELETE\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -3140,7 +3050,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_insert_own}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`INSERT\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_insert_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -3158,7 +3068,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_select_all}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`SELECT\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_select_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -3176,7 +3086,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_update_own}\\`",
+    "detail": "Table \\`public.quest_ratings\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can manage own ratings\",\"Users can manage their own quest ratings\",quest_ratings_admin_all,quest_ratings_update_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "quest_ratings",
@@ -5030,7 +4940,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.user_xp\\` has multiple permissive policies for role \\`anon\\` for action \\`SELECT\\`. Policies include \\`{\"Service role can manage all XP\",\"Users can view their own XP\",user_xp_admin_all,user_xp_select_all}\\`",
+    "detail": "Table \\`public.user_xp\\` has multiple permissive policies for role \\`anon\\` for action \\`SELECT\\`. Policies include \\`{\"Service role can manage all XP\",\"Users can view own XP\",\"Users can view their own XP\",user_xp_admin_all,user_xp_select_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "user_xp",
@@ -5102,7 +5012,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.user_xp\\` has multiple permissive policies for role \\`authenticated\\` for action \\`SELECT\\`. Policies include \\`{\"Service role can manage all XP\",\"Users can view their own XP\",user_xp_admin_all,user_xp_select_all}\\`",
+    "detail": "Table \\`public.user_xp\\` has multiple permissive policies for role \\`authenticated\\` for action \\`SELECT\\`. Policies include \\`{\"Service role can manage all XP\",\"Users can view own XP\",\"Users can view their own XP\",user_xp_admin_all,user_xp_select_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "user_xp",
@@ -5174,7 +5084,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.user_xp\\` has multiple permissive policies for role \\`authenticator\\` for action \\`SELECT\\`. Policies include \\`{\"Service role can manage all XP\",\"Users can view their own XP\",user_xp_admin_all,user_xp_select_all}\\`",
+    "detail": "Table \\`public.user_xp\\` has multiple permissive policies for role \\`authenticator\\` for action \\`SELECT\\`. Policies include \\`{\"Service role can manage all XP\",\"Users can view own XP\",\"Users can view their own XP\",user_xp_admin_all,user_xp_select_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "user_xp",
@@ -5246,7 +5156,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.user_xp\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`SELECT\\`. Policies include \\`{\"Service role can manage all XP\",\"Users can view their own XP\",user_xp_admin_all,user_xp_select_all}\\`",
+    "detail": "Table \\`public.user_xp\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`SELECT\\`. Policies include \\`{\"Service role can manage all XP\",\"Users can view own XP\",\"Users can view their own XP\",user_xp_admin_all,user_xp_select_all}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "user_xp",
@@ -5300,7 +5210,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`anon\\` for action \\`SELECT\\`. Policies include \\`{users_admin_access,users_can_read_own,users_select_own}\\`",
+    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`anon\\` for action \\`SELECT\\`. Policies include \\`{\"Users can view own profile\",users_admin_access,users_can_read_own,users_select_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "users",
@@ -5318,7 +5228,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`anon\\` for action \\`UPDATE\\`. Policies include \\`{users_admin_access,users_can_update_own,users_update_own}\\`",
+    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`anon\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can update own profile\",users_admin_access,users_can_update_own,users_update_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "users",
@@ -5354,7 +5264,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`authenticated\\` for action \\`SELECT\\`. Policies include \\`{users_admin_access,users_can_read_own,users_select_own}\\`",
+    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`authenticated\\` for action \\`SELECT\\`. Policies include \\`{\"Users can view own profile\",users_admin_access,users_can_read_own,users_select_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "users",
@@ -5372,7 +5282,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`authenticated\\` for action \\`UPDATE\\`. Policies include \\`{users_admin_access,users_can_update_own,users_update_own}\\`",
+    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`authenticated\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can update own profile\",users_admin_access,users_can_update_own,users_update_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "users",
@@ -5408,7 +5318,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`authenticator\\` for action \\`SELECT\\`. Policies include \\`{users_admin_access,users_can_read_own,users_select_own}\\`",
+    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`authenticator\\` for action \\`SELECT\\`. Policies include \\`{\"Users can view own profile\",users_admin_access,users_can_read_own,users_select_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "users",
@@ -5426,7 +5336,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`authenticator\\` for action \\`UPDATE\\`. Policies include \\`{users_admin_access,users_can_update_own,users_update_own}\\`",
+    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`authenticator\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can update own profile\",users_admin_access,users_can_update_own,users_update_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "users",
@@ -5462,7 +5372,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`SELECT\\`. Policies include \\`{users_admin_access,users_can_read_own,users_select_own}\\`",
+    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`SELECT\\`. Policies include \\`{\"Users can view own profile\",users_admin_access,users_can_read_own,users_select_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "users",
@@ -5480,7 +5390,7 @@
       "PERFORMANCE"
     ],
     "description": "Detects if multiple permissive row level security policies are present on a table for the same \\`role\\` and \\`action\\` (e.g. insert). Multiple permissive policies are suboptimal for performance as each policy must be executed for every relevant query.",
-    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`UPDATE\\`. Policies include \\`{users_admin_access,users_can_update_own,users_update_own}\\`",
+    "detail": "Table \\`public.users\\` has multiple permissive policies for role \\`dashboard_user\\` for action \\`UPDATE\\`. Policies include \\`{\"Users can update own profile\",users_admin_access,users_can_update_own,users_update_own}\\`",
     "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0006_multiple_permissive_policies",
     "metadata": {
       "name": "users",
