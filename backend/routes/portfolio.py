@@ -522,14 +522,20 @@ def get_public_diploma_by_user_id(user_id):
         return jsonify({'error': 'Failed to fetch diploma'}), 500
 
 @bp.route('/user/<user_id>/privacy', methods=['PUT'])
-def update_portfolio_privacy(user_id):
+@require_auth
+def update_portfolio_privacy(authenticated_user_id, user_id):
     """
     Toggle portfolio privacy setting
     """
     try:
         from flask import request
+
+        # Verify user is updating their own portfolio
+        if authenticated_user_id != user_id:
+            return jsonify({'error': 'Unauthorized - can only update your own privacy settings'}), 403
+
         supabase = get_supabase_client()
-        
+
         data = request.json
         is_public = data.get('is_public', True)
         

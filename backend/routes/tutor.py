@@ -760,9 +760,15 @@ def _schedule_parent_notification(user_id: str, conversation_id: str, message_co
         print(f"Failed to schedule parent notification: {e}")
 
 @bp.route('/test-service', methods=['GET'])
-def test_tutor_service():
-    """Simple test endpoint to isolate AITutorService initialization error"""
+@require_auth
+def test_tutor_service(user_id: str):
+    """Simple test endpoint to isolate AITutorService initialization error (admin only)"""
     try:
+        # Verify admin access
+        supabase = get_supabase_admin_client()
+        user = supabase.table('users').select('role').eq('id', user_id).execute()
+        if not user.data or user.data[0].get('role') not in ['admin', 'educator']:
+            return jsonify({'error': 'Admin access required'}), 403
         import os
         print("=== TUTOR SERVICE TEST STARTED ===")
 

@@ -3,6 +3,7 @@ from datetime import datetime
 import logging
 from database import get_supabase_client
 from services.email_service import email_service
+from utils.auth.decorators import require_admin
 
 logger = logging.getLogger(__name__)
 promo_bp = Blueprint('promo', __name__)
@@ -78,7 +79,8 @@ def promo_signup():
         return jsonify({'error': 'Internal server error'}), 500
 
 @promo_bp.route('/signups', methods=['GET'])
-def get_promo_signups():
+@require_admin
+def get_promo_signups(user_id):
     """Get all promo signups (admin only - basic version for now)"""
     try:
         supabase = get_supabase_client()

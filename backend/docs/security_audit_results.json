@@ -1,0 +1,1468 @@
+{
+  "total_endpoints": 134,
+  "authenticated_endpoints": 110,
+  "unauthenticated_endpoints": 24,
+  "state_changing_endpoints": 75,
+  "state_changing_with_auth": 67,
+  "public_endpoints": [
+    {
+      "file": "routes\\admin_core.py",
+      "function": "get_school_subjects",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\auth.py",
+      "function": "register",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\auth.py",
+      "function": "get_current_user",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\auth.py",
+      "function": "login",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\auth.py",
+      "function": "logout",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\auth.py",
+      "function": "refresh_token",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\auth.py",
+      "function": "resend_verification",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\auth.py",
+      "function": "get_csrf_token_endpoint",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\health.py",
+      "function": "health_check",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\health.py",
+      "function": "ping",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\portfolio.py",
+      "function": "get_public_portfolio",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\portfolio.py",
+      "function": "get_public_diploma_by_user_id",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\promo.py",
+      "function": "promo_signup",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\quests.py",
+      "function": "list_quests",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\quests.py",
+      "function": "get_quest_sources",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\quest_ai.py",
+      "function": "health_check",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\ratings.py",
+      "function": "rate_quest",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\ratings.py",
+      "function": "get_quest_rating",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\ratings.py",
+      "function": "get_user_quest_rating",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\settings.py",
+      "function": "get_settings",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\sources.py",
+      "function": "get_sources",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\sources.py",
+      "function": "get_source_header",
+      "methods": [
+        "GET"
+      ]
+    },
+    {
+      "file": "routes\\subscriptions.py",
+      "function": "stripe_webhook",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\tutor.py",
+      "function": "test_tutor_service",
+      "methods": [
+        "GET"
+      ]
+    }
+  ],
+  "protected_endpoints": [
+    {
+      "file": "routes\\admin_core.py",
+      "function": "create_quest_v3_clean",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "create_quest_v2",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "create_quest",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "update_quest",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "delete_quest",
+      "methods": [
+        "DELETE"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "get_users_list",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "get_user_details",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "update_user_profile",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "update_user_subscription",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "update_user_role",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "reset_user_password",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "toggle_user_status",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "delete_user_account",
+      "methods": [
+        "DELETE"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "send_bulk_email",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin_core.py",
+      "function": "list_admin_quests",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\collaborations.py",
+      "function": "send_collaboration_invite",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\collaborations.py",
+      "function": "get_all_invites",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\collaborations.py",
+      "function": "accept_invitation",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\collaborations.py",
+      "function": "decline_invitation",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\collaborations.py",
+      "function": "cancel_invitation",
+      "methods": [
+        "DELETE"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\collaborations.py",
+      "function": "get_quest_invitations",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\collaborations.py",
+      "function": "get_active_collaborations",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\collaborations.py",
+      "function": "mark_collaboration_complete",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\community.py",
+      "function": "get_friends",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\community.py",
+      "function": "send_friend_request",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\community.py",
+      "function": "accept_friend_request",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\community.py",
+      "function": "decline_friend_request",
+      "methods": [
+        "DELETE"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\community.py",
+      "function": "cancel_friend_request",
+      "methods": [
+        "DELETE"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\community.py",
+      "function": "invite_to_quest",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\evidence_documents.py",
+      "function": "get_evidence_document",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\evidence_documents.py",
+      "function": "save_evidence_document",
+      "methods": [
+        "POST",
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\evidence_documents.py",
+      "function": "upload_block_file",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\evidence_documents.py",
+      "function": "complete_task_with_evidence",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\portfolio.py",
+      "function": "get_user_portfolio",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "cross_origin",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\portfolio.py",
+      "function": "update_portfolio_privacy",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\promo.py",
+      "function": "get_promo_signups",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\quests.py",
+      "function": "get_quest_detail",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\quests.py",
+      "function": "check_enrollment_status",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\quests.py",
+      "function": "enroll_in_quest",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth",
+        "require_paid_tier"
+      ]
+    },
+    {
+      "file": "routes\\quests.py",
+      "function": "get_user_active_quests",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\quests.py",
+      "function": "get_user_completed_quests",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\quests.py",
+      "function": "end_quest",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\quest_ai.py",
+      "function": "generate_quest_from_topic",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\quest_ai.py",
+      "function": "enhance_quest_description",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\quest_ai.py",
+      "function": "suggest_tasks_for_quest",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\quest_ai.py",
+      "function": "validate_quest_quality",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\quest_ai.py",
+      "function": "enhance_student_quest_idea",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\quest_ideas.py",
+      "function": "submit_quest_idea",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "cross_origin",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\quest_ideas.py",
+      "function": "get_user_quest_ideas",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "cross_origin",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\quest_ideas.py",
+      "function": "get_quest_idea_status",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "cross_origin",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\quest_sources.py",
+      "function": "list_quest_sources",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\quest_sources.py",
+      "function": "create_quest_source",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\quest_sources.py",
+      "function": "update_quest_source",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\quest_sources.py",
+      "function": "delete_quest_source",
+      "methods": [
+        "DELETE"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\settings.py",
+      "function": "update_settings",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\settings.py",
+      "function": "upload_logo",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\sources.py",
+      "function": "upload_source_header",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\subscriptions.py",
+      "function": "get_stripe_config",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\subscriptions.py",
+      "function": "refresh_subscription_status",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\subscriptions.py",
+      "function": "create_checkout_session",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\subscriptions.py",
+      "function": "verify_checkout_session",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\subscriptions.py",
+      "function": "get_subscription_status",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\subscriptions.py",
+      "function": "create_billing_portal_session",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\subscriptions.py",
+      "function": "update_subscription",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\subscriptions.py",
+      "function": "cancel_subscription",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tasks.py",
+      "function": "complete_task",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tasks.py",
+      "function": "get_task_completions",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tasks.py",
+      "function": "suggest_task",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tutor.py",
+      "function": "send_message",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tutor.py",
+      "function": "get_conversations",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tutor.py",
+      "function": "get_conversation",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tutor.py",
+      "function": "update_conversation",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tutor.py",
+      "function": "get_settings",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tutor.py",
+      "function": "update_settings",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tutor.py",
+      "function": "report_content",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tutor.py",
+      "function": "get_conversation_starters",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tutor.py",
+      "function": "get_usage_stats",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tutor.py",
+      "function": "debug_tutor_service",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\tutor.py",
+      "function": "get_tier_info",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\uploads.py",
+      "function": "upload_evidence",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\uploads.py",
+      "function": "upload_evidence_base64",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\admin\\analytics.py",
+      "function": "get_overview_metrics",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\analytics.py",
+      "function": "get_recent_activity",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\analytics.py",
+      "function": "get_trends_data",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\analytics.py",
+      "function": "get_system_health",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\quest_ideas.py",
+      "function": "list_quest_ideas",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\quest_ideas.py",
+      "function": "approve_quest_idea",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\quest_ideas.py",
+      "function": "reject_quest_idea",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\quest_ideas.py",
+      "function": "generate_quest_from_idea",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\quest_ideas.py",
+      "function": "create_quest_from_idea_manual",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\quest_management.py",
+      "function": "create_quest_v3_clean",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\quest_management.py",
+      "function": "update_quest",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\quest_management.py",
+      "function": "delete_quest",
+      "methods": [
+        "DELETE"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\quest_management.py",
+      "function": "get_admin_quests",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\quest_sources.py",
+      "function": "get_quest_sources",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\user_management.py",
+      "function": "get_users",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\user_management.py",
+      "function": "get_user_details",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\user_management.py",
+      "function": "update_user",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\user_management.py",
+      "function": "update_user_subscription",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\user_management.py",
+      "function": "update_user_role",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\user_management.py",
+      "function": "toggle_user_status",
+      "methods": [
+        "POST"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\user_management.py",
+      "function": "delete_user",
+      "methods": [
+        "DELETE"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\user_management.py",
+      "function": "get_user_conversations",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\admin\\user_management.py",
+      "function": "get_conversation_details",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_admin"
+      ]
+    },
+    {
+      "file": "routes\\users\\completed_quests.py",
+      "function": "get_completed_quests",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\users\\dashboard.py",
+      "function": "get_user_subject_xp",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\users\\dashboard.py",
+      "function": "get_dashboard",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\users\\profile.py",
+      "function": "get_profile",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\users\\profile.py",
+      "function": "update_profile",
+      "methods": [
+        "PUT"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    },
+    {
+      "file": "routes\\users\\transcript.py",
+      "function": "get_transcript",
+      "methods": [
+        "GET"
+      ],
+      "decorators": [
+        "route",
+        "require_auth"
+      ]
+    }
+  ],
+  "missing_auth": [
+    {
+      "file": "routes\\auth.py",
+      "function": "register",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\auth.py",
+      "function": "login",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\auth.py",
+      "function": "logout",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\auth.py",
+      "function": "refresh_token",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\auth.py",
+      "function": "resend_verification",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\promo.py",
+      "function": "promo_signup",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\ratings.py",
+      "function": "rate_quest",
+      "methods": [
+        "POST"
+      ]
+    },
+    {
+      "file": "routes\\subscriptions.py",
+      "function": "stripe_webhook",
+      "methods": [
+        "POST"
+      ]
+    }
+  ]
+}
