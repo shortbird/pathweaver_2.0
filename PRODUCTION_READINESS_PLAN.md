@@ -367,14 +367,14 @@ This document tracks all tasks required to prepare the Optio platform for produc
 - [ ] Data deletion capabilities ⚠️ (account deletion not implemented)
 - [ ] Data export capabilities ⚠️ (download data feature needed)
 
-### Monitoring & Alerts
-- [ ] Error tracking configured (Sentry/similar)
-- [ ] Uptime monitoring active
-- [ ] Performance monitoring setup
-- [ ] Database monitoring
-- [ ] Backup verification automated
-- [ ] Alert thresholds configured
-- [ ] On-call rotation established
+### Monitoring & Alerts ✅ DOCUMENTED (Ready for Implementation)
+- [ ] Error tracking configured ⚠️ (Sentry setup guide created, needs implementation)
+- [ ] Uptime monitoring active ⚠️ (UptimeRobot setup guide created, needs configuration)
+- [x] Performance monitoring setup ✅ (Enhanced health check endpoint implemented)
+- [x] Database monitoring ✅ (Supabase built-in + health check)
+- [ ] Backup verification automated ⚠️ (Supabase automated backups, needs verification)
+- [ ] Alert thresholds configured ⚠️ (Documented in guide, needs setup)
+- [ ] On-call rotation established ⚠️ (Not needed for MVP, post-launch)
 
 ### Documentation
 - [ ] API documentation complete
