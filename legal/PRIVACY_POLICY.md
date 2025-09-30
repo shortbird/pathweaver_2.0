@@ -104,13 +104,45 @@ We share information when you explicitly consent, such as:
 - When you participate in collaborative quests
 - When you share your portfolio link
 
-### 4.3 With Service Providers
-We share information with third-party service providers:
-- Supabase (database and authentication)
-- Stripe (payment processing)
-- Cloud storage providers (for evidence files)
-- Email service providers
-- Analytics providers
+### 4.3 With Service Providers (Subprocessors)
+We share information with the following third-party service providers who process data on our behalf:
+
+**Database and Authentication:**
+- **Supabase Inc.** - PostgreSQL database hosting and user authentication
+  - Location: United States
+  - Purpose: Store user data, authenticate users, manage database
+  - Data Shared: All user information except payment details
+
+**Payment Processing:**
+- **Stripe, Inc.** - Payment and subscription processing
+  - Location: United States
+  - Purpose: Process payments, manage subscriptions
+  - Data Shared: Payment information, email, name
+  - Note: We do not store credit card numbers; Stripe is PCI-DSS compliant
+
+**Infrastructure Hosting:**
+- **Render Services, Inc.** - Cloud hosting and deployment
+  - Location: United States
+  - Purpose: Host application infrastructure
+  - Data Shared: All application data processed through our services
+
+**AI Services (Optional Features):**
+- **OpenAI, L.L.C.** - AI Tutor functionality
+  - Location: United States
+  - Purpose: Provide AI-powered learning assistance
+  - Data Shared: User messages, educational content, learning context
+- **Google LLC (Gemini API)** - Alternative AI provider
+  - Location: United States
+  - Purpose: Provide AI-powered learning assistance
+  - Data Shared: User messages, educational content, learning context
+
+**Analytics:**
+- **Google Analytics 4** - Website analytics
+  - Location: United States
+  - Purpose: Understand usage patterns, improve user experience
+  - Data Shared: Anonymized usage data, demographics
+
+All service providers are contractually obligated to protect your data and use it only for the purposes specified by us.
 
 ### 4.4 For Legal Reasons
 We may disclose information when required by law or to:
@@ -130,8 +162,22 @@ We implement appropriate technical and organizational measures to protect your i
 - Regular security audits and updates
 - Access controls and authentication
 - Secure cloud infrastructure
+- httpOnly cookies for session management
+- CSRF protection for state-changing operations
+- Row Level Security (RLS) for database access
 
 However, no method of transmission over the internet is 100% secure. We cannot guarantee absolute security of your information.
+
+### 5.1 Data Breach Notification
+
+In the event of a data breach that affects your personal information, we will:
+- **Notify regulatory authorities** within 72 hours of becoming aware of the breach (GDPR compliance)
+- **Notify affected users** without undue delay if the breach poses a high risk to your rights and freedoms
+- **Provide information** about the nature of the breach, data affected, and steps we're taking
+- **Offer guidance** on protective measures you can take
+- **Maintain a record** of all breaches and our response actions
+
+If you believe there has been unauthorized access to your account, please contact us immediately at security@optioeducation.com.
 
 ## 6. Data Retention
 
@@ -141,57 +187,121 @@ We retain your information for as long as necessary to:
 - Resolve disputes
 - Enforce our agreements
 
+### 6.1 Retention Periods
+- **Active accounts**: Retained indefinitely while account is active
+- **Inactive accounts**: Retained for 2 years after last activity
+- **Deleted accounts**: 30-day grace period before permanent deletion
+- **Backup data**: Retained for 90 days in backups
+- **Educational records**: Retained indefinitely as part of your permanent portfolio unless deletion requested
+
+### 6.2 Account Deletion
+When you request account deletion:
+1. Your account will be marked for deletion and enter a **30-day grace period**
+2. During this period, you can cancel the deletion request
+3. After 30 days, your account and all associated data will be permanently deleted
+4. Some data may be retained in anonymized form for legal compliance and analytics
+
 Educational records and achievements are retained indefinitely as they form part of your permanent educational portfolio, unless you request deletion.
 
 ## 7. Your Rights and Choices
 
-### 7.1 Access and Portability
-You can access your personal information through your account dashboard and request a copy of your data.
+### 7.1 Access and Portability (GDPR Right to Access & Data Portability)
+You can:
+- Access your personal information through your account dashboard
+- Request a complete copy of your data through the **"Download All My Data"** feature in your profile
+- Receive your data in a structured, machine-readable JSON format
+- Transfer your data to another service
 
-### 7.2 Correction
-You can update or correct your information through your account settings or by contacting support.
+### 7.2 Correction (GDPR Right to Rectification)
+You can:
+- Update or correct your information through your account settings
+- Contact support@optioeducation.com to correct information you cannot update yourself
+- Update your name, profile information, and preferences at any time
 
-### 7.3 Deletion
-You can request deletion of your account and associated data. Note that:
-- Some information may be retained for legal purposes
-- Public content may remain cached in search engines
-- Anonymized data used for analytics will not be deleted
+### 7.3 Deletion (GDPR Right to Erasure / "Right to be Forgotten")
+You can:
+- Request deletion of your account through the **"Delete My Account"** button in your profile
+- Benefit from a 30-day grace period to cancel the deletion
+- Request immediate deletion by contacting support@optioeducation.com
 
-### 7.4 Privacy Settings
+**Important Notes:**
+- Some information may be retained for legal compliance (e.g., transaction records for tax purposes)
+- Public content may remain cached in search engines temporarily
+- Anonymized data used for analytics cannot be deleted as it's no longer personally identifiable
+- Backup data will be permanently deleted after 90 days
+
+### 7.4 Privacy Settings and Communication Preferences
 You can control:
-- Whether specific content is public or confidential
-- Email notification preferences
+- Whether specific content is public or private
+- Email notification preferences (marketing, product updates, educational content)
 - Portfolio visibility settings
 - Data sharing preferences
 
-### 7.5 Marketing Communications
+### 7.5 Marketing Communications (CAN-SPAM Compliance)
 You can opt-out of marketing emails through:
-- Unsubscribe links in emails
-- Account settings
-- Contacting support
+- Unsubscribe links in emails (one-click unsubscribe)
+- Account settings → Communication Preferences
+- Contacting support@optioeducation.com
+
+**Note**: You will still receive essential account-related emails (e.g., password resets, security alerts).
+
+### 7.6 California Privacy Rights (CCPA)
+If you are a California resident, you have additional rights:
+- **Right to Know**: Request details about personal information collected, used, and shared
+- **Right to Delete**: Request deletion of your personal information
+- **Right to Opt-Out**: Opt out of the "sale" of personal information (Note: We do not sell personal information)
+- **Right to Non-Discrimination**: You will not receive discriminatory treatment for exercising your privacy rights
+
+To exercise these rights, contact us at privacy@optioeducation.com or use the data export/deletion features in your profile.
 
 ## 8. Children's Privacy
 
 ### 8.1 Users Under 13 (COPPA Compliance)
-For users under 13, we:
-- Obtain verifiable parental consent before collecting personal information
-- Provide parents access to their child's information
-- Allow parents to request deletion of their child's data
-- Do not condition participation on unnecessary data collection
-- Do not disclose personal information to third parties without parental consent
+We take special precautions to protect children under 13 years old:
+
+**Age Verification:**
+- Users must provide their date of birth during registration
+- Users under 13 are automatically identified and require parental consent
+
+**Parental Consent Process:**
+- When a user under 13 registers, we require a parent/guardian email address
+- Parents receive a verification email with a consent link
+- The account cannot be fully activated until parental consent is verified
+- Parents can resend the verification email if needed
+
+**Data Collection from Children:**
+- We collect only information reasonably necessary for participation
+- No direct marketing to children under 13
+- No disclosure of personal information to third parties without parental consent
+- Public content features require parental understanding and consent
+
+**What We Collect from Children Under 13:**
+- Name and email address
+- Educational progress and achievements
+- Evidence submissions (with parental consent)
+- User-generated content (learning logs, quest completions)
 
 ### 8.2 Users 13-18
 We encourage users between 13-18 to:
 - Discuss their use of the Platform with parents/guardians
 - Be cautious about sharing personal information
 - Use privacy settings to control content visibility
+- Understand that content is public by default
 
-### 8.3 Parental Rights
-Parents/guardians can:
-- Review their child's information
-- Request corrections or deletions
-- Withdraw consent for data collection
-- Contact us with privacy concerns
+### 8.3 Parental Rights (COPPA)
+Parents/guardians of children under 13 have the right to:
+- **Review**: Access their child's personal information
+- **Correct**: Request corrections to their child's information
+- **Delete**: Request deletion of their child's account and data
+- **Revoke**: Withdraw consent and request deletion
+- **Control**: Manage privacy settings and content visibility
+
+**How to Exercise Parental Rights:**
+- Email: support@optioeducation.com with subject "Parental Rights Request"
+- Include: Child's name, email, and your relationship to the child
+- We will verify your identity before providing access or making changes
+
+**Important**: Revoking consent will result in deletion of the child's account and termination of their access to the Platform.
 
 ## 9. International Data Transfers
 
@@ -200,13 +310,14 @@ If you access the Platform from outside the United States:
 - You consent to this transfer and processing
 - We implement appropriate safeguards for international transfers
 
-## 10. California Privacy Rights (CCPA)
+## 10. Cookies and Tracking Technologies
 
-California residents have additional rights:
-- Right to know what personal information is collected
-- Right to know if personal information is sold or disclosed
-- Right to opt-out of sale of personal information (we do not sell personal information)
-- Right to non-discrimination for exercising privacy rights
+We use the following types of cookies:
+- **Essential Cookies**: Required for authentication and security (httpOnly, secure)
+- **Functional Cookies**: Remember your preferences and settings
+- **Analytics Cookies**: Help us understand how users interact with the Platform (Google Analytics 4)
+
+You can control cookies through your browser settings, but disabling essential cookies may affect platform functionality.
 
 ## 11. European Privacy Rights (GDPR)
 

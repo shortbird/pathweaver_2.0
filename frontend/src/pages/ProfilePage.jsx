@@ -68,7 +68,7 @@ const ProfilePage = () => {
     try {
       const response = await api.get('/api/users/transcript')
       const transcript = response.data
-      
+
       const blob = new Blob([JSON.stringify(transcript, null, 2)], { type: 'application/json' })
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -78,10 +78,63 @@ const ProfilePage = () => {
       a.click()
       document.body.removeChild(a)
       window.URL.revokeObjectURL(url)
-      
+
       toast.success('Transcript downloaded!')
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to download transcript')
+    }
+  }
+
+  const downloadAllData = async () => {
+    try {
+      const response = await api.get('/api/users/export-data')
+      const allData = response.data
+
+      const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `optio_data_export_${user?.first_name || 'user'}_${new Date().toISOString().split('T')[0]}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      window.URL.revokeObjectURL(url)
+
+      toast.success('All data exported successfully!')
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to export data')
+    }
+  }
+
+  const requestAccountDeletion = async () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to delete your account? This will:\n\n' +
+      '• Schedule your account for permanent deletion in 30 days\n' +
+      '• You can cancel within the 30-day grace period\n' +
+      '• All your data will be permanently deleted after 30 days\n\n' +
+      'This action cannot be undone after the grace period expires.'
+    )
+
+    if (!confirmed) return
+
+    try {
+      const response = await api.post('/api/users/delete-account', {
+        reason: 'User requested deletion'
+      })
+      toast.success(`Account deletion scheduled. Grace period: 30 days`)
+      await fetchProfile() // Refresh to show deletion status
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to request account deletion')
+    }
+  }
+
+  const cancelAccountDeletion = async () => {
+    try {
+      await api.post('/api/users/cancel-deletion')
+      toast.success('Account deletion cancelled!')
+      await fetchProfile() // Refresh to clear deletion status
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to cancel deletion')
     }
   }
 
@@ -212,7 +265,7 @@ const ProfilePage = () => {
                 {getTierDisplayName(user?.subscription_tier).toUpperCase()}
               </span>
             </div>
-            
+
             <div className="mb-4">
               <button
                 onClick={handleRefreshUserData}
@@ -235,6 +288,56 @@ const ProfilePage = () => {
               <p className="text-sm text-gray-600">
                 Upgrade to Supported tier to download your transcript
               </p>
+            )}
+          </div>
+
+          <div className="card">
+            <h2 className="text-xl font-semibold mb-4">Data & Privacy</h2>
+            <div className="space-y-3">
+              <button
+                onClick={downloadAllData}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Download All My Data
+              </button>
+              <p className="text-xs text-gray-500">
+                Export all your data including profile, quests, evidence, and more (GDPR compliance)
+              </p>
+            </div>
+          </div>
+
+          <div className="card border-red-200">
+            <h2 className="text-xl font-semibold mb-4 text-red-600">Danger Zone</h2>
+            {profileData?.user?.deletion_status === 'pending' ? (
+              <div className="space-y-3">
+                <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800 font-medium">
+                    Account deletion scheduled
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    Your account will be permanently deleted on{' '}
+                    {new Date(profileData?.user?.deletion_scheduled_for).toLocaleDateString()}
+                  </p>
+                </div>
+                <button
+                  onClick={cancelAccountDeletion}
+                  className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+                >
+                  Cancel Deletion
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <button
+                  onClick={requestAccountDeletion}
+                  className="w-full px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+                >
+                  Delete My Account
+                </button>
+                <p className="text-xs text-gray-500">
+                  Permanently delete your account and all associated data. You will have a 30-day grace period to cancel.
+                </p>
+              </div>
             )}
           </div>
         </div>

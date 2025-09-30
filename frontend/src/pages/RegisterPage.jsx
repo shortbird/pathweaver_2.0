@@ -9,7 +9,9 @@ const RegisterPage = () => {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+  const [isUnder13, setIsUnder13] = useState(false)
   const password = watch('password')
+  const dateOfBirth = watch('date_of_birth')
   
   // Password validation checks - Updated to match Supabase requirements
   const passwordChecks = {
@@ -19,8 +21,20 @@ const RegisterPage = () => {
     number: password && /[0-9]/.test(password)
   }
   
-  const isPasswordValid = passwordChecks.length && passwordChecks.uppercase && 
+  const isPasswordValid = passwordChecks.length && passwordChecks.uppercase &&
                           passwordChecks.lowercase && passwordChecks.number
+
+  // Check age when date of birth changes
+  React.useEffect(() => {
+    if (dateOfBirth) {
+      const dob = new Date(dateOfBirth)
+      const today = new Date()
+      const age = Math.floor((today - dob) / (365.25 * 24 * 60 * 60 * 1000))
+      setIsUnder13(age < 13)
+    } else {
+      setIsUnder13(false)
+    }
+  }, [dateOfBirth])
 
   const onSubmit = async (data) => {
     setLoading(true)
@@ -101,6 +115,54 @@ const RegisterPage = () => {
                 <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
               )}
             </div>
+
+            <div>
+              <label htmlFor="date_of_birth" className="block text-sm font-medium text-gray-700">
+                Date of Birth
+              </label>
+              <input
+                {...registerField('date_of_birth', {
+                  required: 'Date of birth is required for age verification'
+                })}
+                type="date"
+                className="input-field mt-1"
+                max={new Date().toISOString().split('T')[0]}
+              />
+              {errors.date_of_birth && (
+                <p className="mt-1 text-sm text-red-600">{errors.date_of_birth.message}</p>
+              )}
+              {isUnder13 && (
+                <p className="mt-2 text-sm text-blue-600 bg-blue-50 p-2 rounded">
+                  Note: Users under 13 require parental consent to use Optio (COPPA compliance)
+                </p>
+              )}
+            </div>
+
+            {isUnder13 && (
+              <div>
+                <label htmlFor="parent_email" className="block text-sm font-medium text-gray-700">
+                  Parent/Guardian Email Address
+                </label>
+                <input
+                  {...registerField('parent_email', {
+                    required: isUnder13 ? 'Parent/guardian email is required for users under 13' : false,
+                    pattern: {
+                      value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
+                      message: 'Invalid email address'
+                    }
+                  })}
+                  type="email"
+                  className="input-field mt-1"
+                  placeholder="parent@example.com"
+                />
+                {errors.parent_email && (
+                  <p className="mt-1 text-sm text-red-600">{errors.parent_email.message}</p>
+                )}
+                <p className="mt-1 text-xs text-gray-500">
+                  Your parent/guardian will receive an email to verify consent for your account
+                </p>
+              </div>
+            )}
             
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">

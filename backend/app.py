@@ -95,6 +95,22 @@ try:
 except Exception as e:
     print(f"Warning: AI Tutor routes not available: {e}")
 
+# Register Parental Consent blueprint (COPPA compliance)
+try:
+    from routes import parental_consent
+    app.register_blueprint(parental_consent.bp, url_prefix='/api/auth')  # /api/auth/parental-consent
+    print("Parental Consent routes registered successfully")
+except Exception as e:
+    print(f"Warning: Parental Consent routes not available: {e}")
+
+# Register Account Deletion blueprint (GDPR/CCPA compliance)
+try:
+    from routes import account_deletion
+    app.register_blueprint(account_deletion.bp, url_prefix='/api')  # /api/users/delete-account
+    print("Account Deletion routes registered successfully")
+except Exception as e:
+    print(f"Warning: Account Deletion routes not available: {e}")
+
 
 @app.route('/', methods=['GET', 'HEAD'])
 def root():

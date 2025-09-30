@@ -107,7 +107,9 @@ def register():
         original_first_name = data['first_name'].strip()
         original_last_name = data['last_name'].strip()
         email = data['email'].strip().lower()  # Normalize email to lowercase
-        
+        date_of_birth = data.get('date_of_birth')  # Optional date of birth for age verification
+        parent_email = data.get('parent_email')  # Required if user is under 13
+
         print(f"[REGISTRATION] Processing registration for email: {email[:3]}***")
         
         # Log the registration attempt (without password or PII)
@@ -157,7 +159,22 @@ def register():
             # Sanitize names for database storage (prevent XSS)
             sanitized_first_name = sanitize_input(original_first_name)
             sanitized_last_name = sanitize_input(original_last_name)
-            
+
+            # Calculate age if date of birth is provided
+            requires_parental_consent = False
+            if date_of_birth:
+                from datetime import datetime, date
+                try:
+                    dob = datetime.strptime(date_of_birth, '%Y-%m-%d').date()
+                    age = (date.today() - dob).days // 365
+                    requires_parental_consent = age < 13
+
+                    # If user is under 13, parent email is required
+                    if requires_parental_consent and not parent_email:
+                        raise ValidationError("Parent/guardian email is required for users under 13")
+                except ValueError:
+                    raise ValidationError("Invalid date of birth format. Use YYYY-MM-DD")
+
             # Create user profile in our users table
             # All new users start with free tier, can upgrade later
             # IMPORTANT: Create profile even if email verification is required
@@ -174,6 +191,14 @@ def register():
                 'privacy_policy_version': CURRENT_PRIVACY_POLICY_VERSION,
                 'created_at': 'now()'
             }
+
+            # Add date of birth and parental consent fields if provided
+            if date_of_birth:
+                user_data['date_of_birth'] = date_of_birth
+                user_data['requires_parental_consent'] = requires_parental_consent
+                if requires_parental_consent and parent_email:
+                    user_data['parental_consent_email'] = parent_email.strip().lower()
+                    user_data['parental_consent_verified'] = False
             
             # Note: username column has been removed from the database
             # Don't include it in the insert
@@ -201,20 +226,35 @@ def register():
             
             # If no session, email verification is required
             if not auth_response.session:
-                return jsonify({
+                response_data = {
                     'message': 'Account created successfully! Please check your email to verify your account.',
                     'email_verification_required': True
-                }), 201
-            
+                }
+
+                # Add parental consent information if applicable
+                if requires_parental_consent:
+                    response_data['requires_parental_consent'] = True
+                    response_data['parent_email'] = parent_email
+                    response_data['message'] = 'Account created! Please verify your email and have your parent/guardian verify consent.'
+
+                return jsonify(response_data), 201
+
             # Fetch the complete user profile data to return to frontend
             user_profile = supabase.table('users').select('*').eq('id', auth_response.user.id).single().execute()
-            
+
             # Skip welcome email to avoid timeout - Supabase sends its own
-            
-            return jsonify({
+
+            response_data = {
                 'user': user_profile.data if user_profile.data else auth_response.user.model_dump(),
                 'session': auth_response.session.model_dump() if auth_response.session else None
-            }), 201
+            }
+
+            # Add parental consent flag if user requires it
+            if requires_parental_consent:
+                response_data['requires_parental_consent'] = True
+                response_data['parent_email'] = parent_email
+
+            return jsonify(response_data), 201
         else:
             return jsonify({'error': 'Registration failed - no user created'}), 400
             
