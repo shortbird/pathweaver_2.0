@@ -473,33 +473,18 @@ def enroll_in_quest(user_id: str, quest_id: str):
             .eq('quest_id', quest_id)\
             .execute()
         
-        # Check if there's an active enrollment
+        # Check if there's an active (in-progress) enrollment
         if existing.data:
             for enrollment in existing.data:
+                # Only prevent enrollment if there's an active enrollment that's NOT completed
                 if enrollment.get('is_active') and not enrollment.get('completed_at'):
                     return jsonify({
                         'success': False,
                         'error': 'Already enrolled in this quest'
                     }), 400
-            
-            # If there's an inactive enrollment, we can reactivate it
-            if existing.data:
-                # Reactivate the most recent enrollment
-                enrollment_id = existing.data[0]['id']
-                updated = supabase.table('user_quests')\
-                    .update({
-                        'is_active': True,
-                        'started_at': datetime.utcnow().isoformat(),
-                        'completed_at': None
-                    })\
-                    .eq('id', enrollment_id)\
-                    .execute()
-                
-                return jsonify({
-                    'success': True,
-                    'message': 'Re-enrolled in quest successfully',
-                    'enrollment': updated.data[0] if updated.data else None
-                }), 200
+
+            # If there are only completed enrollments, allow creating a new enrollment
+            # (We'll create a new record below rather than reactivating to preserve history)
         
         # Create enrollment
         enrollment = supabase.table('user_quests')\
