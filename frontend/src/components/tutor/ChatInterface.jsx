@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { Send, Bot, User, AlertTriangle, MessageSquare } from 'lucide-react';
+import { Send, Bot, User, AlertTriangle, MessageSquare, History } from 'lucide-react';
 import api from '../../services/api';
 import { renderMarkdown } from '../../utils/markdownRenderer';
+import ConversationHistory from './ConversationHistory';
+import toast from 'react-hot-toast';
 
 const CONVERSATION_MODES = [
   { value: 'study_buddy', label: 'Study Buddy', description: 'Casual and encouraging' },
@@ -31,6 +33,7 @@ const ChatInterface = ({
   const [usageStats, setUsageStats] = useState(null);
   const [error, setError] = useState(null);
   const [showModeSelector, setShowModeSelector] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const messagesEndRef = useRef(null);
   const inputRef = useRef(null);
@@ -207,7 +210,52 @@ const ChatInterface = ({
     console.log(`${type.toUpperCase()}: ${message}`);
   };
 
+  const handleSelectConversation = async (conversationId) => {
+    try {
+      // Load the selected conversation
+      const response = await api.get(`/api/tutor/conversations/${conversationId}`);
+      const conversationData = response.data.conversation;
+      const conversationMessages = response.data.messages || [];
+
+      setConversation(conversationData);
+      setMessages(conversationMessages);
+      setShowHistory(false);
+
+      // Update the mode to match the conversation
+      if (conversationData.mode) {
+        setSelectedMode(conversationData.mode);
+      }
+    } catch (error) {
+      console.error('Error loading conversation:', error);
+      toast.error('Failed to load conversation');
+    }
+  };
+
+  const handleCreateNewConversation = () => {
+    setConversation(null);
+    setMessages([]);
+    setShowHistory(false);
+  };
+
+  const handleShowHistory = () => {
+    setShowHistory(true);
+    setShowModeSelector(false);
+  };
+
   const currentModeInfo = CONVERSATION_MODES.find(mode => mode.value === selectedMode);
+
+  // Show conversation history if requested
+  if (showHistory) {
+    return (
+      <div className={`flex flex-col h-full bg-white ${hideHeader ? '' : 'rounded-lg shadow-lg'} ${className}`}>
+        <ConversationHistory
+          onSelectConversation={handleSelectConversation}
+          onBack={() => setShowHistory(false)}
+          onCreateNew={handleCreateNewConversation}
+        />
+      </div>
+    );
+  }
 
   return (
     <div className={`flex flex-col h-full bg-white ${hideHeader ? '' : 'rounded-lg shadow-lg'} ${className}`}>
@@ -225,6 +273,15 @@ const ChatInterface = ({
           </div>
 
           <div className="flex items-center space-x-2">
+            {/* History Button */}
+            <button
+              onClick={handleShowHistory}
+              className="bg-white/20 text-white p-2 rounded-lg hover:bg-white/30 transition-colors"
+              title="View conversation history"
+            >
+              <History className="w-4 h-4" />
+            </button>
+
             {/* Mode Selector */}
             <div className="relative">
               <button
