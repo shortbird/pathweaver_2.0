@@ -193,7 +193,7 @@ const FriendsPage = () => {
 
   const fetchActiveCollaborations = async () => {
     try {
-      const response = await api.get('/api/v3/collaborations/active')
+      const response = await api.get('/api/collaborations/active')
       setActiveCollaborations(response.data.collaborations || [])
     } catch (error) {
     }

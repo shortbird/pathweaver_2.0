@@ -279,7 +279,7 @@ const DiplomaPage = () => {
 
   const fetchSubjectXP = async () => {
     try {
-      const response = await api.get('/api/v3/users/subject-xp', {
+      const response = await api.get('/api/users/subject-xp', {
         headers: {
           'Cache-Control': 'no-cache'
         }
