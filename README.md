@@ -1,24 +1,54 @@
-# Optio Application
+# Optio Platform
 
-A comprehensive web application for interest-led learning, built with React (frontend) and Flask (backend), powered by Supabase and Stripe.
+An educational platform where students create self-validated diplomas through completing quests. Students build impressive portfolios by documenting their learning journey with public evidence.
+
+> "The Process Is The Goal" - Learning is about who you become through the journey.
+
+**Live Site**: https://www.optioeducation.com
+
+## Core Features
+
+- **Quest System**: Task-based educational challenges with XP rewards across 5 skill pillars
+- **Self-Validated Diplomas**: Students create public portfolios showcasing completed quests and evidence (CORE PRODUCT)
+- **Evidence Submission**: Multi-format evidence (text, images, videos, documents) for each task
+- **AI Tutor**: Conversational AI assistant powered by Gemini for learning support
+- **Community Features**: Friends system and quest collaborations (paid tier)
+- **Subscription Tiers**: Explorer (free), Creator (Supported), Visionary (Academy)
+
+## Tech Stack
+
+**Backend**: Flask 3.0.0 + Supabase (PostgreSQL) + JWT (httpOnly cookies)
+**Frontend**: React 18.3.1 + Vite + TailwindCSS
+**AI**: OpenAI/Gemini APIs
+**Payments**: Stripe
+**Hosting**: Render.com
+
+## Documentation
+
+- **[CLAUDE.md](./CLAUDE.md)** - Main technical documentation (comprehensive)
+- **[core_philosophy.md](./core_philosophy.md)** - Educational philosophy and UX guidelines
+- **[production_readiness_plan.md](./production_readiness_plan.md)** - Production launch checklist (85% complete)
+- **[MONITORING_SETUP_GUIDE.md](./MONITORING_SETUP_GUIDE.md)** - Monitoring implementation guide
+- **[Backend Docs](./backend/docs/)** - Security, performance, compliance documentation
 
 ## Project Structure
 
 ```
-pw_v2/
-├── backend/          # Flask API server
-├── frontend/         # React SPA
-└── README.md
+optio/
+├── backend/           # Flask API (134 endpoints)
+│   ├── routes/        # API endpoints (modular)
+│   ├── services/      # Business logic
+│   ├── middleware/    # Security, error handling
+│   ├── utils/         # Auth, validation, helpers
+│   └── docs/          # Technical documentation
+├── frontend/          # React SPA
+│   ├── src/pages/     # Page components
+│   ├── src/components/ # Reusable components
+│   ├── src/services/  # API client
+│   └── src/hooks/     # Custom React hooks
+├── legal/             # Terms of Service, Privacy Policy
+└── docs/              # Project documentation
 ```
-
-## Features
-
-- **User Authentication**: Registration, login, and profile management
-- **Quest System**: Browse, start, and complete educational quests
-- **Subscription Tiers**: Explorer (free), Creator ($20/mo), Visionary ($200/mo)
-- **Community Features**: Friend connections and collaborative learning
-- **Progress Tracking**: XP system, dashboards, and transcript generation
-- **Admin Tools**: Quest management and submission review
 
 ## Quick Start
 
@@ -109,15 +139,23 @@ The application will be available at `http://localhost:3000`
 
 ## Deployment
 
-### Backend (Heroku)
-1. Create a new Heroku app
-2. Set environment variables in Heroku dashboard
-3. Deploy using Git or GitHub integration
+**Current Hosting**: Render.com
 
-### Frontend (Vercel)
-1. Import project to Vercel
-2. Configure environment variables
-3. Deploy
+### Development Environment
+- **Frontend**: https://optio-dev-frontend.onrender.com (deploys from `develop` branch)
+- **Backend**: https://optio-dev-backend.onrender.com (deploys from `develop` branch)
+
+### Production Environment
+- **Frontend**: https://www.optioeducation.com (deploys from `main` branch)
+- **Backend**: https://optio-prod-backend.onrender.com (deploys from `main` branch)
+
+### Deployment Workflow
+1. Push changes to `develop` branch for immediate testing
+2. Test thoroughly in dev environment
+3. Merge `develop` to `main` when ready for production
+4. Auto-deploy to production via Render
+
+See [CLAUDE.md](./CLAUDE.md#production-deployment) for detailed deployment instructions.
 
 ## Testing
 
@@ -130,6 +168,44 @@ Use Stripe test cards:
 - Success: 4242 4242 4242 4242
 - Decline: 4000 0000 0000 0002
 
+## Production Readiness
+
+Current Status: **85% Complete** (Phase 7 in progress)
+
+- ✅ Phase 1-6: Complete (code cleanup, functionality, performance, data validation)
+- ✅ Phase 7.1: Security Audit (134 endpoints audited, 0 critical issues)
+- ⚠️ Phase 7.2: Legal Compliance (33% complete, 4 critical blockers identified)
+- ✅ Phase 7.3: Monitoring Setup (documentation complete, ready for implementation)
+- ✅ Phase 7.4: Documentation Audit (75% complete, 3 critical docs needed)
+- 🔄 Phase 8: Launch Preparation (pending)
+
+See [production_readiness_plan.md](./production_readiness_plan.md) for detailed progress.
+
+## Security
+
+- JWT authentication with httpOnly cookies
+- CSRF protection on all state-changing requests
+- Row Level Security (RLS) enforced on all database queries
+- Rate limiting on sensitive endpoints
+- Input validation and sanitization
+- XSS and SQL injection prevention
+
+Security audit: **PASSED** (0 critical issues, 134 endpoints reviewed)
+
+## Performance
+
+- API response times: <2s (p95)
+- Database queries optimized (N+1 elimination)
+- RLS policies optimized (82 warnings resolved)
+- Memory leak prevention in React components
+- Lazy loading and code splitting
+
+## Support
+
+- **Documentation**: See [CLAUDE.md](./CLAUDE.md)
+- **Issues**: Contact development team
+- **Production Issues**: See [MONITORING_SETUP_GUIDE.md](./MONITORING_SETUP_GUIDE.md) for incident response
+
 ## License
 
-© 2025 PathWeaver™ by Optio. All rights reserved.
+© 2025 Optio. All rights reserved.
