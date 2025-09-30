@@ -5,6 +5,7 @@ from middleware.error_handler import ValidationError, NotFoundError
 from middleware.rate_limiter import rate_limit
 from datetime import datetime, timedelta
 import json
+import os
 
 bp = Blueprint('account_deletion', __name__)
 
@@ -294,5 +295,10 @@ def export_user_data(current_user):
         return jsonify(export_data), 200
 
     except Exception as e:
+        import traceback
         print(f"Error exporting user data: {str(e)}")
-        return jsonify({'error': 'Failed to export user data'}), 500
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({
+            'error': 'Failed to export user data',
+            'details': str(e) if os.getenv('FLASK_ENV') == 'development' else None
+        }), 500
