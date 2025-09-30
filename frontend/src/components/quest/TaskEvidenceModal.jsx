@@ -5,9 +5,11 @@ import ModalErrorBoundary from '../ModalErrorBoundary';
 const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [completionData, setCompletionData] = useState(null);
 
-  const handleComplete = (completionData) => {
-    setSuccessMessage(completionData.message);
+  const handleComplete = (data) => {
+    setSuccessMessage(data.message);
+    setCompletionData(data);
   };
 
   const handleError = (errorMessage) => {
@@ -94,10 +96,7 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
                       onClick={() => {
                         onComplete({
                           task,
-                          xp_awarded: null,
-                          message: successMessage,
-                          quest_completed: false,
-                          has_collaboration_bonus: false
+                          ...completionData
                         });
                       }}
                       className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
