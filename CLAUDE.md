@@ -75,14 +75,14 @@ backend/
 │   │   ├── dashboard.py          # User dashboard data
 │   │   ├── profile.py            # User profile management
 │   │   └── transcript.py         # Academic transcript
-│   ├── admin_v3.py          # Core admin functions
+│   ├── admin_core.py        # Core admin functions
 │   ├── auth.py              # Authentication & JWT
 │   ├── collaborations.py    # Team-up invitations (paid tier)
 │   ├── community.py         # Friends system (paid tier)
 │   ├── evidence_documents.py # Evidence file uploads
 │   ├── portfolio.py         # Diploma/portfolio (CORE)
 │   ├── promo.py             # Promo codes
-│   ├── quests_v3.py         # V3 quest system
+│   ├── quests.py            # Quest system
 │   ├── ratings.py           # Quest ratings & feedback
 │   ├── settings.py          # User settings
 │   ├── subscriptions.py     # Stripe subscription management
@@ -112,7 +112,7 @@ frontend/src/
 │   ├── AdminPage.jsx           # Admin dashboard (modular)
 │   ├── DashboardPage.jsx       # User dashboard
 │   ├── DemoPage.jsx            # Demo features
-│   ├── DiplomaPageV3.jsx       # CORE FEATURE
+│   ├── DiplomaPage.jsx         # CORE FEATURE
 │   ├── EmailVerificationPage.jsx  # Email verification
 │   ├── FriendsPage.jsx         # Community features (paid tier)
 │   ├── HomePage.jsx            # Landing page
@@ -120,8 +120,8 @@ frontend/src/
 │   ├── PrivacyPolicy.jsx       # Legal pages
 │   ├── ProfilePage.jsx         # User profile management
 │   ├── PromoLandingPage.jsx    # Promotional campaigns
-│   ├── QuestDetailV3.jsx       # Individual quest page
-│   ├── QuestHubV3Improved.jsx  # Quest hub (memory optimized)
+│   ├── QuestDetail.jsx         # Individual quest page
+│   ├── QuestHub.jsx            # Quest hub (memory optimized)
 │   ├── RegisterPage.jsx        # User registration
 │   ├── SubscriptionPage.jsx    # Stripe subscription management
 │   ├── SubscriptionSuccess.jsx # Subscription confirmation
@@ -153,21 +153,25 @@ frontend/src/
 
 **users**
 - id (UUID, PK, references auth.users)
-- username, first_name, last_name
+- display_name, first_name, last_name, email
 - role (student/parent/advisor/admin)
 - subscription_tier (explorer/creator/visionary)
-- created_at, updated_at
+- subscription_status, subscription_end_date
+- stripe_customer_id, stripe_subscription_id
+- portfolio_slug, bio, avatar_url
+- level, total_xp, achievements_count, streak_days
+- tos_accepted_at, privacy_policy_accepted_at
+- created_at, last_active
 
 **quests**
 - id (UUID, PK)
 - title, description
 - source (khan_academy/brilliant/custom)
-- is_v3 (boolean - true for current system)
 - is_active
 - created_at, updated_at
-- Note: pillar and xp_value are legacy fields (V3 uses task-level)
+- Note: pillar and xp_value are legacy fields (now task-level)
 
-**quest_tasks** (V3 - stores task details)
+**quest_tasks** (stores task details)
 - id (UUID, PK)
 - quest_id (FK to quests)
 - title, description
@@ -176,7 +180,7 @@ frontend/src/
 - order_index, is_required
 - created_at, updated_at
 
-**quest_task_completions** (V3 - tracks completion)
+**quest_task_completions** (tracks completion)
 - id (UUID, PK)
 - user_id, quest_id, task_id
 - evidence_url, evidence_text
@@ -211,7 +215,7 @@ frontend/src/
 - created_at, updated_at
 - Note: Updated via bypass function to avoid timestamp triggers
 
-**collaboration_invitations** (Team-up system - paid tier only)
+**quest_collaborations** (Team-up system - paid tier only)
 - id (UUID, PK)
 - sender_id, receiver_id (both FK to users)
 - quest_id (FK to quests)
@@ -286,12 +290,12 @@ frontend/src/
 - POST /api/auth/logout - Clear auth cookies
 - GET /api/auth/csrf-token - Get CSRF token for frontend
 
-### Quests & Tasks (V3 System)
-- GET /api/v3/quests - List active quests
-- POST /api/v3/quests/:id/start - Start quest
-- GET /api/v3/quests/:id/progress - Check quest progress
-- POST /api/v3/tasks/:taskId/complete - Submit task evidence
-- GET /api/v3/tasks/:taskId - Get task details
+### Quests & Tasks
+- GET /api/quests - List active quests
+- POST /api/quests/:id/start - Start quest
+- GET /api/quests/:id/progress - Check quest progress
+- POST /api/tasks/:taskId/complete - Submit task evidence
+- GET /api/tasks/:taskId - Get task details
 
 ### User Management
 - GET /api/users/:userId/dashboard - Dashboard data
@@ -304,14 +308,14 @@ frontend/src/
 - GET /api/community/friends - List friends
 - POST /api/community/friends/request - Send friend request
 - PUT /api/community/friends/:id/accept - Accept friend request
-- POST /api/v3/collaborations/invite - Send collaboration invite
-- GET /api/v3/collaborations - List collaboration invites
+- POST /api/collaborations/invite - Send collaboration invite
+- GET /api/collaborations - List collaboration invites
 
 ### Admin API (Modular)
-- **User Management**: /api/v3/admin/users/* - User CRUD, roles, subscriptions
-- **Quest Management**: /api/v3/admin/quests/* - Quest CRUD operations
-- **Quest Ideas**: /api/v3/admin/quest-ideas/* - Quest suggestions workflow
-- **Quest Sources**: /api/v3/admin/quest-sources - Source management
+- **User Management**: /api/admin/users/* - User CRUD, roles, subscriptions
+- **Quest Management**: /api/admin/quests/* - Quest CRUD operations
+- **Quest Ideas**: /api/admin/quest-ideas/* - Quest suggestions workflow
+- **Quest Sources**: /api/admin/quest-sources - Source management
 
 ### Portfolio/Diploma (CORE FEATURE)
 - GET /api/portfolio/:slug - Public portfolio view
@@ -334,7 +338,7 @@ frontend/src/
 
 ## Key Features
 
-### V3 Quest System (Current Implementation)
+### Quest System (Current Implementation)
 - **Task-based structure**: Each quest contains multiple tasks with individual XP values
 - **Per-task configuration**: Each task has its own pillar and XP value
 - **Evidence submission**: Text, images, videos, documents via evidence_documents table
@@ -493,7 +497,7 @@ mcp__render__list_logs(resource, limit, filters)
 - **Friendship Update Errors**: Added database function to bypass timestamp triggers (commit: 8039407)
 - **CORS Policy Errors**: Added manual CORS headers and supports_credentials configuration (commit: 8aed486)
 - **404 Authentication Errors**: Fixed CSRF endpoint routing and added root route support (commit: 90e2b40)
-- **Blueprint Conflicts**: Resolved v3 users route blueprint name conflicts (commit: 8dc54e0)
+- **Blueprint Conflicts**: Resolved users route blueprint name conflicts (commit: 8dc54e0)
 
 ### Performance Optimization Patterns
 - **N+1 Query Prevention**: Use quest_optimization.py service for bulk data loading
