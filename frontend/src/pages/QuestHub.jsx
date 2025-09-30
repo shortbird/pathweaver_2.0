@@ -217,7 +217,7 @@ const QuestHub = () => {
     }
 
     try {
-      const response = await api.post(`/api/quests/${questId}/enroll`);
+      const response = await api.post(`/api/quests/${questId}/enroll`, {});
       const data = response.data;
       handleApiResponse({ ok: true, status: 200 }, data, 'Failed to enroll');
 

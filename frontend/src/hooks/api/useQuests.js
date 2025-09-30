@@ -72,7 +72,7 @@ export const useEnrollQuest = () => {
   return useMutation({
     mutationKey: [mutationKeys.enrollQuest],
     mutationFn: async (questId) => {
-      const response = await api.post(`/api/quests/${questId}/enroll`)
+      const response = await api.post(`/api/quests/${questId}/enroll`, {})
       return response.data
     },
     onSuccess: (data, questId) => {
