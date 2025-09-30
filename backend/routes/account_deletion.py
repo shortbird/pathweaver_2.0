@@ -180,15 +180,18 @@ def get_deletion_status(current_user):
 
 @bp.route('/users/export-data', methods=['GET'])
 @require_auth
-@rate_limit(max_requests=5, window_seconds=3600)  # 5 exports per hour
+# @rate_limit(max_requests=5, window_seconds=3600)  # 5 exports per hour - Temporarily disabled for debugging
 def export_user_data(current_user):
     """
     Export all user data (GDPR Right to Data Portability)
     Returns comprehensive JSON export of all user data
     """
     try:
+        print(f"[EXPORT] Starting data export for user: {current_user}")
         user_id = current_user['id']
+        print(f"[EXPORT] User ID: {user_id}")
         supabase = get_supabase_admin_client()
+        print(f"[EXPORT] Got supabase client")
 
         export_data = {
             'export_date': datetime.utcnow().isoformat(),
