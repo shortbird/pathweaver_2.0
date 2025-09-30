@@ -1,6 +1,20 @@
 -- WARNING: This schema is for context only and is not meant to be run.
 -- Table order and constraints may not be valid for execution.
 
+CREATE TABLE public.account_deletion_log (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  email character varying NOT NULL,
+  first_name character varying,
+  last_name character varying,
+  deletion_requested_at timestamp with time zone NOT NULL,
+  deletion_completed_at timestamp with time zone,
+  reason text,
+  user_data jsonb,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT account_deletion_log_pkey PRIMARY KEY (id),
+  CONSTRAINT account_deletion_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
 CREATE TABLE public.activity_log (
   id integer NOT NULL DEFAULT nextval('activity_log_id_seq'::regclass),
   user_id uuid,
@@ -13,7 +27,7 @@ CREATE TABLE public.advisor_group_members (
   group_id uuid NOT NULL,
   student_id uuid NOT NULL,
   joined_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT advisor_group_members_pkey PRIMARY KEY (student_id, group_id),
+  CONSTRAINT advisor_group_members_pkey PRIMARY KEY (group_id, student_id),
   CONSTRAINT advisor_group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.advisor_groups(id),
   CONSTRAINT advisor_group_members_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users(id)
 );
@@ -26,6 +40,21 @@ CREATE TABLE public.advisor_groups (
   is_active boolean DEFAULT true,
   CONSTRAINT advisor_groups_pkey PRIMARY KEY (id),
   CONSTRAINT advisor_groups_advisor_id_fkey FOREIGN KEY (advisor_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.ai_content_metrics (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  content_type character varying NOT NULL CHECK (content_type::text = ANY (ARRAY['badge'::character varying, 'quest'::character varying, 'task'::character varying]::text[])),
+  content_id uuid NOT NULL,
+  engagement_score numeric DEFAULT 0.00 CHECK (engagement_score >= 0::numeric AND engagement_score <= 1::numeric),
+  completion_rate numeric DEFAULT 0.00 CHECK (completion_rate >= 0::numeric AND completion_rate <= 1::numeric),
+  avg_time_to_complete integer,
+  student_feedback_avg numeric DEFAULT 0.00 CHECK (student_feedback_avg >= 0::numeric AND student_feedback_avg <= 5::numeric),
+  teacher_override_count integer DEFAULT 0,
+  view_count integer DEFAULT 0,
+  start_count integer DEFAULT 0,
+  last_updated timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT ai_content_metrics_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.ai_cycle_logs (
   id integer NOT NULL DEFAULT nextval('ai_cycle_logs_id_seq'::regclass),
@@ -103,6 +132,48 @@ CREATE TABLE public.ai_seeds (
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT ai_seeds_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.badge_quests (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  badge_id uuid NOT NULL,
+  quest_id uuid NOT NULL,
+  is_required boolean DEFAULT true,
+  order_index integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT badge_quests_pkey PRIMARY KEY (id),
+  CONSTRAINT badge_quests_badge_id_fkey FOREIGN KEY (badge_id) REFERENCES public.badges(id),
+  CONSTRAINT badge_quests_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id)
+);
+CREATE TABLE public.badges (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  name character varying NOT NULL,
+  identity_statement character varying NOT NULL,
+  description text NOT NULL,
+  pillar_primary character varying NOT NULL,
+  pillar_weights jsonb NOT NULL DEFAULT '{}'::jsonb,
+  min_quests integer NOT NULL DEFAULT 5,
+  min_xp integer NOT NULL DEFAULT 1500,
+  portfolio_requirement text,
+  ai_generated boolean DEFAULT false,
+  status character varying DEFAULT 'active'::character varying CHECK (status::text = ANY (ARRAY['active'::character varying, 'beta'::character varying, 'archived'::character varying]::text[])),
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT badges_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.credit_ledger (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  quest_id uuid NOT NULL,
+  task_id uuid NOT NULL,
+  credit_type character varying NOT NULL,
+  xp_amount integer NOT NULL,
+  credits_earned numeric NOT NULL CHECK (credits_earned >= 0::numeric),
+  date_earned timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  academic_year integer NOT NULL,
+  CONSTRAINT credit_ledger_pkey PRIMARY KEY (id),
+  CONSTRAINT credit_ledger_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT credit_ledger_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id),
+  CONSTRAINT credit_ledger_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.quest_tasks(id)
+);
 CREATE TABLE public.diplomas (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   user_id uuid UNIQUE,
@@ -170,6 +241,20 @@ CREATE TABLE public.parent_child_relationships (
   CONSTRAINT parent_child_relationships_pkey PRIMARY KEY (id),
   CONSTRAINT parent_child_relationships_parent_id_fkey FOREIGN KEY (parent_id) REFERENCES public.users(id),
   CONSTRAINT parent_child_relationships_child_id_fkey FOREIGN KEY (child_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.parental_consent_log (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  child_email character varying NOT NULL,
+  parent_email character varying NOT NULL,
+  consent_token character varying NOT NULL,
+  consent_sent_at timestamp with time zone DEFAULT now(),
+  consent_verified_at timestamp with time zone,
+  ip_address inet,
+  user_agent text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT parental_consent_log_pkey PRIMARY KEY (id),
+  CONSTRAINT parental_consent_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 CREATE TABLE public.pillar_subcategories (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -342,6 +427,22 @@ CREATE TABLE public.quest_tasks (
   CONSTRAINT quest_tasks_pkey PRIMARY KEY (id),
   CONSTRAINT quest_tasks_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id)
 );
+CREATE TABLE public.quest_templates (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  goal_statement text NOT NULL,
+  applicable_badges ARRAY DEFAULT '{}'::uuid[],
+  complexity_level character varying DEFAULT 'intermediate'::character varying CHECK (complexity_level::text = ANY (ARRAY['beginner'::character varying, 'intermediate'::character varying, 'advanced'::character varying]::text[])),
+  estimated_xp integer NOT NULL,
+  estimated_hours numeric,
+  credit_mappings jsonb DEFAULT '{}'::jsonb,
+  resources ARRAY DEFAULT '{}'::jsonb[],
+  ai_generated boolean DEFAULT false,
+  usage_count integer DEFAULT 0,
+  success_rate numeric DEFAULT 0.00 CHECK (success_rate >= 0::numeric AND success_rate <= 1::numeric),
+  created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT quest_templates_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.quests (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   title text NOT NULL,
@@ -356,6 +457,7 @@ CREATE TABLE public.quests (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   material_link text,
+  applicable_badges jsonb DEFAULT '[]'::jsonb,
   CONSTRAINT quests_pkey PRIMARY KEY (id),
   CONSTRAINT quests_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
@@ -403,6 +505,20 @@ CREATE TABLE public.submissions (
   ai_validation_summary text,
   status text,
   user_quest_id uuid
+);
+CREATE TABLE public.subscription_history (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  user_id uuid NOT NULL,
+  stripe_subscription_id text,
+  tier text NOT NULL CHECK (tier = ANY (ARRAY['free'::text, 'supported'::text, 'academy'::text])),
+  status text NOT NULL,
+  stripe_event_id text NOT NULL,
+  event_type text NOT NULL,
+  ended_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT subscription_history_pkey PRIMARY KEY (id),
+  CONSTRAINT subscription_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
 );
 CREATE TABLE public.tutor_analytics (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -529,8 +645,16 @@ CREATE TABLE public.user_badges (
   badge_icon_url text,
   badge_data jsonb,
   earned_at timestamp without time zone DEFAULT now(),
+  badge_id uuid,
+  is_active boolean DEFAULT false,
+  progress_percentage integer DEFAULT 0 CHECK (progress_percentage >= 0 AND progress_percentage <= 100),
+  started_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  quests_completed integer DEFAULT 0,
+  xp_earned integer DEFAULT 0,
   CONSTRAINT user_badges_pkey PRIMARY KEY (id),
-  CONSTRAINT user_badges_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+  CONSTRAINT user_badges_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT user_badges_badge_id_fkey FOREIGN KEY (badge_id) REFERENCES public.badges(id)
 );
 CREATE TABLE public.user_mastery (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -643,6 +767,18 @@ CREATE TABLE public.users (
   privacy_policy_version character varying DEFAULT '1.0'::character varying,
   stripe_customer_id text,
   stripe_subscription_id text,
+  date_of_birth date,
+  requires_parental_consent boolean DEFAULT false,
+  parental_consent_email character varying,
+  parental_consent_verified boolean DEFAULT false,
+  parental_consent_verified_at timestamp with time zone,
+  parental_consent_token character varying UNIQUE,
+  deletion_requested_at timestamp with time zone,
+  deletion_status character varying DEFAULT 'none'::character varying CHECK (deletion_status::text = ANY (ARRAY['none'::character varying, 'pending'::character varying, 'completed'::character varying]::text[])),
+  deletion_scheduled_for timestamp with time zone,
+  marketing_emails_enabled boolean DEFAULT true,
+  product_updates_enabled boolean DEFAULT true,
+  educational_content_enabled boolean DEFAULT true,
   CONSTRAINT users_pkey PRIMARY KEY (id),
   CONSTRAINT users_auth_id_fkey FOREIGN KEY (id) REFERENCES auth.users(id)
 );

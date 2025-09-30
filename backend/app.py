@@ -95,6 +95,15 @@ try:
 except Exception as e:
     print(f"Warning: AI Tutor routes not available: {e}")
 
+# Register Badge System blueprints
+try:
+    from routes import badges, credits
+    app.register_blueprint(badges.bp)  # /api/badges
+    app.register_blueprint(credits.bp)  # /api/credits
+    print("Badge system routes registered successfully")
+except Exception as e:
+    print(f"Warning: Badge system routes not available: {e}")
+
 # Register Parental Consent blueprint (COPPA compliance)
 try:
     from routes import parental_consent
