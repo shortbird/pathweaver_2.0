@@ -117,13 +117,28 @@ const QuestDetail = () => {
       queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
         if (!oldData) return oldData;
 
+        const updatedTasks = oldData.quest_tasks?.map(task =>
+          task.id === selectedTask.id
+            ? { ...task, is_completed: true }
+            : task
+        ) || [];
+
+        // Recalculate completion status
+        const completedCount = updatedTasks.filter(task => task.is_completed).length;
+        const totalCount = updatedTasks.length;
+        const newProgressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+        const isNewlyCompleted = newProgressPercentage === 100;
+
         return {
           ...oldData,
-          quest_tasks: oldData.quest_tasks?.map(task =>
-            task.id === selectedTask.id
-              ? { ...task, is_completed: true }
-              : task
-          ) || []
+          quest_tasks: updatedTasks,
+          progress: {
+            ...oldData.progress,
+            percentage: newProgressPercentage,
+            completed_tasks: completedCount,
+            total_tasks: totalCount
+          },
+          completed_enrollment: isNewlyCompleted ? true : oldData.completed_enrollment
         };
       });
     }
@@ -132,7 +147,7 @@ const QuestDetail = () => {
     setSelectedTask(null);
 
     // Also trigger a background refetch to sync with server
-    refetch();
+    refetchQuest();
   };
 
   const handleInviteSent = async (inviteData) => {
