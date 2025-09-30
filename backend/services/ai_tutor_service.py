@@ -49,7 +49,7 @@ class AITutorService:
     def __init__(self):
         """Initialize AI tutor service"""
         self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
-        self.model_name = os.getenv('GEMINI_MODEL', 'gemini-1.5-pro')
+        self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
 
         if not self.api_key:
             raise ValueError("GOOGLE_API_KEY not configured. Set GEMINI_API_KEY environment variable.")
