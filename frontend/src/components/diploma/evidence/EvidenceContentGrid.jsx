@@ -165,8 +165,6 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
             );
           }
 
-            </div>
-          );
         })}
       </div>
     </div>
@@ -224,8 +222,6 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
             );
           }
 
-            </div>
-          );
         })}
       </div>
     </div>
@@ -283,8 +279,6 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
             );
           }
 
-            </div>
-          );
         })}
       </div>
     </div>
