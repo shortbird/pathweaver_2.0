@@ -6,6 +6,7 @@ import AdminUsers from '../components/admin/AdminUsers'
 import AdminQuestSuggestions from '../components/admin/AdminQuestSuggestions'
 import SiteSettings from '../components/admin/SiteSettings'
 import BadgeSeeder from './admin/BadgeSeeder'
+import BadgeQuestLinker from '../components/admin/BadgeQuestLinker'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -52,6 +53,12 @@ const AdminPage = () => {
         >
           Badge Seeder
         </Link>
+        <Link
+          to="/admin/badge-quests"
+          className={`pb-2 px-1 ${currentPath === 'badge-quests' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+        >
+          Badge-Quest Linking
+        </Link>
       </div>
 
       <Routes>
@@ -61,6 +68,7 @@ const AdminPage = () => {
         <Route path="quest-suggestions" element={<AdminQuestSuggestions />} />
         <Route path="settings" element={<SiteSettings />} />
         <Route path="badge-seeder" element={<BadgeSeeder />} />
+        <Route path="badge-quests" element={<BadgeQuestLinker />} />
       </Routes>
     </div>
   )
