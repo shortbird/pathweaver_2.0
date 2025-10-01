@@ -241,14 +241,26 @@ class BadgeService:
             task_ids = [t['id'] for t in tasks.data]
 
             if task_ids:
-                # Get completed tasks and sum XP
+                # Get completed tasks with their XP values from quest_tasks
+                # Note: xp_awarded doesn't exist in completions table, XP is stored in quest_tasks.xp_amount
                 completions = supabase.table('quest_task_completions')\
-                    .select('xp_awarded')\
+                    .select('task_id')\
                     .eq('user_id', user_id)\
                     .in_('task_id', task_ids)\
                     .execute()
 
-                xp_earned = sum(c.get('xp_awarded', 0) for c in completions.data)
+                completed_task_ids = [c['task_id'] for c in completions.data]
+
+                if completed_task_ids:
+                    # Get XP amounts for completed tasks
+                    task_xp = supabase.table('quest_tasks')\
+                        .select('xp_amount')\
+                        .in_('id', completed_task_ids)\
+                        .execute()
+
+                    xp_earned = sum(t.get('xp_amount', 0) for t in task_xp.data)
+                else:
+                    xp_earned = 0
 
         # Check if user has this badge active
         user_badge = supabase.table('user_badges')\

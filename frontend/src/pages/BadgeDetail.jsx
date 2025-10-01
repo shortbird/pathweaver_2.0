@@ -1,8 +1,21 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { CheckCircle, Circle, Lock, ArrowLeft } from 'lucide-react';
+import { CheckCircle, Circle, ArrowLeft, Trophy, Target, Zap } from 'lucide-react';
+import { BadgePillarIcon } from '../components/badges/BadgePillarIcon';
+
+/**
+ * Updated pillar color gradients - matching BadgeCard design
+ * Removing yellow/orange per design guidelines
+ */
+const pillarColors = {
+  'STEM & Logic': 'from-[#6d469b] to-[#ef597b]',
+  'Life & Wellness': 'from-green-500 to-emerald-600',
+  'Language & Communication': 'from-[#ef597b] to-[#6d469b]',
+  'Society & Culture': 'from-[#f8b3c5] to-[#ef597b]',
+  'Arts & Creativity': 'from-[#ef597b] to-[#b794d6]'
+};
 
 export default function BadgeDetail() {
   const { badgeId } = useParams();
@@ -32,9 +45,7 @@ export default function BadgeDetail() {
     try {
       await api.post(`/api/badges/${badgeId}/select`, {});
       toast.success('Badge selected! Ready to start your first quest?');
-      // Refresh badge data to show active status
       await fetchBadgeDetail();
-      // Could navigate to first recommended quest
     } catch (error) {
       console.error('Error selecting badge:', error);
       toast.error(error.response?.data?.error || 'Failed to select badge');
@@ -62,7 +73,7 @@ export default function BadgeDetail() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading badge...</p>
         </div>
       </div>
@@ -73,10 +84,10 @@ export default function BadgeDetail() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600">Badge not found</p>
+          <p className="text-gray-600 mb-4">Badge not found</p>
           <button
             onClick={() => navigate('/badges')}
-            className="mt-4 text-purple-600 hover:text-purple-700"
+            className="px-6 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90"
           >
             Back to Badges
           </button>
@@ -85,14 +96,6 @@ export default function BadgeDetail() {
     );
   }
 
-  const pillarColors = {
-    'STEM & Logic': 'from-blue-400 to-purple-500',
-    'Life & Wellness': 'from-green-400 to-teal-500',
-    'Language & Communication': 'from-yellow-400 to-orange-500',
-    'Society & Culture': 'from-red-400 to-pink-500',
-    'Arts & Creativity': 'from-purple-400 to-pink-500'
-  };
-
   const gradientClass = pillarColors[badge.pillar_primary] || 'from-gray-400 to-gray-600';
   const userProgress = badge.user_progress;
   const isActive = userProgress?.is_active && !userProgress?.completed_at;
@@ -100,101 +103,144 @@ export default function BadgeDetail() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero Section */}
-      <div className={`bg-gradient-to-r ${gradientClass} text-white py-16`}>
-        <div className="container mx-auto px-4">
+      {/* Hero Section - Redesigned */}
+      <div className={`bg-gradient-to-br ${gradientClass} text-white py-16 relative overflow-hidden`}>
+        {/* Subtle pattern overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent"></div>
+
+        <div className="container mx-auto px-4 relative z-10">
           <button
             onClick={() => navigate('/badges')}
-            className="flex items-center text-white hover:text-gray-200 mb-6"
+            className="flex items-center text-white hover:text-gray-100 mb-8 transition-colors group"
           >
-            <ArrowLeft className="w-5 h-5 mr-2" />
+            <ArrowLeft className="w-5 h-5 mr-2 group-hover:-translate-x-1 transition-transform" />
             Back to Badges
           </button>
 
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <h1 className="text-5xl font-bold mb-4">{badge.name}</h1>
-              <p className="text-2xl italic opacity-90 mb-6">
-                "{badge.identity_statement}"
-              </p>
-              <p className="text-lg opacity-90 max-w-3xl">
-                {badge.description}
-              </p>
+          <div className="flex flex-col md:flex-row items-start md:items-center gap-8">
+            {/* Badge Icon */}
+            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 shadow-2xl">
+              <BadgePillarIcon pillar={badge.pillar_primary} className="w-24 h-24 text-white" />
+            </div>
 
-              {/* Badge Stats */}
-              <div className="flex gap-8 mt-8">
+            {/* Badge Info */}
+            <div className="flex-1">
+              <div className="flex items-start justify-between flex-wrap gap-4">
                 <div>
-                  <div className="text-3xl font-bold">{badge.min_quests}</div>
+                  <h1 className="text-5xl font-bold mb-3 pb-1">{badge.name}</h1>
+                  <p className="text-2xl italic opacity-90 mb-4">
+                    "{badge.identity_statement}"
+                  </p>
+                  <p className="text-lg opacity-90 max-w-3xl leading-relaxed">
+                    {badge.description}
+                  </p>
+                </div>
+
+                {/* Status Badge */}
+                {isCompleted && (
+                  <div className="bg-green-500 text-white px-6 py-3 rounded-xl font-bold text-lg shadow-lg flex items-center gap-2">
+                    <Trophy className="w-5 h-5" />
+                    COMPLETED
+                  </div>
+                )}
+                {isActive && !isCompleted && (
+                  <div className="bg-blue-500 text-white px-6 py-3 rounded-xl font-bold text-lg shadow-lg flex items-center gap-2">
+                    <Target className="w-5 h-5" />
+                    IN PROGRESS
+                  </div>
+                )}
+              </div>
+
+              {/* Badge Stats - Redesigned */}
+              <div className="grid grid-cols-3 gap-6 mt-8 max-w-2xl">
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <div className="text-3xl font-bold">{badge.min_quests}</div>
+                  </div>
                   <div className="text-sm opacity-80">Required Quests</div>
                 </div>
-                <div>
-                  <div className="text-3xl font-bold">{badge.min_xp}</div>
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Zap className="w-5 h-5" />
+                    <div className="text-3xl font-bold">{badge.min_xp}</div>
+                  </div>
                   <div className="text-sm opacity-80">Minimum XP</div>
                 </div>
-                <div>
-                  <div className="text-3xl font-bold">{(badge.min_xp / 1000).toFixed(1)}</div>
+                <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+                  <div className="flex items-center gap-2 mb-1">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    <div className="text-3xl font-bold">{(badge.min_xp / 1000).toFixed(1)}</div>
+                  </div>
                   <div className="text-sm opacity-80">Academic Credits</div>
                 </div>
               </div>
-            </div>
 
-            {/* Status Badge */}
-            {isCompleted && (
-              <div className="bg-green-500 text-white px-6 py-3 rounded-lg font-bold text-lg">
-                COMPLETED
+              {/* Pillar Tag */}
+              <div className="mt-6">
+                <span className="inline-block bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium">
+                  {badge.pillar_primary}
+                </span>
               </div>
-            )}
-            {isActive && !isCompleted && (
-              <div className="bg-blue-500 text-white px-6 py-3 rounded-lg font-bold text-lg">
-                IN PROGRESS
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">
-        {/* Progress Section (if active) */}
+        {/* Progress Section (if active) - Redesigned */}
         {isActive && userProgress && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 className="text-2xl font-bold mb-4">Your Progress</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div>
-                <div className="text-3xl font-bold text-purple-600">
+          <div className="bg-white rounded-xl shadow-lg p-8 mb-8 border border-gray-100">
+            <div className="flex items-center gap-3 mb-6">
+              <Target className="w-6 h-6 text-purple-600" />
+              <h2 className="text-2xl font-bold">Your Progress</h2>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+              <div className="text-center md:text-left">
+                <div className="text-4xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
                   {userProgress.percentage || 0}%
                 </div>
-                <div className="text-gray-600">Overall Progress</div>
+                <div className="text-gray-600 mt-1">Overall Progress</div>
               </div>
-              <div>
-                <div className="text-3xl font-bold text-purple-600">
-                  {userProgress.quests_completed}/{badge.min_quests}
+              <div className="text-center md:text-left">
+                <div className="text-4xl font-bold text-gray-900">
+                  {userProgress.quests_completed}
+                  <span className="text-2xl text-gray-400">/{badge.min_quests}</span>
                 </div>
-                <div className="text-gray-600">Quests Completed</div>
+                <div className="text-gray-600 mt-1">Quests Completed</div>
               </div>
-              <div>
-                <div className="text-3xl font-bold text-purple-600">
-                  {userProgress.xp_earned}/{badge.min_xp}
+              <div className="text-center md:text-left">
+                <div className="text-4xl font-bold text-gray-900">
+                  {userProgress.xp_earned}
+                  <span className="text-2xl text-gray-400">/{badge.min_xp}</span>
                 </div>
-                <div className="text-gray-600">XP Earned</div>
+                <div className="text-gray-600 mt-1">XP Earned</div>
               </div>
             </div>
 
-            {/* Progress Bar */}
-            <div className="mt-6">
-              <div className="w-full bg-gray-200 rounded-full h-4">
+            {/* Enhanced Progress Bar */}
+            <div className="mb-6">
+              <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden">
                 <div
-                  className={`bg-gradient-to-r ${gradientClass} h-4 rounded-full transition-all`}
+                  className={`bg-gradient-to-r ${gradientClass} h-3 rounded-full transition-all duration-500 ease-out relative`}
                   style={{ width: `${userProgress.percentage || 0}%` }}
-                ></div>
+                >
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/0 via-white/30 to-white/0 animate-shimmer"></div>
+                </div>
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="mt-6 flex gap-4">
+            <div className="flex gap-4">
               <button
                 onClick={handlePauseBadge}
-                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                className="px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
               >
                 Pause Badge
               </button>
@@ -202,18 +248,18 @@ export default function BadgeDetail() {
           </div>
         )}
 
-        {/* Select Badge Button (if not active) */}
+        {/* Select Badge Section (if not active) - Redesigned */}
         {!isActive && !isCompleted && (
-          <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-            <h2 className="text-2xl font-bold mb-4">Ready to Start?</h2>
-            <p className="text-gray-600 mb-6">
-              Select this badge to begin your learning journey. You'll be able to complete quests
-              and track your progress toward earning this badge.
+          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl shadow-lg p-8 mb-8 border-2 border-purple-100">
+            <h2 className="text-2xl font-bold mb-4">Ready to Start Your Journey?</h2>
+            <p className="text-gray-700 mb-6 leading-relaxed">
+              Select this badge to begin your learning adventure. You'll be able to complete quests,
+              track your progress, and earn this badge as you develop new skills.
             </p>
             <button
               onClick={handleSelectBadge}
               disabled={selecting}
-              className={`px-8 py-3 bg-gradient-to-r ${gradientClass} text-white rounded-lg font-bold text-lg hover:opacity-90 transition-opacity ${
+              className={`px-8 py-4 bg-gradient-to-r ${gradientClass} text-white rounded-xl font-bold text-lg hover:shadow-xl hover:-translate-y-0.5 transition-all ${
                 selecting ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
@@ -222,18 +268,18 @@ export default function BadgeDetail() {
           </div>
         )}
 
-        {/* Related Quests */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <div className="flex items-baseline justify-between mb-6">
-            <h2 className="text-2xl font-bold">Related Quests</h2>
-            <p className="text-gray-600">
-              Complete any {badge.min_quests} of these quests to earn this badge
+        {/* Related Quests - Redesigned */}
+        <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-100">
+          <div className="flex flex-col sm:flex-row items-start sm:items-baseline justify-between gap-4 mb-6">
+            <h2 className="text-2xl font-bold">Quest Pathway</h2>
+            <p className="text-gray-600 text-sm">
+              Complete {badge.min_quests} quests to earn this badge
             </p>
           </div>
+
           {(badge.required_quests && badge.required_quests.length > 0) ||
            (badge.optional_quests && badge.optional_quests.length > 0) ? (
-            <div className="space-y-4">
-              {/* Show all quests together, no distinction between required/optional */}
+            <div className="space-y-3">
               {[...(badge.required_quests || []), ...(badge.optional_quests || [])].map((quest, index) => (
                 <QuestListItem
                   key={quest.id}
@@ -245,7 +291,13 @@ export default function BadgeDetail() {
               ))}
             </div>
           ) : (
-            <p className="text-gray-500">No quests linked to this badge yet.</p>
+            <div className="text-center py-12">
+              <div className="text-gray-400 mb-2">
+                <Circle className="w-16 h-16 mx-auto" />
+              </div>
+              <p className="text-gray-500">No quests linked to this badge yet.</p>
+              <p className="text-gray-400 text-sm mt-1">Check back soon for new learning opportunities!</p>
+            </div>
           )}
         </div>
       </div>
@@ -257,33 +309,43 @@ function QuestListItem({ quest, index, isCompleted, onClick }) {
   return (
     <div
       onClick={onClick}
-      className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:shadow-md transition-all cursor-pointer"
+      className="group flex items-center p-5 border-2 border-gray-100 rounded-xl hover:border-purple-200 hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer bg-white"
     >
       {/* Status Icon */}
       <div className="flex-shrink-0 mr-4">
         {isCompleted ? (
-          <CheckCircle className="w-8 h-8 text-green-500" />
+          <div className="bg-green-100 rounded-full p-2">
+            <CheckCircle className="w-6 h-6 text-green-600" />
+          </div>
         ) : (
-          <Circle className="w-8 h-8 text-gray-300" />
+          <div className="bg-gray-100 rounded-full p-2 group-hover:bg-purple-50 transition-colors">
+            <Circle className="w-6 h-6 text-gray-400 group-hover:text-purple-400" />
+          </div>
         )}
       </div>
 
       {/* Quest Content */}
-      <div className="flex-1">
-        <div className="flex items-center gap-2 mb-1">
-          <h3 className="font-semibold text-lg text-gray-900">{quest.title}</h3>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 mb-1 flex-wrap">
+          <h3 className="font-semibold text-lg text-gray-900 group-hover:text-purple-600 transition-colors">
+            {quest.title}
+          </h3>
           {isCompleted && (
-            <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+            <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
               Completed
             </span>
           )}
         </div>
-        <p className="text-sm text-gray-600 line-clamp-2">{quest.description}</p>
+        <p className="text-sm text-gray-600 line-clamp-2 leading-relaxed">
+          {quest.description}
+        </p>
       </div>
 
       {/* Arrow Icon */}
-      <div className="flex-shrink-0 ml-4 text-gray-400">
-        →
+      <div className="flex-shrink-0 ml-4 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all">
+        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
       </div>
     </div>
   );

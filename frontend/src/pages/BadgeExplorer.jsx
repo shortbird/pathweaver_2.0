@@ -82,7 +82,7 @@ export default function BadgeExplorer() {
       {/* Header */}
       <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-12">
         <div className="container mx-auto px-4">
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-[#f8b3c5] bg-clip-text text-transparent mb-4">Explore Learning Paths</h1>
+          <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-[#f8b3c5] bg-clip-text text-transparent mb-4 pb-1">Explore Learning Paths</h1>
           <p className="text-lg opacity-90">
             Choose a badge that sparks your curiosity and start your learning journey
           </p>
