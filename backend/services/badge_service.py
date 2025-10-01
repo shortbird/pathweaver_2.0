@@ -150,10 +150,10 @@ class BadgeService:
             return updated.data[0]
 
         # Create new user_badge record
+        # Note: Only include columns that exist in the enhanced user_badges table
         new_badge = {
             'user_id': user_id,
             'badge_id': badge_id,
-            'badge_name': badge_check.data['name'],
             'is_active': True,
             'progress_percentage': 0,
             'started_at': datetime.utcnow().isoformat(),
@@ -161,8 +161,14 @@ class BadgeService:
             'xp_earned': 0
         }
 
-        result = supabase.table('user_badges').insert(new_badge).execute()
-        return result.data[0]
+        try:
+            result = supabase.table('user_badges').insert(new_badge).execute()
+            if not result.data:
+                raise ValueError("Failed to create user badge record")
+            return result.data[0]
+        except Exception as e:
+            current_app.logger.error(f"Error creating user badge: {str(e)}")
+            raise ValueError(f"Failed to select badge: {str(e)}")
 
     @staticmethod
     def calculate_badge_progress(user_id: str, badge_id: str) -> Dict:

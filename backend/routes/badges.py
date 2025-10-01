@@ -66,13 +66,25 @@ def select_badge(user_id, badge_id):
     Path params:
         badge_id: Badge UUID
     """
-    user_badge = BadgeService.select_badge(user_id, badge_id)
+    try:
+        user_badge = BadgeService.select_badge(user_id, badge_id)
 
-    return jsonify({
-        'success': True,
-        'message': 'Badge selected successfully',
-        'user_badge': user_badge
-    }), 201
+        return jsonify({
+            'success': True,
+            'message': 'Badge selected successfully',
+            'user_badge': user_badge
+        }), 201
+    except ValueError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+    except Exception as e:
+        print(f"Error selecting badge: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to select badge: {str(e)}'
+        }), 500
 
 
 @bp.route('/<badge_id>/pause', methods=['POST'])
