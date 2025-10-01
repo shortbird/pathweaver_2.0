@@ -7,6 +7,7 @@ import AdminQuestSuggestions from '../components/admin/AdminQuestSuggestions'
 import SiteSettings from '../components/admin/SiteSettings'
 import BadgeSeeder from './admin/BadgeSeeder'
 import BadgeQuestLinker from '../components/admin/BadgeQuestLinker'
+import AIContentPipeline from './admin/AIContentPipeline'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -59,6 +60,12 @@ const AdminPage = () => {
         >
           Badge-Quest Linking
         </Link>
+        <Link
+          to="/admin/ai-pipeline"
+          className={`pb-2 px-1 ${currentPath === 'ai-pipeline' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+        >
+          AI Pipeline
+        </Link>
       </div>
 
       <Routes>
@@ -69,6 +76,7 @@ const AdminPage = () => {
         <Route path="settings" element={<SiteSettings />} />
         <Route path="badge-seeder" element={<BadgeSeeder />} />
         <Route path="badge-quests" element={<BadgeQuestLinker />} />
+        <Route path="ai-pipeline" element={<AIContentPipeline />} />
       </Routes>
     </div>
   )
