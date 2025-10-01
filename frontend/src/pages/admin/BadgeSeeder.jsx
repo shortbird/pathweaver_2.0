@@ -15,7 +15,11 @@ export default function BadgeSeeder() {
     setResult(null);
 
     try {
-      const response = await api.post('/api/admin/seed/initial-badges');
+      const response = await api.post('/api/admin/seed/initial-badges', {}, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
 
       setResult({
         success: true,
