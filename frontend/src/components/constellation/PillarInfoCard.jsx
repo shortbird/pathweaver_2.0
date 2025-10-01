@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
-const PillarInfoCard = ({ pillar, position, containerDimensions, onMouseEnter, onMouseLeave }) => {
+const PillarInfoCard = ({ pillar, position, containerDimensions }) => {
   const navigate = useNavigate();
 
   if (!pillar || !position) return null;
@@ -56,10 +56,8 @@ const PillarInfoCard = ({ pillar, position, containerDimensions, onMouseEnter, o
         left: `${cardPosition.left}px`,
         zIndex: 100,
       }}
-      className="w-[280px]"
+      className="w-[280px] pointer-events-none"
       onClick={(e) => e.stopPropagation()}
-      onMouseEnter={onMouseEnter}
-      onMouseLeave={onMouseLeave}
     >
       <div className="bg-gray-900/95 backdrop-blur-md border border-white/20
                       rounded-2xl p-5 shadow-2xl">
@@ -73,7 +71,7 @@ const PillarInfoCard = ({ pillar, position, containerDimensions, onMouseEnter, o
           {pillar.name}
         </h3>
 
-        {/* Simplified Stats - Just Total XP */}
+        {/* Total XP */}
         <div className="mb-5">
           <div className="flex justify-between items-center">
             <span className="text-gray-400 text-base">Total XP</span>
@@ -84,7 +82,7 @@ const PillarInfoCard = ({ pillar, position, containerDimensions, onMouseEnter, o
         {/* CTA Button */}
         <button
           onClick={handleExploreClick}
-          className="w-full py-3 rounded-lg text-white font-medium
+          className="w-full py-3 rounded-lg text-white font-medium pointer-events-auto
                      transition-all transform hover:scale-105 hover:shadow-lg"
           style={{
             backgroundImage: `linear-gradient(90deg, ${colors.primary}, ${colors.accent})`

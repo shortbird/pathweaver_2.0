@@ -10,6 +10,7 @@ const ConstellationPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [pillarsData, setPillarsData] = useState([]);
+  const [questOrbs, setQuestOrbs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -96,6 +97,85 @@ const ConstellationPage = () => {
       }));
 
       setPillarsData(pillars);
+
+      // Fetch user's quests with task completions
+      try {
+        const questsResponse = await api.get('/api/users/completed-quests');
+        const userQuests = questsResponse.data.completed_quests || [];
+
+        // Also get in-progress quests
+        const dashboardQuests = data.active_quests || [];
+
+        // Process quests to calculate XP distributions
+        const processedQuests = [];
+
+        // Process completed quests
+        userQuests.forEach((enrollment) => {
+          const quest = enrollment.quests;
+          if (!quest) return;
+
+          // Calculate XP distribution across pillars
+          const xpDistribution = {};
+          let totalXP = 0;
+
+          (quest.quest_tasks || []).forEach((task) => {
+            const pillar = task.pillar;
+            const xp = task.xp_amount || 0;
+
+            if (pillar && xp > 0) {
+              xpDistribution[pillar] = (xpDistribution[pillar] || 0) + xp;
+              totalXP += xp;
+            }
+          });
+
+          if (totalXP > 0) {
+            processedQuests.push({
+              id: quest.id,
+              title: quest.title,
+              totalXP,
+              xpDistribution,
+              status: 'completed',
+              completedAt: enrollment.completed_at
+            });
+          }
+        });
+
+        // Process in-progress quests
+        dashboardQuests.forEach((enrollment) => {
+          const quest = enrollment.quests;
+          if (!quest) return;
+
+          // Calculate XP distribution
+          const xpDistribution = {};
+          let totalXP = 0;
+
+          (quest.quest_tasks || []).forEach((task) => {
+            const pillar = task.pillar;
+            const xp = task.xp_amount || 0;
+
+            if (pillar && xp > 0) {
+              xpDistribution[pillar] = (xpDistribution[pillar] || 0) + xp;
+              totalXP += xp;
+            }
+          });
+
+          if (totalXP > 0 && !processedQuests.find(q => q.id === quest.id)) {
+            processedQuests.push({
+              id: quest.id,
+              title: quest.title,
+              totalXP,
+              xpDistribution,
+              status: 'in_progress',
+              startedAt: enrollment.started_at
+            });
+          }
+        });
+
+        setQuestOrbs(processedQuests);
+      } catch (questError) {
+        console.error('Error fetching quests:', questError);
+        // Don't fail the whole page if quests fail
+      }
     } catch (error) {
       console.error('Error fetching constellation data:', error);
       setError('Failed to load constellation data');
@@ -227,7 +307,7 @@ const ConstellationPage = () => {
   }
 
   // Main Constellation View
-  return <ConstellationView pillarsData={pillarsData} onExit={handleExit} />;
+  return <ConstellationView pillarsData={pillarsData} questOrbs={questOrbs} onExit={handleExit} />;
 };
 
 export default ConstellationPage;

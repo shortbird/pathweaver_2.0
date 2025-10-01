@@ -17,13 +17,13 @@ const PillarOrb = ({
   const calculateSize = (xp) => {
     const minSize = 60;
     const maxSize = 140;
-    const maxXP = 3000; // Sage level
+    const maxXP = 3000;
     return Math.min(minSize + (xp / maxXP) * (maxSize - minSize), maxSize);
   };
 
-  // Calculate brightness based on XP (0.4-1.0 range)
+  // Calculate brightness based on XP (0.5-1.0 range)
   const calculateBrightness = (xp) => {
-    const minBrightness = 0.4;
+    const minBrightness = 0.5;
     const maxBrightness = 1.0;
     const maxXP = 3000;
     return Math.min(minBrightness + (xp / maxXP) * (maxBrightness - minBrightness), maxBrightness);
@@ -34,38 +34,14 @@ const PillarOrb = ({
 
   // Pillar-specific colors
   const pillarColors = {
-    'stem_logic': {
-      primary: '#3b82f6',
-      light: '#60a5fa',
-      glow: 'rgba(59, 130, 246, 0.6)'
-    },
-    'society_culture': {
-      primary: '#a855f7',
-      light: '#c084fc',
-      glow: 'rgba(168, 85, 247, 0.6)'
-    },
-    'arts_creativity': {
-      primary: '#ef597b',
-      light: '#f8b3c5',
-      glow: 'rgba(239, 89, 123, 0.6)'
-    },
-    'language_communication': {
-      primary: '#f59e0b',
-      light: '#fbbf24',
-      glow: 'rgba(245, 158, 11, 0.6)'
-    },
-    'life_wellness': {
-      primary: '#10b981',
-      light: '#34d399',
-      glow: 'rgba(16, 185, 129, 0.6)'
-    }
+    'stem_logic': '#3b82f6',
+    'society_culture': '#a855f7',
+    'arts_creativity': '#ef597b',
+    'language_communication': '#f59e0b',
+    'life_wellness': '#10b981'
   };
 
-  const colors = pillarColors[pillar.id] || {
-    primary: '#ffffff',
-    light: '#cccccc',
-    glow: 'rgba(255, 255, 255, 0.6)'
-  };
+  const color = pillarColors[pillar.id] || '#ffffff';
 
   const handleMouseEnter = () => {
     setIsHovered(true);
@@ -77,18 +53,25 @@ const PillarOrb = ({
     onLeave?.();
   };
 
-  // Glowing orb using layered radial gradients
-  const GlowingOrb = ({ size, brightness, isHovered, isActive }) => {
-    const glowIntensity = isHovered ? 1.3 : (isActive ? 1.1 : 1.0);
+  // Pure light orb with lens flare effect - like the reference image
+  const LightOrb = ({ size, brightness, color, isHovered, isActive }) => {
+    const glowIntensity = isHovered ? 1.4 : (isActive ? 1.15 : 1.0);
+    const coreSize = size * 0.15; // Small bright core
+    const innerGlowSize = size * 0.5;
+    const outerGlowSize = size * 1.2;
 
     return (
       <motion.div
         className="relative"
         style={{ width: size, height: size }}
         animate={isActive ? {
-          filter: [`brightness(${brightness})`, `brightness(${brightness * 1.1})`, `brightness(${brightness})`]
+          filter: [
+            `brightness(${brightness}) saturate(1.2)`,
+            `brightness(${brightness * 1.15}) saturate(1.3)`,
+            `brightness(${brightness}) saturate(1.2)`
+          ]
         } : {
-          filter: `brightness(${brightness})`
+          filter: `brightness(${brightness}) saturate(1.2)`
         }}
         transition={isActive ? {
           duration: 3,
@@ -96,46 +79,96 @@ const PillarOrb = ({
           ease: [0.4, 0.0, 0.6, 1]
         } : {}}
       >
-        {/* Outer glow - largest, most transparent */}
+        {/* Outer glow - very soft, large spread */}
         <div
-          className="absolute inset-0 rounded-full"
+          className="absolute top-1/2 left-1/2 rounded-full blur-3xl"
           style={{
-            background: `radial-gradient(circle at 30% 30%,
-              ${colors.glow},
-              transparent 70%)`,
-            transform: `scale(${1.5 * glowIntensity})`,
-            opacity: 0.3 * glowIntensity,
-            transition: 'all 0.3s ease-out'
-          }}
-        />
-
-        {/* Mid glow - medium size, semi-transparent */}
-        <div
-          className="absolute inset-0 rounded-full"
-          style={{
-            background: `radial-gradient(circle at 35% 35%,
-              ${colors.light},
-              ${colors.primary} 50%,
-              transparent 80%)`,
-            transform: `scale(${1.2 * glowIntensity})`,
+            width: outerGlowSize * glowIntensity,
+            height: outerGlowSize * glowIntensity,
+            background: `radial-gradient(circle, ${color}40, transparent 70%)`,
+            transform: 'translate(-50%, -50%)',
             opacity: 0.6 * glowIntensity,
             transition: 'all 0.3s ease-out'
           }}
         />
 
-        {/* Core orb - solid color with bright center */}
+        {/* Lens flare cross - horizontal */}
         <div
-          className="absolute inset-0 rounded-full"
+          className="absolute top-1/2 left-1/2"
           style={{
-            background: `radial-gradient(circle at 30% 30%,
-              white,
-              ${colors.light} 30%,
-              ${colors.primary} 60%,
-              ${colors.primary} 100%)`,
-            boxShadow: `
-              0 0 ${20 * glowIntensity}px ${colors.glow},
-              inset 0 0 ${30 * glowIntensity}px rgba(255,255,255,0.3)
-            `,
+            width: size * 2 * glowIntensity,
+            height: 2,
+            background: `linear-gradient(90deg, transparent, ${color}80, white, ${color}80, transparent)`,
+            transform: 'translate(-50%, -50%)',
+            opacity: 0.7 * glowIntensity,
+            boxShadow: `0 0 20px ${color}`,
+            transition: 'all 0.3s ease-out'
+          }}
+        />
+
+        {/* Lens flare cross - vertical */}
+        <div
+          className="absolute top-1/2 left-1/2"
+          style={{
+            width: 2,
+            height: size * 2 * glowIntensity,
+            background: `linear-gradient(180deg, transparent, ${color}80, white, ${color}80, transparent)`,
+            transform: 'translate(-50%, -50%)',
+            opacity: 0.7 * glowIntensity,
+            boxShadow: `0 0 20px ${color}`,
+            transition: 'all 0.3s ease-out'
+          }}
+        />
+
+        {/* Diagonal flares (4-point star effect) */}
+        <div
+          className="absolute top-1/2 left-1/2"
+          style={{
+            width: size * 1.5 * glowIntensity,
+            height: 1.5,
+            background: `linear-gradient(90deg, transparent, ${color}60, white, ${color}60, transparent)`,
+            transform: 'translate(-50%, -50%) rotate(45deg)',
+            opacity: 0.5 * glowIntensity,
+            boxShadow: `0 0 15px ${color}`,
+            transition: 'all 0.3s ease-out'
+          }}
+        />
+        <div
+          className="absolute top-1/2 left-1/2"
+          style={{
+            width: size * 1.5 * glowIntensity,
+            height: 1.5,
+            background: `linear-gradient(90deg, transparent, ${color}60, white, ${color}60, transparent)`,
+            transform: 'translate(-50%, -50%) rotate(-45deg)',
+            opacity: 0.5 * glowIntensity,
+            boxShadow: `0 0 15px ${color}`,
+            transition: 'all 0.3s ease-out'
+          }}
+        />
+
+        {/* Inner glow - soft color tint */}
+        <div
+          className="absolute top-1/2 left-1/2 rounded-full blur-xl"
+          style={{
+            width: innerGlowSize * glowIntensity,
+            height: innerGlowSize * glowIntensity,
+            background: `radial-gradient(circle, ${color}60, ${color}30, transparent 70%)`,
+            transform: 'translate(-50%, -50%)',
+            opacity: 0.8 * glowIntensity,
+            transition: 'all 0.3s ease-out'
+          }}
+        />
+
+        {/* Bright white core */}
+        <div
+          className="absolute top-1/2 left-1/2 rounded-full blur-sm"
+          style={{
+            width: coreSize * glowIntensity,
+            height: coreSize * glowIntensity,
+            background: 'radial-gradient(circle, white, white 40%, transparent)',
+            transform: 'translate(-50%, -50%)',
+            opacity: 1,
+            boxShadow: `0 0 ${20 * glowIntensity}px white, 0 0 ${40 * glowIntensity}px ${color}`,
             transition: 'all 0.3s ease-out'
           }}
         />
@@ -144,69 +177,45 @@ const PillarOrb = ({
   };
 
   return (
-    <>
-      {/* Orb container - only this scales on hover */}
-      <motion.div
-        initial={{ scale: 0, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        transition={{
-          delay: index * 0.15,
-          duration: 0.6,
-          ease: [0.34, 1.56, 0.64, 1], // Spring easing
-        }}
-        whileHover={{ scale: 1.15 }}
-        style={{
-          position: 'absolute',
-          left: `${position.x}px`,
-          top: `${position.y}px`,
-          transform: 'translate(-50%, -50%)',
-          cursor: 'pointer',
-          zIndex: isHovered ? 50 : 10,
-        }}
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={handleMouseLeave}
-        onClick={() => onClick?.(pillar)}
-        className="constellation-orb"
-        role="button"
-        tabIndex={0}
-        aria-label={`${pillar.name}: ${xp} XP. Click to explore ${pillar.name} quests.`}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            onClick?.(pillar);
-          }
-        }}
-      >
-        <GlowingOrb
-          size={size}
-          brightness={brightness}
-          isHovered={isHovered}
-          isActive={isActive}
-        />
-      </motion.div>
-
-      {/* Pillar name label - OUTSIDE scaling container, fixed position */}
-      <div
-        style={{
-          position: 'absolute',
-          left: `${position.x}px`,
-          top: `${position.y + size/2 + 20}px`,
-          transform: 'translateX(-50%)',
-          pointerEvents: 'none',
-          zIndex: isHovered ? 51 : 11,
-        }}
-        className="hidden sm:block"
-      >
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: isHovered ? 1 : 0.7, y: 0 }}
-          className="whitespace-nowrap text-white font-medium text-sm"
-          style={{ textShadow: '0 2px 8px rgba(0,0,0,0.8)' }}
-        >
-          {pillar.name}
-        </motion.div>
-      </div>
-    </>
+    <motion.div
+      initial={{ scale: 0, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      transition={{
+        delay: index * 0.15,
+        duration: 0.6,
+        ease: [0.34, 1.56, 0.64, 1],
+      }}
+      whileHover={{ scale: 1.15 }}
+      style={{
+        position: 'absolute',
+        left: `${position.x}px`,
+        top: `${position.y}px`,
+        transform: 'translate(-50%, -50%)',
+        cursor: 'pointer',
+        zIndex: isHovered ? 50 : 10,
+      }}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+      onClick={() => onClick?.(pillar)}
+      className="constellation-orb"
+      role="button"
+      tabIndex={0}
+      aria-label={`${pillar.name}: ${xp} XP. Click to explore ${pillar.name} quests.`}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick?.(pillar);
+        }
+      }}
+    >
+      <LightOrb
+        size={size}
+        brightness={brightness}
+        color={color}
+        isHovered={isHovered}
+        isActive={isActive}
+      />
+    </motion.div>
   );
 };
 
