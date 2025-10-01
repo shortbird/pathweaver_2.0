@@ -87,10 +87,23 @@ class BadgeService:
         required_quests = []
         optional_quests = []
 
+        # If user_id provided, get their quest completion status
+        user_completed_quest_ids = set()
+        if user_id:
+            completed_result = supabase.table('user_quests')\
+                .select('quest_id')\
+                .eq('user_id', user_id)\
+                .not_('completed_at', 'is', None)\
+                .execute()
+            user_completed_quest_ids = {q['quest_id'] for q in completed_result.data}
+
         for bq in quests_result.data:
             quest_data = bq['quests']
             quest_data['is_required'] = bq['is_required']
             quest_data['order_index'] = bq['order_index']
+
+            # Mark if user has completed this quest
+            quest_data['is_completed'] = quest_data['id'] in user_completed_quest_ids
 
             if bq['is_required']:
                 required_quests.append(quest_data)

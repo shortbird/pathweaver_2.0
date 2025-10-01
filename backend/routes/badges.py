@@ -46,8 +46,13 @@ def get_badge_detail(badge_id):
     Path params:
         badge_id: Badge UUID
     """
-    # Check if user is authenticated (optional)
-    user_id = request.headers.get('X-User-ID')
+    # Try to get user ID from session (optional - doesn't fail if not logged in)
+    from utils.session_manager import session_manager
+    user_id = None
+    try:
+        user_id = session_manager.get_current_user_id()
+    except:
+        pass  # Not logged in, continue without user context
 
     badge = BadgeService.get_badge_detail(badge_id, user_id=user_id)
 
