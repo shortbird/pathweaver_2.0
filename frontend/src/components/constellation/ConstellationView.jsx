@@ -138,19 +138,13 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
     index
   }));
 
-  // Handle orb hover with delay dismiss
+  // Handle orb hover
   const handleOrbHover = (pillar, position) => {
-    // Clear any pending dismiss timeout
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
-      hoverTimeoutRef.current = null;
-    }
     setHoveredPillar(pillar);
     setHoveredPosition(position);
   };
 
   const handleOrbLeave = () => {
-    // Dismiss immediately when leaving orb
     setHoveredPillar(null);
     setHoveredPosition(null);
   };
@@ -166,13 +160,14 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
   };
 
   const handleQuestClick = (quest) => {
-    navigate(`/quests/${quest.id}`);
+    // Don't navigate - just show the tooltip (already visible on hover)
+    // Future: could open a detailed modal here
   };
 
-
-  // Handle star click - navigate to quests filtered by pillar
+  // Handle star click - don't navigate, info shown in hover card
   const handleStarClick = (pillar) => {
-    navigate(`/quests?pillar=${pillar.id}`);
+    // Don't navigate - info shown in hover card
+    // Future: could open a detailed modal here
   };
 
   // Toggle time travel with 'T' key
@@ -230,10 +225,10 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
     const offsetY = (mousePos.y - centerY) / centerY; // -1 to 1
 
     return {
-      // Different layers move at different speeds
-      background: { x: offsetX * 20, y: offsetY * 20 }, // Slowest
-      lines: { x: offsetX * 10, y: offsetY * 10 },      // Medium
-      orbs: { x: offsetX * 5, y: offsetY * 5 }          // Fastest (least movement)
+      // Different layers move at different speeds - much slower
+      background: { x: offsetX * 3, y: offsetY * 3 },  // Very subtle movement
+      lines: { x: offsetX * 1.5, y: offsetY * 1.5 },   // Even less
+      orbs: { x: offsetX * 0.75, y: offsetY * 0.75 }   // Minimal movement
     };
   }, [mousePos, dimensions]);
 

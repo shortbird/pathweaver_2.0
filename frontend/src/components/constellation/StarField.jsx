@@ -9,8 +9,9 @@ const StarField = ({ starCount = 200, parallaxOffset = { x: 0, y: 0 } }) => {
 
     const ctx = canvas.getContext('2d');
     const updateDimensions = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      // Make canvas larger to account for zoom (3x the viewport to support 0.5x zoom)
+      canvas.width = window.innerWidth * 3;
+      canvas.height = window.innerHeight * 3;
     };
 
     updateDimensions();
@@ -83,8 +84,13 @@ const StarField = ({ starCount = 200, parallaxOffset = { x: 0, y: 0 } }) => {
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 pointer-events-none"
-      style={{ opacity: 0.6 }}
+      className="absolute pointer-events-none"
+      style={{
+        opacity: 0.6,
+        left: '50%',
+        top: '50%',
+        transform: 'translate(-50%, -50%)'
+      }}
     />
   );
 };

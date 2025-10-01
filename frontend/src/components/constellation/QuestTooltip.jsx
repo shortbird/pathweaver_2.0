@@ -98,7 +98,6 @@ const QuestTooltip = ({ quest, position, containerDimensions }) => {
           {Object.entries(quest.xpDistribution)
             .sort((a, b) => b[1] - a[1])
             .map(([pillarId, xp]) => {
-              const percentage = Math.round((xp / quest.totalXP) * 100);
               const pillarColor = pillarColors[pillarId]?.primary || '#888';
 
               return (
@@ -110,7 +109,7 @@ const QuestTooltip = ({ quest, position, containerDimensions }) => {
                     />
                     <span className="text-gray-300">{pillarNames[pillarId]}</span>
                   </div>
-                  <span className="text-white font-medium">{percentage}%</span>
+                  <span className="text-white font-medium">{xp} XP</span>
                 </div>
               );
             })}

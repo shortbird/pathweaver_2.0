@@ -190,7 +190,6 @@ const PillarOrb = ({
         position: 'absolute',
         left: `${position.x}px`,
         top: `${position.y}px`,
-        transform: 'translate(-50%, -50%)',
         cursor: 'pointer',
         zIndex: isHovered ? 50 : 10,
       }}
@@ -208,13 +207,22 @@ const PillarOrb = ({
         }
       }}
     >
-      <LightOrb
-        size={size}
-        brightness={brightness}
-        color={color}
-        isHovered={isHovered}
-        isActive={isActive}
-      />
+      <div
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: '50%',
+          transform: 'translate(-50%, -50%)',
+        }}
+      >
+        <LightOrb
+          size={size}
+          brightness={brightness}
+          color={color}
+          isHovered={isHovered}
+          isActive={isActive}
+        />
+      </div>
     </motion.div>
   );
 };
