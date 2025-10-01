@@ -190,7 +190,7 @@ def update_user_subscription(user_id, target_user_id):
         if not new_tier:
             return jsonify({'success': False, 'error': 'Subscription tier is required'}), 400
 
-        valid_tiers = ['free', 'explorer', 'creator', 'visionary']
+        valid_tiers = ['free', 'supported', 'academy']
         if new_tier not in valid_tiers:
             return jsonify({'success': False, 'error': f'Invalid subscription tier. Must be one of: {valid_tiers}'}), 400
 
