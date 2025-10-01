@@ -4,6 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import SkillsRadarChart from '../components/diploma/SkillsRadarChart';
 import AccreditedDiplomaModal from '../components/diploma/AccreditedDiplomaModal';
+import BadgeCard from '../components/badge/BadgeCard';
 import { SkeletonDiplomaHeader, SkeletonStats, SkeletonAchievementGrid } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 import { formatErrorMessage } from '../utils/errorMessages';
@@ -22,6 +23,7 @@ const DiplomaPage = () => {
   const [achievements, setAchievements] = useState([]);
   const [totalXP, setTotalXP] = useState({});
   const [subjectXP, setSubjectXP] = useState({});  // NEW: Subject-specific XP
+  const [earnedBadges, setEarnedBadges] = useState([]);  // Earned badges
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAchievement, setSelectedAchievement] = useState(null);
   const [shareableLink, setShareableLink] = useState('');
@@ -128,6 +130,7 @@ const DiplomaPage = () => {
       if (hasAccess) {
         fetchAchievements();
         fetchSubjectXP();  // NEW: Fetch subject-specific XP
+        fetchEarnedBadges();  // Fetch earned badges
         generateShareableLink();
       } else {
         // User doesn't have access, just stop loading
@@ -145,6 +148,7 @@ const DiplomaPage = () => {
       if (document.visibilityState === 'visible' && user && !slug && !userId && hasAccess) {
         fetchAchievements();
         fetchSubjectXP();
+        fetchEarnedBadges();
       }
     };
 
@@ -155,6 +159,7 @@ const DiplomaPage = () => {
       if (user && !slug && !userId && hasAccess) {
         fetchAchievements();
         fetchSubjectXP();
+        fetchEarnedBadges();
       }
     };
     
@@ -169,8 +174,14 @@ const DiplomaPage = () => {
   const fetchPublicDiploma = async () => {
     try {
       const response = await api.get(`/api/portfolio/public/${slug}`);
-      setDiploma(response.data);
-      
+      const diplomaData = response.data;
+      setDiploma(diplomaData);
+
+      // Fetch badges for public diploma if user_id is available
+      if (diplomaData?.user_id) {
+        await fetchEarnedBadges(diplomaData.user_id);
+      }
+
       // Transform the data to match achievements format if needed
       // For now, we'll display the diploma data differently
     } catch (error) {
@@ -187,13 +198,18 @@ const DiplomaPage = () => {
     try {
       const apiBase = import.meta.env.VITE_API_URL || '';
       const response = await fetch(`${apiBase}/api/portfolio/diploma/${userId}`);
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch diploma');
       }
-      
+
       const data = await response.json();
       setDiploma(data);
+
+      // Fetch badges for public diploma
+      if (userId) {
+        await fetchEarnedBadges(userId);
+      }
     } catch (error) {
       const errorInfo = formatErrorMessage(
         error.response?.status === 404 ? 'diploma/not-found' : 'diploma/private'
@@ -302,6 +318,30 @@ const DiplomaPage = () => {
     } catch (error) {
       // Silently handle error for now
       setSubjectXP({});
+    }
+  };
+
+  const fetchEarnedBadges = async (targetUserId = null) => {
+    try {
+      const userIdToFetch = targetUserId || user?.id;
+      if (!userIdToFetch) return;
+
+      const response = await api.get(`/api/badges/user/${userIdToFetch}`, {
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
+
+      if (response.data && response.data.user_badges) {
+        // Filter to only show earned badges on diploma
+        const earned = response.data.user_badges.filter(b => b.is_earned);
+        setEarnedBadges(earned);
+      } else {
+        setEarnedBadges([]);
+      }
+    } catch (error) {
+      // Silently handle error - badges are optional
+      setEarnedBadges([]);
     }
   };
 
@@ -872,6 +912,34 @@ const DiplomaPage = () => {
             </div>
           );
         })()}
+
+        {/* Earned Badges Section */}
+        {earnedBadges.length > 0 && (
+          <div className="mb-12 pb-12 border-b border-gray-100">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold mb-3" style={{ color: '#003f5c' }}>Earned Badges</h2>
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                Recognition of mastery and achievement across learning pillars
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {earnedBadges.map((userBadge) => (
+                <BadgeCard
+                  key={userBadge.badge_id}
+                  badge={userBadge}
+                  showProgress={false}
+                />
+              ))}
+            </div>
+
+            {earnedBadges.length === 0 && (
+              <div className="text-center py-8">
+                <p className="text-gray-500">No badges earned yet - complete quests to earn your first badge!</p>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Learning Journey Section */}
         <div className="mb-8 pt-8">
