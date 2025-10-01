@@ -25,7 +25,7 @@ const ConstellationPage = () => {
       setError(null);
 
       // Fetch dashboard data which includes pillar XP breakdown
-      const response = await api.get(`/api/users/${user.id}/dashboard`);
+      const response = await api.get('/api/users/dashboard');
       const data = response.data;
 
       // Extract pillar XP from xp_by_category
