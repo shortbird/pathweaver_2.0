@@ -235,8 +235,7 @@ def update_user_subscription(user_id, target_user_id):
         # Update subscription
         update_data = {
             'subscription_tier': db_tier,
-            'subscription_status': 'active',
-            'updated_at': datetime.utcnow().isoformat()
+            'subscription_status': 'active'
         }
 
         result = supabase.table('users').update(update_data).eq('id', target_user_id).execute()
