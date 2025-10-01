@@ -188,7 +188,7 @@ export default function BadgeDetail() {
                   </div>
                 )}
                 {isActive && !isCompleted && (
-                  <div className="bg-blue-500 text-white px-5 py-2 rounded-full font-bold text-sm shadow-lg flex items-center gap-2">
+                  <div className="bg-green-500 text-white px-5 py-2 rounded-full font-bold text-sm shadow-lg flex items-center gap-2">
                     <Target className="w-4 h-4" />
                     IN PROGRESS
                   </div>
@@ -286,7 +286,7 @@ export default function BadgeDetail() {
         {/* Related Quests - Redesigned */}
         <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-100">
           <div className="flex flex-col sm:flex-row items-start sm:items-baseline justify-between gap-4 mb-6">
-            <h2 className="text-2xl font-bold">Quest Pathway</h2>
+            <h2 className="text-2xl font-bold">Quests Related to {badge.name}</h2>
             <p className="text-gray-600 text-sm">
               Complete {badge.min_quests} quests to earn this badge
             </p>
@@ -348,6 +348,12 @@ function QuestListItem({ quest, index, isCompleted, onClick }) {
           {isCompleted && (
             <span className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded-full font-medium">
               Completed
+            </span>
+          )}
+          {quest.xp_contributed > 0 && (
+            <span className="text-xs bg-purple-100 text-purple-700 px-3 py-1 rounded-full font-medium flex items-center gap-1">
+              <Zap className="w-3 h-3" />
+              {quest.xp_contributed} XP
             </span>
           )}
         </div>

@@ -57,7 +57,7 @@ export default function BadgeCard({ badge, onClick }) {
           </div>
         )}
         {isActive && !isCompleted && (
-          <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1">
+          <div className="absolute top-2 right-2 bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg flex items-center gap-1">
             <Target className="w-3 h-3" />
             IN PROGRESS
           </div>

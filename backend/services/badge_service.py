@@ -105,6 +105,27 @@ class BadgeService:
             # Mark if user has completed this quest
             quest_data['is_completed'] = quest_data['id'] in user_completed_quest_ids
 
+            # Calculate XP contributed to badge from this quest
+            quest_data['xp_contributed'] = 0
+            if user_id:
+                # Get all tasks for this quest
+                tasks = supabase.table('quest_tasks')\
+                    .select('id')\
+                    .eq('quest_id', quest_data['id'])\
+                    .execute()
+
+                task_ids = [t['id'] for t in tasks.data]
+
+                if task_ids:
+                    # Get XP from completed tasks
+                    completions = supabase.table('user_quest_tasks')\
+                        .select('xp_awarded')\
+                        .eq('user_id', user_id)\
+                        .in_('quest_task_id', task_ids)\
+                        .execute()
+
+                    quest_data['xp_contributed'] = sum(c.get('xp_awarded', 0) for c in completions.data)
+
             if bq['is_required']:
                 required_quests.append(quest_data)
             else:
