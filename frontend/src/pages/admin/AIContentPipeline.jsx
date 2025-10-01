@@ -18,7 +18,9 @@ export default function AIContentPipeline() {
       toast.success('Quest analysis complete');
     } catch (error) {
       console.error('Analysis error:', error);
-      toast.error(error.response?.data?.error || 'Failed to analyze quests');
+      const errorMsg = error.response?.data?.error?.message || error.response?.data?.error || error.message || 'Failed to analyze quests';
+      toast.error(errorMsg);
+      setAnalysisResult(null);
     } finally {
       setLoading(false);
     }
@@ -31,7 +33,8 @@ export default function AIContentPipeline() {
       toast.success(`Updated ${response.data.updated_count} quest metrics`);
     } catch (error) {
       console.error('Metrics error:', error);
-      toast.error(error.response?.data?.error || 'Failed to update metrics');
+      const errorMsg = error.response?.data?.error?.message || error.response?.data?.error || error.message || 'Failed to update metrics';
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -45,7 +48,9 @@ export default function AIContentPipeline() {
       toast.success('Quality report generated');
     } catch (error) {
       console.error('Quality report error:', error);
-      toast.error(error.response?.data?.error || 'Failed to generate report');
+      const errorMsg = error.response?.data?.error?.message || error.response?.data?.error || error.message || 'Failed to generate report';
+      toast.error(errorMsg);
+      setQualityReport(null);
     } finally {
       setLoading(false);
     }
@@ -59,7 +64,9 @@ export default function AIContentPipeline() {
       toast.success('Monthly report generated');
     } catch (error) {
       console.error('Monthly report error:', error);
-      toast.error(error.response?.data?.error || 'Failed to generate report');
+      const errorMsg = error.response?.data?.error?.message || error.response?.data?.error || error.message || 'Failed to generate report';
+      toast.error(errorMsg);
+      setMonthlyReport(null);
     } finally {
       setLoading(false);
     }
@@ -73,7 +80,9 @@ export default function AIContentPipeline() {
       toast.success('Job history loaded');
     } catch (error) {
       console.error('Job history error:', error);
-      toast.error(error.response?.data?.error || 'Failed to load job history');
+      const errorMsg = error.response?.data?.error?.message || error.response?.data?.error || error.message || 'Failed to load job history';
+      toast.error(errorMsg);
+      setJobHistory(null);
     } finally {
       setLoading(false);
     }
@@ -90,7 +99,8 @@ export default function AIContentPipeline() {
       console.log('Audit result:', response.data);
     } catch (error) {
       console.error('Audit error:', error);
-      toast.error(error.response?.data?.error || 'Failed to trigger audit');
+      const errorMsg = error.response?.data?.error?.message || error.response?.data?.error || error.message || 'Failed to trigger audit';
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -104,7 +114,8 @@ export default function AIContentPipeline() {
       console.log('Setup result:', response.data);
     } catch (error) {
       console.error('Setup error:', error);
-      toast.error(error.response?.data?.error || 'Failed to setup jobs');
+      const errorMsg = error.response?.data?.error?.message || error.response?.data?.error || error.message || 'Failed to setup jobs';
+      toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
