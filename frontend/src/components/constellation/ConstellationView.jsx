@@ -138,8 +138,10 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
     index
   }));
 
-  // Handle orb hover
+  // Handle orb hover - clear quest hover when entering pillar
   const handleOrbHover = (pillar, position) => {
+    setHoveredQuest(null);
+    setHoveredQuestPosition(null);
     setHoveredPillar(pillar);
     setHoveredPosition(position);
   };
@@ -150,6 +152,8 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
   };
 
   const handleQuestHover = (quest, position) => {
+    setHoveredPillar(null);
+    setHoveredPosition(null);
     setHoveredQuest(quest);
     setHoveredQuestPosition(position);
   };
@@ -322,8 +326,8 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
           position: 'relative'
         }}
       >
-      {/* Background Starfield with Parallax */}
-      <StarField starCount={200} parallaxOffset={parallaxOffset.background} />
+      {/* Background Starfield - Static */}
+      <StarField starCount={200} />
 
       {/* Constellation Lines */}
       <ConstellationLines stars={stars} hoveredStar={hoveredPillar} />

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 
-const StarField = ({ starCount = 200, parallaxOffset = { x: 0, y: 0 } }) => {
+const StarField = ({ starCount = 200 }) => {
   const canvasRef = useRef(null);
 
   useEffect(() => {
@@ -36,32 +36,29 @@ const StarField = ({ starCount = 200, parallaxOffset = { x: 0, y: 0 } }) => {
       // Clear canvas
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // Draw stars with twinkling effect and parallax
+      // Draw stars with twinkling effect
       stars.forEach((star) => {
         const twinkle = Math.sin(time * star.twinkleSpeed + star.phase);
         const opacity = star.opacity + twinkle * 0.3;
 
-        // Apply parallax offset (stars move opposite to mouse for depth effect)
-        const parallaxX = star.x - parallaxOffset.x;
-        const parallaxY = star.y - parallaxOffset.y;
-
+        // No parallax - stars are static background
         ctx.beginPath();
-        ctx.arc(parallaxX, parallaxY, star.radius, 0, Math.PI * 2);
+        ctx.arc(star.x, star.y, star.radius, 0, Math.PI * 2);
         ctx.fillStyle = `rgba(255, 255, 255, ${Math.max(0, Math.min(1, opacity))})`;
         ctx.fill();
 
         // Add subtle glow for larger stars
         if (star.radius > 1) {
           const gradient = ctx.createRadialGradient(
-            parallaxX, parallaxY, 0,
-            parallaxX, parallaxY, star.radius * 3
+            star.x, star.y, 0,
+            star.x, star.y, star.radius * 3
           );
           gradient.addColorStop(0, `rgba(255, 255, 255, ${opacity * 0.3})`);
           gradient.addColorStop(1, 'rgba(255, 255, 255, 0)');
           ctx.fillStyle = gradient;
           ctx.fillRect(
-            parallaxX - star.radius * 3,
-            parallaxY - star.radius * 3,
+            star.x - star.radius * 3,
+            star.y - star.radius * 3,
             star.radius * 6,
             star.radius * 6
           );
@@ -79,7 +76,7 @@ const StarField = ({ starCount = 200, parallaxOffset = { x: 0, y: 0 } }) => {
         cancelAnimationFrame(animationFrame);
       }
     };
-  }, [starCount, parallaxOffset]);
+  }, [starCount]);
 
   return (
     <canvas

@@ -187,14 +187,13 @@ const PillarOrb = ({
       }}
       style={{
         position: 'absolute',
-        left: `${position.x}px`,
-        top: `${position.y}px`,
+        left: `${position.x - (size * 2) / 2}px`,
+        top: `${position.y - (size * 2) / 2}px`,
         cursor: 'pointer',
         zIndex: isHovered ? 50 : 10,
         // Create a larger hitbox for reliable mouse leave detection
         width: `${size * 2}px`,
         height: `${size * 2}px`,
-        transform: 'translate(-50%, -50%)',
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
