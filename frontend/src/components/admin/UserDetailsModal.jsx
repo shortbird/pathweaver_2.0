@@ -61,7 +61,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
       setLoading(true)
       try {
         await api.post(`/api/v3/admin/users/${user.id}/subscription`, {
-          tier: formData.subscription_tier,
+          subscription_tier: formData.subscription_tier,
           expires: formData.subscription_expires
         })
         toast.success('Subscription updated successfully')
