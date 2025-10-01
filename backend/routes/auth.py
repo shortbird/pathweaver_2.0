@@ -460,17 +460,21 @@ def login():
             user_response_data = user_data.data
             if isinstance(user_response_data, list):
                 user_response_data = user_response_data[0] if user_response_data else None
-            
+
             response_data = {
                 'user': user_response_data,
-                'session': auth_response.session.model_dump()
+                'session': auth_response.session.model_dump(),
+                # Include tokens in response for incognito mode fallback
+                # Incognito browsers block SameSite=None cookies
+                'access_token': auth_response.session.access_token,
+                'refresh_token': auth_response.session.refresh_token
             }
             response = make_response(jsonify(response_data), 200)
-            
-            # Set secure httpOnly cookies for new sessions
-            # Keep returning tokens in response for backward compatibility
+
+            # Set secure httpOnly cookies for new sessions (preferred method)
+            # These will work in normal browsing but may be blocked in incognito
             session_manager.set_auth_cookies(response, auth_response.user.id)
-            
+
             return response
         else:
             return jsonify({'error': 'Invalid email or password. Please check your credentials and try again.'}), 401

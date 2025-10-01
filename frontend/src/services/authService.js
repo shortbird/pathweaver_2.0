@@ -88,9 +88,12 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // Clear any old localStorage tokens (migration cleanup)
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
+      // Store tokens in localStorage as fallback for incognito mode
+      // Incognito browsers block SameSite=None cookies on cross-site requests
+      if (response.data.access_token && response.data.refresh_token) {
+        localStorage.setItem('access_token', response.data.access_token)
+        localStorage.setItem('refresh_token', response.data.refresh_token)
+      }
 
       // Store user data for quick access (not sensitive data)
       if (this.user) {
@@ -127,6 +130,16 @@ class AuthService {
 
       this.user = response.data.user
       this.isAuthenticated = true
+
+      // Store tokens for incognito mode fallback
+      if (response.data.session) {
+        if (response.data.session.access_token) {
+          localStorage.setItem('access_token', response.data.session.access_token)
+        }
+        if (response.data.session.refresh_token) {
+          localStorage.setItem('refresh_token', response.data.session.refresh_token)
+        }
+      }
 
       // Store user data for quick access
       if (this.user) {

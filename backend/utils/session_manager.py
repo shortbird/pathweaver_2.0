@@ -25,9 +25,10 @@ class SessionManager:
 
         # Use secure cookies for both production and Render dev environment
         self.cookie_secure = is_production or is_on_render
-        # Use Lax instead of None to support incognito mode (blocks third-party cookies)
-        # Lax allows cookies on same-site requests and top-level navigation
-        self.cookie_samesite = 'Lax'
+        # MUST use None for cross-site requests (frontend and backend on different domains)
+        # SameSite=Lax won't work for cross-origin API calls
+        # Note: This requires secure=True and will be blocked in some incognito modes
+        self.cookie_samesite = 'None' if (is_production or is_on_render) else 'Lax'
         
     def generate_access_token(self, user_id: str) -> str:
         """Generate a JWT access token"""

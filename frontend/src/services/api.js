@@ -17,7 +17,7 @@ export const getAuthHeaders = () => {
   return headers
 }
 
-// Remove localStorage token handling - rely on httpOnly cookies
+// Add Authorization header from localStorage as fallback for incognito mode
 api.interceptors.request.use(
   (config) => {
     // Add CSRF token for state-changing requests
@@ -27,6 +27,14 @@ api.interceptors.request.use(
         config.headers['X-CSRF-Token'] = csrfToken
       }
     }
+
+    // Fallback to localStorage tokens for incognito mode
+    // (cookies with SameSite=None are blocked in incognito on cross-site requests)
+    const accessToken = localStorage.getItem('access_token')
+    if (accessToken && !config.headers.Authorization) {
+      config.headers.Authorization = `Bearer ${accessToken}`
+    }
+
     return config
   },
   (error) => {
@@ -66,19 +74,28 @@ api.interceptors.response.use(
       originalRequest._retry = true
 
       try {
-        // Attempt to refresh tokens using httpOnly cookies (no body, no content-type)
-        const response = await api.post('/api/auth/refresh', {}, {
-          headers: {
-            'Content-Type': undefined // Remove default content-type
-          }
-        })
+        // Try to refresh using localStorage tokens as fallback for incognito mode
+        const refreshToken = localStorage.getItem('refresh_token')
+        const payload = refreshToken ? { refresh_token: refreshToken } : {}
 
-        // If refresh succeeds, retry the original request
-        if (response.status === 200) {
+        const response = await api.post('/api/auth/refresh', payload)
+
+        // If refresh succeeds, update localStorage tokens if provided
+        if (response.status === 200 && response.data.session) {
+          if (response.data.session.access_token) {
+            localStorage.setItem('access_token', response.data.session.access_token)
+          }
+          if (response.data.session.refresh_token) {
+            localStorage.setItem('refresh_token', response.data.session.refresh_token)
+          }
           return api(originalRequest)
         }
       } catch (refreshError) {
-        // For httpOnly cookie auth, the server handles session cleanup
+        // Clear localStorage tokens on refresh failure
+        localStorage.removeItem('access_token')
+        localStorage.removeItem('refresh_token')
+        localStorage.removeItem('user')
+
         // Only redirect to login if we're not already on auth pages or subscription success
         const authPaths = ['/login', '/register', '/email-verification', '/', '/subscription/success']
         const currentPath = window.location.pathname
