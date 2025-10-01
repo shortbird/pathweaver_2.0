@@ -52,12 +52,18 @@ export default function BadgeQuestLinker() {
     try {
       setLoading(true);
       const response = await api.get(`/api/badges/${selectedBadge.id}/quests`);
-      setLinkedQuests(response.data.quests || []);
+
+      // Handle the response format: {quests: {required: [], optional: []}}
+      const questsData = response.data.quests || {};
+      const allLinkedQuests = [
+        ...(questsData.required || []),
+        ...(questsData.optional || [])
+      ];
+
+      setLinkedQuests(allLinkedQuests);
 
       // Calculate available quests (not yet linked)
-      const linkedQuestIds = new Set(
-        (response.data.quests || []).map(q => q.id)
-      );
+      const linkedQuestIds = new Set(allLinkedQuests.map(q => q.id));
       const available = quests.filter(q => !linkedQuestIds.has(q.id));
       setAvailableQuests(available);
     } catch (err) {
