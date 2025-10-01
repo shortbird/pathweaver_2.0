@@ -194,7 +194,7 @@ class BadgeQuestAILinker:
         self,
         min_confidence: int = 70,
         max_per_badge: int = 15,
-        quests_to_sample: int = 30
+        quests_to_sample: int = 20
     ) -> Dict[str, Any]:
         """
         Analyze all active badges efficiently using pillar-based pre-filtering.
@@ -287,31 +287,47 @@ class BadgeQuestAILinker:
                 # Get quests from badge's primary pillar
                 candidate_quests = quests_by_pillar.get(badge['pillar_primary'], [])[:quests_to_sample]
 
-                # Add some cross-pillar quests for diversity (10 from other pillars)
+                # Add some cross-pillar quests for diversity (fewer to speed up)
                 for pillar, quests in quests_by_pillar.items():
                     if pillar != badge['pillar_primary']:
-                        candidate_quests.extend(quests[:5])
+                        candidate_quests.extend(quests[:3])  # Reduced from 5 to 3
 
                 # Filter out already linked quests
                 unlinked_candidates = [q for q in candidate_quests if q['id'] not in existing_links]
 
-                # Limit total to analyze
-                quests_to_analyze = unlinked_candidates[:max_per_badge * 2]
+                # Limit total to analyze - REDUCED to speed up
+                quests_to_analyze = unlinked_candidates[:max_per_badge]  # Changed from max_per_badge * 2
 
                 print(f"  Pre-filtered to {len(quests_to_analyze)} candidate quests (from {len(all_quests)} total)")
 
                 # Analyze each candidate quest
                 recommendations = []
-                for quest in quests_to_analyze:
+                errors_count = 0
+
+                for idx, quest in enumerate(quests_to_analyze, 1):
                     quest_tasks = tasks_by_quest.get(quest['id'], [])
                     if not quest_tasks:
                         continue
 
-                    analysis = self.analyze_quest_for_badge(quest, badge, quest_tasks)
-                    results['total_ai_calls'] += 1
+                    try:
+                        print(f"  [{idx}/{len(quests_to_analyze)}] Analyzing: {quest['title'][:50]}...")
 
-                    if analysis['confidence'] >= min_confidence and not analysis.get('error'):
-                        recommendations.append(analysis)
+                        analysis = self.analyze_quest_for_badge(quest, badge, quest_tasks)
+                        results['total_ai_calls'] += 1
+
+                        if analysis.get('error'):
+                            errors_count += 1
+                            print(f"    ✗ AI Error: {analysis.get('reasoning', 'Unknown error')[:60]}")
+                        elif analysis['confidence'] >= min_confidence:
+                            recommendations.append(analysis)
+                            print(f"    ✓ {analysis['confidence']}% - {analysis['recommendation']}")
+                        else:
+                            print(f"    - Below threshold: {analysis['confidence']}%")
+
+                    except Exception as e:
+                        errors_count += 1
+                        print(f"    ✗ Exception: {str(e)[:60]}")
+                        continue
 
                 # Sort and limit
                 recommendations.sort(key=lambda x: x['confidence'], reverse=True)
@@ -323,6 +339,7 @@ class BadgeQuestAILinker:
                     'total_quests_analyzed': len(quests_to_analyze),
                     'total_already_linked': len(existing_links),
                     'recommendations_count': len(recommendations),
+                    'errors_count': errors_count,
                     'min_confidence_threshold': min_confidence,
                     'recommendations': recommendations,
                     'statistics': {
@@ -337,7 +354,7 @@ class BadgeQuestAILinker:
                 results['badges_analyzed'] += 1
                 results['total_recommendations'] += len(recommendations)
 
-                print(f"  ✓ Found {len(recommendations)} recommendations (AI calls: {len(quests_to_analyze)})")
+                print(f"  ✓ Completed: {len(recommendations)} recs, {errors_count} errors\n")
 
             except Exception as e:
                 print(f"Error analyzing badge {badge['id']}: {str(e)}")
