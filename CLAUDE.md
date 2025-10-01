@@ -44,7 +44,7 @@ Optio is an educational platform where students create self-validated diplomas t
 **Backend:**
 - Flask 3.0.0 + Supabase (PostgreSQL)
 - JWT authentication (secure httpOnly cookies + CSRF protection)
-- Gemini API for AI features
+- Gemini API for AI features (Model: **gemini-2.5-flash-lite** - ALWAYS use this model)
 - Stripe for payments
 - Performance optimized with database indexes
 
