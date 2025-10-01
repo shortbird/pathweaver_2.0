@@ -20,6 +20,10 @@ import PrivacyPolicy from './pages/PrivacyPolicy'
 // Quest Pages
 import QuestHub from './pages/QuestHub'
 import QuestDetail from './pages/QuestDetail'
+// Badge Pages
+import BadgeExplorer from './pages/BadgeExplorer'
+import BadgeDetail from './pages/BadgeDetail'
+// Other Pages
 import DiplomaPage from './pages/DiplomaPage'
 import ProfilePage from './pages/ProfilePage'
 import FriendsPage from './pages/FriendsPage'
@@ -91,6 +95,10 @@ function App() {
                 {/* Quest Routes */}
                 <Route path="quests" element={<QuestHub />} />
                 <Route path="quests/:id" element={<QuestDetail />} />
+                {/* Badge Routes */}
+                <Route path="badges" element={<BadgeExplorer />} />
+                <Route path="badges/:badgeId" element={<BadgeDetail />} />
+                {/* Other Routes */}
                 <Route path="diploma" element={<DiplomaPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="friends" element={<FriendsPage />} />
