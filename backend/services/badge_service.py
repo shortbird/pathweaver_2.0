@@ -150,10 +150,11 @@ class BadgeService:
             return updated.data[0]
 
         # Create new user_badge record
-        # Note: Only include columns that exist in the enhanced user_badges table
+        # Note: badge_type is a required legacy column - use 'custom' as default
         new_badge = {
             'user_id': user_id,
             'badge_id': badge_id,
+            'badge_type': 'custom',  # Required NOT NULL column
             'is_active': True,
             'progress_percentage': 0,
             'started_at': datetime.utcnow().isoformat(),

@@ -290,6 +290,12 @@ frontend/src/
 - POST /api/auth/logout - Clear auth cookies
 - GET /api/auth/csrf-token - Get CSRF token for frontend
 
+**IMPORTANT - CSRF POST Requests:**
+- ALL POST/PUT/DELETE requests MUST include a JSON body (even if empty `{}`)
+- CSRF middleware enforces `Content-Type: application/json` header
+- Example: `api.post('/api/badges/123/select', {})` NOT `api.post('/api/badges/123/select')`
+- Failure to include body results in "Content-Type must be application/json" 400 error
+
 ### Quests & Tasks
 - GET /api/quests - List active quests
 - POST /api/quests/:id/start - Start quest
