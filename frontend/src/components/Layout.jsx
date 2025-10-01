@@ -111,6 +111,12 @@ const Layout = () => {
                     Quests
                   </Link>
                   <Link
+                    to="/badges"
+                    className={getNavLinkClasses('/badges')}
+                  >
+                    Badges
+                  </Link>
+                  <Link
                     to="/friends"
                     className={getNavLinkClasses('/friends')}
                   >
@@ -220,6 +226,13 @@ const Layout = () => {
                 onClick={() => setMobileMenuOpen(false)}
               >
                 Quests
+              </Link>
+              <Link
+                to="/badges"
+                className={getMobileNavLinkClasses('/badges')}
+                onClick={() => setMobileMenuOpen(false)}
+              >
+                Badges
               </Link>
               <Link
                 to="/friends"

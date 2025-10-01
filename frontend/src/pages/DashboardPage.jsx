@@ -9,6 +9,7 @@ import { getTierDisplayName } from '../utils/tierMapping'
 import CompactQuestCard from '../components/dashboard/CompactQuestCard'
 import StatsCard from '../components/dashboard/StatsCard'
 import RecentCompletions from '../components/dashboard/RecentCompletions'
+import BadgeRecommendations from '../components/dashboard/BadgeRecommendations'
 import {
   RocketLaunchIcon,
   ChartBarIcon,
@@ -267,6 +268,9 @@ const DashboardPage = () => {
 
         {/* Enhanced Stats Card */}
         <StatsCard stats={dashboardData?.stats} />
+
+        {/* Badge Recommendations */}
+        <BadgeRecommendations userId={user?.id} />
 
         {/* Skills Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
