@@ -417,13 +417,31 @@ class BadgeQuestAILinker:
                         'quest_title': rec['quest_title'],
                         'confidence': rec['confidence']
                     })
+                else:
+                    # No data returned means insert likely failed
+                    links_failed.append({
+                        'quest_id': rec['quest_id'],
+                        'quest_title': rec.get('quest_title', 'Unknown'),
+                        'error': 'Database insert returned no data'
+                    })
+                    print(f"Warning: No data returned for quest {rec['quest_id']} link to badge {badge_id}")
 
             except Exception as e:
+                error_msg = str(e)
+                # Extract more specific error information if available
+                if hasattr(e, 'response'):
+                    try:
+                        error_details = e.response.json()
+                        error_msg = error_details.get('message', error_msg)
+                    except:
+                        pass
+
                 links_failed.append({
                     'quest_id': rec['quest_id'],
                     'quest_title': rec.get('quest_title', 'Unknown'),
-                    'error': str(e)
+                    'error': error_msg
                 })
+                print(f"Error linking quest {rec['quest_id']} to badge {badge_id}: {error_msg}")
 
         return {
             'badge_id': badge_id,

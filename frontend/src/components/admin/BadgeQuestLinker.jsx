@@ -237,19 +237,41 @@ export default function BadgeQuestLinker() {
         selectedSuggestions.has(s.quest_id)
       );
 
-      await api.post(`/api/admin/badge-quests/ai-auto-link/${selectedBadge.id}`, {
+      const response = await api.post(`/api/admin/badge-quests/ai-auto-link/${selectedBadge.id}`, {
         recommendations: suggestionsToApply,
         dry_run: false
       });
 
-      setMessage(`Linked ${selectedSuggestions.size} quests successfully!`);
+      // Check response for detailed results
+      const results = response.data.results || response.data;
+      const linksCreated = results.links_created || 0;
+      const linksFailed = results.links_failed || 0;
+
+      if (linksFailed > 0) {
+        // Show partial success/failure message
+        const failedDetails = results.failed || [];
+        const errorMessages = failedDetails.map(f => `${f.quest_title}: ${f.error}`).join(', ');
+        setError(`Linked ${linksCreated} quests, but ${linksFailed} failed: ${errorMessages}`);
+      } else {
+        setMessage(`Successfully linked ${linksCreated} quests to the badge!`);
+      }
+
+      // Clear selections and refresh the linked quests list
       setSelectedSuggestions(new Set());
       await loadLinkedQuests();
-      await runAIAnalysis(); // Refresh suggestions
+
+      // Clear AI suggestions that were successfully linked
+      const failedQuestIds = new Set((results.failed || []).map(f => f.quest_id));
+      const remainingSuggestions = aiSuggestions.filter(s =>
+        failedQuestIds.has(s.quest_id) || !selectedSuggestions.has(s.quest_id)
+      );
+      setAiSuggestions(remainingSuggestions);
+
       setTimeout(() => setMessage(''), 3000);
     } catch (err) {
       console.error('Error applying suggestions:', err);
-      setError(err.response?.data?.error || 'Failed to apply suggestions');
+      const errorMsg = err.response?.data?.error || 'Failed to apply suggestions';
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -442,13 +464,22 @@ export default function BadgeQuestLinker() {
                 <h3 className="text-lg font-semibold">
                   AI Recommendations ({aiSuggestions.length})
                 </h3>
-                <button
-                  onClick={applySelectedSuggestions}
-                  disabled={selectedSuggestions.size === 0 || loading}
-                  className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 text-sm font-medium"
-                >
-                  Link Selected ({selectedSuggestions.size})
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={runAIAnalysis}
+                    disabled={aiAnalyzing || loading}
+                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 text-sm font-medium"
+                  >
+                    Refresh
+                  </button>
+                  <button
+                    onClick={applySelectedSuggestions}
+                    disabled={selectedSuggestions.size === 0 || loading}
+                    className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 text-sm font-medium"
+                  >
+                    Link Selected ({selectedSuggestions.size})
+                  </button>
+                </div>
               </div>
 
               <div className="space-y-3 max-h-[600px] overflow-y-auto">
