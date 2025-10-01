@@ -461,13 +461,16 @@ def login():
             if isinstance(user_response_data, list):
                 user_response_data = user_response_data[0] if user_response_data else None
 
+            # Extract session data
+            session_data = auth_response.session.model_dump() if auth_response.session else {}
+
             response_data = {
                 'user': user_response_data,
-                'session': auth_response.session.model_dump(),
-                # Include tokens in response for incognito mode fallback
+                'session': session_data,
+                # Include tokens at top level for incognito mode fallback
                 # Incognito browsers block SameSite=None cookies
-                'access_token': auth_response.session.access_token,
-                'refresh_token': auth_response.session.refresh_token
+                'access_token': session_data.get('access_token'),
+                'refresh_token': session_data.get('refresh_token')
             }
             response = make_response(jsonify(response_data), 200)
 
@@ -562,9 +565,18 @@ def refresh_token():
         auth_response = supabase.auth.refresh_session(refresh_token)
 
         if auth_response.session:
-            return jsonify({
-                'session': auth_response.session.model_dump()
-            }), 200
+            session_data = auth_response.session.model_dump()
+            response = make_response(jsonify({
+                'session': session_data,
+                'access_token': session_data.get('access_token'),
+                'refresh_token': session_data.get('refresh_token')
+            }), 200)
+
+            # Also set cookies if we have user_id
+            if auth_response.user:
+                session_manager.set_auth_cookies(response, auth_response.user.id)
+
+            return response
         else:
             return jsonify({'error': 'Failed to refresh token'}), 401
 

@@ -90,9 +90,13 @@ class AuthService {
 
       // Store tokens in localStorage as fallback for incognito mode
       // Incognito browsers block SameSite=None cookies on cross-site requests
-      if (response.data.access_token && response.data.refresh_token) {
-        localStorage.setItem('access_token', response.data.access_token)
-        localStorage.setItem('refresh_token', response.data.refresh_token)
+      // Tokens can be at top level or nested in session object
+      const accessToken = response.data.access_token || response.data.session?.access_token
+      const refreshToken = response.data.refresh_token || response.data.session?.refresh_token
+
+      if (accessToken && refreshToken) {
+        localStorage.setItem('access_token', accessToken)
+        localStorage.setItem('refresh_token', refreshToken)
       }
 
       // Store user data for quick access (not sensitive data)
