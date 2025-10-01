@@ -106,6 +106,14 @@ try:
 except Exception as e:
     print(f"Warning: Badge system routes not available: {e}")
 
+# Register AI Jobs blueprint (admin)
+try:
+    from routes.admin import ai_jobs
+    app.register_blueprint(ai_jobs.ai_jobs_bp, url_prefix='/api/admin')  # /api/admin/*
+    print("AI Jobs admin routes registered successfully")
+except Exception as e:
+    print(f"Warning: AI Jobs routes not available: {e}")
+
 # Register Parental Consent blueprint (COPPA compliance)
 try:
     from routes import parental_consent

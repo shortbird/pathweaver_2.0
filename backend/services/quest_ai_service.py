@@ -400,3 +400,197 @@ class QuestAIService:
             return max(50, min(500, xp))  # Clamp between 50-500
         except (ValueError, TypeError):
             return 100
+    # ===== Badge-Aware Quest Generation Methods =====
+
+    def generate_quest_for_badge(self, badge_id: str, badge_context: Optional[Dict] = None) -> Dict[str, Any]:
+        """
+        Generate a quest specifically designed for a badge.
+
+        Args:
+            badge_id: Badge UUID
+            badge_context: Optional badge details (fetched if not provided)
+
+        Returns:
+            Dict containing quest data with badge alignment
+        """
+        try:
+            # Get badge details if not provided
+            if not badge_context:
+                from database import get_supabase_admin_client
+                supabase = get_supabase_admin_client()
+                badge = supabase.table('badges').select('*').eq('id', badge_id).single().execute()
+
+                if not badge.data:
+                    raise ValueError(f"Badge {badge_id} not found")
+
+                badge_context = badge.data
+
+            # Build badge-specific prompt
+            prompt = self._build_badge_quest_generation_prompt(badge_context)
+
+            response = self.model.generate_content(prompt)
+            if not response or not response.text:
+                raise Exception("Empty response from Gemini API")
+
+            # Parse and validate
+            quest_data = self._parse_quest_response(response.text)
+            quest_data = self._validate_and_fix_quest_data(quest_data)
+
+            # Add badge metadata
+            quest_data['applicable_badges'] = [badge_id]
+            quest_data['source'] = 'ai_generated'
+            quest_data['badge_aligned'] = True
+
+            # Calculate credit distribution based on tasks
+            quest_data['credit_distribution'] = self._calculate_credit_distribution(quest_data['tasks'])
+
+            return {
+                'success': True,
+                'quest': quest_data,
+                'badge_id': badge_id,
+                'badge_name': badge_context.get('name')
+            }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f"Failed to generate badge quest: {str(e)}",
+                'quest': None
+            }
+
+    def suggest_applicable_badges(self, quest_data: Dict[str, Any]) -> List[str]:
+        """
+        Analyze a quest and suggest which badges it should apply to.
+
+        Args:
+            quest_data: Quest data with title, description, and tasks
+
+        Returns:
+            List of badge IDs that this quest aligns with
+        """
+        try:
+            from database import get_supabase_admin_client
+            supabase = get_supabase_admin_client()
+
+            # Get all active badges
+            badges = supabase.table('badges').select('*').eq('status', 'active').execute()
+
+            if not badges.data:
+                return []
+
+            # Analyze quest pillar distribution
+            task_pillars = [task.get('pillar') for task in quest_data.get('tasks', [])]
+            pillar_counts = {}
+            for pillar in task_pillars:
+                pillar_counts[pillar] = pillar_counts.get(pillar, 0) + 1
+
+            # Find badges that align with quest pillars
+            applicable_badges = []
+
+            for badge in badges.data:
+                badge_primary = badge.get('pillar_primary')
+                badge_weights = badge.get('pillar_weights', {})
+
+                # Check if quest has significant overlap with badge
+                if badge_primary and badge_primary in pillar_counts:
+                    # Primary pillar match
+                    if pillar_counts[badge_primary] >= 2:  # At least 2 tasks in primary pillar
+                        applicable_badges.append(badge['id'])
+                    # Secondary pillar match
+                    elif badge_weights:
+                        quest_total_tasks = len(task_pillars)
+                        overlap_score = 0
+
+                        for pillar, count in pillar_counts.items():
+                            weight = badge_weights.get(pillar, 0)
+                            overlap_score += (count / quest_total_tasks) * weight
+
+                        if overlap_score >= 40:  # 40% weighted overlap
+                            applicable_badges.append(badge['id'])
+
+            return applicable_badges[:3]  # Return top 3 matches
+
+        except Exception as e:
+            print(f"Error suggesting badges: {e}")
+            return []
+
+    def _build_badge_quest_generation_prompt(self, badge_context: Dict) -> str:
+        """Build AI prompt for badge-specific quest generation"""
+
+        badge_name = badge_context.get('name')
+        identity_statement = badge_context.get('identity_statement')
+        description = badge_context.get('description')
+        pillar_primary = badge_context.get('pillar_primary')
+        min_xp = badge_context.get('min_xp', 1500)
+
+        # Calculate target XP (should contribute meaningfully to badge)
+        target_xp = int(min_xp / 5)  # Each quest ~20% of badge requirement
+
+        return f"""
+        Create an educational quest aligned with this learning badge:
+
+        Badge: {badge_name}
+        Identity Statement: {identity_statement}
+        Description: {description}
+        Primary Pillar: {pillar_primary}
+
+        The quest should:
+        - Help students work toward the badge's identity statement
+        - Focus primarily on {pillar_primary} skills
+        - Total approximately {target_xp} XP across all tasks
+        - Include 4-5 tasks that build on each other
+
+        Generate a quest with:
+        1. title: Simple, clear quest name related to {badge_name}
+        2. big_idea: 2-3 sentences explaining what students will create/accomplish
+        3. tasks: Array of 4-5 tasks, each with:
+           - title: Clear task name
+           - description: Simple framework (50-100 words)
+           - pillar: Primary should be {pillar_primary}, but include variety
+           - school_subjects: Relevant subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
+           - xp_value: Points 50-300 based on complexity
+           - evidence_prompt: Multiple evidence options
+           - order_index: Sequential number starting from 1
+
+        Guidelines:
+        - Align with badge identity: "{identity_statement}"
+        - Use simple, direct language
+        - Focus on process and growth (not outcomes)
+        - Tasks should feel meaningful and creative
+        - Total XP around {target_xp} points
+
+        Return as valid JSON with exact field names shown above.
+        """
+
+    def _calculate_credit_distribution(self, tasks: List[Dict]) -> Dict[str, float]:
+        """
+        Calculate how quest tasks map to diploma credits.
+
+        Args:
+            tasks: List of task data with school_subjects and xp_value
+
+        Returns:
+            Dict mapping school subjects to credit amounts (1000 XP = 1 credit)
+        """
+        credit_distribution = {}
+
+        for task in tasks:
+            xp = task.get('xp_value', 0)
+            subjects = task.get('school_subjects', [])
+
+            if not subjects:
+                subjects = ['electives']
+
+            # Distribute XP evenly across subjects for this task
+            xp_per_subject = xp / len(subjects)
+
+            for subject in subjects:
+                if subject not in credit_distribution:
+                    credit_distribution[subject] = 0
+                credit_distribution[subject] += xp_per_subject
+
+        # Convert XP to credits (1000 XP = 1 credit)
+        for subject in credit_distribution:
+            credit_distribution[subject] = round(credit_distribution[subject] / 1000, 3)
+
+        return credit_distribution
