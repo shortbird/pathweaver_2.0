@@ -6,13 +6,11 @@ API endpoints for badge management and progression tracking.
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth, require_admin
 from services.badge_service import BadgeService
-from middleware.error_handler import handle_errors
 
 bp = Blueprint('badges', __name__, url_prefix='/api/badges')
 
 
 @bp.route('', methods=['GET'])
-@handle_errors
 def list_badges():
     """
     List all available badges (filtered by user level if authenticated).
@@ -41,7 +39,6 @@ def list_badges():
 
 
 @bp.route('/<badge_id>', methods=['GET'])
-@handle_errors
 def get_badge_detail(badge_id):
     """
     Get badge details with quest requirements and user progress.
@@ -62,7 +59,6 @@ def get_badge_detail(badge_id):
 
 @bp.route('/<badge_id>/select', methods=['POST'])
 @require_auth
-@handle_errors
 def select_badge(user_id, badge_id):
     """
     Start pursuing this badge.
@@ -81,7 +77,6 @@ def select_badge(user_id, badge_id):
 
 @bp.route('/<badge_id>/pause', methods=['POST'])
 @require_auth
-@handle_errors
 def pause_badge(user_id, badge_id):
     """
     Pause pursuit of this badge (doesn't lose progress).
@@ -100,7 +95,6 @@ def pause_badge(user_id, badge_id):
 
 @bp.route('/<badge_id>/progress', methods=['GET'])
 @require_auth
-@handle_errors
 def get_badge_progress(user_id, badge_id):
     """
     Check badge completion progress.
@@ -118,7 +112,6 @@ def get_badge_progress(user_id, badge_id):
 
 @bp.route('/my-badges', methods=['GET'])
 @require_auth
-@handle_errors
 def get_user_badges(user_id):
     """
     Get user's active and completed badges.
@@ -159,7 +152,6 @@ def get_user_badges(user_id):
 
 
 @bp.route('/<badge_id>/quests', methods=['GET'])
-@handle_errors
 def get_badge_quests(badge_id):
     """
     Get all quests that count toward this badge.
@@ -180,7 +172,6 @@ def get_badge_quests(badge_id):
 
 @bp.route('/<badge_id>/award', methods=['POST'])
 @require_auth
-@handle_errors
 def award_badge_endpoint(user_id, badge_id):
     """
     Award badge to user (admin or automatic when requirements met).
@@ -208,7 +199,6 @@ def award_badge_endpoint(user_id, badge_id):
 
 @bp.route('/admin/create', methods=['POST'])
 @require_admin
-@handle_errors
 def create_badge(user_id):
     """
     Create a new badge (admin only).
@@ -263,7 +253,6 @@ def create_badge(user_id):
 
 @bp.route('/admin/<badge_id>', methods=['PUT'])
 @require_admin
-@handle_errors
 def update_badge(user_id, badge_id):
     """
     Update badge details (admin only).
@@ -297,7 +286,6 @@ def update_badge(user_id, badge_id):
 
 @bp.route('/admin/<badge_id>/quests', methods=['POST'])
 @require_admin
-@handle_errors
 def link_quest_to_badge(user_id, badge_id):
     """
     Link a quest to a badge (admin only).
@@ -336,7 +324,6 @@ def link_quest_to_badge(user_id, badge_id):
 
 @bp.route('/admin/<badge_id>/quests/<quest_id>', methods=['DELETE'])
 @require_admin
-@handle_errors
 def unlink_quest_from_badge(user_id, badge_id, quest_id):
     """
     Remove a quest from a badge (admin only).

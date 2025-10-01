@@ -6,14 +6,12 @@ API endpoints for academic credit tracking and transcript generation.
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from services.credit_mapping_service import CreditMappingService
-from middleware.error_handler import handle_errors
 
 bp = Blueprint('credits', __name__, url_prefix='/api/credits')
 
 
 @bp.route('/my-credits', methods=['GET'])
 @require_auth
-@handle_errors
 def get_user_credits(user_id):
     """
     Get user's earned credits summary.
@@ -33,7 +31,6 @@ def get_user_credits(user_id):
 
 @bp.route('/transcript', methods=['GET'])
 @require_auth
-@handle_errors
 def get_my_transcript(user_id):
     """
     Generate academic transcript for authenticated user.
@@ -52,7 +49,6 @@ def get_my_transcript(user_id):
 
 
 @bp.route('/transcript/<target_user_id>', methods=['GET'])
-@handle_errors
 def get_transcript(target_user_id):
     """
     Get academic transcript for a specific user (public or advisor access).
@@ -80,7 +76,6 @@ def get_transcript(target_user_id):
 
 
 @bp.route('/requirements', methods=['GET'])
-@handle_errors
 def get_requirements():
     """
     Get diploma credit requirements.
@@ -100,7 +95,6 @@ def get_requirements():
 
 @bp.route('/ledger', methods=['GET'])
 @require_auth
-@handle_errors
 def get_credit_ledger(user_id):
     """
     Get detailed credit ledger entries for user.
@@ -126,7 +120,6 @@ def get_credit_ledger(user_id):
 
 
 @bp.route('/quest/<quest_id>/calculate', methods=['GET'])
-@handle_errors
 def calculate_quest_credits(quest_id):
     """
     Calculate total credits available from a quest.
@@ -147,7 +140,6 @@ def calculate_quest_credits(quest_id):
 
 
 @bp.route('/calculator', methods=['POST'])
-@handle_errors
 def calculate_credits():
     """
     Calculate credits for given XP amounts.

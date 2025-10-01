@@ -7,7 +7,6 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth, require_admin
 from services.ai_badge_generation_service import AIBadgeGenerationService
 from services.recommendation_service import RecommendationService
-from middleware.error_handler import handle_errors
 from database import get_supabase_admin_client
 
 bp = Blueprint('ai_content', __name__, url_prefix='/api/v3/ai-generation')
@@ -17,7 +16,6 @@ bp = Blueprint('ai_content', __name__, url_prefix='/api/v3/ai-generation')
 
 @bp.route('/recommendations/badges', methods=['GET'])
 @require_auth
-@handle_errors
 def get_recommended_badges(user_id):
     """
     Get AI-powered badge recommendations for user.
@@ -38,7 +36,6 @@ def get_recommended_badges(user_id):
 
 @bp.route('/recommendations/quests', methods=['GET'])
 @require_auth
-@handle_errors
 def get_recommended_quests(user_id):
     """
     Get AI-powered quest recommendations for user.
@@ -66,7 +63,6 @@ def get_recommended_quests(user_id):
 
 @bp.route('/recommendations/next-quest/<badge_id>', methods=['GET'])
 @require_auth
-@handle_errors
 def get_next_quest_recommendation(user_id, badge_id):
     """
     Get single best next quest for badge.
@@ -90,7 +86,6 @@ def get_next_quest_recommendation(user_id, badge_id):
 
 
 @bp.route('/trending/badges', methods=['GET'])
-@handle_errors
 def get_trending_badges():
     """
     Get currently trending badges.
@@ -111,7 +106,6 @@ def get_trending_badges():
 
 @bp.route('/analysis/learning-patterns', methods=['GET'])
 @require_auth
-@handle_errors
 def get_learning_patterns(user_id):
     """
     Get detailed learning pattern analysis for user.
@@ -134,7 +128,6 @@ def get_learning_patterns(user_id):
 
 @bp.route('/badges/generate', methods=['POST'])
 @require_admin
-@handle_errors
 def generate_badge(user_id):
     """
     Generate new badge with AI (admin only).
@@ -166,7 +159,6 @@ def generate_badge(user_id):
 
 @bp.route('/badges/validate', methods=['POST'])
 @require_admin
-@handle_errors
 def validate_badge_quality(user_id):
     """
     Validate badge quality with AI (admin only).
@@ -199,7 +191,6 @@ def validate_badge_quality(user_id):
 
 @bp.route('/badges/<badge_id>/generate-quests', methods=['POST'])
 @require_admin
-@handle_errors
 def generate_initial_quests(user_id, badge_id):
     """
     Generate starter quests for badge (admin only).
@@ -232,7 +223,6 @@ def generate_initial_quests(user_id, badge_id):
 
 @bp.route('/metrics/gaps', methods=['GET'])
 @require_admin
-@handle_errors
 def analyze_content_gaps(user_id):
     """
     Identify content library gaps (admin only).
@@ -252,7 +242,6 @@ def analyze_content_gaps(user_id):
 
 @bp.route('/badges/create-from-generation', methods=['POST'])
 @require_admin
-@handle_errors
 def create_badge_from_generation(user_id):
     """
     Generate badge and immediately create it in database (admin only).
@@ -320,7 +309,6 @@ def create_badge_from_generation(user_id):
 
 @bp.route('/metrics/performance', methods=['GET'])
 @require_admin
-@handle_errors
 def get_ai_performance(user_id):
     """
     Get AI content performance metrics (admin only).
