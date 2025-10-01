@@ -97,9 +97,10 @@ except Exception as e:
 
 # Register Badge System blueprints
 try:
-    from routes import badges, credits
+    from routes import badges, credits, ai_content
     app.register_blueprint(badges.bp)  # /api/badges
     app.register_blueprint(credits.bp)  # /api/credits
+    app.register_blueprint(ai_content.bp)  # /api/v3/ai-generation
     print("Badge system routes registered successfully")
 except Exception as e:
     print(f"Warning: Badge system routes not available: {e}")
