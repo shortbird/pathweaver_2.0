@@ -72,34 +72,35 @@
 
 ### Phase 8: Content Library Seeding
 - ✅ Create 13 foundational badges across pillars
-- ⬜ Generate 10-15 quests per badge (AI-assisted)
-- ⬜ Admin review of initial content
-- ⬜ Map existing quests to applicable badges
+- ✅ AI-powered quest-to-badge linking system
+- ⬜ Run AI analysis and link quests to all 13 badges
+- ⬜ Admin review of AI recommendations
+- ⬜ Adjust confidence thresholds and re-run if needed
 
 ---
 
 ## Current Status
 
-**Session Date:** 2025-10-01 (Constellation View Complete Redesign)
-**Overall Progress:** 42/87 tasks (48%)
+**Session Date:** 2025-10-01 (AI-Powered Badge-Quest Auto-Linking)
+**Overall Progress:** 46/87 tasks (53%)
 
 **Phase Completion:**
 - Phase 1: ✅ 100%
-- Phase 2: ✅ 95%
+- Phase 2: ✅ 100%
 - Phase 3: ✅ 95% (awaiting cron job setup)
-- Phase 4: ✅ 100% ← **ConstellationPage completely redesigned**
+- Phase 4: ✅ 100%
 - Phase 5: ⬜ 0%
 - Phase 6: ⬜ 0%
 - Phase 7: ⬜ 0%
-- Phase 8: 🟦 25%
+- Phase 8: 🟦 75% ← **AI linking system complete, ready to populate**
 
-**Latest Work (Constellation Redesign):**
-- Complete visual overhaul: pure light orbs with lens flare effects
-- Gravitational quest orb system with XP-based positioning
-- Advanced interactions: time travel, zoom/pan, particle trails
-- Fixed multiple hover card bugs and alignment issues
-- Implemented minimum distance enforcement between orbs
-- Disabled navigation on click (X button only exit)
+**Latest Work (AI Badge-Quest Linking):**
+- Complete AI automation system for quest-to-badge mapping
+- Gemini API integration analyzing quest suitability
+- Confidence scoring (0-100%) with detailed reasoning
+- Dual-mode UI: AI Automation + Manual linking
+- Batch analysis across all badges simultaneously
+- One-click auto-linking with preview mode
 
 **Deployment Status:**
 - ✅ All changes deployed to develop branch: https://optio-dev-frontend.onrender.com
@@ -110,9 +111,14 @@
 **What Works Now:**
 1. Browse badges at /badges with pillar filtering
 2. View badge details with quest lists
-3. Admin badge seeding and quest linking
+3. **✨ NEW: AI-powered badge-quest linking at /admin/badge-quests**
+   - AI Automation mode: Analyze all badges, auto-link with one click
+   - Manual mode: Search/filter quests, manually add/remove
+   - Confidence scoring: High (85%+), Medium (70-85%), Low (<70%)
+   - Batch operations: Link 10-15 quests per badge in ~30 seconds
+   - AI reasoning: Pillar alignment, skill match, XP appropriateness
 4. Badge recommendations on dashboard
-5. **✨ NEW: Immersive constellation visualization at /constellation**
+5. Immersive constellation visualization at /constellation
    - Pure light orbs with lens flare effects (no emoji/SVG stars)
    - Quest orbs with gravitational positioning based on XP distribution
    - Time travel slider (press T) to view learning history
@@ -129,10 +135,32 @@
 10. Earned badges on diploma page
 
 **Next Actions:**
-- Option A: Phase 5 - Advisor features
-- Option B: Phase 8 - Content seeding (link quests to badges)
+- **Immediate**: Run AI analysis and auto-link quests to all 13 badges
+- **Then**: Admin review and adjustment of AI recommendations
+- **Future Options**:
+  - Phase 5: Advisor features (custom badge creation, student monitoring)
+  - Phase 6: Advanced AI integration (quality validation, performance monitoring)
+  - Phase 7: Testing and production deployment
 
 ## System Design Notes
+
+**AI Badge-Quest Linking:**
+- **Analysis Criteria**:
+  - Pillar Alignment (0-100%): How well quest pillars match badge primary pillar
+  - Skill Development Match (0-100%): Quest skills vs badge identity statement
+  - XP Appropriateness (0-100%): Quest XP value vs badge XP requirement
+  - Overall Confidence (0-100%): Weighted recommendation score
+  - AI Reasoning: One sentence explanation for recommendation
+- **Confidence Levels**:
+  - High (85%+): Strong alignment, highly recommended
+  - Medium (70-85%): Good fit, recommended with caveats
+  - Low (<70%): Weak alignment, manual review suggested
+- **Automation Features**:
+  - Single badge analysis: Get recommendations for one badge
+  - Bulk analysis: Analyze all 13 badges simultaneously
+  - Preview mode: See recommendations before applying
+  - One-click auto-link: Apply all recommendations at once
+  - Batch operations: ~10-15 quests per badge in 30 seconds
 
 **Badge Completion Model:**
 - Flexible: Complete ANY min_quests number of linked quests
