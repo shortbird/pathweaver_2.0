@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import PillarStar from './PillarStar';
+import PillarOrb from './PillarOrb';
 import StarField from './StarField';
 import ConstellationLines from './ConstellationLines';
 import PillarInfoCard from './PillarInfoCard';
@@ -16,6 +16,8 @@ const ConstellationView = ({ pillarsData, onExit }) => {
   const [hoveredPillar, setHoveredPillar] = useState(null);
   const [hoveredPosition, setHoveredPosition] = useState(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
+  const [isHoveringCard, setIsHoveringCard] = useState(false);
+  const hoverTimeoutRef = useRef(null);
 
   // Update dimensions on resize
   useEffect(() => {
@@ -54,16 +56,53 @@ const ConstellationView = ({ pillarsData, onExit }) => {
     position: getStarPosition(index, pillarsData.length),
   }));
 
-  // Handle star hover
-  const handleStarHover = (pillar, position) => {
+  // Handle orb hover with delay dismiss
+  const handleOrbHover = (pillar, position) => {
+    // Clear any pending dismiss timeout
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
     setHoveredPillar(pillar);
     setHoveredPosition(position);
   };
 
-  const handleStarLeave = () => {
-    setHoveredPillar(null);
-    setHoveredPosition(null);
+  const handleOrbLeave = () => {
+    // Don't dismiss immediately - set 1 second timeout
+    if (!isHoveringCard) {
+      hoverTimeoutRef.current = setTimeout(() => {
+        setHoveredPillar(null);
+        setHoveredPosition(null);
+      }, 1000);
+    }
   };
+
+  const handleCardMouseEnter = () => {
+    // Clear dismiss timeout when hovering card
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+    setIsHoveringCard(true);
+  };
+
+  const handleCardMouseLeave = () => {
+    setIsHoveringCard(false);
+    // Dismiss after 1 second when leaving card
+    hoverTimeoutRef.current = setTimeout(() => {
+      setHoveredPillar(null);
+      setHoveredPosition(null);
+    }, 1000);
+  };
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (hoverTimeoutRef.current) {
+        clearTimeout(hoverTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // Handle star click - navigate to quests filtered by pillar
   const handleStarClick = (pillar) => {
@@ -135,16 +174,16 @@ const ConstellationView = ({ pillarsData, onExit }) => {
       {/* Constellation Lines */}
       <ConstellationLines stars={stars} hoveredStar={hoveredPillar} />
 
-      {/* Pillar Stars */}
+      {/* Pillar Orbs */}
       {stars.map((pillar, index) => (
-        <PillarStar
+        <PillarOrb
           key={pillar.id}
           pillar={pillar}
           position={pillar.position}
           xp={pillar.xp}
           isActive={pillar.isActive}
-          onHover={handleStarHover}
-          onLeave={handleStarLeave}
+          onHover={handleOrbHover}
+          onLeave={handleOrbLeave}
           onClick={handleStarClick}
           index={index}
         />
@@ -157,7 +196,8 @@ const ConstellationView = ({ pillarsData, onExit }) => {
             pillar={hoveredPillar}
             position={hoveredPosition}
             containerDimensions={dimensions}
-            onClose={handleStarLeave}
+            onMouseEnter={handleCardMouseEnter}
+            onMouseLeave={handleCardMouseLeave}
           />
         )}
       </AnimatePresence>

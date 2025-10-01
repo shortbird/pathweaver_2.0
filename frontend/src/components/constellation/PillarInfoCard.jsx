@@ -2,18 +2,18 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
-const PillarInfoCard = ({ pillar, position, containerDimensions, onClose }) => {
+const PillarInfoCard = ({ pillar, position, containerDimensions, onMouseEnter, onMouseLeave }) => {
   const navigate = useNavigate();
 
   if (!pillar || !position) return null;
 
   // Calculate smart positioning to avoid viewport edges
   const getCardPosition = () => {
-    const cardHeight = 320;
-    const cardWidth = 300;
+    const cardHeight = 180; // Reduced from 320 (simpler card)
+    const cardWidth = 280; // Slightly narrower
     const spacing = 20;
 
-    let top = position.y + 80; // Default: below star
+    let top = position.y + 80; // Default: below orb
     let left = position.x - cardWidth / 2;
 
     // If too low, show above
@@ -28,36 +28,6 @@ const PillarInfoCard = ({ pillar, position, containerDimensions, onClose }) => {
   };
 
   const cardPosition = getCardPosition();
-
-  // Get pillar level based on XP
-  const getLevel = (xp) => {
-    if (xp === 0) return 'Explorer';
-    if (xp < 250) return 'Builder';
-    if (xp < 750) return 'Creator';
-    if (xp < 1500) return 'Scholar';
-    return 'Sage';
-  };
-
-  // Calculate progress to next level
-  const getProgress = (xp) => {
-    const thresholds = [0, 250, 750, 1500, 3000];
-    for (let i = 0; i < thresholds.length - 1; i++) {
-      if (xp < thresholds[i + 1]) {
-        const current = xp - thresholds[i];
-        const needed = thresholds[i + 1] - thresholds[i];
-        return {
-          percent: (current / needed) * 100,
-          current: current,
-          needed: needed,
-          nextLevel: ['Builder', 'Creator', 'Scholar', 'Sage', 'Master'][i]
-        };
-      }
-    }
-    return { percent: 100, current: xp, needed: xp, nextLevel: 'Master' };
-  };
-
-  const level = getLevel(pillar.xp);
-  const progress = getProgress(pillar.xp);
 
   // Pillar colors
   const pillarColors = {
@@ -86,11 +56,13 @@ const PillarInfoCard = ({ pillar, position, containerDimensions, onClose }) => {
         left: `${cardPosition.left}px`,
         zIndex: 100,
       }}
-      className="w-[300px]"
+      className="w-[280px]"
       onClick={(e) => e.stopPropagation()}
+      onMouseEnter={onMouseEnter}
+      onMouseLeave={onMouseLeave}
     >
       <div className="bg-gray-900/95 backdrop-blur-md border border-white/20
-                      rounded-2xl p-6 shadow-2xl">
+                      rounded-2xl p-5 shadow-2xl">
         {/* Pillar Name with Gradient */}
         <h3
           className="text-2xl font-bold mb-4 bg-gradient-to-r text-transparent bg-clip-text"
@@ -101,57 +73,13 @@ const PillarInfoCard = ({ pillar, position, containerDimensions, onClose }) => {
           {pillar.name}
         </h3>
 
-        {/* Stats Grid */}
-        <div className="space-y-3 mb-4">
+        {/* Simplified Stats - Just Total XP */}
+        <div className="mb-5">
           <div className="flex justify-between items-center">
-            <span className="text-gray-400 text-sm">Total XP</span>
-            <span className="text-white font-semibold text-lg">{pillar.xp}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-gray-400 text-sm">Current Level</span>
-            <span className="text-white font-semibold">{level}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-gray-400 text-sm">Quests Completed</span>
-            <span className="text-white font-semibold">{pillar.questCount || 0}</span>
+            <span className="text-gray-400 text-base">Total XP</span>
+            <span className="text-white font-bold text-2xl">{pillar.xp}</span>
           </div>
         </div>
-
-        {/* Progress Section */}
-        {progress.percent < 100 && (
-          <div className="mb-4">
-            <div className="flex justify-between items-center mb-2">
-              <span className="text-gray-400 text-xs">Progress to {progress.nextLevel}</span>
-              <span className="text-gray-400 text-xs">
-                {Math.round(progress.current)} / {progress.needed} XP
-              </span>
-            </div>
-            <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-              <motion.div
-                className="h-full rounded-full"
-                style={{
-                  backgroundImage: `linear-gradient(90deg, ${colors.primary}, ${colors.accent})`
-                }}
-                initial={{ width: 0 }}
-                animate={{ width: `${progress.percent}%` }}
-                transition={{ duration: 0.5, ease: 'easeOut' }}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Motivational Message */}
-        <p className="text-gray-300 text-sm mb-4 italic">
-          {pillar.xp === 0
-            ? `Begin your journey in ${pillar.name}`
-            : pillar.xp < 250
-            ? `You're discovering ${pillar.name}`
-            : pillar.xp < 750
-            ? `Your skills in ${pillar.name} are growing`
-            : pillar.xp < 1500
-            ? `You're excelling in ${pillar.name}`
-            : `You've mastered ${pillar.name}`}
-        </p>
 
         {/* CTA Button */}
         <button
