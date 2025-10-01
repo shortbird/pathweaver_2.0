@@ -27,6 +27,8 @@ export default function BadgeDetail() {
   const [showInfoModal, setShowInfoModal] = useState(false);
 
   useEffect(() => {
+    // Scroll to top when badge page opens
+    window.scrollTo(0, 0);
     fetchBadgeDetail();
   }, [badgeId]);
 
@@ -115,7 +117,7 @@ export default function BadgeDetail() {
         {/* Subtle pattern overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent"></div>
 
-        <div className="container mx-auto px-4 relative z-10">
+        <div className="max-w-7xl mx-auto px-4 relative z-10">
           <button
             onClick={() => navigate('/badges')}
             className="flex items-center text-white hover:text-gray-100 mb-8 transition-colors group"
@@ -127,31 +129,13 @@ export default function BadgeDetail() {
           <div className="flex flex-col md:flex-row items-start md:items-center gap-8">
             {/* Badge Info */}
             <div className="flex-1">
-              <div className="flex items-start justify-between flex-wrap gap-4">
-                <div>
-                  <h1 className="text-5xl font-bold mb-3 pb-1">{badge.name}</h1>
-                  <p className="text-2xl italic opacity-90 mb-4">
-                    "{badge.identity_statement}"
-                  </p>
-                  <p className="text-lg opacity-90 max-w-3xl leading-relaxed">
-                    {badge.description}
-                  </p>
-                </div>
-
-                {/* Status Badge */}
-                {isCompleted && (
-                  <div className="bg-green-500 text-white px-6 py-3 rounded-xl font-bold text-lg shadow-lg flex items-center gap-2">
-                    <Trophy className="w-5 h-5" />
-                    COMPLETED
-                  </div>
-                )}
-                {isActive && !isCompleted && (
-                  <div className="bg-blue-500 text-white px-6 py-3 rounded-xl font-bold text-lg shadow-lg flex items-center gap-2">
-                    <Target className="w-5 h-5" />
-                    IN PROGRESS
-                  </div>
-                )}
-              </div>
+              <h1 className="text-5xl font-bold mb-3 pb-1">{badge.name}</h1>
+              <p className="text-2xl italic opacity-90 mb-4">
+                "{badge.identity_statement}"
+              </p>
+              <p className="text-lg opacity-90 max-w-3xl leading-relaxed">
+                {badge.description}
+              </p>
 
               {/* Badge Stats - Redesigned */}
               <div className="grid grid-cols-3 gap-6 mt-8 max-w-2xl">
@@ -182,19 +166,33 @@ export default function BadgeDetail() {
                 </div>
               </div>
 
-              {/* Pillar Tag and Info Button */}
-              <div className="mt-6 flex items-center gap-3">
+              {/* Pillar Tag, Info Button, and Status Badge */}
+              <div className="mt-6 flex items-center gap-3 flex-wrap">
                 <span className="inline-block bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium">
                   {badge.pillar_primary}
                 </span>
                 <button
                   onClick={() => setShowInfoModal(true)}
-                  className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white px-4 py-2 rounded-full text-sm font-medium transition-colors"
+                  className="inline-flex items-center gap-2 bg-white text-purple-700 hover:bg-purple-50 px-4 py-2 rounded-full text-sm font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
                   aria-label="How to earn this badge"
                 >
                   <Info className="w-4 h-4" />
                   How to Earn
                 </button>
+
+                {/* Status Badge - Moved here */}
+                {isCompleted && (
+                  <div className="bg-green-500 text-white px-5 py-2 rounded-full font-bold text-sm shadow-lg flex items-center gap-2">
+                    <Trophy className="w-4 h-4" />
+                    COMPLETED
+                  </div>
+                )}
+                {isActive && !isCompleted && (
+                  <div className="bg-blue-500 text-white px-5 py-2 rounded-full font-bold text-sm shadow-lg flex items-center gap-2">
+                    <Target className="w-4 h-4" />
+                    IN PROGRESS
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -209,7 +207,7 @@ export default function BadgeDetail() {
       />
 
       {/* Main Content */}
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Progress Section (if active) - Redesigned */}
         {isActive && userProgress && (
           <div className="bg-white rounded-xl shadow-lg p-8 mb-8 border border-gray-100">
