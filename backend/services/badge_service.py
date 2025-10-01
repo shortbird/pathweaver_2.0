@@ -231,11 +231,11 @@ class BadgeService:
         # Get XP earned from badge-related tasks
         # We need to sum XP from tasks that belong to quests associated with this badge
         xp_earned = 0
-        if required_quest_ids:
-            # Get all tasks from required quests
+        if badge_quest_ids:
+            # Get all tasks from badge quests
             tasks = supabase.table('quest_tasks')\
                 .select('id')\
-                .in_('quest_id', required_quest_ids)\
+                .in_('quest_id', badge_quest_ids)\
                 .execute()
 
             task_ids = [t['id'] for t in tasks.data]
