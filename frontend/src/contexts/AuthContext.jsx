@@ -59,13 +59,20 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const response = await api.post('/api/auth/login', { email, password })
-      const { user: loginUser, session: loginSession } = response.data
+      const { user: loginUser, session: loginSession, access_token, refresh_token } = response.data
+
+      // Store tokens in localStorage for incognito mode fallback
+      // Incognito browsers block SameSite=None cookies
+      if (access_token && refresh_token) {
+        localStorage.setItem('access_token', access_token)
+        localStorage.setItem('refresh_token', refresh_token)
+        console.log('[AuthContext] Stored tokens in localStorage')
+      } else {
+        console.warn('[AuthContext] No tokens in login response')
+      }
 
       setSession({ authenticated: true })
       setLoginTimestamp(Date.now()) // Force refresh of data
-
-      // httpOnly cookies handle authentication automatically
-      // No need to manage tokens in localStorage or headers
 
       // Update React Query cache with fresh user data
       queryClient.setQueryData(queryKeys.user.profile('current'), loginUser)
@@ -125,21 +132,24 @@ export const AuthProvider = ({ children }) => {
         3000, // 3 second initial delay for cold starts
         true // show progress in console
       )
-      const { user, session, message, email_verification_required } = response.data
-      
+      const { user, session, message, email_verification_required, access_token, refresh_token } = response.data
+
       // Handle email verification required case (rate limit or email confirmation)
       if (email_verification_required || message) {
         // Navigate to email verification page with user's email
         navigate('/email-verification', { state: { email: userData.email } })
         return { success: true }
       }
-      
+
       if (session) {
+        // Store tokens in localStorage for incognito mode fallback
+        if (access_token && refresh_token) {
+          localStorage.setItem('access_token', access_token)
+          localStorage.setItem('refresh_token', refresh_token)
+        }
+
         setSession({ authenticated: true })
         setLoginTimestamp(Date.now()) // Force refresh of data
-
-        // httpOnly cookies handle authentication automatically
-        // No need to manage tokens in localStorage or headers
 
         // Update React Query cache with fresh user data
         queryClient.setQueryData(queryKeys.user.profile('current'), user)
@@ -213,8 +223,10 @@ export const AuthProvider = ({ children }) => {
       setSession(null)
       setLoginTimestamp(null) // Clear timestamp on logout
 
-      // httpOnly cookies are cleared by the server
-      // No need to manage tokens in localStorage or headers
+      // Clear localStorage tokens
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('user')
 
       // Clear all React Query cache on logout
       queryClient.clear()
