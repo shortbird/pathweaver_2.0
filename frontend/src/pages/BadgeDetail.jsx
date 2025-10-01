@@ -2,8 +2,9 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { CheckCircle, Circle, ArrowLeft, Trophy, Target, Zap } from 'lucide-react';
+import { CheckCircle, Circle, ArrowLeft, Trophy, Target, Zap, Info } from 'lucide-react';
 import { BadgePillarIcon } from '../components/badges/BadgePillarIcon';
+import BadgeInfoModal from '../components/badges/BadgeInfoModal';
 
 /**
  * Updated pillar color gradients - matching BadgeCard design
@@ -23,6 +24,7 @@ export default function BadgeDetail() {
   const [badge, setBadge] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
   useEffect(() => {
     fetchBadgeDetail();
@@ -105,6 +107,11 @@ export default function BadgeDetail() {
     <div className="min-h-screen bg-gray-50">
       {/* Hero Section - Redesigned */}
       <div className={`bg-gradient-to-br ${gradientClass} text-white py-16 relative overflow-hidden`}>
+        {/* Large faded background icon */}
+        <div className="absolute right-0 top-1/2 -translate-y-1/2 opacity-10 pointer-events-none">
+          <BadgePillarIcon pillar={badge.pillar_primary} className="w-96 h-96 text-white" />
+        </div>
+
         {/* Subtle pattern overlay */}
         <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent"></div>
 
@@ -118,11 +125,6 @@ export default function BadgeDetail() {
           </button>
 
           <div className="flex flex-col md:flex-row items-start md:items-center gap-8">
-            {/* Badge Icon */}
-            <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 shadow-2xl">
-              <BadgePillarIcon pillar={badge.pillar_primary} className="w-24 h-24 text-white" />
-            </div>
-
             {/* Badge Info */}
             <div className="flex-1">
               <div className="flex items-start justify-between flex-wrap gap-4">
@@ -180,16 +182,31 @@ export default function BadgeDetail() {
                 </div>
               </div>
 
-              {/* Pillar Tag */}
-              <div className="mt-6">
+              {/* Pillar Tag and Info Button */}
+              <div className="mt-6 flex items-center gap-3">
                 <span className="inline-block bg-white/20 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium">
                   {badge.pillar_primary}
                 </span>
+                <button
+                  onClick={() => setShowInfoModal(true)}
+                  className="inline-flex items-center gap-2 bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white px-4 py-2 rounded-full text-sm font-medium transition-colors"
+                  aria-label="How to earn this badge"
+                >
+                  <Info className="w-4 h-4" />
+                  How to Earn
+                </button>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* Info Modal */}
+      <BadgeInfoModal
+        isOpen={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+        badge={badge}
+      />
 
       {/* Main Content */}
       <div className="container mx-auto px-4 py-8">

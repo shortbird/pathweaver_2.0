@@ -229,7 +229,7 @@ class BadgeService:
             completed_count = 0
 
         # Get XP earned from badge-related tasks
-        # We need to sum XP from tasks that belong to quests associated with this badge
+        # XP is tracked in user_quest_tasks table with xp_awarded (includes collaboration bonus)
         xp_earned = 0
         if badge_quest_ids:
             # Get all tasks from badge quests
@@ -241,26 +241,15 @@ class BadgeService:
             task_ids = [t['id'] for t in tasks.data]
 
             if task_ids:
-                # Get completed tasks with their XP values from quest_tasks
-                # Note: xp_awarded doesn't exist in completions table, XP is stored in quest_tasks.xp_amount
-                completions = supabase.table('quest_task_completions')\
-                    .select('task_id')\
+                # Get completed tasks from user_quest_tasks (actual completion table)
+                # This table stores xp_awarded which includes collaboration bonus
+                completions = supabase.table('user_quest_tasks')\
+                    .select('xp_awarded')\
                     .eq('user_id', user_id)\
-                    .in_('task_id', task_ids)\
+                    .in_('quest_task_id', task_ids)\
                     .execute()
 
-                completed_task_ids = [c['task_id'] for c in completions.data]
-
-                if completed_task_ids:
-                    # Get XP amounts for completed tasks
-                    task_xp = supabase.table('quest_tasks')\
-                        .select('xp_amount')\
-                        .in_('id', completed_task_ids)\
-                        .execute()
-
-                    xp_earned = sum(t.get('xp_amount', 0) for t in task_xp.data)
-                else:
-                    xp_earned = 0
+                xp_earned = sum(c.get('xp_awarded', 0) for c in completions.data)
 
         # Check if user has this badge active
         user_badge = supabase.table('user_badges')\
@@ -389,6 +378,24 @@ class BadgeService:
 
         if not progress['is_complete']:
             raise ValueError(f"Badge not yet complete. Progress: {progress['percentage']}%")
+
+        # Award 500 XP completion bonus for earning the badge
+        BADGE_COMPLETION_BONUS = 500
+
+        # Get badge details to find pillar for XP distribution
+        admin_supabase = get_supabase_admin_client()
+        badge = admin_supabase.table('badges')\
+            .select('pillar_primary')\
+            .eq('id', badge_id)\
+            .single()\
+            .execute()
+
+        pillar = badge.data.get('pillar_primary') if badge.data else 'STEM & Logic'
+
+        # Award completion bonus XP to the badge's primary pillar
+        from services.xp_service import XPService
+        xp_service = XPService()
+        xp_service.award_xp(user_id, BADGE_COMPLETION_BONUS, pillar)
 
         # Update user_badge record
         updated = supabase.table('user_badges')\
