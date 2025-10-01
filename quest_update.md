@@ -41,8 +41,8 @@
 - ⬜ Monitor AI content performance metrics
 
 ### Phase 4: Frontend Transformation
-- ⬜ Create `frontend/src/pages/BadgeExplorer.jsx`
-- ⬜ Create `frontend/src/pages/BadgeDetail.jsx`
+- ✅ Create `frontend/src/pages/BadgeExplorer.jsx`
+- ✅ Create `frontend/src/pages/BadgeDetail.jsx`
 - ⬜ Create `frontend/src/components/badge/BadgeCard.jsx`
 - ⬜ Create `frontend/src/components/badge/BadgeProgress.jsx`
 - ⬜ Create `frontend/src/components/constellation/ConstellationView.jsx`
@@ -50,8 +50,8 @@
 - ⬜ Create `frontend/src/components/credits/TranscriptView.jsx`
 - ⬜ Update `frontend/src/pages/DashboardPage.jsx` (badge-first)
 - ⬜ Update `frontend/src/pages/DiplomaPage.jsx` (add badges section)
-- ⬜ Update navigation to include Badges link
-- ⬜ Install new NPM packages (d3, framer-motion, recharts)
+- 🟦 Update navigation to include Badges link
+- ✅ Install new NPM packages (d3, framer-motion, recharts)
 - ⬜ Test responsive design (mobile & desktop)
 
 ### Phase 5: Advisor Features Enhancement
