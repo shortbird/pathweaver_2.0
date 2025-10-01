@@ -23,6 +23,11 @@ import QuestDetail from './pages/QuestDetail'
 // Badge Pages
 import BadgeExplorer from './pages/BadgeExplorer'
 import BadgeDetail from './pages/BadgeDetail'
+import BadgeProgressPage from './pages/BadgeProgressPage'
+import ConstellationPage from './pages/ConstellationPage'
+// Credit & Transcript Pages
+import CreditTrackerPage from './pages/CreditTrackerPage'
+import TranscriptPage from './pages/TranscriptPage'
 // Other Pages
 import DiplomaPage from './pages/DiplomaPage'
 import ProfilePage from './pages/ProfilePage'
@@ -98,6 +103,11 @@ function App() {
                 {/* Badge Routes */}
                 <Route path="badges" element={<BadgeExplorer />} />
                 <Route path="badges/:badgeId" element={<BadgeDetail />} />
+                <Route path="badge-progress" element={<BadgeProgressPage />} />
+                <Route path="constellation" element={<ConstellationPage />} />
+                {/* Credit & Transcript Routes */}
+                <Route path="credits" element={<CreditTrackerPage />} />
+                <Route path="transcript" element={<TranscriptPage />} />
                 {/* Other Routes */}
                 <Route path="diploma" element={<DiplomaPage />} />
                 <Route path="profile" element={<ProfilePage />} />
