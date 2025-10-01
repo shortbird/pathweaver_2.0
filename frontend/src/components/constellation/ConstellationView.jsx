@@ -78,6 +78,7 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
 
   // Calculate gravitational position for quest orbs
   const calculateQuestPosition = useCallback((quest, pillarPositions) => {
+    const MIN_DISTANCE_FROM_PILLAR = 80; // Minimum 80px from any pillar
     let x = 0, y = 0;
     let totalWeight = 0;
 
@@ -94,13 +95,38 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
 
     // Add deterministic orbit offset based on quest ID
     const hash = quest.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
-    const orbitRadius = 30 + (hash % 40); // 30-70px orbit
-    const angle = (hash % 360) * (Math.PI / 180);
+    let orbitRadius = 30 + (hash % 40); // 30-70px orbit
+    let angle = (hash % 360) * (Math.PI / 180);
 
-    return {
-      x: x + Math.cos(angle) * orbitRadius,
-      y: y + Math.sin(angle) * orbitRadius
-    };
+    let finalX = x + Math.cos(angle) * orbitRadius;
+    let finalY = y + Math.sin(angle) * orbitRadius;
+
+    // Check distance from all pillars and push away if too close
+    let attempts = 0;
+    const maxAttempts = 20;
+    while (attempts < maxAttempts) {
+      let tooClose = false;
+
+      for (const pillarPos of Object.values(pillarPositions)) {
+        const dx = finalX - pillarPos.x;
+        const dy = finalY - pillarPos.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < MIN_DISTANCE_FROM_PILLAR) {
+          // Push away from pillar
+          const pushAngle = Math.atan2(dy, dx);
+          const pushDistance = MIN_DISTANCE_FROM_PILLAR - distance;
+          finalX += Math.cos(pushAngle) * pushDistance;
+          finalY += Math.sin(pushAngle) * pushDistance;
+          tooClose = true;
+        }
+      }
+
+      if (!tooClose) break;
+      attempts++;
+    }
+
+    return { x: finalX, y: finalY };
   }, []);
 
   // Calculate time range from quest data
