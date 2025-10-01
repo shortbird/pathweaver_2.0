@@ -93,7 +93,7 @@ class BadgeService:
             completed_result = supabase.table('user_quests')\
                 .select('quest_id')\
                 .eq('user_id', user_id)\
-                .is_('completed_at', 'not.null')\
+                .neq('completed_at', None)\
                 .execute()
             user_completed_quest_ids = {q['quest_id'] for q in completed_result.data}
 
@@ -221,7 +221,7 @@ class BadgeService:
                 .select('quest_id')\
                 .eq('user_id', user_id)\
                 .in_('quest_id', badge_quest_ids)\
-                .is_('completed_at', 'not.null')\
+                .neq('completed_at', None)\
                 .execute()
 
             completed_count = len(completed_quests.data)
@@ -341,7 +341,7 @@ class BadgeService:
         result = supabase.table('user_badges')\
             .select('*, badges(*)')\
             .eq('user_id', user_id)\
-            .is_('completed_at', 'not.null')\
+            .neq('completed_at', None)\
             .order('completed_at', desc=True)\
             .execute()
 
