@@ -81,7 +81,7 @@ export default function BadgeExplorer() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-12">
-        <div className="container mx-auto px-4">
+        <div className="max-w-7xl mx-auto px-4">
           <h1 className="text-4xl font-bold bg-gradient-to-r from-white to-[#f8b3c5] bg-clip-text text-transparent mb-4 pb-1">Explore Learning Paths</h1>
           <p className="text-lg opacity-90">
             Choose a badge that sparks your curiosity and start your learning journey
@@ -91,7 +91,7 @@ export default function BadgeExplorer() {
 
       {/* Filters */}
       <div className="bg-white border-b sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
+        <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex flex-col md:flex-row gap-4">
             {/* Pillar Filter */}
             <div className="flex-1">
@@ -133,7 +133,7 @@ export default function BadgeExplorer() {
       </div>
 
       {/* Badge Grid */}
-      <div className="container mx-auto px-4 py-8">
+      <div className="max-w-7xl mx-auto px-4 py-8">
         {filteredBadges.length === 0 ? (
           <div className="text-center py-12">
             <p className="text-gray-500 text-lg">

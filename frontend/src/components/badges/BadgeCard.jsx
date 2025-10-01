@@ -45,7 +45,7 @@ export default function BadgeCard({ badge, onClick }) {
         </div>
 
         {/* Badge Name */}
-        <div className="text-white text-sm font-semibold text-center px-4">
+        <div className="text-white text-lg font-bold text-center px-4 line-clamp-2">
           {badge.name}
         </div>
 
@@ -105,8 +105,8 @@ export default function BadgeCard({ badge, onClick }) {
         )}
 
         {/* Badge Stats - Redesigned with Icons */}
-        <div className="flex items-center justify-between text-sm pb-4 border-b border-gray-100">
-          <div className="flex items-center gap-4">
+        <div className="pb-4 border-b border-gray-100">
+          <div className="flex items-center gap-4 text-sm mb-3">
             <div className="flex items-center gap-1.5 text-gray-600">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -123,8 +123,8 @@ export default function BadgeCard({ badge, onClick }) {
             </div>
           </div>
 
-          {/* Pillar Tag */}
-          <span className="text-xs bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-medium">
+          {/* Pillar Tag - Now on its own row */}
+          <span className="inline-block text-xs bg-gray-100 text-gray-700 px-3 py-1 rounded-full font-medium">
             {badge.pillar_primary}
           </span>
         </div>
