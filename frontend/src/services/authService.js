@@ -94,9 +94,19 @@ class AuthService {
       const accessToken = response.data.access_token || response.data.session?.access_token
       const refreshToken = response.data.refresh_token || response.data.session?.refresh_token
 
+      console.log('[AuthService] Login response:', {
+        hasAccessToken: !!accessToken,
+        hasRefreshToken: !!refreshToken,
+        accessTokenLength: accessToken?.length,
+        responseKeys: Object.keys(response.data)
+      })
+
       if (accessToken && refreshToken) {
         localStorage.setItem('access_token', accessToken)
         localStorage.setItem('refresh_token', refreshToken)
+        console.log('[AuthService] Stored tokens in localStorage')
+      } else {
+        console.warn('[AuthService] No tokens to store!', { accessToken, refreshToken })
       }
 
       // Store user data for quick access (not sensitive data)

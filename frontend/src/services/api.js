@@ -31,8 +31,11 @@ api.interceptors.request.use(
     // Fallback to localStorage tokens for incognito mode
     // (cookies with SameSite=None are blocked in incognito on cross-site requests)
     const accessToken = localStorage.getItem('access_token')
-    if (accessToken && !config.headers.Authorization) {
+    if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`
+      console.log('[API] Added Authorization header from localStorage')
+    } else {
+      console.log('[API] No access token in localStorage')
     }
 
     return config
