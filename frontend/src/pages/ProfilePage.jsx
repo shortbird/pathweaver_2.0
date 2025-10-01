@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { useForm } from 'react-hook-form'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import toast from 'react-hot-toast'
@@ -255,6 +256,75 @@ const ProfilePage = () => {
                   {profileData?.completed_quests || 0}
                 </p>
               </div>
+            </div>
+          </div>
+
+          <div className="card">
+            <h2 className="text-xl font-semibold mb-4">My Learning</h2>
+            <div className="space-y-2">
+              <Link
+                to="/badges"
+                className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-2xl">🎯</div>
+                  <div>
+                    <div className="font-medium text-gray-900">Badge Explorer</div>
+                    <div className="text-xs text-gray-600">Browse and track badges</div>
+                  </div>
+                </div>
+                <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+
+              <Link
+                to="/diploma"
+                className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 rounded-lg transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-2xl">📜</div>
+                  <div>
+                    <div className="font-medium text-gray-900">My Diploma</div>
+                    <div className="text-xs text-gray-600">View portfolio & badges</div>
+                  </div>
+                </div>
+                <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+
+              <Link
+                to="/dashboard"
+                className="flex items-center justify-between p-3 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 rounded-lg transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-2xl">📊</div>
+                  <div>
+                    <div className="font-medium text-gray-900">Dashboard</div>
+                    <div className="text-xs text-gray-600">Progress & recommendations</div>
+                  </div>
+                </div>
+                <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
+
+              <Link
+                to="/quests"
+                className="flex items-center justify-between p-3 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 rounded-lg transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="text-2xl">🗺️</div>
+                  <div>
+                    <div className="font-medium text-gray-900">Quest Hub</div>
+                    <div className="text-xs text-gray-600">Explore available quests</div>
+                  </div>
+                </div>
+                <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
             </div>
           </div>
 
