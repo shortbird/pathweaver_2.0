@@ -30,7 +30,7 @@ export default function BadgeDetail() {
   const handleSelectBadge = async () => {
     setSelecting(true);
     try {
-      await api.post(`/api/badges/${badgeId}/select`);
+      await api.post(`/api/badges/${badgeId}/select`, {});
       toast.success('Badge selected! Ready to start your first quest?');
       // Refresh badge data to show active status
       await fetchBadgeDetail();
@@ -45,7 +45,7 @@ export default function BadgeDetail() {
 
   const handlePauseBadge = async () => {
     try {
-      await api.post(`/api/badges/${badgeId}/pause`);
+      await api.post(`/api/badges/${badgeId}/pause`, {});
       toast.success('Badge paused. Progress saved!');
       await fetchBadgeDetail();
     } catch (error) {
