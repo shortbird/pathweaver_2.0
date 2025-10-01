@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import api from '../../services/api';
 
 export default function BadgeQuestLinker() {
+  // State management
+  const [mode, setMode] = useState('manual'); // 'manual' or 'ai'
   const [badges, setBadges] = useState([]);
   const [quests, setQuests] = useState([]);
   const [selectedBadge, setSelectedBadge] = useState(null);
@@ -13,7 +15,14 @@ export default function BadgeQuestLinker() {
   const [searchTerm, setSearchTerm] = useState('');
   const [pillarFilter, setPillarFilter] = useState('all');
 
-  // Load badges on mount
+  // AI mode state
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [confidenceThreshold, setConfidenceThreshold] = useState(70);
+  const [bulkAnalysisResults, setBulkAnalysisResults] = useState(null);
+  const [selectedSuggestions, setSelectedSuggestions] = useState(new Set());
+
+  // Load data on mount
   useEffect(() => {
     loadBadges();
     loadAllQuests();
@@ -23,6 +32,8 @@ export default function BadgeQuestLinker() {
   useEffect(() => {
     if (selectedBadge) {
       loadLinkedQuests();
+      setAiSuggestions([]); // Clear AI suggestions when changing badges
+      setSelectedSuggestions(new Set());
     }
   }, [selectedBadge]);
 
@@ -53,7 +64,6 @@ export default function BadgeQuestLinker() {
       setLoading(true);
       const response = await api.get(`/api/badges/${selectedBadge.id}/quests`);
 
-      // Handle the response format: {quests: {required: [], optional: []}}
       const questsData = response.data.quests || {};
       const allLinkedQuests = [
         ...(questsData.required || []),
@@ -62,7 +72,6 @@ export default function BadgeQuestLinker() {
 
       setLinkedQuests(allLinkedQuests);
 
-      // Calculate available quests (not yet linked)
       const linkedQuestIds = new Set(allLinkedQuests.map(q => q.id));
       const available = quests.filter(q => !linkedQuestIds.has(q.id));
       setAvailableQuests(available);
@@ -74,6 +83,7 @@ export default function BadgeQuestLinker() {
     }
   };
 
+  // Manual mode functions
   const linkQuest = async (questId, isRequired = true) => {
     if (!selectedBadge) return;
 
@@ -90,8 +100,6 @@ export default function BadgeQuestLinker() {
 
       setMessage('Quest linked successfully!');
       await loadLinkedQuests();
-
-      // Clear message after 3 seconds
       setTimeout(() => setMessage(''), 3000);
     } catch (err) {
       console.error('Error linking quest:', err);
@@ -117,7 +125,6 @@ export default function BadgeQuestLinker() {
 
       setMessage('Quest unlinked successfully!');
       await loadLinkedQuests();
-
       setTimeout(() => setMessage(''), 3000);
     } catch (err) {
       console.error('Error unlinking quest:', err);
@@ -127,7 +134,150 @@ export default function BadgeQuestLinker() {
     }
   };
 
-  // Filter available quests by search and pillar
+  // AI mode functions
+  const runAIAnalysis = async () => {
+    if (!selectedBadge) return;
+
+    try {
+      setAiAnalyzing(true);
+      setMessage('');
+      setError('');
+      setAiSuggestions([]);
+
+      const response = await api.post(`/api/admin/badge-quests/ai-analyze/${selectedBadge.id}`, {
+        min_confidence: confidenceThreshold
+      });
+
+      const results = response.data.analysis;
+      setAiSuggestions(results.recommendations || []);
+
+      setMessage(`AI found ${results.recommendations_count} recommended quests (${results.statistics.high_confidence} high confidence)`);
+      setTimeout(() => setMessage(''), 5000);
+    } catch (err) {
+      console.error('Error running AI analysis:', err);
+      setError(err.response?.data?.error || 'AI analysis failed');
+    } finally {
+      setAiAnalyzing(false);
+    }
+  };
+
+  const runBulkAIAnalysis = async () => {
+    try {
+      setAiAnalyzing(true);
+      setMessage('');
+      setError('');
+      setBulkAnalysisResults(null);
+
+      setMessage('Analyzing all badges... This may take 1-2 minutes...');
+
+      const response = await api.post('/api/admin/badge-quests/ai-analyze-all', {
+        min_confidence: confidenceThreshold,
+        max_per_badge: 15
+      });
+
+      const results = response.data.analysis;
+      setBulkAnalysisResults(results);
+
+      setMessage(`Analysis complete! Found ${results.total_recommendations} recommendations across ${results.badges_analyzed} badges.`);
+    } catch (err) {
+      console.error('Error running bulk AI analysis:', err);
+      setError(err.response?.data?.error || 'Bulk AI analysis failed');
+    } finally {
+      setAiAnalyzing(false);
+    }
+  };
+
+  const autoLinkAllBadges = async () => {
+    if (!confirm(`Auto-link ALL AI recommendations across all badges? This will create ${bulkAnalysisResults?.total_recommendations || 0} quest-badge links.`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setMessage('');
+      setError('');
+
+      setMessage('Auto-linking quests... Please wait...');
+
+      const response = await api.post('/api/admin/badge-quests/ai-bulk-auto-link', {
+        min_confidence: confidenceThreshold,
+        max_per_badge: 15,
+        dry_run: false
+      });
+
+      const results = response.data;
+      setMessage(`Success! Created ${results.total_links_created} links across ${results.badges_processed} badges.`);
+
+      // Reload data
+      if (selectedBadge) {
+        await loadLinkedQuests();
+      }
+    } catch (err) {
+      console.error('Error auto-linking:', err);
+      setError(err.response?.data?.error || 'Auto-link failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const applySelectedSuggestions = async () => {
+    if (selectedSuggestions.size === 0) {
+      setError('No suggestions selected');
+      return;
+    }
+
+    if (!selectedBadge) return;
+
+    try {
+      setLoading(true);
+      setMessage('');
+      setError('');
+
+      const suggestionsToApply = aiSuggestions.filter(s =>
+        selectedSuggestions.has(s.quest_id)
+      );
+
+      await api.post(`/api/admin/badge-quests/ai-auto-link/${selectedBadge.id}`, {
+        recommendations: suggestionsToApply,
+        dry_run: false
+      });
+
+      setMessage(`Linked ${selectedSuggestions.size} quests successfully!`);
+      setSelectedSuggestions(new Set());
+      await loadLinkedQuests();
+      await runAIAnalysis(); // Refresh suggestions
+      setTimeout(() => setMessage(''), 3000);
+    } catch (err) {
+      console.error('Error applying suggestions:', err);
+      setError(err.response?.data?.error || 'Failed to apply suggestions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleSuggestion = (questId) => {
+    const newSelected = new Set(selectedSuggestions);
+    if (newSelected.has(questId)) {
+      newSelected.delete(questId);
+    } else {
+      newSelected.add(questId);
+    }
+    setSelectedSuggestions(newSelected);
+  };
+
+  const getConfidenceBadgeColor = (confidence) => {
+    if (confidence >= 85) return 'bg-green-100 text-green-800';
+    if (confidence >= 70) return 'bg-yellow-100 text-yellow-800';
+    return 'bg-red-100 text-red-800';
+  };
+
+  const getConfidenceLabel = (confidence) => {
+    if (confidence >= 85) return 'High';
+    if (confidence >= 70) return 'Medium';
+    return 'Low';
+  };
+
+  // Filter available quests
   const filteredAvailableQuests = availableQuests.filter(quest => {
     const matchesSearch = quest.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          (quest.description || '').toLowerCase().includes(searchTerm.toLowerCase());
@@ -138,27 +288,47 @@ export default function BadgeQuestLinker() {
     return matchesSearch && matchesPillar;
   });
 
-  const pillars = [
-    'all',
-    'stem',
-    'wellness',
-    'language',
-    'society',
-    'creativity'
-  ];
+  const pillars = ['all', 'stem', 'wellness', 'language', 'society', 'creativity'];
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div>
         <h2 className="text-2xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent mb-4">
-          Link Quests to Badges
+          AI-Powered Badge-Quest Linking
         </h2>
         <p className="text-gray-600 mb-6">
-          Associate quests with badges to create learning paths. Students earn badges by completing linked quests.
+          Use AI to automatically suggest and link quests to badges, or manage links manually.
         </p>
       </div>
 
-      {/* Badge Selection */}
+      {/* Mode Selector */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <div className="flex gap-4 mb-4">
+          <button
+            onClick={() => setMode('manual')}
+            className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+              mode === 'manual'
+                ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Manual Mode
+          </button>
+          <button
+            onClick={() => setMode('ai')}
+            className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+              mode === 'ai'
+                ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            AI Automation
+          </button>
+        </div>
+      </div>
+
+      {/* Badge Selection (both modes) */}
       <div className="bg-white rounded-lg shadow p-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Select Badge
@@ -188,6 +358,9 @@ export default function BadgeQuestLinker() {
             <div className="mt-2 text-sm text-gray-600">
               <span className="font-medium">Requirements:</span> {selectedBadge.min_quests} quests, {selectedBadge.min_xp} XP
             </div>
+            <div className="mt-2 text-sm text-gray-600">
+              <span className="font-medium">Currently linked:</span> {linkedQuests.length} quests
+            </div>
           </div>
         )}
       </div>
@@ -205,7 +378,178 @@ export default function BadgeQuestLinker() {
         </div>
       )}
 
-      {selectedBadge && (
+      {/* AI Mode */}
+      {mode === 'ai' && (
+        <div className="space-y-6">
+          {/* AI Controls */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h3 className="text-lg font-semibold mb-4">AI Configuration</h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Confidence Threshold: {confidenceThreshold}%
+                </label>
+                <input
+                  type="range"
+                  min="50"
+                  max="95"
+                  step="5"
+                  value={confidenceThreshold}
+                  onChange={(e) => setConfidenceThreshold(parseInt(e.target.value))}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>More Results (50%)</span>
+                  <span>More Selective (95%)</span>
+                </div>
+              </div>
+
+              <div className="flex gap-3">
+                <button
+                  onClick={runAIAnalysis}
+                  disabled={!selectedBadge || aiAnalyzing}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 font-medium"
+                >
+                  {aiAnalyzing ? 'Analyzing...' : 'Analyze Selected Badge'}
+                </button>
+
+                <button
+                  onClick={runBulkAIAnalysis}
+                  disabled={aiAnalyzing}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 font-medium"
+                >
+                  {aiAnalyzing ? 'Analyzing All...' : 'Analyze All Badges'}
+                </button>
+              </div>
+
+              {bulkAnalysisResults && (
+                <button
+                  onClick={autoLinkAllBadges}
+                  disabled={loading}
+                  className="w-full px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 font-medium"
+                >
+                  Auto-Link All Recommendations ({bulkAnalysisResults.total_recommendations} links)
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* AI Suggestions */}
+          {selectedBadge && aiSuggestions.length > 0 && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">
+                  AI Recommendations ({aiSuggestions.length})
+                </h3>
+                <button
+                  onClick={applySelectedSuggestions}
+                  disabled={selectedSuggestions.size === 0 || loading}
+                  className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 text-sm font-medium"
+                >
+                  Link Selected ({selectedSuggestions.size})
+                </button>
+              </div>
+
+              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                {aiSuggestions.map((suggestion) => (
+                  <div
+                    key={suggestion.quest_id}
+                    className={`border rounded-lg p-4 transition-colors ${
+                      selectedSuggestions.has(suggestion.quest_id)
+                        ? 'border-purple-500 bg-purple-50'
+                        : 'border-gray-200 hover:border-purple-300'
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedSuggestions.has(suggestion.quest_id)}
+                        onChange={() => toggleSuggestion(suggestion.quest_id)}
+                        className="mt-1"
+                      />
+
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h4 className="font-medium text-gray-900">
+                            {suggestion.quest_title}
+                          </h4>
+                          <span className={`text-xs px-2 py-1 rounded ${getConfidenceBadgeColor(suggestion.confidence)}`}>
+                            {getConfidenceLabel(suggestion.confidence)} ({suggestion.confidence}%)
+                          </span>
+                        </div>
+
+                        <p className="text-sm text-gray-600 mb-2">
+                          {suggestion.reasoning}
+                        </p>
+
+                        <div className="flex items-center gap-4 text-xs text-gray-500">
+                          <span>Pillar Match: {suggestion.pillar_alignment}%</span>
+                          <span>Skill Match: {suggestion.skill_match}%</span>
+                          <span>XP: {suggestion.total_xp}</span>
+                          <span>Tasks: {suggestion.task_count}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Bulk Analysis Results */}
+          {bulkAnalysisResults && (
+            <div className="bg-white rounded-lg shadow p-6">
+              <h3 className="text-lg font-semibold mb-4">
+                Bulk Analysis Results
+              </h3>
+
+              <div className="grid grid-cols-3 gap-4 mb-6">
+                <div className="text-center p-4 bg-blue-50 rounded-lg">
+                  <div className="text-2xl font-bold text-blue-600">
+                    {bulkAnalysisResults.badges_analyzed}
+                  </div>
+                  <div className="text-sm text-gray-600">Badges Analyzed</div>
+                </div>
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <div className="text-2xl font-bold text-green-600">
+                    {bulkAnalysisResults.total_recommendations}
+                  </div>
+                  <div className="text-sm text-gray-600">Total Recommendations</div>
+                </div>
+                <div className="text-center p-4 bg-purple-50 rounded-lg">
+                  <div className="text-2xl font-bold text-purple-600">
+                    {Math.round(bulkAnalysisResults.total_recommendations / bulkAnalysisResults.badges_analyzed)}
+                  </div>
+                  <div className="text-sm text-gray-600">Avg per Badge</div>
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {bulkAnalysisResults.badge_results.map((result) => (
+                  <div key={result.badge_id} className="border border-gray-200 rounded-lg p-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="font-medium text-gray-900">{result.badge_name}</h4>
+                        <p className="text-sm text-gray-600">
+                          {result.recommendations_count} recommendations found
+                        </p>
+                      </div>
+                      <div className="text-right text-sm text-gray-500">
+                        <div>High: {result.statistics?.high_confidence || 0}</div>
+                        <div>Med: {result.statistics?.medium_confidence || 0}</div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Manual Mode */}
+      {mode === 'manual' && selectedBadge && (
         <div className="grid md:grid-cols-2 gap-6">
           {/* Linked Quests */}
           <div className="bg-white rounded-lg shadow p-6">
@@ -221,7 +565,7 @@ export default function BadgeQuestLinker() {
                 No quests linked yet. Select quests from the available list to add them.
               </p>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-3 max-h-[600px] overflow-y-auto">
                 {linkedQuests.map((quest, index) => (
                   <div
                     key={quest.id}
@@ -325,7 +669,7 @@ export default function BadgeQuestLinker() {
                         </div>
                       </div>
                       <button
-                        onClick={() => linkQuest(quest.id, true)}
+                        onClick={() => linkQuest(quest.id, false)}
                         disabled={loading}
                         className="ml-3 px-3 py-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium disabled:opacity-50"
                       >

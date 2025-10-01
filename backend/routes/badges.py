@@ -362,3 +362,92 @@ def unlink_quest_from_badge(user_id, badge_id, quest_id):
         'success': True,
         'message': 'Quest unlinked from badge successfully'
     }), 200
+
+
+@bp.route('/admin/batch-link', methods=['POST'])
+@require_admin
+def batch_link_quests_to_badges(user_id):
+    """
+    Batch link multiple quests to badges in one transaction.
+
+    Request body:
+        - links: Array of {badge_id, quest_id, is_required, order_index, ai_confidence?, ai_reasoning?}
+
+    Returns:
+        Results with success/failure counts and details
+    """
+    from database import get_supabase_admin_client
+
+    data = request.get_json()
+
+    if not data or 'links' not in data:
+        return jsonify({
+            'success': False,
+            'error': 'Missing required field: links'
+        }), 400
+
+    links = data['links']
+
+    if not isinstance(links, list):
+        return jsonify({
+            'success': False,
+            'error': 'links must be an array'
+        }), 400
+
+    if len(links) == 0:
+        return jsonify({
+            'success': False,
+            'error': 'links array cannot be empty'
+        }), 400
+
+    supabase = get_supabase_admin_client()
+
+    # Validate all links before inserting
+    for link in links:
+        if 'badge_id' not in link or 'quest_id' not in link:
+            return jsonify({
+                'success': False,
+                'error': 'Each link must have badge_id and quest_id'
+            }), 400
+
+    # Insert all links
+    links_created = []
+    links_failed = []
+
+    for link in links:
+        try:
+            link_data = {
+                'badge_id': link['badge_id'],
+                'quest_id': link['quest_id'],
+                'is_required': link.get('is_required', False),
+                'order_index': link.get('order_index', 0)
+            }
+
+            # Add AI metadata if present
+            if 'ai_confidence' in link:
+                link_data['ai_confidence'] = link['ai_confidence']
+            if 'ai_reasoning' in link:
+                link_data['ai_reasoning'] = link['ai_reasoning']
+
+            result = supabase.table('badge_quests').insert(link_data).execute()
+
+            if result.data:
+                links_created.append({
+                    'badge_id': link['badge_id'],
+                    'quest_id': link['quest_id']
+                })
+
+        except Exception as e:
+            links_failed.append({
+                'badge_id': link['badge_id'],
+                'quest_id': link['quest_id'],
+                'error': str(e)
+            })
+
+    return jsonify({
+        'success': True,
+        'links_created': len(links_created),
+        'links_failed': len(links_failed),
+        'created': links_created,
+        'failed': links_failed
+    }), 201 if len(links_created) > 0 else 500
