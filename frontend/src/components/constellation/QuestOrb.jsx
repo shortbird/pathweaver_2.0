@@ -123,14 +123,15 @@ const QuestOrb = ({
           ease: 'easeInOut'
         }
       }}
-      whileHover={{ scale: 1.3 }}
       style={{
         position: 'absolute',
-        left: `${position.x}px`,
-        top: `${position.y}px`,
-        transform: 'translate(-50%, -50%)',
+        left: `${position.x - size}px`,
+        top: `${position.y - size}px`,
         cursor: 'pointer',
-        zIndex: isHovered ? 60 : 20, // Above pillar orbs (10/50)
+        zIndex: isHovered ? 60 : 20,
+        // Create hitbox larger than visual for reliable mouse leave
+        width: `${size * 2}px`,
+        height: `${size * 2}px`,
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -139,12 +140,23 @@ const QuestOrb = ({
       tabIndex={0}
       aria-label={`${quest.title}: ${quest.totalXP} XP`}
     >
-      <QuestLight
-        size={size}
-        color={color}
-        opacity={opacity}
-        isHovered={isHovered}
-      />
+      <div
+        style={{
+          position: 'absolute',
+          left: '50%',
+          top: '50%',
+          transform: `translate(-50%, -50%) scale(${isHovered ? 1.3 : 1})`,
+          transition: 'transform 0.3s ease-out',
+          pointerEvents: 'none',
+        }}
+      >
+        <QuestLight
+          size={size}
+          color={color}
+          opacity={opacity}
+          isHovered={isHovered}
+        />
+      </div>
     </motion.div>
   );
 };
