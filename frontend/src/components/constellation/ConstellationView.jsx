@@ -225,10 +225,10 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
     const offsetY = (mousePos.y - centerY) / centerY; // -1 to 1
 
     return {
-      // Different layers move at different speeds - much slower
-      background: { x: offsetX * 3, y: offsetY * 3 },  // Very subtle movement
-      lines: { x: offsetX * 1.5, y: offsetY * 1.5 },   // Even less
-      orbs: { x: offsetX * 0.75, y: offsetY * 0.75 }   // Minimal movement
+      // Barely noticeable parallax effect
+      background: { x: offsetX * 0.5, y: offsetY * 0.5 },  // Extremely subtle
+      lines: { x: offsetX * 0.25, y: offsetY * 0.25 },     // Almost imperceptible
+      orbs: { x: offsetX * 0.1, y: offsetY * 0.1 }         // Practically none
     };
   }, [mousePos, dimensions]);
 

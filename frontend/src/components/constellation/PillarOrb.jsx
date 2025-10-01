@@ -185,13 +185,16 @@ const PillarOrb = ({
         duration: 0.6,
         ease: [0.34, 1.56, 0.64, 1],
       }}
-      whileHover={{ scale: 1.15 }}
       style={{
         position: 'absolute',
         left: `${position.x}px`,
         top: `${position.y}px`,
         cursor: 'pointer',
         zIndex: isHovered ? 50 : 10,
+        // Create a larger hitbox for reliable mouse leave detection
+        width: `${size * 2}px`,
+        height: `${size * 2}px`,
+        transform: 'translate(-50%, -50%)',
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -199,7 +202,7 @@ const PillarOrb = ({
       className="constellation-orb"
       role="button"
       tabIndex={0}
-      aria-label={`${pillar.name}: ${xp} XP. Click to explore ${pillar.name} quests.`}
+      aria-label={`${pillar.name}: ${xp} XP.`}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
@@ -212,7 +215,9 @@ const PillarOrb = ({
           position: 'absolute',
           left: '50%',
           top: '50%',
-          transform: 'translate(-50%, -50%)',
+          transform: `translate(-50%, -50%) scale(${isHovered ? 1.15 : 1})`,
+          transition: 'transform 0.3s ease-out',
+          pointerEvents: 'none', // Prevent this div from interfering with mouse events
         }}
       >
         <LightOrb
