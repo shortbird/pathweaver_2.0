@@ -193,21 +193,21 @@ class BadgeService:
         min_quests = badge.data['min_quests']
         min_xp = badge.data['min_xp']
 
-        # Get required quests for this badge
-        required_quests = supabase.table('badge_quests')\
+        # Get ALL quests associated with this badge (not just required)
+        # We want users to complete ANY min_quests number of linked quests
+        all_badge_quests = supabase.table('badge_quests')\
             .select('quest_id')\
             .eq('badge_id', badge_id)\
-            .eq('is_required', True)\
             .execute()
 
-        required_quest_ids = [q['quest_id'] for q in required_quests.data]
+        badge_quest_ids = [q['quest_id'] for q in all_badge_quests.data]
 
-        # Get user's completed quests from this badge
-        if required_quest_ids:
+        # Get user's completed quests from this badge (including retroactive completions)
+        if badge_quest_ids:
             completed_quests = supabase.table('user_quests')\
                 .select('quest_id')\
                 .eq('user_id', user_id)\
-                .in_('quest_id', required_quest_ids)\
+                .in_('quest_id', badge_quest_ids)\
                 .not_('completed_at', 'is', None)\
                 .execute()
 
@@ -237,6 +237,19 @@ class BadgeService:
 
                 xp_earned = sum(c.get('xp_awarded', 0) for c in completions.data)
 
+        # Check if user has this badge active
+        user_badge = supabase.table('user_badges')\
+            .select('is_active, completed_at')\
+            .eq('user_id', user_id)\
+            .eq('badge_id', badge_id)\
+            .execute()
+
+        is_active = False
+        completed_at = None
+        if user_badge.data:
+            is_active = user_badge.data[0].get('is_active', False)
+            completed_at = user_badge.data[0].get('completed_at')
+
         # Calculate progress percentages
         quest_progress = (completed_count / max(min_quests, 1)) if min_quests > 0 else 1.0
         xp_progress = (xp_earned / max(min_xp, 1)) if min_xp > 0 else 1.0
@@ -249,6 +262,8 @@ class BadgeService:
 
         return {
             'badge_id': badge_id,
+            'is_active': is_active,
+            'completed_at': completed_at,
             'percentage': round(overall_progress * 100, 1),
             'quests_completed': completed_count,
             'quests_required': min_quests,

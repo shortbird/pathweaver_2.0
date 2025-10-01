@@ -222,12 +222,19 @@ export default function BadgeDetail() {
           </div>
         )}
 
-        {/* Required Quests */}
+        {/* Related Quests */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h2 className="text-2xl font-bold mb-6">Required Quests</h2>
-          {badge.required_quests && badge.required_quests.length > 0 ? (
+          <div className="flex items-baseline justify-between mb-6">
+            <h2 className="text-2xl font-bold">Related Quests</h2>
+            <p className="text-gray-600">
+              Complete any {badge.min_quests} of these quests to earn this badge
+            </p>
+          </div>
+          {(badge.required_quests && badge.required_quests.length > 0) ||
+           (badge.optional_quests && badge.optional_quests.length > 0) ? (
             <div className="space-y-4">
-              {badge.required_quests.map((quest, index) => (
+              {/* Show all quests together, no distinction between required/optional */}
+              {[...(badge.required_quests || []), ...(badge.optional_quests || [])].map((quest, index) => (
                 <QuestListItem
                   key={quest.id}
                   quest={quest}
@@ -238,40 +245,21 @@ export default function BadgeDetail() {
               ))}
             </div>
           ) : (
-            <p className="text-gray-500">No required quests yet.</p>
+            <p className="text-gray-500">No quests linked to this badge yet.</p>
           )}
         </div>
-
-        {/* Optional Quests */}
-        {badge.optional_quests && badge.optional_quests.length > 0 && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h2 className="text-2xl font-bold mb-6">Optional Quests</h2>
-            <div className="space-y-4">
-              {badge.optional_quests.map((quest, index) => (
-                <QuestListItem
-                  key={quest.id}
-                  quest={quest}
-                  index={index}
-                  isCompleted={quest.is_completed}
-                  isOptional={true}
-                  onClick={() => handleQuestClick(quest.id)}
-                />
-              ))}
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
-function QuestListItem({ quest, index, isCompleted, isOptional, onClick }) {
+function QuestListItem({ quest, index, isCompleted, onClick }) {
   return (
     <div
       onClick={onClick}
       className="flex items-center p-4 border border-gray-200 rounded-lg hover:border-purple-300 hover:shadow-md transition-all cursor-pointer"
     >
-      {/* Order Number / Status Icon */}
+      {/* Status Icon */}
       <div className="flex-shrink-0 mr-4">
         {isCompleted ? (
           <CheckCircle className="w-8 h-8 text-green-500" />
@@ -284,11 +272,6 @@ function QuestListItem({ quest, index, isCompleted, isOptional, onClick }) {
       <div className="flex-1">
         <div className="flex items-center gap-2 mb-1">
           <h3 className="font-semibold text-lg text-gray-900">{quest.title}</h3>
-          {isOptional && (
-            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">
-              Optional
-            </span>
-          )}
           {isCompleted && (
             <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
               Completed
