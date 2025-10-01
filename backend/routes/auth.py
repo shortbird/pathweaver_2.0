@@ -653,7 +653,7 @@ def get_csrf_token_endpoint():
             max_age=3600,  # 1 hour
             httponly=False,  # JavaScript needs to read this
             secure=os.getenv('FLASK_ENV') == 'production',
-            samesite='Strict' if os.getenv('FLASK_ENV') == 'production' else 'Lax',
+            samesite='Lax',  # Use Lax for incognito mode compatibility
             path='/'
         )
 

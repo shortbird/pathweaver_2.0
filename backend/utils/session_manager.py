@@ -25,7 +25,9 @@ class SessionManager:
 
         # Use secure cookies for both production and Render dev environment
         self.cookie_secure = is_production or is_on_render
-        self.cookie_samesite = 'None' if (is_production or is_on_render) else 'Lax'
+        # Use Lax instead of None to support incognito mode (blocks third-party cookies)
+        # Lax allows cookies on same-site requests and top-level navigation
+        self.cookie_samesite = 'Lax'
         
     def generate_access_token(self, user_id: str) -> str:
         """Generate a JWT access token"""
