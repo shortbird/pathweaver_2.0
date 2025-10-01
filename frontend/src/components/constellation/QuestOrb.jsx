@@ -130,7 +130,7 @@ const QuestOrb = ({
         top: `${position.y}px`,
         transform: 'translate(-50%, -50%)',
         cursor: 'pointer',
-        zIndex: isHovered ? 45 : 5,
+        zIndex: isHovered ? 60 : 20, // Above pillar orbs (10/50)
       }}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
