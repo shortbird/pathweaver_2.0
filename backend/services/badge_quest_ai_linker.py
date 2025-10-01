@@ -93,14 +93,16 @@ class BadgeQuestAILinker:
     def analyze_all_quests_for_badge(
         self,
         badge_id: str,
-        min_confidence: int = 70
+        min_confidence: int = 70,
+        max_to_analyze: int = 50
     ) -> Dict[str, Any]:
         """
-        Analyze all active quests to find suitable matches for a badge.
+        Analyze active quests to find suitable matches for a badge.
 
         Args:
             badge_id: Badge UUID to analyze quests for
             min_confidence: Minimum confidence score to recommend (0-100)
+            max_to_analyze: Maximum number of quests to analyze (default 50, prevents runaway API costs)
 
         Returns:
             Dict with recommendations, statistics, and analysis results
@@ -114,8 +116,8 @@ class BadgeQuestAILinker:
 
         badge = badge_result.data
 
-        # Get all active quests
-        quests_result = supabase.table('quests').select('*').eq('is_active', True).execute()
+        # Get all active quests - LIMIT to prevent excessive API calls
+        quests_result = supabase.table('quests').select('*').eq('is_active', True).limit(max_to_analyze * 2).execute()
         quests = quests_result.data or []
 
         # Get already linked quests
@@ -126,34 +128,48 @@ class BadgeQuestAILinker:
 
         existing_quest_ids = {link['quest_id'] for link in (existing_links.data or [])}
 
-        # Analyze each unlinked quest
+        # Filter unlinked quests
+        unlinked_quests = [q for q in quests if q['id'] not in existing_quest_ids]
+
+        # Limit how many we'll actually analyze
+        quests_to_analyze = unlinked_quests[:max_to_analyze]
+
+        # OPTIMIZATION: Fetch all quest tasks in one query
+        quest_ids = [q['id'] for q in quests_to_analyze]
+        all_tasks_result = supabase.table('quest_tasks')\
+            .select('*')\
+            .in_('quest_id', quest_ids)\
+            .order('quest_id, order_index')\
+            .execute()
+
+        # Group tasks by quest_id
+        tasks_by_quest = {}
+        for task in (all_tasks_result.data or []):
+            quest_id = task['quest_id']
+            if quest_id not in tasks_by_quest:
+                tasks_by_quest[quest_id] = []
+            tasks_by_quest[quest_id].append(task)
+
+        # Analyze each quest
         recommendations = []
         total_analyzed = 0
+        print(f"Analyzing up to {len(quests_to_analyze)} quests for badge {badge['name']}...")
 
-        for quest in quests:
-            # Skip already linked quests
-            if quest['id'] in existing_quest_ids:
-                continue
-
-            # Get quest tasks
-            tasks_result = supabase.table('quest_tasks')\
-                .select('*')\
-                .eq('quest_id', quest['id'])\
-                .order('order_index')\
-                .execute()
-
-            quest_tasks = tasks_result.data or []
+        for quest in quests_to_analyze:
+            quest_tasks = tasks_by_quest.get(quest['id'], [])
 
             if not quest_tasks:
                 continue  # Skip quests without tasks
 
-            # Analyze this quest
+            # Analyze this quest with AI
+            print(f"  Analyzing quest: {quest['title'][:50]}...")
             analysis = self.analyze_quest_for_badge(quest, badge, quest_tasks)
             total_analyzed += 1
 
             # Add to recommendations if meets confidence threshold
             if analysis['confidence'] >= min_confidence and not analysis.get('error'):
                 recommendations.append(analysis)
+                print(f"    ✓ Confidence: {analysis['confidence']}% - {analysis['recommendation']}")
 
         # Sort by confidence score (descending)
         recommendations.sort(key=lambda x: x['confidence'], reverse=True)
@@ -177,44 +193,151 @@ class BadgeQuestAILinker:
     def analyze_all_badges_bulk(
         self,
         min_confidence: int = 70,
-        max_per_badge: Optional[int] = None
+        max_per_badge: int = 15,
+        quests_to_sample: int = 30
     ) -> Dict[str, Any]:
         """
-        Analyze all active badges and generate quest recommendations for each.
+        Analyze all active badges efficiently using pillar-based pre-filtering.
 
         Args:
             min_confidence: Minimum confidence score to recommend (0-100)
-            max_per_badge: Maximum recommendations per badge (None = unlimited)
+            max_per_badge: Maximum recommendations per badge (default 15)
+            quests_to_sample: Number of quests to sample PER PILLAR for analysis (default 30)
 
         Returns:
             Dict with all badge analyses and aggregate statistics
         """
         supabase = get_supabase_admin_client()
 
+        print("Starting efficient bulk badge analysis...")
+
         # Get all active badges
         badges_result = supabase.table('badges').select('*').eq('status', 'active').execute()
         badges = badges_result.data or []
+        print(f"Found {len(badges)} active badges")
+
+        # OPTIMIZATION: Get all quests and tasks upfront in ONE query each
+        all_quests_result = supabase.table('quests').select('*').eq('is_active', True).execute()
+        all_quests = all_quests_result.data or []
+        print(f"Found {len(all_quests)} active quests")
+
+        quest_ids = [q['id'] for q in all_quests]
+        all_tasks_result = supabase.table('quest_tasks')\
+            .select('*')\
+            .in_('quest_id', quest_ids)\
+            .execute()
+
+        # Group tasks by quest_id
+        tasks_by_quest = {}
+        for task in (all_tasks_result.data or []):
+            quest_id = task['quest_id']
+            if quest_id not in tasks_by_quest:
+                tasks_by_quest[quest_id] = []
+            tasks_by_quest[quest_id].append(task)
+        print(f"Loaded tasks for {len(tasks_by_quest)} quests")
+
+        # Get ALL existing badge-quest links in one query
+        all_links_result = supabase.table('badge_quests').select('badge_id, quest_id').execute()
+        links_by_badge = {}
+        for link in (all_links_result.data or []):
+            badge_id = link['badge_id']
+            if badge_id not in links_by_badge:
+                links_by_badge[badge_id] = set()
+            links_by_badge[badge_id].add(link['quest_id'])
+        print(f"Loaded existing links for {len(links_by_badge)} badges")
+
+        # Group quests by their PRIMARY pillar for smart filtering
+        quests_by_pillar = {}
+        for quest in all_quests:
+            quest_id = quest['id']
+            tasks = tasks_by_quest.get(quest_id, [])
+            if not tasks:
+                continue
+
+            # Calculate primary pillar by XP
+            pillar_xp = {}
+            for task in tasks:
+                pillar = task.get('pillar', 'Unknown')
+                xp = task.get('xp_value', 0)
+                pillar_xp[pillar] = pillar_xp.get(pillar, 0) + xp
+
+            if pillar_xp:
+                primary_pillar = max(pillar_xp.items(), key=lambda x: x[1])[0]
+                if primary_pillar not in quests_by_pillar:
+                    quests_by_pillar[primary_pillar] = []
+                quests_by_pillar[primary_pillar].append(quest)
+
+        print(f"Grouped quests by pillar: {[(p, len(q)) for p, q in quests_by_pillar.items()]}")
 
         results = {
             'total_badges': len(badges),
             'badges_analyzed': 0,
             'total_recommendations': 0,
+            'total_ai_calls': 0,
             'badge_results': []
         }
 
         for badge in badges:
             try:
-                analysis = self.analyze_all_quests_for_badge(badge['id'], min_confidence)
+                print(f"\nAnalyzing badge: {badge['name']} ({badge['pillar_primary']})")
 
-                # Limit recommendations if specified
-                if max_per_badge and len(analysis['recommendations']) > max_per_badge:
-                    analysis['recommendations'] = analysis['recommendations'][:max_per_badge]
-                    analysis['recommendations_count'] = max_per_badge
-                    analysis['truncated'] = True
+                # Smart filtering: Only analyze quests from matching pillar + cross-pillar quests
+                existing_links = links_by_badge.get(badge['id'], set())
 
-                results['badge_results'].append(analysis)
+                # Get quests from badge's primary pillar
+                candidate_quests = quests_by_pillar.get(badge['pillar_primary'], [])[:quests_to_sample]
+
+                # Add some cross-pillar quests for diversity (10 from other pillars)
+                for pillar, quests in quests_by_pillar.items():
+                    if pillar != badge['pillar_primary']:
+                        candidate_quests.extend(quests[:5])
+
+                # Filter out already linked quests
+                unlinked_candidates = [q for q in candidate_quests if q['id'] not in existing_links]
+
+                # Limit total to analyze
+                quests_to_analyze = unlinked_candidates[:max_per_badge * 2]
+
+                print(f"  Pre-filtered to {len(quests_to_analyze)} candidate quests (from {len(all_quests)} total)")
+
+                # Analyze each candidate quest
+                recommendations = []
+                for quest in quests_to_analyze:
+                    quest_tasks = tasks_by_quest.get(quest['id'], [])
+                    if not quest_tasks:
+                        continue
+
+                    analysis = self.analyze_quest_for_badge(quest, badge, quest_tasks)
+                    results['total_ai_calls'] += 1
+
+                    if analysis['confidence'] >= min_confidence and not analysis.get('error'):
+                        recommendations.append(analysis)
+
+                # Sort and limit
+                recommendations.sort(key=lambda x: x['confidence'], reverse=True)
+                recommendations = recommendations[:max_per_badge]
+
+                badge_analysis = {
+                    'badge_id': badge['id'],
+                    'badge_name': badge['name'],
+                    'total_quests_analyzed': len(quests_to_analyze),
+                    'total_already_linked': len(existing_links),
+                    'recommendations_count': len(recommendations),
+                    'min_confidence_threshold': min_confidence,
+                    'recommendations': recommendations,
+                    'statistics': {
+                        'high_confidence': len([r for r in recommendations if r['confidence'] >= 85]),
+                        'medium_confidence': len([r for r in recommendations if 70 <= r['confidence'] < 85]),
+                        'low_confidence': len([r for r in recommendations if r['confidence'] < 70]),
+                        'avg_confidence': sum(r['confidence'] for r in recommendations) / len(recommendations) if recommendations else 0
+                    }
+                }
+
+                results['badge_results'].append(badge_analysis)
                 results['badges_analyzed'] += 1
-                results['total_recommendations'] += len(analysis['recommendations'])
+                results['total_recommendations'] += len(recommendations)
+
+                print(f"  ✓ Found {len(recommendations)} recommendations (AI calls: {len(quests_to_analyze)})")
 
             except Exception as e:
                 print(f"Error analyzing badge {badge['id']}: {str(e)}")
