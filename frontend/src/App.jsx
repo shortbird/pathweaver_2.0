@@ -36,6 +36,8 @@ import SubscriptionPage from './pages/SubscriptionPage'
 import SubscriptionSuccess from './pages/SubscriptionSuccess'
 import SubscriptionCancel from './pages/SubscriptionCancel'
 import AdminPage from './pages/AdminPage'
+import AdvisorDashboard from './pages/AdvisorDashboard'
+import AdvisorBadgeForm from './pages/AdvisorBadgeForm'
 import PrivateRoute from './components/PrivateRoute'
 
 // Configure React Query with proper defaults for data freshness
@@ -118,7 +120,13 @@ function App() {
               <Route element={<PrivateRoute requiredRole="admin" />}>
                 <Route path="admin/*" element={<AdminPage />} />
               </Route>
-              
+
+              <Route element={<PrivateRoute requiredRole="advisor" />}>
+                <Route path="advisor" element={<AdvisorDashboard />} />
+                <Route path="advisor/badges/create" element={<AdvisorBadgeForm />} />
+                <Route path="advisor/badges/:badgeId/edit" element={<AdvisorBadgeForm />} />
+              </Route>
+
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           </Routes>

@@ -58,11 +58,11 @@
 - ⬜ Badge recommendation system
 
 ### Phase 6: AI Integration & Intelligence
-- ⬜ Badge generation prompts
-- ⬜ Quest personalization prompts
-- ⬜ Quality validation system
-- ⬜ AI content performance monitoring
-- ⬜ Automated content improvement pipeline
+- ⬜ **Integrate** badge generation prompts into the existing `ai_badge_generation_service`.
+- ⬜ **Integrate** quest personalization prompts into the existing `student_quest_assistant_service`.
+- ⬜ **Enhance** the existing `QuestValidator` class to create a comprehensive quality validation system for AI-linked quests.
+- ⬜ **Develop** an AI content performance monitoring system, storing results in the `ai_content_metrics` table.
+- ⬜ **Design** an automated content improvement pipeline leveraging existing AI services.
 
 ### Phase 7: Testing & Deployment
 - ⬜ Backend service unit tests
@@ -117,7 +117,7 @@
    - Confidence scoring: High (85%+), Medium (70-85%), Low (<70%)
    - Batch operations: Link 10-15 quests per badge in ~30 seconds
    - AI reasoning: Pillar alignment, skill match, XP appropriateness
-4. Badge recommendations on dashboard
+4. Badge recommendations on dashboard (Note: Integrated into existing `recommendation_service.py`)
 5. Immersive constellation visualization at /constellation
    - Pure light orbs with lens flare effects (no emoji/SVG stars)
    - Quest orbs with gravitational positioning based on XP distribution
@@ -143,6 +143,16 @@
   - Phase 7: Testing and production deployment
 
 ## System Design Notes
+
+**Core Data Structures:**
+- The Badge system is an abstraction layer built upon the existing Quest architecture.
+- The fundamental structure of a `Quest` (defined in `quests`) composed of multiple `Tasks` (defined in `quest_tasks`) is preserved.
+- Badge completion logic (e.g., "complete any 5 of 10 quests") is handled in the `badge_service` and does not alter the individual quest completion workflow.
+
+**Frontend Navigation Strategy:**
+- The `ProfilePage` acts as the central navigation hub.
+- `BadgeExplorer.jsx` (`/badges`) is the primary entry point for discovering long-term learning goals and structured paths (Badges).
+- `QuestHub.jsx` (`/quests`) coexists and serves as a library for finding individual, standalone activities that may not be part of a badge.
 
 **AI Badge-Quest Linking:**
 - **Analysis Criteria**:

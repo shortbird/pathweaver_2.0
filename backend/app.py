@@ -132,6 +132,14 @@ try:
 except Exception as e:
     print(f"Warning: Account Deletion routes not available: {e}")
 
+# Register Advisor blueprint
+try:
+    from routes import advisor
+    app.register_blueprint(advisor.advisor_bp, url_prefix='/api/advisor')  # /api/advisor/*
+    print("Advisor routes registered successfully")
+except Exception as e:
+    print(f"Warning: Advisor routes not available: {e}")
+
 
 @app.route('/', methods=['GET', 'HEAD'])
 def root():
