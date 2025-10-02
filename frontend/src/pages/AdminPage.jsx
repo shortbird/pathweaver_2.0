@@ -10,6 +10,7 @@ import BadgeQuestLinker from '../components/admin/BadgeQuestLinker'
 import AIContentPipeline from './admin/AIContentPipeline'
 import AIQuestReview from '../components/admin/AIQuestReview'
 import AIPerformanceAnalytics from '../components/admin/AIPerformanceAnalytics'
+import AIPromptOptimizer from '../components/admin/AIPromptOptimizer'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -80,6 +81,12 @@ const AdminPage = () => {
         >
           AI Performance
         </Link>
+        <Link
+          to="/admin/ai-optimizer"
+          className={`pb-2 px-1 ${currentPath === 'ai-optimizer' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+        >
+          AI Optimizer
+        </Link>
       </div>
 
       <Routes>
@@ -93,6 +100,7 @@ const AdminPage = () => {
         <Route path="ai-pipeline" element={<AIContentPipeline />} />
         <Route path="ai-quest-review" element={<AIQuestReview />} />
         <Route path="ai-performance" element={<AIPerformanceAnalytics />} />
+        <Route path="ai-optimizer" element={<AIPromptOptimizer />} />
       </Routes>
     </div>
   )

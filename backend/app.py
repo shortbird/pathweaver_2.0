@@ -156,6 +156,14 @@ try:
 except Exception as e:
     print(f"Warning: AI Performance Analytics routes not available: {e}")
 
+# Register AI Prompt Optimizer blueprint (admin)
+try:
+    from routes.admin import ai_prompt_optimizer
+    app.register_blueprint(ai_prompt_optimizer.ai_prompt_optimizer_bp, url_prefix='/api/v3/admin/ai-optimizer')
+    print("AI Prompt Optimizer routes registered successfully")
+except Exception as e:
+    print(f"Warning: AI Prompt Optimizer routes not available: {e}")
+
 
 @app.route('/', methods=['GET', 'HEAD'])
 def root():
