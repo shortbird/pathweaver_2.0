@@ -57,7 +57,7 @@
 - ✅ Custom badge creation for advisors
 - ✅ Student monitoring system for advisors
 
-### Phase 6: AI Integration & Intelligence 🟦 60% COMPLETE
+### Phase 6: AI Integration & Intelligence 🟦 80% COMPLETE
 **Week 1: AI Quest Review System ✅ COMPLETE**
 - ✅ Database migration: ai_quest_review_queue, ai_generation_metrics, ai_prompt_versions tables
 - ✅ AIQuestReviewService: Complete review workflow (approve, reject, edit, batch operations)
@@ -82,11 +82,11 @@
 - ✅ Prompt version support in QuestAIService
 - ✅ Admin page integration: New "AI Performance" tab at /admin/ai-performance
 
-**Week 3: Continuous Improvement Loop (Pending)**
-- ⬜ AI prompt optimizer service
-- ⬜ Feedback-driven prompt improvements
-- ⬜ Quality trend analysis
-- ⬜ Automated recommendations based on performance data
+**Week 3: Continuous Improvement Loop ✅ COMPLETE**
+- ✅ AI prompt optimizer service with weighted performance scoring
+- ✅ Feedback-driven prompt improvements with rejection pattern analysis
+- ✅ Quality trend analysis with automated alerting
+- ✅ Automated recommendations engine based on performance data
 
 **Week 4: Student-Facing AI Assistance (Pending)**
 - ⬜ Enhanced quest idea submission with AI suggestions
@@ -115,8 +115,8 @@
 
 ## Current Status
 
-**Session Date:** 2025-10-02 (AI Performance Analytics & A/B Testing - Week 2)
-**Overall Progress:** 73/87 tasks (84%)
+**Session Date:** 2025-10-02 (AI Continuous Improvement Loop - Week 3)
+**Overall Progress:** 77/87 tasks (89%)
 
 **Phase Completion:**
 - Phase 1: ✅ 100%
@@ -124,30 +124,38 @@
 - Phase 3: ✅ 95% (awaiting cron job setup)
 - Phase 4: ✅ 100%
 - Phase 5: ✅ 100%
-- Phase 6: 🟦 60% ← **NEW: AI Performance Analytics & A/B Testing (Week 2 complete)**
+- Phase 6: 🟦 80% ← **NEW: AI Continuous Improvement Loop (Week 3 complete)**
 - Phase 7: ⬜ 0%
 - Phase 8: ✅ 100%
 
-**Latest Work (AI Performance Analytics & A/B Testing - Week 2):**
+**Latest Work (AI Continuous Improvement Loop - Week 3):**
 - **Backend Infrastructure**:
-  - AIPerformanceAnalyticsService: Complete analytics with 5 core methods
-  - Database migration: get_human_quest_performance() function for AI vs human comparison
-  - API routes: 5 endpoints at /api/v3/admin/ai-analytics/* (quest-performance, ai-vs-human, prompt-performance, quality-trends, refresh-metrics)
-  - QuestAIService: Prompt version support with auto-detection from database
-  - Metrics update job: Scheduled task for refreshing performance data
+  - AIPromptOptimizerService: Complete optimization service with 9 core methods
+  - Weighted performance scoring (0-100) across 5 dimensions (quality, approval, completion, rating, engagement)
+  - Improvement insights with trend detection (improving/declining/stable)
+  - Recommendation generation based on rejection pattern analysis
+  - Automated prompt version creation for A/B testing
+  - API routes: 4 endpoints at /api/v3/admin/ai-optimizer/* (analyze, insights, suggestions, create-optimized)
+  - Database migration: ai_improvement_logs table for historical tracking
+  - Automated job: Daily recommendations report with alerting system
 - **Frontend UI**:
-  - AIPerformanceAnalytics.jsx: 4-tab dashboard (Quest Performance, AI vs Human, Prompt Performance, Quality Trends)
-  - AIPromptVersionManager.jsx: View/manage prompt versions for A/B testing
-  - Quest performance table with sorting, filtering by quality score and source
-  - AI vs Human comparison with side-by-side metrics and difference visualization
-  - Quality trends with daily/weekly granularity options
+  - AIPromptOptimizer.jsx: 3-tab dashboard (Overview, Prompt Analysis, Detailed Suggestions)
+  - Performance overview with summary cards and trend visualization
+  - Best/worst prompt comparison with key metrics
+  - Recommendations grouped by category with severity levels
+  - Detailed prompt analysis with performance scores
+  - Specific modification suggestions with examples
+  - One-click optimized version creation
+  - Admin page integration: New "AI Optimizer" tab at /admin/ai-optimizer
 - **Key Features**:
-  - Track completion rates, ratings, engagement scores for AI quests
-  - Compare AI-generated vs human-created quest performance
-  - A/B test different prompt versions with performance metrics
-  - Quality trends over time for continuous improvement monitoring
-  - Manual metrics refresh button for on-demand updates
-  - Prompt version tracking throughout generation pipeline
+  - Weighted performance scoring across multiple dimensions
+  - Quality trend analysis with directional indicators
+  - Common issue detection in rejected quests (clarity, engagement, age-appropriateness, philosophy)
+  - Category-based recommendations with severity (high/medium/low)
+  - Automated alerts for critical issues (declining trends, low performance)
+  - Historical tracking of improvement efforts
+  - Prompt modification suggestions with specific examples
+  - Continuous feedback loop for AI quality improvement
 
 **Deployment Status:**
 - ✅ All changes deployed to develop branch: https://optio-dev-frontend.onrender.com
@@ -198,20 +206,26 @@
 13. Incognito mode support with localStorage token fallback
 
 **Recent Fixes & Improvements:**
-- **NEW**: AI Performance Analytics - complete dashboard for tracking AI quest performance
-- **NEW**: AI vs Human comparison metrics with statistical visualization
-- **NEW**: A/B testing framework for prompt versions
-- **NEW**: Quality trends tracking with daily/weekly views
-- **NEW**: Prompt version support throughout AI generation pipeline
+- **NEW**: AI Continuous Improvement Loop - automated optimization and recommendations
+- **NEW**: Weighted performance scoring across 5 quality dimensions
+- **NEW**: Feedback-driven prompt improvement suggestions
+- **NEW**: Automated trend analysis with alerting system
+- **NEW**: Historical tracking of improvement efforts
+- AI Performance Analytics - complete dashboard for tracking AI quest performance
+- AI vs Human comparison metrics with statistical visualization
+- A/B testing framework for prompt versions
+- Quality trends tracking with daily/weekly views
+- Prompt version support throughout AI generation pipeline
 - AI Quest Review System - complete admin workflow for reviewing AI-generated content
 - Quality validation with AI feedback (strengths, weaknesses, improvements)
 - Quest editing capability before approval
 
 **Next Actions:**
-- **Week 3-5**: Continue Phase 6 implementation (continuous improvement, student features, batch generation)
+- **Week 4-5**: Continue Phase 6 implementation (student features, batch generation)
 - **Phase 7**: Testing and production deployment
-- Apply database migration 010 in Supabase SQL editor
-- Test AI Performance Analytics dashboard end-to-end
+- Apply database migrations 010 and 011 in Supabase SQL editor
+- Test AI Optimizer dashboard end-to-end
+- Set up cron job for daily improvement recommendations
 
 ---
 
@@ -545,6 +559,153 @@ POST /api/v3/admin/ai-analytics/refresh-metrics        # Manual metrics refresh
 - Create initial prompt versions in ai_prompt_versions table
 - Set up cron job for metrics updates
 - Test analytics dashboard with real data
+
+---
+
+## AI Continuous Improvement Loop - Technical Summary
+
+### Architecture Overview
+
+**Backend Components:**
+```
+backend/
+├── migrations/011_ai_improvement_logs.sql       # Historical tracking table + helper functions
+├── services/ai_prompt_optimizer_service.py      # Optimization engine (650 lines)
+├── routes/admin/ai_prompt_optimizer.py          # 4 API endpoints (150 lines)
+└── jobs/ai_improvement_recommendations.py        # Daily cron job (250 lines)
+```
+
+**Frontend Components:**
+```
+frontend/src/components/admin/
+└── AIPromptOptimizer.jsx                        # 3-tab dashboard (650 lines)
+```
+
+### Database Schema
+
+**ai_improvement_logs** (Historical Tracking)
+- Stores daily analysis snapshots with full insights as JSONB
+- Tracks summary statistics (total prompts, prompts needing optimization, avg performance)
+- Records trend information (direction, quality change)
+- Captures best/worst prompt performance for comparison
+- Recommendation counts by category
+- Helper functions: get_latest_improvement_insights(), get_performance_trend()
+
+### API Endpoints
+
+```
+GET  /api/v3/admin/ai-optimizer/analyze              # Analyze all prompt versions
+GET  /api/v3/admin/ai-optimizer/insights             # Get improvement insights
+GET  /api/v3/admin/ai-optimizer/suggestions/:version # Get specific suggestions
+POST /api/v3/admin/ai-optimizer/create-optimized    # Create new optimized version
+```
+
+### Core Algorithms
+
+**Weighted Performance Scoring (0-100):**
+- Quality Score: 30% (AI quality assessment 0-10 → 0-100)
+- Approval Rate: 25% (human approval rate, already 0-100)
+- Completion Rate: 20% (student completion 0-1 → 0-100)
+- Rating: 15% (student ratings 0-5 → 0-100)
+- Engagement: 10% (student engagement 0-1 → 0-100)
+
+**Trend Detection:**
+- Splits metrics into first half vs second half of time period
+- Compares average quality scores between periods
+- Classifies as improving (+0.5), declining (-0.5), or stable
+- Tracks approval rate changes in parallel
+
+**Rejection Pattern Analysis:**
+- Analyzes AI feedback and review notes from rejected quests
+- Detects common issues: clarity, engagement, age-appropriateness, philosophy alignment
+- Calculates percentage of rejections for each issue type
+- Generates category-specific recommendations
+
+### Features Delivered
+
+**Prompt Performance Analysis**
+- Analyze all prompt versions over configurable time period (7/30/90 days)
+- Performance score (0-100) with color-coded indicators
+- Needs optimization flag for scores <70
+- Detailed metrics: generations, quality, approval, completion, rating, engagement
+
+**Improvement Insights Dashboard**
+- Summary statistics (total prompts, active prompts, needing optimization, avg performance)
+- Quality trend visualization with directional indicators
+- Best/worst prompt comparison cards
+- Recommendations grouped by category (quality, approval, completion, rating, engagement, performance)
+- Severity levels (high/medium/low) for prioritization
+
+**Specific Modification Suggestions**
+- Per-prompt analysis with current performance metrics
+- Common issue detection from rejected quests
+- Specific suggestions with examples for each issue type
+- Priority levels (high/medium) based on performance
+- One-click creation of optimized prompt versions
+
+**Automated Recommendations Job**
+- Daily cron job for continuous monitoring
+- Saves insights to database for historical tracking
+- Generates alerts for critical issues:
+  - Declining quality trends
+  - Multiple prompts needing optimization
+  - Low average performance (<60%)
+  - Critical individual prompt performance (<50%)
+- Logs to file if database table not available
+
+### Recommendation Categories
+
+**Quality Issues** (avg_quality_score < 7)
+- Severity: High
+- Suggestion: Review prompt structure for clarity, engagement, pedagogical alignment
+
+**Approval Issues** (avg_approval_rate < 70%)
+- Severity: High
+- Suggestion: Analyze rejected quests for common patterns and adjust prompt
+
+**Completion Issues** (avg_completion_rate < 0.5)
+- Severity: Medium
+- Suggestion: Reduce quest complexity or improve task clarity
+
+**Rating Issues** (avg_rating < 3.5)
+- Severity: Medium
+- Suggestion: Review student feedback for common complaints and adjust prompt
+
+**Engagement Issues** (avg_engagement < 0.6)
+- Severity: Low
+- Suggestion: Add more interactive or creative elements to generated quests
+
+**Performance Issues** (avg_generation_time > 10s)
+- Severity: Low
+- Suggestion: Simplify prompt to reduce API processing time
+
+### Success Metrics (Week 3)
+
+**Code Statistics:**
+- Backend: 4 files, 1,050 lines added
+- Frontend: 1 file, 650 lines added
+- Total: 1,700 lines of production code
+
+**Features Delivered:**
+- ✅ Complete optimization service with 9 methods
+- ✅ Weighted performance scoring algorithm
+- ✅ Trend detection with directional analysis
+- ✅ Rejection pattern analysis
+- ✅ Category-based recommendations
+- ✅ Automated alerting system
+- ✅ Historical tracking infrastructure
+- ✅ One-click prompt version creation
+
+**Database:**
+- ✅ 1 new table (ai_improvement_logs)
+- ✅ 2 helper functions (get_latest_improvement_insights, get_performance_trend)
+- ✅ RLS policies for admin-only access
+
+**Next Steps:**
+- Apply migration 011 in Supabase SQL editor
+- Set up daily cron job: `0 2 * * * cd /app && python backend/jobs/ai_improvement_recommendations.py`
+- Test optimizer dashboard with real data
+- Create first optimized prompt versions based on recommendations
 
 ---
 
