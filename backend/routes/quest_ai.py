@@ -26,16 +26,20 @@ def get_quest_ai_service():
 def generate_quest_from_topic(user_id: str):
     """
     Generate a complete quest structure from a topic using AI.
+    Submits to review queue instead of creating directly.
     Admin only endpoint for quest creation assistance.
     """
     try:
+        import time
+        from services.ai_quest_review_service import AIQuestReviewService
+
         data = request.get_json()
         if not data:
             return jsonify({
                 'success': False,
                 'error': 'Request body is required'
             }), 400
-        
+
         # Validate required fields
         topic = sanitize_search_input(data.get('topic', ''), max_length=200)
         if not topic:
@@ -43,33 +47,69 @@ def generate_quest_from_topic(user_id: str):
                 'success': False,
                 'error': 'Topic is required'
             }), 400
-        
+
         # Optional fields with validation
         learning_objectives = sanitize_search_input(data.get('learning_objectives', ''), max_length=500)
-        
+
         # Get AI service with lazy initialization
         ai_service = get_quest_ai_service()
-        
+
+        # Track generation time
+        start_time = time.time()
+
         # Generate quest
         result = ai_service.generate_quest_from_topic(
             topic=topic,
             learning_objectives=learning_objectives if learning_objectives else None
         )
-        
-        if result['success']:
-            return jsonify({
-                'success': True,
-                'quest': result['quest'],
-                'message': f'Generated quest for topic: {topic}'
-            }), 200
-        else:
+
+        generation_time_ms = int((time.time() - start_time) * 1000)
+
+        if not result['success']:
             return jsonify({
                 'success': False,
                 'error': result['error']
             }), 500
-            
+
+        quest_data = result['quest']
+
+        # Validate quest quality with AI
+        quality_result = ai_service.validate_quest_quality(quest_data)
+        ai_feedback = quality_result.get('feedback', {}) if quality_result['success'] else {}
+        quality_score = ai_feedback.get('quality_score', 5.0)
+
+        # Submit to review queue
+        review_result = AIQuestReviewService.submit_for_review(
+            quest_data=quest_data,
+            quality_score=quality_score,
+            ai_feedback=ai_feedback,
+            generation_source='manual',
+            generation_metrics={
+                'model_name': ai_service.model_name,
+                'time_to_generate_ms': generation_time_ms,
+                'prompt_version': 'v1.0'
+            }
+        )
+
+        if review_result['success']:
+            return jsonify({
+                'success': True,
+                'review_queue_id': review_result['review_queue_id'],
+                'quest': quest_data,
+                'quality_score': quality_score,
+                'ai_feedback': ai_feedback,
+                'message': f'Quest generated and submitted for review. Quality score: {quality_score}/10'
+            }), 200
+        else:
+            return jsonify({
+                'success': False,
+                'error': f'Quest generated but failed to submit for review: {review_result.get("error")}'
+            }), 500
+
     except Exception as e:
         print(f"Error generating quest: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': 'Failed to generate quest'

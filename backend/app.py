@@ -140,6 +140,14 @@ try:
 except Exception as e:
     print(f"Warning: Advisor routes not available: {e}")
 
+# Register AI Quest Review blueprint (admin)
+try:
+    from routes.admin import ai_quest_review
+    app.register_blueprint(ai_quest_review.bp)  # /api/v3/admin/ai-quest-review
+    print("AI Quest Review routes registered successfully")
+except Exception as e:
+    print(f"Warning: AI Quest Review routes not available: {e}")
+
 
 @app.route('/', methods=['GET', 'HEAD'])
 def root():
