@@ -8,6 +8,7 @@ import SiteSettings from '../components/admin/SiteSettings'
 import BadgeSeeder from './admin/BadgeSeeder'
 import BadgeQuestLinker from '../components/admin/BadgeQuestLinker'
 import AIContentPipeline from './admin/AIContentPipeline'
+import AIQuestReview from '../components/admin/AIQuestReview'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -66,6 +67,12 @@ const AdminPage = () => {
         >
           AI Pipeline
         </Link>
+        <Link
+          to="/admin/ai-quest-review"
+          className={`pb-2 px-1 ${currentPath === 'ai-quest-review' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+        >
+          AI Quest Review
+        </Link>
       </div>
 
       <Routes>
@@ -77,6 +84,7 @@ const AdminPage = () => {
         <Route path="badge-seeder" element={<BadgeSeeder />} />
         <Route path="badge-quests" element={<BadgeQuestLinker />} />
         <Route path="ai-pipeline" element={<AIContentPipeline />} />
+        <Route path="ai-quest-review" element={<AIQuestReview />} />
       </Routes>
     </div>
   )
