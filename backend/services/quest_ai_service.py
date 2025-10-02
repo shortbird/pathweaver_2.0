@@ -12,26 +12,29 @@ import google.generativeai as genai
 class QuestAIService:
     """Service for AI-powered quest generation using Gemini API"""
     
-    def __init__(self):
+    def __init__(self, prompt_version: Optional[str] = None):
         """Initialize the AI service with Gemini configuration"""
         self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
         self.model_name = os.getenv('GEMINI_MODEL', 'gemini-1.5-flash')
-        
+
         if not self.api_key:
             raise ValueError("GOOGLE_API_KEY not configured. Set GEMINI_API_KEY environment variable.")
-        
+
         genai.configure(api_key=self.api_key)
         self.model = genai.GenerativeModel(self.model_name)
-        
+
+        # Prompt version for A/B testing
+        self.prompt_version = prompt_version or self._get_active_prompt_version()
+
         # Valid pillars for validation
         self.valid_pillars = [
             'STEM & Logic',
-            'Life & Wellness', 
+            'Life & Wellness',
             'Language & Communication',
             'Society & Culture',
             'Arts & Creativity'
         ]
-        
+
         # School subjects (separate from pillars)
         from utils.school_subjects import SCHOOL_SUBJECTS, SCHOOL_SUBJECT_DISPLAY_NAMES
         self.school_subjects = SCHOOL_SUBJECTS
@@ -227,10 +230,37 @@ class QuestAIService:
                 }
             }
     
+    def _get_active_prompt_version(self) -> str:
+        """Get the currently active prompt version for quest generation"""
+        try:
+            from database import get_supabase_admin_client
+            supabase = get_supabase_admin_client()
+
+            # Get active quest_generation prompt
+            response = supabase.table('ai_prompt_versions').select('version_name').eq(
+                'prompt_type', 'quest_generation'
+            ).eq('is_active', True).limit(1).execute()
+
+            if response.data:
+                return response.data[0]['version_name']
+            else:
+                # Default version if none is active
+                return 'v1.0'
+        except:
+            return 'v1.0'
+
+    def get_prompt_version(self) -> str:
+        """Get the current prompt version being used"""
+        return self.prompt_version
+
     def _build_quest_generation_prompt(self, topic: str, learning_objectives: Optional[str]) -> str:
         """Build the main quest generation prompt"""
         objectives_text = f"\nLearning Objectives: {learning_objectives}" if learning_objectives else ""
-        
+
+        # You can customize prompts based on version here
+        # For now, all versions use the same prompt structure
+        # In future, you can load custom prompts from database based on self.prompt_version
+
         return f"""
         Create an educational quest on the topic: {topic}{objectives_text}
 

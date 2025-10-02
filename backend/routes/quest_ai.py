@@ -87,7 +87,7 @@ def generate_quest_from_topic(user_id: str):
             generation_metrics={
                 'model_name': ai_service.model_name,
                 'time_to_generate_ms': generation_time_ms,
-                'prompt_version': 'v1.0'
+                'prompt_version': ai_service.get_prompt_version()
             }
         )
 
