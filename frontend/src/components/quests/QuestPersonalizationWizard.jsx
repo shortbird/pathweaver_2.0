@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Globe, BookOpen, Zap } from 'lucide-react';
 import api from '../../services/api';
 
 const APPROACH_OPTIONS = [
@@ -7,19 +8,19 @@ const APPROACH_OPTIONS = [
     id: 'real_world',
     title: 'Real-World Project',
     description: 'Apply this learning to something you care about (sports, hobbies, interests)',
-    icon: '🌍'
+    IconComponent: Globe
   },
   {
     id: 'traditional',
     title: 'Traditional Class',
     description: 'Study this like a school subject (textbook, lessons, practice)',
-    icon: '📚'
+    IconComponent: BookOpen
   },
   {
     id: 'hybrid',
     title: 'Hybrid Approach',
     description: 'Mix of real-world application and traditional study',
-    icon: '⚡'
+    IconComponent: Zap
   }
 ];
 
@@ -63,10 +64,16 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
     setError(null);
     try {
       const response = await api.post(`/api/quests/${questId}/start-personalization`, {});
-      setSessionId(response.data.session_id);
+      console.log('Session started:', response.data);
+      const newSessionId = response.data.session_id;
+      if (!newSessionId) {
+        throw new Error('No session ID returned from server');
+      }
+      setSessionId(newSessionId);
       setStep(2);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to start personalization');
+      console.error('Failed to start session:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to start personalization');
     } finally {
       setLoading(false);
     }
@@ -79,18 +86,27 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       return;
     }
 
+    if (!sessionId) {
+      setError('No session ID found. Please restart the wizard.');
+      console.error('Missing session_id:', sessionId);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
+      console.log('Generating tasks with:', { sessionId, selectedApproach, selectedInterests, crossCurricularSubjects });
       const response = await api.post(`/api/quests/${questId}/generate-tasks`, {
         session_id: sessionId,
         approach: selectedApproach,
         interests: selectedInterests,
         cross_curricular_subjects: crossCurricularSubjects
       });
+      console.log('Tasks generated:', response.data);
       setGeneratedTasks(response.data.tasks);
       setStep(4);
     } catch (err) {
+      console.error('Failed to generate tasks:', err);
       setError(err.response?.data?.error || 'Failed to generate tasks');
     } finally {
       setLoading(false);
@@ -181,21 +197,24 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
           <h2 className="text-2xl font-bold mb-4">How do you want to learn?</h2>
           <p className="text-gray-600 mb-6">Choose the approach that excites you most</p>
           <div className="grid md:grid-cols-3 gap-4 mb-6">
-            {APPROACH_OPTIONS.map(option => (
-              <button
-                key={option.id}
-                onClick={() => setSelectedApproach(option.id)}
-                className={`p-6 border-2 rounded-lg text-left transition-all ${
-                  selectedApproach === option.id
-                    ? 'border-[#ef597b] bg-pink-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="text-4xl mb-3">{option.icon}</div>
-                <h3 className="font-semibold text-lg mb-2">{option.title}</h3>
-                <p className="text-sm text-gray-600">{option.description}</p>
-              </button>
-            ))}
+            {APPROACH_OPTIONS.map(option => {
+              const IconComponent = option.IconComponent;
+              return (
+                <button
+                  key={option.id}
+                  onClick={() => setSelectedApproach(option.id)}
+                  className={`p-6 border-2 rounded-lg text-left transition-all ${
+                    selectedApproach === option.id
+                      ? 'border-[#ef597b] bg-pink-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <IconComponent className="w-12 h-12 mb-3 text-[#6d469b]" />
+                  <h3 className="font-semibold text-lg mb-2">{option.title}</h3>
+                  <p className="text-sm text-gray-600">{option.description}</p>
+                </button>
+              );
+            })}
           </div>
           <div className="flex justify-between">
             <button

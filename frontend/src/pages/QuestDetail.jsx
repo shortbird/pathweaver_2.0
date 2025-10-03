@@ -520,7 +520,7 @@ const QuestDetail = () => {
       )}
 
       {/* 4. Call-to-Action Buttons */}
-      {(isQuestCompleted || !quest.user_enrollment) && (
+      {(isQuestCompleted || !quest.user_enrollment || (quest.user_enrollment && totalTasks === 0)) && (
         <div className="bg-white rounded-xl shadow-md p-6 mb-8">
           <div className="flex gap-4">
             {isQuestCompleted ? (
@@ -530,6 +530,14 @@ const QuestDetail = () => {
               >
                 <Award className="w-5 h-5 inline mr-2" />
                 Complete! View on Diploma
+              </button>
+            ) : quest.user_enrollment && totalTasks === 0 ? (
+              <button
+                onClick={() => setShowPersonalizationWizard(true)}
+                className="flex-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg"
+              >
+                <Target className="w-5 h-5 inline mr-2" />
+                Personalize Quest
               </button>
             ) : !quest.user_enrollment ? (
               <>
