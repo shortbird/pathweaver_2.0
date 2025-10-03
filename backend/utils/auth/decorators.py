@@ -14,7 +14,7 @@ def require_auth(f):
     def decorated_function(*args, **kwargs):
         # Skip authentication for OPTIONS requests (CORS preflight)
         if request.method == 'OPTIONS':
-            return f(*args, **kwargs)
+            return ('', 200)
 
         # First try to get user ID from secure httpOnly cookies
         user_id = session_manager.get_current_user_id()
@@ -41,7 +41,7 @@ def require_admin(f):
     def decorated_function(*args, **kwargs):
         # Skip authentication for OPTIONS requests (CORS preflight)
         if request.method == 'OPTIONS':
-            return f(*args, **kwargs)
+            return ('', 200)
 
         # First try to get user ID from secure httpOnly cookies
         user_id = session_manager.get_current_user_id()
@@ -84,7 +84,7 @@ def require_role(*allowed_roles):
         def decorated_function(*args, **kwargs):
             # Skip authentication for OPTIONS requests (CORS preflight)
             if request.method == 'OPTIONS':
-                return f(*args, **kwargs)
+                return ('', 200)
 
             # First try to get user ID from secure httpOnly cookies
             user_id = session_manager.get_current_user_id()
@@ -127,7 +127,7 @@ def require_paid_tier(f):
     def decorated_function(*args, **kwargs):
         # Skip authentication for OPTIONS requests (CORS preflight)
         if request.method == 'OPTIONS':
-            return f(*args, **kwargs)
+            return ('', 200)
 
         # First try to get user ID from secure httpOnly cookies
         user_id = session_manager.get_current_user_id()
