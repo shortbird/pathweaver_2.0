@@ -172,6 +172,14 @@ try:
 except Exception as e:
     print(f"Warning: Student AI Assistance routes not available: {e}")
 
+# Register Batch Quest Generation blueprint (admin)
+try:
+    from routes.admin import batch_quest_generation
+    app.register_blueprint(batch_quest_generation.batch_generation_bp, url_prefix='/api/v3/admin/batch-generation')  # /api/v3/admin/batch-generation/*
+    print("Batch Quest Generation routes registered successfully")
+except Exception as e:
+    print(f"Warning: Batch Quest Generation routes not available: {e}")
+
 
 @app.route('/', methods=['GET', 'HEAD'])
 def root():
