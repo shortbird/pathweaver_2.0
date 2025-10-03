@@ -361,13 +361,20 @@ class PersonalizationService:
             # Create user-specific tasks
             user_tasks = []
             for index, task in enumerate(ai_tasks):
+                # Build description with bullet points
+                description = task.get('description', '')
+                if task.get('bullet_points'):
+                    bullet_text = '\n'.join([f'• {point}' for point in task['bullet_points']])
+                    description = f"{description}\n\n{bullet_text}" if description else bullet_text
+
                 user_task = {
                     'user_id': user_id,
                     'quest_id': quest_id,
                     'user_quest_id': user_quest_id,
                     'title': task['title'],
-                    'description': task.get('description', ''),
+                    'description': description,
                     'pillar': task['pillar'],
+                    'diploma_subjects': task.get('diploma_subjects', ['Electives']),
                     'xp_value': task.get('xp_value', 100),
                     'order_index': index,
                     'is_required': True,
@@ -463,22 +470,31 @@ Generate 6-10 tasks that:
    - Language & Communication
    - Society & Culture
    - Arts & Creativity
-5. Incorporate the student's interests ({interests_text}) authentically
-6. Integrate cross-curricular subjects ({subjects_text}) naturally where relevant
-7. Follow the selected approach: {approach_desc}
-8. Are personalized, engaging, and aligned with the quest's learning objectives
+5. Each task must be mapped to one or more diploma subjects (XP split equally if multiple):
+   - Language Arts, Mathematics, Science, Social Studies, Financial Literacy
+   - Health, Physical Education, Fine Arts, Career & Technical Education
+   - Digital Literacy, Electives
+6. Incorporate the student's interests ({interests_text}) authentically
+7. Integrate cross-curricular subjects ({subjects_text}) naturally where relevant
+8. Follow the selected approach: {approach_desc}
+
+IMPORTANT FORMAT REQUIREMENTS:
+- Title: Clear, concise (5-8 words max)
+- Description: 1-2 brief sentences ONLY
+- Bullet Points: Exactly 3 main actions/steps
+- Keep it simple and actionable, not wordy
 
 IMPORTANT: Students should CHOOSE these tasks, not just agree to AI suggestions. Make tasks feel like genuine options, not prescriptive requirements.
 
 Return as valid JSON array:
 [
   {{
-    "title": "Clear, engaging task name",
-    "description": "50-100 word framework that provides guidance without being overly prescriptive",
+    "title": "Clear, concise task name (5-8 words)",
+    "description": "1-2 brief sentences describing the task",
+    "bullet_points": ["Main action 1", "Main action 2", "Main action 3"],
     "pillar": "One of the five pillars listed above",
-    "xp_value": 100,
-    "evidence_prompt": "Suggest multiple ways students could demonstrate learning (written work, video, presentation, model, website, etc.)",
-    "cross_curricular_connections": ["subject1", "subject2"] (if applicable)
+    "diploma_subjects": ["Subject 1", "Subject 2"],
+    "xp_value": 100
   }}
 ]
 """
@@ -496,10 +512,10 @@ Return as valid JSON array:
             validated_task = {
                 'title': task.get('title', 'Learning Task'),
                 'description': task.get('description', ''),
+                'bullet_points': task.get('bullet_points', []),
                 'pillar': self.ai_service._validate_pillar(task.get('pillar', 'STEM & Logic')),
-                'xp_value': self.ai_service._validate_xp(task.get('xp_value', 100)),
-                'evidence_prompt': task.get('evidence_prompt', 'Provide evidence of your learning'),
-                'cross_curricular_connections': task.get('cross_curricular_connections', [])
+                'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                'xp_value': self.ai_service._validate_xp(task.get('xp_value', 100))
             }
             validated.append(validated_task)
 
