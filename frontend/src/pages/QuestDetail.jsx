@@ -30,6 +30,8 @@ const QuestDetail = () => {
     refetch: refetchQuest
   } = useQuestDetail(id, {
     enabled: !!id,
+    staleTime: 0,
+    cacheTime: 0,
   });
 
   const {
@@ -98,11 +100,22 @@ const QuestDetail = () => {
     }
 
     enrollMutation.mutate(id, {
-      onSuccess: async () => {
-        // Refetch quest data to update UI
+      onSuccess: async (data) => {
+        console.log('Enrollment successful:', data);
+
+        // Force invalidate and refetch quest data
+        queryClient.invalidateQueries(queryKeys.quests.detail(id));
         await refetchQuest();
+
+        console.log('Quest refetched, opening wizard');
+
         // Show personalization wizard after successful enrollment
-        setShowPersonalizationWizard(true);
+        setTimeout(() => {
+          setShowPersonalizationWizard(true);
+        }, 100);
+      },
+      onError: (error) => {
+        console.error('Enrollment failed:', error);
       }
     });
   };
