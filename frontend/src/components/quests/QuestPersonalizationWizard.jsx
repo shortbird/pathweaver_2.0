@@ -56,6 +56,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [crossCurricularSubjects, setCrossCurricularSubjects] = useState([]);
   const [generatedTasks, setGeneratedTasks] = useState([]);
+  const [selectedTasks, setSelectedTasks] = useState([]);
   const [sessionId, setSessionId] = useState(null);
 
   // Start personalization session
@@ -103,11 +104,45 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
         cross_curricular_subjects: crossCurricularSubjects
       });
       console.log('Tasks generated:', response.data);
-      setGeneratedTasks(response.data.tasks);
+      const tasks = response.data.tasks;
+      setGeneratedTasks(tasks);
+      // Select all tasks by default
+      setSelectedTasks(tasks.map((_, index) => index));
       setStep(4);
     } catch (err) {
       console.error('Failed to generate tasks:', err);
       setError(err.response?.data?.error || 'Failed to generate tasks');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Regenerate non-selected tasks
+  const regenerateNonSelected = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await api.post(`/api/quests/${questId}/generate-tasks`, {
+        session_id: sessionId,
+        approach: selectedApproach,
+        interests: selectedInterests,
+        cross_curricular_subjects: crossCurricularSubjects
+      });
+
+      // Replace non-selected tasks with new ones
+      const newTasks = [...generatedTasks];
+      let newTaskIndex = 0;
+      for (let i = 0; i < newTasks.length; i++) {
+        if (!selectedTasks.includes(i) && newTaskIndex < response.data.tasks.length) {
+          newTasks[i] = response.data.tasks[newTaskIndex];
+          newTaskIndex++;
+        }
+      }
+
+      setGeneratedTasks(newTasks);
+      setSelectedTasks(newTasks.map((_, index) => index)); // Select all after regeneration
+    } catch (err) {
+      setError(err.response?.data?.error || 'Failed to regenerate tasks');
     } finally {
       setLoading(false);
     }
@@ -118,9 +153,12 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
     setLoading(true);
     setError(null);
     try {
+      // Only send selected tasks
+      const tasksToFinalize = generatedTasks.filter((_, index) => selectedTasks.includes(index));
+
       await api.post(`/api/quests/${questId}/finalize-tasks`, {
         session_id: sessionId,
-        tasks: generatedTasks
+        tasks: tasksToFinalize
       });
       onComplete();
     } catch (err) {
@@ -128,6 +166,14 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
     } finally {
       setLoading(false);
     }
+  };
+
+  const toggleTaskSelection = (index) => {
+    setSelectedTasks(prev =>
+      prev.includes(index)
+        ? prev.filter(i => i !== index)
+        : [...prev, index]
+    );
   };
 
   const toggleInterest = (interestId) => {
@@ -297,46 +343,93 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       {/* Step 4: Review & Finalize Tasks */}
       {step === 4 && (
         <div>
-          <h2 className="text-2xl font-bold mb-4">Review Your Personalized Tasks</h2>
-          <p className="text-gray-600 mb-6">These tasks were generated based on your choices</p>
+          <h2 className="text-2xl font-bold mb-4">Select Tasks to Keep</h2>
+          <p className="text-gray-600 mb-6">Choose which tasks to include in your quest</p>
 
-          <div className="space-y-4 mb-8">
-            {generatedTasks.map((task, index) => (
-              <div key={index} className="border border-gray-200 rounded-lg p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-lg">{task.title}</h3>
-                  <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                    {task.xp_value} XP
-                  </span>
+          <div className="space-y-3 mb-8">
+            {generatedTasks.map((task, index) => {
+              const isSelected = selectedTasks.includes(index);
+              return (
+                <div
+                  key={index}
+                  className={`border-2 rounded-lg p-4 transition-all cursor-pointer ${
+                    isSelected ? 'border-[#ef597b] bg-pink-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => toggleTaskSelection(index)}
+                >
+                  <div className="flex items-start gap-3">
+                    <input
+                      type="checkbox"
+                      checked={isSelected}
+                      onChange={() => toggleTaskSelection(index)}
+                      className="mt-1 w-5 h-5 text-[#ef597b] rounded focus:ring-[#ef597b]"
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-start justify-between mb-2">
+                        <h3 className="font-semibold text-lg">{task.title}</h3>
+                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium whitespace-nowrap ml-2">
+                          {task.xp_value} XP
+                        </span>
+                      </div>
+                      <p className="text-gray-600 mb-3">{task.description}</p>
+                      {task.bullet_points && task.bullet_points.length > 0 && (
+                        <ul className="space-y-1 mb-3">
+                          {task.bullet_points.map((point, idx) => (
+                            <li key={idx} className="text-sm text-gray-700 flex items-start">
+                              <span className="text-[#ef597b] mr-2">•</span>
+                              <span>{point}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <div className="flex items-center gap-4 text-sm">
+                        <span className="text-gray-500">
+                          Pillar: <span className="font-medium">{task.pillar}</span>
+                        </span>
+                        {task.diploma_subjects && task.diploma_subjects.length > 0 && (
+                          <span className="text-gray-500">
+                            Subjects: <span className="font-medium">{task.diploma_subjects.join(', ')}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <p className="text-gray-600 mb-2">{task.description}</p>
-                <div className="flex items-center gap-4 text-sm">
-                  <span className="text-gray-500">Pillar: {task.pillar.replace('_', ' ')}</span>
-                  {task.is_required && <span className="text-blue-600">Required</span>}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-yellow-900">
-              ⚠️ You can edit these tasks or add your own after finalizing. Custom tasks will need admin approval.
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <p className="text-sm text-blue-900">
+              💡 <strong>Tip:</strong> Select the tasks you like, then regenerate the rest. You can repeat this until you're happy with all tasks.
             </p>
           </div>
 
-          <div className="flex justify-between">
-            <button
-              onClick={() => setStep(3)}
-              className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              Regenerate
-            </button>
+          <div className="flex justify-between gap-3">
+            <div className="flex gap-3">
+              <button
+                onClick={() => setStep(3)}
+                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              >
+                Back
+              </button>
+              {selectedTasks.length < generatedTasks.length && (
+                <button
+                  onClick={regenerateNonSelected}
+                  disabled={loading}
+                  className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                >
+                  {loading ? 'Regenerating...' : 'Regenerate Non-Selected'}
+                </button>
+              )}
+            </div>
             <button
               onClick={finalizeTasks}
-              disabled={loading}
+              disabled={loading || selectedTasks.length === 0}
               className="px-6 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg disabled:opacity-50"
             >
-              {loading ? 'Finalizing...' : 'Finalize & Start Quest'}
+              {loading ? 'Finalizing...' : `Finalize ${selectedTasks.length} Tasks`}
             </button>
           </div>
         </div>
