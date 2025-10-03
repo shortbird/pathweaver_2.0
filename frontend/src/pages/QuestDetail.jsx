@@ -98,7 +98,9 @@ const QuestDetail = () => {
     }
 
     enrollMutation.mutate(id, {
-      onSuccess: () => {
+      onSuccess: async () => {
+        // Refetch quest data to update UI
+        await refetchQuest();
         // Show personalization wizard after successful enrollment
         setShowPersonalizationWizard(true);
       }
