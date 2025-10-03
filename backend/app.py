@@ -4,7 +4,6 @@ import os
 
 from routes import auth, subscriptions, users, community, portfolio, sources
 from routes.quest_ideas import quest_ideas_bp
-from routes.ratings import ratings_bp
 from routes import uploads
 from routes.settings import settings_bp
 from routes.promo import promo_bp
@@ -61,7 +60,6 @@ app.register_blueprint(users.bp, url_prefix='/api/v3/users', name='users_v3')
 app.register_blueprint(community.bp, url_prefix='/api/community')
 app.register_blueprint(portfolio.bp, url_prefix='/api/portfolio')
 app.register_blueprint(quest_ideas_bp, url_prefix='/api')
-app.register_blueprint(ratings_bp)
 app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
 app.register_blueprint(sources.bp, url_prefix='/api/sources')  # /api/sources
 app.register_blueprint(settings_bp, url_prefix='/api')  # /api/settings
@@ -147,6 +145,17 @@ try:
     print("AI Quest Review routes registered successfully")
 except Exception as e:
     print(f"Warning: AI Quest Review routes not available: {e}")
+
+# Register Personalized Quest System blueprints
+try:
+    from routes import quest_personalization, task_collaboration
+    from routes.admin import task_approval
+    app.register_blueprint(quest_personalization.bp)  # /api/quests/*
+    app.register_blueprint(task_collaboration.bp)  # /api/tasks/*
+    app.register_blueprint(task_approval.bp)  # /api/v3/admin/manual-tasks/*
+    print("Personalized Quest System routes registered successfully")
+except Exception as e:
+    print(f"Warning: Personalized Quest System routes not available: {e}")
 
 # Register AI Performance Analytics blueprint (admin)
 try:
