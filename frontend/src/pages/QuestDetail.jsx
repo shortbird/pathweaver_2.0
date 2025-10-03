@@ -11,6 +11,7 @@ import { queryKeys } from '../utils/queryKeys';
 import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import TeamUpModal from '../components/quest/TeamUpModal';
 import CollaborationBadge from '../components/ui/CollaborationBadge';
+import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
 import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -52,6 +53,7 @@ const QuestDetail = () => {
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showTeamUpModal, setShowTeamUpModal] = useState(false);
+  const [showPersonalizationWizard, setShowPersonalizationWizard] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState(new Set());
 
   // Get pending invitation from collaboration data
@@ -95,7 +97,22 @@ const QuestDetail = () => {
       return;
     }
 
-    enrollMutation.mutate(id);
+    enrollMutation.mutate(id, {
+      onSuccess: () => {
+        // Show personalization wizard after successful enrollment
+        setShowPersonalizationWizard(true);
+      }
+    });
+  };
+
+  const handlePersonalizationComplete = () => {
+    setShowPersonalizationWizard(false);
+    refetchQuest(); // Reload quest with personalized tasks
+    toast.success('Quest personalized successfully!');
+  };
+
+  const handlePersonalizationCancel = () => {
+    setShowPersonalizationWizard(false);
   };
 
   const handleEndQuest = async () => {
@@ -715,12 +732,23 @@ const QuestDetail = () => {
                 );
               })}
             </div>
-          ) : (
+          ) : quest.user_enrollment && !showPersonalizationWizard ? (
+            <div className="text-center py-12">
+              <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+              <p className="text-lg text-gray-600 mb-4">This quest needs to be personalized</p>
+              <button
+                onClick={() => setShowPersonalizationWizard(true)}
+                className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg font-semibold hover:opacity-90"
+              >
+                Personalize Quest
+              </button>
+            </div>
+          ) : !quest.user_enrollment ? (
             <div className="text-center py-12 text-gray-500">
               <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg">No tasks available for this quest.</p>
+              <p className="text-lg">Start this quest to see tasks</p>
             </div>
-          )}
+          ) : null}
         </div>
       </div>
 
@@ -754,6 +782,19 @@ const QuestDetail = () => {
           onClose={() => setShowTeamUpModal(false)}
           onInviteSent={handleInviteSent}
         />
+      )}
+
+      {showPersonalizationWizard && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto">
+            <QuestPersonalizationWizard
+              questId={quest.id}
+              questTitle={quest.title}
+              onComplete={handlePersonalizationComplete}
+              onCancel={handlePersonalizationCancel}
+            />
+          </div>
+        </div>
       )}
 
     </div>
