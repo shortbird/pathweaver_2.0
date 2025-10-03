@@ -8,13 +8,14 @@ import AIContentPipeline from './admin/AIContentPipeline'
 import AIQuestReview from '../components/admin/AIQuestReview'
 import AIPerformanceAnalytics from '../components/admin/AIPerformanceAnalytics'
 import AIPromptOptimizer from '../components/admin/AIPromptOptimizer'
+import BatchQuestGenerator from '../components/admin/BatchQuestGenerator'
 
 const AdminPage = () => {
   const location = useLocation()
   const currentPath = location.pathname.split('/').pop()
   const [showAIDropdown, setShowAIDropdown] = useState(false)
 
-  const isAIPath = ['ai-pipeline', 'ai-quest-review', 'ai-performance', 'ai-optimizer'].includes(currentPath)
+  const isAIPath = ['ai-pipeline', 'ai-quest-review', 'ai-performance', 'ai-optimizer', 'batch-generator'].includes(currentPath)
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -85,6 +86,14 @@ const AdminPage = () => {
               >
                 AI Prompt Optimizer
               </Link>
+              <div className="border-t border-gray-200 my-2"></div>
+              <Link
+                to="/admin/batch-generator"
+                onClick={() => setShowAIDropdown(false)}
+                className={`block px-4 py-2 text-sm ${currentPath === 'batch-generator' ? 'bg-purple-50 text-purple-600' : 'text-gray-700 hover:bg-gray-50'}`}
+              >
+                Batch Quest Generator
+              </Link>
             </div>
           )}
         </div>
@@ -99,6 +108,7 @@ const AdminPage = () => {
         <Route path="ai-quest-review" element={<AIQuestReview />} />
         <Route path="ai-performance" element={<AIPerformanceAnalytics />} />
         <Route path="ai-optimizer" element={<AIPromptOptimizer />} />
+        <Route path="batch-generator" element={<BatchQuestGenerator />} />
       </Routes>
     </div>
   )
