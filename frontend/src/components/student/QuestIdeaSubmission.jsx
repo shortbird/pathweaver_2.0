@@ -2,10 +2,11 @@ import React, { useState } from 'react'
 import { X, Lightbulb, Sparkles, Loader2, CheckCircle2, AlertCircle } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import api from '../../services/api'
+import QuestIdeaSuggestions from '../ai/QuestIdeaSuggestions'
 
 const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
   const [loading, setLoading] = useState(false)
-  const [step, setStep] = useState('input') // 'input', 'ai-preview', 'submitting', 'success'
+  const [step, setStep] = useState('input') // 'input', 'ai-suggestions', 'ai-preview', 'submitting', 'success'
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -13,12 +14,21 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
   })
   const [aiSuggestions, setAiSuggestions] = useState(null)
   const [submissionResult, setSubmissionResult] = useState(null)
+  const [showAISuggestions, setShowAISuggestions] = useState(false)
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
       [field]: value
     }))
+  }
+
+  const handleApplySuggestion = (field, value) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: value
+    }))
+    toast.success(`${field === 'title' ? 'Title' : 'Description'} updated`)
   }
 
   const handlePreviewWithAI = async () => {
@@ -192,6 +202,37 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
                   </p>
                 </div>
               </div>
+
+              {/* AI Suggestions Toggle */}
+              {formData.title.trim() && formData.description.trim() && (
+                <div>
+                  <button
+                    onClick={() => setShowAISuggestions(!showAISuggestions)}
+                    className="w-full bg-purple-50 border border-purple-200 rounded-lg p-4 hover:bg-purple-100 transition-colors text-left flex items-center justify-between"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <Sparkles className="h-5 w-5 text-purple-600" />
+                      <div>
+                        <span className="font-medium text-purple-900">Get AI Suggestions</span>
+                        <p className="text-sm text-purple-700">Improve your quest idea with AI feedback</p>
+                      </div>
+                    </div>
+                    <span className="text-purple-600">
+                      {showAISuggestions ? '−' : '+'}
+                    </span>
+                  </button>
+
+                  {showAISuggestions && (
+                    <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                      <QuestIdeaSuggestions
+                        title={formData.title}
+                        description={formData.description}
+                        onApplySuggestion={handleApplySuggestion}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
                 <div className="flex items-start space-x-3">

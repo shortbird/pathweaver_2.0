@@ -56,7 +56,7 @@ const AdminPage = () => {
             </svg>
           </button>
           {showAIDropdown && (
-            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-[200px] z-10">
+            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-[200px] z-50">
               <Link
                 to="/admin/ai-pipeline"
                 onClick={() => setShowAIDropdown(false)}

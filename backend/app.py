@@ -164,6 +164,14 @@ try:
 except Exception as e:
     print(f"Warning: AI Prompt Optimizer routes not available: {e}")
 
+# Register Student AI Assistance blueprint
+try:
+    from routes import student_ai_assistance
+    app.register_blueprint(student_ai_assistance.student_ai_bp, url_prefix='/api/student-ai')  # /api/student-ai/*
+    print("Student AI Assistance routes registered successfully")
+except Exception as e:
+    print(f"Warning: Student AI Assistance routes not available: {e}")
+
 
 @app.route('/', methods=['GET', 'HEAD'])
 def root():
