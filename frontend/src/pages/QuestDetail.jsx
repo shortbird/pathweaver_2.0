@@ -120,9 +120,9 @@ const QuestDetail = () => {
     });
   };
 
-  const handlePersonalizationComplete = () => {
+  const handlePersonalizationComplete = async () => {
     setShowPersonalizationWizard(false);
-    refetchQuest(); // Reload quest with personalized tasks
+    await refetchQuest(); // Reload quest with personalized tasks
     toast.success('Quest personalized successfully!');
   };
 
