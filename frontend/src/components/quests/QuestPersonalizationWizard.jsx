@@ -58,6 +58,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
   const [generatedTasks, setGeneratedTasks] = useState([]);
   const [selectedTasks, setSelectedTasks] = useState([]);
   const [sessionId, setSessionId] = useState(null);
+  const [additionalFeedback, setAdditionalFeedback] = useState('');
 
   // Start personalization session
   const startSession = async () => {
@@ -106,8 +107,8 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       console.log('Tasks generated:', response.data);
       const tasks = response.data.tasks;
       setGeneratedTasks(tasks);
-      // Select all tasks by default
-      setSelectedTasks(tasks.map((_, index) => index));
+      // Deselect all tasks by default - user must choose
+      setSelectedTasks([]);
       setStep(4);
     } catch (err) {
       console.error('Failed to generate tasks:', err);
@@ -122,11 +123,18 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
     setLoading(true);
     setError(null);
     try {
+      // Get titles of selected tasks to avoid duplicates
+      const selectedTaskTitles = generatedTasks
+        .filter((_, index) => selectedTasks.includes(index))
+        .map(task => task.title);
+
       const response = await api.post(`/api/quests/${questId}/generate-tasks`, {
         session_id: sessionId,
         approach: selectedApproach,
         interests: selectedInterests,
-        cross_curricular_subjects: crossCurricularSubjects
+        cross_curricular_subjects: crossCurricularSubjects,
+        exclude_tasks: selectedTaskTitles,
+        additional_feedback: additionalFeedback
       });
 
       // Replace non-selected tasks with new ones
@@ -140,7 +148,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       }
 
       setGeneratedTasks(newTasks);
-      setSelectedTasks(newTasks.map((_, index) => index)); // Select all after regeneration
+      // Keep only previously selected tasks selected
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to regenerate tasks');
     } finally {
@@ -221,6 +229,11 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             Let's customize "{questTitle}" to match your interests and learning style.
             Our AI will help generate tasks that are meaningful to you.
           </p>
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 max-w-2xl mx-auto">
+            <p className="text-sm text-red-900">
+              <strong>⚠️ Important:</strong> All personalized quests must be approved by a licensed teacher before they count toward XP or diploma credits.
+            </p>
+          </div>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 max-w-2xl mx-auto">
             <p className="text-sm text-blue-900">
               💡 <strong>Remember:</strong> You're in control. The AI suggests tasks based on your choices,
@@ -322,6 +335,15 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             ))}
           </div>
 
+          <h3 className="text-xl font-semibold mb-4">Additional Details (Optional)</h3>
+          <p className="text-gray-600 mb-4">Any specific requirements or preferences for your tasks?</p>
+          <textarea
+            value={additionalFeedback}
+            onChange={(e) => setAdditionalFeedback(e.target.value)}
+            placeholder="E.g., 'I want tasks that involve video creation' or 'Focus on practical skills I can use at home'"
+            className="w-full p-3 border border-gray-300 rounded-lg mb-6 min-h-[100px] focus:ring-2 focus:ring-[#ef597b] focus:border-transparent"
+          />
+
           <div className="flex justify-between">
             <button
               onClick={() => setStep(2)}
@@ -353,7 +375,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
                 <div
                   key={index}
                   className={`border-2 rounded-lg p-4 transition-all cursor-pointer ${
-                    isSelected ? 'border-[#ef597b] bg-pink-50' : 'border-gray-200 hover:border-gray-300'
+                    isSelected ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
                   }`}
                   onClick={() => toggleTaskSelection(index)}
                 >
@@ -362,7 +384,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleTaskSelection(index)}
-                      className="mt-1 w-5 h-5 text-[#ef597b] rounded focus:ring-[#ef597b]"
+                      className="mt-1 w-5 h-5 text-green-500 rounded focus:ring-green-500"
                       onClick={(e) => e.stopPropagation()}
                     />
                     <div className="flex-1">
@@ -377,7 +399,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
                         <ul className="space-y-1 mb-3">
                           {task.bullet_points.map((point, idx) => (
                             <li key={idx} className="text-sm text-gray-700 flex items-start">
-                              <span className="text-[#ef597b] mr-2">•</span>
+                              <span className="text-green-500 mr-2">•</span>
                               <span>{point}</span>
                             </li>
                           ))}

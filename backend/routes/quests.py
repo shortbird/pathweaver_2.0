@@ -257,10 +257,13 @@ def get_quest_detail(user_id: str, quest_id: str):
 
             completed_task_ids = {t['user_quest_task_id'] for t in task_completions.data} if task_completions.data else set()
 
-            # Mark tasks as completed
+            # Mark tasks as completed and map field names for frontend compatibility
             quest_tasks = user_tasks.data or []
             for task in quest_tasks:
                 task['is_completed'] = task['id'] in completed_task_ids
+                # Map xp_value to xp_amount for frontend compatibility
+                if 'xp_value' in task:
+                    task['xp_amount'] = task['xp_value']
 
             quest_data['quest_tasks'] = quest_tasks
 

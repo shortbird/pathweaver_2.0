@@ -96,6 +96,47 @@ CREATE TABLE public.ai_generation_jobs (
   CONSTRAINT ai_generation_jobs_pkey PRIMARY KEY (id),
   CONSTRAINT ai_generation_jobs_created_by_fkey FOREIGN KEY (created_by) REFERENCES auth.users(id)
 );
+CREATE TABLE public.ai_generation_metrics (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  review_queue_id uuid,
+  quest_id uuid,
+  generation_source character varying NOT NULL CHECK (generation_source::text = ANY (ARRAY['manual'::character varying, 'batch'::character varying, 'student_idea'::character varying, 'badge_aligned'::character varying]::text[])),
+  prompt_version character varying,
+  model_name character varying,
+  time_to_generate_ms integer,
+  prompt_tokens integer,
+  completion_tokens integer,
+  total_tokens integer,
+  quality_score numeric,
+  approved boolean,
+  rejection_reason text,
+  completion_rate numeric,
+  average_rating numeric,
+  engagement_score numeric,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  last_performance_update timestamp with time zone,
+  CONSTRAINT ai_generation_metrics_pkey PRIMARY KEY (id),
+  CONSTRAINT ai_generation_metrics_review_queue_id_fkey FOREIGN KEY (review_queue_id) REFERENCES public.ai_quest_review_queue(id),
+  CONSTRAINT ai_generation_metrics_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id)
+);
+CREATE TABLE public.ai_improvement_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  analysis_period_days integer NOT NULL,
+  total_prompts integer NOT NULL,
+  prompts_needing_optimization integer NOT NULL,
+  avg_performance_score numeric NOT NULL,
+  trend_direction character varying NOT NULL,
+  quality_change numeric NOT NULL,
+  best_prompt_version character varying,
+  best_prompt_score numeric,
+  worst_prompt_version character varying,
+  worst_prompt_score numeric,
+  recommendations_count integer NOT NULL DEFAULT 0,
+  detailed_insights jsonb NOT NULL,
+  updated_at timestamp with time zone,
+  CONSTRAINT ai_improvement_logs_pkey PRIMARY KEY (id)
+);
 CREATE TABLE public.ai_prompt_templates (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   name character varying NOT NULL,
@@ -112,6 +153,27 @@ CREATE TABLE public.ai_prompt_templates (
   updated_at timestamp with time zone NOT NULL DEFAULT timezone('utc'::text, now()),
   CONSTRAINT ai_prompt_templates_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.ai_prompt_versions (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  version_name character varying NOT NULL UNIQUE,
+  prompt_type character varying NOT NULL CHECK (prompt_type::text = ANY (ARRAY['quest_generation'::character varying, 'task_generation'::character varying, 'description_enhancement'::character varying, 'quality_validation'::character varying]::text[])),
+  system_prompt text,
+  user_prompt_template text NOT NULL,
+  is_active boolean DEFAULT false,
+  avg_quality_score numeric,
+  approval_rate numeric,
+  avg_completion_rate numeric,
+  avg_student_rating numeric,
+  total_generations integer DEFAULT 0,
+  notes text,
+  created_by uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  activated_at timestamp with time zone,
+  deactivated_at timestamp with time zone,
+  last_metrics_update timestamp with time zone,
+  CONSTRAINT ai_prompt_versions_pkey PRIMARY KEY (id),
+  CONSTRAINT ai_prompt_versions_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
+);
 CREATE TABLE public.ai_quest_review_history (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
   generated_quest_id uuid,
@@ -124,6 +186,27 @@ CREATE TABLE public.ai_quest_review_history (
   CONSTRAINT ai_quest_review_history_pkey PRIMARY KEY (id),
   CONSTRAINT ai_quest_review_history_generated_quest_id_fkey FOREIGN KEY (generated_quest_id) REFERENCES public.ai_generated_quests(id),
   CONSTRAINT ai_quest_review_history_reviewer_id_fkey FOREIGN KEY (reviewer_id) REFERENCES auth.users(id)
+);
+CREATE TABLE public.ai_quest_review_queue (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  quest_data jsonb NOT NULL,
+  quality_score numeric CHECK (quality_score >= 0::numeric AND quality_score <= 10::numeric),
+  ai_feedback jsonb,
+  status character varying NOT NULL DEFAULT 'pending_review'::character varying CHECK (status::text = ANY (ARRAY['pending_review'::character varying, 'approved'::character varying, 'rejected'::character varying, 'edited'::character varying]::text[])),
+  reviewer_id uuid,
+  review_notes text,
+  was_edited boolean DEFAULT false,
+  created_quest_id uuid,
+  submitted_at timestamp with time zone NOT NULL DEFAULT now(),
+  reviewed_at timestamp with time zone,
+  generation_source character varying DEFAULT 'manual'::character varying CHECK (generation_source::text = ANY (ARRAY['manual'::character varying, 'batch'::character varying, 'student_idea'::character varying, 'badge_aligned'::character varying]::text[])),
+  badge_id uuid,
+  created_at timestamp with time zone NOT NULL DEFAULT now(),
+  updated_at timestamp with time zone NOT NULL DEFAULT now(),
+  CONSTRAINT ai_quest_review_queue_pkey PRIMARY KEY (id),
+  CONSTRAINT ai_quest_review_queue_reviewer_id_fkey FOREIGN KEY (reviewer_id) REFERENCES public.users(id),
+  CONSTRAINT ai_quest_review_queue_created_quest_id_fkey FOREIGN KEY (created_quest_id) REFERENCES public.quests(id),
+  CONSTRAINT ai_quest_review_queue_badge_id_fkey FOREIGN KEY (badge_id) REFERENCES public.badges(id)
 );
 CREATE TABLE public.ai_seeds (
   id integer NOT NULL DEFAULT nextval('ai_seeds_id_seq'::regclass),
@@ -139,6 +222,8 @@ CREATE TABLE public.badge_quests (
   is_required boolean DEFAULT true,
   order_index integer DEFAULT 0,
   created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP,
+  ai_confidence integer,
+  ai_reasoning text,
   CONSTRAINT badge_quests_pkey PRIMARY KEY (id),
   CONSTRAINT badge_quests_badge_id_fkey FOREIGN KEY (badge_id) REFERENCES public.badges(id),
   CONSTRAINT badge_quests_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id)
@@ -275,6 +360,18 @@ CREATE TABLE public.promo_signups (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT promo_signups_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.quality_action_logs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  content_type text NOT NULL CHECK (content_type = ANY (ARRAY['quest'::text, 'badge'::text, 'task'::text])),
+  content_id uuid NOT NULL,
+  action_type text NOT NULL CHECK (action_type = ANY (ARRAY['archive'::text, 'deactivate'::text, 'approve'::text, 'reject'::text, 'flag'::text])),
+  reason text,
+  automated boolean DEFAULT false,
+  performed_by uuid,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT quality_action_logs_pkey PRIMARY KEY (id),
+  CONSTRAINT quality_action_logs_performed_by_fkey FOREIGN KEY (performed_by) REFERENCES public.users(id)
 );
 CREATE TABLE public.quest_collaborations (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -458,6 +555,11 @@ CREATE TABLE public.quests (
   updated_at timestamp with time zone DEFAULT now(),
   material_link text,
   applicable_badges jsonb DEFAULT '[]'::jsonb,
+  archived_at timestamp with time zone,
+  archive_reason text,
+  deactivated_at timestamp with time zone,
+  deactivation_reason text,
+  requires_review boolean DEFAULT false,
   CONSTRAINT quests_pkey PRIMARY KEY (id),
   CONSTRAINT quests_created_by_fkey FOREIGN KEY (created_by) REFERENCES public.users(id)
 );
@@ -472,6 +574,20 @@ CREATE TABLE public.role_change_log (
   CONSTRAINT role_change_log_pkey PRIMARY KEY (id),
   CONSTRAINT role_change_log_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT role_change_log_changed_by_fkey FOREIGN KEY (changed_by) REFERENCES public.users(id)
+);
+CREATE TABLE public.scheduled_jobs (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  job_type text NOT NULL,
+  job_data jsonb DEFAULT '{}'::jsonb,
+  status text NOT NULL DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'running'::text, 'completed'::text, 'failed'::text])),
+  priority integer DEFAULT 5 CHECK (priority >= 1 AND priority <= 10),
+  scheduled_for timestamp with time zone DEFAULT now(),
+  started_at timestamp with time zone,
+  completed_at timestamp with time zone,
+  result_data jsonb,
+  error_message text,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT scheduled_jobs_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.security_warnings_documentation (
   id uuid NOT NULL DEFAULT gen_random_uuid(),

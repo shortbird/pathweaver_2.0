@@ -344,7 +344,9 @@
       "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src\\pages/**)",
       "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src\\pages/**)",
       "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src\\pages/**)",
-      "Bash(python3:*)"
+      "Bash(python3:*)",
+      "Bash(git pull:*)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "ask": []
