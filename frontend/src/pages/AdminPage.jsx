@@ -1,12 +1,9 @@
-import React, { memo } from 'react'
+import React, { memo, useState } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import AdminDashboard from '../components/admin/AdminDashboard'
 import AdminQuests from '../components/admin/AdminQuests'
 import AdminUsers from '../components/admin/AdminUsers'
 import AdminQuestSuggestions from '../components/admin/AdminQuestSuggestions'
-import SiteSettings from '../components/admin/SiteSettings'
-import BadgeSeeder from './admin/BadgeSeeder'
-import BadgeQuestLinker from '../components/admin/BadgeQuestLinker'
 import AIContentPipeline from './admin/AIContentPipeline'
 import AIQuestReview from '../components/admin/AIQuestReview'
 import AIPerformanceAnalytics from '../components/admin/AIPerformanceAnalytics'
@@ -15,6 +12,9 @@ import AIPromptOptimizer from '../components/admin/AIPromptOptimizer'
 const AdminPage = () => {
   const location = useLocation()
   const currentPath = location.pathname.split('/').pop()
+  const [showAIDropdown, setShowAIDropdown] = useState(false)
+
+  const isAIPath = ['ai-pipeline', 'ai-quest-review', 'ai-performance', 'ai-optimizer'].includes(currentPath)
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -23,70 +23,71 @@ const AdminPage = () => {
       <div className="flex gap-4 mb-8 border-b">
         <Link
           to="/admin"
-          className={`pb-2 px-1 ${currentPath === 'admin' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+          className={`pb-2 px-1 ${currentPath === 'admin' ? 'border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Dashboard
         </Link>
         <Link
           to="/admin/quests"
-          className={`pb-2 px-1 ${currentPath === 'quests' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+          className={`pb-2 px-1 ${currentPath === 'quests' ? 'border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Quests
         </Link>
         <Link
           to="/admin/users"
-          className={`pb-2 px-1 ${currentPath === 'users' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+          className={`pb-2 px-1 ${currentPath === 'users' ? 'border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Users
         </Link>
         <Link
           to="/admin/quest-suggestions"
-          className={`pb-2 px-1 ${currentPath === 'quest-suggestions' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
+          className={`pb-2 px-1 ${currentPath === 'quest-suggestions' ? 'border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Quest Suggestions
         </Link>
-        <Link
-          to="/admin/settings"
-          className={`pb-2 px-1 ${currentPath === 'settings' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
-        >
-          Site Settings
-        </Link>
-        <Link
-          to="/admin/badge-seeder"
-          className={`pb-2 px-1 ${currentPath === 'badge-seeder' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
-        >
-          Badge Seeder
-        </Link>
-        <Link
-          to="/admin/badge-quests"
-          className={`pb-2 px-1 ${currentPath === 'badge-quests' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
-        >
-          Badge-Quest Linking
-        </Link>
-        <Link
-          to="/admin/ai-pipeline"
-          className={`pb-2 px-1 ${currentPath === 'ai-pipeline' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
-        >
-          AI Pipeline
-        </Link>
-        <Link
-          to="/admin/ai-quest-review"
-          className={`pb-2 px-1 ${currentPath === 'ai-quest-review' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
-        >
-          AI Quest Review
-        </Link>
-        <Link
-          to="/admin/ai-performance"
-          className={`pb-2 px-1 ${currentPath === 'ai-performance' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
-        >
-          AI Performance
-        </Link>
-        <Link
-          to="/admin/ai-optimizer"
-          className={`pb-2 px-1 ${currentPath === 'ai-optimizer' ? 'border-b-2 border-primary text-primary' : 'text-gray-600'}`}
-        >
-          AI Optimizer
-        </Link>
+        <div className="relative">
+          <button
+            onClick={() => setShowAIDropdown(!showAIDropdown)}
+            className={`pb-2 px-1 flex items-center gap-1 ${isAIPath ? 'border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+          >
+            AI Tools
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          {showAIDropdown && (
+            <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg py-2 min-w-[200px] z-10">
+              <Link
+                to="/admin/ai-pipeline"
+                onClick={() => setShowAIDropdown(false)}
+                className={`block px-4 py-2 text-sm ${currentPath === 'ai-pipeline' ? 'bg-purple-50 text-purple-600' : 'text-gray-700 hover:bg-gray-50'}`}
+              >
+                AI Content Pipeline
+              </Link>
+              <Link
+                to="/admin/ai-quest-review"
+                onClick={() => setShowAIDropdown(false)}
+                className={`block px-4 py-2 text-sm ${currentPath === 'ai-quest-review' ? 'bg-purple-50 text-purple-600' : 'text-gray-700 hover:bg-gray-50'}`}
+              >
+                AI Quest Review
+              </Link>
+              <Link
+                to="/admin/ai-performance"
+                onClick={() => setShowAIDropdown(false)}
+                className={`block px-4 py-2 text-sm ${currentPath === 'ai-performance' ? 'bg-purple-50 text-purple-600' : 'text-gray-700 hover:bg-gray-50'}`}
+              >
+                AI Performance Analytics
+              </Link>
+              <Link
+                to="/admin/ai-optimizer"
+                onClick={() => setShowAIDropdown(false)}
+                className={`block px-4 py-2 text-sm ${currentPath === 'ai-optimizer' ? 'bg-purple-50 text-purple-600' : 'text-gray-700 hover:bg-gray-50'}`}
+              >
+                AI Prompt Optimizer
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
 
       <Routes>
@@ -94,9 +95,6 @@ const AdminPage = () => {
         <Route path="quests" element={<AdminQuests />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="quest-suggestions" element={<AdminQuestSuggestions />} />
-        <Route path="settings" element={<SiteSettings />} />
-        <Route path="badge-seeder" element={<BadgeSeeder />} />
-        <Route path="badge-quests" element={<BadgeQuestLinker />} />
         <Route path="ai-pipeline" element={<AIContentPipeline />} />
         <Route path="ai-quest-review" element={<AIQuestReview />} />
         <Route path="ai-performance" element={<AIPerformanceAnalytics />} />

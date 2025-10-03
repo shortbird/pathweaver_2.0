@@ -416,9 +416,9 @@ const AdminDashboard = () => {
               <p className="text-sm text-gray-600">Create, edit, and organize learning quests</p>
             </button>
 
-            {/* Review Submissions */}
+            {/* Quest Suggestions */}
             <button
-              onClick={() => window.location.href = '/admin/submissions'}
+              onClick={() => window.location.href = '/admin/quest-suggestions'}
               className={`group relative p-6 rounded-xl transition-all duration-200 text-left border ${
                 (overviewData?.pending_submissions || 0) > 0
                   ? 'bg-gradient-to-br from-red-50 to-red-100 border-red-200 hover:from-red-100 hover:to-red-200'
@@ -435,7 +435,7 @@ const AdminDashboard = () => {
                   (overviewData?.pending_submissions || 0) > 0 ? 'bg-red-500' : 'bg-purple-500'
                 }`}>
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
                 </div>
                 <svg className={`w-5 h-5 transition-colors ${
@@ -446,33 +446,32 @@ const AdminDashboard = () => {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </div>
-              <h3 className="font-semibold text-gray-900 mb-1">Review Submissions</h3>
+              <h3 className="font-semibold text-gray-900 mb-1">Quest Suggestions</h3>
               <p className="text-sm text-gray-600">
                 {(overviewData?.pending_submissions || 0) > 0
-                  ? `${overviewData.pending_submissions} submissions awaiting review`
-                  : 'All submissions reviewed'
+                  ? `${overviewData.pending_submissions} suggestions awaiting review`
+                  : 'All suggestions reviewed'
                 }
               </p>
             </button>
 
-            {/* System Settings */}
+            {/* AI Tools */}
             <button
-              onClick={() => window.location.href = '/admin/settings'}
-              className="group relative p-6 bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200 rounded-xl hover:from-gray-100 hover:to-gray-200 transition-all duration-200 text-left"
+              onClick={() => window.location.href = '/admin/ai-pipeline'}
+              className="group relative p-6 bg-gradient-to-br from-indigo-50 to-indigo-100 border border-indigo-200 rounded-xl hover:from-indigo-100 hover:to-indigo-200 transition-all duration-200 text-left"
             >
               <div className="flex items-center justify-between mb-3">
-                <div className="p-3 bg-gray-500 rounded-lg">
+                <div className="p-3 bg-indigo-500 rounded-lg">
                   <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                   </svg>
                 </div>
-                <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <svg className="w-5 h-5 text-indigo-400 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </div>
-              <h3 className="font-semibold text-gray-900 mb-1">Platform Settings</h3>
-              <p className="text-sm text-gray-600">Configure system settings and preferences</p>
+              <h3 className="font-semibold text-gray-900 mb-1">AI Tools</h3>
+              <p className="text-sm text-gray-600">Access AI content pipeline and analytics</p>
             </button>
           </div>
         </div>
