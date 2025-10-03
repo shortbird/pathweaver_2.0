@@ -9,7 +9,7 @@ Provides endpoints for:
 """
 
 from flask import Blueprint, request, jsonify
-from utils.auth.decorators import require_auth, require_admin
+from utils.auth.decorators import require_admin
 from services.batch_quest_generation_service import BatchQuestGenerationService
 import logging
 
@@ -19,7 +19,6 @@ batch_generation_bp = Blueprint('batch_generation', __name__)
 
 
 @batch_generation_bp.route('/content-gaps', methods=['GET'])
-@require_auth
 @require_admin
 def analyze_content_gaps(user_id):
     """
@@ -52,7 +51,6 @@ def analyze_content_gaps(user_id):
 
 
 @batch_generation_bp.route('/start', methods=['POST'])
-@require_auth
 @require_admin
 def start_batch_generation(user_id):
     """
@@ -135,7 +133,6 @@ def start_batch_generation(user_id):
 
 
 @batch_generation_bp.route('/status/<batch_id>', methods=['GET'])
-@require_auth
 @require_admin
 def get_batch_status(user_id, batch_id):
     """
@@ -170,7 +167,6 @@ def get_batch_status(user_id, batch_id):
 
 
 @batch_generation_bp.route('/badge-aligned', methods=['POST'])
-@require_auth
 @require_admin
 def generate_badge_aligned(user_id):
     """
