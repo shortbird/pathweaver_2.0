@@ -40,45 +40,38 @@ def complete_task(user_id: str, task_id: str):
         # Admin client only for XP awards (requires elevated privileges)
         admin_supabase = get_supabase_admin_client()
         
-        # Get task details
-        task = supabase.table('quest_tasks')\
-            .select('*, quests(id, title)')\
+        # Get user-specific task details (personalized task)
+        task = supabase.table('user_quest_tasks')\
+            .select('*, quests(id, title), user_quests!user_quest_id(id, user_id)')\
             .eq('id', task_id)\
+            .eq('user_id', user_id)\
             .single()\
             .execute()
-        
+
         if not task.data:
             return jsonify({
                 'success': False,
-                'error': 'Task not found'
+                'error': 'Task not found or not owned by you'
             }), 404
-        
+
         task_data = task.data
         quest_id = task_data['quest_id']
-        
-        # Check if user is enrolled in the quest
-        enrollment = supabase.table('user_quests')\
-            .select('id')\
-            .eq('user_id', user_id)\
-            .eq('quest_id', quest_id)\
-            .eq('is_active', True)\
-            .execute()
-        
-        if not enrollment.data:
+        user_quest_id = task_data['user_quest_id']
+
+        # Verify task is approved (for manual tasks)
+        if task_data.get('approval_status') != 'approved':
             return jsonify({
                 'success': False,
-                'error': 'You must be enrolled in the quest to complete tasks'
+                'error': 'This task is pending approval and cannot be completed yet'
             }), 403
-        
-        user_quest_id = enrollment.data[0]['id']
-        
+
         # Check if task already completed
-        existing_completion = supabase.table('user_quest_tasks')\
+        existing_completion = supabase.table('quest_task_completions')\
             .select('id')\
             .eq('user_id', user_id)\
-            .eq('quest_task_id', task_id)\
+            .eq('user_quest_task_id', task_id)\
             .execute()
-        
+
         if existing_completion.data:
             return jsonify({
                 'success': False,
@@ -199,39 +192,47 @@ def complete_task(user_id: str, task_id: str):
                 'error': error_msg
             }), 400
         
-        # Calculate XP with collaboration bonus
-        base_xp = task_data['xp_amount']
-        final_xp, has_collaboration = xp_service.calculate_task_xp(
-            user_id, task_id, quest_id, base_xp
-        )
-        
+        # Get base XP from task
+        base_xp = task_data.get('xp_value', 100)
+
+        # Check for active collaboration on this task
+        collaboration = admin_supabase.table('task_collaborations')\
+            .select('*')\
+            .eq('task_id', task_id)\
+            .eq('status', 'active')\
+            .execute()
+
+        has_collaboration = bool(collaboration.data)
+        final_xp = base_xp * 2 if has_collaboration else base_xp
+
         # Create task completion record
-        completion = supabase.table('user_quest_tasks')\
+        completion = supabase.table('quest_task_completions')\
             .insert({
                 'user_id': user_id,
-                'quest_task_id': task_id,
-                'user_quest_id': user_quest_id,
-                'evidence_type': evidence_type,
-                'evidence_content': evidence_content,
+                'quest_id': quest_id,
+                'task_id': task_id,
+                'user_quest_task_id': task_id,  # Reference to personalized task
+                'evidence_text': evidence_content if evidence_type == 'text' else None,
+                'evidence_url': evidence_content if evidence_type != 'text' else None,
                 'xp_awarded': final_xp,
                 'completed_at': datetime.utcnow().isoformat()
             })\
             .execute()
-        
+
         if not completion.data:
             return jsonify({
                 'success': False,
                 'error': 'Failed to save task completion'
             }), 500
-        
+
         # Award XP to user
         print(f"=== TASK COMPLETION XP DEBUG ===")
         print(f"Task ID: {task_id}, User ID: {user_id}")
         print(f"Task pillar: {task_data.get('pillar')}")
-        print(f"XP to award: {final_xp}")
+        print(f"Base XP: {base_xp}, Final XP: {final_xp}, Has Collaboration: {has_collaboration}")
         print("================================")
-        
-        # The XP service will handle pillar normalization internally
+
+        # Award XP using XP service
         xp_awarded = xp_service.award_xp(
             user_id,
             task_data.get('pillar', 'creativity'),  # Default to old key, service will normalize

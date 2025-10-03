@@ -179,199 +179,122 @@ def get_quest_detail(user_id: str, quest_id: str):
     """
     Get detailed information about a specific quest.
     Includes user's progress if enrolled.
+    Uses user-specific tasks if enrolled, otherwise shows quest template.
     """
     try:
         supabase = get_supabase_client()
-        
-        # Get quest with tasks
+
+        # Get quest basic info (without tasks - they're user-specific now)
         quest = supabase.table('quests')\
-            .select('*, quest_tasks(*)')\
+            .select('*')\
             .eq('id', quest_id)\
             .single()\
             .execute()
-        
+
         print(f"[QUEST DETAIL] Quest query response: {quest.data}")
-        
+
         if not quest.data:
             return jsonify({
                 'success': False,
                 'error': 'Quest not found'
             }), 404
-        
+
         quest_data = quest.data
-        
+
         # Add source header image if no custom header exists
         if not quest_data.get('header_image_url') and quest_data.get('source'):
             source_header = get_quest_header_image(quest_data)
             if source_header:
                 quest_data['header_image_url'] = source_header
-        
-        # Sort tasks by order
-        if quest_data.get('quest_tasks'):
-            print(f"[QUEST DETAIL] Found {len(quest_data['quest_tasks'])} tasks for quest")
-            quest_data['quest_tasks'].sort(key=lambda x: x.get('order_index', 0))
-        else:
-            print(f"[QUEST DETAIL] No quest_tasks found in quest data")
-        
-        # Check if user is actively enrolled
+
+        # Check if user is enrolled and get their personalized tasks
         print(f"[QUEST DETAIL] Checking enrollment for user {user_id[:8]} on quest {quest_id[:8]}")
-        
-        # First check all enrollments for debugging
+
+        # Get all enrollments for this user and quest
         all_enrollments = supabase.table('user_quests')\
-            .select('*, user_quest_tasks(*)')\
+            .select('*')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
             .execute()
-        
+
         enrollments_data = all_enrollments.data or []
         print(f"[QUEST DETAIL] All enrollments found: {len(enrollments_data)}")
         for enrollment in enrollments_data:
-            print(f"[QUEST DETAIL] Enrollment: id={enrollment.get('id')}, is_active={enrollment.get('is_active')}, completed_at={enrollment.get('completed_at')}")
+            print(f"[QUEST DETAIL] Enrollment: id={enrollment.get('id')}, is_active={enrollment.get('is_active')}, completed_at={enrollment.get('completed_at')}, personalization_completed={enrollment.get('personalization_completed')}")
         
-        # Now filter for active enrollments
-        user_quest = supabase.table('user_quests')\
-            .select('*, user_quest_tasks(*)')\
-            .eq('user_id', user_id)\
-            .eq('quest_id', quest_id)\
-            .execute()
-        
-        if user_quest.data:
-            print(f"[QUEST DETAIL] Found active enrollment: {user_quest.data[0]}")
-        else:
-            print(f"[QUEST DETAIL] No active enrollment found")
-        
-        # Use all enrollments to find active and completed ones (more robust than the filtered query)
+        # Find active or completed enrollment
         active_enrollment = None
         completed_enrollment = None
-        
+
         for enrollment in enrollments_data:
             # Check if completed
             if enrollment.get('completed_at'):
                 completed_enrollment = enrollment
-            # Consider enrollment active if:
-            # 1. Not completed AND 
-            # 2. is_active is True or None (not explicitly False)
-            elif not enrollment.get('completed_at'):
+            # Consider enrollment active if not completed and personalization is done
+            elif not enrollment.get('completed_at') and enrollment.get('personalization_completed'):
                 is_active = enrollment.get('is_active')
                 if is_active is not False:  # True or None are both considered active
                     active_enrollment = enrollment
-        
-        # Prioritize completed enrollment for display
-        if completed_enrollment:
-            print(f"[QUEST DETAIL] Using completed enrollment: {completed_enrollment}")
-            quest_data['completed_enrollment'] = completed_enrollment
-            quest_data['user_enrollment'] = None  # Clear active enrollment
-            
-            # Add progress information for completed quest (always 100%)
-            total_tasks = len(quest_data.get('quest_tasks', []))
-            completed_tasks_result = supabase.table('user_quest_tasks')\
-                .select('quest_task_id')\
-                .eq('user_quest_id', completed_enrollment['id'])\
+
+        # Get user-specific tasks if enrolled
+        if active_enrollment or completed_enrollment:
+            enrollment_to_use = completed_enrollment or active_enrollment
+
+            # Get user's personalized tasks
+            user_tasks = supabase.table('user_quest_tasks')\
+                .select('*')\
+                .eq('user_quest_id', enrollment_to_use['id'])\
+                .eq('approval_status', 'approved')\
+                .order('order_index')\
                 .execute()
-            
-            completed_task_count = len(completed_tasks_result.data) if completed_tasks_result.data else 0
-            
-            quest_data['progress'] = {
-                'completed_tasks': completed_task_count,
-                'total_tasks': total_tasks,
-                'percentage': 100  # Always 100% for completed quests
-            }
-            
-            # Mark all tasks as completed for completed quest
-            completed_task_ids = {t['quest_task_id'] for t in completed_tasks_result.data} if completed_tasks_result.data else set()
-            for task in quest_data.get('quest_tasks', []):
+
+            # Get task completions
+            task_completions = supabase.table('quest_task_completions')\
+                .select('user_quest_task_id')\
+                .eq('user_id', user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+
+            completed_task_ids = {t['user_quest_task_id'] for t in task_completions.data} if task_completions.data else set()
+
+            # Mark tasks as completed
+            quest_tasks = user_tasks.data or []
+            for task in quest_tasks:
                 task['is_completed'] = task['id'] in completed_task_ids
-                
-        elif active_enrollment:
-            print(f"[QUEST DETAIL] Using active enrollment: {active_enrollment}")
-            quest_data['user_enrollment'] = active_enrollment
-            
+
+            quest_data['quest_tasks'] = quest_tasks
+
             # Calculate progress
-            total_tasks = len(quest_data.get('quest_tasks', []))
-            user_quest_tasks = active_enrollment.get('user_quest_tasks', [])
-            # Ensure user_quest_tasks is a list (sometimes it's an int from count queries)
-            if isinstance(user_quest_tasks, int):
-                completed_tasks = user_quest_tasks
-            else:
-                completed_tasks = len(user_quest_tasks) if user_quest_tasks else 0
-            quest_data['progress'] = {
-                'completed_tasks': completed_tasks,
-                'total_tasks': total_tasks,
-                'percentage': (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
-            }
-            
-            # Mark completed tasks
-            if isinstance(user_quest_tasks, list):
-                completed_task_ids = {t['quest_task_id'] for t in user_quest_tasks}
-            else:
-                # If user_quest_tasks is an integer, we need to query the actual task IDs
-                task_completions = supabase.table('user_quest_tasks')\
-                    .select('quest_task_id')\
-                    .eq('user_quest_id', active_enrollment['id'])\
-                    .execute()
-                completed_task_ids = {t['quest_task_id'] for t in (task_completions.data or [])}
-            
-            for task in quest_data.get('quest_tasks', []):
-                task['is_completed'] = task['id'] in completed_task_ids
+            total_tasks = len(quest_tasks)
+            completed_count = len(completed_task_ids)
+
+            if completed_enrollment:
+                print(f"[QUEST DETAIL] Using completed enrollment")
+                quest_data['completed_enrollment'] = completed_enrollment
+                quest_data['user_enrollment'] = None
+                quest_data['progress'] = {
+                    'completed_tasks': completed_count,
+                    'total_tasks': total_tasks,
+                    'percentage': 100
+                }
+            elif active_enrollment:
+                print(f"[QUEST DETAIL] Using active enrollment")
+                quest_data['user_enrollment'] = active_enrollment
+                quest_data['progress'] = {
+                    'completed_tasks': completed_count,
+                    'total_tasks': total_tasks,
+                    'percentage': (completed_count / total_tasks * 100) if total_tasks > 0 else 0
+                }
         else:
-            print(f"[QUEST DETAIL] No active or completed enrollment found")
+            # Not enrolled - show empty quest (personalization required)
+            print(f"[QUEST DETAIL] User not enrolled or personalization not completed")
+            quest_data['quest_tasks'] = []
             quest_data['user_enrollment'] = None
             quest_data['completed_enrollment'] = None
-            quest_data['progress'] = {
-                'completed_tasks': 0,
-                'total_tasks': len(quest_data.get('quest_tasks', [])),
-                'percentage': 0
-            }
-        
-        # Check for active collaboration (with error handling)
-        try:
-            collab = supabase.table('quest_collaborations')\
-                .select('*')\
-                .eq('quest_id', quest_id)\
-                .in_('status', ['pending', 'accepted'])\
-                .or_(f'requester_id.eq.{user_id},partner_id.eq.{user_id}')\
-                .execute()
-            
-            if collab.data:
-                collaboration_data = collab.data[0]
-                
-                # Fetch user names for collaboration
-                collaborator_names = []
-                
-                print(f"[QUEST DETAIL] Found collaboration: requester={collaboration_data['requester_id'][:8]}, partner={collaboration_data['partner_id'][:8]}, current_user={user_id[:8]}")
-                
-                # Get requester name if not current user (with error handling)
-                if collaboration_data['requester_id'] != user_id:
-                    try:
-                        ensure_user_exists(collaboration_data['requester_id'])
-                        first_name, last_name = get_user_name(collaboration_data['requester_id'])
-                        name = f"{first_name} {last_name}"
-                        collaborator_names.append(name)
-                        print(f"[QUEST DETAIL] Added requester name: {name}")
-                    except Exception as e:
-                        print(f"[QUEST DETAIL] Error getting requester name: {e}")
-                        collaborator_names.append("Collaborator")
-                
-                # Get partner name if not current user (with error handling)
-                if collaboration_data['partner_id'] != user_id:
-                    try:
-                        ensure_user_exists(collaboration_data['partner_id'])
-                        first_name, last_name = get_user_name(collaboration_data['partner_id'])
-                        name = f"{first_name} {last_name}"
-                        collaborator_names.append(name)
-                        print(f"[QUEST DETAIL] Added partner name: {name}")
-                    except Exception as e:
-                        print(f"[QUEST DETAIL] Error getting partner name: {e}")
-                        collaborator_names.append("Collaborator")
-                
-                print(f"[QUEST DETAIL] Final collaborator_names: {collaborator_names}")
-                collaboration_data['collaborator_names'] = collaborator_names
-                quest_data['collaboration'] = collaboration_data
-            else:
-                quest_data['collaboration'] = None
-        except Exception as collab_error:
-            print(f"[QUEST DETAIL] Error fetching collaboration data: {collab_error}")
-            quest_data['collaboration'] = None
+            quest_data['progress'] = None
+
+        # Note: Quest-level collaboration has been replaced by task-level collaboration
+        # Task collaboration status is handled at the task level in the frontend
         
         return jsonify({
             'success': True,
