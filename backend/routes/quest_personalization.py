@@ -33,6 +33,7 @@ def start_personalization(user_id: str, quest_id: str):
 
         return jsonify({
             'success': True,
+            'session_id': result['session']['id'],
             'session': result['session'],
             'resumed': result.get('resumed', False),
             'message': 'Personalization session started' if not result.get('resumed') else 'Resuming personalization session'
