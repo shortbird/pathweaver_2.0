@@ -382,14 +382,28 @@ class PersonalizationService:
                     bullet_text = '\n'.join([f'• {point}' for point in task['bullet_points']])
                     description = f"{description}\n\n{bullet_text}" if description else bullet_text
 
+                pillar_value = task.get('pillar', 'STEM & Logic')
+                print(f"[FINALIZE] Task {index}: '{task.get('title')}' - Pillar from task: {pillar_value}")
+
+                # Handle diploma_subjects - ensure proper format
+                diploma_subjects = task.get('diploma_subjects', {})
+                if isinstance(diploma_subjects, list):
+                    # Convert old array format to dict
+                    total_xp = task.get('xp_value', 100)
+                    xp_per = (total_xp // len(diploma_subjects) // 25) * 25
+                    remainder = total_xp - (xp_per * len(diploma_subjects))
+                    diploma_subjects = {s: xp_per + (remainder if i == 0 else 0) for i, s in enumerate(diploma_subjects)}
+                elif not isinstance(diploma_subjects, dict):
+                    diploma_subjects = {'Electives': task.get('xp_value', 100)}
+
                 user_task = {
                     'user_id': user_id,
                     'quest_id': quest_id,
                     'user_quest_id': user_quest_id,
                     'title': task['title'],
                     'description': description,
-                    'pillar': task['pillar'],
-                    'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                    'pillar': pillar_value,
+                    'diploma_subjects': diploma_subjects,
                     'xp_value': task.get('xp_value', 100),
                     'order_index': index,
                     'is_required': True,
@@ -397,6 +411,7 @@ class PersonalizationService:
                     'approval_status': 'approved',
                     'created_at': datetime.utcnow().isoformat()
                 }
+                print(f"[FINALIZE] Final pillar value being saved: {user_task['pillar']}")
                 user_tasks.append(user_task)
 
             # Insert user tasks
