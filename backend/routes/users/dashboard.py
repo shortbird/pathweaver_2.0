@@ -176,54 +176,60 @@ def get_active_quests(supabase, user_id: str) -> list:
     print(f"Fetching active quests for user {user_id}")
     
     try:
-        # Simple query that should work with current schema
-        # Get active enrollments with quest details and tasks
+        # Get active enrollments with quest details
         active_quests = supabase.table('user_quests')\
-            .select('*, quests(*, quest_tasks(*))')\
+            .select('*, quests(*)')\
             .eq('user_id', user_id)\
             .eq('is_active', True)\
             .execute()
-        
+
         print(f"Active quests query result: {len(active_quests.data) if active_quests.data else 0} quests found")
-        
+
         if active_quests.data:
             # Filter out any completed quests (belt and suspenders approach)
             active_only = [q for q in active_quests.data if q.get('completed_at') is None]
-            
+
             # Process each quest to add calculated fields
             for enrollment in active_only:
                 quest_info = enrollment.get('quests', {})
-                print(f"  - Enrollment ID: {enrollment.get('id')}, Quest: {quest_info.get('title', 'Unknown')}, Completed: {enrollment.get('completed_at')}")
-                
+                enrollment_id = enrollment.get('id')
+                print(f"  - Enrollment ID: {enrollment_id}, Quest: {quest_info.get('title', 'Unknown')}, Completed: {enrollment.get('completed_at')}")
+
+                # Get user's personalized tasks for this enrollment
+                user_tasks = supabase.table('user_quest_tasks')\
+                    .select('*')\
+                    .eq('user_quest_id', enrollment_id)\
+                    .eq('approval_status', 'approved')\
+                    .execute()
+
+                tasks = user_tasks.data if user_tasks.data else []
+                task_count = len(tasks)
+
                 # Calculate total XP and pillar breakdown
                 total_xp = 0
                 pillar_breakdown = {}
-                tasks = quest_info.get('quest_tasks', [])
-                task_count = len(tasks)
-                
+
                 for task in tasks:
-                    xp_amount = task.get('xp_amount', 0)
+                    xp_amount = task.get('xp_value', 0)
                     pillar = task.get('pillar', 'creativity')
                     total_xp += xp_amount
                     if pillar not in pillar_breakdown:
                         pillar_breakdown[pillar] = 0
                     pillar_breakdown[pillar] += xp_amount
-                
+
                 # Add calculated fields to quest data
                 quest_info['total_xp'] = total_xp
                 quest_info['task_count'] = task_count
                 quest_info['pillar_breakdown'] = pillar_breakdown
-                
+
                 # Get completed tasks count for progress
                 try:
-                    # V3 uses user_quest_tasks table, not quest_task_completions
-                    # Get task IDs for this quest
-                    quest_task_ids = [t['id'] for t in tasks]
-                    if quest_task_ids:
-                        completed_tasks = supabase.table('user_quest_tasks')\
+                    if task_count > 0:
+                        task_ids = [t['id'] for t in tasks]
+                        completed_tasks = supabase.table('quest_task_completions')\
                             .select('id', count='exact')\
                             .eq('user_id', user_id)\
-                            .in_('quest_task_id', quest_task_ids)\
+                            .in_('user_quest_task_id', task_ids)\
                             .execute()
                         enrollment['completed_tasks'] = completed_tasks.count if hasattr(completed_tasks, 'count') else 0
                     else:
@@ -231,7 +237,7 @@ def get_active_quests(supabase, user_id: str) -> list:
                 except Exception as e:
                     print(f"Error getting completed tasks: {str(e)}")
                     enrollment['completed_tasks'] = 0
-                
+
                 print(f"    Tasks: {enrollment['completed_tasks']}/{task_count}, Total XP: {total_xp}")
             
             return active_only
@@ -255,41 +261,49 @@ def get_active_quests(supabase, user_id: str) -> list:
                 # Manually fetch quest details for each
                 for enrollment in active_only:
                     try:
+                        enrollment_id = enrollment.get('id')
                         quest = supabase.table('quests')\
-                            .select('*, quest_tasks(*)')\
+                            .select('*')\
                             .eq('id', enrollment['quest_id'])\
                             .single()\
                             .execute()
                         enrollment['quests'] = quest.data if quest.data else {}
-                        
+
+                        # Get user's personalized tasks for this enrollment
+                        user_tasks = supabase.table('user_quest_tasks')\
+                            .select('*')\
+                            .eq('user_quest_id', enrollment_id)\
+                            .eq('approval_status', 'approved')\
+                            .execute()
+
+                        tasks = user_tasks.data if user_tasks.data else []
+                        task_count = len(tasks)
+
                         # Calculate fields for the fallback case too
                         quest_info = enrollment['quests']
                         total_xp = 0
                         pillar_breakdown = {}
-                        tasks = quest_info.get('quest_tasks', [])
-                        task_count = len(tasks)
-                        
+
                         for task in tasks:
-                            xp_amount = task.get('xp_amount', 0)
+                            xp_amount = task.get('xp_value', 0)
                             pillar = task.get('pillar', 'creativity')
                             total_xp += xp_amount
                             if pillar not in pillar_breakdown:
                                 pillar_breakdown[pillar] = 0
                             pillar_breakdown[pillar] += xp_amount
-                        
+
                         quest_info['total_xp'] = total_xp
                         quest_info['task_count'] = task_count
                         quest_info['pillar_breakdown'] = pillar_breakdown
-                        
+
                         # Get completed tasks count
                         try:
-                            # V3 uses user_quest_tasks table
-                            quest_task_ids = [t['id'] for t in tasks]
-                            if quest_task_ids:
-                                completed_tasks = supabase.table('user_quest_tasks')\
+                            if task_count > 0:
+                                task_ids = [t['id'] for t in tasks]
+                                completed_tasks = supabase.table('quest_task_completions')\
                                     .select('id', count='exact')\
                                     .eq('user_id', user_id)\
-                                    .in_('quest_task_id', quest_task_ids)\
+                                    .in_('user_quest_task_id', task_ids)\
                                     .execute()
                                 enrollment['completed_tasks'] = completed_tasks.count if hasattr(completed_tasks, 'count') else 0
                             else:
