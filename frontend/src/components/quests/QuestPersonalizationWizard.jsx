@@ -5,13 +5,13 @@ import api from '../../services/api';
 
 const APPROACH_OPTIONS = [
   {
-    id: 'real_world',
+    id: 'real_world_project',
     title: 'Real-World Project',
     description: 'Apply this learning to something you care about (sports, hobbies, interests)',
     IconComponent: Globe
   },
   {
-    id: 'traditional',
+    id: 'traditional_class',
     title: 'Traditional Class',
     description: 'Study this like a school subject (textbook, lessons, practice)',
     IconComponent: BookOpen
