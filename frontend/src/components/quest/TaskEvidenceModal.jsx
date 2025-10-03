@@ -79,7 +79,25 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
                 </div>
               </div>
               {task.description && (
-                <p className="text-sm text-gray-700 mt-3 pt-3 border-t border-gray-200">{task.description}</p>
+                <div className="mt-3 pt-3 border-t border-gray-200">
+                  <h4 className="text-sm font-semibold text-gray-900 mb-2">Task Description</h4>
+                  {task.description.split('\n').map((line, idx) => {
+                    const trimmedLine = line.trim();
+                    if (trimmedLine.startsWith('•')) {
+                      return (
+                        <div key={idx} className="flex items-start mb-2">
+                          <span className="text-green-500 mr-2">•</span>
+                          <span className="text-sm text-gray-700">{trimmedLine.substring(1).trim()}</span>
+                        </div>
+                      );
+                    } else if (trimmedLine) {
+                      return (
+                        <p key={idx} className="text-sm text-gray-700 mb-2">{trimmedLine}</p>
+                      );
+                    }
+                    return null;
+                  })}
+                </div>
               )}
             </div>
 

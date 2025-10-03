@@ -20,18 +20,18 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
         <span className="hidden sm:inline-block sm:align-middle sm:h-screen">&#8203;</span>
 
         {/* Modal panel */}
-        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full">
+        <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[85vh] overflow-y-auto">
           {/* Header */}
-          <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] px-6 py-4">
+          <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] px-8 py-6">
             <div className="flex items-start justify-between">
               <div className="flex-1">
-                <h3 className="text-xl font-bold text-white mb-2">{task.title}</h3>
+                <h3 className="text-2xl font-bold text-white mb-3">{task.title}</h3>
                 <div className="flex items-center gap-3">
-                  <div className={`px-3 py-1 rounded-full text-xs font-medium ${pillarData.bg} ${pillarData.text}`}>
+                  <div className={`px-4 py-1.5 rounded-full text-sm font-medium ${pillarData.bg} ${pillarData.text}`}>
                     {pillarData.icon} {pillarData.name}
                   </div>
-                  <div className="px-3 py-1 bg-white/20 text-white rounded-full text-xs font-medium flex items-center gap-1">
-                    <Award className="w-3 h-3" />
+                  <div className="px-4 py-1.5 bg-white/20 text-white rounded-full text-sm font-medium flex items-center gap-1.5">
+                    <Award className="w-4 h-4" />
                     {task.xp_amount || task.xp_value} XP
                   </div>
                 </div>
@@ -40,33 +40,33 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                 onClick={onClose}
                 className="ml-4 text-white hover:text-gray-200 transition-colors"
               >
-                <X className="w-6 h-6" />
+                <X className="w-7 h-7" />
               </button>
             </div>
           </div>
 
           {/* Content */}
-          <div className="px-6 py-4 space-y-4">
+          <div className="px-8 py-6 space-y-6">
             {/* Description */}
             {task.description && (
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2 flex items-center gap-2">
-                  <BookOpen className="w-4 h-4 text-[#ef597b]" />
+              <div className="bg-gray-50 rounded-lg p-5">
+                <h4 className="font-bold text-lg text-gray-900 mb-3 flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-[#ef597b]" />
                   Description
                 </h4>
-                <p className="text-gray-700">{task.description}</p>
+                <p className="text-gray-700 text-base leading-relaxed">{task.description}</p>
               </div>
             )}
 
             {/* Bullet Points */}
             {task.bullet_points && task.bullet_points.length > 0 && (
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">What You'll Do</h4>
-                <ul className="space-y-2">
+              <div className="bg-green-50 rounded-lg p-5 border border-green-200">
+                <h4 className="font-bold text-lg text-gray-900 mb-3">What You'll Do</h4>
+                <ul className="space-y-3">
                   {task.bullet_points.map((point, idx) => (
                     <li key={idx} className="flex items-start">
-                      <span className="text-green-500 mr-2 mt-1">•</span>
-                      <span className="text-gray-700">{point}</span>
+                      <span className="text-green-600 mr-3 mt-1 text-xl font-bold">•</span>
+                      <span className="text-gray-700 text-base leading-relaxed">{point}</span>
                     </li>
                   ))}
                 </ul>
@@ -75,9 +75,9 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
 
             {/* School Subjects */}
             {task.school_subjects && task.school_subjects.length > 0 && (
-              <div>
-                <h4 className="font-semibold text-gray-900 mb-2">Diploma Credits</h4>
-                <div className="flex flex-wrap gap-2">
+              <div className="bg-blue-50 rounded-lg p-5 border border-blue-200">
+                <h4 className="font-bold text-lg text-gray-900 mb-3">Diploma Credits</h4>
+                <div className="flex flex-wrap gap-2.5">
                   {task.school_subjects.map(subject => {
                     const subjectNames = {
                       'language_arts': 'Language Arts',
@@ -96,7 +96,7 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
                     return (
                       <div
                         key={subject}
-                        className="px-3 py-1 rounded-full bg-blue-50 text-blue-700 text-sm font-medium border border-blue-100"
+                        className="px-4 py-2 rounded-full bg-blue-100 text-blue-800 text-base font-semibold border-2 border-blue-300"
                       >
                         {subjectNames[subject] || subject}
                       </div>
@@ -108,20 +108,20 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
 
             {/* Evidence Prompt */}
             {task.evidence_prompt && (
-              <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
-                <h4 className="font-semibold text-purple-900 mb-2">Evidence Ideas</h4>
-                <p className="text-purple-700 text-sm">{task.evidence_prompt}</p>
+              <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-5">
+                <h4 className="font-bold text-lg text-purple-900 mb-3">Evidence Ideas</h4>
+                <p className="text-purple-800 text-base leading-relaxed">{task.evidence_prompt}</p>
               </div>
             )}
 
             {/* Materials Needed */}
             {task.materials_needed && task.materials_needed.length > 0 && (
-              <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                <h4 className="font-semibold text-orange-900 mb-2">Materials Needed</h4>
-                <ul className="space-y-1">
+              <div className="bg-orange-50 border-2 border-orange-200 rounded-lg p-5">
+                <h4 className="font-bold text-lg text-orange-900 mb-3">Materials Needed</h4>
+                <ul className="space-y-2">
                   {task.materials_needed.map((material, idx) => (
-                    <li key={idx} className="flex items-center text-sm text-orange-700">
-                      <div className="w-2 h-2 bg-orange-400 rounded-full mr-2"></div>
+                    <li key={idx} className="flex items-center text-base text-orange-800">
+                      <div className="w-2.5 h-2.5 bg-orange-500 rounded-full mr-3"></div>
                       {material}
                     </li>
                   ))}

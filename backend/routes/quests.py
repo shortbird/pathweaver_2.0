@@ -264,6 +264,9 @@ def get_quest_detail(user_id: str, quest_id: str):
                 # Map xp_value to xp_amount for frontend compatibility
                 if 'xp_value' in task:
                     task['xp_amount'] = task['xp_value']
+                # Map diploma_subjects to school_subjects for frontend compatibility
+                if 'diploma_subjects' in task:
+                    task['school_subjects'] = task['diploma_subjects']
 
             quest_data['quest_tasks'] = quest_tasks
 

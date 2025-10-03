@@ -147,13 +147,19 @@ class PersonalizationService:
         quest_id: str,
         approach: str,
         interests: List[str],
-        cross_curricular_subjects: List[str]
+        cross_curricular_subjects: List[str],
+        exclude_tasks: List[str] = None,
+        additional_feedback: str = ''
     ) -> Dict[str, Any]:
         """Generate AI task suggestions with caching"""
         try:
-            # Check cache first
-            cache_key = self.cache.build_cache_key(interests, cross_curricular_subjects)
-            cached_tasks = self.cache.get(quest_id, cache_key)
+            # Skip cache if we have exclude_tasks or additional_feedback
+            if exclude_tasks or additional_feedback:
+                cached_tasks = None
+            else:
+                # Check cache first
+                cache_key = self.cache.build_cache_key(interests, cross_curricular_subjects)
+                cached_tasks = self.cache.get(quest_id, cache_key)
 
             if cached_tasks:
                 # Update session with cached results
@@ -191,7 +197,9 @@ class PersonalizationService:
                 quest.data,
                 approach,
                 interests,
-                cross_curricular_subjects
+                cross_curricular_subjects,
+                exclude_tasks=exclude_tasks or [],
+                additional_feedback=additional_feedback
             )
 
             # Generate tasks using AI service
@@ -333,24 +341,29 @@ class PersonalizationService:
         session_id: str,
         user_id: str,
         quest_id: str,
-        user_quest_id: str
+        user_quest_id: str,
+        selected_tasks: List[Dict] = None
     ) -> Dict[str, Any]:
         """Finalize personalization and create user-specific tasks"""
         try:
-            # Get session
-            session = self.supabase.table('quest_personalization_sessions')\
-                .select('*')\
-                .eq('id', session_id)\
-                .single()\
-                .execute()
+            # Use selected tasks directly if provided, otherwise get from session
+            if selected_tasks:
+                ai_tasks = selected_tasks
+            else:
+                # Get session
+                session = self.supabase.table('quest_personalization_sessions')\
+                    .select('*')\
+                    .eq('id', session_id)\
+                    .single()\
+                    .execute()
 
-            if not session.data:
-                return {
-                    'success': False,
-                    'error': 'Session not found'
-                }
+                if not session.data:
+                    return {
+                        'success': False,
+                        'error': 'Session not found'
+                    }
 
-            ai_tasks = session.data.get('ai_generated_tasks', {}).get('tasks', [])
+                ai_tasks = session.data.get('ai_generated_tasks', {}).get('tasks', [])
 
             if not ai_tasks:
                 return {
@@ -427,7 +440,9 @@ class PersonalizationService:
         quest: Dict,
         approach: str,
         interests: List[str],
-        cross_curricular_subjects: List[str]
+        cross_curricular_subjects: List[str],
+        exclude_tasks: List[str] = None,
+        additional_feedback: str = ''
     ) -> str:
         """Build AI prompt for personalized task generation"""
 
@@ -449,6 +464,16 @@ class PersonalizationService:
 
         approach_desc = approach_descriptions.get(approach, approach_descriptions['real_world_project'])
 
+        # Build exclusion text if provided
+        exclude_text = ''
+        if exclude_tasks:
+            exclude_text = f"\nIMPORTANT: Do NOT generate tasks similar to these already-selected tasks:\n{chr(10).join(['- ' + task for task in exclude_tasks])}\nGenerate completely NEW and UNIQUE task approaches."
+
+        # Build additional feedback text if provided
+        feedback_text = ''
+        if additional_feedback:
+            feedback_text = f"\n\nSTUDENT'S ADDITIONAL REQUIREMENTS:\n{additional_feedback}\n\nMake sure to incorporate these specific requirements into the generated tasks."
+
         return f"""
 You are helping a student personalize their learning quest: "{quest_title}".
 
@@ -458,7 +483,7 @@ Student's Selected Approach: {approach_desc}
 
 Student's Interests: {interests_text}
 
-Cross-Curricular Integration: The student wants to incorporate these subjects: {subjects_text}
+Cross-Curricular Integration: The student wants to incorporate these subjects: {subjects_text}{exclude_text}{feedback_text}
 
 Generate 6-10 tasks that:
 1. Are equivalent to high school unit projects (not final projects, not quick worksheets)

@@ -89,13 +89,19 @@ def generate_tasks(user_id: str, quest_id: str):
                 'error': f'Invalid approach. Must be one of: {", ".join(valid_approaches)}'
             }), 400
 
+        # Get optional parameters
+        exclude_tasks = data.get('exclude_tasks', [])
+        additional_feedback = data.get('additional_feedback', '')
+
         # Generate tasks
         result = personalization_service.generate_task_suggestions(
             session_id=session_id,
             quest_id=quest_id,
             approach=approach,
             interests=interests,
-            cross_curricular_subjects=cross_curricular_subjects
+            cross_curricular_subjects=cross_curricular_subjects,
+            exclude_tasks=exclude_tasks,
+            additional_feedback=additional_feedback
         )
 
         if not result['success']:
@@ -318,11 +324,18 @@ def finalize_tasks(user_id: str, quest_id: str):
         data = request.get_json()
 
         session_id = data.get('session_id')
+        selected_tasks = data.get('tasks', [])
 
         if not session_id:
             return jsonify({
                 'success': False,
                 'error': 'session_id is required'
+            }), 400
+
+        if not selected_tasks:
+            return jsonify({
+                'success': False,
+                'error': 'No tasks selected'
             }), 400
 
         # Check if already enrolled
@@ -361,12 +374,13 @@ def finalize_tasks(user_id: str, quest_id: str):
 
             user_quest_id = enrollment.data[0]['id']
 
-        # Finalize personalization
+        # Finalize personalization with selected tasks only
         result = personalization_service.finalize_personalization(
             session_id=session_id,
             user_id=user_id,
             quest_id=quest_id,
-            user_quest_id=user_quest_id
+            user_quest_id=user_quest_id,
+            selected_tasks=selected_tasks
         )
 
         if not result['success']:
