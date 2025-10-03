@@ -63,8 +63,9 @@ class BatchQuestGenerationService:
         """
         try:
             # Get all active quests
-            quests_response = self.supabase.table('quests')\                .select('id, title, source')\
-                .eq('is_active', True)\
+            quests_response = self.supabase.table('quests') \
+                .select('id, title, source') \
+                .eq('is_active', True) \
                 .execute()
 
             quests = quests_response.data or []
