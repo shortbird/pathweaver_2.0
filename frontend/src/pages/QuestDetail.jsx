@@ -9,6 +9,7 @@ import { getPillarData } from '../utils/pillarMappings';
 import { hasFeatureAccess } from '../utils/tierMapping';
 import { queryKeys } from '../utils/queryKeys';
 import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
+import TaskDetailModal from '../components/quest/TaskDetailModal';
 import TeamUpModal from '../components/quest/TeamUpModal';
 import CollaborationBadge from '../components/ui/CollaborationBadge';
 import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
@@ -54,6 +55,8 @@ const QuestDetail = () => {
   const canStartQuests = hasFeatureAccess(user?.subscription_tier, 'supported');
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
+  const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
+  const [taskDetailToShow, setTaskDetailToShow] = useState(null);
   const [showTeamUpModal, setShowTeamUpModal] = useState(false);
   const [showPersonalizationWizard, setShowPersonalizationWizard] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState(new Set());
@@ -677,45 +680,17 @@ const QuestDetail = () => {
                             </div>
                           )}
 
-                          {task.description && (
-                            <p className="text-gray-600 text-sm mb-3">{task.description}</p>
-                          )}
-
-                          {/* Expandable Details */}
-                          {(task.evidence_prompt || task.materials_needed?.length > 0) && (
-                            <button
-                              onClick={() => toggleTaskExpansion(task.id)}
-                              className="text-blue-600 hover:text-blue-800 font-medium text-sm mb-3"
-                            >
-                              {isExpanded ? 'Hide Details' : 'Show Details'} 
-                              <span className="ml-1">{isExpanded ? '▼' : '▶'}</span>
-                            </button>
-                          )}
-
-                          {isExpanded && (
-                            <div className="bg-gray-50 rounded-lg p-4 mb-3 space-y-3">
-                              {task.evidence_prompt && (
-                                <div>
-                                  <h4 className="font-medium text-gray-900 mb-1">Evidence Ideas:</h4>
-                                  <p className="text-gray-600 text-sm">{task.evidence_prompt}</p>
-                                </div>
-                              )}
-                              
-                              {task.materials_needed?.length > 0 && (
-                                <div>
-                                  <h4 className="font-medium text-gray-900 mb-2">Materials Needed:</h4>
-                                  <ul className="space-y-1">
-                                    {task.materials_needed.map((material, idx) => (
-                                      <li key={idx} className="flex items-center text-sm text-gray-600">
-                                        <div className="w-2 h-2 bg-gray-400 rounded-full mr-2"></div>
-                                        {material}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                            </div>
-                          )}
+                          {/* View Details Button */}
+                          <button
+                            onClick={() => {
+                              setTaskDetailToShow(task);
+                              setShowTaskDetailModal(true);
+                            }}
+                            className="text-[#ef597b] hover:text-[#6d469b] font-medium text-sm mb-3 flex items-center gap-1 transition-colors"
+                          >
+                            <BookOpen className="w-4 h-4" />
+                            View Task Details
+                          </button>
                         </div>
 
                         {/* Action buttons */}
@@ -796,6 +771,17 @@ const QuestDetail = () => {
           questId={quest.id}
           onComplete={handleTaskCompletion}
           onClose={() => setShowTaskModal(false)}
+        />
+      )}
+
+      {showTaskDetailModal && (
+        <TaskDetailModal
+          task={taskDetailToShow}
+          isOpen={showTaskDetailModal}
+          onClose={() => {
+            setShowTaskDetailModal(false);
+            setTaskDetailToShow(null);
+          }}
         />
       )}
 
