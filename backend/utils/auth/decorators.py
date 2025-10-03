@@ -12,6 +12,10 @@ def require_auth(f):
     """Decorator to require authentication for routes - prioritizes secure cookies"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Skip authentication for OPTIONS requests (CORS preflight)
+        if request.method == 'OPTIONS':
+            return f(*args, **kwargs)
+
         # First try to get user ID from secure httpOnly cookies
         user_id = session_manager.get_current_user_id()
 
@@ -35,6 +39,10 @@ def require_admin(f):
     """Decorator to require admin access for routes - prioritizes secure cookies"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Skip authentication for OPTIONS requests (CORS preflight)
+        if request.method == 'OPTIONS':
+            return f(*args, **kwargs)
+
         # First try to get user ID from secure httpOnly cookies
         user_id = session_manager.get_current_user_id()
 
@@ -74,6 +82,10 @@ def require_role(*allowed_roles):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
+            # Skip authentication for OPTIONS requests (CORS preflight)
+            if request.method == 'OPTIONS':
+                return f(*args, **kwargs)
+
             # First try to get user ID from secure httpOnly cookies
             user_id = session_manager.get_current_user_id()
 
@@ -113,6 +125,10 @@ def require_paid_tier(f):
     """Decorator to require a paid subscription tier (supported or academy) - prioritizes secure cookies"""
     @wraps(f)
     def decorated_function(*args, **kwargs):
+        # Skip authentication for OPTIONS requests (CORS preflight)
+        if request.method == 'OPTIONS':
+            return f(*args, **kwargs)
+
         # First try to get user ID from secure httpOnly cookies
         user_id = session_manager.get_current_user_id()
 
