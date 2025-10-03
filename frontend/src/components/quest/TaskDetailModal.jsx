@@ -74,31 +74,34 @@ const TaskDetailModal = ({ task, isOpen, onClose }) => {
             )}
 
             {/* School Subjects */}
-            {task.school_subjects && task.school_subjects.length > 0 && (
+            {task.school_subjects && (typeof task.school_subjects === 'object' ? Object.keys(task.school_subjects).length > 0 : task.school_subjects.length > 0) && (
               <div className="bg-blue-50 rounded-lg p-5 border border-blue-200">
                 <h4 className="font-bold text-lg text-gray-900 mb-3">Diploma Credits</h4>
-                <div className="flex flex-wrap gap-2.5">
-                  {task.school_subjects.map(subject => {
+                <div className="flex flex-wrap gap-2">
+                  {(typeof task.school_subjects === 'object' && !Array.isArray(task.school_subjects)
+                    ? Object.entries(task.school_subjects)
+                    : task.school_subjects.map(s => [s, null])
+                  ).map(([subject, xp]) => {
                     const subjectNames = {
-                      'language_arts': 'Language Arts',
-                      'math': 'Math',
-                      'science': 'Science',
-                      'social_studies': 'Social Studies',
-                      'financial_literacy': 'Financial Literacy',
-                      'health': 'Health',
-                      'pe': 'PE',
-                      'fine_arts': 'Fine Arts',
-                      'cte': 'CTE',
-                      'digital_literacy': 'Digital Literacy',
-                      'electives': 'Electives'
+                      'Language Arts': 'Language Arts',
+                      'Mathematics': 'Math',
+                      'Science': 'Science',
+                      'Social Studies': 'Social Studies',
+                      'Financial Literacy': 'Financial Literacy',
+                      'Health': 'Health',
+                      'Physical Education': 'PE',
+                      'Fine Arts': 'Fine Arts',
+                      'Career & Technical Education': 'CTE',
+                      'Digital Literacy': 'Digital Literacy',
+                      'Electives': 'Electives'
                     };
 
                     return (
                       <div
                         key={subject}
-                        className="px-4 py-2 rounded-full bg-blue-100 text-blue-800 text-base font-semibold border-2 border-blue-300"
+                        className="px-2 py-1 rounded-full bg-blue-100 text-blue-700 text-xs font-medium border border-blue-200"
                       >
-                        {subjectNames[subject] || subject}
+                        {subjectNames[subject] || subject}{xp ? ` (${xp} XP)` : ''}
                       </div>
                     );
                   })}

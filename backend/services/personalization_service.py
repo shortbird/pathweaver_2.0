@@ -153,12 +153,14 @@ class PersonalizationService:
     ) -> Dict[str, Any]:
         """Generate AI task suggestions with caching"""
         try:
+            # Build cache key always (needed for storage later)
+            cache_key = self.cache.build_cache_key(interests, cross_curricular_subjects)
+
             # Skip cache if we have exclude_tasks or additional_feedback
             if exclude_tasks or additional_feedback:
                 cached_tasks = None
             else:
                 # Check cache first
-                cache_key = self.cache.build_cache_key(interests, cross_curricular_subjects)
                 cached_tasks = self.cache.get(quest_id, cache_key)
 
             if cached_tasks:
@@ -518,10 +520,15 @@ Return as valid JSON array:
     "description": "1-2 brief sentences describing the task",
     "bullet_points": ["Main action 1", "Main action 2", "Main action 3"],
     "pillar": "One of the five pillars listed above",
-    "diploma_subjects": ["Subject 1", "Subject 2"],
+    "diploma_subjects": {{"Subject 1": 50, "Subject 2": 25, "Subject 3": 25}},
     "xp_value": 100
   }}
 ]
+
+IMPORTANT: diploma_subjects must be a JSON object with subject names as keys and XP amounts as values.
+XP amounts must be in multiples of 25 and sum to the task's total xp_value.
+Example: If xp_value is 100 and task covers 2 subjects equally: {{"Science": 50, "Mathematics": 50}}
+Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75, "Mathematics": 25}}
 """
 
     def _validate_tasks(
@@ -534,12 +541,31 @@ Return as valid JSON array:
 
         validated = []
         for task in tasks:
+            # Validate diploma_subjects format
+            diploma_subjects = task.get('diploma_subjects', {})
+
+            # Handle both old array format and new dict format
+            if isinstance(diploma_subjects, list):
+                # Old format - convert to dict with equal XP split
+                total_xp = task.get('xp_value', 100)
+                xp_per_subject = (total_xp // len(diploma_subjects) // 25) * 25  # Round to nearest 25
+                remainder = total_xp - (xp_per_subject * len(diploma_subjects))
+
+                diploma_subjects_dict = {}
+                for i, subject in enumerate(diploma_subjects):
+                    # Give remainder to first subject
+                    xp = xp_per_subject + (remainder if i == 0 else 0)
+                    diploma_subjects_dict[subject] = xp
+                diploma_subjects = diploma_subjects_dict
+            elif not isinstance(diploma_subjects, dict):
+                diploma_subjects = {'Electives': task.get('xp_value', 100)}
+
             validated_task = {
                 'title': task.get('title', 'Learning Task'),
                 'description': task.get('description', ''),
                 'bullet_points': task.get('bullet_points', []),
                 'pillar': self.ai_service._validate_pillar(task.get('pillar', 'STEM & Logic')),
-                'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                'diploma_subjects': diploma_subjects,
                 'xp_value': self.ai_service._validate_xp(task.get('xp_value', 100))
             }
             validated.append(validated_task)
