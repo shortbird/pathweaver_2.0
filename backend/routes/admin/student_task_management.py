@@ -89,10 +89,8 @@ def create_student_task(user_id, target_user_id, quest_id):
                 'title': template.data['title'],
                 'description': template.data.get('description', ''),
                 'pillar': template.data['pillar'],
-                'subject_xp_distribution': template.data.get('subject_xp_distribution', {}),
-                'xp_amount': template.data.get('xp_amount', 0),
-                'evidence_prompt': template.data.get('evidence_prompt', ''),
-                'materials_needed': template.data.get('materials_needed', []),
+                'diploma_subjects': template.data.get('diploma_subjects', ["Electives"]),
+                'xp_value': template.data.get('xp_value', 100),
                 'order_index': max_order + 1,
                 'is_required': True,
                 'approval_status': 'approved',  # Admin-created tasks are pre-approved
@@ -124,26 +122,18 @@ def create_student_task(user_id, target_user_id, quest_id):
 
             normalized_pillar = normalize_pillar_key(pillar)
 
-            # Validate subject XP distribution
-            subject_xp_distribution = data.get('subject_xp_distribution', {})
-            if not subject_xp_distribution or sum(subject_xp_distribution.values()) <= 0:
+            # Validate diploma subjects (school subjects)
+            diploma_subjects = data.get('diploma_subjects', ["Electives"])
+            if not diploma_subjects:
+                diploma_subjects = ["Electives"]
+
+            # Get XP value
+            xp_value = data.get('xp_value', 100)
+            if xp_value <= 0:
                 return jsonify({
                     'success': False,
-                    'error': 'At least one subject must have XP assigned'
+                    'error': 'XP value must be greater than 0'
                 }), 400
-
-            # Validate school subjects
-            school_subjects = list(subject_xp_distribution.keys())
-            if school_subjects:
-                valid_subjects = validate_school_subjects(school_subjects)
-                if not valid_subjects:
-                    return jsonify({
-                        'success': False,
-                        'error': f'Invalid school subjects: {school_subjects}'
-                    }), 400
-
-            # Calculate total XP
-            total_xp = sum(subject_xp_distribution.values())
 
             task_data = {
                 'user_id': target_user_id,
@@ -152,10 +142,8 @@ def create_student_task(user_id, target_user_id, quest_id):
                 'title': data['title'].strip(),
                 'description': data.get('description', '').strip(),
                 'pillar': normalized_pillar,
-                'subject_xp_distribution': subject_xp_distribution,
-                'xp_amount': int(total_xp),
-                'evidence_prompt': data.get('evidence_prompt', '').strip() or f"Provide evidence for completing: {data['title']}",
-                'materials_needed': data.get('materials_needed', []),
+                'diploma_subjects': diploma_subjects,
+                'xp_value': int(xp_value),
                 'order_index': max_order + 1,
                 'is_required': True,
                 'approval_status': 'approved',  # Admin-created tasks are pre-approved
@@ -267,10 +255,8 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
                 'title': template['title'],
                 'description': template.get('description', ''),
                 'pillar': template['pillar'],
-                'subject_xp_distribution': template.get('subject_xp_distribution', {}),
-                'xp_amount': template.get('xp_amount', 0),
-                'evidence_prompt': template.get('evidence_prompt', ''),
-                'materials_needed': template.get('materials_needed', []),
+                'diploma_subjects': template.get('diploma_subjects', ["Electives"]),
+                'xp_value': template.get('xp_value', 100),
                 'order_index': max_order + idx + 1,
                 'is_required': True,
                 'approval_status': 'approved',

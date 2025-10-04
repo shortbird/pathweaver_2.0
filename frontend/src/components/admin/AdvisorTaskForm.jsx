@@ -17,9 +17,8 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
     title: '',
     description: '',
     pillar: '',
-    subject_xp_distribution: {},
-    evidence_prompt: '',
-    materials_needed: []
+    diploma_subjects: ['Electives'],
+    xp_value: 100
   })
 
   // Pillar options
@@ -123,20 +122,21 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
   }
 
   const getTotalTaskXP = (task) => {
-    if (task.subject_xp_distribution) {
-      return Object.values(task.subject_xp_distribution).reduce((sum, xp) => sum + (xp || 0), 0)
-    }
-    return task.xp_amount || 0
+    return task.xp_value || 100
   }
 
-  const updateSubjectXP = (subject, xp) => {
-    const newDistribution = { ...customTask.subject_xp_distribution }
-    if (xp > 0) {
-      newDistribution[subject] = parseInt(xp) || 0
-    } else {
-      delete newDistribution[subject]
+  const toggleSubject = (subject) => {
+    const currentSubjects = customTask.diploma_subjects || ['Electives']
+    const newSubjects = currentSubjects.includes(subject)
+      ? currentSubjects.filter(s => s !== subject)
+      : [...currentSubjects, subject]
+
+    // Always keep at least one subject
+    if (newSubjects.length === 0) {
+      newSubjects.push('Electives')
     }
-    setCustomTask({ ...customTask, subject_xp_distribution: newDistribution })
+
+    setCustomTask({ ...customTask, diploma_subjects: newSubjects })
   }
 
   const validateCustomTask = () => {
@@ -150,9 +150,8 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
       newErrors.pillar = 'Learning pillar is required'
     }
 
-    const totalXP = getTotalTaskXP(customTask)
-    if (totalXP <= 0) {
-      newErrors.xp = 'At least one subject must have XP assigned'
+    if (!customTask.xp_value || customTask.xp_value <= 0) {
+      newErrors.xp = 'XP value must be greater than 0'
     }
 
     setErrors(newErrors)
@@ -175,9 +174,8 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
         title: '',
         description: '',
         pillar: '',
-        subject_xp_distribution: {},
-        evidence_prompt: '',
-        materials_needed: []
+        diploma_subjects: ['Electives'],
+        xp_value: 100
       })
       setErrors({})
 
@@ -428,38 +426,49 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
 
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-gray-800">
-                    School Subject XP Distribution
+                    XP Value
                     <span className="text-red-500 font-bold ml-1">*</span>
                   </label>
-                  <div className="grid grid-cols-2 gap-2 p-3 border rounded-lg bg-gray-50">
-                    {availableSubjects.map(subject => (
-                      <div key={subject.key} className="flex items-center justify-between bg-white p-2 rounded">
-                        <span className="text-sm font-medium">{subject.name}</span>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            value={customTask.subject_xp_distribution[subject.key] || ''}
-                            onChange={(e) => updateSubjectXP(subject.key, e.target.value)}
-                            className="w-16 px-2 py-1 text-sm border rounded text-center"
-                            placeholder="0"
-                            min="0"
-                            step="25"
-                          />
-                          <span className="text-xs text-gray-500">XP</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-2 p-2 bg-purple-50 rounded flex justify-between items-center">
-                    <span className="text-sm font-medium text-purple-800">Total XP:</span>
-                    <span className="text-lg font-bold text-purple-600">{getTotalTaskXP(customTask)}</span>
-                  </div>
+                  <input
+                    type="number"
+                    value={customTask.xp_value}
+                    onChange={(e) => {
+                      setCustomTask({ ...customTask, xp_value: parseInt(e.target.value) || 0 })
+                      if (errors.xp) setErrors({ ...errors, xp: '' })
+                    }}
+                    className={`w-full px-4 py-2 border rounded-lg ${errors.xp ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="100"
+                    min="0"
+                    step="25"
+                  />
                   {errors.xp && (
                     <p className="text-red-600 text-sm mt-1 flex items-center">
                       <AlertCircle size={14} className="mr-1" />
                       {errors.xp}
                     </p>
                   )}
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold mb-2 text-gray-800">
+                    School Subjects
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 p-3 border rounded-lg bg-gray-50">
+                    {availableSubjects.map(subject => (
+                      <label key={subject.key} className="flex items-center gap-2 bg-white p-2 rounded cursor-pointer hover:bg-gray-50">
+                        <input
+                          type="checkbox"
+                          checked={(customTask.diploma_subjects || []).includes(subject.name)}
+                          onChange={() => toggleSubject(subject.name)}
+                          className="rounded"
+                        />
+                        <span className="text-sm">{subject.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Selected: {(customTask.diploma_subjects || ['Electives']).join(', ')}
+                  </p>
                 </div>
 
                 <div>
@@ -475,18 +484,6 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                   />
                 </div>
 
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-600">
-                    Evidence Prompt (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    value={customTask.evidence_prompt}
-                    onChange={(e) => setCustomTask({ ...customTask, evidence_prompt: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg border-gray-300"
-                    placeholder="What should students submit as proof?"
-                  />
-                </div>
               </div>
             </div>
 
@@ -563,25 +560,16 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                 </div>
               )}
 
-              {previewTask.subject_xp_distribution && Object.keys(previewTask.subject_xp_distribution).length > 0 && (
+              {previewTask.diploma_subjects && previewTask.diploma_subjects.length > 0 && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Subject XP Distribution</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">School Subjects</label>
                   <div className="flex flex-wrap gap-2">
-                    {Object.entries(previewTask.subject_xp_distribution)
-                      .filter(([_, xp]) => xp > 0)
-                      .map(([subject, xp]) => (
-                        <span key={subject} className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
-                          {availableSubjects.find(s => s.key === subject)?.name || subject}: {xp} XP
-                        </span>
-                      ))}
+                    {previewTask.diploma_subjects.map((subject) => (
+                      <span key={subject} className="bg-purple-100 text-purple-800 text-xs px-2 py-1 rounded-full">
+                        {subject}
+                      </span>
+                    ))}
                   </div>
-                </div>
-              )}
-
-              {previewTask.evidence_prompt && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Evidence Prompt</label>
-                  <p className="text-gray-700">{previewTask.evidence_prompt}</p>
                 </div>
               )}
 
