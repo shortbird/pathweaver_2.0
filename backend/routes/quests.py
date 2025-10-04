@@ -9,6 +9,7 @@ from utils.auth.decorators import require_auth, require_paid_tier
 from utils.source_utils import get_quest_header_image
 from utils.user_sync import ensure_user_exists, get_user_name
 from services.quest_optimization import quest_optimization_service
+from utils.pillar_utils import migrate_old_pillar, get_pillar_name
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -267,6 +268,11 @@ def get_quest_detail(user_id: str, quest_id: str):
                 # Map diploma_subjects to school_subjects for frontend compatibility
                 if 'diploma_subjects' in task:
                     task['school_subjects'] = task['diploma_subjects']
+                # Convert database pillar key to display name for frontend
+                if 'pillar' in task:
+                    # Migrate old pillar to new key, then get display name
+                    pillar_key = migrate_old_pillar(task['pillar'])
+                    task['pillar'] = get_pillar_name(pillar_key)
 
             quest_data['quest_tasks'] = quest_tasks
 

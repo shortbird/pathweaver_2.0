@@ -346,7 +346,8 @@
       "Read(/C:\\Users\\tanne\\Desktop\\pw_v2\\frontend\\src\\pages/**)",
       "Bash(python3:*)",
       "Bash(git pull:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(mcp__render__list_logs:*)"
     ],
     "deny": [],
     "ask": []

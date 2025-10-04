@@ -11,6 +11,7 @@ import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from database import get_supabase_admin_client
+from utils.pillar_utils import normalize_pillar_key, get_database_pillar_key
 
 class TaskCacheService:
     """Caching service for AI-generated tasks"""
@@ -385,6 +386,11 @@ class PersonalizationService:
                 pillar_value = task.get('pillar', 'STEM & Logic')
                 print(f"[FINALIZE] Task {index}: '{task.get('title')}' - Pillar from task: {pillar_value}")
 
+                # Convert pillar display name to database key
+                pillar_key = normalize_pillar_key(pillar_value)
+                db_pillar = get_database_pillar_key(pillar_key) if pillar_key else 'critical_thinking'
+                print(f"[FINALIZE] Pillar conversion: '{pillar_value}' -> key: '{pillar_key}' -> db: '{db_pillar}'")
+
                 # Handle diploma_subjects - ensure proper format
                 diploma_subjects = task.get('diploma_subjects', {})
                 if isinstance(diploma_subjects, list):
@@ -402,7 +408,7 @@ class PersonalizationService:
                     'user_quest_id': user_quest_id,
                     'title': task['title'],
                     'description': description,
-                    'pillar': pillar_value,
+                    'pillar': db_pillar,
                     'diploma_subjects': diploma_subjects,
                     'xp_value': task.get('xp_value', 100),
                     'order_index': index,
