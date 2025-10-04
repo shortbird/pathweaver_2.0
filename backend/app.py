@@ -10,7 +10,7 @@ from routes.promo import promo_bp
 
 # Import routes
 from routes import quests, tasks, collaborations, admin_core, quest_sources, evidence_documents
-from routes.admin import user_management, quest_management, quest_ideas, quest_sources as admin_quest_sources, analytics
+from routes.admin import user_management, quest_management, quest_ideas, quest_sources as admin_quest_sources, analytics, student_task_management
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -75,6 +75,7 @@ app.register_blueprint(quest_management.bp)  # /api/v3/admin (blueprint has url_
 app.register_blueprint(quest_ideas.bp)  # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
 app.register_blueprint(admin_quest_sources.bp)  # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
 app.register_blueprint(analytics.bp)  # /api/v3/admin/analytics (blueprint has url_prefix='/api/v3/admin/analytics')
+app.register_blueprint(student_task_management.bp)  # /api/v3/admin/users (blueprint has url_prefix='/api/v3/admin/users')
 app.register_blueprint(quest_sources.bp)  # /api/v3/admin/quest-sources (blueprint has url_prefix='/api/v3/admin/quest-sources')
 app.register_blueprint(collaborations.bp)  # /api/collaborations (blueprint has url_prefix='/api/collaborations')
 # Conditionally import and register Quest AI blueprint

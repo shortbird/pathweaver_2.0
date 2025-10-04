@@ -16,6 +16,28 @@ import uuid
 
 bp = Blueprint('admin_quest_management', __name__, url_prefix='/api/v3/admin')
 
+@bp.route('/quests/school-subjects', methods=['GET'])
+def get_school_subjects_v3():
+    """
+    Get all available school subjects for task creation.
+    Public endpoint - no auth required for getting subject list.
+    """
+    try:
+        from utils.school_subjects import get_all_subjects_with_info
+        subjects = get_all_subjects_with_info()
+
+        return jsonify({
+            'success': True,
+            'school_subjects': subjects
+        })
+
+    except Exception as e:
+        print(f"Error getting school subjects: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch school subjects'
+        }), 500
+
 @bp.route('/quests/create-v3', methods=['POST'])
 @require_admin
 def create_quest_v3_clean(user_id):
