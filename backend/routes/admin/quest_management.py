@@ -226,13 +226,19 @@ def get_quest_task_templates(user_id, quest_id):
                 continue
 
             if title not in template_map:
+                # Calculate total XP from subject_xp_distribution if xp_amount is 0
+                subject_xp_dist = task.get('subject_xp_distribution', {})
+                xp_amount = task.get('xp_amount', 0)
+                if xp_amount == 0 and subject_xp_dist:
+                    xp_amount = sum(subject_xp_dist.values())
+
                 template_map[title] = {
                     'id': task['id'],  # Use first occurrence ID as template
                     'title': task.get('title'),
                     'description': task.get('description', ''),
                     'pillar': task.get('pillar'),
-                    'subject_xp_distribution': task.get('subject_xp_distribution', {}),
-                    'xp_amount': task.get('xp_amount', 0),
+                    'subject_xp_distribution': subject_xp_dist,
+                    'xp_amount': int(xp_amount),
                     'evidence_prompt': task.get('evidence_prompt', ''),
                     'materials_needed': task.get('materials_needed', []),
                     'usage_count': 0,
