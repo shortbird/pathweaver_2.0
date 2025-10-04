@@ -453,3 +453,84 @@ def get_conversation_details(admin_user_id, conversation_id):
     except Exception as e:
         print(f"Error fetching conversation details: {str(e)}")
         return error_response(f"Failed to fetch conversation details: {str(e)}", status_code=500, error_code="internal_error")
+
+@bp.route('/users/<target_user_id>/quest-enrollments', methods=['GET'])
+@require_admin
+def get_user_quest_enrollments(user_id, target_user_id):
+    """
+    Get all quests for a student - both enrolled and available.
+    Used by advisors to add tasks to student quests.
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Get all active quests
+        all_quests = supabase.table('quests')\
+            .select('id, title, big_idea, description, source')\
+            .eq('is_active', True)\
+            .order('created_at', desc=True)\
+            .execute()
+
+        # Get student's enrollments
+        enrollments = supabase.table('user_quests')\
+            .select('*, quests(id, title, big_idea, description)')\
+            .eq('user_id', target_user_id)\
+            .eq('is_active', True)\
+            .execute()
+
+        # Get task counts for enrolled quests
+        enrolled_quest_ids = [e['quest_id'] for e in enrollments.data] if enrollments.data else []
+        task_counts = {}
+
+        if enrolled_quest_ids:
+            for quest_id in enrolled_quest_ids:
+                tasks = supabase.table('user_quest_tasks')\
+                    .select('id', count='exact')\
+                    .eq('quest_id', quest_id)\
+                    .eq('user_id', target_user_id)\
+                    .execute()
+                task_counts[quest_id] = tasks.count or 0
+
+        # Build enrolled quests list
+        enrolled_quests = []
+        for enrollment in (enrollments.data or []):
+            quest = enrollment.get('quests', {})
+            enrolled_quests.append({
+                'quest_id': enrollment['quest_id'],
+                'user_quest_id': enrollment['id'],
+                'title': quest.get('title', 'Unknown Quest'),
+                'big_idea': quest.get('big_idea', ''),
+                'description': quest.get('description', ''),
+                'task_count': task_counts.get(enrollment['quest_id'], 0),
+                'started_at': enrollment.get('started_at'),
+                'completed_at': enrollment.get('completed_at'),
+                'is_enrolled': True
+            })
+
+        # Build available quests list (not enrolled)
+        available_quests = []
+        for quest in (all_quests.data or []):
+            if quest['id'] not in enrolled_quest_ids:
+                available_quests.append({
+                    'quest_id': quest['id'],
+                    'title': quest['title'],
+                    'big_idea': quest.get('big_idea', ''),
+                    'description': quest.get('description', ''),
+                    'source': quest.get('source', 'optio'),
+                    'is_enrolled': False
+                })
+
+        return jsonify({
+            'success': True,
+            'enrolled_quests': enrolled_quests,
+            'available_quests': available_quests,
+            'total_enrolled': len(enrolled_quests),
+            'total_available': len(available_quests)
+        })
+
+    except Exception as e:
+        print(f"Error getting quest enrollments: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to retrieve quest enrollments'
+        }), 500

@@ -20,10 +20,10 @@ bp = Blueprint('admin_quest_management', __name__, url_prefix='/api/v3/admin')
 @require_admin
 def create_quest_v3_clean(user_id):
     """
-    Create a new quest with comprehensive validation and error handling.
-    This is the clean, rebuilt version to avoid previous bugs.
+    Create a new quest (title + idea only).
+    Tasks are now created individually per student by advisors or AI.
     """
-    print(f"CREATE QUEST V3 CLEAN: admin_user_id={user_id}")
+    print(f"CREATE QUEST V3: admin_user_id={user_id}")
     supabase = get_supabase_admin_client()
 
     try:
@@ -34,16 +34,14 @@ def create_quest_v3_clean(user_id):
         if not data.get('title'):
             return jsonify({'success': False, 'error': 'Title is required'}), 400
 
-        if not data.get('tasks') or len(data['tasks']) == 0:
-            return jsonify({'success': False, 'error': 'At least one task is required'}), 400
-
         # Create quest record
         quest_data = {
             'title': data['title'].strip(),
-            'description': data.get('description', '').strip(),
+            'big_idea': data.get('big_idea', '').strip() or data.get('description', '').strip(),
+            'description': data.get('big_idea', '').strip() or data.get('description', '').strip(),
             'is_v3': True,
-            'is_active': True,
-            'source': data.get('source', 'custom'),
+            'is_active': data.get('is_active', True),
+            'source': 'optio',  # Always optio for new personalized quests
             'header_image_url': data.get('header_image_url'),
             'created_at': datetime.utcnow().isoformat()
         }
@@ -55,80 +53,13 @@ def create_quest_v3_clean(user_id):
             return jsonify({'success': False, 'error': 'Failed to create quest'}), 500
 
         quest_id = quest_result.data[0]['id']
-        print(f"Created quest with ID: {quest_id}")
-
-        # Process and create tasks
-        tasks_created = []
-        for i, task_data in enumerate(data['tasks']):
-            try:
-                # Validate task data
-                if not task_data.get('title'):
-                    raise ValueError(f"Task {i+1}: Title is required")
-
-                if not task_data.get('description'):
-                    raise ValueError(f"Task {i+1}: Description is required")
-
-                # Validate pillar
-                pillar = task_data.get('pillar', 'creativity')
-                if not is_valid_pillar(pillar):
-                    raise ValueError(f"Task {i+1}: Invalid pillar '{pillar}'")
-
-                # Normalize pillar key
-                normalized_pillar = normalize_pillar_key(pillar)
-
-                # Validate XP value
-                xp_value = task_data.get('xp_amount', 50)
-                if not isinstance(xp_value, (int, float)) or xp_value <= 0:
-                    raise ValueError(f"Task {i+1}: XP amount must be a positive number")
-
-                # Validate school subjects if provided
-                school_subjects = task_data.get('school_subjects', [])
-                if school_subjects:
-                    valid_subjects = validate_school_subjects(school_subjects)
-                    if not valid_subjects:
-                        print(f"Warning: Invalid school subjects for task {i+1}: {school_subjects}")
-                        school_subjects = []
-
-                task_record = {
-                    'quest_id': quest_id,
-                    'title': task_data['title'].strip(),
-                    'description': task_data['description'].strip(),
-                    'pillar': normalized_pillar,
-                    'xp_amount': int(xp_value),
-                    'is_required': task_data.get('is_required', True),
-                    'order_index': i + 1,
-                    'school_subjects': school_subjects
-                }
-
-                # Insert task
-                task_result = supabase.table('quest_tasks').insert(task_record).execute()
-
-                if task_result.data:
-                    tasks_created.append(task_result.data[0])
-                    print(f"Created task {i+1}: {task_data['title']}")
-                else:
-                    print(f"Failed to create task {i+1}: {task_data['title']}")
-
-            except Exception as task_error:
-                print(f"Error creating task {i+1}: {str(task_error)}")
-                # Continue with other tasks rather than failing completely
-                continue
-
-        if not tasks_created:
-            # Clean up quest if no tasks were created
-            supabase.table('quests').delete().eq('id', quest_id).execute()
-            return jsonify({
-                'success': False,
-                'error': 'Failed to create any tasks for the quest'
-            }), 500
-
-        print(f"Successfully created quest {quest_id} with {len(tasks_created)} tasks")
+        print(f"Successfully created quest {quest_id}: {quest_data['title']}")
 
         return jsonify({
             'success': True,
-            'message': f'Quest created successfully with {len(tasks_created)} tasks',
+            'message': 'Quest created successfully. Tasks can now be added per student.',
             'quest_id': quest_id,
-            'tasks_created': len(tasks_created)
+            'quest': quest_result.data[0]
         })
 
     except Exception as e:
@@ -239,4 +170,71 @@ def get_admin_quests(user_id):
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve quests'
+        }), 500
+
+@bp.route('/quests/<quest_id>/task-templates', methods=['GET'])
+@require_admin
+def get_quest_task_templates(user_id, quest_id):
+    """
+    Get reusable task templates for a quest.
+    Returns tasks created by other students that can be copied.
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Get all tasks for this quest from user_quest_tasks
+        # Group by title to find commonly used tasks
+        tasks = supabase.table('user_quest_tasks')\
+            .select('*')\
+            .eq('quest_id', quest_id)\
+            .execute()
+
+        if not tasks.data:
+            return jsonify({
+                'success': True,
+                'templates': [],
+                'message': 'No task templates available yet for this quest'
+            })
+
+        # Aggregate tasks by similarity (using title as primary key)
+        template_map = {}
+        for task in tasks.data:
+            title = task.get('title', '').strip().lower()
+            if not title:
+                continue
+
+            if title not in template_map:
+                template_map[title] = {
+                    'id': task['id'],  # Use first occurrence ID as template
+                    'title': task.get('title'),
+                    'description': task.get('description', ''),
+                    'pillar': task.get('pillar'),
+                    'subject_xp_distribution': task.get('subject_xp_distribution', {}),
+                    'xp_amount': task.get('xp_amount', 0),
+                    'evidence_prompt': task.get('evidence_prompt', ''),
+                    'materials_needed': task.get('materials_needed', []),
+                    'usage_count': 0,
+                    'created_at': task.get('created_at')
+                }
+
+            template_map[title]['usage_count'] += 1
+
+        # Convert to list and sort by usage count (most popular first)
+        templates = sorted(
+            template_map.values(),
+            key=lambda x: (x['usage_count'], x['created_at']),
+            reverse=True
+        )
+
+        return jsonify({
+            'success': True,
+            'templates': templates,
+            'total': len(templates)
+        })
+
+    except Exception as e:
+        print(f"Error getting task templates: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to retrieve task templates'
         }), 500
