@@ -347,7 +347,8 @@
       "Bash(python3:*)",
       "Bash(git pull:*)",
       "Bash(git stash:*)",
-      "Bash(mcp__render__list_logs:*)"
+      "Bash(mcp__render__list_logs:*)",
+      "Bash(mcp__render__list_services:*)"
     ],
     "deny": [],
     "ask": []

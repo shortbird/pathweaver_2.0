@@ -27,7 +27,7 @@ CREATE TABLE public.advisor_group_members (
   group_id uuid NOT NULL,
   student_id uuid NOT NULL,
   joined_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT advisor_group_members_pkey PRIMARY KEY (group_id, student_id),
+  CONSTRAINT advisor_group_members_pkey PRIMARY KEY (student_id, group_id),
   CONSTRAINT advisor_group_members_group_id_fkey FOREIGN KEY (group_id) REFERENCES public.advisor_groups(id),
   CONSTRAINT advisor_group_members_student_id_fkey FOREIGN KEY (student_id) REFERENCES public.users(id)
 );
@@ -214,6 +214,18 @@ CREATE TABLE public.ai_seeds (
   prompt_text text NOT NULL,
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT ai_seeds_pkey PRIMARY KEY (id)
+);
+CREATE TABLE public.ai_task_cache (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  quest_id uuid NOT NULL,
+  cache_key text NOT NULL,
+  interests_hash text,
+  generated_tasks jsonb NOT NULL,
+  hit_count integer DEFAULT 0,
+  created_at timestamp with time zone DEFAULT now(),
+  expires_at timestamp with time zone DEFAULT (now() + '7 days'::interval),
+  CONSTRAINT ai_task_cache_pkey PRIMARY KEY (id),
+  CONSTRAINT ai_task_cache_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id)
 );
 CREATE TABLE public.badge_quests (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -447,6 +459,22 @@ CREATE TABLE public.quest_paths (
   updated_at timestamp without time zone DEFAULT now(),
   CONSTRAINT quest_paths_pkey PRIMARY KEY (id)
 );
+CREATE TABLE public.quest_personalization_sessions (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
+  quest_id uuid NOT NULL,
+  selected_approach text,
+  selected_interests jsonb DEFAULT '[]'::jsonb,
+  cross_curricular_subjects jsonb DEFAULT '[]'::jsonb,
+  ai_generated_tasks jsonb,
+  finalized_tasks jsonb,
+  completed_at timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT quest_personalization_sessions_pkey PRIMARY KEY (id),
+  CONSTRAINT quest_personalization_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT quest_personalization_sessions_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id)
+);
 CREATE TABLE public.quest_ratings (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   quest_id uuid,
@@ -503,7 +531,9 @@ CREATE TABLE public.quest_task_completions (
   completed_at timestamp with time zone DEFAULT now(),
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  user_quest_task_id uuid,
   CONSTRAINT quest_task_completions_pkey PRIMARY KEY (id),
+  CONSTRAINT quest_task_completions_user_quest_task_id_fkey FOREIGN KEY (user_quest_task_id) REFERENCES public.user_quest_tasks(id),
   CONSTRAINT quest_task_completions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
 CREATE TABLE public.quest_tasks (
@@ -635,6 +665,20 @@ CREATE TABLE public.subscription_history (
   updated_at timestamp with time zone DEFAULT now(),
   CONSTRAINT subscription_history_pkey PRIMARY KEY (id),
   CONSTRAINT subscription_history_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id)
+);
+CREATE TABLE public.task_collaborations (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  task_id uuid NOT NULL,
+  student_1_id uuid NOT NULL,
+  student_2_id uuid NOT NULL,
+  status text DEFAULT 'pending'::text CHECK (status = ANY (ARRAY['pending'::text, 'active'::text, 'completed'::text])),
+  double_xp_awarded boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT task_collaborations_pkey PRIMARY KEY (id),
+  CONSTRAINT task_collaborations_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.user_quest_tasks(id),
+  CONSTRAINT task_collaborations_student_1_id_fkey FOREIGN KEY (student_1_id) REFERENCES public.users(id),
+  CONSTRAINT task_collaborations_student_2_id_fkey FOREIGN KEY (student_2_id) REFERENCES public.users(id)
 );
 CREATE TABLE public.tutor_analytics (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -784,13 +828,34 @@ CREATE TABLE public.user_mastery (
 CREATE TABLE public.user_quest_tasks (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL,
+  quest_id uuid NOT NULL,
+  user_quest_id uuid NOT NULL,
+  title text NOT NULL,
+  description text,
+  pillar text NOT NULL,
+  xp_value integer DEFAULT 100,
+  order_index integer DEFAULT 0,
+  is_required boolean DEFAULT true,
+  is_manual boolean DEFAULT false,
+  approval_status text DEFAULT 'approved'::text CHECK (approval_status = ANY (ARRAY['pending'::text, 'approved'::text, 'rejected'::text])),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  diploma_subjects jsonb DEFAULT '["Electives"]'::jsonb,
+  CONSTRAINT user_quest_tasks_pkey PRIMARY KEY (id),
+  CONSTRAINT user_quest_tasks_user_id_fkey1 FOREIGN KEY (user_id) REFERENCES public.users(id),
+  CONSTRAINT user_quest_tasks_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id),
+  CONSTRAINT user_quest_tasks_user_quest_id_fkey1 FOREIGN KEY (user_quest_id) REFERENCES public.user_quests(id)
+);
+CREATE TABLE public.user_quest_tasks_legacy_archived (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  user_id uuid NOT NULL,
   quest_task_id uuid NOT NULL,
   user_quest_id uuid NOT NULL,
   evidence_type USER-DEFINED NOT NULL,
   evidence_content text NOT NULL,
   xp_awarded integer NOT NULL CHECK (xp_awarded > 0),
   completed_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT user_quest_tasks_pkey PRIMARY KEY (id),
+  CONSTRAINT user_quest_tasks_legacy_archived_pkey PRIMARY KEY (id),
   CONSTRAINT user_quest_tasks_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT user_quest_tasks_quest_task_id_fkey FOREIGN KEY (quest_task_id) REFERENCES public.quest_tasks(id),
   CONSTRAINT user_quest_tasks_user_quest_id_fkey FOREIGN KEY (user_quest_id) REFERENCES public.user_quests(id)
@@ -803,9 +868,12 @@ CREATE TABLE public.user_quests (
   completed_at timestamp with time zone,
   is_active boolean DEFAULT true,
   created_at timestamp with time zone DEFAULT now(),
+  personalization_completed boolean DEFAULT false,
+  personalization_session_id uuid,
   CONSTRAINT user_quests_pkey PRIMARY KEY (id),
   CONSTRAINT user_quests_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
-  CONSTRAINT user_quests_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id)
+  CONSTRAINT user_quests_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id),
+  CONSTRAINT user_quests_personalization_session_id_fkey FOREIGN KEY (personalization_session_id) REFERENCES public.quest_personalization_sessions(id)
 );
 CREATE TABLE public.user_skill_details (
   id integer NOT NULL DEFAULT nextval('user_skill_details_id_seq'::regclass),

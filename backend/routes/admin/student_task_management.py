@@ -40,6 +40,13 @@ def create_student_task(user_id, target_user_id, quest_id):
 
         if enrollment.data:
             user_quest_id = enrollment.data[0]['id']
+
+            # Update enrollment to mark personalization as completed
+            # This allows adding tasks after initial personalization
+            supabase.table('user_quests')\
+                .update({'personalization_completed': True})\
+                .eq('id', user_quest_id)\
+                .execute()
         else:
             # Auto-enroll student in quest
             new_enrollment = supabase.table('user_quests')\
@@ -207,6 +214,13 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
 
         if enrollment.data:
             user_quest_id = enrollment.data[0]['id']
+
+            # Update enrollment to mark personalization as completed
+            # This allows adding tasks after initial personalization
+            supabase.table('user_quests')\
+                .update({'personalization_completed': True})\
+                .eq('id', user_quest_id)\
+                .execute()
         else:
             # Auto-enroll student in quest
             new_enrollment = supabase.table('user_quests')\
