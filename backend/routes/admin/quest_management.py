@@ -200,10 +200,25 @@ def get_quest_task_templates(user_id, quest_id):
     """
     Get reusable task templates for a quest.
     Returns tasks created by other students that can be copied.
+    Optionally filters out tasks already assigned to a specific student.
     """
+    from flask import request
     supabase = get_supabase_admin_client()
 
     try:
+        # Get target_user_id from query params (student we're adding tasks for)
+        target_user_id = request.args.get('target_user_id')
+
+        # Get existing task titles for this student if target_user_id provided
+        existing_titles = set()
+        if target_user_id:
+            existing_tasks = supabase.table('user_quest_tasks')\
+                .select('title')\
+                .eq('user_id', target_user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+            existing_titles = {t['title'].strip().lower() for t in existing_tasks.data if t.get('title')}
+
         # Get all tasks for this quest from user_quest_tasks
         # Group by title to find commonly used tasks
         tasks = supabase.table('user_quest_tasks')\
@@ -225,14 +240,21 @@ def get_quest_task_templates(user_id, quest_id):
             if not title:
                 continue
 
+            # Skip tasks already assigned to this student
+            if title in existing_titles:
+                continue
+
             if title not in template_map:
+                subject_xp_dist = task.get('subject_xp_distribution', {})
+                total_xp = sum(subject_xp_dist.values()) if subject_xp_dist else task.get('xp_value', 100)
+
                 template_map[title] = {
                     'id': task['id'],  # Use first occurrence ID as template
                     'title': task.get('title'),
                     'description': task.get('description', ''),
                     'pillar': task.get('pillar'),
-                    'diploma_subjects': task.get('diploma_subjects', ["Electives"]),
-                    'xp_value': task.get('xp_value', 100),
+                    'subject_xp_distribution': subject_xp_dist or {"Electives": total_xp},
+                    'xp_value': int(total_xp),
                     'usage_count': 0,
                     'created_at': task.get('created_at')
                 }

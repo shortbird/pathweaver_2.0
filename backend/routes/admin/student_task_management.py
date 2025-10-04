@@ -82,6 +82,10 @@ def create_student_task(user_id, target_user_id, quest_id):
                     'error': 'Template task not found'
                 }), 404
 
+            # Calculate total XP from subject_xp_distribution
+            subject_xp_dist = template.data.get('subject_xp_distribution', {})
+            total_xp = sum(subject_xp_dist.values()) if subject_xp_dist else template.data.get('xp_value', 100)
+
             task_data = {
                 'user_id': target_user_id,
                 'quest_id': quest_id,
@@ -89,8 +93,8 @@ def create_student_task(user_id, target_user_id, quest_id):
                 'title': template.data['title'],
                 'description': template.data.get('description', ''),
                 'pillar': template.data['pillar'],
-                'diploma_subjects': template.data.get('diploma_subjects', ["Electives"]),
-                'xp_value': template.data.get('xp_value', 100),
+                'subject_xp_distribution': subject_xp_dist or {"Electives": total_xp},
+                'xp_value': int(total_xp),
                 'order_index': max_order + 1,
                 'is_required': True,
                 'approval_status': 'approved',  # Admin-created tasks are pre-approved
@@ -122,18 +126,16 @@ def create_student_task(user_id, target_user_id, quest_id):
 
             normalized_pillar = normalize_pillar_key(pillar)
 
-            # Validate diploma subjects (school subjects)
-            diploma_subjects = data.get('diploma_subjects', ["Electives"])
-            if not diploma_subjects:
-                diploma_subjects = ["Electives"]
-
-            # Get XP value
-            xp_value = data.get('xp_value', 100)
-            if xp_value <= 0:
+            # Validate subject XP distribution
+            subject_xp_distribution = data.get('subject_xp_distribution', {})
+            if not subject_xp_distribution or sum(subject_xp_distribution.values()) <= 0:
                 return jsonify({
                     'success': False,
-                    'error': 'XP value must be greater than 0'
+                    'error': 'At least one subject must have XP assigned'
                 }), 400
+
+            # Calculate total XP
+            total_xp = sum(subject_xp_distribution.values())
 
             task_data = {
                 'user_id': target_user_id,
@@ -142,8 +144,8 @@ def create_student_task(user_id, target_user_id, quest_id):
                 'title': data['title'].strip(),
                 'description': data.get('description', '').strip(),
                 'pillar': normalized_pillar,
-                'diploma_subjects': diploma_subjects,
-                'xp_value': int(xp_value),
+                'subject_xp_distribution': subject_xp_distribution,
+                'xp_value': int(total_xp),
                 'order_index': max_order + 1,
                 'is_required': True,
                 'approval_status': 'approved',  # Admin-created tasks are pre-approved
@@ -248,6 +250,10 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
         # Create tasks from templates
         tasks_to_create = []
         for idx, template in enumerate(templates.data):
+            # Calculate total XP from subject_xp_distribution
+            subject_xp_dist = template.get('subject_xp_distribution', {})
+            total_xp = sum(subject_xp_dist.values()) if subject_xp_dist else template.get('xp_value', 100)
+
             task_data = {
                 'user_id': target_user_id,
                 'quest_id': quest_id,
@@ -255,8 +261,8 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
                 'title': template['title'],
                 'description': template.get('description', ''),
                 'pillar': template['pillar'],
-                'diploma_subjects': template.get('diploma_subjects', ["Electives"]),
-                'xp_value': template.get('xp_value', 100),
+                'subject_xp_distribution': subject_xp_dist or {"Electives": total_xp},
+                'xp_value': int(total_xp),
                 'order_index': max_order + idx + 1,
                 'is_required': True,
                 'approval_status': 'approved',
