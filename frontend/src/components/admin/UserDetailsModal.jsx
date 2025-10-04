@@ -1,6 +1,7 @@
 import React, { useState, useEffect, memo } from 'react'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
+import AdvisorTaskForm from './AdvisorTaskForm'
 
 const UserDetailsModal = ({ user, onClose, onSave }) => {
   const [activeTab, setActiveTab] = useState('profile')
@@ -15,10 +16,19 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const [roleChangeReason, setRoleChangeReason] = useState('')
   const [loading, setLoading] = useState(false)
   const [userActivity, setUserActivity] = useState(null)
+  const [questEnrollments, setQuestEnrollments] = useState({ enrolled: [], available: [] })
+  const [showTaskForm, setShowTaskForm] = useState(false)
+  const [selectedQuest, setSelectedQuest] = useState(null)
 
   useEffect(() => {
     fetchUserDetails()
   }, [user.id])
+
+  useEffect(() => {
+    if (activeTab === 'quests') {
+      fetchQuestEnrollments()
+    }
+  }, [activeTab])
 
   const fetchUserDetails = async () => {
     try {
@@ -27,6 +37,29 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     } catch (error) {
       toast.error('Failed to load user details')
     }
+  }
+
+  const fetchQuestEnrollments = async () => {
+    try {
+      const response = await api.get(`/api/v3/admin/users/${user.id}/quest-enrollments`)
+      setQuestEnrollments({
+        enrolled: response.data.enrolled_quests || [],
+        available: response.data.available_quests || []
+      })
+    } catch (error) {
+      toast.error('Failed to load quest enrollments')
+    }
+  }
+
+  const handleAddTasksToQuest = (quest) => {
+    setSelectedQuest(quest)
+    setShowTaskForm(true)
+  }
+
+  const handleTaskFormSuccess = () => {
+    setShowTaskForm(false)
+    setSelectedQuest(null)
+    fetchQuestEnrollments() // Refresh quest list
   }
 
   const handleInputChange = (e) => {
@@ -148,7 +181,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
         {/* Tabs */}
         <div className="flex border-b">
-          {['profile', 'role', 'subscription', 'activity'].map((tab) => (
+          {['profile', 'role', 'subscription', 'quests', 'activity'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -347,6 +380,80 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
             </div>
           )}
 
+          {activeTab === 'quests' && (
+            <div className="space-y-6">
+              {/* Enrolled Quests */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Enrolled Quests ({questEnrollments.enrolled.length})</h3>
+                {questEnrollments.enrolled.length === 0 ? (
+                  <p className="text-gray-500">No enrolled quests</p>
+                ) : (
+                  <div className="space-y-3">
+                    {questEnrollments.enrolled.map((quest) => (
+                      <div key={quest.quest_id} className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-gray-900">{quest.title}</h4>
+                            {quest.big_idea && (
+                              <p className="text-sm text-gray-600 mt-1">{quest.big_idea}</p>
+                            )}
+                            <div className="flex items-center gap-3 mt-2 text-sm text-gray-600">
+                              <span className="font-medium">{quest.task_count || 0} tasks</span>
+                              {quest.started_at && (
+                                <span>Started {new Date(quest.started_at).toLocaleDateString()}</span>
+                              )}
+                              {quest.completed_at && (
+                                <span className="text-green-600 font-semibold">Completed</span>
+                              )}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleAddTasksToQuest(quest)}
+                            className="ml-4 px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 text-sm"
+                          >
+                            Add Tasks
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Available Quests */}
+              <div>
+                <h3 className="text-lg font-semibold mb-3">Available Quests ({questEnrollments.available.length})</h3>
+                {questEnrollments.available.length === 0 ? (
+                  <p className="text-gray-500">No available quests</p>
+                ) : (
+                  <div className="space-y-3">
+                    {questEnrollments.available.map((quest) => (
+                      <div key={quest.quest_id} className="p-4 bg-white rounded-lg border border-gray-200">
+                        <div className="flex justify-between items-start">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-gray-900">{quest.title}</h4>
+                            {quest.big_idea && (
+                              <p className="text-sm text-gray-600 mt-1">{quest.big_idea}</p>
+                            )}
+                            <p className="text-xs text-gray-500 mt-2">
+                              Student will be auto-enrolled when you add tasks
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleAddTasksToQuest(quest)}
+                            className="ml-4 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
+                          >
+                            Add Tasks
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {activeTab === 'activity' && (
             <div className="space-y-6">
               {/* XP by Pillar */}
@@ -424,6 +531,20 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
           )}
         </div>
       </div>
+
+      {/* Task Form Modal */}
+      {showTaskForm && selectedQuest && (
+        <AdvisorTaskForm
+          student={user}
+          questId={selectedQuest.quest_id}
+          userQuestId={selectedQuest.user_quest_id}
+          onClose={() => {
+            setShowTaskForm(false)
+            setSelectedQuest(null)
+          }}
+          onSuccess={handleTaskFormSuccess}
+        />
+      )}
     </div>
   )
 }

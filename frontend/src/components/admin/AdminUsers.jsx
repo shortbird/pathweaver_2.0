@@ -5,6 +5,7 @@ import { getTierDisplayName } from '../../utils/tierMapping'
 import UserDetailsModal from './UserDetailsModal'
 import BulkEmailModal from './BulkEmailModal'
 import ChatLogsModal from './ChatLogsModal'
+import QuestSelectionModal from './QuestSelectionModal'
 
 const AdminUsers = () => {
   const [users, setUsers] = useState([])
@@ -21,8 +22,10 @@ const AdminUsers = () => {
   const [showUserModal, setShowUserModal] = useState(false)
   const [showBulkEmailModal, setShowBulkEmailModal] = useState(false)
   const [showChatLogsModal, setShowChatLogsModal] = useState(false)
+  const [showQuestSelectionModal, setShowQuestSelectionModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [chatLogsUser, setChatLogsUser] = useState(null)
+  const [taskManagementUser, setTaskManagementUser] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const usersPerPage = 20
@@ -119,6 +122,11 @@ const AdminUsers = () => {
   const handleViewChatLogs = (user) => {
     setChatLogsUser(user)
     setShowChatLogsModal(true)
+  }
+
+  const handleAddTasks = (user) => {
+    setTaskManagementUser(user)
+    setShowQuestSelectionModal(true)
   }
 
   const handleResetPassword = async (userId, userEmail) => {
@@ -331,6 +339,13 @@ const AdminUsers = () => {
                       Edit
                     </button>
                     <button
+                      onClick={() => handleAddTasks(user)}
+                      className="text-green-600 hover:text-green-900"
+                      title="Add Tasks to Quest"
+                    >
+                      Add Tasks
+                    </button>
+                    <button
                       onClick={() => handleViewChatLogs(user)}
                       className="text-purple-600 hover:text-purple-900"
                       title="View Chat Logs"
@@ -436,6 +451,18 @@ const AdminUsers = () => {
           onClose={() => {
             setShowChatLogsModal(false)
             setChatLogsUser(null)
+          }}
+        />
+      )}
+
+      {/* Quest Selection Modal */}
+      {showQuestSelectionModal && taskManagementUser && (
+        <QuestSelectionModal
+          student={taskManagementUser}
+          onClose={() => {
+            setShowQuestSelectionModal(false)
+            setTaskManagementUser(null)
+            fetchUsers() // Refresh to show updated task counts if needed
           }}
         />
       )}
