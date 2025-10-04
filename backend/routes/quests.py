@@ -258,6 +258,11 @@ def get_quest_detail(user_id: str, quest_id: str):
 
             completed_task_ids = {t['user_quest_task_id'] for t in task_completions.data} if task_completions.data else set()
 
+            # Debug: Check raw pillar values from database
+            print(f"[QUEST_DETAIL] Raw tasks from DB for quest {quest_id}:")
+            for i, task in enumerate(user_tasks.data or []):
+                print(f"  Task {i}: '{task.get('title')}' - pillar='{task.get('pillar')}'")
+
             # Mark tasks as completed and map field names for frontend compatibility
             quest_tasks = user_tasks.data or []
             for task in quest_tasks:
@@ -270,9 +275,12 @@ def get_quest_detail(user_id: str, quest_id: str):
                     task['school_subjects'] = task['diploma_subjects']
                 # Convert database pillar key to display name for frontend
                 if 'pillar' in task:
+                    original_pillar = task['pillar']
                     # Migrate old pillar to new key, then get display name
                     pillar_key = migrate_old_pillar(task['pillar'])
-                    task['pillar'] = get_pillar_name(pillar_key)
+                    display_name = get_pillar_name(pillar_key)
+                    print(f"[QUEST_DETAIL] Task '{task.get('title')}': DB pillar='{original_pillar}' -> key='{pillar_key}' -> display='{display_name}'")
+                    task['pillar'] = display_name
 
             quest_data['quest_tasks'] = quest_tasks
 
