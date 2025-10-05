@@ -25,7 +25,13 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
 
   // Get dominant pillar for visual accent
   const pillarBreakdown = quest.pillar_breakdown || {};
-  const dominantPillar = Object.entries(pillarBreakdown).reduce((max, [pillar, xp]) => 
+
+  // DEBUG: Log pillar data to see what we're receiving
+  if (process.env.NODE_ENV === 'development') {
+    console.log(`[QuestCard] Quest: ${quest.title?.substring(0, 30)}, pillar_breakdown:`, pillarBreakdown);
+  }
+
+  const dominantPillar = Object.entries(pillarBreakdown).reduce((max, [pillar, xp]) =>
     xp > (max.xp || 0) ? { pillar, xp } : max, {}).pillar || 'arts_creativity';
 
   // Get pillar data safely - handles both old and new pillar keys

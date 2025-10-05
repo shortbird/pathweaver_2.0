@@ -346,11 +346,8 @@ def finalize_tasks(user_id: str, quest_id: str):
             .eq('is_active', True)\
             .execute()
 
-        if existing_enrollment.data and existing_enrollment.data[0].get('personalization_completed'):
-            return jsonify({
-                'success': False,
-                'error': 'Already enrolled in this quest with personalized tasks'
-            }), 400
+        # Allow adding more tasks to existing enrollment (removed personalization_completed check)
+        # Users can add tasks multiple times to customize their quest further
 
         # Create or update enrollment
         if existing_enrollment.data:
