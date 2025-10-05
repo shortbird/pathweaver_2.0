@@ -89,9 +89,9 @@ def save_evidence_document(user_id: str, task_id: str):
         blocks = data.get('blocks', [])
         status = data.get('status', 'draft')  # 'draft' or 'completed'
 
-        # Validate task exists and user is enrolled
-        task_check = supabase.table('quest_tasks_archived')\
-            .select('quest_id, title, xp_amount, pillar')\
+        # Validate task exists and user is enrolled (V3 personalized task system)
+        task_check = supabase.table('user_quest_tasks')\
+            .select('quest_id, title, xp_value, pillar')\
             .eq('id', task_id)\
             .execute()
 
@@ -169,45 +169,31 @@ def save_evidence_document(user_id: str, task_id: str):
         quest_completed = False
 
         if status == 'completed':
-            # Check if this task was already completed
-            existing_completion = supabase.table('user_quest_tasks_legacy_archived')\
+            # Check if this task was already completed (V3 system)
+            existing_completion = supabase.table('quest_task_completions')\
                 .select('id')\
                 .eq('user_id', user_id)\
-                .eq('quest_task_id', task_id)\
+                .eq('task_id', task_id)\
                 .execute()
 
             if not existing_completion.data:
                 # Award XP for task completion
                 task_data = task_check.data[0]
-                base_xp = task_data.get('xp_amount', 0)
+                base_xp = task_data.get('xp_value', 0)
 
                 # Calculate XP with collaboration bonus if applicable
                 final_xp, has_collaboration = xp_service.calculate_task_xp(
                     user_id, task_id, quest_id, base_xp
                 )
 
-                # Get user_quest_id for the completion record
-                user_quest_response = supabase.table('user_quests')\
-                    .select('id')\
-                    .eq('user_id', user_id)\
-                    .eq('quest_id', quest_id)\
-                    .eq('is_active', True)\
-                    .execute()
-
-                if not user_quest_response.data:
-                    raise Exception('User not enrolled in quest')
-
-                user_quest_id = user_quest_response.data[0]['id']
-
-                # Create task completion record using legacy archived system
-                completion = supabase.table('user_quest_tasks_legacy_archived')\
+                # Create task completion record using V3 system
+                completion = supabase.table('quest_task_completions')\
                     .insert({
                         'user_id': user_id,
-                        'quest_task_id': task_id,
-                        'user_quest_id': user_quest_id,
-                        'evidence_type': 'document',
-                        'evidence_content': f'Multi-format evidence document (Document ID: {document_id})',
-                        'xp_awarded': final_xp,
+                        'quest_id': quest_id,
+                        'task_id': task_id,
+                        'user_quest_task_id': task_id,  # In V3, task_id IS the user_quest_task_id
+                        'evidence_text': f'Multi-format evidence document (Document ID: {document_id})',
                         'completed_at': datetime.utcnow().isoformat()
                     })\
                     .execute()
@@ -382,9 +368,9 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
         supabase = get_user_client()
         admin_supabase = get_supabase_admin_client()
 
-        # Validate task exists and user is enrolled
-        task_check = supabase.table('quest_tasks_archived')\
-            .select('quest_id, title, xp_amount, pillar')\
+        # Validate task exists and user is enrolled (V3 personalized task system)
+        task_check = supabase.table('user_quest_tasks')\
+            .select('quest_id, title, xp_value, pillar')\
             .eq('id', task_id)\
             .execute()
 
@@ -458,7 +444,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
             if not existing_completion.data:
                 # Award XP for task completion
                 task_data = task_check.data[0]
-                base_xp = task_data.get('xp_amount', 0)
+                base_xp = task_data.get('xp_value', 0)
 
                 # Calculate XP with collaboration bonus if applicable
                 final_xp, has_collaboration = xp_service.calculate_task_xp(
@@ -577,8 +563,8 @@ def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
     Check if all required tasks for a quest are now completed.
     """
     try:
-        # Get all required tasks for the quest
-        required_tasks = supabase.table('quest_tasks_archived')\
+        # Get all required tasks for the quest (V3 system)
+        required_tasks = supabase.table('user_quest_tasks')\
             .select('id')\
             .eq('quest_id', quest_id)\
             .eq('is_required', True)\
@@ -586,7 +572,7 @@ def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
 
         if not required_tasks.data:
             # If no required tasks, treat all tasks as required
-            all_tasks = supabase.table('quest_tasks_archived')\
+            all_tasks = supabase.table('user_quest_tasks')\
                 .select('id')\
                 .eq('quest_id', quest_id)\
                 .execute()
@@ -608,13 +594,13 @@ def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
 
         user_quest_id = user_quest.data[0]['id']
 
-        completed_tasks = supabase.table('user_quest_tasks_legacy_archived')\
-            .select('quest_task_id')\
+        completed_tasks = supabase.table('quest_task_completions')\
+            .select('task_id')\
             .eq('user_id', user_id)\
-            .eq('user_quest_id', user_quest_id)\
+            .eq('quest_id', quest_id)\
             .execute()
 
-        completed_task_ids = {task['quest_task_id'] for task in completed_tasks.data}
+        completed_task_ids = {task['task_id'] for task in completed_tasks.data}
 
         # Check if all required tasks are completed
         if required_task_ids and required_task_ids.issubset(completed_task_ids):
