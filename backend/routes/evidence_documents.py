@@ -90,7 +90,7 @@ def save_evidence_document(user_id: str, task_id: str):
         status = data.get('status', 'draft')  # 'draft' or 'completed'
 
         # Validate task exists and user is enrolled
-        task_check = supabase.table('quest_tasks')\
+        task_check = supabase.table('quest_tasks_archived')\
             .select('quest_id, title, xp_amount, pillar')\
             .eq('id', task_id)\
             .execute()
@@ -170,7 +170,7 @@ def save_evidence_document(user_id: str, task_id: str):
 
         if status == 'completed':
             # Check if this task was already completed
-            existing_completion = supabase.table('user_quest_tasks')\
+            existing_completion = supabase.table('user_quest_tasks_legacy_archived')\
                 .select('id')\
                 .eq('user_id', user_id)\
                 .eq('quest_task_id', task_id)\
@@ -199,8 +199,8 @@ def save_evidence_document(user_id: str, task_id: str):
 
                 user_quest_id = user_quest_response.data[0]['id']
 
-                # Create task completion record using V3 system
-                completion = supabase.table('user_quest_tasks')\
+                # Create task completion record using legacy archived system
+                completion = supabase.table('user_quest_tasks_legacy_archived')\
                     .insert({
                         'user_id': user_id,
                         'quest_task_id': task_id,
@@ -383,7 +383,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
         admin_supabase = get_supabase_admin_client()
 
         # Validate task exists and user is enrolled
-        task_check = supabase.table('quest_tasks')\
+        task_check = supabase.table('quest_tasks_archived')\
             .select('quest_id, title, xp_amount, pillar')\
             .eq('id', task_id)\
             .execute()
@@ -578,7 +578,7 @@ def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
     """
     try:
         # Get all required tasks for the quest
-        required_tasks = supabase.table('quest_tasks')\
+        required_tasks = supabase.table('quest_tasks_archived')\
             .select('id')\
             .eq('quest_id', quest_id)\
             .eq('is_required', True)\
@@ -586,7 +586,7 @@ def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
 
         if not required_tasks.data:
             # If no required tasks, treat all tasks as required
-            all_tasks = supabase.table('quest_tasks')\
+            all_tasks = supabase.table('quest_tasks_archived')\
                 .select('id')\
                 .eq('quest_id', quest_id)\
                 .execute()
@@ -608,7 +608,7 @@ def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
 
         user_quest_id = user_quest.data[0]['id']
 
-        completed_tasks = supabase.table('user_quest_tasks')\
+        completed_tasks = supabase.table('user_quest_tasks_legacy_archived')\
             .select('quest_task_id')\
             .eq('user_id', user_id)\
             .eq('user_quest_id', user_quest_id)\
