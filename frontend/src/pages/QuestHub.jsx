@@ -52,9 +52,6 @@ const QuestHub = () => {
 
   // Filter state
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedPillar, setSelectedPillar] = useState('all');
-  const [selectedDifficulty, setSelectedDifficulty] = useState('all');
-  const [selectedSubject, setSelectedSubject] = useState('all');
   const [sortBy, setSortBy] = useState('newest');
   const [viewMode, setViewMode] = useState('grid');
 
@@ -135,15 +132,6 @@ const QuestHub = () => {
         if (searchTerm.trim()) {
           params.append('search', searchTerm.trim());
         }
-        if (selectedPillar !== 'all') {
-          params.append('pillar', selectedPillar);
-        }
-        if (selectedDifficulty !== 'all') {
-          params.append('difficulty', selectedDifficulty);
-        }
-        if (selectedSubject !== 'all') {
-          params.append('subject', selectedSubject);
-        }
         if (sortBy) {
           params.append('sort', sortBy);
         }
@@ -197,7 +185,7 @@ const QuestHub = () => {
 
     // Handle initial load
     fetchData(true, 1);
-  }, [page, user, loginTimestamp, hasLoadedOnce, isMounted, safeAsync, searchTerm, selectedPillar, selectedDifficulty, selectedSubject, sortBy]);
+  }, [page, user, loginTimestamp, hasLoadedOnce, isMounted, safeAsync, searchTerm, sortBy]);
 
   // Reset on location change (when returning to quest hub)
   useEffect(() => {
@@ -274,27 +262,6 @@ const QuestHub = () => {
     debouncedSearch();
   }, [debouncedSearch]);
 
-  const handlePillarChange = useCallback((pillar) => {
-    setSelectedPillar(pillar);
-    setPage(1);
-    setQuests([]);
-    setHasMore(true);
-  }, []);
-
-  const handleDifficultyChange = useCallback((difficulty) => {
-    setSelectedDifficulty(difficulty);
-    setPage(1);
-    setQuests([]);
-    setHasMore(true);
-  }, []);
-
-  const handleSubjectChange = useCallback((subject) => {
-    setSelectedSubject(subject);
-    setPage(1);
-    setQuests([]);
-    setHasMore(true);
-  }, []);
-
   const handleSortChange = useCallback((sort) => {
     setSortBy(sort);
     setPage(1);
@@ -343,12 +310,6 @@ const QuestHub = () => {
             <QuestFilters
               searchTerm={searchTerm}
               onSearchChange={handleSearchChange}
-              selectedPillar={selectedPillar}
-              onPillarChange={handlePillarChange}
-              selectedDifficulty={selectedDifficulty}
-              onDifficultyChange={handleDifficultyChange}
-              selectedSubject={selectedSubject}
-              onSubjectChange={handleSubjectChange}
               sortBy={sortBy}
               onSortChange={handleSortChange}
               viewMode={viewMode}
