@@ -141,8 +141,8 @@ class QuestAIService:
             Quest Description: {description}
 
             For each task, provide:
-            - title: Clear task name
-            - description: Simple framework (50-100 words) - provide guidance without being prescriptive
+            - title: Action-oriented task name using verbs like Earn, Master, Complete, Build, Create, Write, Draw, Design, Research (5-8 words max, ONE simple idea)
+            - description: Short and focused (1-2 sentences) on HOW this task could be completed in the context of the school subjects. Focus on completion methods, not motivational language.
             - pillar: One of [{', '.join(self.valid_pillars)}]
             - school_subjects: Array of relevant school subjects from [{', '.join([self.school_subject_display_names[s] for s in self.school_subjects])}]
             - xp_value: XP points (50-300 based on complexity)
@@ -151,9 +151,8 @@ class QuestAIService:
             Tasks should:
             - Build naturally on each other
             - Cover different skill areas when possible
-            - Use simple, direct language
-            - Focus on what students will accomplish
-            - Avoid redundant or overly enthusiastic phrases
+            - Use simple, direct, actionable language
+            - Avoid flowery or overly enthusiastic phrases
 
             Evidence prompts should suggest multiple ways students could demonstrate learning:
             "Could be demonstrated through a written reflection, video presentation, creative project, model, website, or other format that shows your understanding"

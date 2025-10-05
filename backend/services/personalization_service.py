@@ -388,11 +388,7 @@ class PersonalizationService:
             # Create user-specific tasks
             user_tasks = []
             for index, task in enumerate(ai_tasks):
-                # Build description with bullet points
                 description = task.get('description', '')
-                if task.get('bullet_points'):
-                    bullet_text = '\n'.join([f'• {point}' for point in task['bullet_points']])
-                    description = f"{description}\n\n{bullet_text}" if description else bullet_text
 
                 pillar_value = task.get('pillar', 'STEM & Logic')
                 print(f"[FINALIZE] Task {index}: '{task.get('title')}' - Pillar from task: {pillar_value}")
@@ -551,8 +547,6 @@ CRITICAL TASK WRITING GUIDELINES:
 - Description: Short and focused (1-2 sentences) on HOW this task could be completed in the context of the school subjects
   Focus on completion methods, not motivational language
   Example: "Create a visual timeline showing major events. Include dates, descriptions, and illustrations for each event."
-- Bullet Points: Exactly 3 concrete action steps
-  Example: ["Research 5-10 key events", "Design timeline layout with dates and descriptions", "Add illustrations or images for each event"]
 - Keep language simple, direct, and actionable - no flowery or overly enthusiastic phrases
 
 IMPORTANT: Students should CHOOSE these tasks, not just agree to AI suggestions. Make tasks feel like genuine options, not prescriptive requirements.
@@ -562,7 +556,6 @@ Return as valid JSON array:
   {{
     "title": "Clear, concise task name (5-8 words)",
     "description": "1-2 brief sentences describing the task",
-    "bullet_points": ["Main action 1", "Main action 2", "Main action 3"],
     "pillar": "One of the five pillars listed above",
     "diploma_subjects": {{"Subject 1": 50, "Subject 2": 25, "Subject 3": 25}},
     "xp_value": 100
