@@ -171,9 +171,11 @@ def get_admin_quests(user_id):
         per_page = min(int(request.args.get('per_page', 20)), 100)
         offset = (page - 1) * per_page
 
-        # Get quests with task counts
+        # Get quests
+        # Note: In V3 personalized system, quests don't have quest_tasks (that table is archived)
+        # Task counts would need to be calculated from user_quest_tasks if needed
         quests = supabase.table('quests')\
-            .select('*, quest_tasks(count)', count='exact')\
+            .select('*', count='exact')\
             .order('created_at', desc=True)\
             .range(offset, offset + per_page - 1)\
             .execute()

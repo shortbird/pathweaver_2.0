@@ -475,13 +475,13 @@ CREATE TABLE public.quest_personalization_sessions (
   CONSTRAINT quest_personalization_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT quest_personalization_sessions_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id)
 );
-CREATE TABLE public.quest_ratings_archived (
+CREATE TABLE public.quest_ratings (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   quest_id uuid,
   user_id uuid,
   rating smallint NOT NULL CHECK (rating >= 1 AND rating <= 5),
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT quest_ratings_archived_pkey PRIMARY KEY (id)
+  CONSTRAINT quest_ratings_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.quest_reviews (
   id integer NOT NULL DEFAULT nextval('quest_reviews_id_seq'::regclass),
