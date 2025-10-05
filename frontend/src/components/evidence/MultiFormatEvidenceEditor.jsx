@@ -16,6 +16,7 @@ const MultiFormatEvidenceEditor = ({
   const [activeBlock, setActiveBlock] = useState(null);
   const [documentStatus, setDocumentStatus] = useState('draft');
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
+  const [showAddMenu, setShowAddMenu] = useState(false);
   const fileInputRef = useRef(null);
   const autoSaverRef = useRef(null);
 

@@ -126,7 +126,7 @@ def save_evidence_document(user_id: str, task_id: str):
                 'error': 'You must be enrolled in the quest to save evidence'
             }), 403
 
-        # Get or create evidence document
+        # Get or create evidence document using upsert pattern
         document_response = supabase.table('user_task_evidence_documents')\
             .select('*')\
             .eq('user_id', user_id)\
@@ -150,24 +150,48 @@ def save_evidence_document(user_id: str, task_id: str):
                 .eq('id', document_id)\
                 .execute()
         else:
-            # Create new document
-            document_insert = supabase.table('user_task_evidence_documents')\
-                .insert({
-                    'user_id': user_id,
-                    'quest_id': quest_id,
-                    'task_id': task_id,
-                    'status': status,
-                    'completed_at': datetime.utcnow().isoformat() if status == 'completed' else None
-                })\
-                .execute()
+            # Create new document with conflict handling
+            try:
+                document_insert = supabase.table('user_task_evidence_documents')\
+                    .insert({
+                        'user_id': user_id,
+                        'quest_id': quest_id,
+                        'task_id': task_id,
+                        'status': status,
+                        'completed_at': datetime.utcnow().isoformat() if status == 'completed' else None
+                    })\
+                    .execute()
 
-            if not document_insert.data:
-                return jsonify({
-                    'success': False,
-                    'error': 'Failed to create evidence document'
-                }), 500
+                if not document_insert.data:
+                    # If insert failed, try to get it again (race condition)
+                    document_response = supabase.table('user_task_evidence_documents')\
+                        .select('*')\
+                        .eq('user_id', user_id)\
+                        .eq('task_id', task_id)\
+                        .execute()
 
-            document_id = document_insert.data[0]['id']
+                    if document_response.data:
+                        document_id = document_response.data[0]['id']
+                    else:
+                        return jsonify({
+                            'success': False,
+                            'error': 'Failed to create evidence document'
+                        }), 500
+                else:
+                    document_id = document_insert.data[0]['id']
+            except Exception as insert_error:
+                # Handle 409 conflict - document was created by another request
+                print(f"Insert conflict (likely race condition): {str(insert_error)}")
+                document_response = supabase.table('user_task_evidence_documents')\
+                    .select('*')\
+                    .eq('user_id', user_id)\
+                    .eq('task_id', task_id)\
+                    .execute()
+
+                if document_response.data:
+                    document_id = document_response.data[0]['id']
+                else:
+                    raise  # Re-raise if we still can't find it
 
         # Update content blocks
         update_document_blocks(supabase, document_id, blocks)
