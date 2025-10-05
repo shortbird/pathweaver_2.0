@@ -75,25 +75,17 @@ def get_transcript(user_id):
 def get_all_completed_quests(supabase, user_id: str) -> list:
     """Get all completed quests for transcript"""
     try:
-        # Get all completed quests with details
+        # Get all completed quests with quest details
+        # Note: XP is now tracked in user_skill_xp, not quest-level tables
         completed = supabase.table('user_quests')\
-            .select('*, quests(*, quest_skill_xp(*), quest_xp_awards(*))')\
+            .select('*, quests(*)')\
             .eq('user_id', user_id)\
             .not_.is_('completed_at', 'null')\
             .order('completed_at', desc=False)\
             .execute()
-    except:
-        # Fallback without skill XP
-        try:
-            completed = supabase.table('user_quests')\
-                .select('*, quests(*)')\
-                .eq('user_id', user_id)\
-                .not_.is_('completed_at', 'null')\
-                .order('completed_at', desc=False)\
-                .execute()
-        except Exception as e:
-            print(f"Error fetching completed quests for transcript: {str(e)}")
-            return []
+    except Exception as e:
+        print(f"Error fetching completed quests for transcript: {str(e)}")
+        return []
     
     if not completed.data:
         return []
@@ -226,38 +218,27 @@ def get_skill_level(xp: int) -> str:
         return 'Not Started'
 
 def calculate_transcript_xp(quest: dict) -> dict:
-    """Calculate XP for transcript display"""
-    total = 0
-    breakdown = {}
-    
-    if 'quest_skill_xp' in quest and quest['quest_skill_xp']:
-        for award in quest['quest_skill_xp']:
-            amount = award.get('xp_amount', 0)
-            total += amount
-            category = award.get('skill_category')
-            if category:
-                breakdown[category] = amount
-    elif 'quest_xp_awards' in quest and quest['quest_xp_awards']:
-        for award in quest['quest_xp_awards']:
-            amount = award.get('xp_amount', 0)
-            total += amount
-    
-    return {'total': total, 'breakdown': breakdown}
+    """Calculate XP for transcript display
+
+    Note: XP is now tracked per-task in the personalized quest system.
+    This function returns an estimate based on user_skill_xp, not quest-level XP.
+    """
+    # XP is tracked in user_skill_xp table, not at quest level anymore
+    # Return empty breakdown - actual XP comes from user_skill_xp table
+    return {'total': 0, 'breakdown': {}}
 
 def extract_skills_developed(quest: dict) -> list:
-    """Extract list of skills developed from quest"""
+    """Extract list of skills developed from quest
+
+    Note: In the personalized quest system, skills are tracked via task pillars.
+    This returns quest category as a general skill indicator.
+    """
     skills = []
-    
-    if 'quest_skill_xp' in quest and quest['quest_skill_xp']:
-        for award in quest['quest_skill_xp']:
-            category = award.get('skill_category')
-            if category:
-                skills.append(category)
-    
-    # Add quest category as a skill if no specific skills found
-    if not skills and quest.get('category'):
+
+    # Add quest category as a skill indicator
+    if quest.get('category'):
         skills.append(quest['category'])
-    
+
     return skills
 
 def get_user_achievements(supabase, user_id: str) -> list:

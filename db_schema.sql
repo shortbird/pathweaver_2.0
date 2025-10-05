@@ -269,7 +269,7 @@ CREATE TABLE public.credit_ledger (
   CONSTRAINT credit_ledger_pkey PRIMARY KEY (id),
   CONSTRAINT credit_ledger_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT credit_ledger_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id),
-  CONSTRAINT credit_ledger_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.quest_tasks(id)
+  CONSTRAINT credit_ledger_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.quest_tasks_archived(id)
 );
 CREATE TABLE public.diplomas (
   id uuid NOT NULL DEFAULT gen_random_uuid(),
@@ -385,7 +385,7 @@ CREATE TABLE public.quality_action_logs (
   CONSTRAINT quality_action_logs_pkey PRIMARY KEY (id),
   CONSTRAINT quality_action_logs_performed_by_fkey FOREIGN KEY (performed_by) REFERENCES public.users(id)
 );
-CREATE TABLE public.quest_collaborations (
+CREATE TABLE public.quest_collaborations_archived (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   quest_id uuid NOT NULL,
   requester_id uuid NOT NULL,
@@ -394,7 +394,7 @@ CREATE TABLE public.quest_collaborations (
   message text,
   created_at timestamp with time zone DEFAULT now(),
   responded_at timestamp with time zone,
-  CONSTRAINT quest_collaborations_pkey PRIMARY KEY (id),
+  CONSTRAINT quest_collaborations_archived_pkey PRIMARY KEY (id),
   CONSTRAINT quest_collaborations_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id),
   CONSTRAINT quest_collaborations_requester_id_fkey FOREIGN KEY (requester_id) REFERENCES public.users(id),
   CONSTRAINT quest_collaborations_partner_id_fkey FOREIGN KEY (partner_id) REFERENCES public.users(id)
@@ -475,13 +475,13 @@ CREATE TABLE public.quest_personalization_sessions (
   CONSTRAINT quest_personalization_sessions_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT quest_personalization_sessions_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id)
 );
-CREATE TABLE public.quest_ratings (
+CREATE TABLE public.quest_ratings_archived (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   quest_id uuid,
   user_id uuid,
   rating smallint NOT NULL CHECK (rating >= 1 AND rating <= 5),
   created_at timestamp with time zone DEFAULT now(),
-  CONSTRAINT quest_ratings_pkey PRIMARY KEY (id)
+  CONSTRAINT quest_ratings_archived_pkey PRIMARY KEY (id)
 );
 CREATE TABLE public.quest_reviews (
   id integer NOT NULL DEFAULT nextval('quest_reviews_id_seq'::regclass),
@@ -536,7 +536,7 @@ CREATE TABLE public.quest_task_completions (
   CONSTRAINT quest_task_completions_user_quest_task_id_fkey FOREIGN KEY (user_quest_task_id) REFERENCES public.user_quest_tasks(id),
   CONSTRAINT quest_task_completions_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id)
 );
-CREATE TABLE public.quest_tasks (
+CREATE TABLE public.quest_tasks_archived (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   quest_id uuid NOT NULL,
   title text NOT NULL,
@@ -551,7 +551,7 @@ CREATE TABLE public.quest_tasks (
   created_at timestamp with time zone DEFAULT now(),
   school_subjects ARRAY DEFAULT '{}'::school_subject[],
   subject_xp_distribution jsonb DEFAULT '{}'::jsonb,
-  CONSTRAINT quest_tasks_pkey PRIMARY KEY (id),
+  CONSTRAINT quest_tasks_archived_pkey PRIMARY KEY (id),
   CONSTRAINT quest_tasks_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id)
 );
 CREATE TABLE public.quest_templates (
@@ -711,7 +711,7 @@ CREATE TABLE public.tutor_conversations (
   CONSTRAINT tutor_conversations_pkey PRIMARY KEY (id),
   CONSTRAINT tutor_conversations_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
   CONSTRAINT tutor_conversations_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id),
-  CONSTRAINT tutor_conversations_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.quest_tasks(id)
+  CONSTRAINT tutor_conversations_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.quest_tasks_archived(id)
 );
 CREATE TABLE public.tutor_messages (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
@@ -841,6 +841,7 @@ CREATE TABLE public.user_quest_tasks (
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
   diploma_subjects jsonb DEFAULT '["Electives"]'::jsonb,
+  subject_xp_distribution jsonb DEFAULT '{}'::jsonb,
   CONSTRAINT user_quest_tasks_pkey PRIMARY KEY (id),
   CONSTRAINT user_quest_tasks_user_id_fkey1 FOREIGN KEY (user_id) REFERENCES public.users(id),
   CONSTRAINT user_quest_tasks_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id),
@@ -857,7 +858,7 @@ CREATE TABLE public.user_quest_tasks_legacy_archived (
   completed_at timestamp with time zone DEFAULT now(),
   CONSTRAINT user_quest_tasks_legacy_archived_pkey PRIMARY KEY (id),
   CONSTRAINT user_quest_tasks_user_id_fkey FOREIGN KEY (user_id) REFERENCES public.users(id),
-  CONSTRAINT user_quest_tasks_quest_task_id_fkey FOREIGN KEY (quest_task_id) REFERENCES public.quest_tasks(id),
+  CONSTRAINT user_quest_tasks_quest_task_id_fkey FOREIGN KEY (quest_task_id) REFERENCES public.quest_tasks_archived(id),
   CONSTRAINT user_quest_tasks_user_quest_id_fkey FOREIGN KEY (user_quest_id) REFERENCES public.user_quests(id)
 );
 CREATE TABLE public.user_quests (
@@ -913,7 +914,7 @@ CREATE TABLE public.user_task_evidence_documents (
   CONSTRAINT user_task_evidence_documents_pkey PRIMARY KEY (id),
   CONSTRAINT user_task_evidence_documents_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users(id),
   CONSTRAINT user_task_evidence_documents_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id),
-  CONSTRAINT user_task_evidence_documents_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.quest_tasks(id)
+  CONSTRAINT user_task_evidence_documents_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.quest_tasks_archived(id)
 );
 CREATE TABLE public.user_xp (
   id integer NOT NULL DEFAULT nextval('user_xp_id_seq'::regclass),

@@ -44,49 +44,8 @@ def get_public_portfolio(portfolio_slug):
             '''
         ).eq('user_id', user_id).not_.is_('completed_at', 'null').execute()
         
-        # Also check for quests that have all tasks completed but no completed_at
-        # This is a workaround for the database trigger issue
-        all_user_quests = supabase.table('user_quests').select(
-            '''
-            *,
-            quests!inner(*)
-            '''
-        ).eq('user_id', user_id).is_('completed_at', 'null').execute()
-        
-        if all_user_quests.data:
-            for user_quest in all_user_quests.data:
-                user_quest_id = user_quest['id']
-                quest_id = user_quest['quest_id']
-                
-                # Get all tasks for this quest
-                all_tasks = supabase.table('quest_tasks')\
-                    .select('id')\
-                    .eq('quest_id', quest_id)\
-                    .execute()
-                
-                if all_tasks.data:
-                    # Get completed tasks for this user quest
-                    completed_tasks = supabase.table('user_quest_tasks')\
-                        .select('quest_task_id, completed_at')\
-                        .eq('user_quest_id', user_quest_id)\
-                        .execute()
-                    
-                    all_task_ids = {t['id'] for t in all_tasks.data}
-                    completed_task_ids = {t['quest_task_id'] for t in completed_tasks.data}
-                    
-                    # If all tasks are completed, include this quest
-                    if all_task_ids and all_task_ids == completed_task_ids:
-                        # Add a virtual completed_at based on last task completion
-                        if completed_tasks.data:
-                            latest_completion = max(t['completed_at'] for t in completed_tasks.data if t.get('completed_at'))
-                            user_quest['completed_at'] = latest_completion
-                        else:
-                            user_quest['completed_at'] = datetime.utcnow().isoformat()
-                        
-                        # Add to completed quests list
-                        if not completed_quests.data:
-                            completed_quests.data = []
-                        completed_quests.data.append(user_quest)
+        # Note: With personalized quest system, quests are marked complete when user completes them
+        # No need to check quest_tasks table as it's been archived and replaced with user_quest_tasks
         
         # Calculate XP by skill category (same approach as dashboard)
         xp_by_category = {}
@@ -119,35 +78,10 @@ def get_public_portfolio(portfolio_slug):
         except Exception as e:
             print(f"Error fetching skill XP: {str(e)}")
         
-        # If no XP data exists, calculate from completed quests
-        if total_xp == 0 and completed_quests.data:
-            print(f"No XP in user_skill_xp table, calculating from {len(completed_quests.data)} completed quests")
-            for quest_record in completed_quests.data:
-                quest = quest_record.get('quests', {})
-                quest_id = quest.get('id')
-                
-                if quest_id:
-                    try:
-                        # Get skill XP awards for this quest
-                        skill_awards = supabase.table('quest_skill_xp').select('*').eq('quest_id', quest_id).execute()
-                        if skill_awards.data:
-                            print(f"Quest {quest_id} has {len(skill_awards.data)} XP awards")
-                            for award in skill_awards.data:
-                                category = award['skill_category']
-                                amount = award['xp_amount']
-                                xp_by_category[category] = xp_by_category.get(category, 0) + amount
-                                total_xp += amount
-                        else:
-                            print(f"Quest {quest_id} has no XP awards in quest_skill_xp table")
-                    except Exception as e:
-                        print(f"Error fetching XP for quest {quest_id}: {str(e)}")
-            
-            # Convert xp_by_category to skill_xp_data format
-            skill_xp_data = [
-                {'skill_category': cat, 'total_xp': xp}
-                for cat, xp in xp_by_category.items()
-                if xp > 0
-            ]
+        # XP is now tracked in user_skill_xp table (populated when tasks complete)
+        # If no XP exists yet, user hasn't completed any tasks
+        if total_xp == 0:
+            print(f"No XP found for user {user_id} - user may not have completed any tasks yet")
         
         # Get skill details (times practiced)
         print(f"Fetching skill details for user_id: {user_id}")
@@ -369,20 +303,28 @@ def get_public_diploma_by_user_id(user_id):
             return jsonify({'error': 'User not found'}), 404
         
         # Get user's completed quests with V3 data structure - optimized query
+        # Note: user_quest_tasks stores personalized tasks, not completions
+        # quest_task_completions stores the actual task completions
         completed_quests = supabase.table('user_quests').select(
             '''
             completed_at,
-            quests:quests!inner(id, title, description, big_idea, quest_tasks(*)),
-            user_quest_tasks:user_quest_tasks!inner(completed_at, evidence_type, evidence_content, xp_awarded, quest_tasks(title, pillar))
+            quests:quests!inner(id, title, description, big_idea)
             '''
         ).eq('user_id', user_id).not_.is_('completed_at', 'null').order('completed_at', desc=True).execute()
+
+        # Get task completions separately for display
+        task_completions = supabase.table('quest_task_completions').select(
+            '''
+            *,
+            user_quest_tasks!inner(title, pillar, quest_id, user_quest_id)
+            '''
+        ).eq('user_id', user_id).execute()
 
         # Also get new multi-format evidence documents for completed tasks
         evidence_documents = supabase.table('user_task_evidence_documents').select(
             '''
             *,
-            evidence_document_blocks(*),
-            quest_tasks(title, pillar)
+            evidence_document_blocks(*)
             '''
         ).eq('user_id', user_id).eq('status', 'completed').execute()
 
@@ -391,8 +333,7 @@ def get_public_diploma_by_user_id(user_id):
             '''
             started_at,
             is_active,
-            quests:quests!inner(id, title, description, big_idea, quest_tasks(*)),
-            user_quest_tasks:user_quest_tasks!inner(completed_at, evidence_type, evidence_content, xp_awarded, quest_tasks(title, pillar))
+            quests:quests!inner(id, title, description, big_idea)
             '''
         ).eq('user_id', user_id).eq('is_active', True).is_('completed_at', 'null').order('started_at', desc=True).execute()
 
@@ -421,45 +362,59 @@ def get_public_diploma_by_user_id(user_id):
                 if not quest:
                     continue
 
-                # Organize evidence by task - support both old and new format
-                task_evidence = {}
+                user_quest_id = cq.get('id')
+                quest_id = quest.get('id')
 
-                # First, add legacy single-format evidence
-                for task_completion in cq.get('user_quest_tasks', []):
-                    task_data = task_completion.get('quest_tasks')
-                    if task_data:
-                        evidence_content = task_completion.get('evidence_content', '') or ''
-                        task_evidence[task_data['title']] = {
-                            'evidence_type': task_completion.get('evidence_type', 'text'),
+                # Get task completions for this quest from our task_completions data
+                quest_task_completions = [
+                    tc for tc in (task_completions.data or [])
+                    if tc.get('user_quest_tasks', {}).get('quest_id') == quest_id
+                    and tc.get('user_quest_tasks', {}).get('user_quest_id') == user_quest_id
+                ]
+
+                # Organize evidence by task
+                task_evidence = {}
+                total_xp = 0
+
+                for tc in quest_task_completions:
+                    task_info = tc.get('user_quest_tasks', {})
+                    task_title = task_info.get('title', 'Unknown Task')
+
+                    # Check for multi-format evidence
+                    multi_format_evidence = None
+                    if evidence_documents.data:
+                        for doc in evidence_documents.data:
+                            if doc.get('task_id') == tc.get('task_id'):
+                                multi_format_evidence = doc
+                                break
+
+                    if multi_format_evidence:
+                        # Use new multi-format evidence
+                        task_evidence[task_title] = {
+                            'evidence_type': 'multi_format',
+                            'evidence_blocks': multi_format_evidence.get('evidence_document_blocks', []),
+                            'xp_awarded': total_xp,  # XP is summed in completion
+                            'completed_at': tc.get('completed_at'),
+                            'pillar': task_info.get('pillar', 'Arts & Creativity'),
+                            'is_legacy': False
+                        }
+                    else:
+                        # Use legacy single-format evidence
+                        evidence_content = tc.get('evidence_text', '') or tc.get('evidence_url', '')
+                        task_evidence[task_title] = {
+                            'evidence_type': 'text' if tc.get('evidence_text') else 'link',
                             'evidence_content': evidence_content,
-                            'xp_awarded': task_completion.get('xp_awarded', 0),
-                            'completed_at': task_completion.get('completed_at'),
-                            'pillar': task_data.get('pillar', 'Arts & Creativity'),
+                            'xp_awarded': 0,  # Not stored in old format
+                            'completed_at': tc.get('completed_at'),
+                            'pillar': task_info.get('pillar', 'Arts & Creativity'),
                             'is_legacy': True
                         }
-
-                # Then, overlay with new multi-format evidence if available
-                quest_tasks = quest.get('quest_tasks', [])
-                for task in quest_tasks:
-                    # Find multi-format evidence for this task
-                    for doc in evidence_documents.data:
-                        doc_task = doc.get('quest_tasks')
-                        if doc_task and doc_task['title'] == task['title']:
-                            # Replace legacy evidence with multi-format evidence
-                            task_evidence[task['title']] = {
-                                'evidence_type': 'multi_format',
-                                'evidence_blocks': doc.get('evidence_document_blocks', []),
-                                'xp_awarded': task_evidence.get(task['title'], {}).get('xp_awarded', 0),
-                                'completed_at': doc.get('completed_at'),
-                                'pillar': doc_task.get('pillar', 'Arts & Creativity'),
-                                'is_legacy': False
-                            }
 
                 achievement = {
                     'quest': quest,
                     'completed_at': cq['completed_at'],
                     'task_evidence': task_evidence,
-                    'total_xp_earned': sum(t.get('xp_awarded', 0) for t in cq.get('user_quest_tasks', [])),
+                    'total_xp_earned': total_xp,
                     'status': 'completed'
                 }
 
@@ -469,31 +424,54 @@ def get_public_diploma_by_user_id(user_id):
         if in_progress_quests.data:
             for cq in in_progress_quests.data:
                 quest = cq.get('quests')
-                if not quest or not cq.get('user_quest_tasks'):
-                    continue  # Skip quests with no submitted tasks
+                if not quest:
+                    continue
+
+                user_quest_id = cq.get('id')
+                quest_id = quest.get('id')
+
+                # Get task completions for this in-progress quest
+                quest_task_completions = [
+                    tc for tc in (task_completions.data or [])
+                    if tc.get('user_quest_tasks', {}).get('quest_id') == quest_id
+                    and tc.get('user_quest_tasks', {}).get('user_quest_id') == user_quest_id
+                ]
+
+                # Skip if no tasks completed yet
+                if not quest_task_completions:
+                    continue
 
                 # Organize evidence by task
                 task_evidence = {}
-                for task_completion in cq.get('user_quest_tasks', []):
-                    task_data = task_completion.get('quest_tasks')
-                    if task_data:
-                        task_evidence[task_data['title']] = {
-                            'evidence_type': task_completion.get('evidence_type', 'text'),
-                            'evidence_content': task_completion.get('evidence_content', ''),
-                            'xp_awarded': task_completion.get('xp_awarded', 0),
-                            'completed_at': task_completion.get('completed_at'),
-                            'pillar': task_data.get('pillar', 'Arts & Creativity')
-                        }
+                total_xp = 0
 
-                # Calculate progress
-                total_tasks = len(quest.get('quest_tasks', []))
+                for tc in quest_task_completions:
+                    task_info = tc.get('user_quest_tasks', {})
+                    task_title = task_info.get('title', 'Unknown Task')
+                    evidence_content = tc.get('evidence_text', '') or tc.get('evidence_url', '')
+
+                    task_evidence[task_title] = {
+                        'evidence_type': 'text' if tc.get('evidence_text') else 'link',
+                        'evidence_content': evidence_content,
+                        'xp_awarded': 0,
+                        'completed_at': tc.get('completed_at'),
+                        'pillar': task_info.get('pillar', 'Arts & Creativity')
+                    }
+
+                # Get total number of tasks for this user's quest
+                total_user_tasks = supabase.table('user_quest_tasks')\
+                    .select('id', count='exact')\
+                    .eq('user_quest_id', user_quest_id)\
+                    .execute()
+
+                total_tasks = total_user_tasks.count if total_user_tasks.count else 0
                 completed_tasks = len(task_evidence)
 
                 achievement = {
                     'quest': quest,
                     'started_at': cq['started_at'],
                     'task_evidence': task_evidence,
-                    'total_xp_earned': sum(t.get('xp_awarded', 0) for t in cq.get('user_quest_tasks', [])),
+                    'total_xp_earned': total_xp,
                     'status': 'in_progress',
                     'progress': {
                         'completed_tasks': completed_tasks,
