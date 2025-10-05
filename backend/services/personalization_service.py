@@ -216,7 +216,18 @@ class PersonalizationService:
 
             # Parse and validate response
             tasks_data = self.ai_service._parse_tasks_response(result.text)
+
+            # Debug: Log AI-generated pillar values BEFORE validation
+            print(f"[PERSONALIZATION] AI generated {len(tasks_data)} tasks for quest {quest_id}")
+            for i, task in enumerate(tasks_data):
+                print(f"  Task {i}: '{task.get('title')}' - AI returned pillar: '{task.get('pillar')}'")
+
             tasks_data = self._validate_tasks(tasks_data, interests, cross_curricular_subjects)
+
+            # Debug: Log pillar values AFTER validation
+            print(f"[PERSONALIZATION] After validation:")
+            for i, task in enumerate(tasks_data):
+                print(f"  Task {i}: '{task.get('title')}' - Validated pillar: '{task.get('pillar')}'")
 
             # Ensure 50%+ tasks are 100 XP
             tasks_data = self._enforce_xp_distribution(tasks_data)
@@ -386,10 +397,14 @@ class PersonalizationService:
                 pillar_value = task.get('pillar', 'STEM & Logic')
                 print(f"[FINALIZE] Task {index}: '{task.get('title')}' - Pillar from task: {pillar_value}")
 
-                # Convert pillar display name to database key
+                # Convert pillar display name to new pillar key (database accepts both old and new keys)
+                # AI returns display names like "STEM & Logic", we normalize to new keys like 'stem_logic'
                 pillar_key = normalize_pillar_key(pillar_value)
-                db_pillar = get_database_pillar_key(pillar_key) if pillar_key else 'critical_thinking'
-                print(f"[FINALIZE] Pillar conversion: '{pillar_value}' -> key: '{pillar_key}' -> db: '{db_pillar}'")
+
+                # Use the new pillar key directly - database enum accepts both old and new format
+                # No need to convert to old keys anymore
+                db_pillar = pillar_key if pillar_key else 'stem_logic'
+                print(f"[FINALIZE] Pillar conversion: '{pillar_value}' -> normalized key: '{pillar_key}' -> storing as: '{db_pillar}'")
 
                 # Handle diploma_subjects - ensure proper format
                 diploma_subjects = task.get('diploma_subjects', {})
@@ -581,11 +596,18 @@ Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75
             elif not isinstance(diploma_subjects, dict):
                 diploma_subjects = {'Electives': task.get('xp_value', 100)}
 
+            # Validate pillar - track if it changes
+            original_pillar = task.get('pillar', 'STEM & Logic')
+            validated_pillar = self.ai_service._validate_pillar(original_pillar)
+
+            if original_pillar != validated_pillar:
+                print(f"[VALIDATION WARNING] Pillar changed during validation: '{original_pillar}' -> '{validated_pillar}'")
+
             validated_task = {
                 'title': task.get('title', 'Learning Task'),
                 'description': task.get('description', ''),
                 'bullet_points': task.get('bullet_points', []),
-                'pillar': self.ai_service._validate_pillar(task.get('pillar', 'STEM & Logic')),
+                'pillar': validated_pillar,
                 'diploma_subjects': diploma_subjects,
                 'xp_value': self.ai_service._validate_xp(task.get('xp_value', 100))
             }
