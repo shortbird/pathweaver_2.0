@@ -537,7 +537,7 @@ const QuestDetail = () => {
             ) : quest.user_enrollment && totalTasks === 0 ? (
               <button
                 onClick={() => setShowPersonalizationWizard(true)}
-                className="flex-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg"
+                className="flex-1 bg-gradient-to-r from-[#6d469b] to-[#8b5cf6] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(109,70,155,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg"
               >
                 <Target className="w-5 h-5 inline mr-2" />
                 Personalize Quest
@@ -729,6 +729,19 @@ const QuestDetail = () => {
                   </div>
                 );
               })}
+
+              {/* Add More Tasks Button - only show if enrolled and has tasks */}
+              {quest.user_enrollment && !isQuestCompleted && (
+                <div className="mt-6 flex justify-center">
+                  <button
+                    onClick={() => setShowPersonalizationWizard(true)}
+                    className="px-6 py-3 bg-gradient-to-r from-[#6d469b] to-[#8b5cf6] text-white rounded-[25px] hover:shadow-[0_6px_20px_rgba(109,70,155,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold flex items-center gap-2"
+                  >
+                    <Target className="w-5 h-5" />
+                    Add More Tasks
+                  </button>
+                </div>
+              )}
             </div>
           ) : quest.user_enrollment && !showPersonalizationWizard ? (
             <div className="text-center py-12">
