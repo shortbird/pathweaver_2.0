@@ -375,28 +375,37 @@ class QuestAIService:
         return validated_tasks
     
     def _validate_pillar(self, pillar: str) -> str:
-        """Validate pillar value, return normalized version or default"""
+        """
+        Validate pillar value and convert to database pillar key.
+        AI returns display names like "STEM & Logic", we need to store keys like 'stem_logic'.
+        """
         if not pillar:
-            return 'STEM & Logic'
-        
-        # Check if pillar is already valid
-        if pillar in self.valid_pillars:
-            return pillar
-        
-        # Fuzzy matching for common variations
+            return 'stem_logic'  # Default to key, not display name
+
+        # Import pillar utilities for proper conversion
+        from utils.pillar_utils import normalize_pillar_key
+
+        # Try to normalize the pillar (handles display names, old keys, new keys)
+        normalized = normalize_pillar_key(pillar)
+
+        # If normalize returned a valid key, use it
+        if normalized:
+            return normalized
+
+        # Fallback: fuzzy matching for common variations, return KEYS not display names
         pillar_lower = pillar.lower()
         if 'stem' in pillar_lower or 'math' in pillar_lower or 'science' in pillar_lower:
-            return 'STEM & Logic'
+            return 'stem_logic'
         elif 'art' in pillar_lower or 'creative' in pillar_lower:
-            return 'Arts & Creativity'
+            return 'arts_creativity'
         elif 'language' in pillar_lower or 'communication' in pillar_lower:
-            return 'Language & Communication'
+            return 'language_communication'
         elif 'society' in pillar_lower or 'culture' in pillar_lower or 'history' in pillar_lower:
-            return 'Society & Culture'
+            return 'society_culture'
         elif 'life' in pillar_lower or 'wellness' in pillar_lower or 'health' in pillar_lower:
-            return 'Life & Wellness'
-        
-        return 'STEM & Logic'  # Default fallback
+            return 'life_wellness'
+
+        return 'stem_logic'  # Default fallback as key
     
     def _validate_school_subjects(self, school_subjects) -> list:
         """Validate school subjects array"""
