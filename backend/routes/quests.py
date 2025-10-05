@@ -272,14 +272,14 @@ def get_quest_detail(user_id: str, quest_id: str):
                 # Map diploma_subjects to school_subjects for frontend compatibility
                 if 'diploma_subjects' in task:
                     task['school_subjects'] = task['diploma_subjects']
-                # Convert database pillar key to display name for frontend
+                # Normalize pillar to new key format for frontend
+                # Frontend expects keys like 'stem_logic', not display names like 'STEM & Logic'
                 if 'pillar' in task:
                     original_pillar = task['pillar']
-                    # Migrate old pillar to new key, then get display name
+                    # Migrate old pillar to new key if needed
                     pillar_key = migrate_old_pillar(task['pillar'])
-                    display_name = get_pillar_name(pillar_key)
-                    print(f"[QUEST_DETAIL] Task '{task.get('title')}': DB pillar='{original_pillar}' -> key='{pillar_key}' -> display='{display_name}'")
-                    task['pillar'] = display_name
+                    print(f"[QUEST_DETAIL] Task '{task.get('title')}': DB pillar='{original_pillar}' -> sending key='{pillar_key}' to frontend")
+                    task['pillar'] = pillar_key  # Send key, not display name
 
             quest_data['quest_tasks'] = quest_tasks
 
