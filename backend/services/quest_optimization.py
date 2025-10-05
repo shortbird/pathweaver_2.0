@@ -105,38 +105,39 @@ class QuestOptimizationService:
             print(f"Error getting task completions batch: {e}")
             return {}
 
-    def get_quest_task_ids_batch(self, quest_ids: List[str]) -> Dict[str, List[str]]:
+    def get_user_quest_tasks_batch(self, enrollment_ids: List[str]) -> Dict[str, List[Dict]]:
         """
-        Get all task IDs for multiple quests in a single query.
+        Get all user-specific tasks for multiple enrollments in a single query.
 
         Args:
-            quest_ids: List of quest IDs
+            enrollment_ids: List of user_quest enrollment IDs
 
         Returns:
-            Dict mapping quest_id to list of task IDs
+            Dict mapping enrollment_id to list of task data (including pillar, xp_value)
         """
-        if not quest_ids:
+        if not enrollment_ids:
             return {}
 
         try:
-            # Single query to get all task IDs
-            tasks = self.supabase.table('quest_tasks')\
-                .select('id, quest_id')\
-                .in_('quest_id', quest_ids)\
+            # Single query to get all user tasks
+            tasks = self.supabase.table('user_quest_tasks')\
+                .select('id, user_quest_id, pillar, xp_value')\
+                .in_('user_quest_id', enrollment_ids)\
+                .eq('approval_status', 'approved')\
                 .execute()
 
-            # Group by quest_id
+            # Group by enrollment_id
             task_map = {}
             for task in tasks.data or []:
-                quest_id = task['quest_id']
-                if quest_id not in task_map:
-                    task_map[quest_id] = []
-                task_map[quest_id].append(task['id'])
+                enrollment_id = task['user_quest_id']
+                if enrollment_id not in task_map:
+                    task_map[enrollment_id] = []
+                task_map[enrollment_id].append(task)
 
             return task_map
 
         except Exception as e:
-            print(f"Error getting quest task IDs batch: {e}")
+            print(f"Error getting user quest tasks batch: {e}")
             return {}
 
     def enrich_quests_with_user_data(self, quests: List[Dict], user_id: str) -> List[Dict]:
@@ -173,7 +174,14 @@ class QuestOptimizationService:
             if quest_data.get('completed'):
                 enrollment_ids.append(quest_data['completed']['id'])
 
-        # Batch query 2: Get all task completions
+        # Batch query 2: Get all user tasks (personalized)
+        if enrollment_ids:
+            print(f"[OPTIMIZATION] Getting user tasks for {len(enrollment_ids)} enrollments in 1 query")
+            user_tasks_map = self.get_user_quest_tasks_batch(enrollment_ids)
+        else:
+            user_tasks_map = {}
+
+        # Batch query 3: Get all task completions
         if enrollment_ids:
             print(f"[OPTIMIZATION] Getting task completions for {len(enrollment_ids)} enrollments in 1 query")
             completions_map = self.get_user_task_completions_batch(user_id, enrollment_ids)
@@ -194,33 +202,39 @@ class QuestOptimizationService:
             # Handle completed quest
             if completed_enrollment:
                 quest['completed_enrollment'] = completed_enrollment
-
-                # Get completed task IDs
                 enrollment_id = completed_enrollment['id']
+
+                # Get user's personalized tasks for this enrollment
+                user_tasks = user_tasks_map.get(enrollment_id, [])
                 completed_task_ids = completions_map.get(enrollment_id, set())
 
-                # Calculate progress
-                total_tasks = len(quest.get('quest_tasks', []))
+                # Calculate progress from user tasks
+                total_tasks = len(user_tasks)
                 quest['progress'] = {
                     'completed_tasks': len(completed_task_ids),
                     'total_tasks': total_tasks,
                     'percentage': 100
                 }
 
-                # Mark tasks as completed
-                for task in quest.get('quest_tasks', []):
-                    task['is_completed'] = task['id'] in completed_task_ids
+                # Calculate pillar breakdown from user's tasks
+                pillar_breakdown = {}
+                for task in user_tasks:
+                    pillar = task.get('pillar', 'arts_creativity')
+                    xp = task.get('xp_value', 0)
+                    pillar_breakdown[pillar] = pillar_breakdown.get(pillar, 0) + xp
+                quest['pillar_breakdown'] = pillar_breakdown
 
             # Handle active quest (only if no completed enrollment)
             elif active_enrollment:
                 quest['user_enrollment'] = active_enrollment
-
-                # Get completed task IDs
                 enrollment_id = active_enrollment['id']
+
+                # Get user's personalized tasks for this enrollment
+                user_tasks = user_tasks_map.get(enrollment_id, [])
                 completed_task_ids = completions_map.get(enrollment_id, set())
 
-                # Calculate progress
-                total_tasks = len(quest.get('quest_tasks', []))
+                # Calculate progress from user tasks
+                total_tasks = len(user_tasks)
                 completed_count = len(completed_task_ids)
 
                 quest['progress'] = {
@@ -229,88 +243,36 @@ class QuestOptimizationService:
                     'percentage': (completed_count / total_tasks * 100) if total_tasks > 0 else 0
                 }
 
-                # Mark tasks as completed
-                for task in quest.get('quest_tasks', []):
-                    task['is_completed'] = task['id'] in completed_task_ids
+                # Calculate pillar breakdown from user's tasks
+                pillar_breakdown = {}
+                for task in user_tasks:
+                    pillar = task.get('pillar', 'arts_creativity')
+                    xp = task.get('xp_value', 0)
+                    pillar_breakdown[pillar] = pillar_breakdown.get(pillar, 0) + xp
+                quest['pillar_breakdown'] = pillar_breakdown
 
-        print(f"[OPTIMIZATION] Enriched {len(quests)} quests with {len(enrollment_ids)} enrollments using 3 total queries instead of {len(quests) * 2}")
+        print(f"[OPTIMIZATION] Enriched {len(quests)} quests with {len(enrollment_ids)} enrollments using 4 total queries instead of {len(quests) * 2}")
         return quests
 
     def get_quest_filtering_optimization(self, pillar_filter: str = None, subject_filter: str = None) -> Optional[Set[str]]:
         """
         Optimize quest filtering by pre-filtering quest IDs based on task criteria.
 
+        Note: In personalized quest system, filtering by pillar/subject doesn't work
+        since tasks are user-specific. Return None to disable filtering.
+
         Args:
-            pillar_filter: Pillar to filter by
-            subject_filter: Subject to filter by
+            pillar_filter: Pillar to filter by (ignored in V3)
+            subject_filter: Subject to filter by (ignored in V3)
 
         Returns:
-            Set of quest IDs that match the filters, or None if no filtering needed
+            None (filtering disabled in personalized system)
         """
-        filtered_quest_ids = None
+        # In V3 personalized system, we can't filter quests by task criteria
+        # because tasks are created when users enroll, not at quest template level
+        # Return None to indicate no filtering should be applied
+        return None
 
-        # Apply pillar filter
-        if pillar_filter and pillar_filter != 'all':
-            try:
-                pillar_quests = self.supabase.table('quest_tasks')\
-                    .select('quest_id')\
-                    .eq('pillar', pillar_filter)\
-                    .execute()
-
-                if pillar_quests.data:
-                    filtered_quest_ids = set(task['quest_id'] for task in pillar_quests.data)
-                else:
-                    return set()  # No quests match pillar filter
-
-            except Exception as e:
-                print(f"Error filtering by pillar: {e}")
-                return None
-
-        # Apply subject filter
-        if subject_filter and subject_filter != 'all':
-            try:
-                if subject_filter == 'electives':
-                    # For electives, find tasks with no school_subjects or empty array
-                    subject_quests1 = self.supabase.table('quest_tasks')\
-                        .select('quest_id')\
-                        .is_('school_subjects', 'null')\
-                        .execute()
-
-                    subject_quests2 = self.supabase.table('quest_tasks')\
-                        .select('quest_id')\
-                        .eq('school_subjects', [])\
-                        .execute()
-
-                    subject_quest_ids = set()
-                    if subject_quests1.data:
-                        subject_quest_ids.update(task['quest_id'] for task in subject_quests1.data)
-                    if subject_quests2.data:
-                        subject_quest_ids.update(task['quest_id'] for task in subject_quests2.data)
-                else:
-                    # For other subjects
-                    subject_quests = self.supabase.table('quest_tasks')\
-                        .select('quest_id')\
-                        .contains('school_subjects', [subject_filter])\
-                        .execute()
-
-                    subject_quest_ids = set(task['quest_id'] for task in subject_quests.data) if subject_quests.data else set()
-
-                if not subject_quest_ids:
-                    return set()  # No quests match subject filter
-
-                # Intersect with pillar filter if both are applied
-                if filtered_quest_ids is not None:
-                    filtered_quest_ids = filtered_quest_ids.intersection(subject_quest_ids)
-                    if not filtered_quest_ids:
-                        return set()
-                else:
-                    filtered_quest_ids = subject_quest_ids
-
-            except Exception as e:
-                print(f"Error filtering by subject: {e}")
-                return None
-
-        return filtered_quest_ids
 
 
 # Global service instance
