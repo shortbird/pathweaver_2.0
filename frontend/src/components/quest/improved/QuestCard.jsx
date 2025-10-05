@@ -15,12 +15,13 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   const canStartQuests = hasFeatureAccess(user?.subscription_tier, 'supported');
 
   // Simplified data extraction
-  const totalXP = quest.total_xp || 0;
-  const taskCount = quest.task_count || 0;
+  // Note: In personalized quest system, XP and task count are user-specific
+  // Don't show these on quest cards since they vary per student
   const isEnrolled = quest.user_enrollment;
   const isCompleted = quest.completed_enrollment || (quest.progress && quest.progress.percentage === 100);
   const progressPercentage = quest.progress?.percentage || 0;
   const completedTasks = quest.progress?.completed_tasks || 0;
+  const totalTasks = quest.progress?.total_tasks || 0;
 
   // Get dominant pillar for visual accent
   const pillarBreakdown = quest.pillar_breakdown || {};
@@ -82,56 +83,20 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
           </p>
         </div>
 
-        {/* Meta Information - Cleaner presentation */}
-        <div className="flex items-center gap-4 mb-4 text-sm">
-          <div className="flex items-center gap-1.5">
-            <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            <span className="text-gray-600">{taskCount} {taskCount === 1 ? 'Task' : 'Tasks'}</span>
-          </div>
-        </div>
-
-        {/* Pillars with XP - Show all pillars */}
-        <div className="mb-5">
-          {/* Total XP Badge */}
-          <div className="flex items-center gap-2 mb-3">
-            <div className={`px-3 py-1.5 rounded-full bg-gradient-to-r ${dominantPillarGradient} text-white text-sm font-bold shadow-md`}>
-              {totalXP} Total XP
-            </div>
-          </div>
-          
-          {/* Individual Pillar XP Breakdown */}
-          {Object.keys(pillarBreakdown).length > 0 && (
-            <div className="flex flex-wrap gap-1.5">
-              {Object.entries(pillarBreakdown)
-                .filter(([_, xp]) => xp > 0)
-                .sort(([_, a], [__, b]) => b - a)
-                .map(([pillar, xp]) => {
-                  const pillarData = getPillarData(pillar);
-                  // Use solid colors for pillar badges
-                  const solidColors = {
-                    'stem_logic': 'bg-blue-500 text-white',
-                    'arts_creativity': 'bg-purple-500 text-white',
-                    'language_communication': 'bg-green-500 text-white',
-                    'society_culture': 'bg-orange-500 text-white',
-                    'life_wellness': 'bg-red-500 text-white'
-                  };
-                  const solidColor = solidColors[pillar] || 'bg-gray-500 text-white';
-
-                  return (
-                    <div
-                      key={pillar}
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-md ${solidColor} text-xs font-medium`}
-                    >
-                      <span>{pillarData.name}</span>
-                      <span className="font-bold">+{xp}</span>
-                    </div>
-                  );
-                })}
+        {/* Quest category/source badge */}
+        <div className="mb-4">
+          {quest.source && (
+            <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 text-gray-700 text-xs font-medium">
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+              </svg>
+              <span className="capitalize">{quest.source.replace(/_/g, ' ')}</span>
             </div>
           )}
-          
+        </div>
+
+        {/* Personalization Notice */}
+        <div className="mb-5">
           {/* School Subjects Display */}
           {(() => {
             // Extract unique school subjects from all tasks
@@ -265,21 +230,11 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
           )}
         </div>
 
-        {/* Progress Bar and Status */}
-        {isCompleted ? (
-          <div className="mt-3">
-            <div className="flex items-center gap-2 text-xs text-emerald-600 mb-2">
-              <CheckCircle className="w-4 h-4" />
-              <span className="font-medium">Completed</span>
-            </div>
-            <div className="w-full bg-emerald-100 rounded-full h-2">
-              <div className="bg-emerald-500 h-2 rounded-full w-full" />
-            </div>
-          </div>
-        ) : isEnrolled && progressPercentage > 0 ? (
+        {/* Progress Bar and Status - Only for in-progress quests */}
+        {!isCompleted && isEnrolled && progressPercentage > 0 && totalTasks > 0 ? (
           <div className="mt-3">
             <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
-              <span className="font-medium">Progress: {completedTasks}/{taskCount} tasks</span>
+              <span className="font-medium">Progress: {completedTasks}/{totalTasks} tasks</span>
               <span className="font-bold">{Math.round(progressPercentage)}%</span>
             </div>
             <div className="w-full bg-gray-200 rounded-full h-2">
@@ -289,7 +244,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
               />
             </div>
           </div>
-        ) : isEnrolled ? (
+        ) : !isCompleted && isEnrolled ? (
           <div className="mt-3 flex items-center gap-2 text-xs text-blue-600">
             <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
             <span>Ready to start</span>
