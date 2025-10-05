@@ -144,7 +144,12 @@ def list_quests():
         if user_id and quests:
             print(f"[OPTIMIZATION] Using batch queries for {len(quests)} quests instead of {len(quests) * 2} individual queries")
             quests = quest_optimization_service.enrich_quests_with_user_data(quests, user_id)
-        
+
+        # DEBUG: Log first quest to verify pillar_breakdown is in response
+        if quests and len(quests) > 0:
+            first_quest = quests[0]
+            print(f"[API RESPONSE] First quest being sent: title={first_quest.get('title', 'No title')[:30]}, pillar_breakdown={first_quest.get('pillar_breakdown', {})}")
+
         # Calculate if there are more pages
         total_pages = (result.count + per_page - 1) // per_page if result.count else 0
         has_more = page < total_pages
