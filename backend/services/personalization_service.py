@@ -544,11 +544,16 @@ Generate 6-10 tasks that:
 7. Integrate cross-curricular subjects ({subjects_text}) naturally where relevant
 8. Follow the selected approach: {approach_desc}
 
-IMPORTANT FORMAT REQUIREMENTS:
-- Title: Clear, concise (5-8 words max)
-- Description: 1-2 brief sentences ONLY
-- Bullet Points: Exactly 3 main actions/steps
-- Keep it simple and actionable, not wordy
+CRITICAL TASK WRITING GUIDELINES:
+- Title: Use action-oriented verbs (Earn, Master, Complete, Build, Create, Write, Draw, Design, Research, etc.)
+  Examples: "Build a Historical Timeline", "Master Algebraic Equations", "Create a Science Poster"
+- Title should be ONE simple idea (5-8 words max)
+- Description: Short and focused (1-2 sentences) on HOW this task could be completed in the context of the school subjects
+  Focus on completion methods, not motivational language
+  Example: "Create a visual timeline showing major events. Include dates, descriptions, and illustrations for each event."
+- Bullet Points: Exactly 3 concrete action steps
+  Example: ["Research 5-10 key events", "Design timeline layout with dates and descriptions", "Add illustrations or images for each event"]
+- Keep language simple, direct, and actionable - no flowery or overly enthusiastic phrases
 
 IMPORTANT: Students should CHOOSE these tasks, not just agree to AI suggestions. Make tasks feel like genuine options, not prescriptive requirements.
 

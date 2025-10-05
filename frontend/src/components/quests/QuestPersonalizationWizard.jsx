@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Globe, BookOpen, Zap } from 'lucide-react';
 import api from '../../services/api';
+import { getPillarData } from '../../utils/pillarMappings';
 
 const APPROACH_OPTIONS = [
   {
@@ -407,7 +408,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
                       )}
                       <div className="flex items-center gap-4 text-sm">
                         <span className="text-gray-500">
-                          Pillar: <span className="font-medium">{task.pillar}</span>
+                          Pillar: <span className="font-medium">{getPillarData(task.pillar).name}</span>
                         </span>
                         {task.diploma_subjects && task.diploma_subjects.length > 0 && (
                           <span className="text-gray-500">
