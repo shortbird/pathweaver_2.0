@@ -34,56 +34,50 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
     skill_breakdown = {cat: 0 for cat in SKILL_CATEGORIES}
 
     try:
-        # V3 System: Get XP from completed tasks in user_quest_tasks table
-        completed_tasks = supabase.table('user_quest_tasks')\
-            .select('xp_awarded, quest_tasks(pillar)')\
+        # V3 System: Get XP directly from user_skill_xp table (the source of truth)
+        # Note: user_quest_tasks doesn't have completed_at or xp_awarded columns
+        # XP is awarded when tasks complete and stored in user_skill_xp table
+        skill_xp = supabase.table('user_skill_xp')\
+            .select('pillar, xp_amount')\
             .eq('user_id', user_id)\
-            .not_.is_('completed_at', 'null')\
             .execute()
 
         print(f"=== XP CALCULATION DEBUG for user {user_id} ===")
-        print(f"Found {len(completed_tasks.data) if completed_tasks.data else 0} completed tasks")
+        print(f"Found {len(skill_xp.data) if skill_xp.data else 0} skill XP records")
 
-        if completed_tasks.data:
-            print(f"Processing {len(completed_tasks.data)} completed tasks...")
-            for i, task in enumerate(completed_tasks.data):
-                xp_awarded = task.get('xp_awarded', 0)
-                task_info = task.get('quest_tasks', {})
-                pillar = task_info.get('pillar') if task_info else None
+        if skill_xp.data:
+            print(f"Processing {len(skill_xp.data)} skill XP records...")
+            for i, record in enumerate(skill_xp.data):
+                pillar = record.get('pillar')
+                xp_amount = record.get('xp_amount', 0)
 
-                print(f"Task {i+1}: XP={xp_awarded}, Pillar='{pillar}', Task_info_keys={list(task_info.keys()) if task_info else 'None'}")
+                print(f"Record {i+1}: Pillar='{pillar}', XP={xp_amount}")
 
-                if xp_awarded and pillar:
-                    # Handle both old and new pillar keys - map old to new
+                if pillar in skill_breakdown:
+                    total_xp += xp_amount
+                    skill_breakdown[pillar] += xp_amount
+                    print(f"  ✓ Added {xp_amount} XP to {pillar} (total now: {skill_breakdown[pillar]})")
+                else:
+                    # Handle old pillar keys - map them to new
                     pillar_mapping = {
                         'creativity': 'arts_creativity',
                         'critical_thinking': 'stem_logic',
                         'practical_skills': 'life_wellness',
                         'communication': 'language_communication',
-                        'cultural_literacy': 'society_culture',
-                        # Also handle any other variations that might exist
-                        'life_skills': 'life_wellness',
-                        'wellness': 'life_wellness'
+                        'cultural_literacy': 'society_culture'
                     }
-
-                    # Convert old pillar keys to new ones
                     normalized_pillar = pillar_mapping.get(pillar, pillar)
-                    print(f"  Mapping '{pillar}' -> '{normalized_pillar}'")
 
                     if normalized_pillar in skill_breakdown:
-                        total_xp += xp_awarded
-                        skill_breakdown[normalized_pillar] += xp_awarded
-                        print(f"  ✓ Added {xp_awarded} XP to {normalized_pillar} (total now: {skill_breakdown[normalized_pillar]})")
+                        total_xp += xp_amount
+                        skill_breakdown[normalized_pillar] += xp_amount
+                        print(f"  ✓ Mapped '{pillar}' -> '{normalized_pillar}', added {xp_amount} XP")
                     else:
                         print(f"  ❌ WARNING: Unknown pillar '{pillar}' (normalized: '{normalized_pillar}') not in {list(skill_breakdown.keys())}")
-                elif not xp_awarded:
-                    print(f"  ⚠️ Skipping task - no XP awarded")
-                elif not pillar:
-                    print(f"  ⚠️ Skipping task - no pillar specified")
 
-            print(f"After processing all tasks - skill breakdown: {skill_breakdown}")
+            print(f"After processing all records - skill breakdown: {skill_breakdown}")
         else:
-            print("No completed tasks found")
+            print("No skill XP records found")
 
         print(f"Final total XP: {total_xp}")
         print(f"Final skill_breakdown: {skill_breakdown}")
