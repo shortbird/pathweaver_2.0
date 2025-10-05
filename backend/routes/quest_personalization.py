@@ -340,13 +340,13 @@ def finalize_tasks(user_id: str, quest_id: str):
 
         # Check if already enrolled
         existing_enrollment = supabase.table('user_quests')\
-            .select('id, is_active, personalization_completed')\
+            .select('id, is_active')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
             .eq('is_active', True)\
             .execute()
 
-        # Allow adding more tasks to existing enrollment (removed personalization_completed check)
+        # Allow adding more tasks to existing enrollment
         # Users can add tasks multiple times to customize their quest further
 
         # Create or update enrollment
@@ -358,8 +358,7 @@ def finalize_tasks(user_id: str, quest_id: str):
                     'user_id': user_id,
                     'quest_id': quest_id,
                     'started_at': datetime.utcnow().isoformat(),
-                    'is_active': True,
-                    'personalization_completed': False
+                    'is_active': True
                 })\
                 .execute()
 

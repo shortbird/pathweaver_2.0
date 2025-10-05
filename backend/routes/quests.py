@@ -230,13 +230,13 @@ def get_quest_detail(user_id: str, quest_id: str):
             # Check if completed
             if enrollment.get('completed_at'):
                 completed_enrollment = enrollment
-            # Consider enrollment active if not completed and personalization is done
-            elif not enrollment.get('completed_at') and enrollment.get('personalization_completed'):
+            # Consider enrollment active if not completed and is_active is true
+            elif not enrollment.get('completed_at'):
                 is_active = enrollment.get('is_active')
                 if is_active is not False:  # True or None are both considered active
                     active_enrollment = enrollment
 
-        # Get user-specific tasks if enrolled
+        # Get user-specific tasks if enrolled (regardless of personalization_completed status)
         if active_enrollment or completed_enrollment:
             enrollment_to_use = completed_enrollment or active_enrollment
 

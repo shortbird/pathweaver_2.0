@@ -459,20 +459,7 @@ class PersonalizationService:
                 .eq('id', session_id)\
                 .execute()
 
-            # Mark user_quest as personalization_completed
-            print(f"[FINALIZE] Marking user_quest {user_quest_id} as personalization_completed=True")
-            personalization_update = self.supabase.table('user_quests')\
-                .update({
-                    'personalization_completed': True,
-                    'personalization_session_id': session_id
-                })\
-                .eq('id', user_quest_id)\
-                .execute()
-
-            if personalization_update.data:
-                print(f"[FINALIZE] Successfully updated user_quest: personalization_completed={personalization_update.data[0].get('personalization_completed')}")
-            else:
-                print(f"[FINALIZE] WARNING: Failed to update user_quest personalization_completed flag!")
+            print(f"[FINALIZE] Tasks finalized for user_quest {user_quest_id}, session {session_id}")
 
             return {
                 'success': True,
