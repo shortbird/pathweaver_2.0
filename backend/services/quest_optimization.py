@@ -7,6 +7,7 @@ to eliminate the N+1 problem identified in quest_v3.py.
 
 from typing import Dict, List, Optional, Set, Any
 from database import get_supabase_client
+from utils.pillar_mapping import pillar_to_underscore
 
 
 class QuestOptimizationService:
@@ -220,9 +221,11 @@ class QuestOptimizationService:
                 pillar_breakdown = {}
                 print(f"[PILLAR DEBUG] Processing completed quest {quest_id[:8]}, {len(user_tasks)} tasks")
                 for task in user_tasks:
-                    pillar = task.get('pillar', 'arts_creativity')
+                    db_pillar = task.get('pillar', 'arts_creativity')
+                    # Convert database pillar format to frontend format
+                    pillar = pillar_to_underscore(db_pillar)
                     xp = task.get('xp_value', 0)
-                    print(f"[PILLAR DEBUG]   Task: pillar={pillar}, xp={xp}")
+                    print(f"[PILLAR DEBUG]   Task: db_pillar={db_pillar}, converted={pillar}, xp={xp}")
                     pillar_breakdown[pillar] = pillar_breakdown.get(pillar, 0) + xp
                 quest['pillar_breakdown'] = pillar_breakdown
                 print(f"[PILLAR DEBUG] Final breakdown for quest {quest_id[:8]}: {pillar_breakdown}")
@@ -250,9 +253,11 @@ class QuestOptimizationService:
                 pillar_breakdown = {}
                 print(f"[PILLAR DEBUG] Processing active quest {quest_id[:8]}, {len(user_tasks)} tasks")
                 for task in user_tasks:
-                    pillar = task.get('pillar', 'arts_creativity')
+                    db_pillar = task.get('pillar', 'arts_creativity')
+                    # Convert database pillar format to frontend format
+                    pillar = pillar_to_underscore(db_pillar)
                     xp = task.get('xp_value', 0)
-                    print(f"[PILLAR DEBUG]   Task: pillar={pillar}, xp={xp}")
+                    print(f"[PILLAR DEBUG]   Task: db_pillar={db_pillar}, converted={pillar}, xp={xp}")
                     pillar_breakdown[pillar] = pillar_breakdown.get(pillar, 0) + xp
                 quest['pillar_breakdown'] = pillar_breakdown
                 print(f"[PILLAR DEBUG] Final breakdown for quest {quest_id[:8]}: {pillar_breakdown}")
