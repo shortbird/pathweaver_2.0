@@ -218,11 +218,14 @@ class QuestOptimizationService:
 
                 # Calculate pillar breakdown from user's tasks
                 pillar_breakdown = {}
+                print(f"[PILLAR DEBUG] Processing completed quest {quest_id[:8]}, {len(user_tasks)} tasks")
                 for task in user_tasks:
                     pillar = task.get('pillar', 'arts_creativity')
                     xp = task.get('xp_value', 0)
+                    print(f"[PILLAR DEBUG]   Task: pillar={pillar}, xp={xp}")
                     pillar_breakdown[pillar] = pillar_breakdown.get(pillar, 0) + xp
                 quest['pillar_breakdown'] = pillar_breakdown
+                print(f"[PILLAR DEBUG] Final breakdown for quest {quest_id[:8]}: {pillar_breakdown}")
 
             # Handle active quest (only if no completed enrollment)
             elif active_enrollment:
@@ -245,11 +248,14 @@ class QuestOptimizationService:
 
                 # Calculate pillar breakdown from user's tasks
                 pillar_breakdown = {}
+                print(f"[PILLAR DEBUG] Processing active quest {quest_id[:8]}, {len(user_tasks)} tasks")
                 for task in user_tasks:
                     pillar = task.get('pillar', 'arts_creativity')
                     xp = task.get('xp_value', 0)
+                    print(f"[PILLAR DEBUG]   Task: pillar={pillar}, xp={xp}")
                     pillar_breakdown[pillar] = pillar_breakdown.get(pillar, 0) + xp
                 quest['pillar_breakdown'] = pillar_breakdown
+                print(f"[PILLAR DEBUG] Final breakdown for quest {quest_id[:8]}: {pillar_breakdown}")
 
         print(f"[OPTIMIZATION] Enriched {len(quests)} quests with {len(enrollment_ids)} enrollments using 4 total queries instead of {len(quests) * 2}")
         return quests

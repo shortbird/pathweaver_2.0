@@ -147,7 +147,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
             <Button
               variant="primary"
               size="md"
-              className="flex-1 !bg-gradient-to-r !from-yellow-500 !to-amber-600 hover:!from-yellow-600 hover:!to-amber-700 !min-h-[48px] touch-manipulation"
+              className="flex-1 !bg-gradient-to-r !from-amber-600 !to-yellow-500 hover:!from-amber-700 hover:!to-yellow-600 !min-h-[48px] touch-manipulation"
               onClick={(e) => {
                 e.stopPropagation();
                 navigate('/diploma');
@@ -157,39 +157,21 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
               <span className="truncate">View on Diploma</span>
             </Button>
           ) : isEnrolled ? (
-            // Quest is in progress - show continue and add tasks buttons
-            <>
-              <Button
-                variant="success"
-                size="md"
-                className="flex-1 !bg-gradient-to-r !from-blue-500 !to-indigo-600 hover:!from-blue-600 hover:!to-indigo-700 !min-h-[48px] touch-manipulation"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  navigate(`/quests/${quest.id}`);
-                }}
-              >
-                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
-                </svg>
-                <span className="truncate">Continue</span>
-              </Button>
-
-              {totalTasks > 0 && (
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate(`/quests/${quest.id}?addTasks=true`);
-                  }}
-                  className="p-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors group/add min-h-[48px] min-w-[48px] flex items-center justify-center touch-manipulation"
-                  title="Add more tasks"
-                  aria-label="Add more tasks"
-                >
-                  <svg className="w-5 h-5 text-gray-600 group-hover/add:text-[#6d469b]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                </button>
-              )}
-            </>
+            // Quest is in progress - show continue button
+            <Button
+              variant="success"
+              size="md"
+              className="flex-1 !bg-gradient-to-r !from-indigo-600 !to-blue-500 hover:!from-indigo-700 hover:!to-blue-600 !min-h-[48px] touch-manipulation"
+              onClick={(e) => {
+                e.stopPropagation();
+                navigate(`/quests/${quest.id}`);
+              }}
+            >
+              <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+              </svg>
+              <span className="truncate">Continue</span>
+            </Button>
           ) : (
             // Quest not started - show different buttons based on tier
             <>
