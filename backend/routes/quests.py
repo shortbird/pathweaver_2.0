@@ -129,8 +129,10 @@ def list_quests():
             # when user enrolls
             quest['total_xp'] = 0  # Will be calculated when user personalizes
             quest['task_count'] = 0  # Will be set during personalization
-            quest['pillar_breakdown'] = {}  # User-specific after personalization
-            
+            # DON'T initialize pillar_breakdown here - it will be set by optimization service
+            # for enrolled quests only. Unenrolled quests won't have pillar_breakdown since
+            # tasks are personalized and don't exist until enrollment.
+
             # Add source header image if no custom header exists
             if not quest.get('header_image_url') and quest.get('source'):
                 source_header = get_quest_header_image(quest)
@@ -145,10 +147,10 @@ def list_quests():
             print(f"[OPTIMIZATION] Using batch queries for {len(quests)} quests instead of {len(quests) * 2} individual queries")
             quests = quest_optimization_service.enrich_quests_with_user_data(quests, user_id)
 
-        # DEBUG: Log first quest to verify pillar_breakdown is in response
-        if quests and len(quests) > 0:
-            first_quest = quests[0]
-            print(f"[API RESPONSE] First quest being sent: title={first_quest.get('title', 'No title')[:30]}, pillar_breakdown={first_quest.get('pillar_breakdown', {})}")
+        # DEBUG: Log all quests to verify pillar_breakdown is in response
+        if quests:
+            for idx, q in enumerate(quests[:5]):  # Log first 5 quests
+                print(f"[API RESPONSE] Quest {idx}: id={q.get('id', 'no-id')[:8]}, title={q.get('title', 'No title')[:30]}, pillar_breakdown={q.get('pillar_breakdown', {})}, has_enrollment={bool(q.get('user_enrollment') or q.get('completed_enrollment'))}")
 
         # Calculate if there are more pages
         total_pages = (result.count + per_page - 1) // per_page if result.count else 0
