@@ -435,10 +435,20 @@ class PersonalizationService:
                 print(f"[FINALIZE] Final pillar value being saved: {user_task['pillar']}")
                 user_tasks.append(user_task)
 
+            # Debug: Log what we're about to insert
+            print(f"[FINALIZE] Inserting {len(user_tasks)} tasks to database:")
+            for i, ut in enumerate(user_tasks):
+                print(f"  Task {i}: '{ut['title']}' - pillar='{ut['pillar']}'")
+
             # Insert user tasks
             result = self.supabase.table('user_quest_tasks')\
                 .insert(user_tasks)\
                 .execute()
+
+            # Debug: Log what was actually inserted
+            print(f"[FINALIZE] Database INSERT result - {len(result.data)} tasks created:")
+            for i, task_result in enumerate(result.data):
+                print(f"  Task {i}: ID={task_result['id']}, title='{task_result['title']}', pillar='{task_result['pillar']}'")
 
             # Mark session as completed
             self.supabase.table('quest_personalization_sessions')\
