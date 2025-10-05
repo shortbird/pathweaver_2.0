@@ -91,15 +91,24 @@ def save_evidence_document(user_id: str, task_id: str):
 
         # Validate task exists and user is enrolled (V3 personalized task system)
         task_check = supabase.table('user_quest_tasks')\
-            .select('quest_id, title, xp_value, pillar')\
+            .select('quest_id, title, xp_value, pillar, user_id')\
             .eq('id', task_id)\
             .execute()
 
         if not task_check.data:
+            # Provide helpful debugging info
+            print(f"Task {task_id} not found in user_quest_tasks table for user {user_id}")
             return jsonify({
                 'success': False,
-                'error': 'Task not found'
+                'error': f'Task not found. This task may not have been created yet. Please complete the personalization wizard first, or the task ID may be invalid. (Task ID: {task_id[:8]}...)'
             }), 404
+
+        # Verify task belongs to this user
+        if task_check.data[0]['user_id'] != user_id:
+            return jsonify({
+                'success': False,
+                'error': 'You do not have permission to submit evidence for this task'
+            }), 403
 
         quest_id = task_check.data[0]['quest_id']
 
