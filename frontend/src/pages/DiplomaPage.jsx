@@ -381,14 +381,6 @@ const DiplomaPage = () => {
   };
 
   const renderEvidence = (evidence) => {
-    // Debug logging
-    console.log('Rendering evidence:', {
-      type: evidence.evidence_type,
-      hasBlocks: !!evidence.evidence_blocks,
-      blockCount: evidence.evidence_blocks?.length || 0,
-      evidence
-    });
-
     // Handle new multi-format evidence
     if (evidence.evidence_type === 'multi_format') {
       const blocks = evidence.evidence_blocks || [];

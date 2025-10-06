@@ -18,38 +18,6 @@ logger = logging.getLogger(__name__)
 batch_generation_bp = Blueprint('batch_generation', __name__)
 
 
-@batch_generation_bp.route('/content-gaps', methods=['GET'])
-@require_admin
-def analyze_content_gaps(user_id):
-    """
-    Analyze content gaps in the quest library.
-
-    Returns:
-    {
-        "success": true,
-        "total_quests": 150,
-        "pillar_distribution": {...},
-        "xp_level_distribution": {...},
-        "gaps": {...},
-        "badge_coverage": [...],
-        "recommendations": [...]
-    }
-    """
-    try:
-        service = BatchQuestGenerationService()
-        analysis = service.analyze_content_gaps()
-
-        return jsonify(analysis), 200
-
-    except Exception as e:
-        logger.error(f"Error analyzing content gaps: {str(e)}")
-        return jsonify({
-            "success": False,
-            "error": "Failed to analyze content gaps",
-            "details": str(e)
-        }), 500
-
-
 @batch_generation_bp.route('/start', methods=['POST'])
 @require_admin
 def start_batch_generation(user_id):

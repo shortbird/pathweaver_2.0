@@ -258,25 +258,9 @@ class AIQuestReviewService:
                 created_quest = quest_response.data[0]
                 created_quest_id = created_quest['id']
 
-                # Create tasks
-                tasks = quest_data.get('tasks', [])
-                if tasks:
-                    task_records = []
-                    for task in tasks:
-                        task_record = {
-                            'quest_id': created_quest_id,
-                            'title': task['title'],
-                            'description': task.get('description', ''),
-                            'pillar': task.get('pillar', 'STEM & Logic'),
-                            'xp_amount': task.get('xp_value', task.get('xp_amount', 100)),
-                            'order_index': task.get('order_index', 0),
-                            'is_required': task.get('is_required', True),
-                            'evidence_prompt': task.get('evidence_prompt', ''),
-                            'materials_needed': task.get('materials_needed', [])
-                        }
-                        task_records.append(task_record)
-
-                    supabase.table('quest_tasks').insert(task_records).execute()
+                # Note: In V3, tasks are NOT created as templates
+                # Tasks are generated per-student when they start the quest via personalization system
+                # No need to insert into quest_tasks (that table is archived)
 
                 # Link to badge if applicable
                 if review_item.get('badge_id'):
