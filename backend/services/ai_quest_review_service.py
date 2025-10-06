@@ -39,14 +39,15 @@ class AIQuestReviewService:
             supabase = get_supabase_admin_client()
 
             # Insert into review queue
+            # Note: JSONB columns accept dict/object directly, not JSON strings
             review_queue_data = {
-                'quest_data': json.dumps(quest_data) if isinstance(quest_data, dict) else quest_data,
+                'quest_data': quest_data,  # JSONB accepts dict directly
                 'quality_score': quality_score,
-                'ai_feedback': json.dumps(ai_feedback) if isinstance(ai_feedback, dict) else ai_feedback,
+                'ai_feedback': ai_feedback,  # JSONB accepts dict directly
                 'status': 'pending_review',
                 'generation_source': generation_source,
-                'badge_id': badge_id,
-                'submitted_at': datetime.utcnow().isoformat()
+                'badge_id': badge_id
+                # submitted_at has default value in DB, don't need to set it
             }
 
             review_result = supabase.table('ai_quest_review_queue').insert(review_queue_data).execute()
