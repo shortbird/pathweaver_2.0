@@ -11,6 +11,7 @@ from utils.auth.decorators import require_admin
 from utils.pillar_utils import normalize_pillar_key, is_valid_pillar
 from utils.school_subjects import validate_school_subjects, normalize_subject_key
 from services.image_service import search_quest_image
+from services.api_usage_tracker import pexels_tracker
 from datetime import datetime, timedelta
 import json
 import uuid
@@ -60,8 +61,9 @@ def create_quest_v3_clean(user_id):
         # Auto-fetch image if not provided
         image_url = data.get('header_image_url')
         if not image_url:
-            # Try to fetch image based on quest title
-            image_url = search_quest_image(data['title'].strip())
+            # Try to fetch image based on quest title and description (AI-enhanced)
+            quest_desc = data.get('big_idea', '').strip() or data.get('description', '').strip()
+            image_url = search_quest_image(data['title'].strip(), quest_desc)
             print(f"Auto-fetched image for quest '{data['title']}': {image_url}")
 
         # Create quest record
@@ -379,4 +381,156 @@ def get_quest_task_templates(user_id, quest_id):
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve task templates'
+        }), 500
+
+@bp.route('/pexels/usage', methods=['GET'])
+@require_admin
+def get_pexels_usage(user_id):
+    """Get current Pexels API usage stats"""
+    try:
+        usage = pexels_tracker.get_usage()
+        return jsonify({
+            'success': True,
+            **usage
+        })
+    except Exception as e:
+        print(f"Error getting Pexels usage: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to get API usage'
+        }), 500
+
+@bp.route('/quests/bulk-generate-images', methods=['POST'])
+@require_admin
+def bulk_generate_images(user_id):
+    """
+    Generate images for multiple quests
+
+    Request body:
+    {
+        "quest_ids": ["id1", "id2", ...],  # Optional, if not provided processes all without images
+        "skip_existing": true,  # Default true - skip quests that already have images
+        "max_count": 50  # Optional limit on number of quests to process
+    }
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        data = request.json or {}
+        quest_ids = data.get('quest_ids', [])
+        skip_existing = data.get('skip_existing', True)
+        max_count = data.get('max_count', 50)
+
+        # Build query
+        query = supabase.table('quests').select('id, title, big_idea, description, image_url')
+
+        # Filter by quest_ids if provided
+        if quest_ids:
+            query = query.in_('id', quest_ids)
+
+        # Filter out quests that already have images if skip_existing=true
+        if skip_existing:
+            query = query.is_('image_url', 'null')
+
+        # Limit results
+        query = query.limit(max_count)
+
+        quests = query.execute()
+
+        if not quests.data:
+            return jsonify({
+                'success': True,
+                'message': 'No quests found that need images',
+                'processed': 0,
+                'skipped': 0,
+                'failed': 0
+            })
+
+        # Check if we have enough API capacity
+        needed_calls = len(quests.data)
+        usage = pexels_tracker.get_usage()
+
+        if usage['remaining'] < needed_calls:
+            return jsonify({
+                'success': False,
+                'error': f'Not enough API capacity. Need {needed_calls} calls but only {usage["remaining"]} remaining.',
+                'usage': usage
+            }), 429
+
+        # Process each quest
+        processed = 0
+        skipped = 0
+        failed = 0
+        results = []
+
+        for quest in quests.data:
+            try:
+                # Skip if already has image and skip_existing is true
+                if skip_existing and quest.get('image_url'):
+                    skipped += 1
+                    continue
+
+                # Generate image
+                quest_desc = quest.get('big_idea', '') or quest.get('description', '')
+                image_url = search_quest_image(quest['title'], quest_desc)
+
+                if image_url:
+                    # Update quest with image
+                    update_result = supabase.table('quests').update({
+                        'image_url': image_url,
+                        'header_image_url': image_url,
+                        'image_generated_at': datetime.utcnow().isoformat(),
+                        'image_generation_status': 'success'
+                    }).eq('id', quest['id']).execute()
+
+                    processed += 1
+                    results.append({
+                        'quest_id': quest['id'],
+                        'title': quest['title'],
+                        'status': 'success',
+                        'image_url': image_url
+                    })
+                else:
+                    failed += 1
+                    # Mark as failed
+                    supabase.table('quests').update({
+                        'image_generation_status': 'failed',
+                        'image_generated_at': datetime.utcnow().isoformat()
+                    }).eq('id', quest['id']).execute()
+
+                    results.append({
+                        'quest_id': quest['id'],
+                        'title': quest['title'],
+                        'status': 'failed',
+                        'error': 'No image found'
+                    })
+
+            except Exception as e:
+                failed += 1
+                print(f"Error processing quest {quest['id']}: {str(e)}")
+                results.append({
+                    'quest_id': quest['id'],
+                    'title': quest['title'],
+                    'status': 'failed',
+                    'error': str(e)
+                })
+
+        # Get final usage
+        final_usage = pexels_tracker.get_usage()
+
+        return jsonify({
+            'success': True,
+            'message': f'Processed {processed} quests, skipped {skipped}, failed {failed}',
+            'processed': processed,
+            'skipped': skipped,
+            'failed': failed,
+            'results': results,
+            'usage': final_usage
+        })
+
+    except Exception as e:
+        print(f"Error in bulk image generation: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to generate images: {str(e)}'
         }), 500

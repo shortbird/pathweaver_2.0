@@ -1,19 +1,78 @@
 """
 Image service for fetching quest images from Pexels API.
+Enhanced with AI-powered educational search term generation.
 """
 import os
 import requests
 from typing import Optional, Dict
+import google.generativeai as genai
+from services.api_usage_tracker import pexels_tracker
 
 PEXELS_API_KEY = os.getenv('PEXELS_API_KEY')
+GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 PEXELS_SEARCH_URL = 'https://api.pexels.com/v1/search'
 
-def search_quest_image(quest_title: str, pillar: Optional[str] = None) -> Optional[str]:
+# Configure Gemini
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
+
+def generate_educational_search_prompt(quest_title: str, quest_description: Optional[str] = None) -> Optional[str]:
     """
-    Search for a relevant image using Pexels API.
+    Use AI to generate an optimized educational search term for Pexels.
 
     Args:
         quest_title: The title of the quest
+        quest_description: Optional description/big_idea
+
+    Returns:
+        Single optimized search term, or None if AI fails
+    """
+    if not GEMINI_API_KEY:
+        return None
+
+    try:
+        model = genai.GenerativeModel('gemini-2.0-flash-lite')
+
+        prompt = f"""Given this educational quest, generate ONE concise search term (2-4 words) to find a relevant educational stock photo.
+
+Quest Title: {quest_title}
+{f'Description: {quest_description[:200]}' if quest_description else ''}
+
+Focus on:
+- Educational/learning context
+- Student-friendly imagery
+- Classroom or study environments
+- Subject matter representation
+
+Return ONLY the search term, nothing else. Examples:
+- "student learning mathematics"
+- "classroom science experiment"
+- "coding on laptop"
+"""
+
+        response = model.generate_content(prompt)
+        search_term = response.text.strip().strip('"').strip("'")
+
+        # Validate it's not too long
+        if len(search_term.split()) <= 6:
+            print(f"AI generated search term: '{search_term}' for quest: {quest_title}")
+            return search_term
+
+    except Exception as e:
+        print(f"AI search term generation failed: {str(e)}")
+
+    return None
+
+
+def search_quest_image(quest_title: str, quest_description: Optional[str] = None, pillar: Optional[str] = None) -> Optional[str]:
+    """
+    Search for a relevant image using Pexels API with AI-enhanced search terms.
+
+    Uses ONLY 1 Pexels API call per quest by using AI to optimize the search term.
+
+    Args:
+        quest_title: The title of the quest
+        quest_description: Optional description/big_idea for better AI context
         pillar: Optional pillar name for fallback search
 
     Returns:
@@ -27,29 +86,50 @@ def search_quest_image(quest_title: str, pillar: Optional[str] = None) -> Option
         'Authorization': PEXELS_API_KEY
     }
 
-    # Try search strategies in order
-    search_terms = [
-        quest_title,  # Primary: quest title
-        pillar if pillar else None,  # Fallback 1: pillar name
-        'education learning',  # Fallback 2: generic education
-    ]
+    # Build search strategy - AI first, then fallbacks
+    search_terms = []
+
+    # Try AI-enhanced search first (free, doesn't count against Pexels limit)
+    ai_term = generate_educational_search_prompt(quest_title, quest_description)
+    if ai_term:
+        search_terms.append(ai_term)
+
+    # Fallback strategies
+    search_terms.extend([
+        quest_title,  # Fallback 1: quest title
+        pillar if pillar else None,  # Fallback 2: pillar name
+        'education learning',  # Fallback 3: generic education
+    ])
 
     for search_term in search_terms:
         if not search_term:
             continue
 
+        # Check API limit before making request
+        if not pexels_tracker.can_make_request():
+            print(f"Pexels API rate limit reached. Skipping image fetch.")
+            return None
+
         try:
             response = requests.get(
                 PEXELS_SEARCH_URL,
                 headers=headers,
-                params={'query': search_term, 'per_page': 1},
+                params={
+                    'query': search_term,
+                    'per_page': 1,
+                    'orientation': 'landscape'  # Better for cards
+                },
                 timeout=5
             )
+
+            # Track the API call
+            pexels_tracker.increment()
 
             if response.status_code == 200:
                 data = response.json()
                 if data.get('photos') and len(data['photos']) > 0:
                     # Return the medium-sized image URL
+                    print(f"Found image for '{quest_title}' using term: '{search_term}'")
                     return data['photos'][0]['src']['medium']
 
         except requests.RequestException as e:
