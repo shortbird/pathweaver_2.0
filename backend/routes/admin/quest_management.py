@@ -10,6 +10,7 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
 from utils.pillar_utils import normalize_pillar_key, is_valid_pillar
 from utils.school_subjects import validate_school_subjects, normalize_subject_key
+from services.image_service import search_quest_image
 from datetime import datetime, timedelta
 import json
 import uuid
@@ -56,6 +57,13 @@ def create_quest_v3_clean(user_id):
         if not data.get('title'):
             return jsonify({'success': False, 'error': 'Title is required'}), 400
 
+        # Auto-fetch image if not provided
+        image_url = data.get('header_image_url')
+        if not image_url:
+            # Try to fetch image based on quest title
+            image_url = search_quest_image(data['title'].strip())
+            print(f"Auto-fetched image for quest '{data['title']}': {image_url}")
+
         # Create quest record
         quest_data = {
             'title': data['title'].strip(),
@@ -64,7 +72,8 @@ def create_quest_v3_clean(user_id):
             'is_v3': True,
             'is_active': data.get('is_active', True),
             'source': 'optio',  # Always optio for new personalized quests
-            'header_image_url': data.get('header_image_url'),
+            'header_image_url': image_url,
+            'image_url': image_url,  # Add to new image_url column
             'created_at': datetime.utcnow().isoformat()
         }
 
@@ -130,6 +139,49 @@ def update_quest(user_id, quest_id):
         return jsonify({
             'success': False,
             'error': f'Failed to update quest: {str(e)}'
+        }), 500
+
+@bp.route('/quests/<quest_id>/refresh-image', methods=['POST'])
+@require_admin
+def refresh_quest_image(user_id, quest_id):
+    """Refresh the quest image by fetching a new one from Pexels"""
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Get quest
+        quest = supabase.table('quests').select('*').eq('id', quest_id).single().execute()
+        if not quest.data:
+            return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
+        # Fetch new image
+        image_url = search_quest_image(quest.data['title'])
+
+        if not image_url:
+            return jsonify({
+                'success': False,
+                'error': 'Could not find a suitable image for this quest'
+            }), 404
+
+        # Update quest with new image
+        update_data = {
+            'image_url': image_url,
+            'header_image_url': image_url,
+            'updated_at': datetime.utcnow().isoformat()
+        }
+
+        result = supabase.table('quests').update(update_data).eq('id', quest_id).execute()
+
+        return jsonify({
+            'success': True,
+            'message': 'Quest image refreshed successfully',
+            'image_url': image_url
+        })
+
+    except Exception as e:
+        print(f"Error refreshing quest image: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to refresh quest image: {str(e)}'
         }), 500
 
 @bp.route('/quests/<quest_id>', methods=['DELETE'])

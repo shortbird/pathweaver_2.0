@@ -55,6 +55,16 @@ const AdminQuests = () => {
     }
   }
 
+  const handleRefreshImage = async (questId) => {
+    try {
+      const response = await api.post(`/api/v3/admin/quests/${questId}/refresh-image`, {})
+      toast.success('Quest image refreshed successfully')
+      fetchQuests()
+    } catch (error) {
+      toast.error('Failed to refresh quest image')
+    }
+  }
+
   const getSkillCategoryName = (category) => {
     const categoryNames = {
       'reading_writing': 'Reading & Writing',
@@ -164,35 +174,58 @@ const AdminQuests = () => {
                 const isCollapsed = collapsedQuests.has(quest.id);
 
                 return (
-                  <div key={quest.id} className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-lg transition-shadow">
+                  <div key={quest.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
+                    {/* Quest Image Preview */}
+                    {quest.image_url || quest.header_image_url ? (
+                      <div className="relative h-32 overflow-hidden">
+                        <img
+                          src={quest.image_url || quest.header_image_url}
+                          alt={quest.title}
+                          className="w-full h-full object-cover"
+                        />
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRefreshImage(quest.id);
+                          }}
+                          className="absolute top-2 right-2 bg-white/90 hover:bg-white px-2 py-1 rounded text-xs text-gray-700 transition-colors"
+                        >
+                          🔄 Refresh Image
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="h-2 bg-gradient-to-r from-gray-200 to-gray-300"></div>
+                    )}
+
                     {/* Header Row */}
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex-1 cursor-pointer" onClick={() => toggleQuestCollapse(quest.id)}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-gray-500">
-                            {isCollapsed ? '▶' : '▼'}
-                          </span>
-                          <h3 className="text-lg font-semibold text-gray-900">{quest.title}</h3>
+                    <div className="p-6">
+                      <div className="flex justify-between items-start mb-4">
+                        <div className="flex-1 cursor-pointer" onClick={() => toggleQuestCollapse(quest.id)}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">
+                              {isCollapsed ? '▶' : '▼'}
+                            </span>
+                            <h3 className="text-lg font-semibold text-gray-900">{quest.title}</h3>
+                          </div>
+                          <p className="text-sm text-gray-600 mt-1 line-clamp-2 ml-6">
+                            {quest.big_idea || quest.description || 'No description'}
+                          </p>
                         </div>
-                        <p className="text-sm text-gray-600 mt-1 line-clamp-2 ml-6">
-                          {quest.big_idea || quest.description || 'No description'}
-                        </p>
+                        <div className="flex gap-2 ml-4">
+                          <button
+                            onClick={() => handleEdit(quest)}
+                            className="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDelete(quest.id)}
+                            className="px-3 py-1 text-sm bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
                       </div>
-                      <div className="flex gap-2 ml-4">
-                        <button
-                          onClick={() => handleEdit(quest)}
-                          className="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(quest.id)}
-                          className="px-3 py-1 text-sm bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </div>
 
                     {/* Collapsible Content */}
                     {!isCollapsed && (
@@ -300,6 +333,7 @@ const AdminQuests = () => {
                     </div>
                     </>
                     )}
+                    </div>
                   </div>
                 );
               })}

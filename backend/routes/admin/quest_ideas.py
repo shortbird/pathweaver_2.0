@@ -8,6 +8,7 @@ Includes AI-powered quest generation and manual quest creation from ideas.
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
+from services.image_service import search_quest_image
 from datetime import datetime
 
 bp = Blueprint('admin_quest_ideas', __name__, url_prefix='/api/v3/admin')
@@ -209,12 +210,18 @@ def generate_quest_from_idea(user_id, idea_id):
 
         generated_quest = result['quest']
 
+        # Auto-fetch image for AI-generated quest
+        image_url = search_quest_image(generated_quest['title'])
+        print(f"Auto-fetched image for AI quest '{generated_quest['title']}': {image_url}")
+
         # Create the quest in the database using the existing create quest endpoint logic
         quest_data = {
             'title': generated_quest['title'],
             'big_idea': generated_quest.get('big_idea', generated_quest.get('description', '')),
             'source': 'custom',
             'is_active': True,
+            'image_url': image_url,
+            'header_image_url': image_url,
             'created_at': datetime.utcnow().isoformat()
         }
 
@@ -294,12 +301,18 @@ def create_quest_from_idea_manual(user_id, idea_id):
         if idea['status'] != 'approved':
             return jsonify({'error': 'Quest idea must be approved before creating quest'}), 400
 
+        # Auto-fetch image for manual quest creation
+        image_url = search_quest_image(idea['title'])
+        print(f"Auto-fetched image for manual quest '{idea['title']}': {image_url}")
+
         # Create basic quest structure
         quest_data = {
             'title': idea['title'],
             'big_idea': idea['description'],
             'source': 'custom',
             'is_active': False,  # Set as inactive so admin can complete it
+            'image_url': image_url,
+            'header_image_url': image_url,
             'created_at': datetime.utcnow().isoformat()
         }
 

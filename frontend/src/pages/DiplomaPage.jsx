@@ -1029,7 +1029,20 @@ const DiplomaPage = () => {
                     style={{ boxShadow: '0 4px 12px rgba(0,0,0,0.08)' }}
                     onClick={() => setSelectedAchievement(achievement)}
                   >
-                    <div className={`h-2 bg-gradient-to-r ${gradientClass}`}></div>
+                    {/* Quest Image Header */}
+                    {achievement.quest.image_url || achievement.quest.header_image_url ? (
+                      <div className="relative h-40 overflow-hidden">
+                        <img
+                          src={achievement.quest.image_url || achievement.quest.header_image_url}
+                          alt={achievement.quest.title}
+                          className="w-full h-full object-cover"
+                        />
+                        <div className={`absolute inset-0 bg-gradient-to-t from-black/30 to-transparent`} />
+                      </div>
+                    ) : (
+                      <div className={`h-2 bg-gradient-to-r ${gradientClass}`}></div>
+                    )}
+
                     <div className="p-4 sm:p-6 flex flex-col flex-grow">
                       {/* Header with badges and date */}
                       <div className="mb-3">

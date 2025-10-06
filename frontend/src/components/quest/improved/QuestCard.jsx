@@ -74,9 +74,22 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
       className="group bg-white rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100 touch-manipulation relative"
       onClick={handleCardClick}
     >
-      {/* Visual Header - Smaller and more subtle */}
-      <div className={`h-2 bg-gradient-to-r ${dominantPillarGradient}`} />
-      
+      {/* Quest Image Header */}
+      {quest.image_url || quest.header_image_url ? (
+        <div className="relative h-48 overflow-hidden">
+          <img
+            src={quest.image_url || quest.header_image_url}
+            alt={quest.title}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+          {/* Gradient overlay for better text readability */}
+          <div className={`absolute inset-0 bg-gradient-to-t from-black/40 to-transparent`} />
+        </div>
+      ) : (
+        /* Visual Header - Fallback for quests without images */
+        <div className={`h-2 bg-gradient-to-r ${dominantPillarGradient}`} />
+      )}
+
       {/* Content Section */}
       <div className="p-4 sm:p-6">
         {/* Title and Description - More prominent */}
