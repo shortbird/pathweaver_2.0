@@ -73,7 +73,7 @@ class BatchQuestGenerationService:
             target_pillar: Optional pillar to focus on
             target_badge_id: Optional badge to align with
             difficulty_level: Optional difficulty (beginner/intermediate/advanced)
-            batch_id: Optional ID for tracking this batch
+            batch_id: Optional ID for tracking this batch (not stored in DB, just for response tracking)
 
         Returns:
             Dict with batch generation results and progress
@@ -84,7 +84,7 @@ class BatchQuestGenerationService:
                 "error": "Batch size must be between 1 and 20"
             }
 
-        batch_id = batch_id or str(uuid.uuid4())
+        batch_id = batch_id or str(uuid.uuid4())  # Used only for response tracking
 
         results = {
             "batch_id": batch_id,
@@ -115,7 +115,7 @@ class BatchQuestGenerationService:
                         quest_data=quest_data['quest'],
                         quality_score=quest_data.get('quality_score', 7.0),
                         ai_feedback=quest_data.get('ai_feedback', {}),
-                        generation_source='batch_generation',
+                        generation_source='batch',
                         badge_id=target_badge_id,
                         generation_metrics=quest_data.get('generation_metrics')
                     )
@@ -220,20 +220,22 @@ class BatchQuestGenerationService:
 
     def get_batch_status(self, batch_id: str) -> Dict:
         """
-        Get the status of a batch generation job.
+        Get the status of batch-generated quests.
+        Note: batch_id is not stored in DB, so this returns all recent batch quests.
 
         Args:
-            batch_id: Batch ID to check
+            batch_id: Batch ID (not used for DB query, just returned in response)
 
         Returns:
             Dict with batch status and generated quests
         """
         try:
-            # Query review queue for this batch
+            # Query recent batch-generated quests from review queue
             response = self.supabase.table('ai_quest_review_queue')\
                 .select('*')\
-                .eq('generation_source', 'batch_generation')\
-                .eq('batch_id', batch_id)\
+                .eq('generation_source', 'batch')\
+                .order('submitted_at', desc=True)\
+                .limit(20)\
                 .execute()
 
             quests = response.data or []
@@ -241,9 +243,9 @@ class BatchQuestGenerationService:
             status = {
                 "batch_id": batch_id,
                 "total_generated": len(quests),
-                "pending_review": len([q for q in quests if q['review_status'] == 'pending_review']),
-                "approved": len([q for q in quests if q['review_status'] == 'approved']),
-                "rejected": len([q for q in quests if q['review_status'] == 'rejected']),
+                "pending_review": len([q for q in quests if q['status'] == 'pending_review']),
+                "approved": len([q for q in quests if q['status'] == 'approved']),
+                "rejected": len([q for q in quests if q['status'] == 'rejected']),
                 "quests": quests
             }
 
