@@ -86,11 +86,33 @@ const MultiFormatEvidenceEditor = ({
     };
   }, [taskId, autoSaveEnabled]);
 
+  const cleanBlocksForSave = (blocksToClean) => {
+    return blocksToClean.map(block => {
+      const cleanedContent = { ...block.content };
+
+      // Remove blob URLs - they're temporary and won't work after page reload
+      if (cleanedContent.url && cleanedContent.url.startsWith('blob:')) {
+        delete cleanedContent.url;
+      }
+
+      // Remove file object - it can't be serialized
+      if (cleanedContent._fileToUpload) {
+        delete cleanedContent._fileToUpload;
+      }
+
+      return {
+        ...block,
+        content: cleanedContent
+      };
+    });
+  };
+
   // Auto-save when blocks change
   useEffect(() => {
     if (!isLoading && autoSaverRef.current && blocks.length > 0) {
       setSaveStatus('unsaved');
-      autoSaverRef.current.autoSave(blocks);
+      const cleanedBlocks = cleanBlocksForSave(blocks);
+      autoSaverRef.current.autoSave(cleanedBlocks);
     }
   }, [blocks, isLoading]);
 
@@ -135,7 +157,8 @@ const MultiFormatEvidenceEditor = ({
   const handleManualSave = async () => {
     try {
       setSaveStatus('saving');
-      const response = await evidenceDocumentService.saveDocument(taskId, blocks, documentStatus);
+      const cleanedBlocks = cleanBlocksForSave(blocks);
+      const response = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, documentStatus);
 
       if (response.success) {
         setSaveStatus('saved');
@@ -159,8 +182,9 @@ const MultiFormatEvidenceEditor = ({
     try {
       setIsLoading(true);
 
-      // Save the document with 'completed' status - this handles both saving and completion
-      const response = await evidenceDocumentService.saveDocument(taskId, blocks, 'completed');
+      // Clean blocks before saving - this handles both saving and completion
+      const cleanedBlocks = cleanBlocksForSave(blocks);
+      const response = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, 'completed');
 
       if (response.success) {
         setDocumentStatus('completed');
@@ -264,8 +288,7 @@ const MultiFormatEvidenceEditor = ({
 
   const handleFileUpload = async (file, blockId) => {
     try {
-      // For now, create a local URL and let the save process handle the actual upload
-      // This is a temporary solution until we implement proper file handling
+      // Create a temporary blob URL for immediate preview
       const localUrl = URL.createObjectURL(file);
 
       // Store file info for later upload during save
