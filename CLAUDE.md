@@ -473,7 +473,15 @@ mcp__render__get_deploy(serviceId, deployId)
 # Monitor application logs
 mcp__render__list_logs(resource, limit, filters)
 ```
+**Supabase MCP Setup:**
 
+To configure Supabase MCP for read-only database access:
+
+```bash
+claude mcp add supabase npx -- -y @supabase/mcp-server-supabase@latest --access-token sbp_f2e031d2b3f3f524cd0ee9cc4e977ec7b7f240e3
+```
+
+This enables direct read-only SQL queries against the production database for debugging and analysis.
 **Service IDs (Clean Architecture):**
 - **Dev Backend**: `srv-d2tnvlvfte5s73ae8npg` (optio-dev-backend)
 - **Dev Frontend**: `srv-d2tnvrffte5s73ae8s4g` (optio-dev-frontend)
