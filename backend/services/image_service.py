@@ -33,21 +33,33 @@ def generate_educational_search_prompt(quest_title: str, quest_description: Opti
     try:
         model = genai.GenerativeModel('gemini-2.0-flash-lite')
 
-        prompt = f"""Given this educational quest, generate ONE concise search term (2-4 words) to find a relevant educational stock photo.
+        prompt = f"""You are helping find a visually compelling stock photo for this educational quest. The image should make students excited to do the quest.
 
 Quest Title: {quest_title}
 {f'Description: {quest_description[:200]}' if quest_description else ''}
 
-Focus on:
-- Educational/learning context
-- Student-friendly imagery
-- Classroom or study environments
-- Subject matter representation
+Generate ONE concise search term (2-4 words) that will find a visually exciting, relevant photo.
 
-Return ONLY the search term, nothing else. Examples:
-- "student learning mathematics"
-- "classroom science experiment"
-- "coding on laptop"
+FOCUS ON:
+- The ACTIVITY or CONCEPT itself (not the classroom/educational setting)
+- Visual drama, action, or compelling imagery
+- What makes this quest exciting or interesting
+- The actual subject matter students will experience
+
+AVOID:
+- Generic classroom or school settings
+- "student learning X" phrases
+- Educational context words like "classroom", "lesson", "teaching"
+- Bulletin boards, worksheets, or school supplies
+
+EXAMPLES:
+Quest: "Egg Drop Engineering Challenge" → "egg falling physics experiment"
+Quest: "Build a Robot Arm" → "robotic arm mechanical engineering"
+Quest: "Create Digital Art" → "digital painting creative design"
+Quest: "Explore Ancient Rome" → "roman colosseum architecture"
+Quest: "Photography Basics" → "professional camera photography"
+
+Return ONLY the search term, nothing else.
 """
 
         response = model.generate_content(prompt)
