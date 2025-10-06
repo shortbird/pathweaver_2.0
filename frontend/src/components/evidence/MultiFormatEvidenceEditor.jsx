@@ -95,7 +95,7 @@ const MultiFormatEvidenceEditor = ({
         delete cleanedContent.url;
       }
 
-      // Remove file object - it can't be serialized
+      // Remove file object - it can't be serialized, but keep filename/title for metadata
       if (cleanedContent._fileToUpload) {
         delete cleanedContent._fileToUpload;
       }
@@ -157,10 +157,15 @@ const MultiFormatEvidenceEditor = ({
   const handleManualSave = async () => {
     try {
       setSaveStatus('saving');
+
+      // Step 1: Clean and save blocks to get database IDs
       const cleanedBlocks = cleanBlocksForSave(blocks);
       const response = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, documentStatus);
 
       if (response.success) {
+        // Step 2: Upload any pending files
+        await uploadPendingFiles(response.blocks || []);
+
         setSaveStatus('saved');
         setLastSaved(new Date());
       } else {
@@ -178,30 +183,86 @@ const MultiFormatEvidenceEditor = ({
     }
   };
 
+  const uploadPendingFiles = async (savedBlocks) => {
+    // Find blocks that have pending file uploads
+    const uploadTasks = blocks.map(async (block, index) => {
+      const file = block.content._fileToUpload;
+      const dbBlock = savedBlocks.find(sb => sb.order_index === index);
+
+      if (file && dbBlock?.id) {
+        try {
+          console.log(`Uploading file for block ${dbBlock.id}:`, file.name);
+          const uploadResponse = await evidenceDocumentService.uploadBlockFile(dbBlock.id, file);
+
+          if (uploadResponse.success && uploadResponse.file_url) {
+            // Update local block with permanent URL
+            const updatedBlocks = [...blocks];
+            const blockToUpdate = updatedBlocks[index];
+
+            // Revoke blob URL
+            if (blockToUpdate.content.url?.startsWith('blob:')) {
+              URL.revokeObjectURL(blockToUpdate.content.url);
+            }
+
+            // Update with permanent URL
+            blockToUpdate.content = {
+              ...blockToUpdate.content,
+              url: uploadResponse.file_url,
+              filename: uploadResponse.filename
+            };
+            delete blockToUpdate.content._fileToUpload;
+
+            setBlocks(updatedBlocks);
+            console.log(`File uploaded: ${uploadResponse.file_url}`);
+          }
+        } catch (error) {
+          console.error(`Failed to upload ${file.name}:`, error);
+          if (onError) {
+            onError(`Failed to upload ${file.name}`);
+          }
+        }
+      }
+    });
+
+    await Promise.all(uploadTasks);
+  };
+
   const handleCompleteTask = async () => {
     try {
       setIsLoading(true);
 
-      // Clean blocks before saving - this handles both saving and completion
+      // Step 1: Save blocks to get database IDs
       const cleanedBlocks = cleanBlocksForSave(blocks);
-      const response = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, 'completed');
+      const saveResponse = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, 'draft');
 
-      if (response.success) {
-        setDocumentStatus('completed');
-        setSaveStatus('saved');
-        if (onComplete) {
-          onComplete({
-            xp_awarded: response.xp_awarded || 0,
-            has_collaboration_bonus: response.has_collaboration_bonus || false,
-            quest_completed: response.quest_completed || false,
-            message: response.xp_awarded
-              ? `Task completed! You earned ${response.xp_awarded} XP`
-              : 'Task completed successfully!'
-          });
+      if (saveResponse.success) {
+        // Step 2: Upload any pending files
+        await uploadPendingFiles(saveResponse.blocks || []);
+
+        // Step 3: Complete the task (this will mark it as complete and award XP)
+        const completeResponse = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, 'completed');
+
+        if (completeResponse.success) {
+          setDocumentStatus('completed');
+          setSaveStatus('saved');
+          if (onComplete) {
+            onComplete({
+              xp_awarded: completeResponse.xp_awarded || 0,
+              has_collaboration_bonus: completeResponse.has_collaboration_bonus || false,
+              quest_completed: completeResponse.quest_completed || false,
+              message: completeResponse.xp_awarded
+                ? `Task completed! You earned ${completeResponse.xp_awarded} XP`
+                : 'Task completed successfully!'
+            });
+          }
+        } else {
+          if (onError) {
+            onError(completeResponse.error || 'Failed to complete task.');
+          }
         }
       } else {
         if (onError) {
-          onError(response.error || 'Failed to complete task.');
+          onError(saveResponse.error || 'Failed to save document.');
         }
       }
     } catch (error) {

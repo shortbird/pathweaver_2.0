@@ -246,6 +246,13 @@ def save_evidence_document(user_id: str, task_id: str):
                     # Check if quest is now completed
                     quest_completed = check_quest_completion(supabase, user_id, quest_id)
 
+        # Get the saved blocks to return their IDs
+        saved_blocks_response = supabase.table('evidence_document_blocks')\
+            .select('id, order_index')\
+            .eq('document_id', document_id)\
+            .order('order_index')\
+            .execute()
+
         return jsonify({
             'success': True,
             'message': 'Evidence document saved successfully',
@@ -253,7 +260,8 @@ def save_evidence_document(user_id: str, task_id: str):
             'status': status,
             'xp_awarded': xp_awarded,
             'has_collaboration_bonus': has_collaboration,
-            'quest_completed': quest_completed
+            'quest_completed': quest_completed,
+            'blocks': saved_blocks_response.data or []
         })
 
     except Exception as e:
