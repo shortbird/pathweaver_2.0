@@ -191,7 +191,6 @@ const MultiFormatEvidenceEditor = ({
 
       if (file && dbBlock?.id) {
         try {
-          console.log(`Uploading file for block ${dbBlock.id}:`, file.name);
           const uploadResponse = await evidenceDocumentService.uploadBlockFile(dbBlock.id, file);
 
           if (uploadResponse.success && uploadResponse.file_url) {
@@ -213,7 +212,6 @@ const MultiFormatEvidenceEditor = ({
             delete blockToUpdate.content._fileToUpload;
 
             setBlocks(updatedBlocks);
-            console.log(`File uploaded: ${uploadResponse.file_url}`);
           }
         } catch (error) {
           console.error(`Failed to upload ${file.name}:`, error);

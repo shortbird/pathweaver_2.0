@@ -148,7 +148,6 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
       <div className={`grid gap-3 ${getGridClasses('link', resources.length)}`}>
         {resources.map((block) => {
           const rawUrl = block.content.url;
-          console.log('Multi-format evidence URL debug:', { blockId: block.id, rawUrl, content: block.content });
 
           // Check for blob URLs - these are temporary and won't work
           if (rawUrl && rawUrl.startsWith('blob:')) {
@@ -249,7 +248,6 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
         {documents.map((block) => {
           const rawUrl = block.content.url;
           const hasFilename = block.content.filename || block.content.title;
-          console.log('Multi-format document URL debug:', { blockId: block.id, rawUrl, hasFilename, content: block.content });
 
           // Check for blob URLs - these are temporary and won't work
           if (rawUrl && rawUrl.startsWith('blob:')) {
@@ -361,7 +359,6 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
       <div className={`grid gap-3 ${getGridClasses('video', videos.length)}`}>
         {videos.map((block) => {
           const rawUrl = block.content.url;
-          console.log('Multi-format video URL debug:', { blockId: block.id, rawUrl, content: block.content });
 
           // Check for blob URLs - these are temporary and won't work
           if (rawUrl && rawUrl.startsWith('blob:')) {
