@@ -218,7 +218,9 @@ const MultiFormatEvidenceEditor = ({
         } catch (error) {
           console.error(`Failed to upload ${file.name}:`, error);
           if (onError) {
-            onError(`Failed to upload ${file.name}`);
+            // Extract error message from response if available
+            const errorMessage = error.response?.data?.error || error.message || 'Upload failed';
+            onError(`Failed to upload ${file.name}: ${errorMessage}`);
           }
         }
       }
@@ -349,6 +351,17 @@ const MultiFormatEvidenceEditor = ({
 
   const handleFileUpload = async (file, blockId) => {
     try {
+      // Validate file size (10MB limit)
+      const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
+      if (file.size > MAX_FILE_SIZE) {
+        const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+        const errorMsg = `File "${file.name}" is too large (${fileSizeMB}MB). Maximum size is 10MB.\n\nFor larger files, please:\n1. Upload to Google Drive or Dropbox\n2. Get a shareable link\n3. Use a "Link" block instead`;
+        if (onError) {
+          onError(errorMsg);
+        }
+        throw new Error(errorMsg);
+      }
+
       // Create a temporary blob URL for immediate preview
       const localUrl = URL.createObjectURL(file);
 
@@ -364,7 +377,7 @@ const MultiFormatEvidenceEditor = ({
       return fileInfo;
     } catch (error) {
       console.error('File preparation error:', error);
-      if (onError) {
+      if (onError && !error.message.includes('too large')) {
         onError(`Failed to prepare file: ${error.message}`);
       }
       throw error;

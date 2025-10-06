@@ -23,7 +23,8 @@ xp_service = XPService()
 
 # File upload configuration
 UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads/evidence')
-MAX_FILE_SIZE = int(os.getenv('MAX_IMAGE_UPLOAD_SIZE', 10485760))  # 10MB default for images
+MAX_IMAGE_SIZE = 10 * 1024 * 1024  # 10MB for images
+MAX_DOCUMENT_SIZE = 10 * 1024 * 1024  # 10MB for documents (PDFs, etc.)
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
 ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
 
@@ -324,10 +325,10 @@ def upload_block_file(user_id: str, block_id: str):
 
         if block_type == 'image':
             allowed_extensions = ALLOWED_IMAGE_EXTENSIONS
-            max_file_size = MAX_FILE_SIZE
+            max_file_size = MAX_IMAGE_SIZE
         else:  # document
             allowed_extensions = ALLOWED_DOCUMENT_EXTENSIONS
-            max_file_size = 25 * 1024 * 1024  # 25MB
+            max_file_size = MAX_DOCUMENT_SIZE
 
         if ext not in allowed_extensions:
             return jsonify({
@@ -341,10 +342,13 @@ def upload_block_file(user_id: str, block_id: str):
         file.seek(0)
 
         if file_size > max_file_size:
+            max_size_mb = max_file_size // (1024*1024)
             return jsonify({
                 'success': False,
-                'error': f'File too large. Maximum size: {max_file_size // (1024*1024)}MB'
-            }), 400
+                'error': f'File too large ({file_size // (1024*1024)}MB). Maximum: {max_size_mb}MB. For larger files, upload to Google Drive or Dropbox and use a link instead.',
+                'file_size': file_size,
+                'max_size': max_file_size
+            }), 413
 
         # Upload to Supabase storage
         try:
