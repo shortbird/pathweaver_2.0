@@ -1116,7 +1116,7 @@ const DiplomaPage = () => {
             {selectedAchievement && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
-                  <div className="sticky top-0 p-4 sm:p-8" style={{ background: 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)' }}>
+                  <div className="sticky top-0 p-4 sm:p-8 z-10" style={{ background: 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)' }}>
                     <div className="flex justify-between items-start gap-4">
                       <div className="flex-1 min-w-0">
                         <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-tight" style={{ letterSpacing: '-0.5px' }}>
