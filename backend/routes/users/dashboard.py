@@ -324,64 +324,49 @@ def get_active_quests(supabase, user_id: str) -> list:
 def get_recent_task_completions(supabase, user_id: str, limit: int = 5) -> list:
     """Get user's recent task completions with detailed information"""
     try:
-        # Get recent task completions with quest and task details
-        completions = supabase.table('user_quest_tasks')\
-            .select('*, quest_tasks(title, description, pillar, xp_amount), user_quests(quest_id, quests(title))')\
+        # Get recent task completions from quest_task_completions table
+        # Join with user_quest_tasks to get task details (title, pillar, etc.)
+        completions = supabase.table('quest_task_completions')\
+            .select('*, user_quest_tasks!inner(title, description, pillar, quest_id, user_quest_id)')\
             .eq('user_id', user_id)\
             .order('completed_at', desc=True)\
             .limit(limit)\
             .execute()
-        
+
         if completions.data:
             # Format the data for frontend
             formatted_completions = []
             for completion in completions.data:
-                task_info = completion.get('quest_tasks', {})
-                quest_info = completion.get('user_quests', {}).get('quests', {}) if completion.get('user_quests') else {}
-                
+                task_info = completion.get('user_quest_tasks', {})
+
+                # Get quest title separately if needed
+                quest_title = 'Unknown Quest'
+                try:
+                    quest_id = task_info.get('quest_id')
+                    if quest_id:
+                        quest_result = supabase.table('quests').select('title').eq('id', quest_id).single().execute()
+                        if quest_result.data:
+                            quest_title = quest_result.data.get('title', 'Unknown Quest')
+                except:
+                    pass
+
                 formatted_completions.append({
                     'id': completion.get('id'),
                     'task_description': task_info.get('title', 'Task completed'),
                     'description': task_info.get('description', ''),
-                    'quest_title': quest_info.get('title', 'Unknown Quest'),
+                    'quest_title': quest_title,
                     'xp_awarded': completion.get('xp_awarded', 0),
                     'pillar': task_info.get('pillar', 'general'),
                     'completed_at': completion.get('completed_at'),
-                    'evidence_type': completion.get('evidence_type'),
-                    'evidence_content': completion.get('evidence_content')
+                    'evidence_type': 'text',
+                    'evidence_content': completion.get('evidence_text', completion.get('evidence_url', ''))
                 })
-            
+
             return formatted_completions
-            
+
     except Exception as e:
         print(f"Error fetching recent task completions: {str(e)}")
-        
-        # Fallback: try simpler query
-        try:
-            completions = supabase.table('user_quest_tasks')\
-                .select('*, quest_tasks(title, pillar, xp_amount)')\
-                .eq('user_id', user_id)\
-                .order('completed_at', desc=True)\
-                .limit(limit)\
-                .execute()
-            
-            if completions.data:
-                formatted_completions = []
-                for completion in completions.data:
-                    task_info = completion.get('quest_tasks', {})
-                    formatted_completions.append({
-                        'id': completion.get('id'),
-                        'task_description': task_info.get('title', 'Task completed'),
-                        'quest_title': 'Quest',
-                        'xp_awarded': completion.get('xp_awarded', 0),
-                        'pillar': task_info.get('pillar', 'general'),
-                        'completed_at': completion.get('completed_at')
-                    })
-                return formatted_completions
-                
-        except Exception as fallback_error:
-            print(f"Fallback query also failed: {str(fallback_error)}")
-    
+
     return []
 
 def get_recent_completions(supabase, user_id: str, limit: int = 5) -> list:
@@ -484,8 +469,8 @@ def get_enhanced_streak_data(supabase, user_id: str) -> dict:
     try:
         from datetime import datetime, timedelta, timezone
 
-        # Get task completion streaks
-        task_completions = supabase.table('user_quest_tasks')\
+        # Get task completion streaks from quest_task_completions table
+        task_completions = supabase.table('quest_task_completions')\
             .select('completed_at')\
             .eq('user_id', user_id)\
             .order('completed_at', desc=True)\
@@ -493,7 +478,7 @@ def get_enhanced_streak_data(supabase, user_id: str) -> dict:
             .execute()
 
         # Get login streaks (based on quest/task activity as proxy)
-        login_activity = supabase.table('user_quest_tasks')\
+        login_activity = supabase.table('quest_task_completions')\
             .select('completed_at')\
             .eq('user_id', user_id)\
             .order('completed_at', desc=True)\
@@ -584,7 +569,7 @@ def get_additional_stats(supabase, user_id: str) -> dict:
 
         # Calculate average XP per day (last 30 days)
         thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-        recent_tasks = supabase.table('user_quest_tasks')\
+        recent_tasks = supabase.table('quest_task_completions')\
             .select('xp_awarded, completed_at')\
             .eq('user_id', user_id)\
             .gte('completed_at', thirty_days_ago)\
