@@ -127,6 +127,53 @@ def get_badge_progress(user_id, badge_id):
     }), 200
 
 
+@bp.route('/user/<target_user_id>', methods=['GET'])
+def get_user_badges_by_id(target_user_id):
+    """
+    Get a user's active and completed badges by user ID.
+    Public endpoint for viewing user badge data (used on diploma page).
+
+    Path params:
+        target_user_id: User UUID
+
+    Query params:
+        - status: 'active' or 'completed' (optional, returns both if not specified)
+    """
+    status = request.args.get('status')
+
+    if status == 'active':
+        badges = BadgeService.get_user_active_badges(target_user_id)
+        return jsonify({
+            'success': True,
+            'user_badges': badges,
+            'active_badges': badges,
+            'count': len(badges)
+        }), 200
+
+    elif status == 'completed':
+        badges = BadgeService.get_user_completed_badges(target_user_id)
+        return jsonify({
+            'success': True,
+            'user_badges': badges,
+            'completed_badges': badges,
+            'count': len(badges)
+        }), 200
+
+    else:
+        # Return both
+        active = BadgeService.get_user_active_badges(target_user_id)
+        completed = BadgeService.get_user_completed_badges(target_user_id)
+
+        return jsonify({
+            'success': True,
+            'user_badges': active + completed,
+            'active_badges': active,
+            'completed_badges': completed,
+            'active_count': len(active),
+            'completed_count': len(completed)
+        }), 200
+
+
 @bp.route('/my-badges', methods=['GET'])
 @require_auth
 def get_user_badges(user_id):

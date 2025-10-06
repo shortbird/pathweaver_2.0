@@ -376,10 +376,10 @@ class BatchQuestGenerationService:
 
         # Use QuestAIService to generate
         try:
-            result = self.quest_ai_service.generate_quest(
-                description=f"Generate a quest with the following requirements:\n" + "\n".join(constraints),
-                source='batch_generation',
-                submit_for_review=False  # We'll handle review submission
+            topic = f"Generate a quest with the following requirements:\n" + "\n".join(constraints)
+            result = self.quest_ai_service.generate_quest_from_topic(
+                topic=topic,
+                learning_objectives=None
             )
 
             return result
