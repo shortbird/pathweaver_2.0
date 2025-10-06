@@ -18,6 +18,7 @@ from datetime import datetime
 from database import get_supabase_admin_client
 from services.quest_ai_service import QuestAIService
 from services.ai_quest_review_service import AIQuestReviewService
+from services.quest_concept_matcher import QuestConceptMatcher
 
 
 class BatchQuestGenerationService:
@@ -28,6 +29,7 @@ class BatchQuestGenerationService:
         self.supabase = get_supabase_admin_client()
         self.quest_ai_service = QuestAIService()
         self.review_service = AIQuestReviewService()
+        self.concept_matcher = QuestConceptMatcher()
 
         # Philosophy and pillars for context
         self.philosophy = """
@@ -56,6 +58,34 @@ class BatchQuestGenerationService:
 
     # Content gap analysis removed - unnecessary in V3 personalized quest system
     # In V3, tasks are created per-student when they start quests, not as quest templates
+
+    def _get_recent_quest_titles(self, limit: int = 50) -> List[str]:
+        """Fetch recent quest titles to avoid duplicates."""
+        try:
+            response = self.supabase.table('quests')\
+                .select('title')\
+                .eq('is_active', True)\
+                .order('created_at', desc=True)\
+                .limit(limit)\
+                .execute()
+
+            return [q['title'] for q in response.data] if response.data else []
+        except Exception as e:
+            print(f"Error fetching recent quest titles: {e}")
+            return []
+
+    def _get_all_active_quests(self) -> List[Dict]:
+        """Fetch all active quests for similarity checking."""
+        try:
+            response = self.supabase.table('quests')\
+                .select('id, title, big_idea')\
+                .eq('is_active', True)\
+                .execute()
+
+            return response.data if response.data else []
+        except Exception as e:
+            print(f"Error fetching active quests: {e}")
+            return []
 
     def generate_batch(
         self,
@@ -92,8 +122,13 @@ class BatchQuestGenerationService:
             "generated": [],
             "failed": [],
             "submitted_to_review": 0,
+            "similarity_metrics": [],
             "started_at": datetime.utcnow().isoformat()
         }
+
+        # Get existing quests for duplicate prevention
+        recent_titles = self._get_recent_quest_titles(limit=50)
+        all_active_quests = self._get_all_active_quests()
 
         # Get badge context if targeting a badge
         badge_context = None
@@ -106,7 +141,9 @@ class BatchQuestGenerationService:
                 quest_data = self._generate_single_quest(
                     target_pillar=target_pillar,
                     badge_context=badge_context,
-                    difficulty_level=difficulty_level
+                    difficulty_level=difficulty_level,
+                    avoid_titles=recent_titles,
+                    existing_quests=all_active_quests
                 )
 
                 if quest_data.get('success'):
@@ -127,6 +164,17 @@ class BatchQuestGenerationService:
                             "quality_score": quest_data.get('quality_score', 0)
                         })
                         results['submitted_to_review'] += 1
+
+                        # Track similarity metrics if available
+                        if quest_data.get('similarity_check'):
+                            results['similarity_metrics'].append({
+                                "quest_title": quest_data['quest']['title'],
+                                "similarity_score": quest_data['similarity_check'].get('score', 0),
+                                "most_similar_to": quest_data['similarity_check'].get('most_similar', {}).get('title')
+                            })
+
+                        # Add generated quest title to avoid list for next iterations
+                        recent_titles.append(quest_data['quest']['title'])
                     else:
                         results['failed'].append({
                             "error": "Failed to submit to review queue",
@@ -167,40 +215,61 @@ class BatchQuestGenerationService:
         self,
         target_pillar: Optional[str] = None,
         badge_context: Optional[Dict] = None,
-        difficulty_level: Optional[str] = None
+        difficulty_level: Optional[str] = None,
+        avoid_titles: Optional[List[str]] = None,
+        existing_quests: Optional[List[Dict]] = None
     ) -> Dict:
-        """Generate a single quest with specified parameters."""
-        # Build generation prompt based on parameters
-        constraints = []
+        """
+        Generate a single lightweight quest concept with duplicate checking.
 
-        if target_pillar:
-            constraints.append(f"Primary pillar: {self.pillar_display_names.get(target_pillar, target_pillar)}")
+        Returns quest with title and big_idea only (no predefined tasks).
+        """
+        max_attempts = 2  # Try twice if first attempt is too similar
+        similarity_threshold = 0.7
 
-        if badge_context:
-            constraints.append(f"Badge alignment: {badge_context['name']}")
-            constraints.append(f"Badge description: {badge_context.get('description', '')}")
+        for attempt in range(max_attempts):
+            try:
+                # Generate quest concept using lightweight method
+                result = self.quest_ai_service.generate_quest_concept(
+                    avoid_titles=avoid_titles or []
+                )
 
-        if difficulty_level == "beginner":
-            constraints.append("Difficulty: Beginner (total XP: 100-200)")
-        elif difficulty_level == "intermediate":
-            constraints.append("Difficulty: Intermediate (total XP: 201-400)")
-        elif difficulty_level == "advanced":
-            constraints.append("Difficulty: Advanced (total XP: 401-800)")
+                if not result.get('success'):
+                    return result
 
-        # Use QuestAIService to generate
-        try:
-            topic = f"Generate a quest with the following requirements:\n" + "\n".join(constraints)
-            result = self.quest_ai_service.generate_quest_from_topic(
-                topic=topic,
-                learning_objectives=None
-            )
+                quest_concept = result['quest']
 
-            return result
-        except Exception as e:
-            return {
-                "success": False,
-                "error": str(e)
-            }
+                # Check for similarity with existing quests
+                if existing_quests:
+                    similarity_check = self.concept_matcher.check_quest_similarity(
+                        new_quest=quest_concept,
+                        existing_quests=existing_quests,
+                        threshold=similarity_threshold
+                    )
+
+                    # If too similar and we have attempts left, try again
+                    if similarity_check['exceeds_threshold'] and attempt < max_attempts - 1:
+                        # Add the similar quest title to avoid list
+                        if similarity_check.get('most_similar'):
+                            avoid_titles = (avoid_titles or []) + [similarity_check['most_similar']['title']]
+                        continue
+
+                    # Include similarity check in result
+                    result['similarity_check'] = similarity_check
+
+                return result
+
+            except Exception as e:
+                if attempt == max_attempts - 1:
+                    return {
+                        "success": False,
+                        "error": str(e)
+                    }
+
+        return {
+            "success": False,
+            "error": "Failed to generate unique quest after multiple attempts"
+        }
 
     def generate_for_badge(self, badge_id: str, count: int = 5) -> Dict:
         """

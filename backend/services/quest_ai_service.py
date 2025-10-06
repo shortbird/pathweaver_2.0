@@ -40,34 +40,68 @@ class QuestAIService:
         self.school_subjects = SCHOOL_SUBJECTS
         self.school_subject_display_names = SCHOOL_SUBJECT_DISPLAY_NAMES
     
+    def generate_quest_concept(self, avoid_titles: Optional[List[str]] = None) -> Dict[str, Any]:
+        """
+        Generate a lightweight quest concept (title + description only).
+        Tasks are personalized per-student at enrollment time.
+
+        Args:
+            avoid_titles: List of existing quest titles to avoid duplicating
+
+        Returns:
+            Dict containing quest concept with title and big_idea
+        """
+        try:
+            prompt = self._build_quest_concept_prompt(avoid_titles or [])
+
+            response = self.model.generate_content(prompt)
+            if not response or not response.text:
+                raise Exception("Empty response from Gemini API")
+
+            # Parse the response
+            quest_concept = self._parse_quest_concept_response(response.text)
+
+            return {
+                'success': True,
+                'quest': quest_concept,
+                'ai_generated': True
+            }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'error': f"Failed to generate quest concept: {str(e)}",
+                'quest': None
+            }
+
     def generate_quest_from_topic(self, topic: str, learning_objectives: Optional[str] = None) -> Dict[str, Any]:
         """
         Generate a complete quest structure from a topic.
-        
+
         Args:
             topic: The subject or topic for the quest
             learning_objectives: Optional specific learning goals
-            
+
         Returns:
             Dict containing quest structure with title, description, and tasks
         """
         try:
             prompt = self._build_quest_generation_prompt(topic, learning_objectives)
-            
+
             response = self.model.generate_content(prompt)
             if not response or not response.text:
                 raise Exception("Empty response from Gemini API")
-            
+
             # Parse the response and validate structure
             quest_data = self._parse_quest_response(response.text)
             quest_data = self._validate_and_fix_quest_data(quest_data)
-            
+
             return {
                 'success': True,
                 'quest': quest_data,
                 'ai_generated': True
             }
-            
+
         except Exception as e:
             return {
                 'success': False,
@@ -252,6 +286,47 @@ class QuestAIService:
         """Get the current prompt version being used"""
         return self.prompt_version
 
+    def _build_quest_concept_prompt(self, avoid_titles: List[str]) -> str:
+        """Build the lightweight quest concept generation prompt"""
+
+        avoid_section = ""
+        if avoid_titles:
+            titles_list = "\n".join([f"- {title}" for title in avoid_titles[:20]])
+            avoid_section = f"\n\nAVOID creating quests similar to these existing ones:\n{titles_list}"
+
+        return f"""
+        Create a quest concept for a learning experience students can pursue in the real world.
+
+        Philosophy: These quests are "cognitive playgrounds" - structures for unstructured, personalized learning.
+        The quest serves as a starting point. Students will receive personalized tasks when they enroll.
+
+        Quest types to consider:
+        - Physical challenges: climb mountain, run 5 miles, camp week, hike trail, learn to skateboard, master parkour
+        - Creative projects: paint picture, learn instrument, write novel, make film, design clothing, compose music
+        - Real-world skills: start business, earn certification, learn to cook, garden, fix cars, build furniture
+        - Community experiences: volunteer, attend camp, visit museum/zoo/library, organize event, mentor others
+        - Personal inventions: invent product, build app, create game, design solution, prototype device
+        - Skill mastery: master chess, learn language, practice meditation, develop public speaking, perfect photography
+        - Academic exploration: research topic, conduct experiments, study history, explore mathematics, investigate science{avoid_section}
+
+        Return ONLY a JSON object with:
+        - title: Simple, clear concept (3-6 words, action-oriented)
+        - big_idea: 2-3 sentence description that:
+          * Explains what they'll do in simple terms
+          * Keeps it open to personal interpretation
+          * Uses simple, respectful, professional language
+          * NO cheesy excitement, NO emojis, NO "this will help you" language
+          * Focuses on the experience itself, not future benefits
+
+        Good examples:
+        {{"title": "Start a Small Business", "big_idea": "Create and run a small business venture. Choose your product, find customers, and learn through real entrepreneurship."}}
+        {{"title": "Learn to Surf", "big_idea": "Master the basics of surfing. Find a beach, get lessons or teach yourself, document your progression from beginner to confident."}}
+        {{"title": "Build a Treehouse", "big_idea": "Design and construct a real treehouse. Plan the structure, gather materials, and bring your vision to life through hands-on building."}}
+        {{"title": "Create a Podcast Series", "big_idea": "Launch your own podcast. Choose a topic you care about, record episodes, and share your voice with the world."}}
+
+        Return valid JSON only, no markdown code blocks.
+        """
+
     def _build_quest_generation_prompt(self, topic: str, learning_objectives: Optional[str]) -> str:
         """Build the main quest generation prompt"""
         objectives_text = f"\nLearning Objectives: {learning_objectives}" if learning_objectives else ""
@@ -286,6 +361,40 @@ class QuestAIService:
         Return as valid JSON with exact field names shown above.
         """
     
+    def _parse_quest_concept_response(self, response_text: str) -> Dict[str, Any]:
+        """Parse and extract quest concept from AI response"""
+        try:
+            # Remove markdown code blocks if present
+            response_text = re.sub(r'```json\s*|\s*```', '', response_text)
+
+            # Try to find JSON object in the response
+            json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+            if json_match:
+                json_str = json_match.group()
+                concept = json.loads(json_str)
+            else:
+                # Fallback: try to parse the whole response as JSON
+                concept = json.loads(response_text)
+
+            # Validate required fields
+            if 'title' not in concept:
+                concept['title'] = 'AI Generated Quest'
+            if 'big_idea' not in concept:
+                concept['big_idea'] = 'A learning experience generated by AI.'
+
+            # Add metadata
+            concept['source'] = 'ai_generated'
+
+            return concept
+
+        except json.JSONDecodeError:
+            # If JSON parsing fails, create a fallback structure
+            return {
+                'title': 'AI Generated Quest',
+                'big_idea': 'A learning experience generated by AI.',
+                'source': 'ai_generated'
+            }
+
     def _parse_quest_response(self, response_text: str) -> Dict[str, Any]:
         """Parse and extract quest data from AI response"""
         try:
