@@ -1,20 +1,10 @@
-import React, { useEffect, useState, useMemo, useCallback, memo } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import React, { useEffect, memo } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
-import { usePortfolio } from '../hooks/api/usePortfolio'
-import { RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Cell } from 'recharts'
-import { DIPLOMA_PILLARS, getPillarName, getPillarData, getPillarGradient } from '../utils/pillarMappings'
-import { getTierDisplayName } from '../utils/tierMapping'
 import CompactQuestCard from '../components/dashboard/CompactQuestCard'
-import StatsCard from '../components/dashboard/StatsCard'
-import RecentCompletions from '../components/dashboard/RecentCompletions'
-import BadgeRecommendations from '../components/dashboard/BadgeRecommendations'
 import {
-  RocketLaunchIcon,
-  ChartBarIcon,
-  TrophyIcon,
-  StarIcon
+  RocketLaunchIcon
 } from '@heroicons/react/24/outline'
 
 // Memoized component for Active Quests section
@@ -49,7 +39,7 @@ const ActiveQuests = memo(({ activeQuests }) => {
 
 
 const DashboardPage = () => {
-  const { user, loginTimestamp } = useAuth()
+  const { user } = useAuth()
 
   // Use React Query hooks for data fetching
   const {
@@ -61,26 +51,6 @@ const DashboardPage = () => {
     enabled: !!user?.id,
     refetchInterval: 30000, // Auto-refresh every 30 seconds
   })
-
-  const {
-    data: portfolioData,
-    isLoading: portfolioLoading,
-  } = usePortfolio(user?.id, {
-    enabled: !!user?.id && !dashboardData?.skill_xp?.length, // Only fetch if dashboard lacks XP data
-  })
-
-  const loading = dashboardLoading || portfolioLoading
-
-  // Use the 5 Diploma Pillars with updated keys
-  const skillCategoryNames = useMemo(() => {
-    return {
-      arts_creativity: 'Arts & Creativity',
-      stem_logic: 'STEM & Logic',
-      life_wellness: 'Life & Wellness',
-      language_communication: 'Language & Communication',
-      society_culture: 'Society & Culture'
-    }
-  }, [])
 
   // Listen for task completion events to refresh data
   useEffect(() => {
@@ -102,103 +72,6 @@ const DashboardPage = () => {
     }
   }, [refetchDashboard])
 
-  // Transform skill XP data for charts using memoization
-  // IMPORTANT: All hooks must be called before any conditional returns
-  const { skillXPData, totalXP, maxCategoryXP } = useMemo(() => {
-    // Start with all categories initialized to 0
-    const xpByCategory = {}
-    Object.keys(skillCategoryNames).forEach(key => {
-      xpByCategory[key] = 0
-    })
-    
-    let totalXP = 0
-    let maxCategoryXP = 0
-    let dataSource = null
-    
-    
-    // Always use dashboard xp_by_category if available - it's the most reliable
-    if (dashboardData?.xp_by_category) {
-      
-      // Check if we have actual XP data
-      let hasXP = false
-      Object.entries(dashboardData.xp_by_category).forEach(([category, xp]) => {
-        // The backend now sends new pillar keys, so they should match directly
-        if (category in xpByCategory) {
-          xpByCategory[category] = xp || 0
-          if (xp > 0) hasXP = true
-        } else {
-        }
-      })
-      
-      // Only update totalXP if we have data
-      if (hasXP || dashboardData.stats?.total_xp > 0) {
-        totalXP = dashboardData.stats?.total_xp || dashboardData.total_xp || Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
-        dataSource = 'dashboard'
-      }
-    }
-    
-    // Only use portfolio as fallback if dashboard has no data
-    if (dataSource !== 'dashboard' && portfolioData?.skill_xp && Array.isArray(portfolioData.skill_xp)) {
-      
-      // Handle pillar key mapping for portfolio data (may contain old keys)
-      const pillarMapping = {
-        'creativity': 'arts_creativity',
-        'critical_thinking': 'stem_logic',
-        'practical_skills': 'life_wellness',
-        'communication': 'language_communication',
-        'cultural_literacy': 'society_culture'
-      }
-      
-      // Portfolio uses 'pillar' field, not 'skill_category'
-      portfolioData.skill_xp.forEach(skill => {
-        const category = skill.pillar || skill.skill_category
-        const xp = skill.xp_amount ?? skill.total_xp ?? 0
-        
-        // Normalize pillar key
-        const normalizedCategory = pillarMapping[category] || category
-        
-        if (normalizedCategory && normalizedCategory in xpByCategory) {
-          xpByCategory[normalizedCategory] = xp
-        }
-      })
-      
-      // Only update totalXP if we got data
-      const portfolioTotal = Object.values(xpByCategory).reduce((sum, xp) => sum + xp, 0)
-      if (portfolioTotal > 0) {
-        totalXP = portfolioData.total_xp || portfolioTotal
-      }
-    }
-    
-    // Calculate max XP for scaling
-    maxCategoryXP = Math.max(...Object.values(xpByCategory), 100)
-    
-    // Convert to chart data format - include ALL categories
-    const skillXPData = Object.entries(xpByCategory).map(([category, xp]) => ({
-      category: skillCategoryNames[category] || category,
-      xp: xp,
-      fullMark: maxCategoryXP + 100  // Add buffer for better visualization
-    }))
-    
-    
-    return { skillXPData, totalXP, maxCategoryXP }
-  }, [dashboardData, portfolioData, skillCategoryNames])
-
-  // Get least developed skills for recommendations
-  const leastDevelopedSkills = useMemo(() => {
-    return skillXPData
-      .sort((a, b) => a.xp - b.xp)
-      .slice(0, 2)
-      .map(s => {
-        // Find the original category key
-        for (const [key, value] of Object.entries(skillCategoryNames)) {
-          if (value === s.category || key === s.category) {
-            return key
-          }
-        }
-        return s.category
-      })
-  }, [skillXPData, skillCategoryNames])
-
   // Show error state if dashboard fails to load
   if (dashboardError) {
     return (
@@ -217,8 +90,8 @@ const DashboardPage = () => {
     )
   }
 
-  // Early return for loading state - MUST be after all hooks
-  if (loading) {
+  // Early return for loading state
+  if (dashboardLoading) {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -244,171 +117,24 @@ const DashboardPage = () => {
         </p>
       </div>
 
-      {/* Stacked Content Layout */}
-      <div className="space-y-8">
-
-        {/* Active Quests Panel */}
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
-                <RocketLaunchIcon className="w-5 h-5 text-white" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900">Your Quests</h2>
+      {/* Active Quests Panel */}
+      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
+              <RocketLaunchIcon className="w-5 h-5 text-white" />
             </div>
-            <Link
-              to="/quests"
-              className="text-sm text-purple-600 hover:text-purple-800 font-medium transition-colors"
-            >
-              Browse All Quests →
-            </Link>
+            <h2 className="text-xl font-bold text-gray-900">Your Quests</h2>
           </div>
-          <ActiveQuests activeQuests={dashboardData?.active_quests} />
+          <Link
+            to="/quests"
+            className="text-sm text-purple-600 hover:text-purple-800 font-medium transition-colors"
+          >
+            Browse All Quests →
+          </Link>
         </div>
-
-        {/* Enhanced Stats Card */}
-        <StatsCard stats={dashboardData?.stats} />
-
-        {/* Badge Recommendations */}
-        <BadgeRecommendations userId={user?.id} />
-
-        {/* Skills Charts */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Bar Chart */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 bg-gradient-to-r from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center">
-                <ChartBarIcon className="w-5 h-5 text-white" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900">Skill Progress</h2>
-            </div>
-{totalXP > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart data={skillXPData} margin={{ top: 10, right: 10, bottom: 70, left: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-                  <XAxis
-                    dataKey="category"
-                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }}
-                    angle={-35}
-                    textAnchor="end"
-                    height={80}
-                    interval={0}
-                  />
-                  <YAxis
-                    tick={{ fontSize: 11, fill: '#64748b' }}
-                    domain={[0, maxCategoryXP + 100]}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      fontSize: 12,
-                      backgroundColor: 'white',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                    }}
-                  />
-                  <Bar dataKey="xp" radius={[4, 4, 0, 0]}>
-                    {skillXPData.map((entry, index) => {
-                      let fillColor = "#6d469b"; // fallback
-                      if (entry.category === 'Arts & Creativity') fillColor = "#a855f7"; // purple-500
-                      else if (entry.category === 'STEM & Logic') fillColor = "#3b82f6"; // blue-500
-                      else if (entry.category === 'Language & Communication') fillColor = "#10b981"; // green-500
-                      else if (entry.category === 'Society & Culture') fillColor = "#f97316"; // orange-500
-                      else if (entry.category === 'Life & Wellness') fillColor = "#ef4444"; // red-500
-
-                      return <Cell key={`cell-${index}`} fill={fillColor} />;
-                    })}
-                  </Bar>
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-center py-12">
-                <ChartBarIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-600">Complete quests to see your skill progress!</p>
-              </div>
-            )}
-          </div>
-
-          {/* Radar Chart */}
-          <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
-            <div className="flex items-center gap-3 mb-6">
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
-                <StarIcon className="w-5 h-5 text-white" />
-              </div>
-              <h2 className="text-xl font-bold text-gray-900">Skill Balance</h2>
-            </div>
-            {totalXP > 0 ? (
-              <ResponsiveContainer width="100%" height={300}>
-                <RadarChart data={skillXPData} margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
-                  <PolarGrid stroke="#f1f5f9" strokeWidth={1} />
-                  <PolarAngleAxis
-                    dataKey="category"
-                    tick={{ fontSize: 11, fill: '#64748b', fontWeight: 500 }}
-                  />
-                  <PolarRadiusAxis
-                    angle={90}
-                    domain={[0, maxCategoryXP + 100]}
-                    tick={false}
-                    axisLine={false}
-                  />
-                  <defs>
-                    <linearGradient id="radarGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                      <stop offset="0%" stopColor="#ef597b" stopOpacity={0.8} />
-                      <stop offset="100%" stopColor="#6d469b" stopOpacity={0.8} />
-                    </linearGradient>
-                  </defs>
-                  <Radar
-                    name="XP"
-                    dataKey="xp"
-                    stroke="#6d469b"
-                    fill="url(#radarGradient)"
-                    strokeWidth={2}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      fontSize: 12,
-                      backgroundColor: 'white',
-                      border: '1px solid #e2e8f0',
-                      borderRadius: '8px',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                    }}
-                  />
-                </RadarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="text-center py-12">
-                <StarIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-600">Your skill radar will appear as you progress!</p>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Recent Completions */}
-        <RecentCompletions recentItems={dashboardData?.recent_completions} />
-
+        <ActiveQuests activeQuests={dashboardData?.active_quests} />
       </div>
-
-      {/* Upgrade Prompt for Explorer Tier */}
-      {user?.subscription_tier === 'explorer' && (
-        <div className="mt-8 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-xl p-6 shadow-lg">
-          <div className="flex items-center gap-4">
-            <TrophyIcon className="w-12 h-12 text-white" />
-            <div>
-              <h2 className="text-xl font-semibold mb-2">Upgrade to Supported</h2>
-              <p className="mb-4 opacity-90">
-                Get unlimited quest attempts, priority educator reviews, and exclusive content!
-              </p>
-              <Link
-                to="/subscription"
-                className="inline-block bg-white text-purple-600 px-6 py-2 rounded-lg hover:bg-gray-100 transition-colors font-semibold"
-              >
-                View Plans
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
