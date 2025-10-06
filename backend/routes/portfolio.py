@@ -338,6 +338,13 @@ def get_public_diploma_by_user_id(user_id):
             '''
         ).eq('user_id', user_id).eq('status', 'completed').execute()
 
+        print(f"=== EVIDENCE DOCUMENTS DEBUG ===")
+        print(f"Found {len(evidence_documents_response.data) if evidence_documents_response.data else 0} evidence documents")
+        if evidence_documents_response.data:
+            for doc in evidence_documents_response.data:
+                print(f"Doc {doc.get('id')}: task_id={doc.get('task_id')}, blocks={len(doc.get('evidence_document_blocks', []))}")
+        print(f"================================")
+
         # Create a lookup map for quick evidence document access by task_id
         evidence_docs_map = {}
         if evidence_documents_response.data:
@@ -350,7 +357,7 @@ def get_public_diploma_by_user_id(user_id):
                         'blocks': doc.get('evidence_document_blocks', []),
                         'completed_at': doc.get('completed_at')
                     }
-                    print(f"Evidence doc for task {task_id}: {len(doc.get('evidence_document_blocks', []))} blocks")
+                    print(f"Mapped evidence doc for task {task_id}: {len(doc.get('evidence_document_blocks', []))} blocks")
 
         # Get user's in-progress quests (active with at least one task submitted)
         in_progress_quests = supabase.table('user_quests').select(
@@ -405,12 +412,15 @@ def get_public_diploma_by_user_id(user_id):
                     task_title = task_info.get('title', 'Unknown Task')
                     task_id = tc.get('user_quest_task_id')  # Use user_quest_task_id to match evidence documents
 
+                    print(f"Looking up evidence for task_id={task_id}, task_title='{task_title}'")
+
                     # Get XP for this specific task
                     task_xp = tc.get('xp_awarded', 0)
                     total_quest_xp += task_xp
 
                     # Check for multi-format evidence using our lookup map
                     evidence_doc = evidence_docs_map.get(task_id)
+                    print(f"  Found evidence_doc: {evidence_doc is not None}, blocks: {len(evidence_doc.get('blocks', [])) if evidence_doc else 0}")
 
                     if evidence_doc and evidence_doc.get('blocks'):
                         # Use new multi-format evidence

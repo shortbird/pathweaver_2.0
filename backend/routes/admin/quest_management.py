@@ -144,21 +144,45 @@ def delete_quest(user_id, quest_id):
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
 
-        # Check if quest is referenced in quest_submissions (NO ACTION constraint)
+        # Step 1: Clear quest_submissions references (NO ACTION constraint)
         submissions = supabase.table('quest_submissions')\
             .select('id', count='exact')\
             .eq('approved_quest_id', quest_id)\
             .execute()
 
         if submissions.count and submissions.count > 0:
-            # Clear the approved_quest_id reference first
             supabase.table('quest_submissions')\
                 .update({'approved_quest_id': None})\
                 .eq('approved_quest_id', quest_id)\
                 .execute()
 
-        # Delete quest (cascade should handle other related data)
-        delete_result = supabase.table('quests').delete().eq('id', quest_id).execute()
+        # Step 2: Delete quest_task_completions (blocks user_quest_tasks deletion)
+        # This has NO ACTION constraint on user_quest_task_id
+        supabase.table('quest_task_completions')\
+            .delete()\
+            .eq('quest_id', quest_id)\
+            .execute()
+
+        # Step 3: Delete evidence documents (has CASCADE but delete manually to be safe)
+        supabase.table('user_task_evidence_documents')\
+            .delete()\
+            .eq('quest_id', quest_id)\
+            .execute()
+
+        # Step 4: Delete user_quest_tasks (CASCADE from quests, but blocked by completions)
+        supabase.table('user_quest_tasks')\
+            .delete()\
+            .eq('quest_id', quest_id)\
+            .execute()
+
+        # Step 5: Delete user_quests (CASCADE from quests)
+        supabase.table('user_quests')\
+            .delete()\
+            .eq('quest_id', quest_id)\
+            .execute()
+
+        # Step 6: Finally delete the quest itself
+        supabase.table('quests').delete().eq('id', quest_id).execute()
 
         return jsonify({
             'success': True,
