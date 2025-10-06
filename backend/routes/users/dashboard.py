@@ -570,12 +570,12 @@ def get_additional_stats(supabase, user_id: str) -> dict:
         # Calculate average XP per day (last 30 days)
         thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
         recent_tasks = supabase.table('quest_task_completions')\
-            .select('xp_awarded, completed_at')\
+            .select('completed_at, user_quest_tasks!inner(xp_value)')\
             .eq('user_id', user_id)\
             .gte('completed_at', thirty_days_ago)\
             .execute()
 
-        total_recent_xp = sum(task.get('xp_awarded', 0) for task in (recent_tasks.data or []))
+        total_recent_xp = sum(task.get('user_quest_tasks', {}).get('xp_value', 0) for task in (recent_tasks.data or []))
         avg_xp_per_day = round(total_recent_xp / 30, 1)
 
         # Get most productive day of week

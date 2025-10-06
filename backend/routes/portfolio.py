@@ -316,7 +316,7 @@ def get_public_diploma_by_user_id(user_id):
         task_completions = supabase.table('quest_task_completions').select(
             '''
             *,
-            user_quest_tasks!inner(title, pillar, quest_id, user_quest_id)
+            user_quest_tasks!inner(title, pillar, quest_id, user_quest_id, xp_value)
             '''
         ).eq('user_id', user_id).execute()
 
@@ -414,8 +414,8 @@ def get_public_diploma_by_user_id(user_id):
 
                     print(f"Looking up evidence for task_id={task_id}, task_title='{task_title}'")
 
-                    # Get XP for this specific task
-                    task_xp = tc.get('xp_awarded', 0)
+                    # Get XP for this specific task from user_quest_tasks (not completions)
+                    task_xp = task_info.get('xp_value', 0)
                     total_quest_xp += task_xp
 
                     # Check for multi-format evidence using our lookup map
@@ -503,8 +503,8 @@ def get_public_diploma_by_user_id(user_id):
                     task_title = task_info.get('title', 'Unknown Task')
                     task_id = tc.get('user_quest_task_id')  # Use user_quest_task_id to match evidence documents
 
-                    # Get XP for this specific task
-                    task_xp = tc.get('xp_awarded', 0)
+                    # Get XP for this specific task from user_quest_tasks (not completions)
+                    task_xp = task_info.get('xp_value', 0)
                     total_quest_xp += task_xp
 
                     # Check for multi-format evidence
