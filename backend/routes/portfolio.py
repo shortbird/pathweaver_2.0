@@ -403,7 +403,7 @@ def get_public_diploma_by_user_id(user_id):
                 for tc in quest_task_completions:
                     task_info = tc.get('user_quest_tasks', {})
                     task_title = task_info.get('title', 'Unknown Task')
-                    task_id = tc.get('task_id')  # This is the user_quest_task_id
+                    task_id = tc.get('user_quest_task_id')  # Use user_quest_task_id to match evidence documents
 
                     # Get XP for this specific task
                     task_xp = tc.get('xp_awarded', 0)
@@ -491,7 +491,7 @@ def get_public_diploma_by_user_id(user_id):
                 for tc in quest_task_completions:
                     task_info = tc.get('user_quest_tasks', {})
                     task_title = task_info.get('title', 'Unknown Task')
-                    task_id = tc.get('task_id')
+                    task_id = tc.get('user_quest_task_id')  # Use user_quest_task_id to match evidence documents
 
                     # Get XP for this specific task
                     task_xp = tc.get('xp_awarded', 0)
