@@ -381,12 +381,49 @@ const DiplomaPage = () => {
   };
 
   const renderEvidence = (evidence) => {
+    // Debug logging
+    console.log('Rendering evidence:', {
+      type: evidence.evidence_type,
+      hasBlocks: !!evidence.evidence_blocks,
+      blockCount: evidence.evidence_blocks?.length || 0,
+      evidence
+    });
+
     // Handle new multi-format evidence
     if (evidence.evidence_type === 'multi_format') {
+      const blocks = evidence.evidence_blocks || [];
+
+      if (!blocks || blocks.length === 0) {
+        return (
+          <div className="p-6 rounded-lg bg-gradient-to-br from-yellow-50 to-amber-50 border border-yellow-200">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-yellow-800 mb-1">Evidence Document Unavailable</h4>
+                <p className="text-sm text-yellow-700">
+                  This task was completed with a multi-format evidence document, but the content is not currently available for display.
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      }
+
       const MultiFormatEvidenceDisplay = React.lazy(() => import('../components/diploma/MultiFormatEvidenceDisplay'));
       return (
-        <React.Suspense fallback={<div className="p-4 bg-gray-50 rounded-lg"><p className="text-sm text-gray-500">Loading evidence...</p></div>}>
-          <MultiFormatEvidenceDisplay blocks={evidence.evidence_blocks} />
+        <React.Suspense fallback={
+          <div className="p-6 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 border border-[#6d469b]/15 rounded-lg">
+            <div className="flex items-center justify-center gap-3">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#6d469b]"></div>
+              <p className="text-sm text-gray-600">Loading evidence...</p>
+            </div>
+          </div>
+        }>
+          <MultiFormatEvidenceDisplay blocks={blocks} />
         </React.Suspense>
       );
     }

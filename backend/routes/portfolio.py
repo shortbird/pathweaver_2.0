@@ -320,13 +320,37 @@ def get_public_diploma_by_user_id(user_id):
             '''
         ).eq('user_id', user_id).execute()
 
-        # Also get new multi-format evidence documents for completed tasks
-        evidence_documents = supabase.table('user_task_evidence_documents').select(
+        # Get multi-format evidence documents with their content blocks
+        # This query fetches both the document metadata AND all associated blocks
+        evidence_documents_response = supabase.table('user_task_evidence_documents').select(
             '''
-            *,
-            evidence_document_blocks(*)
+            id,
+            task_id,
+            quest_id,
+            status,
+            completed_at,
+            evidence_document_blocks (
+                id,
+                block_type,
+                content,
+                order_index
+            )
             '''
         ).eq('user_id', user_id).eq('status', 'completed').execute()
+
+        # Create a lookup map for quick evidence document access by task_id
+        evidence_docs_map = {}
+        if evidence_documents_response.data:
+            for doc in evidence_documents_response.data:
+                task_id = doc.get('task_id')
+                if task_id:
+                    # Store document with its blocks
+                    evidence_docs_map[task_id] = {
+                        'document_id': doc.get('id'),
+                        'blocks': doc.get('evidence_document_blocks', []),
+                        'completed_at': doc.get('completed_at')
+                    }
+                    print(f"Evidence doc for task {task_id}: {len(doc.get('evidence_document_blocks', []))} blocks")
 
         # Get user's in-progress quests (active with at least one task submitted)
         in_progress_quests = supabase.table('user_quests').select(
@@ -374,37 +398,54 @@ def get_public_diploma_by_user_id(user_id):
 
                 # Organize evidence by task
                 task_evidence = {}
-                total_xp = 0
+                total_quest_xp = 0
 
                 for tc in quest_task_completions:
                     task_info = tc.get('user_quest_tasks', {})
                     task_title = task_info.get('title', 'Unknown Task')
+                    task_id = tc.get('task_id')  # This is the user_quest_task_id
 
-                    # Check for multi-format evidence
-                    multi_format_evidence = None
-                    if evidence_documents.data:
-                        for doc in evidence_documents.data:
-                            if doc.get('task_id') == tc.get('task_id'):
-                                multi_format_evidence = doc
-                                break
+                    # Get XP for this specific task
+                    task_xp = tc.get('xp_awarded', 0)
+                    total_quest_xp += task_xp
 
-                    if multi_format_evidence:
+                    # Check for multi-format evidence using our lookup map
+                    evidence_doc = evidence_docs_map.get(task_id)
+
+                    if evidence_doc and evidence_doc.get('blocks'):
                         # Use new multi-format evidence
+                        blocks = evidence_doc.get('blocks', [])
+                        print(f"Task '{task_title}' has {len(blocks)} evidence blocks")
+
                         task_evidence[task_title] = {
                             'evidence_type': 'multi_format',
-                            'evidence_blocks': multi_format_evidence.get('evidence_document_blocks', []),
-                            'xp_awarded': total_xp,  # XP is summed in completion
+                            'evidence_blocks': blocks,
+                            'xp_awarded': task_xp,
                             'completed_at': tc.get('completed_at'),
                             'pillar': task_info.get('pillar', 'Arts & Creativity'),
                             'is_legacy': False
                         }
                     else:
                         # Use legacy single-format evidence
-                        evidence_content = tc.get('evidence_text', '') or tc.get('evidence_url', '')
+                        evidence_text = tc.get('evidence_text', '')
+                        evidence_url = tc.get('evidence_url', '')
+
+                        # Determine evidence type
+                        if evidence_text and not evidence_text.startswith('Multi-format evidence document'):
+                            evidence_type = 'text'
+                            evidence_content = evidence_text
+                        elif evidence_url:
+                            evidence_type = 'link'
+                            evidence_content = evidence_url
+                        else:
+                            # No evidence or just document reference
+                            evidence_type = 'text'
+                            evidence_content = 'Evidence submitted but not available for display'
+
                         task_evidence[task_title] = {
-                            'evidence_type': 'text' if tc.get('evidence_text') else 'link',
+                            'evidence_type': evidence_type,
                             'evidence_content': evidence_content,
-                            'xp_awarded': 0,  # Not stored in old format
+                            'xp_awarded': task_xp,
                             'completed_at': tc.get('completed_at'),
                             'pillar': task_info.get('pillar', 'Arts & Creativity'),
                             'is_legacy': True
@@ -414,9 +455,11 @@ def get_public_diploma_by_user_id(user_id):
                     'quest': quest,
                     'completed_at': cq['completed_at'],
                     'task_evidence': task_evidence,
-                    'total_xp_earned': total_xp,
+                    'total_xp_earned': total_quest_xp,
                     'status': 'completed'
                 }
+
+                print(f"Quest '{quest.get('title')}': {len(task_evidence)} tasks, {total_quest_xp} XP")
 
                 achievements.append(achievement)
 
@@ -443,20 +486,54 @@ def get_public_diploma_by_user_id(user_id):
 
                 # Organize evidence by task
                 task_evidence = {}
-                total_xp = 0
+                total_quest_xp = 0
 
                 for tc in quest_task_completions:
                     task_info = tc.get('user_quest_tasks', {})
                     task_title = task_info.get('title', 'Unknown Task')
-                    evidence_content = tc.get('evidence_text', '') or tc.get('evidence_url', '')
+                    task_id = tc.get('task_id')
 
-                    task_evidence[task_title] = {
-                        'evidence_type': 'text' if tc.get('evidence_text') else 'link',
-                        'evidence_content': evidence_content,
-                        'xp_awarded': 0,
-                        'completed_at': tc.get('completed_at'),
-                        'pillar': task_info.get('pillar', 'Arts & Creativity')
-                    }
+                    # Get XP for this specific task
+                    task_xp = tc.get('xp_awarded', 0)
+                    total_quest_xp += task_xp
+
+                    # Check for multi-format evidence
+                    evidence_doc = evidence_docs_map.get(task_id)
+
+                    if evidence_doc and evidence_doc.get('blocks'):
+                        # Use new multi-format evidence
+                        blocks = evidence_doc.get('blocks', [])
+                        task_evidence[task_title] = {
+                            'evidence_type': 'multi_format',
+                            'evidence_blocks': blocks,
+                            'xp_awarded': task_xp,
+                            'completed_at': tc.get('completed_at'),
+                            'pillar': task_info.get('pillar', 'Arts & Creativity'),
+                            'is_legacy': False
+                        }
+                    else:
+                        # Use legacy single-format evidence
+                        evidence_text = tc.get('evidence_text', '')
+                        evidence_url = tc.get('evidence_url', '')
+
+                        if evidence_text and not evidence_text.startswith('Multi-format evidence document'):
+                            evidence_type = 'text'
+                            evidence_content = evidence_text
+                        elif evidence_url:
+                            evidence_type = 'link'
+                            evidence_content = evidence_url
+                        else:
+                            evidence_type = 'text'
+                            evidence_content = 'Evidence submitted but not available for display'
+
+                        task_evidence[task_title] = {
+                            'evidence_type': evidence_type,
+                            'evidence_content': evidence_content,
+                            'xp_awarded': task_xp,
+                            'completed_at': tc.get('completed_at'),
+                            'pillar': task_info.get('pillar', 'Arts & Creativity'),
+                            'is_legacy': True
+                        }
 
                 # Get total number of tasks for this user's quest
                 total_user_tasks = supabase.table('user_quest_tasks')\
@@ -471,7 +548,7 @@ def get_public_diploma_by_user_id(user_id):
                     'quest': quest,
                     'started_at': cq['started_at'],
                     'task_evidence': task_evidence,
-                    'total_xp_earned': total_xp,
+                    'total_xp_earned': total_quest_xp,
                     'status': 'in_progress',
                     'progress': {
                         'completed_tasks': completed_tasks,
@@ -479,6 +556,8 @@ def get_public_diploma_by_user_id(user_id):
                         'percentage': (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
                     }
                 }
+
+                print(f"In-progress quest '{quest.get('title')}': {completed_tasks}/{total_tasks} tasks, {total_quest_xp} XP")
 
                 achievements.append(achievement)
 

@@ -385,7 +385,7 @@ CREATE TABLE public.quality_action_logs (
   CONSTRAINT quality_action_logs_pkey PRIMARY KEY (id),
   CONSTRAINT quality_action_logs_performed_by_fkey FOREIGN KEY (performed_by) REFERENCES public.users(id)
 );
-CREATE TABLE public.quest_collaborations_archived (
+CREATE TABLE public.quest_collaborations (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   quest_id uuid NOT NULL,
   requester_id uuid NOT NULL,
@@ -394,7 +394,7 @@ CREATE TABLE public.quest_collaborations_archived (
   message text,
   created_at timestamp with time zone DEFAULT now(),
   responded_at timestamp with time zone,
-  CONSTRAINT quest_collaborations_archived_pkey PRIMARY KEY (id),
+  CONSTRAINT quest_collaborations_pkey PRIMARY KEY (id),
   CONSTRAINT quest_collaborations_quest_id_fkey FOREIGN KEY (quest_id) REFERENCES public.quests(id),
   CONSTRAINT quest_collaborations_requester_id_fkey FOREIGN KEY (requester_id) REFERENCES public.users(id),
   CONSTRAINT quest_collaborations_partner_id_fkey FOREIGN KEY (partner_id) REFERENCES public.users(id)
