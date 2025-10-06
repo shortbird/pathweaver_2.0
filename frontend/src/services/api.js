@@ -33,9 +33,6 @@ api.interceptors.request.use(
     const accessToken = localStorage.getItem('access_token')
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`
-      console.log('[API] Added Authorization header from localStorage')
-    } else {
-      console.log('[API] No access token in localStorage')
     }
 
     return config

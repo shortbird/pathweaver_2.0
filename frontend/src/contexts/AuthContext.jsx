@@ -66,9 +66,6 @@ export const AuthProvider = ({ children }) => {
       if (access_token && refresh_token) {
         localStorage.setItem('access_token', access_token)
         localStorage.setItem('refresh_token', refresh_token)
-        console.log('[AuthContext] Stored tokens in localStorage')
-      } else {
-        console.warn('[AuthContext] No tokens in login response')
       }
 
       setSession({ authenticated: true })
