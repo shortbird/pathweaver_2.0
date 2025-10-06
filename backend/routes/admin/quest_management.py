@@ -144,8 +144,21 @@ def delete_quest(user_id, quest_id):
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
 
-        # Delete quest (cascade should handle tasks and completions)
-        supabase.table('quests').delete().eq('id', quest_id).execute()
+        # Check if quest is referenced in quest_submissions (NO ACTION constraint)
+        submissions = supabase.table('quest_submissions')\
+            .select('id', count='exact')\
+            .eq('approved_quest_id', quest_id)\
+            .execute()
+
+        if submissions.count and submissions.count > 0:
+            # Clear the approved_quest_id reference first
+            supabase.table('quest_submissions')\
+                .update({'approved_quest_id': None})\
+                .eq('approved_quest_id', quest_id)\
+                .execute()
+
+        # Delete quest (cascade should handle other related data)
+        delete_result = supabase.table('quests').delete().eq('id', quest_id).execute()
 
         return jsonify({
             'success': True,
@@ -154,9 +167,18 @@ def delete_quest(user_id, quest_id):
 
     except Exception as e:
         print(f"Error deleting quest: {str(e)}")
+        error_message = str(e)
+
+        # Provide helpful error message for foreign key constraints
+        if '409' in error_message or 'conflict' in error_message.lower():
+            return jsonify({
+                'success': False,
+                'error': 'Cannot delete quest: it is still referenced by other data. Please contact support.'
+            }), 409
+
         return jsonify({
             'success': False,
-            'error': f'Failed to delete quest: {str(e)}'
+            'error': f'Failed to delete quest: {error_message}'
         }), 500
 
 @bp.route('/quests', methods=['GET'])
