@@ -558,6 +558,7 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
     """
     Update the content blocks for a document.
     Deletes removed blocks and creates/updates existing ones.
+    Optimized to use batch operations to reduce database connections.
     """
     try:
         # Get existing blocks
@@ -577,7 +578,10 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
                 .in_('id', list(blocks_to_delete))\
                 .execute()
 
-        # Create or update blocks
+        # Batch prepare blocks for insert/update
+        blocks_to_insert = []
+        blocks_to_update = []
+
         for index, block in enumerate(blocks):
             block_data = {
                 'document_id': document_id,
@@ -588,16 +592,26 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
 
             block_id = block.get('id')
             if block_id and block_id in existing_block_ids:
-                # Update existing block (only if it actually exists in database)
-                supabase.table('evidence_document_blocks')\
-                    .update(block_data)\
-                    .eq('id', block_id)\
-                    .execute()
+                # Update existing block
+                block_data['id'] = block_id
+                blocks_to_update.append(block_data)
             else:
-                # Create new block (either no ID or ID doesn't exist in database)
-                supabase.table('evidence_document_blocks')\
-                    .insert(block_data)\
-                    .execute()
+                # Create new block
+                blocks_to_insert.append(block_data)
+
+        # Batch insert new blocks
+        if blocks_to_insert:
+            supabase.table('evidence_document_blocks')\
+                .insert(blocks_to_insert)\
+                .execute()
+
+        # Batch update existing blocks (Supabase doesn't support batch update, so do individually but minimize calls)
+        for block_data in blocks_to_update:
+            block_id = block_data.pop('id')
+            supabase.table('evidence_document_blocks')\
+                .update(block_data)\
+                .eq('id', block_id)\
+                .execute()
 
     except Exception as e:
         print(f"Error updating document blocks: {str(e)}")
