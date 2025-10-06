@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { CheckCircle, XCircle, Edit3, ChevronDown, ChevronUp, Star, AlertCircle, Clock } from 'lucide-react'
+import { CheckCircle, XCircle, Edit3, ChevronDown, ChevronUp, AlertCircle, Clock } from 'lucide-react'
 import { format } from 'date-fns'
 
 const AIQuestReviewCard = ({ reviewItem, onApprove, onReject, onEdit, isProcessing }) => {
@@ -11,14 +11,6 @@ const AIQuestReviewCard = ({ reviewItem, onApprove, onReject, onEdit, isProcessi
 
   const questData = reviewItem.quest_data
   const aiFeedback = reviewItem.ai_feedback || {}
-  const qualityScore = reviewItem.quality_score || 0
-
-  // Calculate quality badge color
-  const getQualityBadgeColor = (score) => {
-    if (score >= 8) return 'bg-green-100 text-green-800 border-green-300'
-    if (score >= 6) return 'bg-yellow-100 text-yellow-800 border-yellow-300'
-    return 'bg-red-100 text-red-800 border-red-300'
-  }
 
   // Get status badge
   const getStatusBadge = (status) => {
@@ -73,15 +65,6 @@ const AIQuestReviewCard = ({ reviewItem, onApprove, onReject, onEdit, isProcessi
               )}
             </div>
             <p className="text-sm text-gray-600 line-clamp-2">{questData.big_idea}</p>
-          </div>
-
-          {/* Quality Score Badge */}
-          <div className={`ml-4 px-3 py-2 rounded-lg border ${getQualityBadgeColor(qualityScore)} flex flex-col items-center`}>
-            <div className="flex items-center space-x-1">
-              <Star className="h-4 w-4" />
-              <span className="font-bold text-lg">{qualityScore.toFixed(1)}</span>
-            </div>
-            <span className="text-xs font-medium">Quality</span>
           </div>
         </div>
 

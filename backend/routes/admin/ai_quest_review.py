@@ -10,17 +10,16 @@ from services.ai_quest_review_service import AIQuestReviewService
 bp = Blueprint('admin_ai_quest_review', __name__, url_prefix='/api/v3/admin/ai-quest-review')
 
 
-@bp.route('/pending', methods=['GET'])
+@bp.route('/items', methods=['GET'])
 @require_admin
-def get_pending_reviews(user_id):
+def get_review_items(user_id):
     """
-    Get quests awaiting review.
+    Get quest review items.
 
     Query params:
         - limit: Max items to return (default: 20)
         - offset: Pagination offset (default: 0)
         - status: Filter by status (pending_review, approved, rejected, edited)
-        - quality_score_min: Minimum quality score filter
         - generation_source: Filter by source (manual, batch, student_idea, badge_aligned)
         - badge_id: Filter by badge
     """
@@ -31,8 +30,6 @@ def get_pending_reviews(user_id):
         filters = {}
         if request.args.get('status'):
             filters['status'] = request.args.get('status')
-        if request.args.get('quality_score_min'):
-            filters['quality_score_min'] = float(request.args.get('quality_score_min'))
         if request.args.get('generation_source'):
             filters['generation_source'] = request.args.get('generation_source')
         if request.args.get('badge_id'):
@@ -209,7 +206,6 @@ def get_stats(user_id):
         - pending_count: Number of quests awaiting review
         - approved_count: Number of approved quests
         - rejected_count: Number of rejected quests
-        - avg_quality_score: Average AI quality score
         - total_submissions: Total number of submissions
     """
     try:

@@ -106,7 +106,7 @@ class AIQuestReviewService:
         Args:
             limit: Maximum number of items to return
             offset: Pagination offset
-            filters: Optional filters (status, quality_score_min, generation_source, badge_id)
+            filters: Optional filters (status, generation_source, badge_id)
 
         Returns:
             Dict with review items and pagination info
@@ -126,9 +126,6 @@ class AIQuestReviewService:
                 else:
                     # Default to pending if no status specified
                     query = query.eq('status', 'pending_review')
-
-                if 'quality_score_min' in filters:
-                    query = query.gte('quality_score', filters['quality_score_min'])
 
                 if 'generation_source' in filters:
                     query = query.eq('generation_source', filters['generation_source'])
@@ -429,14 +426,11 @@ class AIQuestReviewService:
                 pass
 
             # Fallback: Manual calculation
-            all_items = supabase.table('ai_quest_review_queue').select('status, quality_score, submitted_at, reviewed_at').execute()
+            all_items = supabase.table('ai_quest_review_queue').select('status, submitted_at, reviewed_at').execute()
 
             pending = sum(1 for item in all_items.data if item['status'] == 'pending_review')
             approved = sum(1 for item in all_items.data if item['status'] == 'approved')
             rejected = sum(1 for item in all_items.data if item['status'] == 'rejected')
-
-            quality_scores = [item['quality_score'] for item in all_items.data if item.get('quality_score')]
-            avg_quality = sum(quality_scores) / len(quality_scores) if quality_scores else 0
 
             return {
                 'success': True,
@@ -444,7 +438,6 @@ class AIQuestReviewService:
                     'pending_count': pending,
                     'approved_count': approved,
                     'rejected_count': rejected,
-                    'avg_quality_score': round(avg_quality, 2),
                     'total_submissions': len(all_items.data)
                 }
             }

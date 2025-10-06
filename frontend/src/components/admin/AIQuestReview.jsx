@@ -17,13 +17,12 @@ const AIQuestReview = () => {
   const [editingReview, setEditingReview] = useState(null)
 
   // Filters
-  const [qualityFilter, setQualityFilter] = useState('all')
   const [sourceFilter, setSourceFilter] = useState('all')
 
   useEffect(() => {
     fetchReviewItems()
     fetchStats()
-  }, [activeTab, qualityFilter, sourceFilter])
+  }, [activeTab, sourceFilter])
 
   const fetchReviewItems = async () => {
     try {
@@ -32,13 +31,16 @@ const AIQuestReview = () => {
       const params = new URLSearchParams()
 
       // Status filter based on active tab
-      if (activeTab !== 'all') {
-        params.append('status', activeTab)
+      // Map frontend tab names to database status values
+      const statusMap = {
+        'pending': 'pending_review',
+        'approved': 'approved',
+        'rejected': 'rejected'
       }
 
-      // Quality filter
-      if (qualityFilter !== 'all') {
-        params.append('quality_score_min', qualityFilter)
+      if (activeTab !== 'all') {
+        const dbStatus = statusMap[activeTab] || activeTab
+        params.append('status', dbStatus)
       }
 
       // Source filter
@@ -48,7 +50,7 @@ const AIQuestReview = () => {
 
       params.append('limit', '50')
 
-      const response = await api.get(`/api/v3/admin/ai-quest-review/pending?${params.toString()}`)
+      const response = await api.get(`/api/v3/admin/ai-quest-review/items?${params.toString()}`)
 
       if (response.data.success) {
         setReviewItems(response.data.items)
@@ -199,7 +201,7 @@ const AIQuestReview = () => {
 
         {/* Stats Cards */}
         {stats && (
-          <div className="grid grid-cols-4 gap-4 mb-6">
+          <div className="grid grid-cols-3 gap-4 mb-6">
             <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
               <div className="flex items-center justify-between">
                 <div>
@@ -227,16 +229,6 @@ const AIQuestReview = () => {
                   <p className="text-2xl font-bold text-red-900">{stats.rejected_count || 0}</p>
                 </div>
                 <XCircle className="h-8 w-8 text-red-600" />
-              </div>
-            </div>
-
-            <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-purple-700">Avg Quality</p>
-                  <p className="text-2xl font-bold text-purple-900">{stats.avg_quality_score?.toFixed(1) || '0.0'}</p>
-                </div>
-                <TrendingUp className="h-8 w-8 text-purple-600" />
               </div>
             </div>
           </div>
@@ -278,17 +270,6 @@ const AIQuestReview = () => {
             <Filter className="h-4 w-4 text-gray-500" />
             <span className="text-sm font-medium text-gray-700">Filters:</span>
           </div>
-
-          <select
-            value={qualityFilter}
-            onChange={(e) => setQualityFilter(e.target.value)}
-            className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent"
-          >
-            <option value="all">All Quality Scores</option>
-            <option value="8">8+ (High)</option>
-            <option value="6">6+ (Medium)</option>
-            <option value="0">All Scores</option>
-          </select>
 
           <select
             value={sourceFilter}
