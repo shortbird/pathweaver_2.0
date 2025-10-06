@@ -91,6 +91,7 @@ backend/
 │   └── uploads.py           # File upload handling
 ├── services/         # Business logic
 │   ├── atomic_quest_service.py  # Race condition prevention
+│   ├── image_service.py         # Pexels API for quest images
 │   └── quest_optimization.py    # N+1 query elimination
 ├── scripts/          # Database & maintenance scripts
 │   ├── apply_performance_indexes.py  # Database optimization
@@ -167,6 +168,8 @@ frontend/src/
 - id (UUID, PK)
 - title, description
 - source (khan_academy/brilliant/custom)
+- image_url (auto-fetched from Pexels API)
+- header_image_url (legacy, same as image_url)
 - is_active
 - created_at, updated_at
 - Note: pillar and xp_value are legacy fields (now task-level)
@@ -322,6 +325,7 @@ frontend/src/
 - **Quest Management**: /api/admin/quests/* - Quest CRUD operations
 - **Quest Ideas**: /api/admin/quest-ideas/* - Quest suggestions workflow
 - **Quest Sources**: /api/admin/quest-sources - Source management
+- **Quest Images**: POST /api/v3/admin/quests/:id/refresh-image - Refresh quest image from Pexels
 
 ### Portfolio/Diploma (CORE FEATURE)
 - GET /api/portfolio/:slug - Public portfolio view
@@ -352,6 +356,7 @@ frontend/src/
 - **Custom quests**: Students can submit quest ideas for admin approval
 - **Race condition prevention**: Atomic quest completion with optimistic locking
 - **Performance optimized**: N+1 query elimination reduces database calls by ~80%
+- **Auto-generated images**: Quest images automatically fetched from Pexels API based on quest title
 
 ### Diploma Page (CORE PRODUCT)
 - **Public portfolio**: /diploma/:userId or /portfolio/:slug routes
@@ -414,6 +419,7 @@ frontend/src/
 - **Optional:**
   - `GEMINI_API_KEY` (AI features)
   - `STRIPE_SECRET_KEY` (payments)
+  - `PEXELS_API_KEY` (Quest image auto-generation)
 
 **Frontend Environment Variables:**
 - **Required for all environments:**
