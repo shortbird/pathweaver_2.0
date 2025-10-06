@@ -5,6 +5,7 @@ Enhanced with AI-powered educational search term generation.
 import os
 import requests
 from typing import Optional, Dict
+import re
 import google.generativeai as genai
 from services.api_usage_tracker import pexels_tracker
 
@@ -33,45 +34,97 @@ def generate_educational_search_prompt(quest_title: str, quest_description: Opti
     try:
         model = genai.GenerativeModel('gemini-2.0-flash-lite')
 
-        prompt = f"""You are helping find a visually compelling stock photo for this educational quest. The image should make students excited to do the quest.
+        prompt = f"""You are helping find a stock photo for an educational quest. Think like a PHOTOGRAPHER - what physical objects and actions would be in the frame?
 
 Quest Title: {quest_title}
 {f'Description: {quest_description[:200]}' if quest_description else ''}
 
-Generate ONE concise search term (2-4 words) that will find a visually exciting, relevant photo.
+Generate ONE search term (2-5 words) using CONCRETE, LITERAL visual elements that a photographer could capture.
 
-FOCUS ON:
-- The ACTIVITY or CONCEPT itself (not the classroom/educational setting)
-- Visual drama, action, or compelling imagery
-- What makes this quest exciting or interesting
-- The actual subject matter students will experience
+CRITICAL RULES:
+1. Use SPECIFIC PHYSICAL OBJECTS (calculator, money, egg, robot, paint, camera, etc.)
+2. Use LITERAL ACTIONS (falling, building, painting, coding, etc.)
+3. NO METAPHORS (avoid: tree, roots, journey, path, growth, foundation when metaphorical)
+4. NO ABSTRACT CONCEPTS (avoid: learning, discovery, understanding as primary terms)
+5. Think: "What objects are physically in this photo?"
 
-AVOID:
-- Generic classroom or school settings
-- "student learning X" phrases
-- Educational context words like "classroom", "lesson", "teaching"
-- Bulletin boards, worksheets, or school supplies
+GOOD EXAMPLES (concrete objects):
+"Master Your Money" → "budget calculator money spreadsheet"
+"Egg Drop Challenge" → "egg falling parachute experiment"
+"Build a Robot" → "robotic arm mechanical parts"
+"Learn Photography" → "camera lens photography equipment"
+"Create Digital Art" → "digital tablet stylus drawing"
+"Ancient Rome" → "roman colosseum ruins architecture"
+"Coding Basics" → "programming laptop code screen"
 
-EXAMPLES:
-Quest: "Egg Drop Engineering Challenge" → "egg falling physics experiment"
-Quest: "Build a Robot Arm" → "robotic arm mechanical engineering"
-Quest: "Create Digital Art" → "digital painting creative design"
-Quest: "Explore Ancient Rome" → "roman colosseum architecture"
-Quest: "Photography Basics" → "professional camera photography"
+BAD EXAMPLES (too metaphorical/abstract):
+❌ "financial growth tree" (metaphor - would return tree images)
+❌ "learning journey path" (abstract - unclear visuals)
+❌ "discovery adventure" (vague - no concrete objects)
+❌ "knowledge foundation" (metaphorical)
 
-Return ONLY the search term, nothing else.
+Return ONLY the search term with concrete objects/actions, nothing else.
 """
 
         response = model.generate_content(prompt)
         search_term = response.text.strip().strip('"').strip("'")
 
         # Validate it's not too long
-        if len(search_term.split()) <= 6:
-            print(f"AI generated search term: '{search_term}' for quest: {quest_title}")
-            return search_term
+        if len(search_term.split()) > 6:
+            print(f"AI term too long, rejecting: '{search_term}'")
+            return None
+
+        # Check for abstract/metaphorical words that cause bad results
+        abstract_words = [
+            'tree', 'roots', 'journey', 'path', 'growth', 'foundation',
+            'discovery', 'adventure', 'exploration', 'vision', 'dream'
+        ]
+
+        search_lower = search_term.lower()
+        for word in abstract_words:
+            if word in search_lower:
+                # Check if it's being used metaphorically (not in quest title)
+                if word.lower() not in quest_title.lower():
+                    print(f"AI term contains metaphorical word '{word}', rejecting: '{search_term}'")
+                    return None
+
+        print(f"AI generated search term: '{search_term}' for quest: {quest_title}")
+        return search_term
 
     except Exception as e:
         print(f"AI search term generation failed: {str(e)}")
+
+    return None
+
+
+def extract_key_nouns(quest_title: str) -> Optional[str]:
+    """
+    Extract key nouns from quest title as fallback when AI fails.
+
+    Args:
+        quest_title: The title of the quest
+
+    Returns:
+        Space-separated key nouns, or None
+    """
+    # Remove common filler words
+    filler_words = {
+        'a', 'an', 'the', 'to', 'of', 'in', 'on', 'at', 'for', 'with', 'by',
+        'from', 'this', 'that', 'your', 'you', 'how', 'what', 'when', 'where',
+        'why', 'learn', 'explore', 'discover', 'understand', 'master', 'create',
+        'build', 'make', 'design', 'develop', 'introduction', 'basics', 'guide'
+    }
+
+    # Split title and filter
+    words = quest_title.lower().split()
+    nouns = [w for w in words if w not in filler_words and len(w) > 2]
+
+    # Take first 3-4 meaningful words
+    key_nouns = ' '.join(nouns[:4])
+
+    if key_nouns and len(key_nouns) > 3:
+        print(f"Extracted key nouns: '{key_nouns}' from title: {quest_title}")
+        return key_nouns
 
     return None
 
@@ -98,7 +151,7 @@ def search_quest_image(quest_title: str, quest_description: Optional[str] = None
         'Authorization': PEXELS_API_KEY
     }
 
-    # Build search strategy - AI first, then fallbacks
+    # Build search strategy - AI first, then smart fallbacks
     search_terms = []
 
     # Try AI-enhanced search first (free, doesn't count against Pexels limit)
@@ -106,11 +159,13 @@ def search_quest_image(quest_title: str, quest_description: Optional[str] = None
     if ai_term:
         search_terms.append(ai_term)
 
-    # Fallback strategies
+    # Fallback strategies (in order of quality)
+    noun_extract = extract_key_nouns(quest_title)  # Extract concrete nouns
     search_terms.extend([
-        quest_title,  # Fallback 1: quest title
-        pillar if pillar else None,  # Fallback 2: pillar name
-        'education learning',  # Fallback 3: generic education
+        noun_extract if noun_extract else None,  # Fallback 1: extracted nouns
+        quest_title,  # Fallback 2: quest title as-is
+        pillar if pillar else None,  # Fallback 3: pillar name
+        'education learning',  # Fallback 4: generic education
     ])
 
     for search_term in search_terms:
