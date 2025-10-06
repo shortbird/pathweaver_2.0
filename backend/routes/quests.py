@@ -570,11 +570,25 @@ def get_user_completed_quests(user_id: str):
             .order('completed_at', desc=True)\
             .execute()
 
-        # Get task completions separately
+        # Get task completions separately with XP value from user_quest_tasks
         quest_task_completions = supabase.table('quest_task_completions')\
-            .select('*, user_quest_tasks!inner(title, pillar, quest_id, user_quest_id)')\
+            .select('*, user_quest_tasks!inner(title, pillar, quest_id, user_quest_id, xp_value)')\
             .eq('user_id', user_id)\
             .execute()
+
+        # Get evidence documents with their blocks
+        evidence_documents_response = supabase.table('user_task_evidence_documents')\
+            .select('*, evidence_document_blocks(*)')\
+            .eq('user_id', user_id)\
+            .execute()
+
+        # Map evidence documents by task_id for quick lookup
+        evidence_docs_by_task = {}
+        if evidence_documents_response.data:
+            for doc in evidence_documents_response.data:
+                task_id = doc.get('task_id')
+                if task_id:
+                    evidence_docs_by_task[task_id] = doc
 
         # Get user's in-progress quests (active with at least one task submitted)
         in_progress_quests = supabase.table('user_quests')\
@@ -612,15 +626,35 @@ def get_user_completed_quests(user_id: str):
                 for tc in quest_completions:
                     task_info = tc.get('user_quest_tasks', {})
                     task_title = task_info.get('title', 'Unknown Task')
-                    evidence_content = tc.get('evidence_text', '') or tc.get('evidence_url', '')
+                    user_quest_task_id = tc.get('user_quest_task_id')
 
-                    task_evidence[task_title] = {
-                        'evidence_type': 'text' if tc.get('evidence_text') else 'link',
-                        'evidence_content': evidence_content,
-                        'xp_awarded': 0,  # XP tracked in user_skill_xp table
-                        'completed_at': tc.get('completed_at'),
-                        'pillar': task_info.get('pillar', 'Arts & Creativity')
-                    }
+                    # Get XP from user_quest_tasks
+                    task_xp = task_info.get('xp_value', 0)
+                    total_xp += task_xp
+
+                    # Check for multi-format evidence document
+                    evidence_doc = evidence_docs_by_task.get(user_quest_task_id)
+
+                    if evidence_doc and evidence_doc.get('evidence_document_blocks'):
+                        # Multi-format evidence
+                        task_evidence[task_title] = {
+                            'evidence_type': 'multi_format',
+                            'evidence_blocks': evidence_doc.get('evidence_document_blocks', []),
+                            'evidence_content': '',  # Not used for multi-format
+                            'xp_awarded': task_xp,
+                            'completed_at': tc.get('completed_at'),
+                            'pillar': task_info.get('pillar', 'Arts & Creativity')
+                        }
+                    else:
+                        # Legacy single-format evidence
+                        evidence_content = tc.get('evidence_text', '') or tc.get('evidence_url', '')
+                        task_evidence[task_title] = {
+                            'evidence_type': 'text' if tc.get('evidence_text') else 'link',
+                            'evidence_content': evidence_content,
+                            'xp_awarded': task_xp,
+                            'completed_at': tc.get('completed_at'),
+                            'pillar': task_info.get('pillar', 'Arts & Creativity')
+                        }
 
                 achievement = {
                     'quest': quest,
@@ -660,15 +694,35 @@ def get_user_completed_quests(user_id: str):
                 for tc in quest_completions:
                     task_info = tc.get('user_quest_tasks', {})
                     task_title = task_info.get('title', 'Unknown Task')
-                    evidence_content = tc.get('evidence_text', '') or tc.get('evidence_url', '')
+                    user_quest_task_id = tc.get('user_quest_task_id')
 
-                    task_evidence[task_title] = {
-                        'evidence_type': 'text' if tc.get('evidence_text') else 'link',
-                        'evidence_content': evidence_content,
-                        'xp_awarded': 0,
-                        'completed_at': tc.get('completed_at'),
-                        'pillar': task_info.get('pillar', 'Arts & Creativity')
-                    }
+                    # Get XP from user_quest_tasks
+                    task_xp = task_info.get('xp_value', 0)
+                    total_xp += task_xp
+
+                    # Check for multi-format evidence document
+                    evidence_doc = evidence_docs_by_task.get(user_quest_task_id)
+
+                    if evidence_doc and evidence_doc.get('evidence_document_blocks'):
+                        # Multi-format evidence
+                        task_evidence[task_title] = {
+                            'evidence_type': 'multi_format',
+                            'evidence_blocks': evidence_doc.get('evidence_document_blocks', []),
+                            'evidence_content': '',  # Not used for multi-format
+                            'xp_awarded': task_xp,
+                            'completed_at': tc.get('completed_at'),
+                            'pillar': task_info.get('pillar', 'Arts & Creativity')
+                        }
+                    else:
+                        # Legacy single-format evidence
+                        evidence_content = tc.get('evidence_text', '') or tc.get('evidence_url', '')
+                        task_evidence[task_title] = {
+                            'evidence_type': 'text' if tc.get('evidence_text') else 'link',
+                            'evidence_content': evidence_content,
+                            'xp_awarded': task_xp,
+                            'completed_at': tc.get('completed_at'),
+                            'pillar': task_info.get('pillar', 'Arts & Creativity')
+                        }
 
                 # Get total number of tasks for this user's quest
                 total_user_tasks = supabase.table('user_quest_tasks')\
