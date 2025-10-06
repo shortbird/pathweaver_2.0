@@ -470,42 +470,63 @@ def get_user_active_quests(user_id: str):
         supabase = get_supabase_client()
         
         # Get user's active quests with progress
+        # Note: In V3 personalized system, quest_tasks table is archived
+        # Each user has personalized tasks in user_quest_tasks table
         user_quests = supabase.table('user_quests')\
-            .select('*, quests(*, quest_tasks(*)), user_quest_tasks(*)')\
+            .select('*, quests(*)')\
             .eq('user_id', user_id)\
             .eq('is_active', True)\
             .is_('completed_at', 'null')\
             .order('started_at', desc=True)\
             .execute()
-        
+
         if not user_quests.data:
             return jsonify({
                 'success': True,
                 'quests': [],
                 'message': 'No active quests'
             })
-        
+
         # Process each quest to add progress info
         active_quests = []
         for uq in user_quests.data:
             quest = uq.get('quests')
             if not quest:
                 continue
-            
-            # Calculate progress
-            total_tasks = len(quest.get('quest_tasks', []))
-            completed_tasks = len(uq.get('user_quest_tasks', []))
-            
+
+            user_quest_id = uq['id']
+
+            # Get user's personalized tasks for this quest
+            user_tasks = supabase.table('user_quest_tasks')\
+                .select('id, xp_value')\
+                .eq('user_quest_id', user_quest_id)\
+                .eq('approval_status', 'approved')\
+                .execute()
+
+            # Get completed tasks for this quest
+            completed_tasks_response = supabase.table('quest_task_completions')\
+                .select('task_id')\
+                .eq('user_id', user_id)\
+                .eq('quest_id', quest['id'])\
+                .execute()
+
+            completed_task_ids = {t['task_id'] for t in (completed_tasks_response.data or [])}
+            total_tasks = len(user_tasks.data) if user_tasks.data else 0
+            completed_count = len(completed_task_ids)
+
             quest['enrollment_id'] = uq['id']
             quest['started_at'] = uq['started_at']
             quest['progress'] = {
-                'completed_tasks': completed_tasks,
+                'completed_tasks': completed_count,
                 'total_tasks': total_tasks,
-                'percentage': (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+                'percentage': (completed_count / total_tasks * 100) if total_tasks > 0 else 0
             }
-            
-            # Calculate XP earned
-            xp_earned = sum(task['xp_awarded'] for task in uq.get('user_quest_tasks', []))
+
+            # Calculate XP earned from completed tasks
+            xp_earned = sum(
+                task['xp_value'] for task in (user_tasks.data or [])
+                if task['id'] in completed_task_ids
+            )
             quest['xp_earned'] = xp_earned
             
             active_quests.append(quest)
