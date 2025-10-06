@@ -132,6 +132,7 @@ def get_user_badges_by_id(target_user_id):
     """
     Get a user's active and completed badges by user ID.
     Public endpoint for viewing user badge data (used on diploma page).
+    Lightweight version without progress calculation to avoid DB exhaustion.
 
     Path params:
         target_user_id: User UUID
@@ -139,39 +140,62 @@ def get_user_badges_by_id(target_user_id):
     Query params:
         - status: 'active' or 'completed' (optional, returns both if not specified)
     """
+    from database import get_supabase_admin_client
+
+    supabase = get_supabase_admin_client()
     status = request.args.get('status')
 
-    if status == 'active':
-        badges = BadgeService.get_user_active_badges(target_user_id)
-        return jsonify({
-            'success': True,
-            'user_badges': badges,
-            'active_badges': badges,
-            'count': len(badges)
-        }), 200
+    try:
+        # Get user badges with basic badge info (no progress calculation)
+        query = supabase.table('user_badges')\
+            .select('*, badges(id, name, description, pillar, tier, icon_url, min_quests, min_xp)')\
+            .eq('user_id', target_user_id)
 
-    elif status == 'completed':
-        badges = BadgeService.get_user_completed_badges(target_user_id)
-        return jsonify({
-            'success': True,
-            'user_badges': badges,
-            'completed_badges': badges,
-            'count': len(badges)
-        }), 200
+        if status == 'active':
+            query = query.eq('is_active', True).is_('earned_at', 'null')
+        elif status == 'completed':
+            query = query.not_.is_('earned_at', 'null')
 
-    else:
-        # Return both
-        active = BadgeService.get_user_active_badges(target_user_id)
-        completed = BadgeService.get_user_completed_badges(target_user_id)
+        result = query.execute()
+        user_badges = result.data or []
 
+        # Format response based on status filter
+        if status == 'active':
+            return jsonify({
+                'success': True,
+                'user_badges': user_badges,
+                'active_badges': user_badges,
+                'count': len(user_badges)
+            }), 200
+
+        elif status == 'completed':
+            return jsonify({
+                'success': True,
+                'user_badges': user_badges,
+                'completed_badges': user_badges,
+                'count': len(user_badges)
+            }), 200
+
+        else:
+            # Separate active and completed
+            active = [b for b in user_badges if b.get('earned_at') is None and b.get('is_active')]
+            completed = [b for b in user_badges if b.get('earned_at') is not None]
+
+            return jsonify({
+                'success': True,
+                'user_badges': user_badges,
+                'active_badges': active,
+                'completed_badges': completed,
+                'active_count': len(active),
+                'completed_count': len(completed)
+            }), 200
+
+    except Exception as e:
+        print(f"Error getting user badges: {str(e)}")
         return jsonify({
-            'success': True,
-            'user_badges': active + completed,
-            'active_badges': active,
-            'completed_badges': completed,
-            'active_count': len(active),
-            'completed_count': len(completed)
-        }), 200
+            'success': False,
+            'error': f'Failed to get user badges: {str(e)}'
+        }), 500
 
 
 @bp.route('/my-badges', methods=['GET'])

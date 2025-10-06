@@ -550,33 +550,28 @@ def get_user_completed_quests(user_id: str):
     """
     Get all completed and in-progress quests for the current user.
     Used for diploma page and achievement display.
-    Now includes quests with submitted tasks even if not fully completed.
+    Optimized to fetch all data in bulk to prevent N+1 queries.
     """
     try:
-        # Use authenticated client for RLS enforcement with user-specific data
-        from utils.session_manager import session_manager
         from database import get_supabase_admin_client
 
-        # For user-specific queries, we need admin client since cookies aren't passed to supabase
-        # But we filter by user_id from the authenticated session
         supabase = get_supabase_admin_client()
 
-        # Get user's completed quests
-        # Note: quest_tasks table is archived - tasks are now in user_quest_tasks (personalized)
-        completed_quests = supabase.table('user_quests')\
+        # Fetch ALL user data in parallel using just 3 queries
+        # Query 1: Get all user quests (completed + in-progress)
+        user_quests_response = supabase.table('user_quests')\
             .select('*, quests(*)')\
             .eq('user_id', user_id)\
-            .not_.is_('completed_at', 'null')\
             .order('completed_at', desc=True)\
             .execute()
 
-        # Get task completions separately with XP value from user_quest_tasks
+        # Query 2: Get ALL task completions for this user with task details
         quest_task_completions = supabase.table('quest_task_completions')\
             .select('*, user_quest_tasks!inner(title, pillar, quest_id, user_quest_id, xp_value)')\
             .eq('user_id', user_id)\
             .execute()
 
-        # Get evidence documents with their blocks
+        # Query 3: Get ALL evidence documents with blocks for this user
         evidence_documents_response = supabase.table('user_task_evidence_documents')\
             .select('*, evidence_document_blocks(*)')\
             .eq('user_id', user_id)\
@@ -590,21 +585,31 @@ def get_user_completed_quests(user_id: str):
                 if task_id:
                     evidence_docs_by_task[task_id] = doc
 
-        # Get user's in-progress quests (active with at least one task submitted)
-        in_progress_quests = supabase.table('user_quests')\
-            .select('*, quests(*)')\
-            .eq('user_id', user_id)\
-            .eq('is_active', True)\
-            .is_('completed_at', 'null')\
-            .order('started_at', desc=True)\
-            .execute()
+        # Separate completed and in-progress quests from the fetched data
+        completed_quests = [q for q in (user_quests_response.data or []) if q.get('completed_at')]
+        in_progress_quests = [q for q in (user_quests_response.data or []) if not q.get('completed_at') and q.get('is_active')]
 
-        # Process completed quests with evidence
+        # Get task counts for all user quests in one query (for progress calculation)
+        all_user_quest_ids = [q['id'] for q in (user_quests_response.data or [])]
+        task_counts_by_quest = {}
+        if all_user_quest_ids:
+            # Fetch all user quest tasks to count them by user_quest_id
+            all_tasks_response = supabase.table('user_quest_tasks')\
+                .select('id, user_quest_id')\
+                .in_('user_quest_id', all_user_quest_ids)\
+                .execute()
+
+            # Count tasks per quest
+            for task in (all_tasks_response.data or []):
+                uq_id = task.get('user_quest_id')
+                if uq_id:
+                    task_counts_by_quest[uq_id] = task_counts_by_quest.get(uq_id, 0) + 1
+
+        # Process quests with evidence
         achievements = []
 
         # Add completed quests
-        if completed_quests.data:
-            for cq in completed_quests.data:
+        for cq in completed_quests:
                 quest = cq.get('quests')
                 if not quest:
                     continue
@@ -667,8 +672,7 @@ def get_user_completed_quests(user_id: str):
                 achievements.append(achievement)
 
         # Add in-progress quests with at least one submitted task
-        if in_progress_quests.data:
-            for cq in in_progress_quests.data:
+        for cq in in_progress_quests:
                 quest = cq.get('quests')
                 if not quest:
                     continue
@@ -724,13 +728,8 @@ def get_user_completed_quests(user_id: str):
                             'pillar': task_info.get('pillar', 'Arts & Creativity')
                         }
 
-                # Get total number of tasks for this user's quest
-                total_user_tasks = supabase.table('user_quest_tasks')\
-                    .select('id', count='exact')\
-                    .eq('user_quest_id', user_quest_id)\
-                    .execute()
-
-                total_tasks = total_user_tasks.count if total_user_tasks.count else 0
+                # Use pre-fetched task count
+                total_tasks = task_counts_by_quest.get(user_quest_id, 0)
                 completed_tasks = len(task_evidence)
 
                 achievement = {
