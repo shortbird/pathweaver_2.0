@@ -112,9 +112,12 @@ class BatchQuestGenerationService:
                 if quest_data.get('success'):
                     # Submit to review queue
                     review_result = self.review_service.submit_for_review(
-                        quest_data['quest'],
+                        quest_data=quest_data['quest'],
+                        quality_score=quest_data.get('quality_score', 7.0),
+                        ai_feedback=quest_data.get('ai_feedback', {}),
                         generation_source='batch_generation',
-                        batch_id=batch_id
+                        badge_id=target_badge_id,
+                        generation_metrics=quest_data.get('generation_metrics')
                     )
 
                     if review_result.get('success'):
