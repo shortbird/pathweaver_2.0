@@ -2,23 +2,20 @@ from flask import Blueprint, request, jsonify
 from flask_cors import cross_origin
 from datetime import datetime
 from utils.auth.decorators import require_auth
+from database import get_supabase_admin_client
 import os
 import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-quest_ideas_bp = Blueprint('quest_ideas', __name__)  # Force redeploy
+quest_ideas_bp = Blueprint('quest_ideas', __name__, url_prefix='/api/quest-ideas')
 
-@quest_ideas_bp.route('/quest-ideas', methods=['POST'])
+@quest_ideas_bp.route('', methods=['POST'])
 @cross_origin()
 @require_auth
 def submit_quest_idea(current_user_id):
     """Submit a new quest idea for review"""
     try:
-        from supabase import create_client
-        supabase = create_client(
-            os.environ.get('SUPABASE_URL'),
-            os.environ.get('SUPABASE_SERVICE_KEY')
-        )
+        supabase = get_supabase_admin_client()
         
         # Get user subscription tier to validate access
         user_response = supabase.table('users').select('subscription_tier').eq('id', current_user_id).single().execute()
@@ -72,17 +69,13 @@ def submit_quest_idea(current_user_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@quest_ideas_bp.route('/quest-ideas', methods=['GET'])
+@quest_ideas_bp.route('', methods=['GET'])
 @cross_origin()
 @require_auth
 def get_user_quest_ideas(current_user_id):
     """Get all quest ideas submitted by the current user"""
     try:
-        from supabase import create_client
-        supabase = create_client(
-            os.environ.get('SUPABASE_URL'),
-            os.environ.get('SUPABASE_SERVICE_KEY')
-        )
+        supabase = get_supabase_admin_client()
         
         response = supabase.table('quest_ideas').select('*').eq('user_id', current_user_id).order('created_at', desc=True).execute()
         
@@ -93,17 +86,13 @@ def get_user_quest_ideas(current_user_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@quest_ideas_bp.route('/quest-ideas/<idea_id>', methods=['GET'])
+@quest_ideas_bp.route('/<idea_id>', methods=['GET'])
 @cross_origin()
 @require_auth
 def get_quest_idea_status(current_user_id, idea_id):
     """Get the status of a specific quest idea"""
     try:
-        from supabase import create_client
-        supabase = create_client(
-            os.environ.get('SUPABASE_URL'),
-            os.environ.get('SUPABASE_SERVICE_KEY')
-        )
+        supabase = get_supabase_admin_client()
         
         # Verify the idea belongs to the user
         response = supabase.table('quest_ideas').select('*').eq('id', idea_id).eq('user_id', current_user_id).single().execute()

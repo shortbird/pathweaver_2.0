@@ -532,7 +532,7 @@ Generate 6-10 tasks that:
    - Language & Communication
    - Society & Culture
    - Arts & Creativity
-5. Each task must be mapped to one or more diploma subjects (XP split equally if multiple):
+5. Each task must be mapped to one or more diploma subjects (XP split if multiple):
    - Language Arts, Mathematics, Science, Social Studies, Financial Literacy
    - Health, Physical Education, Fine Arts, Career & Technical Education
    - Digital Literacy, Electives

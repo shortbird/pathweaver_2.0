@@ -2,15 +2,15 @@ from flask import Flask, jsonify, request, make_response
 from dotenv import load_dotenv
 import os
 
-from routes import auth, subscriptions, users, community, portfolio, sources
+from routes import auth, subscriptions, users, community, portfolio
 from routes.quest_ideas import quest_ideas_bp
 from routes import uploads
 from routes.settings import settings_bp
 from routes.promo import promo_bp
 
 # Import routes
-from routes import quests, tasks, collaborations, admin_core, quest_sources, evidence_documents
-from routes.admin import user_management, quest_management, quest_ideas, quest_sources as admin_quest_sources, analytics, student_task_management
+from routes import quests, tasks, collaborations, admin_core, evidence_documents
+from routes.admin import user_management, quest_management, quest_ideas, analytics, student_task_management
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -59,9 +59,8 @@ app.register_blueprint(users.bp, url_prefix='/api/users')
 app.register_blueprint(users.bp, url_prefix='/api/v3/users', name='users_v3')
 app.register_blueprint(community.bp, url_prefix='/api/community')
 app.register_blueprint(portfolio.bp, url_prefix='/api/portfolio')
-app.register_blueprint(quest_ideas_bp, url_prefix='/api')
+app.register_blueprint(quest_ideas_bp)  # Has url_prefix='/api/quest-ideas' in blueprint
 app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
-app.register_blueprint(sources.bp, url_prefix='/api/sources')  # /api/sources
 app.register_blueprint(settings_bp, url_prefix='/api')  # /api/settings
 app.register_blueprint(promo_bp, url_prefix='/api/promo')  # /api/promo
 
@@ -73,10 +72,8 @@ app.register_blueprint(admin_core.bp)   # /api/admin (blueprint has url_prefix='
 app.register_blueprint(user_management.bp)  # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
 app.register_blueprint(quest_management.bp)  # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
 app.register_blueprint(quest_ideas.bp)  # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
-app.register_blueprint(admin_quest_sources.bp)  # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
 app.register_blueprint(analytics.bp)  # /api/v3/admin/analytics (blueprint has url_prefix='/api/v3/admin/analytics')
 app.register_blueprint(student_task_management.bp)  # /api/v3/admin/users (blueprint has url_prefix='/api/v3/admin/users')
-app.register_blueprint(quest_sources.bp)  # /api/v3/admin/quest-sources (blueprint has url_prefix='/api/v3/admin/quest-sources')
 app.register_blueprint(collaborations.bp)  # /api/collaborations (blueprint has url_prefix='/api/collaborations')
 # Conditionally import and register Quest AI blueprint
 try:

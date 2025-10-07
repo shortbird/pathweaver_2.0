@@ -18,26 +18,27 @@ const SubscriptionSuccess = () => {
       try {
         // Get session ID from URL params
         const sessionId = searchParams.get('session_id')
-        
+
         if (sessionId) {
           // Verify the session and update subscription
           const verifyResponse = await api.post('/api/subscriptions/verify-session', { session_id: sessionId })
-          console.log('Verification response:', verifyResponse.data)
-          
+
           // Set subscription details from verify response
           if (verifyResponse.data.success) {
+            const newTier = verifyResponse.data.tier
+
             setSubscriptionDetails({
-              tier: verifyResponse.data.tier,
+              tier: newTier,
               status: verifyResponse.data.status,
               current_period_end: verifyResponse.data.period_end
             })
-            
+
             // Track subscription conversion for Meta Pixel
             try {
               if (typeof fbq !== 'undefined') {
                 // Get subscription value based on tier
                 let subscriptionValue = 0;
-                switch (verifyResponse.data.tier) {
+                switch (newTier) {
                   case 'supported':
                     subscriptionValue = 39.99;
                     break;
@@ -54,46 +55,60 @@ const SubscriptionSuccess = () => {
                   default:
                     subscriptionValue = 0;
                 }
-                
+
                 fbq('track', 'Subscribe', {
-                  content_name: `${verifyResponse.data.tier} subscription`,
+                  content_name: `${newTier} subscription`,
                   value: subscriptionValue,
                   currency: 'USD'
                 });
               }
             } catch (error) {
-              console.error('Meta Pixel tracking error:', error);
+              // Silently fail on tracking errors
             }
-            
-            // Update user data with new subscription tier if user is authenticated
-            if (user && updateUser) {
-              // First, immediately update with the verified tier from Stripe
-              updateUser({
-                ...user,
-                subscription_tier: verifyResponse.data.tier,
-                subscription_status: verifyResponse.data.status || 'active'
-              })
 
-              // Add a small delay to allow database propagation, then refresh like "refresh account data"
-              setTimeout(async () => {
+            // Poll for subscription tier update instead of optimistic update
+            // This avoids race condition where refreshUser fetches stale data
+            if (user) {
+              let attempts = 0
+              const maxAttempts = 10 // 10 attempts over 20 seconds
+
+              const pollForUpdate = async () => {
                 try {
-                  console.log('Auto-refreshing account data after subscription update...')
                   const success = await refreshUser()
+
                   if (success) {
-                    console.log('✅ Account data refreshed successfully')
-                    // Success! This should update the header nav tier badge
+                    // Check if the user's tier has been updated
+                    const currentUserResponse = await api.get('/api/auth/me')
+                    const currentTier = currentUserResponse.data?.subscription_tier
+
+                    if (currentTier === newTier) {
+                      // Success! Tier is updated
+                      toast.success('Welcome to your new subscription plan!')
+                      return
+                    }
+                  }
+
+                  attempts++
+                  if (attempts < maxAttempts) {
+                    // Retry after 2 seconds
+                    setTimeout(pollForUpdate, 2000)
                   } else {
-                    console.log('Auto-refresh failed, showing manual refresh option')
+                    // Max attempts reached, show manual refresh option
                     setManualRefreshAvailable(true)
                   }
                 } catch (error) {
-                  console.log('Auto-refresh error:', error)
-                  setManualRefreshAvailable(true)
+                  attempts++
+                  if (attempts < maxAttempts) {
+                    setTimeout(pollForUpdate, 2000)
+                  } else {
+                    setManualRefreshAvailable(true)
+                  }
                 }
-              }, 2000) // 2 second delay to allow database sync
+              }
+
+              // Start polling
+              pollForUpdate()
             }
-            
-            toast.success('Welcome to your new subscription plan!')
           }
         } else {
           // No session ID, try to fetch current status if authenticated
@@ -102,14 +117,10 @@ const SubscriptionSuccess = () => {
             setSubscriptionDetails(response.data)
           }
         }
-        
+
       } catch (error) {
-        console.error('Error verifying subscription:', error)
-        
         // If authentication error, don't immediately log out - the payment may have succeeded
         if (error.response?.status === 401) {
-          console.log('Authentication error during subscription verification - payment may have succeeded')
-
           // Show a different message that doesn't panic the user
           toast.error('Your payment was processed, but we need you to log in to complete setup.')
 
@@ -124,9 +135,9 @@ const SubscriptionSuccess = () => {
         setLoading(false)
       }
     }
-    
+
     verifySubscription()
-  }, [searchParams]) // Run when page loads or URL params change
+  }, [searchParams, user, refreshUser]) // Run when page loads or URL params change
   
   const handleContinue = () => {
     navigate('/quests')
@@ -160,7 +171,6 @@ const SubscriptionSuccess = () => {
         setManualRefreshAvailable(true)
       }
     } catch (error) {
-      console.error('Manual refresh failed:', error)
       toast.error('Failed to refresh subscription status. Please try again.')
       setManualRefreshAvailable(true)
     } finally {
