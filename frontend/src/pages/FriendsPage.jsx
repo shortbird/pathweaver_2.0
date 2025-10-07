@@ -35,34 +35,24 @@ const FriendsPage = () => {
   const declineFriendRequestMutation = useDeclineFriendRequest();
   const cancelFriendRequestMutation = useCancelFriendRequest();
 
-  // Local state
+  // Local state - only UI state, no data duplication
   const [email, setEmail] = useState('')
   const [returnToQuest, setReturnToQuest] = useState(null)
   const [activeTab, setActiveTab] = useState('incoming')
-  const [sending, setSending] = useState(false)
-  const [friends, setFriends] = useState([])
-  const [pendingRequests, setPendingRequests] = useState([])
-  const [sentRequests, setSentRequests] = useState([])
-  const [teamInvitations, setTeamInvitations] = useState([])
-  const [sentTeamInvitations, setSentTeamInvitations] = useState([])
-  const [activeCollaborations, setActiveCollaborations] = useState([])
-  const [loading, setLoading] = useState(true)
 
   // Check if user has access to friends feature
   const hasAccess = hasFeatureAccess(user?.subscription_tier, 'supported');
 
-  // Use React Query data if available, otherwise use local state
-  const queryFriends = friendsData?.friends || [];
-  const queryPendingRequests = friendsData?.pending_requests || [];
-  const querySentRequests = friendsData?.sent_requests || [];
-  const queryTeamInvitations = collaborationsData?.received_invitations || [];
-  const querySentTeamInvitations = collaborationsData?.sent_invitations || [];
-  const queryActiveCollaborations = collaborationsData?.active_collaborations || [];
+  // Use React Query data directly (no manual state)
+  const friends = friendsData?.friends || [];
+  const pendingRequests = friendsData?.pending_requests || [];
+  const sentRequests = friendsData?.sent_requests || [];
+  const teamInvitations = collaborationsData?.received_invitations || [];
+  const sentTeamInvitations = collaborationsData?.sent_invitations || [];
+  const activeCollaborations = collaborationsData?.active_collaborations || [];
 
-  // Merge query data with local state
-  const allFriends = [...friends, ...queryFriends];
-  const allPendingRequests = [...pendingRequests, ...queryPendingRequests];
-  const allSentRequests = [...sentRequests, ...querySentRequests];
+  // Loading state from React Query
+  const loading = loadingFriends || loadingCollaborations;
 
   useEffect(() => {
     // Check if we should return to a quest after adding friends
@@ -71,36 +61,6 @@ const FriendsPage = () => {
       setReturnToQuest(questId)
     }
   }, [])
-
-  useEffect(() => {
-    if (hasAccess && user?.id) {
-      fetchFriends()
-      fetchTeamInvitations()
-      fetchActiveCollaborations()
-    } else {
-      setLoading(false)
-    }
-  }, [hasAccess, user?.id])
-
-  const fetchFriends = async () => {
-    try {
-      const response = await friendsAPI.getFriends()
-      setFriends(response.data.friends || [])
-      setPendingRequests(response.data.pending_requests || [])
-      setSentRequests(response.data.sent_requests || [])
-    } catch (error) {
-      console.error('Failed to load friends:', error)
-      if (error.response?.status === 404) {
-        console.log('Friends endpoint not found')
-      } else if (error.response?.status === 403) {
-        console.log('Friends access denied - subscription tier issue')
-      } else {
-        toast.error('Failed to load friends')
-      }
-    } finally {
-      setLoading(false)
-    }
-  }
 
   const sendFriendRequest = async (e) => {
     e.preventDefault()
@@ -127,23 +87,11 @@ const FriendsPage = () => {
   }
 
   const declineRequest = async (friendshipId) => {
-    try {
-      await friendsAPI.declineFriendRequest(friendshipId)
-      toast.success('Friend request declined')
-      fetchFriends()
-    } catch (error) {
-      toast.error('Failed to decline friend request')
-    }
+    declineFriendRequestMutation.mutate(friendshipId)
   }
 
   const cancelRequest = async (friendshipId) => {
-    try {
-      await friendsAPI.cancelFriendRequest(friendshipId)
-      toast.success('Friend request cancelled')
-      fetchFriends()
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to cancel friend request')
-    }
+    cancelFriendRequestMutation.mutate(friendshipId)
   }
 
   // Helper function to format time ago
@@ -179,32 +127,11 @@ const FriendsPage = () => {
     </button>
   )
 
-  const fetchTeamInvitations = async () => {
-    try {
-      const response = await collaborationAPI.getInvites()
-
-      // Separate received and sent invitations
-      setTeamInvitations(response.data.received_invitations || [])
-      setSentTeamInvitations(response.data.sent_invitations || [])
-    } catch (error) {
-      console.error('Failed to fetch team invitations:', error)
-    }
-  }
-
-  const fetchActiveCollaborations = async () => {
-    try {
-      const response = await api.get('/api/collaborations/active')
-      setActiveCollaborations(response.data.collaborations || [])
-    } catch (error) {
-    }
-  }
-
   const acceptTeamInvite = async (inviteId, questId) => {
     try {
       await collaborationAPI.acceptInvite(inviteId)
       toast.success('Team invitation accepted! You\'ll earn 2x XP together!')
-      fetchTeamInvitations()
-      fetchActiveCollaborations()
+      // React Query will auto-refetch after mutation
       // Navigate to the quest page after accepting
       setTimeout(() => {
         navigate(`/quests/${questId}`)
@@ -218,7 +145,7 @@ const FriendsPage = () => {
     try {
       await collaborationAPI.declineInvite(inviteId)
       toast.success('Team invitation declined')
-      fetchTeamInvitations()
+      // React Query will auto-refetch after mutation
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to decline team invitation')
     }
@@ -228,7 +155,7 @@ const FriendsPage = () => {
     try {
       await collaborationAPI.cancelInvite(inviteId)
       toast.success('Team invitation cancelled')
-      fetchTeamInvitations()
+      // React Query will auto-refetch after mutation
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to cancel team invitation')
     }
