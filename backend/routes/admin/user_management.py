@@ -39,14 +39,7 @@ def get_users(user_id):
 
         # Apply filters
         if subscription_filter != 'all':
-            # Map frontend tier to database tier for filtering
-            tier_mapping = {
-                'free': 'explorer',
-                'supported': 'creator',
-                'academy': 'enterprise'
-            }
-            db_filter_tier = tier_mapping.get(subscription_filter, subscription_filter)
-            query = query.eq('subscription_tier', db_filter_tier)
+            query = query.eq('subscription_tier', subscription_filter)
 
         if role_filter != 'all':
             query = query.eq('role', role_filter)
@@ -75,17 +68,7 @@ def get_users(user_id):
 
         result = query.execute()
 
-        # Map database tier names to frontend tier names
-        reverse_tier_mapping = {
-            'explorer': 'free',
-            'creator': 'supported',
-            'enterprise': 'academy'
-        }
-
         users = result.data if result.data else []
-        for user in users:
-            db_tier = user.get('subscription_tier', 'explorer')
-            user['subscription_tier'] = reverse_tier_mapping.get(db_tier, db_tier)
 
         return jsonify({
             'success': True,
@@ -142,15 +125,7 @@ def get_user_details(user_id, target_user_id):
             .execute()
         stats['total_xp'] = sum(record['xp_amount'] for record in xp_data.data) if xp_data.data else 0
 
-        # Map database tier to frontend tier
-        reverse_tier_mapping = {
-            'explorer': 'free',
-            'creator': 'supported',
-            'enterprise': 'academy'
-        }
         user_data = user.data
-        db_tier = user_data.get('subscription_tier', 'explorer')
-        user_data['subscription_tier'] = reverse_tier_mapping.get(db_tier, db_tier)
 
         return jsonify({
             'success': True,
@@ -214,27 +189,18 @@ def update_user_subscription(user_id, target_user_id):
 
     try:
         data = request.json
-        frontend_tier = data.get('subscription_tier')
+        subscription_tier = data.get('subscription_tier')
 
-        if not frontend_tier:
+        if not subscription_tier:
             return jsonify({'success': False, 'error': 'Subscription tier is required'}), 400
 
-        valid_tiers = ['free', 'supported', 'academy']
-        if frontend_tier not in valid_tiers:
+        valid_tiers = ['Explore', 'Accelerate', 'Achieve', 'Excel']
+        if subscription_tier not in valid_tiers:
             return jsonify({'success': False, 'error': f'Invalid subscription tier. Must be one of: {valid_tiers}'}), 400
-
-        # Map frontend tier names to database tier names
-        tier_mapping = {
-            'free': 'explorer',
-            'supported': 'creator',
-            'academy': 'enterprise'
-        }
-
-        db_tier = tier_mapping.get(frontend_tier, 'explorer')
 
         # Update subscription
         update_data = {
-            'subscription_tier': db_tier,
+            'subscription_tier': subscription_tier,
             'subscription_status': 'active'
         }
 
@@ -245,7 +211,7 @@ def update_user_subscription(user_id, target_user_id):
 
         return jsonify({
             'success': True,
-            'message': f'User subscription updated to {frontend_tier}',
+            'message': f'User subscription updated to {subscription_tier}',
             'user': result.data[0]
         })
 
