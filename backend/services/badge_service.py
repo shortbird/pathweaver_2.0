@@ -108,23 +108,30 @@ class BadgeService:
             # Calculate XP contributed to badge from this quest
             quest_data['xp_contributed'] = 0
             if user_id:
-                # Get all tasks for this quest
-                tasks = supabase.table('quest_tasks')\
-                    .select('id')\
+                # Get user-specific tasks for this quest (personalized quest system)
+                user_tasks = supabase.table('user_quest_tasks')\
+                    .select('id, xp_value')\
                     .eq('quest_id', quest_data['id'])\
+                    .eq('user_id', user_id)\
                     .execute()
 
-                task_ids = [t['id'] for t in tasks.data]
+                user_task_ids = [t['id'] for t in user_tasks.data]
 
-                if task_ids:
-                    # Get XP from completed tasks
-                    completions = supabase.table('user_quest_tasks')\
-                        .select('xp_awarded')\
+                if user_task_ids:
+                    # Get completed tasks from quest_task_completions
+                    completions = supabase.table('quest_task_completions')\
+                        .select('user_quest_task_id')\
                         .eq('user_id', user_id)\
-                        .in_('quest_task_id', task_ids)\
+                        .in_('user_quest_task_id', user_task_ids)\
                         .execute()
 
-                    quest_data['xp_contributed'] = sum(c.get('xp_awarded', 0) for c in completions.data)
+                    completed_task_ids = {c['user_quest_task_id'] for c in completions.data}
+
+                    # Sum XP from completed tasks
+                    quest_data['xp_contributed'] = sum(
+                        t['xp_value'] for t in user_tasks.data
+                        if t['id'] in completed_task_ids
+                    )
 
             if bq['is_required']:
                 required_quests.append(quest_data)
@@ -250,27 +257,33 @@ class BadgeService:
             completed_count = 0
 
         # Get XP earned from badge-related tasks
-        # XP is tracked in user_quest_tasks table with xp_awarded (includes collaboration bonus)
+        # In personalized quest system, XP is tracked via user_quest_tasks + quest_task_completions
         xp_earned = 0
         if badge_quest_ids:
-            # Get all tasks from badge quests
-            tasks = supabase.table('quest_tasks')\
-                .select('id')\
+            # Get all user-specific tasks from badge quests
+            user_tasks = supabase.table('user_quest_tasks')\
+                .select('id, xp_value')\
                 .in_('quest_id', badge_quest_ids)\
+                .eq('user_id', user_id)\
                 .execute()
 
-            task_ids = [t['id'] for t in tasks.data]
+            user_task_ids = [t['id'] for t in user_tasks.data]
 
-            if task_ids:
-                # Get completed tasks from user_quest_tasks (actual completion table)
-                # This table stores xp_awarded which includes collaboration bonus
-                completions = supabase.table('user_quest_tasks')\
-                    .select('xp_awarded')\
+            if user_task_ids:
+                # Get completed tasks from quest_task_completions
+                completions = supabase.table('quest_task_completions')\
+                    .select('user_quest_task_id')\
                     .eq('user_id', user_id)\
-                    .in_('quest_task_id', task_ids)\
+                    .in_('user_quest_task_id', user_task_ids)\
                     .execute()
 
-                xp_earned = sum(c.get('xp_awarded', 0) for c in completions.data)
+                completed_task_ids = {c['user_quest_task_id'] for c in completions.data}
+
+                # Sum XP from completed tasks
+                xp_earned = sum(
+                    t['xp_value'] for t in user_tasks.data
+                    if t['id'] in completed_task_ids
+                )
 
         # Check if user has this badge active
         user_badge = supabase.table('user_badges')\
