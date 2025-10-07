@@ -145,6 +145,7 @@ const QuestHub = () => {
 
         // DEBUG: Log first quest to see pillar_breakdown data
         if (response.data?.quests?.length > 0) {
+          console.log({
             title: response.data.quests[0].title,
             pillar_breakdown: response.data.quests[0].pillar_breakdown,
             user_enrollment: response.data.quests[0].user_enrollment,
