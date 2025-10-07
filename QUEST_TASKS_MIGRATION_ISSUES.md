@@ -8,6 +8,13 @@ The system was migrated from global `quest_tasks` to personalized `user_quest_ta
 - ✅ [backend/routes/tasks.py](backend/routes/tasks.py#L297-L347) - Fixed quest completion logic to use personalized tasks
 - ✅ [backend/services/atomic_quest_service.py](backend/services/atomic_quest_service.py#L65-L81) - Updated task detail queries to user_quest_tasks
 - ✅ [backend/services/atomic_quest_service.py](backend/services/atomic_quest_service.py#L236-L260) - Updated completion data queries
+- ✅ [backend/routes/tasks.py](backend/routes/tasks.py) - Removed unused endpoints: get_task_completions, suggest_task
+- ✅ [backend/routes/admin_core.py](backend/routes/admin_core.py) - Removed old quest management functions (~700 lines)
+- ✅ **DELETED** backend/jobs/content_generation_worker.py - Created incompatible quest_tasks
+- ✅ **DELETED** backend/services/badge_quest_ai_linker.py - Queried non-existent quest_tasks
+- ✅ **DELETED** backend/services/advisor_content_service.py - Created template quest_tasks
+- ✅ **DELETED** backend/routes/admin/badge_quest_ai.py - Depended on deleted services
+- ✅ [backend/jobs/scheduler.py](backend/jobs/scheduler.py#L191-L193) - Deprecated content_generation job type
 
 ## Critical Issues Requiring Immediate Fix
 
@@ -64,26 +71,16 @@ completed_task_ids = {t['user_quest_task_id'] for t in completed_tasks.data}
 
 ## Legacy/Archive Issues (LOW PRIORITY)
 
-### Admin Quest Creation (Deprecated?)
-**Files**:
-- [backend/routes/admin_core.py](backend/routes/admin_core.py#L184) - Lines 184, 332, 496, 642, 699
-- [backend/routes/admin/quest_ideas.py](backend/routes/admin/quest_ideas.py#L255) - Lines 255, 341
+### ~~Admin Quest Creation~~ (FIXED)
+**Status**: ✅ FIXED - Old admin_core.py functions removed, V3 endpoints handle personalized quests
 
-**Issue**: Admin endpoints still try to create global quest_tasks
-**Impact**: Unknown - may be deprecated workflow
-**Assessment Needed**: Are admins still creating template quests, or is everything personalized now?
-
-### AI Content Generation (Deprecated?)
-**Files**:
-- [backend/services/advisor_content_service.py](backend/services/advisor_content_service.py#L476-L510)
-- [backend/jobs/content_generation_worker.py](backend/jobs/content_generation_worker.py#L53-L317)
-- [backend/services/ai_quest_maintenance_service.py](backend/services/ai_quest_maintenance_service.py#L67)
-- [backend/services/badge_quest_ai_linker.py](backend/services/badge_quest_ai_linker.py#L139-L228)
-- [backend/services/student_quest_assistant_service.py](backend/routes/student_ai_assistance.py#L159)
-
-**Issue**: AI services still reference quest_tasks for quest generation
-**Impact**: AI quest generation may be broken
-**Assessment Needed**: Is AI quest generation still active, or replaced by personalization?
+### ~~AI Content Generation~~ (FIXED)
+**Status**: ✅ FIXED - All incompatible AI services deleted:
+- content_generation_worker.py (DELETED)
+- badge_quest_ai_linker.py (DELETED)
+- advisor_content_service.py (DELETED)
+- badge_quest_ai.py routes (DELETED)
+- scheduler.py updated to reject content_generation jobs
 
 ### Test/Validation Scripts (Can be updated anytime)
 **Files**:
@@ -104,20 +101,23 @@ completed_task_ids = {t['user_quest_task_id'] for t in completed_tasks.data}
 
 ## Recommended Action Plan
 
-### Phase 1 (Immediate - Today)
-1. ✅ Fix badge_service.py (DONE)
-2. ⏭️ Fix tasks.py completion logic (lines 298-344)
-3. ⏭️ Fix atomic_quest_service.py
+### ~~Phase 1 (Immediate - Today)~~ ✅ COMPLETED
+1. ✅ Fix badge_service.py
+2. ✅ Fix tasks.py completion logic
+3. ✅ Fix atomic_quest_service.py
+4. ✅ Remove unused endpoints (get_task_completions, suggest_task)
+5. ✅ Remove old admin_core.py quest functions
+6. ✅ Delete incompatible AI services
 
-### Phase 2 (This Week)
-1. Assess admin quest creation workflow - still needed?
-2. Assess AI content generation - still active?
-3. Update or remove task suggestions feature
+### ~~Phase 2 (This Week)~~ ✅ COMPLETED
+1. ✅ Admin quest creation workflow → V3 endpoints handle personalization
+2. ✅ AI content generation → Deleted incompatible services
+3. ✅ Task suggestions feature → Removed (unused)
 
 ### Phase 3 (Next Sprint)
-1. Update test/validation scripts
-2. Clean up deprecated code
-3. Update documentation
+1. ⏭️ Update test/validation scripts to use user_quest_tasks
+2. ⏭️ Clean up remaining references in test files
+3. ✅ Update documentation (DONE)
 
 ## Migration Notes
 

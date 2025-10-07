@@ -189,8 +189,8 @@ class JobScheduler:
 
             # Execute based on job type
             if job_type == JobScheduler.JOB_TYPE_CONTENT_GENERATION:
-                from jobs.content_generation_worker import ContentGenerationWorker
-                result = ContentGenerationWorker.execute(job_data)
+                # DEPRECATED: ContentGenerationWorker removed - incompatible with personalized quest system
+                raise ValueError(f"Job type {job_type} is deprecated and no longer supported")
 
             elif job_type == JobScheduler.JOB_TYPE_QUALITY_MONITOR:
                 from jobs.quality_monitor import QualityMonitor
