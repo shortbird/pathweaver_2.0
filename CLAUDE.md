@@ -12,12 +12,17 @@
 - Never use emojis
 
 **DEVELOPMENT WORKFLOW:**
+- **Current Branch**: `develop` - All development happens here
 - **Development**: Push to `develop` branch for immediate live testing on dev environment
-- **Production**: Deploy to `main` branch only when ready for production release
+- **Production**: Merge `develop` → `main` only when ready for production release
 - **Branch Strategy**:
   - `develop` → https://optio-dev-frontend.onrender.com & https://optio-dev-backend.onrender.com
   - `main` → https://www.optioeducation.com & https://optio-prod-backend.onrender.com
-- **Testing Process**: Always test changes in dev environment first, then merge to main for production
+- **Testing Process**:
+  1. Make changes in `develop` branch
+  2. Push to `develop` for live testing at dev URLs
+  3. When stable, merge `develop` → `main` for production
+  4. Never commit directly to `main` - always go through `develop` first
 
 **DESIGN GUIDELINES:**
 - **Optio Brand Gradient**: Always use `from-[#ef597b] to-[#6d469b]` (pink to purple)
