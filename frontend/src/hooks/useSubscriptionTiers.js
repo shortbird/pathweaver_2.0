@@ -26,7 +26,8 @@ export const useAdminSubscriptionTiers = () => {
     queryKey: ['admin-subscription-tiers'],
     queryFn: async () => {
       const response = await api.get('/api/v3/admin/tiers')
-      return response.data
+      // API returns { success: true, data: [...] }
+      return response.data.data || response.data
     },
     staleTime: 1 * 60 * 1000, // 1 min cache for admin
     refetchOnWindowFocus: true,
