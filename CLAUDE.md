@@ -11,6 +11,12 @@
 - Follow core_philosophy.md for all updates - "The Process Is The Goal"
 - Never use emojis
 
+**SUBSCRIPTION TIERS (4-Tier System):**
+- **Explore** - Free tier (database: "Explore")
+- **Accelerate** - Entry tier, $39.99/mo (database: "Accelerate")
+- **Achieve** - Mid tier, $199.99/mo (database: "Achieve")
+- **Excel** - Highest tier, $499.99/mo (database: "Excel")
+
 **DEVELOPMENT WORKFLOW:**
 - **Current Branch**: `develop` - All development happens here
 - **Development**: Push to `develop` branch for immediate live testing on dev environment

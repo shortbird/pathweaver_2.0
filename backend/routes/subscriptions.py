@@ -68,9 +68,9 @@ def refresh_subscription_status(user_id):
         stripe_customer_id = user.get('stripe_customer_id')
 
         if not stripe_customer_id:
-            # User has no Stripe customer - they're on free tier
+            # User has no Stripe customer - they're on Explore tier
             return jsonify({
-                'tier': 'free',
+                'tier': 'Explore',
                 'status': 'inactive',
                 'refreshed': True
             }), 200
@@ -83,14 +83,14 @@ def refresh_subscription_status(user_id):
         )
 
         if not subscriptions.data:
-            # No subscriptions found - downgrade to free
+            # No subscriptions found - downgrade to Explore
             supabase.table('users').update({
-                'subscription_tier': 'free',
+                'subscription_tier': 'Explore',
                 'subscription_status': 'inactive'
             }).eq('id', user_id).execute()
 
             return jsonify({
-                'tier': 'free',
+                'tier': 'Explore',
                 'status': 'inactive',
                 'refreshed': True
             }), 200
@@ -111,7 +111,7 @@ def refresh_subscription_status(user_id):
             elif tier_prices:
                 price_to_tier[tier_prices] = tier_name
 
-        current_tier = price_to_tier.get(price_id, 'free')
+        current_tier = price_to_tier.get(price_id, 'Explore')
 
         # Update database with latest info
         update_data = {
@@ -141,9 +141,9 @@ def refresh_subscription_status(user_id):
 def create_checkout_session(user_id):
     """Create a Stripe checkout session for subscription upgrade"""
     data = request.json
-    tier = data.get('tier', 'supported')
+    tier = data.get('tier', 'Accelerate')
     billing_period = data.get('billing_period', 'monthly')  # 'monthly' or 'yearly'
-    
+
     # Validate Stripe configuration first
     if not Config.STRIPE_SECRET_KEY or Config.STRIPE_SECRET_KEY in ['sk_test_your-key', 'your-key']:
         print(f"ERROR: Stripe secret key not configured properly. Current value: {Config.STRIPE_SECRET_KEY}")
@@ -151,10 +151,10 @@ def create_checkout_session(user_id):
             'error': 'Stripe payments are not configured on the server. Please contact support.',
             'debug': 'STRIPE_SECRET_KEY not set or using placeholder value'
         }), 500
-    
+
     # Validate tier
-    if tier not in ['supported', 'academy']:
-        return jsonify({'error': 'Invalid subscription tier. Choose "supported" or "academy".'}), 400
+    if tier not in ['Accelerate', 'Achieve', 'Excel']:
+        return jsonify({'error': 'Invalid subscription tier. Choose "Accelerate", "Achieve", or "Excel".'}), 400
     
     # Validate billing period
     if billing_period not in ['monthly', 'yearly']:
@@ -422,7 +422,7 @@ def verify_checkout_session(user_id):
                     # Legacy format (single price)
                     price_to_tier[tier_prices] = tier_name
 
-            tier = price_to_tier.get(price_id, 'supported')
+            tier = price_to_tier.get(price_id, 'Accelerate')
             print(f"Tier from price mapping: {tier}")
             print(f"Available price mappings: {price_to_tier}")
         
@@ -496,7 +496,7 @@ def get_subscription_status(user_id):
             print(f"Debug - No user found for id: {user_id}, returning default free tier")
             # Return default free tier status if user not in database yet
             return jsonify({
-                'tier': 'free',
+                'tier': 'Explore',
                 'status': 'inactive',
                 'stripe_customer': False
             }), 200
@@ -505,7 +505,7 @@ def get_subscription_status(user_id):
         # Basic response for users without Stripe customer
         if not user.get('stripe_customer_id'):
             return jsonify({
-                'tier': user.get('subscription_tier', 'free'),
+                'tier': user.get('subscription_tier', 'Explore'),
                 'status': 'inactive',
                 'stripe_customer': False
             }), 200
@@ -537,7 +537,7 @@ def get_subscription_status(user_id):
                     price_to_tier[tier_prices] = tier_name
             
             # Get tier from price mapping or metadata
-            current_tier = price_to_tier.get(price_id, 'free')
+            current_tier = price_to_tier.get(price_id, 'Explore')
             
             # Also check subscription metadata as fallback
             if subscription.get('metadata') and subscription['metadata'].get('tier'):
@@ -563,7 +563,7 @@ def get_subscription_status(user_id):
             }), 200
         else:
             return jsonify({
-                'tier': user.get('subscription_tier', 'free'),
+                'tier': user.get('subscription_tier', 'Explore'),
                 'status': 'inactive',
                 'stripe_customer': True
             }), 200
@@ -607,7 +607,7 @@ def update_subscription(user_id):
     data = request.json
     new_tier = data.get('tier')
     
-    if new_tier not in ['free', 'supported', 'academy']:
+    if new_tier not in ['Explore', 'Accelerate', 'Achieve', 'Excel']:
         return jsonify({'error': 'Invalid subscription tier'}), 400
     
     supabase = get_supabase_client()
@@ -622,10 +622,10 @@ def update_subscription(user_id):
         
         if not user.get('stripe_customer_id'):
             # If upgrading from free, create checkout session
-            if new_tier != 'free':
+            if new_tier != 'Explore':
                 return create_checkout_session(user_id)
             else:
-                return jsonify({'message': 'Already on free tier'}), 200
+                return jsonify({'message': 'Already on Explore tier'}), 200
         
         # Get active subscription
         subscriptions = stripe.Subscription.list(
@@ -636,15 +636,15 @@ def update_subscription(user_id):
         
         if not subscriptions.data:
             # No active subscription, create new one if not free
-            if new_tier != 'free':
+            if new_tier != 'Explore':
                 return create_checkout_session(user_id)
             else:
-                return jsonify({'message': 'Already on free tier'}), 200
+                return jsonify({'message': 'Already on Explore tier'}), 200
         
         subscription = subscriptions.data[0]
         
-        # Handle downgrade to free
-        if new_tier == 'free':
+        # Handle downgrade to Explore
+        if new_tier == 'Explore':
             # Cancel subscription at period end
             stripe.Subscription.modify(
                 subscription.id,
@@ -873,7 +873,7 @@ def stripe_webhook():
                         # Legacy format (single price)
                         price_to_tier[tier_prices] = tier_name
 
-                new_tier = price_to_tier.get(price_id, 'free')
+                new_tier = price_to_tier.get(price_id, 'Explore')
                 print(f"Webhook: Price ID {price_id} mapped to tier {new_tier}")
                 
                 # Update user subscription info - only update fields that exist
@@ -905,12 +905,12 @@ def stripe_webhook():
             if user_response.data and len(user_response.data) > 0:
                 user = user_response.data[0]
                 
-                # Downgrade to free tier
+                # Downgrade to Explore tier
                 try:
                     supabase.table('users').update({
-                        'subscription_tier': 'free'
+                        'subscription_tier': 'Explore'
                     }).eq('id', user['id']).execute()
-                    print(f"Webhook: Downgraded user {user['id']} to free tier")
+                    print(f"Webhook: Downgraded user {user['id']} to Explore tier")
                 except Exception as e:
                     print(f"Webhook: Error downgrading user: {e}")
                 
@@ -925,7 +925,7 @@ def stripe_webhook():
                 supabase.table('subscription_history').insert({
                     'user_id': user['id'],
                     'stripe_subscription_id': subscription['id'],
-                    'tier': 'free',
+                    'tier': 'Explore',
                     'status': 'cancelled',
                     'ended_at': datetime.now().isoformat(),
                     'stripe_event_id': event['id'],

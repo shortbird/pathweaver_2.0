@@ -294,28 +294,32 @@ def complete_task(user_id: str, task_id: str):
         else:
             print(f"No subject XP distribution found for task {task_id}")
         
-        # Check if all required tasks are completed
-        all_required_tasks = supabase.table('quest_tasks')\
+        # Check if all required tasks are completed (personalized quest system)
+        # Get user's personalized tasks for this quest
+        all_required_tasks = supabase.table('user_quest_tasks')\
             .select('id')\
             .eq('quest_id', quest_id)\
+            .eq('user_id', user_id)\
             .eq('is_required', True)\
             .execute()
-        
-        # Also get ALL tasks for completion bonus check
-        all_tasks = supabase.table('quest_tasks')\
-            .select('id, xp_amount, pillar')\
+
+        # Also get ALL user tasks for completion bonus check
+        all_tasks = supabase.table('user_quest_tasks')\
+            .select('id, xp_value, pillar')\
+            .eq('quest_id', quest_id)\
+            .eq('user_id', user_id)\
+            .execute()
+
+        # Get completed task IDs from quest_task_completions
+        completed_tasks = supabase.table('quest_task_completions')\
+            .select('user_quest_task_id')\
+            .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
             .execute()
-        
-        completed_tasks = supabase.table('user_quest_tasks')\
-            .select('quest_task_id')\
-            .eq('user_id', user_id)\
-            .eq('user_quest_id', user_quest_id)\
-            .execute()
-        
+
         required_task_ids = {t['id'] for t in all_required_tasks.data}
         all_task_ids = {t['id'] for t in all_tasks.data}
-        completed_task_ids = {t['quest_task_id'] for t in completed_tasks.data}
+        completed_task_ids = {t['user_quest_task_id'] for t in completed_tasks.data}
         
         # Check if all tasks (required and optional) are completed for bonus
         all_tasks_completed = all_task_ids.issubset(completed_task_ids)
@@ -339,8 +343,8 @@ def complete_task(user_id: str, task_id: str):
             
             # Award completion bonus if ALL tasks are done (50% bonus, rounded up to nearest 50)
             if all_tasks_completed and len(all_task_ids) == len(completed_task_ids):
-                # Calculate total base XP for the quest
-                total_base_xp = sum(task['xp_amount'] for task in all_tasks.data)
+                # Calculate total base XP for the quest from user's personalized tasks
+                total_base_xp = sum(task['xp_value'] for task in all_tasks.data)
                 
                 # Calculate 50% bonus
                 bonus_xp = total_base_xp * 0.5

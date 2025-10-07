@@ -14,13 +14,10 @@ logger = logging.getLogger(__name__)
 
 class TutorTier(Enum):
     """AI Tutor subscription tiers"""
-    FREE = "free"
-    EXPLORER = "explorer"
-    SUPPORTED = "supported"
-    CREATOR = "creator"
-    ACADEMY = "academy"
-    VISIONARY = "visionary"
-    ENTERPRISE = "enterprise"
+    EXPLORE = "Explore"
+    ACCELERATE = "Accelerate"
+    ACHIEVE = "Achieve"
+    EXCEL = "Excel"
 
 @dataclass
 class TierLimits:
@@ -44,7 +41,7 @@ class TutorTierService:
     def _define_tier_limits(self) -> Dict[TutorTier, TierLimits]:
         """Define limits and features for each tier"""
         return {
-            TutorTier.FREE: TierLimits(
+            TutorTier.EXPLORE: TierLimits(
                 daily_message_limit=10,
                 features=[
                     'basic_explanations',
@@ -57,20 +54,7 @@ class TutorTierService:
                 parent_monitoring=True,
                 custom_modes=False
             ),
-            TutorTier.EXPLORER: TierLimits(
-                daily_message_limit=10,
-                features=[
-                    'basic_explanations',
-                    'simple_chat',
-                    'safety_monitoring'
-                ],
-                max_conversation_history=3,
-                priority_support=False,
-                advanced_analytics=False,
-                parent_monitoring=True,
-                custom_modes=False
-            ),
-            TutorTier.SUPPORTED: TierLimits(
+            TutorTier.ACCELERATE: TierLimits(
                 daily_message_limit=50,
                 features=[
                     'basic_explanations',
@@ -87,8 +71,8 @@ class TutorTierService:
                 parent_monitoring=True,
                 custom_modes=True
             ),
-            TutorTier.CREATOR: TierLimits(
-                daily_message_limit=50,
+            TutorTier.ACHIEVE: TierLimits(
+                daily_message_limit=100,
                 features=[
                     'basic_explanations',
                     'advanced_features',
@@ -96,58 +80,18 @@ class TutorTierService:
                     'learning_analytics',
                     'conversation_modes',
                     'context_awareness',
-                    'safety_monitoring'
+                    'safety_monitoring',
+                    'priority_responses',
+                    'team_collaboration'
                 ],
-                max_conversation_history=10,
+                max_conversation_history=25,
                 priority_support=False,
                 advanced_analytics=True,
                 parent_monitoring=True,
                 custom_modes=True
             ),
-            TutorTier.ACADEMY: TierLimits(
+            TutorTier.EXCEL: TierLimits(
                 daily_message_limit=999,  # Effectively unlimited
-                features=[
-                    'unlimited_chat',
-                    'all_features',
-                    'priority_support',
-                    'advanced_analytics',
-                    'custom_learning_paths',
-                    'detailed_progress_tracking',
-                    'conversation_modes',
-                    'context_awareness',
-                    'quest_integration',
-                    'safety_monitoring',
-                    'parent_dashboard_premium'
-                ],
-                max_conversation_history=50,
-                priority_support=True,
-                advanced_analytics=True,
-                parent_monitoring=True,
-                custom_modes=True
-            ),
-            TutorTier.VISIONARY: TierLimits(
-                daily_message_limit=999,
-                features=[
-                    'unlimited_chat',
-                    'all_features',
-                    'priority_support',
-                    'advanced_analytics',
-                    'custom_learning_paths',
-                    'detailed_progress_tracking',
-                    'conversation_modes',
-                    'context_awareness',
-                    'quest_integration',
-                    'safety_monitoring',
-                    'parent_dashboard_premium'
-                ],
-                max_conversation_history=50,
-                priority_support=True,
-                advanced_analytics=True,
-                parent_monitoring=True,
-                custom_modes=True
-            ),
-            TutorTier.ENTERPRISE: TierLimits(
-                daily_message_limit=999,
                 features=[
                     'unlimited_chat',
                     'all_features',
@@ -173,16 +117,10 @@ class TutorTierService:
     def _define_tier_mappings(self) -> Dict[str, TutorTier]:
         """Map database subscription tier values to TutorTier enum"""
         return {
-            'free': TutorTier.FREE,
-            'explorer': TutorTier.EXPLORER,
-            'supported': TutorTier.SUPPORTED,
-            'creator': TutorTier.CREATOR,
-            'academy': TutorTier.ACADEMY,
-            'visionary': TutorTier.VISIONARY,
-            'enterprise': TutorTier.ENTERPRISE,
-            # Legacy mappings
-            'premium': TutorTier.SUPPORTED,  # Map premium to supported
-            'pro': TutorTier.ACADEMY,  # Map pro to academy
+            'Explore': TutorTier.EXPLORE,
+            'Accelerate': TutorTier.ACCELERATE,
+            'Achieve': TutorTier.ACHIEVE,
+            'Excel': TutorTier.EXCEL,
         }
 
     def get_user_tier(self, user_id: str) -> TutorTier:
@@ -196,22 +134,22 @@ class TutorTierService:
             ).execute()
 
             if not result.data or len(result.data) == 0:
-                logger.warning(f"No user found with id {user_id}, defaulting to FREE tier")
-                return TutorTier.FREE
+                logger.warning(f"No user found with id {user_id}, defaulting to EXPLORE tier")
+                return TutorTier.EXPLORE
 
-            subscription_tier = result.data[0].get('subscription_tier', 'free')
-            mapped_tier = self.tier_mappings.get(subscription_tier, TutorTier.FREE)
+            subscription_tier = result.data[0].get('subscription_tier', 'Explore')
+            mapped_tier = self.tier_mappings.get(subscription_tier, TutorTier.EXPLORE)
             logger.debug(f"User {user_id} has tier: {subscription_tier} -> {mapped_tier}")
             return mapped_tier
 
         except Exception as e:
             logger.error(f"Failed to get user tier for {user_id}: {e}")
-            # Return FREE tier as fallback to allow chat to continue
-            return TutorTier.FREE
+            # Return EXPLORE tier as fallback to allow chat to continue
+            return TutorTier.EXPLORE
 
     def get_tier_limits(self, tier: TutorTier) -> TierLimits:
         """Get limits and features for a specific tier"""
-        return self.tier_limits.get(tier, self.tier_limits[TutorTier.FREE])
+        return self.tier_limits.get(tier, self.tier_limits[TutorTier.EXPLORE])
 
     def can_send_message(self, user_id: str) -> Dict[str, Any]:
         """Check if user can send a message based on tier limits"""
@@ -267,7 +205,7 @@ class TutorTierService:
             return {
                 'can_send': True,
                 'messages_remaining': 10,
-                'tier': 'free',
+                'tier': 'Explore',
                 'limit': 10
             }
 
@@ -316,9 +254,9 @@ class TutorTierService:
 
             suggestions = []
 
-            if current_tier in [TutorTier.FREE, TutorTier.EXPLORER]:
+            if current_tier == TutorTier.EXPLORE:
                 suggestions.append({
-                    'target_tier': 'supported',
+                    'target_tier': 'Accelerate',
                     'benefits': [
                         '50 messages per day (5x more)',
                         'Advanced conversation modes',
@@ -326,20 +264,33 @@ class TutorTierService:
                         'Learning analytics',
                         'Context-aware responses'
                     ],
-                    'price_info': 'Supported tier starts at $9/month'
+                    'price_info': 'Accelerate tier starts at $39.99/month'
                 })
 
-            if current_tier == TutorTier.SUPPORTED:
+            if current_tier == TutorTier.ACCELERATE:
                 suggestions.append({
-                    'target_tier': 'academy',
+                    'target_tier': 'Achieve',
+                    'benefits': [
+                        '100 daily messages (2x more)',
+                        'Team collaboration features',
+                        'Priority responses',
+                        'Advanced learning paths'
+                    ],
+                    'price_info': 'Achieve tier starts at $199.99/month'
+                })
+
+            if current_tier == TutorTier.ACHIEVE:
+                suggestions.append({
+                    'target_tier': 'Excel',
                     'benefits': [
                         'Unlimited daily messages',
                         'Priority support',
                         'Advanced analytics',
                         'Custom learning paths',
-                        'Detailed progress tracking'
+                        'Detailed progress tracking',
+                        'Accredited diploma'
                     ],
-                    'price_info': 'Academy tier starts at $19/month'
+                    'price_info': 'Excel tier starts at $499.99/month'
                 })
 
             return {
@@ -353,7 +304,7 @@ class TutorTierService:
 
         except Exception as e:
             logger.error(f"Failed to get upgrade suggestions for {user_id}: {e}")
-            return {'current_tier': 'free', 'suggestions': []}
+            return {'current_tier': 'Explore', 'suggestions': []}
 
     def enforce_conversation_history_limit(self, user_id: str) -> None:
         """Enforce conversation history limit based on tier"""
@@ -407,7 +358,7 @@ class TutorTierService:
             logger.error(f"Failed to create default settings for {user_id}: {e}")
 
     def _get_default_access(self) -> Dict[str, Any]:
-        """Get default feature access (free tier)"""
+        """Get default feature access (Explore tier)"""
         return {
             'basic_chat': True,
             'advanced_explanations': False,
@@ -421,7 +372,7 @@ class TutorTierService:
             'unlimited_chat': False,
             'detailed_progress': False,
             'custom_learning_paths': False,
-            'tier_name': 'free',
+            'tier_name': 'Explore',
             'daily_limit': 10,
             'max_conversations': 3
         }

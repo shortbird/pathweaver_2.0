@@ -1,27 +1,22 @@
-// Tier mapping utility for converting backend tier names to frontend display names
+// Tier mapping utility for the new 4-tier subscription system
 
 export const TIER_DISPLAY_NAMES = {
-  // Legacy tier names (for backwards compatibility)
-  explorer: 'Free',
-  creator: 'Supported',
-  visionary: 'Academy',
-  enterprise: 'Academy', // Database uses 'enterprise' for Academy tier
-  premium: 'Supported', // Legacy alternative for 'supported'
-  // New tier names
-  free: 'Free',
-  supported: 'Supported',
-  academy: 'Academy'
+  // New tier names (case-sensitive to match database)
+  Explore: 'Explore',
+  Accelerate: 'Accelerate',
+  Achieve: 'Achieve',
+  Excel: 'Excel'
 };
 
 export const getTierDisplayName = (backendTier) => {
-  if (!backendTier) return 'Free';
-  return TIER_DISPLAY_NAMES[backendTier.toLowerCase()] || backendTier;
+  if (!backendTier) return 'Explore';
+  return TIER_DISPLAY_NAMES[backendTier] || backendTier;
 };
 
 export const TIER_FEATURES = {
-  free: {
-    name: 'Free',
-    backendValue: 'free',
+  Explore: {
+    name: 'Explore',
+    backendValue: 'Explore',
     stripeValue: null,
     price: 0,
     monthlyPrice: 0,
@@ -38,45 +33,65 @@ export const TIER_FEATURES = {
     buttonDisabled: false,
     description: 'Perfect for exploring the platform'
   },
-  supported: {
-    name: 'Supported',
-    backendValue: 'supported',
-    stripeValue: 'supported',
+  Accelerate: {
+    name: 'Accelerate',
+    backendValue: 'Accelerate',
+    stripeValue: 'Accelerate',
     price: 39.99,
     monthlyPrice: 39.99,
     yearlyPrice: 449.99,  // Save ~$30/year
     yearlySavings: 30,
     features: [
-      'Everything in Free, plus:',
+      'Everything in Explore, plus:',
       'Access to a support team of Optio educators',
-      'Team up with other Supported learners for XP bonuses',
+      'Team up with other learners for XP bonuses',
       'Optio Portfolio Diploma'
     ],
     limitations: [
       'Traditionally-accredited Diploma'
     ],
-    buttonText: 'Get Supported',
+    buttonText: 'Get Accelerate',
     buttonDisabled: false,
     popular: true,
     description: 'For dedicated learners ready to grow'
   },
-  academy: {
-    name: 'Academy',
-    backendValue: 'academy',
-    stripeValue: 'academy',
+  Achieve: {
+    name: 'Achieve',
+    backendValue: 'Achieve',
+    stripeValue: 'Achieve',
+    price: 199.99,
+    monthlyPrice: 199.99,
+    yearlyPrice: 2199.99,  // Save ~$200/year
+    yearlySavings: 200,
+    features: [
+      'Everything in Accelerate, plus:',
+      'Advanced AI tutor (100 messages/day)',
+      'Priority support responses',
+      'Team collaboration tools',
+      'Custom learning paths'
+    ],
+    limitations: [],
+    buttonText: 'Get Achieve',
+    buttonDisabled: false,
+    description: 'Advanced learning with AI guidance'
+  },
+  Excel: {
+    name: 'Excel',
+    backendValue: 'Excel',
+    stripeValue: 'Excel',
     price: 499.99,
     monthlyPrice: 499.99,
     yearlyPrice: 5499.99,  // Save ~$500/year
     yearlySavings: 500,
     features: [
-      'Everything in Supported, plus:',
+      'Everything in Achieve, plus:',
       'TWO diplomas: Optio Portfolio + Accredited HS Diploma',
       'Personal learning guide & 1-on-1 teacher support',
       'Regular check-ins with licensed educators',
       'Connect with Optio\'s network of business leaders and mentors'
     ],
     limitations: [],
-    buttonText: 'Join Academy',
+    buttonText: 'Join Excel',
     buttonDisabled: false,
     premium: true,
     description: 'A personalized private school experience'
@@ -85,60 +100,35 @@ export const TIER_FEATURES = {
 
 // Get tier features by backend value
 export const getTierFeaturesByBackendValue = (backendTier) => {
-  if (!backendTier) return TIER_FEATURES.free;
-  
-  // Map both legacy and new tier names
-  const tierMap = {
-    // Legacy names
-    explorer: TIER_FEATURES.free,
-    creator: TIER_FEATURES.supported,
-    visionary: TIER_FEATURES.academy,
-    enterprise: TIER_FEATURES.academy, // Database uses 'enterprise' for Academy tier
-    premium: TIER_FEATURES.supported, // Legacy alternative for 'supported'
-    // New names
-    free: TIER_FEATURES.free,
-    supported: TIER_FEATURES.supported,
-    academy: TIER_FEATURES.academy
-  };
-  
-  return tierMap[backendTier.toLowerCase()] || TIER_FEATURES.free;
+  if (!backendTier) return TIER_FEATURES.Explore;
+  return TIER_FEATURES[backendTier] || TIER_FEATURES.Explore;
 };
 
 // Check if user has access to a feature based on tier
 export const hasFeatureAccess = (userTier, requiredTier) => {
   const tierOrder = {
-    // Legacy names
-    explorer: 0,
-    creator: 1,
-    visionary: 2,
-    enterprise: 2, // Database uses 'enterprise' for Academy tier
-    premium: 1, // Legacy alternative for 'supported'
-    // New names
-    free: 0,
-    supported: 1,
-    academy: 2
+    Explore: 0,
+    Accelerate: 1,
+    Achieve: 2,
+    Excel: 3
   };
-  
-  const userLevel = tierOrder[userTier?.toLowerCase()] ?? 0;
-  const requiredLevel = tierOrder[requiredTier?.toLowerCase()] ?? 0;
-  
+
+  const userLevel = tierOrder[userTier] ?? 0;
+  const requiredLevel = tierOrder[requiredTier] ?? 0;
+
   return userLevel >= requiredLevel;
 };
 
 // Get the next upgrade tier
 export const getNextTier = (currentTier) => {
   const tierProgression = {
-    free: 'supported',
-    explorer: 'supported',  // Legacy
-    supported: 'academy',
-    creator: 'academy',  // Legacy
-    premium: 'academy',  // Legacy alternative for 'supported'
-    academy: null,
-    visionary: null,  // Legacy
-    enterprise: null  // Database uses 'enterprise' for Academy tier
+    Explore: 'Accelerate',
+    Accelerate: 'Achieve',
+    Achieve: 'Excel',
+    Excel: null
   };
-  
-  return tierProgression[currentTier?.toLowerCase()];
+
+  return tierProgression[currentTier];
 };
 
 // Format price for display
@@ -150,34 +140,21 @@ export const formatPrice = (price, period = 'month') => {
 // Get tier badge color for UI
 export const getTierBadgeColor = (tier) => {
   const colors = {
-    free: 'bg-gray-100 text-gray-800',
-    explorer: 'bg-gray-100 text-gray-800',  // Legacy
-    supported: 'bg-blue-100 text-blue-800',
-    creator: 'bg-blue-100 text-blue-800',  // Legacy
-    premium: 'bg-blue-100 text-blue-800',  // Legacy alternative for 'supported'
-    academy: 'bg-purple-100 text-purple-800',
-    visionary: 'bg-purple-100 text-purple-800',  // Legacy
-    enterprise: 'bg-purple-100 text-purple-800'  // Database uses 'enterprise' for Academy tier
+    Explore: 'bg-gray-100 text-gray-800',
+    Accelerate: 'bg-blue-100 text-blue-800',
+    Achieve: 'bg-purple-100 text-purple-800',
+    Excel: 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white'
   };
-  
-  return colors[tier?.toLowerCase()] || colors.free;
+
+  return colors[tier] || colors.Explore;
 };
 
-// Check if tier is legacy
+// Check if tier is legacy (for migration purposes - always returns false now)
 export const isLegacyTier = (tier) => {
-  const legacyTiers = ['explorer', 'creator', 'visionary', 'enterprise', 'premium'];
-  return legacyTiers.includes(tier?.toLowerCase());
+  return false;  // No legacy tiers in new system
 };
 
-// Convert legacy tier to new tier
-export const convertLegacyTier = (legacyTier) => {
-  const conversionMap = {
-    explorer: 'free',
-    creator: 'supported',
-    visionary: 'academy',
-    enterprise: 'academy',  // Database uses 'enterprise' for Academy tier
-    premium: 'supported'  // Legacy alternative for 'supported'
-  };
-  
-  return conversionMap[legacyTier?.toLowerCase()] || legacyTier;
+// Convert legacy tier to new tier (no-op in new system)
+export const convertLegacyTier = (tier) => {
+  return tier || 'Explore';
 };

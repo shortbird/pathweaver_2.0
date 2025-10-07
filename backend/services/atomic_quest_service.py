@@ -61,21 +61,24 @@ class AtomicQuestService:
                     'task_already_completed': True
                 }
 
-            # Get task details for XP calculation
-            task_details = self.supabase.table('quest_tasks')\
-                .select('id, xp_amount, pillar, is_required')\
+            # Get user-specific task details for XP calculation (personalized quest system)
+            task_details = self.supabase.table('user_quest_tasks')\
+                .select('id, xp_value, pillar, is_required')\
                 .eq('id', task_id)\
                 .eq('quest_id', quest_id)\
+                .eq('user_id', user_id)\
                 .single()\
                 .execute()
 
             if not task_details.data:
                 return {
                     'success': False,
-                    'error': 'Task not found'
+                    'error': 'Task not found or not owned by you'
                 }
 
             task = task_details.data
+            # Map xp_value to xp_amount for backwards compatibility
+            task['xp_amount'] = task.get('xp_value', 100)
 
             # Create task completion record (this acts as our lock)
             completion_data = {
@@ -230,18 +233,23 @@ class AtomicQuestService:
             Dict with all_tasks, completed_tasks, required_tasks
         """
         try:
-            # Get all tasks for the quest
-            all_tasks = self.supabase.table('quest_tasks')\
-                .select('id, xp_amount, pillar, is_required')\
+            # Get all user-specific tasks for the quest (personalized quest system)
+            all_tasks = self.supabase.table('user_quest_tasks')\
+                .select('id, xp_value, pillar, is_required')\
                 .eq('quest_id', quest_id)\
+                .eq('user_id', user_id)\
                 .execute()
 
             # Get all completed tasks for this user and quest
             completed_tasks = self.supabase.table('quest_task_completions')\
-                .select('task_id')\
+                .select('user_quest_task_id')\
                 .eq('user_id', user_id)\
                 .eq('quest_id', quest_id)\
                 .execute()
+
+            # Map xp_value to xp_amount for backwards compatibility
+            for task in (all_tasks.data or []):
+                task['xp_amount'] = task.get('xp_value', 100)
 
             # Filter required tasks
             required_tasks = [task for task in all_tasks.data if task.get('is_required')]

@@ -103,52 +103,58 @@ class Config:
     STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
     
     # Subscription tier price IDs - Monthly
-    STRIPE_FREE_PRICE_ID = None  # Free tier has no Stripe price
-    STRIPE_SUPPORTED_MONTHLY_PRICE_ID = os.getenv('STRIPE_SUPPORTED_MONTHLY_PRICE_ID', os.getenv('STRIPE_SUPPORTED_PRICE_ID'))  # $39.99/month
-    STRIPE_ACADEMY_MONTHLY_PRICE_ID = os.getenv('STRIPE_ACADEMY_MONTHLY_PRICE_ID', os.getenv('STRIPE_ACADEMY_PRICE_ID'))  # $499.99/month
-    
+    STRIPE_EXPLORE_PRICE_ID = None  # Free tier has no Stripe price
+    STRIPE_ACCELERATE_MONTHLY_PRICE_ID = os.getenv('STRIPE_ACCELERATE_MONTHLY_PRICE_ID', os.getenv('STRIPE_SUPPORTED_MONTHLY_PRICE_ID'))  # $39.99/month
+    STRIPE_ACHIEVE_MONTHLY_PRICE_ID = os.getenv('STRIPE_ACHIEVE_MONTHLY_PRICE_ID')  # $199.99/month
+    STRIPE_EXCEL_MONTHLY_PRICE_ID = os.getenv('STRIPE_EXCEL_MONTHLY_PRICE_ID', os.getenv('STRIPE_ACADEMY_MONTHLY_PRICE_ID'))  # $499.99/month
+
     # Subscription tier price IDs - Yearly (with discount)
-    STRIPE_SUPPORTED_YEARLY_PRICE_ID = os.getenv('STRIPE_SUPPORTED_YEARLY_PRICE_ID')  # $399.99/year (~17% off)
-    STRIPE_ACADEMY_YEARLY_PRICE_ID = os.getenv('STRIPE_ACADEMY_YEARLY_PRICE_ID')  # $4999.99/year (~17% off)
-    
-    # Legacy price IDs (kept for backwards compatibility)
-    STRIPE_PRICE_ID_MONTHLY = os.getenv('STRIPE_PRICE_ID_MONTHLY')
-    STRIPE_PRICE_ID_YEARLY = os.getenv('STRIPE_PRICE_ID_YEARLY')
-    STRIPE_SUPPORTED_PRICE_ID = STRIPE_SUPPORTED_MONTHLY_PRICE_ID  # Backwards compatibility
-    STRIPE_ACADEMY_PRICE_ID = STRIPE_ACADEMY_MONTHLY_PRICE_ID  # Backwards compatibility
-    
+    STRIPE_ACCELERATE_YEARLY_PRICE_ID = os.getenv('STRIPE_ACCELERATE_YEARLY_PRICE_ID', os.getenv('STRIPE_SUPPORTED_YEARLY_PRICE_ID'))  # ~17% off
+    STRIPE_ACHIEVE_YEARLY_PRICE_ID = os.getenv('STRIPE_ACHIEVE_YEARLY_PRICE_ID')  # ~17% off
+    STRIPE_EXCEL_YEARLY_PRICE_ID = os.getenv('STRIPE_EXCEL_YEARLY_PRICE_ID', os.getenv('STRIPE_ACADEMY_YEARLY_PRICE_ID'))  # ~17% off
+
     # Stripe configuration mapping with billing periods
     STRIPE_TIER_PRICES = {
-        'free': {'monthly': None, 'yearly': None},
-        'supported': {
-            'monthly': STRIPE_SUPPORTED_MONTHLY_PRICE_ID,
-            'yearly': STRIPE_SUPPORTED_YEARLY_PRICE_ID
+        'Explore': {'monthly': None, 'yearly': None},
+        'Accelerate': {
+            'monthly': STRIPE_ACCELERATE_MONTHLY_PRICE_ID,
+            'yearly': STRIPE_ACCELERATE_YEARLY_PRICE_ID
         },
-        'academy': {
-            'monthly': STRIPE_ACADEMY_MONTHLY_PRICE_ID,
-            'yearly': STRIPE_ACADEMY_YEARLY_PRICE_ID
+        'Achieve': {
+            'monthly': STRIPE_ACHIEVE_MONTHLY_PRICE_ID,
+            'yearly': STRIPE_ACHIEVE_YEARLY_PRICE_ID
+        },
+        'Excel': {
+            'monthly': STRIPE_EXCEL_MONTHLY_PRICE_ID,
+            'yearly': STRIPE_EXCEL_YEARLY_PRICE_ID
         }
     }
-    
+
     # Tier features and limits
     TIER_FEATURES = {
-        'free': {
-            'name': 'Free',
+        'Explore': {
+            'name': 'Explore',
             'price_monthly': 0,
             'max_quests': 5,
             'features': ['Basic quest access', 'Public diploma page', 'Community support']
         },
-        'supported': {
-            'name': 'Supported',
+        'Accelerate': {
+            'name': 'Accelerate',
             'price_monthly': 39.99,
             'max_quests': None,  # Unlimited
             'features': ['Unlimited quests', 'Priority support', 'Advanced analytics', 'Custom quest submissions']
         },
-        'academy': {
-            'name': 'Academy',
+        'Achieve': {
+            'name': 'Achieve',
+            'price_monthly': 199.99,
+            'max_quests': None,  # Unlimited
+            'features': ['Everything in Accelerate', 'Team collaboration', 'Advanced AI tutor', 'Custom learning paths']
+        },
+        'Excel': {
+            'name': 'Excel',
             'price_monthly': 499.99,
             'max_quests': None,  # Unlimited
-            'features': ['Everything in Supported', '1-on-1 mentorship', 'Custom learning paths', 'Verified certificates']
+            'features': ['Everything in Achieve', '1-on-1 mentorship', 'Accredited diploma', 'Verified certificates']
         }
     }
     

@@ -153,18 +153,16 @@ def require_paid_tier(f):
             if not user.data or len(user.data) == 0:
                 raise AuthorizationError('User not found')
 
-            subscription_tier = user.data[0].get('subscription_tier', 'free')
+            subscription_tier = user.data[0].get('subscription_tier', 'Explore')
 
-            # Allow paid tiers based on actual database schema
-            # Database schema: ['explorer', 'creator', 'visionary', 'enterprise'] plus legacy values
-            # Where: creator/premium = Supported tier, visionary/enterprise = Academy tier
-            allowed_tiers = ['creator', 'visionary', 'enterprise', 'premium', 'supported', 'academy']
+            # Allow paid tiers: Accelerate, Achieve, Excel (Explore is free)
+            allowed_tiers = ['Accelerate', 'Achieve', 'Excel']
             print(f"[REQUIRE_PAID_TIER] User {user_id} has tier: '{subscription_tier}', allowed tiers: {allowed_tiers}", file=sys.stderr, flush=True)
             if subscription_tier not in allowed_tiers:
                 return jsonify({
                     'error': 'subscription_required',
-                    'message': 'This feature requires a Supported or Academy subscription',
-                    'required_tier': 'supported',
+                    'message': 'This feature requires a paid subscription (Accelerate, Achieve, or Excel)',
+                    'required_tier': 'Accelerate',
                     'current_tier': subscription_tier,
                     'upgrade_url': '/subscription'
                 }), 403
