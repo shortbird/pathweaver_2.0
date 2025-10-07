@@ -62,10 +62,6 @@ const HomePage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
 
-  // Get tier data
-  const accelerateTier = getTierByKey(tiers, 'Accelerate')
-  const excelTier = getTierByKey(tiers, 'Excel')
-
   const activities = [
     'Piano Lessons',
     'Community Sports',
@@ -725,67 +721,56 @@ const HomePage = () => {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Free Tier */}
-            <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 flex flex-col">
-              <h3 className="text-2xl font-bold mb-2">Free</h3>
-              <p className="text-3xl font-bold mb-1">$0</p>
-              <p className="text-gray-600 mb-6">Explore at your own pace</p>
-              <div className="flex-grow">
-                <p className="text-gray-700 mb-4">Track your learning journey</p>
-              </div>
-              <Link 
-                to="/register" 
-                className="block w-full bg-gray-100 text-gray-700 hover:bg-gray-200 py-3 px-6 rounded-lg font-semibold transition-colors text-center"
-              >
-                Start Free
-              </Link>
+          {tiersLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
             </div>
-
-            {/* Supported Tier */}
-            <div className="bg-white rounded-xl shadow-lg p-6 sm:p-8 border-2 border-[#ef597b] relative transform scale-105 flex flex-col">
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <span className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs px-4 py-1 rounded-full inline-block font-bold">
-                  RECOMMENDED
-                </span>
-              </div>
-              <h3 className="text-2xl font-bold mb-2">Supported</h3>
-              <p className="text-3xl font-bold mb-1">{accelerateTier ? formatPrice(accelerateTier.price_monthly) : '$50'}<span className="text-lg font-normal text-gray-600">/mo</span></p>
-              <p className="text-gray-600 mb-6">Get your diploma & support</p>
-              <div className="flex-grow">
-                <p className="text-gray-700 font-semibold mb-4">✓ Portfolio Diploma</p>
-                <p className="text-gray-700 mb-4">✓ Educator support</p>
-              </div>
-              <Link 
-                to="/register" 
-                className="block w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-all text-center"
-              >
-                Get Supported
-              </Link>
+          ) : (
+            <div className="grid md:grid-cols-4 gap-6">
+              {tiers?.slice(0, 4).map((tier) => (
+                <div
+                  key={tier.id}
+                  className={`bg-white rounded-xl shadow-sm p-6 sm:p-8 flex flex-col relative ${
+                    tier.badge_text ? (tier.badge_color === 'gradient' ? 'border-2 border-[#ef597b] transform scale-105 shadow-lg' : '') : ''
+                  }`}
+                >
+                  {tier.badge_text && (
+                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                      <span className={`text-white text-xs px-4 py-1 rounded-full inline-block font-bold ${
+                        tier.badge_color === 'gradient'
+                          ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b]'
+                          : tier.badge_color === 'green'
+                          ? 'bg-green-500'
+                          : 'bg-gray-500'
+                      }`}>
+                        {tier.badge_text}
+                      </span>
+                    </div>
+                  )}
+                  <h3 className="text-2xl font-bold mb-2">{tier.display_name}</h3>
+                  <p className="text-3xl font-bold mb-1">{formatPrice(tier.price_monthly)}<span className="text-lg font-normal text-gray-600">/mo</span></p>
+                  <p className="text-gray-600 mb-6">{tier.description}</p>
+                  <div className="flex-grow">
+                    {tier.features?.slice(0, 2).map((feature, index) => (
+                      <p key={index} className={`mb-4 ${feature.toLowerCase().includes('diploma') ? 'text-gray-700 font-semibold' : 'text-gray-700'}`}>
+                        ✓ {feature}
+                      </p>
+                    ))}
+                  </div>
+                  <Link
+                    to="/register"
+                    className={`block w-full py-3 px-6 rounded-lg font-bold transition-all text-center ${
+                      tier.tier_key === 'Explore'
+                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        : 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg'
+                    }`}
+                  >
+                    {tier.tier_key === 'Explore' ? 'Start Free' : `Get ${tier.display_name}`}
+                  </Link>
+                </div>
+              ))}
             </div>
-
-            {/* Academy Tier */}
-            <div className="bg-white rounded-xl shadow-sm p-6 sm:p-8 relative flex flex-col">
-              <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                <span className="bg-green-500 text-white text-xs px-4 py-1 rounded-full inline-block font-bold">
-                  ACCREDITED
-                </span>
-              </div>
-              <h3 className="text-2xl font-bold mb-2">Academy</h3>
-              <p className="text-3xl font-bold mb-1">{excelTier ? formatPrice(excelTier.price_monthly) : '$600'}<span className="text-lg font-normal text-gray-600">/mo</span></p>
-              <p className="text-gray-600 mb-6">Personalized, online private school</p>
-              <div className="flex-grow">
-                <p className="text-gray-700 font-semibold mb-4">✓ Accredited diploma</p>
-                <p className="text-gray-700 mb-4">✓ 1-on-1 teacher support</p>
-              </div>
-              <Link 
-                to="/register" 
-                className="block w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-colors text-center"
-              >
-                Join Academy
-              </Link>
-            </div>
-          </div>
+          )}
 
           {/* View full details button */}
           <div className="text-center mt-8">
@@ -895,42 +880,49 @@ const HomePage = () => {
                 <thead>
                   <tr>
                     <th className="border-b-2 border-gray-200 p-4 text-left font-semibold text-gray-700">Features</th>
-                    <th className="border-b-2 border-gray-200 p-4 text-center">
-                      <div className="font-bold text-xl">Free</div>
-                      <div className="text-2xl font-bold mt-1">$0</div>
-                      <div className="text-sm text-gray-600">Forever</div>
-                    </th>
-                    <th className="border-b-2 border-gray-200 p-4 text-center bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">
-                      <div className="font-bold text-xl text-[#ef597b]">Supported</div>
-                      <div className="text-2xl font-bold mt-1">{accelerateTier ? formatPrice(accelerateTier.price_monthly) : '$50'}</div>
-                      <div className="text-sm text-gray-600">per month</div>
-                      <div className="mt-2">
-                        <span className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs px-3 py-1 rounded-full font-semibold">
-                          MOST POPULAR
-                        </span>
-                      </div>
-                    </th>
-                    <th className="border-b-2 border-gray-200 p-4 text-center">
-                      <div className="font-bold text-xl text-green-600">Academy</div>
-                      <div className="text-2xl font-bold mt-1">{excelTier ? formatPrice(excelTier.price_monthly) : '$600'}</div>
-                      <div className="text-sm text-gray-600">per month</div>
-                      <div className="mt-2">
-                        <span className="bg-green-500 text-white text-xs px-3 py-1 rounded-full font-semibold">
-                          ACCREDITED
-                        </span>
-                      </div>
-                    </th>
+                    {tiers?.slice(0, 4).map((tier) => (
+                      <th
+                        key={tier.id}
+                        className={`border-b-2 border-gray-200 p-4 text-center ${
+                          tier.badge_color === 'gradient' ? 'bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5' : ''
+                        }`}
+                      >
+                        <div className={`font-bold text-xl ${
+                          tier.badge_color === 'gradient' ? 'text-[#ef597b]' : tier.badge_color === 'green' ? 'text-green-600' : ''
+                        }`}>
+                          {tier.display_name}
+                        </div>
+                        <div className="text-2xl font-bold mt-1">{formatPrice(tier.price_monthly)}</div>
+                        <div className="text-sm text-gray-600">
+                          {tier.tier_key === 'Explore' ? 'Forever' : 'per month'}
+                        </div>
+                        {tier.badge_text && (
+                          <div className="mt-2">
+                            <span className={`text-white text-xs px-3 py-1 rounded-full font-semibold ${
+                              tier.badge_color === 'gradient'
+                                ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b]'
+                                : tier.badge_color === 'green'
+                                ? 'bg-green-500'
+                                : 'bg-gray-500'
+                            }`}>
+                              {tier.badge_text}
+                            </span>
+                          </div>
+                        )}
+                      </th>
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
                   {/* Core Features */}
                   <tr className="border-b border-gray-100">
-                    <td colSpan="4" className="bg-gray-50 p-3 font-semibold text-gray-700">Core Features</td>
+                    <td colSpan="5" className="bg-gray-50 p-3 font-semibold text-gray-700">Core Features</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700">Access to Quest Library</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
                     <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
@@ -938,11 +930,13 @@ const HomePage = () => {
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
                     <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700">Submit Evidence for Quests</td>
                     <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
@@ -960,7 +954,7 @@ const HomePage = () => {
                   
                   {/* Support & Community */}
                   <tr className="border-b border-gray-100">
-                    <td colSpan="4" className="bg-gray-50 p-3 font-semibold text-gray-700">Support & Community</td>
+                    <td colSpan="5" className="bg-gray-50 p-3 font-semibold text-gray-700">Support & Community</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700">Community Forum Access</td>
@@ -989,7 +983,7 @@ const HomePage = () => {
                   
                   {/* Academy Exclusive */}
                   <tr className="border-b border-gray-100">
-                    <td colSpan="4" className="bg-gray-50 p-3 font-semibold text-gray-700">Academy Exclusive Features</td>
+                    <td colSpan="5" className="bg-gray-50 p-3 font-semibold text-gray-700">Academy Exclusive Features</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700 font-semibold">Accredited High School Diploma</td>
