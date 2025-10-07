@@ -5,13 +5,15 @@ The system was migrated from global `quest_tasks` to personalized `user_quest_ta
 
 ## Fixed (2025-10-06)
 - ✅ [backend/services/badge_service.py](backend/services/badge_service.py) - Updated to use user_quest_tasks + quest_task_completions
+- ✅ [backend/routes/tasks.py](backend/routes/tasks.py#L297-L347) - Fixed quest completion logic to use personalized tasks
+- ✅ [backend/services/atomic_quest_service.py](backend/services/atomic_quest_service.py#L65-L81) - Updated task detail queries to user_quest_tasks
+- ✅ [backend/services/atomic_quest_service.py](backend/services/atomic_quest_service.py#L236-L260) - Updated completion data queries
 
 ## Critical Issues Requiring Immediate Fix
 
-### 1. Task Completion Logic (HIGH PRIORITY)
+### 1. ~~Task Completion Logic~~ (FIXED)
 **File**: [backend/routes/tasks.py](backend/routes/tasks.py#L298-L344)
-**Issue**: Lines 298-344 query non-existent `quest_tasks` table to check quest completion
-**Impact**: Quest completion detection broken - users can't complete quests
+**Status**: ✅ FIXED - Now uses user_quest_tasks and quest_task_completions
 **Fix Required**:
 ```python
 # Replace lines 298-308 with:
@@ -41,7 +43,11 @@ all_task_ids = {t['id'] for t in all_tasks.data}
 completed_task_ids = {t['user_quest_task_id'] for t in completed_tasks.data}
 ```
 
-### 2. Task Suggestions (MEDIUM PRIORITY)
+### 2. ~~Atomic Quest Service~~ (FIXED)
+**File**: [backend/services/atomic_quest_service.py](backend/services/atomic_quest_service.py)
+**Status**: ✅ FIXED - Now uses user_quest_tasks for task lookups
+
+### 3. Task Suggestions (MEDIUM PRIORITY - Legacy Feature)
 **Files**:
 - [backend/routes/tasks.py](backend/routes/tasks.py#L428-L432) - `/@require_auth POST /tasks/<task_id>/suggest`
 - [backend/routes/tasks.py](backend/routes/tasks.py#L532-L545) - Creates task suggestions in quest_tasks

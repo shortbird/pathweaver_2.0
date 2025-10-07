@@ -10,7 +10,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     last_name: user.last_name || '',
     email: user.email || '',
     role: user.role || 'student',
-    subscription_tier: user.subscription_tier || 'free',
+    subscription_tier: user.subscription_tier || 'Explore',
     subscription_expires: user.subscription_expires || ''
   })
   const [roleChangeReason, setRoleChangeReason] = useState('')
@@ -85,9 +85,10 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
   const handleUpdateSubscription = async () => {
     const tierDisplayNames = {
-      free: 'Free',
-      supported: 'Supported',
-      academy: 'Academy'
+      Explore: 'Explore',
+      Accelerate: 'Accelerate',
+      Achieve: 'Achieve',
+      Excel: 'Excel'
     };
     const displayName = tierDisplayNames[formData.subscription_tier] || formData.subscription_tier;
     if (window.confirm(`Change subscription to ${displayName}?`)) {
@@ -350,9 +351,10 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                   onChange={handleInputChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
-                  <option value="free">Free</option>
-                  <option value="supported">Supported ($39.99/month)</option>
-                  <option value="academy">Academy ($499.99/month)</option>
+                  <option value="Explore">Explore (Free)</option>
+                  <option value="Accelerate">Accelerate ($39.99/month)</option>
+                  <option value="Achieve">Achieve ($199.99/month)</option>
+                  <option value="Excel">Excel ($499.99/month)</option>
                 </select>
               </div>
               <div>
