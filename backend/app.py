@@ -144,6 +144,16 @@ try:
 except Exception as e:
     print(f"Warning: AI Quest Review routes not available: {e}")
 
+# Register Tier Management blueprints
+try:
+    from routes.admin import tier_management
+    from routes import tiers
+    app.register_blueprint(tier_management.bp)  # /api/v3/admin/tiers (admin)
+    app.register_blueprint(tiers.bp)  # /api/tiers (public)
+    print("Tier Management routes registered successfully")
+except Exception as e:
+    print(f"Warning: Tier Management routes not available: {e}")
+
 # Register Personalized Quest System blueprints
 try:
     from routes import quest_personalization, task_collaboration

@@ -4,11 +4,13 @@ import { useAuth } from '../contexts/AuthContext'
 import { CheckCircleIcon } from '@heroicons/react/24/solid'
 import api from '../services/api'
 import toast from 'react-hot-toast'
+import { useSubscriptionTiers, getTierByKey } from '../hooks/useSubscriptionTiers'
 
 const SubscriptionSuccess = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { updateUser, refreshUser, user } = useAuth()
+  const { data: tiers } = useSubscriptionTiers()
   const [loading, setLoading] = useState(true)
   const [subscriptionDetails, setSubscriptionDetails] = useState(null)
   const [manualRefreshAvailable, setManualRefreshAvailable] = useState(false)
@@ -36,24 +38,11 @@ const SubscriptionSuccess = () => {
             // Track subscription conversion for Meta Pixel
             try {
               if (typeof fbq !== 'undefined') {
-                // Get subscription value based on tier
+                // Get subscription value from database tiers
                 let subscriptionValue = 0;
-                switch (newTier) {
-                  case 'supported':
-                    subscriptionValue = 39.99;
-                    break;
-                  case 'academy':
-                    subscriptionValue = 499.99;
-                    break;
-                  // Legacy tier mappings
-                  case 'creator':
-                    subscriptionValue = 39.99; // Maps to supported
-                    break;
-                  case 'visionary':
-                    subscriptionValue = 499.99; // Maps to academy
-                    break;
-                  default:
-                    subscriptionValue = 0;
+                const tierData = getTierByKey(tiers, newTier);
+                if (tierData) {
+                  subscriptionValue = parseFloat(tierData.price_monthly);
                 }
 
                 fbq('track', 'Subscribe', {

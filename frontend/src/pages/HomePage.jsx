@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Play, Sparkles, Trophy, Info, X, Award, BookOpen, Users, Music, Code, PenTool, Calculator, CheckCircle, ChevronLeft, ChevronRight, Camera, Palette, Microscope, Globe, Heart } from 'lucide-react'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
+import { useSubscriptionTiers, getTierByKey, formatPrice } from '../hooks/useSubscriptionTiers'
 
 // Activity Card Component for the scrolling section
 const ActivityCard = ({ activity, icon: Icon, color, description, skills, credit, subject }) => (
@@ -44,6 +45,7 @@ const ActivityCard = ({ activity, icon: Icon, color, description, skills, credit
 
 const HomePage = () => {
   const { isAuthenticated } = useAuth()
+  const { data: tiers, isLoading: tiersLoading } = useSubscriptionTiers()
   const [pricingModalOpen, setPricingModalOpen] = useState(false)
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
   const [currentActivity, setCurrentActivity] = useState(0)
@@ -59,6 +61,10 @@ const HomePage = () => {
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+
+  // Get tier data
+  const accelerateTier = getTierByKey(tiers, 'Accelerate')
+  const excelTier = getTierByKey(tiers, 'Excel')
 
   const activities = [
     'Piano Lessons',
@@ -744,7 +750,7 @@ const HomePage = () => {
                 </span>
               </div>
               <h3 className="text-2xl font-bold mb-2">Supported</h3>
-              <p className="text-3xl font-bold mb-1">$39.99<span className="text-lg font-normal text-gray-600">/mo</span></p>
+              <p className="text-3xl font-bold mb-1">{accelerateTier ? formatPrice(accelerateTier.price_monthly) : '$50'}<span className="text-lg font-normal text-gray-600">/mo</span></p>
               <p className="text-gray-600 mb-6">Get your diploma & support</p>
               <div className="flex-grow">
                 <p className="text-gray-700 font-semibold mb-4">✓ Portfolio Diploma</p>
@@ -766,7 +772,7 @@ const HomePage = () => {
                 </span>
               </div>
               <h3 className="text-2xl font-bold mb-2">Academy</h3>
-              <p className="text-3xl font-bold mb-1">$499.99<span className="text-lg font-normal text-gray-600">/mo</span></p>
+              <p className="text-3xl font-bold mb-1">{excelTier ? formatPrice(excelTier.price_monthly) : '$600'}<span className="text-lg font-normal text-gray-600">/mo</span></p>
               <p className="text-gray-600 mb-6">Personalized, online private school</p>
               <div className="flex-grow">
                 <p className="text-gray-700 font-semibold mb-4">✓ Accredited diploma</p>
@@ -896,7 +902,7 @@ const HomePage = () => {
                     </th>
                     <th className="border-b-2 border-gray-200 p-4 text-center bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">
                       <div className="font-bold text-xl text-[#ef597b]">Supported</div>
-                      <div className="text-2xl font-bold mt-1">$39.99</div>
+                      <div className="text-2xl font-bold mt-1">{accelerateTier ? formatPrice(accelerateTier.price_monthly) : '$50'}</div>
                       <div className="text-sm text-gray-600">per month</div>
                       <div className="mt-2">
                         <span className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs px-3 py-1 rounded-full font-semibold">
@@ -906,7 +912,7 @@ const HomePage = () => {
                     </th>
                     <th className="border-b-2 border-gray-200 p-4 text-center">
                       <div className="font-bold text-xl text-green-600">Academy</div>
-                      <div className="text-2xl font-bold mt-1">$499.99</div>
+                      <div className="text-2xl font-bold mt-1">{excelTier ? formatPrice(excelTier.price_monthly) : '$600'}</div>
                       <div className="text-sm text-gray-600">per month</div>
                       <div className="mt-2">
                         <span className="bg-green-500 text-white text-xs px-3 py-1 rounded-full font-semibold">

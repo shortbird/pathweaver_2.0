@@ -3,9 +3,11 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import toast from 'react-hot-toast'
+import { useSubscriptionTiers, formatPrice, calculateYearlySavings } from '../hooks/useSubscriptionTiers'
 
 const SubscriptionPage = () => {
   const { user } = useAuth()
+  const { data: tiers, isLoading: tiersLoading } = useSubscriptionTiers()
   const [loadingTier, setLoadingTier] = useState(null)
   const [canceling, setCanceling] = useState(false)
   const [subscriptionStatus, setSubscriptionStatus] = useState(null)
@@ -117,209 +119,116 @@ const SubscriptionPage = () => {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-4 gap-6">
-          {/* Explore (Free) Plan */}
-          <div className="bg-white rounded-xl shadow-sm p-6 hover:shadow-lg transition-shadow flex flex-col">
-            <h3 className="text-2xl font-bold mb-2">Explore</h3>
-            <p className="text-3xl font-bold mb-1">$0</p>
-            <p className="text-gray-600 mb-6 text-sm">Perfect for exploring</p>
-            <ul className="space-y-2 mb-8 flex-grow text-sm">
-              <li className="flex items-start">
-                <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-gray-700">Quest library access</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-gray-700">Track quests</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-                <span className="text-gray-500 line-through text-xs">Earn XP</span>
-              </li>
-            </ul>
-            {currentTier === 'Explore' ? (
-              <button className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold cursor-not-allowed text-sm" disabled>
-                Current Plan
-              </button>
-            ) : (
-              <Link to="/register" className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 px-4 rounded-lg font-semibold transition-colors text-center text-sm">
-                Start Free
-              </Link>
-            )}
+        {tiersLoading ? (
+          <div className="flex justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
           </div>
+        ) : (
+          <div className="grid md:grid-cols-4 gap-6">
+            {tiers?.map((tier) => {
+              const isCurrentTier = currentTier === tier.tier_key
+              const monthlyPrice = parseFloat(tier.price_monthly)
+              const yearlyPrice = tier.price_yearly ? parseFloat(tier.price_yearly) : null
+              const savings = yearlyPrice ? calculateYearlySavings(monthlyPrice, yearlyPrice) : null
 
-          {/* Accelerate Plan */}
-          <div className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow border-2 border-[#ef597b] relative flex flex-col">
-            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-              <span className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs px-3 py-1 rounded-full font-bold">
-                POPULAR
-              </span>
-            </div>
-            <h3 className="text-2xl font-bold mb-2">Accelerate</h3>
-            <div className="mb-1">
-              {billingPeriod === 'monthly' ? (
-                <p className="text-3xl font-bold">$39.99<span className="text-base font-normal text-gray-600">/mo</span></p>
-              ) : (
-                <div>
-                  <p className="text-3xl font-bold">$449.99<span className="text-base font-normal text-gray-600">/yr</span></p>
-                  <p className="text-xs text-green-600 font-medium">$37.50/mo • Save $30/yr</p>
-                </div>
-              )}
-            </div>
-            <p className="text-gray-600 mb-6 text-sm">For dedicated learners</p>
-            <ul className="space-y-2 mb-8 flex-grow text-sm">
-              <li className="flex items-start">
-                <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-gray-700">Educator support</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-gray-700 font-semibold">Portfolio Diploma</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-gray-700">Team collaboration</span>
-              </li>
-            </ul>
-            {currentTier === 'Accelerate' ? (
-              <div className="space-y-2">
-                <button onClick={handleBillingPortal} disabled={loading} className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-2 px-4 rounded-lg font-bold transition-all text-sm">
-                  {loading ? 'Loading...' : 'Manage'}
-                </button>
-                {subscriptionStatus?.status !== 'canceling' && (
-                  <button onClick={handleCancel} disabled={canceling} className="w-full text-red-600 hover:bg-red-50 py-2 px-4 rounded-lg font-medium transition-all text-xs">
-                    {canceling ? 'Canceling...' : 'Cancel'}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <button onClick={() => handleUpgrade('Accelerate', billingPeriod)} disabled={loadingTier !== null} className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-2 px-4 rounded-lg font-bold transition-all text-sm disabled:opacity-75">
-                {loadingTier === 'Accelerate' ? 'Processing...' : 'Get Accelerate'}
-              </button>
-            )}
-          </div>
+              return (
+                <div
+                  key={tier.id}
+                  className={`bg-white rounded-xl shadow-sm p-6 hover:shadow-lg transition-shadow flex flex-col relative ${
+                    tier.badge_text ? (tier.badge_color === 'gradient' ? 'border-2 border-[#ef597b]' : '') : ''
+                  }`}
+                >
+                  {tier.badge_text && (
+                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                      <span className={`text-white text-xs px-3 py-1 rounded-full font-bold ${
+                        tier.badge_color === 'gradient'
+                          ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b]'
+                          : tier.badge_color === 'green'
+                          ? 'bg-green-500'
+                          : 'bg-gray-500'
+                      }`}>
+                        {tier.badge_text}
+                      </span>
+                    </div>
+                  )}
 
-          {/* Achieve Plan */}
-          <div className="bg-white rounded-xl shadow-sm p-6 hover:shadow-lg transition-shadow flex flex-col">
-            <h3 className="text-2xl font-bold mb-2">Achieve</h3>
-            <div className="mb-1">
-              {billingPeriod === 'monthly' ? (
-                <p className="text-3xl font-bold">$199.99<span className="text-base font-normal text-gray-600">/mo</span></p>
-              ) : (
-                <div>
-                  <p className="text-3xl font-bold">$2,199.99<span className="text-base font-normal text-gray-600">/yr</span></p>
-                  <p className="text-xs text-green-600 font-medium">$183.33/mo • Save $200/yr</p>
-                </div>
-              )}
-            </div>
-            <p className="text-gray-600 mb-6 text-sm">Advanced learning</p>
-            <ul className="space-y-2 mb-8 flex-grow text-sm">
-              <li className="flex items-start">
-                <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-gray-700">Advanced AI tutor</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-gray-700">Priority support</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-gray-700">Custom paths</span>
-              </li>
-            </ul>
-            {currentTier === 'Achieve' ? (
-              <div className="space-y-2">
-                <button onClick={handleBillingPortal} disabled={loading} className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-2 px-4 rounded-lg font-bold transition-all text-sm">
-                  {loading ? 'Loading...' : 'Manage'}
-                </button>
-                {subscriptionStatus?.status !== 'canceling' && (
-                  <button onClick={handleCancel} disabled={canceling} className="w-full text-red-600 hover:bg-red-50 py-2 px-4 rounded-lg font-medium transition-all text-xs">
-                    {canceling ? 'Canceling...' : 'Cancel'}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <button onClick={() => handleUpgrade('Achieve', billingPeriod)} disabled={loadingTier !== null} className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-2 px-4 rounded-lg font-bold transition-all text-sm disabled:opacity-75">
-                {loadingTier === 'Achieve' ? 'Processing...' : 'Get Achieve'}
-              </button>
-            )}
-          </div>
+                  <h3 className="text-2xl font-bold mb-2">{tier.display_name}</h3>
 
-          {/* Excel Plan */}
-          <div className="bg-white rounded-xl shadow-sm p-6 hover:shadow-lg transition-shadow relative flex flex-col">
-            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-              <span className="bg-green-500 text-white text-xs px-3 py-1 rounded-full font-bold">
-                ACCREDITED
-              </span>
-            </div>
-            <h3 className="text-2xl font-bold mb-2">Excel</h3>
-            <div className="mb-1">
-              {billingPeriod === 'monthly' ? (
-                <p className="text-3xl font-bold">$499.99<span className="text-base font-normal text-gray-600">/mo</span></p>
-              ) : (
-                <div>
-                  <p className="text-3xl font-bold">$5,499.99<span className="text-base font-normal text-gray-600">/yr</span></p>
-                  <p className="text-xs text-green-600 font-medium">$458.33/mo • Save $500/yr</p>
+                  <div className="mb-1">
+                    {billingPeriod === 'monthly' || !yearlyPrice ? (
+                      <p className="text-3xl font-bold">{formatPrice(monthlyPrice)}<span className="text-base font-normal text-gray-600">/mo</span></p>
+                    ) : (
+                      <div>
+                        <p className="text-3xl font-bold">{formatPrice(yearlyPrice)}<span className="text-base font-normal text-gray-600">/yr</span></p>
+                        {savings && (
+                          <p className="text-xs text-green-600 font-medium">
+                            ${savings.monthlyEquivalent}/mo • Save {savings.percent}%
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <p className="text-gray-600 mb-6 text-sm">{tier.description}</p>
+
+                  <ul className="space-y-2 mb-8 flex-grow text-sm">
+                    {tier.features?.map((feature, index) => (
+                      <li key={index} className="flex items-start">
+                        <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span className={`text-gray-700 ${feature.includes('Portfolio Diploma') || feature.includes('TWO diplomas') ? 'font-semibold' : ''}`}>
+                          {feature}
+                        </span>
+                      </li>
+                    ))}
+                    {tier.limitations?.map((limitation, index) => (
+                      <li key={`limit-${index}`} className="flex items-start">
+                        <svg className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                        <span className="text-gray-500 line-through text-xs">{limitation}</span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  {isCurrentTier ? (
+                    tier.tier_key === 'Explore' ? (
+                      <button className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold cursor-not-allowed text-sm" disabled>
+                        Current Plan
+                      </button>
+                    ) : (
+                      <div className="space-y-2">
+                        <button onClick={handleBillingPortal} disabled={loading} className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-2 px-4 rounded-lg font-bold transition-all text-sm">
+                          {loading ? 'Loading...' : 'Manage'}
+                        </button>
+                        {subscriptionStatus?.status !== 'canceling' && (
+                          <button onClick={handleCancel} disabled={canceling} className="w-full text-red-600 hover:bg-red-50 py-2 px-4 rounded-lg font-medium transition-all text-xs">
+                            {canceling ? 'Canceling...' : 'Cancel'}
+                          </button>
+                        )}
+                      </div>
+                    )
+                  ) : (
+                    tier.tier_key === 'Explore' ? (
+                      <Link to="/register" className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 px-4 rounded-lg font-semibold transition-colors text-center text-sm">
+                        Start Free
+                      </Link>
+                    ) : (
+                      <button
+                        onClick={() => handleUpgrade(tier.tier_key, billingPeriod)}
+                        disabled={loadingTier !== null}
+                        className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-2 px-4 rounded-lg font-bold transition-all text-sm disabled:opacity-75"
+                      >
+                        {loadingTier === tier.tier_key ? 'Processing...' : `Get ${tier.display_name}`}
+                      </button>
+                    )
+                  )}
                 </div>
-              )}
-            </div>
-            <p className="text-gray-600 mb-6 text-sm">Private school experience</p>
-            <ul className="space-y-2 mb-8 flex-grow text-sm">
-              <li className="flex items-start">
-                <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-gray-700 font-semibold">TWO diplomas</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-gray-700">1-on-1 mentorship</span>
-              </li>
-              <li className="flex items-start">
-                <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-gray-700">Business network</span>
-              </li>
-            </ul>
-            {currentTier === 'Excel' ? (
-              <div className="space-y-2">
-                <button onClick={handleBillingPortal} disabled={loading} className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-2 px-4 rounded-lg font-bold transition-all text-sm">
-                  {loading ? 'Loading...' : 'Manage'}
-                </button>
-                {subscriptionStatus?.status !== 'canceling' && (
-                  <button onClick={handleCancel} disabled={canceling} className="w-full text-red-600 hover:bg-red-50 py-2 px-4 rounded-lg font-medium transition-all text-xs">
-                    {canceling ? 'Canceling...' : 'Cancel'}
-                  </button>
-                )}
-              </div>
-            ) : (
-              <button onClick={() => handleUpgrade('Excel', billingPeriod)} disabled={loadingTier !== null} className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-2 px-4 rounded-lg font-bold transition-all text-sm disabled:opacity-75">
-                {loadingTier === 'Excel' ? 'Processing...' : 'Join Excel'}
-              </button>
-            )}
+              )
+            })}
           </div>
-        </div>
+        )}
       </div>
     </div>
   )

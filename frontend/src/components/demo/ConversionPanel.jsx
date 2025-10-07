@@ -1,30 +1,37 @@
 import React, { useState } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
 import { useNavigate } from 'react-router-dom';
-import { 
+import {
   Rocket, Gift, Shield, Star, ArrowRight, CheckCircle, X,
   Users, Calendar, Trophy, Sparkles, Lock, Globe, GraduationCap
 } from 'lucide-react';
+import { useSubscriptionTiers, getTierByKey, formatPrice } from '../../hooks/useSubscriptionTiers';
 
 const ConversionPanel = () => {
   const { demoState, actions } = useDemo();
   const navigate = useNavigate();
+  const { data: dbTiers, isLoading: tiersLoading } = useSubscriptionTiers();
   const [selectedTier, setSelectedTier] = useState('supported');
   const [email, setEmail] = useState('');
+
+  // Map database tiers to demo tier structure
+  const exploreTier = getTierByKey(dbTiers, 'Explore');
+  const accelerateTier = getTierByKey(dbTiers, 'Accelerate');
+  const excelTier = getTierByKey(dbTiers, 'Excel');
 
   const tiers = [
     {
       id: 'free',
-      name: 'Free',
-      price: '$0',
+      name: exploreTier?.display_name || 'Free',
+      price: exploreTier ? formatPrice(exploreTier.price_monthly) : '$0',
       period: '',
-      description: 'Perfect for exploring the platform',
-      features: [
+      description: exploreTier?.description || 'Perfect for exploring the platform',
+      features: exploreTier?.features || [
         'Access quest library',
         'Track ongoing quests',
         'Mark tasks complete (no evidence submission)'
       ],
-      limitations: [
+      limitations: exploreTier?.limitations || [
         'XP earned',
         'Optio Portfolio Diploma'
       ],
@@ -33,38 +40,38 @@ const ConversionPanel = () => {
     },
     {
       id: 'supported',
-      name: 'Supported',
-      price: '$39.99',
+      name: accelerateTier?.display_name || 'Supported',
+      price: accelerateTier ? formatPrice(accelerateTier.price_monthly) : '$50',
       period: '/mo',
-      description: 'For dedicated learners ready to grow',
-      features: [
+      description: accelerateTier?.description || 'For dedicated learners ready to grow',
+      features: accelerateTier?.features || [
         'Everything in Free, plus:',
         'Access to a support team of Optio educators',
         'Unlimited access to all Optio quest features',
         'Team up with other Supported learners for XP bonuses',
         'Optio Portfolio Diploma'
       ],
-      limitations: [
+      limitations: accelerateTier?.limitations || [
         'Traditionally-accredited Diploma'
       ],
-      cta: 'Get Supported',
+      cta: `Get ${accelerateTier?.display_name || 'Supported'}`,
       recommended: true
     },
     {
       id: 'academy',
-      name: 'Academy',
-      price: '$499.99',
+      name: excelTier?.display_name || 'Academy',
+      price: excelTier ? formatPrice(excelTier.price_monthly) : '$600',
       period: '/mo',
-      description: 'A personalized private school experience',
-      features: [
+      description: excelTier?.description || 'A personalized private school experience',
+      features: excelTier?.features || [
         'Everything in Supported, plus:',
         'TWO diplomas: Optio Portfolio + Accredited HS Diploma',
         'Personal learning guide & 1-on-1 teacher support',
         'Regular check-ins with licensed educators',
         "Connect with Optio's network of business leaders and mentors"
       ],
-      limitations: [],
-      cta: 'Join Academy',
+      limitations: excelTier?.limitations || [],
+      cta: `Join ${excelTier?.display_name || 'Academy'}`,
       recommended: false,
       badge: 'ACCREDITED'
     }
