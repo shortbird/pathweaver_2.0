@@ -104,13 +104,11 @@ const QuestDetail = () => {
 
     enrollMutation.mutate(id, {
       onSuccess: async (data) => {
-        console.log('Enrollment successful:', data);
 
         // Force invalidate and refetch quest data
         queryClient.invalidateQueries(queryKeys.quests.detail(id));
         await refetchQuest();
 
-        console.log('Quest refetched, opening wizard');
 
         // Show personalization wizard after successful enrollment
         setTimeout(() => {

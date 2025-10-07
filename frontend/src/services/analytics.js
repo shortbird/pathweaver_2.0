@@ -10,9 +10,7 @@ export const initGA = () => {
         anonymize_ip: true, // GDPR compliance
       },
     });
-    console.log('Google Analytics initialized');
   } else {
-    console.log('Google Analytics not initialized (dev mode or missing ID)');
   }
 };
 

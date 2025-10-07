@@ -207,7 +207,6 @@ const ChatInterface = ({
 
   const showNotification = (message, type) => {
     // This would integrate with your existing notification system
-    console.log(`${type.toUpperCase()}: ${message}`);
   };
 
   const handleSelectConversation = async (conversationId) => {

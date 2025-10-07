@@ -53,24 +53,8 @@ const DashboardPage = () => {
   })
 
   // Listen for task completion events to refresh data
-  useEffect(() => {
-    const handleTaskComplete = () => {
-      refetchDashboard()
-    }
-
-    const handleQuestComplete = () => {
-      refetchDashboard()
-    }
-
-    // Listen for custom events that could be triggered from task completion
-    window.addEventListener('taskCompleted', handleTaskComplete)
-    window.addEventListener('questCompleted', handleQuestComplete)
-
-    return () => {
-      window.removeEventListener('taskCompleted', handleTaskComplete)
-      window.removeEventListener('questCompleted', handleQuestComplete)
-    }
-  }, [refetchDashboard])
+  // React Query will automatically refetch dashboard data when quest data is invalidated
+  // No need for custom window events
 
   // Show error state if dashboard fails to load
   if (dashboardError) {

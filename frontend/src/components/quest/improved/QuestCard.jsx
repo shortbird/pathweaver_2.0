@@ -28,7 +28,6 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
 
   // DEBUG: Log pillar data to see what we're receiving
   if (process.env.NODE_ENV === 'development') {
-    console.log(`[QuestCard] Quest: ${quest.title?.substring(0, 30)}, pillar_breakdown:`, pillarBreakdown);
   }
 
   const dominantPillar = Object.entries(pillarBreakdown).reduce((max, [pillar, xp]) =>

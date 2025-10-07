@@ -67,7 +67,6 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
     setError(null);
     try {
       const response = await api.post(`/api/quests/${questId}/start-personalization`, {});
-      console.log('Session started:', response.data);
       const newSessionId = response.data.session_id;
       if (!newSessionId) {
         throw new Error('No session ID returned from server');
@@ -98,14 +97,12 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
     setLoading(true);
     setError(null);
     try {
-      console.log('Generating tasks with:', { sessionId, selectedApproach, selectedInterests, crossCurricularSubjects });
       const response = await api.post(`/api/quests/${questId}/generate-tasks`, {
         session_id: sessionId,
         approach: selectedApproach,
         interests: selectedInterests,
         cross_curricular_subjects: crossCurricularSubjects
       });
-      console.log('Tasks generated:', response.data);
       const tasks = response.data.tasks;
       setGeneratedTasks(tasks);
       // Deselect all tasks by default - user must choose

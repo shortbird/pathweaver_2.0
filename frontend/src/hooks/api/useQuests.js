@@ -104,13 +104,8 @@ export const useCompleteTask = () => {
       return response.data
     },
     onSuccess: (data, variables) => {
-      // Invalidate all quest-related data
+      // Invalidate all quest-related data (React Query will auto-refetch)
       queryKeys.invalidateQuests(queryClient)
-
-      // Trigger custom event for other components
-      window.dispatchEvent(new CustomEvent('taskCompleted', {
-        detail: { taskId: variables.taskId, data }
-      }))
 
       toast.success('Task completed successfully!')
     },

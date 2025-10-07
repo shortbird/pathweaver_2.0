@@ -9,7 +9,6 @@ const MultiFormatEvidenceDisplay = ({ blocks = [] }) => {
   const [viewerContent, setViewerContent] = useState(null);
 
   // Debug logging
-  console.log('MultiFormatEvidenceDisplay received blocks:', blocks);
 
   // Sort blocks by order_index
   const sortedBlocks = blocks
@@ -30,7 +29,6 @@ const MultiFormatEvidenceDisplay = ({ blocks = [] }) => {
     })
     .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
 
-  console.log('Sorted and filtered blocks:', sortedBlocks);
 
   if (!sortedBlocks || sortedBlocks.length === 0) {
     return (

@@ -71,7 +71,6 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
       const { default: AIQuestGenerationModal } = await import('./AIQuestGenerationModal')
       setAIModalComponent(() => AIQuestGenerationModal)
     } catch (error) {
-      console.log('AI Modal not available:', error)
     }
   }
 

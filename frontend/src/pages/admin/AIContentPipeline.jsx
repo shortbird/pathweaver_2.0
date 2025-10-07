@@ -96,7 +96,6 @@ export default function AIContentPipeline() {
         config: {}
       });
       toast.success('Quality audit triggered');
-      console.log('Audit result:', response.data);
     } catch (error) {
       console.error('Audit error:', error);
       const errorMsg = error.response?.data?.error?.message || error.response?.data?.error || error.message || 'Failed to trigger audit';
@@ -111,7 +110,6 @@ export default function AIContentPipeline() {
     try {
       const response = await api.post('/api/admin/recurring/setup', {});
       toast.success('Recurring jobs scheduled');
-      console.log('Setup result:', response.data);
     } catch (error) {
       console.error('Setup error:', error);
       const errorMsg = error.response?.data?.error?.message || error.response?.data?.error || error.message || 'Failed to setup jobs';
