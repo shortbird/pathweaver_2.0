@@ -2,15 +2,15 @@ import { BadgePillarIcon } from './BadgePillarIcon';
 import { Trophy, Target } from 'lucide-react';
 
 /**
- * Updated pillar color gradients - removing yellow/orange per design guidelines
- * Using Optio brand gradient and complementary pink/purple shades
+ * Design system pillar color gradients - aligned with Optio brand
+ * Using exact design system colors for consistency
  */
 const pillarColors = {
-  'STEM & Logic': 'from-[#6d469b] to-[#ef597b]',        // Purple to pink
-  'Life & Wellness': 'from-green-500 to-emerald-600',   // Green shades
-  'Language & Communication': 'from-[#ef597b] to-[#6d469b]', // Pink to purple (reversed)
-  'Society & Culture': 'from-[#f8b3c5] to-[#ef597b]',   // Light pink to pink
-  'Arts & Creativity': 'from-[#ef597b] to-[#b794d6]'    // Pink to light purple
+  'STEM & Logic': 'from-pillar-stem to-blue-600',           // #2469D1
+  'Arts & Creativity': 'from-pillar-arts to-purple-600',    // #AF56E5
+  'Language & Communication': 'from-pillar-communication to-green-600',  // #3DA24A
+  'Society & Culture': 'from-pillar-society to-orange-600', // #FF9028
+  'Life & Wellness': 'from-pillar-life to-red-600'          // #E65C5C
 };
 
 /**

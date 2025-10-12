@@ -6,11 +6,11 @@ const BadgeCard = ({ badge, showProgress = false, userProgress = null }) => {
   const { id, name, description, icon, pillar, required_quest_count, tier } = badge;
 
   const pillarColors = {
-    'STEM & Logic': 'from-blue-500 to-indigo-600',
-    'Life & Wellness': 'from-green-500 to-emerald-600',
-    'Language & Communication': 'from-amber-500 to-orange-600',
-    'Society & Culture': 'from-purple-500 to-violet-600',
-    'Arts & Creativity': 'from-pink-500 to-rose-600',
+    'STEM & Logic': 'from-pillar-stem to-blue-600',
+    'Arts & Creativity': 'from-pillar-arts to-purple-600',
+    'Language & Communication': 'from-pillar-communication to-green-600',
+    'Society & Culture': 'from-pillar-society to-orange-600',
+    'Life & Wellness': 'from-pillar-life to-red-600',
   };
 
   const tierBadges = {

@@ -8,8 +8,11 @@ export default {
     extend: {
       fontFamily: {
         'sans': ['Poppins', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        'poppins': ['Poppins', 'sans-serif'],
+        'inter': ['Inter', 'sans-serif'],
       },
       colors: {
+        // Existing brand colors (keep for backward compatibility)
         primary: '#6d469b',
         'primary-dark': '#5a3a82',
         'primary-light': '#8058ac',
@@ -21,7 +24,31 @@ export default {
         secondary: '#FFCA3A',
         background: '#F8F9FA',
         text: '#212529',
-        border: '#DEE2E6'
+        border: '#DEE2E6',
+
+        // Design System: Brand colors
+        'optio-purple': '#6D469B',
+        'optio-pink': '#EF597B',
+
+        // Design System: Pillar colors
+        'pillar': {
+          'stem': '#2469D1',
+          'arts': '#AF56E5',
+          'communication': '#3DA24A',
+          'life': '#E65C5C',
+          'society': '#FF9028',
+        },
+
+        // Design System: Neutral palette
+        'neutral': {
+          50: '#F3EFF4',
+          100: '#EEEBEF',
+          300: '#BAB4BB',
+          400: '#908B92',
+          500: '#605C61',
+          700: '#3B383C',
+          900: '#1B191B',
+        },
       },
       backgroundImage: {
         'gradient-primary': 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)',
