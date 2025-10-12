@@ -85,8 +85,9 @@ class QuestOptimizationService:
 
         try:
             # Single query to get all task completions
-            completions = self.supabase.table('user_quest_tasks')\
-                .select('user_quest_id, quest_task_id')\
+            # Note: quest_task_completions tracks which user_quest_tasks are completed
+            completions = self.supabase.table('quest_task_completions')\
+                .select('user_quest_id, user_quest_task_id')\
                 .in_('user_quest_id', enrollment_ids)\
                 .execute()
 
@@ -94,7 +95,7 @@ class QuestOptimizationService:
             completion_map = {}
             for completion in completions.data or []:
                 enrollment_id = completion['user_quest_id']
-                task_id = completion['quest_task_id']
+                task_id = completion['user_quest_task_id']
 
                 if enrollment_id not in completion_map:
                     completion_map[enrollment_id] = set()
