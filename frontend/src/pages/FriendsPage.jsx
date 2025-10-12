@@ -25,6 +25,7 @@ const FriendsPage = () => {
   const {
     data: collaborationsData,
     isLoading: loadingCollaborations,
+    refetch: refetchCollaborations,
   } = useCollaborations(user?.id, {
     enabled: !!user?.id && hasFeatureAccess(user?.subscription_tier, 'supported'),
   });
@@ -298,10 +299,10 @@ const FriendsPage = () => {
               />
               <button
                 type="submit"
-                disabled={sending}
+                disabled={sendFriendRequestMutation.isPending}
                 className="btn-primary disabled:opacity-50"
               >
-                {sending ? 'Sending...' : 'Send Request'}
+                {sendFriendRequestMutation.isPending ? 'Sending...' : 'Send Request'}
               </button>
             </form>
           </div>
@@ -477,7 +478,7 @@ const FriendsPage = () => {
                 </div>
                 <button
                   onClick={() => {
-                    fetchTeamInvitations();
+                    refetchCollaborations();
                     toast.success('Refreshed team-up data');
                   }}
                   className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-sm font-medium hover:bg-gray-200 transition-colors"

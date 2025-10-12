@@ -10,7 +10,7 @@ from services.badge_service import BadgeService
 bp = Blueprint('badges', __name__, url_prefix='/api/badges')
 
 
-@bp.route('', methods=['GET'])
+@bp.route('', methods=['GET', 'OPTIONS'])
 def list_badges():
     """
     List all available badges (filtered by user level if authenticated).
@@ -19,6 +19,10 @@ def list_badges():
         - pillar: Filter by pillar (optional)
         - status: Filter by status (optional)
     """
+    # Handle OPTIONS preflight request
+    if request.method == 'OPTIONS':
+        return '', 200
+
     # Get optional filters from query params
     filters = {}
     if request.args.get('pillar'):
