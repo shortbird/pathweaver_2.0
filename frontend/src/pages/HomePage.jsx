@@ -944,14 +944,16 @@ const HomePage = () => {
                     <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700 font-semibold">Optio Portfolio Diploma</td>
                     <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-green-500 font-bold text-lg bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
                     <td className="p-4 text-center text-green-500 font-bold text-lg">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold text-lg">✓</td>
                   </tr>
-                  
+
                   {/* Support & Community */}
                   <tr className="border-b border-gray-100">
                     <td colSpan="5" className="bg-gray-50 p-3 font-semibold text-gray-700">Support & Community</td>
@@ -961,11 +963,13 @@ const HomePage = () => {
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
                     <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700">Educator Support Team</td>
                     <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
@@ -973,58 +977,67 @@ const HomePage = () => {
                     <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700">Custom Quest Submissions</td>
                     <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
+                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
-                  
-                  {/* Academy Exclusive */}
+
+                  {/* Top Tier Exclusive */}
                   <tr className="border-b border-gray-100">
-                    <td colSpan="5" className="bg-gray-50 p-3 font-semibold text-gray-700">Academy Exclusive Features</td>
+                    <td colSpan="5" className="bg-gray-50 p-3 font-semibold text-gray-700">Top Tier Exclusive Features</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700 font-semibold">Accredited High School Diploma</td>
                     <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-green-500 font-bold text-lg">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700">1-on-1 Licensed Teachers</td>
                     <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700">Personal Learning Guide</td>
                     <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700">Weekly Check-ins</td>
                     <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700">Business Mentor Network</td>
                     <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700">College Counseling</td>
                     <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
                   <tr className="border-b border-gray-100">
                     <td className="p-4 text-gray-700">Official Transcripts</td>
                     <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
+                    <td className="p-4 text-center text-gray-400">—</td>
                     <td className="p-4 text-center text-green-500 font-bold">✓</td>
                   </tr>
                 </tbody>
