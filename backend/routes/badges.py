@@ -10,6 +10,7 @@ from services.badge_service import BadgeService
 bp = Blueprint('badges', __name__, url_prefix='/api/badges')
 
 
+@bp.route('/', methods=['GET', 'OPTIONS'])
 @bp.route('', methods=['GET', 'OPTIONS'])
 def list_badges():
     """
