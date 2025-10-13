@@ -13,7 +13,7 @@ import BadgeCarousel from '../components/hub/BadgeCarousel';
 import QuestBadgeInfoModal from '../components/hub/QuestBadgeInfoModal';
 
 // Import existing quest components
-import QuestCard from '../components/quest/improved/QuestCard';
+import QuestCardSimple from '../components/quest/QuestCardSimple';
 import TeamUpModal from '../components/quest/TeamUpModal';
 import QuestSuggestionModal from '../components/QuestSuggestionModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -375,21 +375,12 @@ const QuestBadgeHub = () => {
             if (quests.length === index + 1) {
               return (
                 <div ref={lastQuestElementRef} key={quest.id}>
-                  <QuestCard
-                    quest={quest}
-                    onEnroll={handleEnroll}
-                    onTeamUp={handleTeamUp}
-                  />
+                  <QuestCardSimple quest={quest} />
                 </div>
               );
             } else {
               return (
-                <QuestCard
-                  key={quest.id}
-                  quest={quest}
-                  onEnroll={handleEnroll}
-                  onTeamUp={handleTeamUp}
-                />
+                <QuestCardSimple key={quest.id} quest={quest} />
               );
             }
           })}
