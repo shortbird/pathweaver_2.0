@@ -52,37 +52,34 @@ const QuestCardSimple = ({ quest }) => {
 
       {/* Conditional Section: Description for Not-Started, Progress Bar for In-Progress */}
       {isInProgress ? (
-        /* In-Progress: Green Continue Bar */
-        <div className="bg-green-500 text-white">
-          {/* Progress Info */}
-          <div className="px-6 pt-4 pb-3">
+        /* In-Progress: Progress Info + Green Continue Bar */
+        <>
+          {/* Progress Info Section - White background */}
+          <div className="bg-white px-6 pt-4 pb-3">
+            <p className="text-gray-900 text-sm font-semibold mb-3 line-clamp-2">
+              Current Task: {currentTaskTitle}
+            </p>
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold line-clamp-1">
-                Current Task: {currentTaskTitle}
-              </p>
+              <span className="text-gray-600 text-xs font-medium">{completedTasks}/{totalTasks} TASKS COMPLETED</span>
+              <span className="text-gray-900 text-sm font-bold">{Math.round(progressPercentage)}%</span>
             </div>
-            <div className="flex items-center justify-between text-xs font-medium mb-2">
-              <span>{completedTasks}/{totalTasks} TASKS COMPLETED</span>
-              <span>{Math.round(progressPercentage)}%</span>
+            {/* Progress Bar */}
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] h-2 rounded-full transition-all duration-300"
+                style={{ width: `${progressPercentage}%` }}
+              />
             </div>
           </div>
 
-          {/* Progress Bar */}
-          <div className="w-full bg-green-600 h-2">
-            <div
-              className="bg-white h-2 transition-all duration-300"
-              style={{ width: `${progressPercentage}%` }}
-            />
-          </div>
-
-          {/* Continue Button Area */}
-          <div className="px-6 py-4 bg-green-500 hover:bg-green-600 transition-colors flex items-center justify-between">
-            <span className="font-bold text-base">CONTINUE</span>
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          {/* Continue Button - Green background */}
+          <div className="px-6 py-4 bg-green-500 hover:bg-green-600 transition-colors flex items-center justify-between cursor-pointer">
+            <span className="font-bold text-base text-white uppercase">Continue</span>
+            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
               <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
             </svg>
           </div>
-        </div>
+        </>
       ) : (
         /* Not Started: Description Section */
         <div className="bg-white p-6">

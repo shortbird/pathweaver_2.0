@@ -127,7 +127,7 @@ const DashboardPage = () => {
             <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
               <RocketLaunchIcon className="w-5 h-5 text-white" />
             </div>
-            <h2 className="text-xl font-bold text-gray-900">Your Quests</h2>
+            <h2 className="text-xl font-bold text-gray-900 font-['Poppins']">Current Quests</h2>
           </div>
           <Link
             to="/quests"
