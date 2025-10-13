@@ -143,6 +143,98 @@ def update_quest(user_id, quest_id):
             'error': f'Failed to update quest: {str(e)}'
         }), 500
 
+@bp.route('/quests/<quest_id>/upload-image', methods=['POST'])
+@require_admin
+def upload_quest_image(user_id, quest_id):
+    """Upload a custom image for a quest"""
+    from flask import request
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Get quest to verify it exists
+        quest = supabase.table('quests').select('*').eq('id', quest_id).single().execute()
+        if not quest.data:
+            return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
+        # Check if file was provided
+        if 'file' not in request.files:
+            return jsonify({'success': False, 'error': 'No file provided'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'success': False, 'error': 'No file selected'}), 400
+
+        # Validate file type (images only)
+        allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+        file_extension = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+
+        if file_extension not in allowed_extensions:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid file type. Allowed types: {", ".join(allowed_extensions)}'
+            }), 400
+
+        # Check file size (5MB max for images)
+        file.seek(0, 2)  # Seek to end
+        file_size = file.tell()
+        file.seek(0)  # Reset to beginning
+
+        max_size = 5 * 1024 * 1024  # 5MB
+        if file_size > max_size:
+            return jsonify({'success': False, 'error': 'File size exceeds 5MB limit'}), 400
+
+        # Create quest-images bucket if it doesn't exist
+        try:
+            supabase.storage.create_bucket('quest-images', {'public': True})
+        except:
+            pass  # Bucket might already exist
+
+        # Generate unique filename
+        unique_filename = f"{quest_id}/{uuid.uuid4()}.{file_extension}"
+
+        # Read file content
+        file_content = file.read()
+
+        # Delete old image if exists (cleanup)
+        if quest.data.get('image_url') and 'quest-images' in quest.data['image_url']:
+            try:
+                old_path = quest.data['image_url'].split('quest-images/')[-1]
+                supabase.storage.from_('quest-images').remove([old_path])
+            except:
+                pass  # Ignore deletion errors
+
+        # Upload to Supabase Storage
+        response = supabase.storage.from_('quest-images').upload(
+            path=unique_filename,
+            file=file_content,
+            file_options={"content-type": file.content_type or f'image/{file_extension}'}
+        )
+
+        # Get public URL
+        image_url = supabase.storage.from_('quest-images').get_public_url(unique_filename)
+
+        # Update quest with new image
+        update_data = {
+            'image_url': image_url,
+            'header_image_url': image_url,
+            'updated_at': datetime.utcnow().isoformat()
+        }
+
+        result = supabase.table('quests').update(update_data).eq('id', quest_id).execute()
+
+        return jsonify({
+            'success': True,
+            'message': 'Quest image uploaded successfully',
+            'image_url': image_url
+        })
+
+    except Exception as e:
+        print(f"Error uploading quest image: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to upload quest image: {str(e)}'
+        }), 500
+
 @bp.route('/quests/<quest_id>/refresh-image', methods=['POST'])
 @require_admin
 def refresh_quest_image(user_id, quest_id):

@@ -59,8 +59,46 @@ const AdminQuests = () => {
   }
 
   const handleUploadImage = (questId) => {
-    // TODO: Implement image upload functionality
-    toast('Image upload feature coming soon', { icon: 'ℹ️' })
+    // Create file input element
+    const fileInput = document.createElement('input')
+    fileInput.type = 'file'
+    fileInput.accept = 'image/jpeg,image/jpg,image/png,image/gif,image/webp'
+
+    fileInput.onchange = async (e) => {
+      const file = e.target.files[0]
+      if (!file) return
+
+      // Validate file size (5MB max)
+      const maxSize = 5 * 1024 * 1024
+      if (file.size > maxSize) {
+        toast.error('Image size must be less than 5MB')
+        return
+      }
+
+      // Create FormData for file upload
+      const formData = new FormData()
+      formData.append('file', file)
+
+      try {
+        const loadingToast = toast.loading('Uploading image...')
+
+        // Note: Don't set Content-Type header manually for FormData
+        // Axios will automatically set it with the correct boundary
+        const response = await api.post(
+          `/api/v3/admin/quests/${questId}/upload-image`,
+          formData
+        )
+
+        toast.dismiss(loadingToast)
+        toast.success('Quest image uploaded successfully')
+        fetchQuests()
+      } catch (error) {
+        toast.error(error.response?.data?.error || 'Failed to upload image')
+      }
+    }
+
+    // Trigger file selection dialog
+    fileInput.click()
   }
 
   return (
