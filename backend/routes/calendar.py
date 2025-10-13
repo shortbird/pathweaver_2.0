@@ -29,37 +29,33 @@ def get_calendar_items(user_id):
         supabase = get_user_client(request)
         today = date.today()
 
-        # OPTIMIZATION: Get all data in a single query with left joins
-        # This reduces 4 separate queries down to 1, dramatically improving performance
+        # Get all user quest tasks
         tasks_response = supabase.table('user_quest_tasks')\
-            .select('''
-                id,
-                quest_id,
-                user_id,
-                title,
-                description,
-                pillar,
-                xp_value,
-                order_index,
-                is_required,
-                quest:quest_id(title, image_url, header_image_url)
-            ''')\
+            .select('id, quest_id, title, description, pillar, xp_value, order_index, is_required')\
             .eq('user_id', user_id)\
             .execute()
 
-        # Get completions separately (faster than nested join due to RLS)
+        # Get quest info separately (RLS-safe)
+        quest_ids = list(set(task['quest_id'] for task in tasks_response.data))
+        quests_response = supabase.table('quests')\
+            .select('id, title, image_url, header_image_url')\
+            .in_('id', quest_ids)\
+            .execute()
+
+        # Get completions separately
         completions_response = supabase.table('quest_task_completions')\
             .select('task_id, completed_at, evidence_url, evidence_text')\
             .eq('user_id', user_id)\
             .execute()
 
-        # Get deadlines separately (faster lookup)
+        # Get deadlines separately
         deadlines_response = supabase.table('user_quest_deadlines')\
             .select('quest_id, task_id, scheduled_date')\
             .eq('user_id', user_id)\
             .execute()
 
         # Build fast lookup maps
+        quests_map = {q['id']: q for q in quests_response.data}
         completions_map = {comp['task_id']: comp for comp in completions_response.data}
         deadline_map = {f"{d['quest_id']}_{d.get('task_id', 'quest')}": d['scheduled_date']
                        for d in deadlines_response.data}
@@ -69,7 +65,7 @@ def get_calendar_items(user_id):
         for task in tasks_response.data:
             task_id = task['id']
             quest_id = task['quest_id']
-            quest = task.get('quest') or {}
+            quest = quests_map.get(quest_id, {})
 
             completion = completions_map.get(task_id)
             task_deadline = deadline_map.get(f"{quest_id}_{task_id}") or deadline_map.get(f"{quest_id}_quest")
