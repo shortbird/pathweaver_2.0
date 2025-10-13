@@ -77,10 +77,10 @@ const QuestBadgeHub = () => {
   const safeAsync = useSafeAsync();
   const isLoadingRef = useRef(false);
 
-  // Scroll to top when component mounts or route changes
+  // Scroll to top when component mounts, route changes, or tab changes
   useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [location.pathname]);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }, [location.pathname, activeTab]);
 
   // Save tab selection to localStorage
   useEffect(() => {
@@ -429,12 +429,46 @@ const QuestBadgeHub = () => {
           <div className="flex items-center gap-3">
             <p className="text-xl">
               Choose from{' '}
-              <span className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full">
+              <span
+                className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full cursor-default relative group"
+                title="Long-term learning journeys"
+              >
                 <strong>Badges</strong>
+                {/* Hover tooltip for Badges */}
+                <span className="
+                  absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+                  px-3 py-2 bg-gray-900 text-white text-sm rounded-lg
+                  opacity-0 group-hover:opacity-100 pointer-events-none
+                  transition-opacity duration-200 whitespace-nowrap
+                  shadow-lg z-10
+                ">
+                  Long-term learning journeys with multiple quests
+                  <span className="
+                    absolute top-full left-1/2 -translate-x-1/2
+                    border-4 border-transparent border-t-gray-900
+                  "></span>
+                </span>
               </span>
               {' '}or{' '}
-              <span className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full">
+              <span
+                className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full cursor-default relative group"
+                title="Individual learning adventures"
+              >
                 <strong>Quests</strong>
+                {/* Hover tooltip for Quests */}
+                <span className="
+                  absolute bottom-full left-1/2 -translate-x-1/2 mb-2
+                  px-3 py-2 bg-gray-900 text-white text-sm rounded-lg
+                  opacity-0 group-hover:opacity-100 pointer-events-none
+                  transition-opacity duration-200 whitespace-nowrap
+                  shadow-lg z-10
+                ">
+                  Individual standalone learning adventures
+                  <span className="
+                    absolute top-full left-1/2 -translate-x-1/2
+                    border-4 border-transparent border-t-gray-900
+                  "></span>
+                </span>
               </span>
             </p>
             <button

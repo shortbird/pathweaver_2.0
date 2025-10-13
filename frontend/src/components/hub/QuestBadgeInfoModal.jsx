@@ -93,19 +93,19 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
                 </p>
                 <div className="space-y-2">
                   <div className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-[#ef597b] mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
                     <p className="text-gray-700">
                       <strong>Flexible Exploration:</strong> Choose any quest that interests you, in any order
                     </p>
                   </div>
                   <div className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-[#ef597b] mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
                     <p className="text-gray-700">
                       <strong>Standalone Tasks:</strong> Complete a quest and move on, or pursue multiple at once
                     </p>
                   </div>
                   <div className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-[#ef597b] mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
                     <p className="text-gray-700">
                       <strong>Immediate Progress:</strong> See results quickly and build momentum with each completion
                     </p>
@@ -142,10 +142,10 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t border-gray-100 bg-gray-50">
+        <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end">
           <button
             onClick={onClose}
-            className="w-full sm:w-auto px-8 py-3 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white font-semibold rounded-lg hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+            className="px-8 py-3 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white font-semibold rounded-lg hover:shadow-lg transform hover:scale-105 transition-all duration-200"
           >
             Got It!
           </button>
