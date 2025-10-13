@@ -18,7 +18,7 @@ import DashboardPage from './pages/DashboardPage'
 import TermsOfService from './pages/TermsOfService'
 import PrivacyPolicy from './pages/PrivacyPolicy'
 // Quest Pages
-import QuestHub from './pages/QuestHub'
+import QuestBadgeHub from './pages/QuestBadgeHub'
 import QuestDetail from './pages/QuestDetail'
 // Badge Pages
 import BadgeExplorer from './pages/BadgeExplorer'
@@ -100,10 +100,10 @@ function App() {
               <Route element={<PrivateRoute />}>
                 <Route path="dashboard" element={<DashboardPage />} />
                 {/* Quest Routes */}
-                <Route path="quests" element={<QuestHub />} />
+                <Route path="quests" element={<QuestBadgeHub />} />
                 <Route path="quests/:id" element={<QuestDetail />} />
                 {/* Badge Routes */}
-                <Route path="badges" element={<BadgeExplorer />} />
+                <Route path="badges" element={<QuestBadgeHub />} />
                 <Route path="badges/:badgeId" element={<BadgeDetail />} />
                 <Route path="badge-progress" element={<BadgeProgressPage />} />
                 <Route path="constellation" element={<ConstellationPage />} />

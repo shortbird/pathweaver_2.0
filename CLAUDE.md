@@ -13,9 +13,9 @@
 
 **SUBSCRIPTION TIERS (4-Tier System):**
 - **Explore** - Free tier (database: "Explore")
-- **Accelerate** - Entry tier, $39.99/mo (database: "Accelerate")
-- **Achieve** - Mid tier, $199.99/mo (database: "Achieve")
-- **Excel** - Highest tier, $499.99/mo (database: "Excel")
+- **Accelerate** - Entry tier, $50.00/mo (database: "Accelerate")
+- **Achieve** - Mid tier, $300.00/mo (database: "Achieve")
+- **Excel** - Highest tier, $600.00/mo (database: "Excel")
 
 **DEVELOPMENT WORKFLOW:**
 - **Current Branch**: `develop` - All development happens here
@@ -29,16 +29,6 @@
   2. Push to `develop` for live testing at dev URLs
   3. When stable, merge `develop` → `main` for production
   4. Never commit directly to `main` - always go through `develop` first
-
-**DESIGN GUIDELINES:**
-- **Optio Brand Gradient**: Always use `from-[#ef597b] to-[#6d469b]` (pink to purple)
-- **Gradient Direction**: ALWAYS pink on the left (#ef597b), purple on the right (#6d469b) - NEVER swap
-- **Complementary Colors**: Use lighter tints like `#f8b3c5` (light pink) and `#b794d6` (light purple)
-- **Avoid**: Yellow and orange colors - they clash with the brand gradient
-- **Tier Styling**: Academy tier "ACCREDITED" badge uses `bg-green-500`, centered at top
-- **Tier Layout**: All tier cards use flexbox with buttons aligned at bottom
-- **Favicon**: Located at `https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/logos/icon.jpg`
-- **NEVER USE EMOJIS**: Avoid emojis in UI components, text, or any user-facing content. Use proper icons, SVGs, or design elements instead. Emojis can cause encoding issues and look unprofessional.
 
 **CORE PHILOSOPHY:**
 - **Foundation**: "The Process Is The Goal" - learning is about who you become through the journey

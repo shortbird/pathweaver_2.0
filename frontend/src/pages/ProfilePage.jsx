@@ -4,10 +4,9 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import { getTierDisplayName } from '../utils/tierMapping'
 
 const ProfilePage = () => {
-  const { user, updateUser, refreshUser, isCreator } = useAuth()
+  const { user, updateUser } = useAuth()
   const [profileData, setProfileData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -333,36 +332,6 @@ const ProfilePage = () => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
-          </div>
-        </div>
-
-        {/* Subscription - Full Width */}
-        <div className="card">
-          <h2 className="text-xl font-semibold mb-4">Subscription</h2>
-          <div className="space-y-4">
-            <div>
-              <button
-                onClick={handleRefreshUserData}
-                disabled={refreshing}
-                className="text-primary hover:underline text-sm disabled:text-gray-400"
-              >
-                {refreshing ? 'Refreshing...' : 'Refresh account data'}
-              </button>
-            </div>
-
-            {isCreator && (
-              <button
-                onClick={downloadTranscript}
-                className="btn-primary w-full"
-              >
-                Download Transcript
-              </button>
-            )}
-            {!isCreator && (
-              <p className="text-sm text-gray-600">
-                Upgrade to Supported tier to download your transcript
-              </p>
-            )}
           </div>
         </div>
 
