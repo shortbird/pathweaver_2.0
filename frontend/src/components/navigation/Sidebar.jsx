@@ -1,12 +1,10 @@
-import React, { useState } from 'react'
+import React from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import OptioBotModal from '../tutor/OptioBotModal'
 
 const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation()
   const { user } = useAuth()
-  const [tutorOpen, setTutorOpen] = useState(false)
 
   const isActiveRoute = (path) => {
     return location.pathname === path || location.pathname.startsWith(path + '/')
@@ -19,6 +17,15 @@ const Sidebar = ({ isOpen, onClose }) => {
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+        </svg>
+      )
+    },
+    {
+      name: 'Communication',
+      path: '/communication',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
         </svg>
       )
     },
@@ -120,28 +127,7 @@ const Sidebar = ({ isOpen, onClose }) => {
             })}
           </nav>
         </div>
-
-        {/* Communication Button at Bottom */}
-        <div className="p-6 border-t border-gray-200">
-          <button
-            onClick={() => setTutorOpen(true)}
-            className="flex items-center w-full px-4 py-3 rounded-lg bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white font-poppins font-semibold hover:shadow-lg transition-all duration-200 min-h-[44px]"
-          >
-            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-            <span>Communication</span>
-          </button>
-        </div>
       </aside>
-
-      {/* AI Tutor Modal */}
-      {tutorOpen && (
-        <OptioBotModal
-          isOpen={tutorOpen}
-          onClose={() => setTutorOpen(false)}
-        />
-      )}
     </>
   )
 }

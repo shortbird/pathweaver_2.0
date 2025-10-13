@@ -135,6 +135,14 @@ try:
 except Exception as e:
     print(f"Warning: Advisor routes not available: {e}")
 
+# Register Direct Messages blueprint
+try:
+    from routes import direct_messages
+    app.register_blueprint(direct_messages.bp)  # /api/messages
+    print("Direct Messages routes registered successfully")
+except Exception as e:
+    print(f"Warning: Direct Messages routes not available: {e}")
+
 # Register AI Quest Review blueprint (admin)
 try:
     from routes.admin import ai_quest_review

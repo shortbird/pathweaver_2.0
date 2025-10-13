@@ -27,8 +27,7 @@ export default function BadgeDetail() {
   const [showInfoModal, setShowInfoModal] = useState(false);
 
   useEffect(() => {
-    // Scroll to top when badge page opens
-    window.scrollTo(0, 0);
+    // Scroll to top handled globally by ScrollToTop component
     fetchBadgeDetail();
   }, [badgeId]);
 

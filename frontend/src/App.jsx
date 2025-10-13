@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { warmupBackend } from './utils/retryHelper'
 
 import Layout from './components/Layout'
+import ScrollToTop from './components/ScrollToTop'
 import HomePage from './pages/HomePage'
 import PromoLandingPage from './pages/PromoLandingPage'
 import DemoPage from './pages/DemoPage'
@@ -32,6 +33,7 @@ import TranscriptPage from './pages/TranscriptPage'
 import DiplomaPage from './pages/DiplomaPage'
 import ProfilePage from './pages/ProfilePage'
 import FriendsPage from './pages/FriendsPage'
+import CommunicationPage from './pages/CommunicationPage'
 import SubscriptionPage from './pages/SubscriptionPage'
 import SubscriptionSuccess from './pages/SubscriptionSuccess'
 import SubscriptionCancel from './pages/SubscriptionCancel'
@@ -68,6 +70,7 @@ function App() {
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
         <Router>
+          <ScrollToTop />
           <AuthProvider>
             <Toaster
             position="top-right"
@@ -114,6 +117,7 @@ function App() {
                 <Route path="diploma" element={<DiplomaPage />} />
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="friends" element={<FriendsPage />} />
+                <Route path="communication" element={<CommunicationPage />} />
                 <Route path="subscription" element={<SubscriptionPage />} />
               </Route>
               

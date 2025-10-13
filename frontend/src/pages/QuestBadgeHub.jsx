@@ -77,10 +77,10 @@ const QuestBadgeHub = () => {
   const safeAsync = useSafeAsync();
   const isLoadingRef = useRef(false);
 
-  // Scroll to top when component mounts, route changes, or tab changes
+  // Scroll to top when switching tabs (route-based scroll handled globally by ScrollToTop component)
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [location.pathname, activeTab]);
+  }, [activeTab]);
 
   // Save tab selection to localStorage
   useEffect(() => {
