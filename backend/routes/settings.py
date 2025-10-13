@@ -18,15 +18,15 @@ def get_settings():
         else:
             # Return default settings if none exist
             return jsonify({
-                'logo_url': None,
+                'logo_url': 'https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/logo.svg',
                 'site_name': 'Optio',
                 'favicon_url': None
             }), 200
-            
+
     except Exception as e:
         # If table doesn't exist or no settings, return defaults
         return jsonify({
-            'logo_url': None,
+            'logo_url': 'https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/logo.svg',
             'site_name': 'Optio',
             'favicon_url': None
         }), 200

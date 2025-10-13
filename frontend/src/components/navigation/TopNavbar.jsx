@@ -12,9 +12,9 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
   }
 
   const isActiveToggle = (path) => {
-    // Dashboard toggle should be active for: /dashboard, /friends, /diploma, /profile, /badges
+    // Dashboard toggle should be active for: /dashboard, /friends, /diploma, /profile, /badges, /admin
     if (path === '/dashboard') {
-      return ['/dashboard', '/friends', '/diploma', '/profile', '/badges'].some(route =>
+      return ['/dashboard', '/friends', '/diploma', '/profile', '/badges', '/admin'].some(route =>
         location.pathname === route || location.pathname.startsWith(route + '/')
       )
     }
@@ -120,17 +120,6 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                    user?.subscription_tier === 'academy' || user?.subscription_tier === 'enterprise' ? 'Academy' :
                    user?.subscription_tier?.toUpperCase() || 'Free'}
                 </Link>
-
-                {/* Admin Badge */}
-                {user?.role === 'admin' && (
-                  <Link
-                    to="/admin"
-                    className="hidden sm:block text-xs px-3 py-1 rounded-full font-poppins font-semibold uppercase tracking-wider bg-orange-500 text-white hover:bg-orange-600 transition-colors shadow-md"
-                    title="Admin Dashboard"
-                  >
-                    Admin
-                  </Link>
-                )}
 
                 {/* Logout */}
                 <button

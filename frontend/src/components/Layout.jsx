@@ -2,7 +2,6 @@ import React, { useState } from 'react'
 import { Outlet } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
-import TutorWidget from './tutor/TutorWidget'
 import Sidebar from './navigation/Sidebar'
 import TopNavbar from './navigation/TopNavbar'
 
@@ -62,11 +61,6 @@ const Layout = () => {
           </p>
         </div>
       </footer>
-
-      {/* Global TutorWidget - Float over all authenticated pages */}
-      {isAuthenticated && (
-        <TutorWidget position="bottom-right" />
-      )}
     </div>
   )
 }

@@ -10,7 +10,6 @@ const ProfilePage = () => {
   const [profileData, setProfileData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
-  const [refreshing, setRefreshing] = useState(false)
   const { register, handleSubmit, formState: { errors }, reset } = useForm()
 
   useEffect(() => {
@@ -42,46 +41,6 @@ const ProfilePage = () => {
       toast.success('Profile updated successfully!')
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to update profile')
-    }
-  }
-
-  const handleRefreshUserData = async () => {
-    setRefreshing(true)
-    try {
-      const success = await refreshUser()
-      if (success) {
-        toast.success('User data refreshed! Your current tier should now be displayed correctly.')
-        // Also refresh the profile data to ensure consistency
-        await fetchProfile()
-      } else {
-        toast.error('Failed to refresh user data')
-      }
-    } catch (error) {
-      console.error('Error refreshing user data:', error)
-      toast.error('Failed to refresh user data')
-    } finally {
-      setRefreshing(false)
-    }
-  }
-
-  const downloadTranscript = async () => {
-    try {
-      const response = await api.get('/api/users/transcript')
-      const transcript = response.data
-
-      const blob = new Blob([JSON.stringify(transcript, null, 2)], { type: 'application/json' })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `transcript_${user?.first_name || 'user'}_${user?.last_name || ''}_${new Date().toISOString().split('T')[0]}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(url)
-
-      toast.success('Transcript downloaded!')
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to download transcript')
     }
   }
 

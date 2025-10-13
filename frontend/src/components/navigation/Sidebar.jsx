@@ -1,10 +1,12 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import OptioBotModal from '../tutor/OptioBotModal'
 
 const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation()
   const { user } = useAuth()
+  const [tutorOpen, setTutorOpen] = useState(false)
 
   const isActiveRoute = (path) => {
     return location.pathname === path || location.pathname.startsWith(path + '/')
@@ -49,6 +51,19 @@ const Sidebar = ({ isOpen, onClose }) => {
     }
   ]
 
+  // Add Admin link if user is admin
+  if (user?.role === 'admin') {
+    navItems.push({
+      name: 'Admin',
+      path: '/admin',
+      icon: (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+      )
+    })
+  }
+
   const handleNavClick = () => {
     if (onClose) {
       onClose()
@@ -71,11 +86,12 @@ const Sidebar = ({ isOpen, onClose }) => {
         className={`
           fixed top-16 left-0 bottom-0 w-64 bg-white shadow-md z-50
           transform transition-transform duration-200 ease-in-out
+          flex flex-col
           ${isOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
         `}
       >
-        <div className="p-6">
+        <div className="p-6 flex-1">
           <nav className="space-y-2">
             {navItems.map((item) => {
               const isActive = isActiveRoute(item.path)
@@ -104,7 +120,28 @@ const Sidebar = ({ isOpen, onClose }) => {
             })}
           </nav>
         </div>
+
+        {/* AI Tutor Button at Bottom */}
+        <div className="p-6 border-t border-gray-200">
+          <button
+            onClick={() => setTutorOpen(true)}
+            className="flex items-center w-full px-4 py-3 rounded-lg bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white font-poppins font-semibold hover:shadow-lg transition-all duration-200 min-h-[44px]"
+          >
+            <svg className="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+            <span>AI Tutor</span>
+          </button>
+        </div>
       </aside>
+
+      {/* AI Tutor Modal */}
+      {tutorOpen && (
+        <OptioBotModal
+          isOpen={tutorOpen}
+          onClose={() => setTutorOpen(false)}
+        />
+      )}
     </>
   )
 }
