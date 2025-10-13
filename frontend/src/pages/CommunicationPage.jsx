@@ -3,7 +3,6 @@ import { useAuth } from '../contexts/AuthContext'
 import { useConversations } from '../hooks/api/useDirectMessages'
 import ConversationList from '../components/communication/ConversationList'
 import ChatWindow from '../components/communication/ChatWindow'
-import useMemoryLeakFix from '../hooks/useMemoryLeakFix'
 
 const CommunicationPage = () => {
   const { user } = useAuth()
@@ -16,9 +15,6 @@ const CommunicationPage = () => {
   } = useConversations(user?.id, {
     enabled: !!user?.id
   })
-
-  // Memory leak prevention
-  useMemoryLeakFix()
 
   // Auto-select OptioBot on initial load
   useEffect(() => {
