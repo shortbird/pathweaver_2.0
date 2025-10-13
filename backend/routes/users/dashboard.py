@@ -99,20 +99,30 @@ def get_dashboard(user_id):
 def get_active_quests(supabase, user_id: str) -> list:
     """Get user's active quests with details"""
     print(f"Fetching active quests for user {user_id}")
-    
+
     try:
         # Get active enrollments with quest details
+        # IMPORTANT: Filter by both is_active AND completed_at to ensure we only get in-progress quests
         active_quests = supabase.table('user_quests')\
             .select('*, quests(*)')\
             .eq('user_id', user_id)\
             .eq('is_active', True)\
+            .is_('completed_at', 'null')\
             .execute()
 
         print(f"Active quests query result: {len(active_quests.data) if active_quests.data else 0} quests found")
 
         if active_quests.data:
-            # Filter out any completed quests (belt and suspenders approach)
+            # Additional safety check - should not be needed but keeps code defensive
             active_only = [q for q in active_quests.data if q.get('completed_at') is None]
+
+            # Debug: Log any quests that slip through
+            filtered_count = len(active_quests.data) - len(active_only)
+            if filtered_count > 0:
+                print(f"WARNING: {filtered_count} completed quests had is_active=True but completed_at set!")
+                for q in active_quests.data:
+                    if q.get('completed_at') is not None:
+                        print(f"  - Quest ID: {q.get('quest_id')}, Enrollment ID: {q.get('id')}, completed_at: {q.get('completed_at')}, is_active: {q.get('is_active')}")
 
             # Process each quest to add calculated fields
             for enrollment in active_only:
@@ -188,11 +198,20 @@ def get_active_quests(supabase, user_id: str) -> list:
                 .select('*')\
                 .eq('user_id', user_id)\
                 .eq('is_active', True)\
+                .is_('completed_at', 'null')\
                 .execute()
-            
+
             if active_quests.data:
-                # Filter out completed
+                # Filter out completed (defensive check)
                 active_only = [q for q in active_quests.data if q.get('completed_at') is None]
+
+                # Debug: Log any data inconsistencies
+                filtered_count = len(active_quests.data) - len(active_only)
+                if filtered_count > 0:
+                    print(f"WARNING (fallback): {filtered_count} completed quests had is_active=True!")
+                    for q in active_quests.data:
+                        if q.get('completed_at') is not None:
+                            print(f"  - Quest ID: {q.get('quest_id')}, Enrollment ID: {q.get('id')}")
                 
                 # Manually fetch quest details for each
                 for enrollment in active_only:
