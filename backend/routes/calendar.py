@@ -12,11 +12,13 @@ calendar_bp = Blueprint('calendar', __name__, url_prefix='/api/calendar')
 # Add OPTIONS handler for CORS preflight
 @calendar_bp.route('/<path:path>', methods=['OPTIONS'])
 @calendar_bp.route('/', methods=['OPTIONS'])
+@calendar_bp.route('', methods=['OPTIONS'])
 def handle_options(path=None):
     """Handle OPTIONS preflight requests for CORS"""
     return '', 200
 
-@calendar_bp.route('/', methods=['GET'])
+@calendar_bp.route('/', methods=['GET'], strict_slashes=False)
+@calendar_bp.route('', methods=['GET'])
 @require_auth
 def get_calendar_items(user_id):
     """
@@ -117,7 +119,7 @@ def get_calendar_items(user_id):
         return jsonify({'error': 'Failed to fetch calendar items'}), 500
 
 
-@calendar_bp.route('/deadline', methods=['PUT'])
+@calendar_bp.route('/deadline', methods=['PUT'], strict_slashes=False)
 @require_auth
 def update_deadline(user_id=None):
     """
@@ -170,7 +172,7 @@ def update_deadline(user_id=None):
         return jsonify({'error': 'Failed to update deadline'}), 500
 
 
-@calendar_bp.route('/bulk-deadline', methods=['PUT'])
+@calendar_bp.route('/bulk-deadline', methods=['PUT'], strict_slashes=False)
 @require_auth
 def bulk_update_deadlines(user_id=None):
     """
@@ -209,7 +211,7 @@ def bulk_update_deadlines(user_id=None):
         return jsonify({'error': 'Failed to bulk update deadlines'}), 500
 
 
-@calendar_bp.route('/next-up', methods=['GET'])
+@calendar_bp.route('/next-up', methods=['GET'], strict_slashes=False)
 @require_auth
 def get_next_up(user_id):
     """
@@ -269,7 +271,7 @@ def get_next_up(user_id):
         return jsonify({'error': 'Failed to fetch next-up items'}), 500
 
 
-@calendar_bp.route('/preferences', methods=['GET'])
+@calendar_bp.route('/preferences', methods=['GET'], strict_slashes=False)
 @require_auth
 def get_preferences(user_id):
     """
@@ -298,7 +300,7 @@ def get_preferences(user_id):
         return jsonify({'error': 'Failed to fetch preferences'}), 500
 
 
-@calendar_bp.route('/preferences', methods=['PUT'])
+@calendar_bp.route('/preferences', methods=['PUT'], strict_slashes=False)
 @require_auth
 def update_preferences(user_id):
     """
