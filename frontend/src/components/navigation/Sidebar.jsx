@@ -7,7 +7,12 @@ const Sidebar = ({ isOpen, onClose }) => {
   const { user } = useAuth()
 
   const isActiveRoute = (path) => {
-    return location.pathname === path || location.pathname.startsWith(path + '/')
+    // Exact match for the path
+    if (location.pathname === path) return true
+    // Match child routes (e.g., /quests/123 matches /quests)
+    if (location.pathname.startsWith(path + '/')) return true
+    // Special case: /dashboard should not match /calendar, /communication, etc.
+    return false
   }
 
   const navItems = [

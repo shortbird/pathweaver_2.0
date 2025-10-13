@@ -157,7 +157,7 @@ export const useTaskStatus = (task) => {
   if (task.status === 'wandering') {
     return {
       status: 'wandering',
-      label: 'Ready to explore',
+      label: 'Ready for a pivot',
       color: 'yellow',
       bgColor: 'bg-yellow-100',
       textColor: 'text-yellow-800',

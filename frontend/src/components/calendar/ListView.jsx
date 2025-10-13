@@ -181,7 +181,7 @@ const ListView = ({ data, userId, selectedPillar }) => {
         {/* Wandering */}
         {wanderingItems.length > 0 && (
           <Section
-            title="Ready to Explore"
+            title="Ready for a Pivot"
             subtitle="Past their date or inactive recently"
             items={wanderingItems}
             selectedItems={selectedItems}

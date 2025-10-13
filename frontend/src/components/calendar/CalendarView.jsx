@@ -147,7 +147,7 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
         </div>
         <div className="flex items-center gap-2">
           <div className="w-3 h-3 rounded-full bg-yellow-500 ring-2 ring-yellow-400"></div>
-          <span className="text-gray-600">Ready to Explore</span>
+          <span className="text-gray-600">Ready for a Pivot</span>
         </div>
       </div>
 

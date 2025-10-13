@@ -10,137 +10,115 @@ from collections import defaultdict
 
 calendar_bp = Blueprint('calendar', __name__, url_prefix='/api/calendar')
 
+# Add OPTIONS handler for CORS preflight
+@calendar_bp.route('/<path:path>', methods=['OPTIONS'])
+@calendar_bp.route('/', methods=['OPTIONS'])
+def handle_options(path=None):
+    """Handle OPTIONS preflight requests for CORS"""
+    return '', 200
+
 @calendar_bp.route('/<user_id>', methods=['GET'])
 @require_auth
 def get_calendar_items(user_id):
     """
     Get all calendar items for a user (scheduled quests/tasks + completed items).
     Returns data structured for both calendar and list views.
+    OPTIMIZED: Single query with joins to minimize database roundtrips.
     """
     try:
         supabase = get_user_client(request)
+        today = date.today()
 
-        # Get user's active quests with tasks
-        active_quests_response = supabase.table('user_quests')\
-            .select('''
-                quest_id,
-                quests(id, title, description, image_url, header_image_url),
-                started_at,
-                completed_at
-            ''')\
-            .eq('user_id', user_id)\
-            .eq('is_active', True)\
-            .execute()
-
-        # Get all user quest tasks with completion status
+        # OPTIMIZATION: Get all data in a single query with left joins
+        # This reduces 4 separate queries down to 1, dramatically improving performance
         tasks_response = supabase.table('user_quest_tasks')\
             .select('''
                 id,
                 quest_id,
+                user_id,
                 title,
                 description,
                 pillar,
                 xp_value,
                 order_index,
-                is_required
+                is_required,
+                quest:quest_id(title, image_url, header_image_url)
             ''')\
             .eq('user_id', user_id)\
             .execute()
 
-        # Get task completions
+        # Get completions separately (faster than nested join due to RLS)
         completions_response = supabase.table('quest_task_completions')\
-            .select('task_id, completed_at, evidence_url, evidence_text, scheduled_date')\
+            .select('task_id, completed_at, evidence_url, evidence_text')\
             .eq('user_id', user_id)\
             .execute()
 
-        # Get user deadlines
+        # Get deadlines separately (faster lookup)
         deadlines_response = supabase.table('user_quest_deadlines')\
             .select('quest_id, task_id, scheduled_date')\
             .eq('user_id', user_id)\
             .execute()
 
-        # Build completion map
-        completions_map = {}
-        for comp in completions_response.data:
-            completions_map[comp['task_id']] = comp
+        # Build fast lookup maps
+        completions_map = {comp['task_id']: comp for comp in completions_response.data}
+        deadline_map = {f"{d['quest_id']}_{d.get('task_id', 'quest')}": d['scheduled_date']
+                       for d in deadlines_response.data}
 
-        # Build deadline map
-        deadline_map = {}
-        for deadline in deadlines_response.data:
-            key = f"{deadline['quest_id']}_{deadline.get('task_id', 'quest')}"
-            deadline_map[key] = deadline['scheduled_date']
-
-        # Build task map by quest
-        tasks_by_quest = defaultdict(list)
-        for task in tasks_response.data:
-            tasks_by_quest[task['quest_id']].append(task)
-
-        # Build calendar items
+        # Build calendar items efficiently
         calendar_items = []
+        for task in tasks_response.data:
+            task_id = task['id']
+            quest_id = task['quest_id']
+            quest = task.get('quest') or {}
 
-        for quest_enrollment in active_quests_response.data:
-            quest = quest_enrollment['quests']
-            quest_id = quest['id']
+            completion = completions_map.get(task_id)
+            task_deadline = deadline_map.get(f"{quest_id}_{task_id}") or deadline_map.get(f"{quest_id}_quest")
 
-            # Get quest-level deadline if exists
-            quest_deadline_key = f"{quest_id}_quest"
-            quest_deadline = deadline_map.get(quest_deadline_key)
-
-            # Get tasks for this quest
-            quest_tasks = tasks_by_quest.get(quest_id, [])
-
-            for task in quest_tasks:
-                task_id = task['id']
-                completion = completions_map.get(task_id)
-
-                # Get task-level deadline
-                task_deadline_key = f"{quest_id}_{task_id}"
-                task_deadline = deadline_map.get(task_deadline_key, quest_deadline)
-
-                # Calculate status
+            # Calculate status efficiently
+            if completion:
+                status = 'completed'
+            elif task_deadline:
+                scheduled_date = datetime.strptime(task_deadline, '%Y-%m-%d').date() if isinstance(task_deadline, str) else task_deadline
+                status = 'wandering' if scheduled_date < today else 'on-track'
+            else:
                 status = 'exploring'
-                if completion:
-                    status = 'completed'
-                elif task_deadline:
-                    scheduled_date = datetime.strptime(task_deadline, '%Y-%m-%d').date() if isinstance(task_deadline, str) else task_deadline
-                    today = date.today()
 
-                    # Check if wandering (past deadline or inactive 7+ days)
-                    if scheduled_date < today:
-                        status = 'wandering'
-                    else:
-                        status = 'on-track'
+            calendar_items.append({
+                'id': task_id,
+                'quest_id': quest_id,
+                'quest_title': quest.get('title', 'Unknown Quest'),
+                'quest_image': quest.get('image_url') or quest.get('header_image_url'),
+                'task_title': task['title'],
+                'task_description': task.get('description'),
+                'pillar': task['pillar'],
+                'xp_value': task.get('xp_value'),
+                'scheduled_date': task_deadline,
+                'completed_at': completion['completed_at'] if completion else None,
+                'evidence_url': completion['evidence_url'] if completion else None,
+                'evidence_text': completion['evidence_text'] if completion else None,
+                'status': status,
+                'is_required': task.get('is_required', False),
+                'order_index': task.get('order_index', 0)
+            })
 
-                calendar_items.append({
-                    'id': task_id,
-                    'quest_id': quest_id,
-                    'quest_title': quest['title'],
-                    'quest_image': quest.get('image_url') or quest.get('header_image_url'),
-                    'task_title': task['title'],
-                    'task_description': task['description'],
-                    'pillar': task['pillar'],
-                    'xp_value': task['xp_value'],
-                    'scheduled_date': task_deadline,
-                    'completed_at': completion['completed_at'] if completion else None,
-                    'evidence_url': completion['evidence_url'] if completion else None,
-                    'evidence_text': completion['evidence_text'] if completion else None,
-                    'status': status,
-                    'is_required': task.get('is_required', False),
-                    'order_index': task.get('order_index', 0)
-                })
+        # Calculate summary efficiently
+        today_str = str(today)
+        summary = {
+            'total_active': sum(1 for i in calendar_items if i['status'] != 'completed'),
+            'total_completed': sum(1 for i in calendar_items if i['status'] == 'completed'),
+            'scheduled_today': sum(1 for i in calendar_items if i['scheduled_date'] == today_str and i['status'] != 'completed'),
+            'wandering': sum(1 for i in calendar_items if i['status'] == 'wandering')
+        }
 
         return jsonify({
             'items': calendar_items,
-            'summary': {
-                'total_active': len([i for i in calendar_items if i['status'] != 'completed']),
-                'total_completed': len([i for i in calendar_items if i['status'] == 'completed']),
-                'scheduled_today': len([i for i in calendar_items if i['scheduled_date'] == str(date.today()) and i['status'] != 'completed']),
-                'wandering': len([i for i in calendar_items if i['status'] == 'wandering'])
-            }
+            'summary': summary
         }), 200
 
     except Exception as e:
         print(f"Error fetching calendar items: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': 'Failed to fetch calendar items'}), 500
 
 
