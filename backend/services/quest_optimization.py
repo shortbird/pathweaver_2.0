@@ -85,21 +85,29 @@ class QuestOptimizationService:
 
         try:
             # Single query to get all task completions
-            # Note: quest_task_completions tracks which user_quest_tasks are completed
+            # Note: quest_task_completions has user_quest_task_id (FK to user_quest_tasks)
+            # We need to join with user_quest_tasks to get the user_quest_id
             completions = self.supabase.table('quest_task_completions')\
-                .select('user_quest_id, user_quest_task_id')\
-                .in_('user_quest_id', enrollment_ids)\
+                .select('user_quest_task_id, user_quest_tasks!inner(user_quest_id)')\
+                .eq('user_id', user_id)\
                 .execute()
 
-            # Group by enrollment_id
+            # Group by enrollment_id (user_quest_id from the joined table)
             completion_map = {}
             for completion in completions.data or []:
-                enrollment_id = completion['user_quest_id']
+                # Get user_quest_id from the joined user_quest_tasks data
+                user_quest_data = completion.get('user_quest_tasks')
+                if not user_quest_data:
+                    continue
+
+                enrollment_id = user_quest_data.get('user_quest_id')
                 task_id = completion['user_quest_task_id']
 
-                if enrollment_id not in completion_map:
-                    completion_map[enrollment_id] = set()
-                completion_map[enrollment_id].add(task_id)
+                # Only include completions for the enrollments we care about
+                if enrollment_id in enrollment_ids:
+                    if enrollment_id not in completion_map:
+                        completion_map[enrollment_id] = set()
+                    completion_map[enrollment_id].add(task_id)
 
             return completion_map
 
