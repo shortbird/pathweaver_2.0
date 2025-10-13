@@ -12,7 +12,7 @@ export const useCalendar = (userId, options = {}) => {
     queryKey: ['calendar', userId],
     queryFn: async () => {
       if (!userId) return null
-      const response = await api.get(`/api/calendar/${userId}`)
+      const response = await api.get('/api/calendar')
       return response.data
     },
     enabled: !!userId,
@@ -29,7 +29,7 @@ export const useNextUp = (userId, options = {}) => {
     queryKey: ['calendar', 'next-up', userId],
     queryFn: async () => {
       if (!userId) return null
-      const response = await api.get(`/api/calendar/next-up/${userId}`)
+      const response = await api.get('/api/calendar/next-up')
       return response.data
     },
     enabled: !!userId,
@@ -46,7 +46,7 @@ export const useCalendarPreferences = (userId, options = {}) => {
     queryKey: ['calendar', 'preferences', userId],
     queryFn: async () => {
       if (!userId) return null
-      const response = await api.get(`/api/calendar/preferences/${userId}`)
+      const response = await api.get('/api/calendar/preferences')
       return response.data
     },
     enabled: !!userId,
@@ -109,7 +109,7 @@ export const useUpdatePreferences = () => {
 
   return useMutation({
     mutationFn: async ({ userId, viewMode, defaultPillarFilter }) => {
-      const response = await api.put(`/api/calendar/preferences/${userId}`, {
+      const response = await api.put('/api/calendar/preferences', {
         view_mode: viewMode,
         default_pillar_filter: defaultPillarFilter
       })

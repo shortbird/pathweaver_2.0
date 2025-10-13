@@ -130,9 +130,7 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
           return ['cursor-move']
         }}
         // Accessibility
-        eventKeyboardInteraction={true}
         navLinks={true}
-        navLinkKeyboardInteraction={true}
       />
 
       {/* Legend */}

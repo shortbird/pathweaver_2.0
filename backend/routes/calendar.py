@@ -16,7 +16,7 @@ def handle_options(path=None):
     """Handle OPTIONS preflight requests for CORS"""
     return '', 200
 
-@calendar_bp.route('/<user_id>', methods=['GET'])
+@calendar_bp.route('/', methods=['GET'])
 @require_auth
 def get_calendar_items(user_id):
     """
@@ -209,7 +209,7 @@ def bulk_update_deadlines(user_id=None):
         return jsonify({'error': 'Failed to bulk update deadlines'}), 500
 
 
-@calendar_bp.route('/next-up/<user_id>', methods=['GET'])
+@calendar_bp.route('/next-up', methods=['GET'])
 @require_auth
 def get_next_up(user_id):
     """
@@ -269,7 +269,7 @@ def get_next_up(user_id):
         return jsonify({'error': 'Failed to fetch next-up items'}), 500
 
 
-@calendar_bp.route('/preferences/<user_id>', methods=['GET'])
+@calendar_bp.route('/preferences', methods=['GET'])
 @require_auth
 def get_preferences(user_id):
     """
@@ -298,7 +298,7 @@ def get_preferences(user_id):
         return jsonify({'error': 'Failed to fetch preferences'}), 500
 
 
-@calendar_bp.route('/preferences/<user_id>', methods=['PUT'])
+@calendar_bp.route('/preferences', methods=['PUT'])
 @require_auth
 def update_preferences(user_id):
     """
