@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Outlet } from 'react-router-dom'
+import { Outlet, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import Sidebar from './navigation/Sidebar'
@@ -7,6 +7,7 @@ import TopNavbar from './navigation/TopNavbar'
 
 const Layout = () => {
   const { user, isAuthenticated } = useAuth()
+  const location = useLocation()
   const [siteSettings, setSiteSettings] = React.useState(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -25,6 +26,10 @@ const Layout = () => {
     }
   }
 
+  // Hide sidebar on quest/badge hub pages
+  const isHubPage = location.pathname.startsWith('/quests') || location.pathname.startsWith('/badges')
+  const shouldShowSidebar = isAuthenticated && !isHubPage
+
   return (
     <div className="min-h-screen bg-[#F3EFF4]">
       {/* Top Navbar */}
@@ -33,8 +38,8 @@ const Layout = () => {
         siteSettings={siteSettings}
       />
 
-      {/* Sidebar (authenticated users only) */}
-      {isAuthenticated && (
+      {/* Sidebar (authenticated users only, hidden on hub pages) */}
+      {shouldShowSidebar && (
         <Sidebar
           isOpen={sidebarOpen}
           onClose={() => setSidebarOpen(false)}
@@ -44,7 +49,7 @@ const Layout = () => {
       {/* Main Content Area */}
       <main className={`
         pt-16
-        ${isAuthenticated ? 'lg:ml-64' : ''}
+        ${shouldShowSidebar ? 'lg:ml-64' : ''}
         min-h-[calc(100vh-4rem)]
       `}>
         <Outlet />
@@ -53,7 +58,7 @@ const Layout = () => {
       {/* Footer */}
       <footer className={`
         bg-white border-t border-gray-200 mt-auto
-        ${isAuthenticated ? 'lg:ml-64' : ''}
+        ${shouldShowSidebar ? 'lg:ml-64' : ''}
       `}>
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
           <p className="text-center text-sm text-[#605C61] font-poppins font-medium">

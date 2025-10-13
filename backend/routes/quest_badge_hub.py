@@ -66,17 +66,38 @@ def get_badges_for_hub():
             'Arts & Creativity': []
         }
 
+        # Optimization: Fetch all quest counts in bulk to avoid N+1 queries
+        badge_ids = [b['id'] for b in badges]
+        quest_counts = {}
+
+        if badge_ids:
+            # Get quest counts for all badges in one query
+            admin_client = get_supabase_admin_client()
+            quest_count_result = admin_client.table('badge_quests')\
+                .select('badge_id, is_required')\
+                .in_('badge_id', badge_ids)\
+                .execute()
+
+            # Count quests per badge
+            for bq in quest_count_result.data:
+                badge_id = bq['badge_id']
+                if badge_id not in quest_counts:
+                    quest_counts[badge_id] = {'total': 0, 'required': 0}
+                quest_counts[badge_id]['total'] += 1
+                if bq['is_required']:
+                    quest_counts[badge_id]['required'] += 1
+
         for badge in badges:
             pillar = badge.get('pillar_primary', 'STEM & Logic')
             if pillar in pillar_groups:
-                # Add quest count info for display
-                badge_detail = BadgeService.get_badge_detail(badge['id'], user_id=user_id)
-                badge['quest_count'] = badge_detail.get('total_quests', 0)
-                badge['required_quest_count'] = len(badge_detail.get('required_quests', []))
+                # Add quest count info from bulk query
+                counts = quest_counts.get(badge['id'], {'total': 0, 'required': 0})
+                badge['quest_count'] = counts['total']
+                badge['required_quest_count'] = counts['required']
 
                 # Add user progress for display
-                if user_id and badge_detail.get('user_progress'):
-                    progress = badge_detail['user_progress']
+                if user_id and badge.get('user_progress'):
+                    progress = badge['user_progress']
                     badge['progress'] = {
                         'quests_completed': progress.get('quests_completed', 0),
                         'quests_required': badge.get('min_quests', 0),

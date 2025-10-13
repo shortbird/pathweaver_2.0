@@ -86,25 +86,26 @@ const QuestBadgeHub = () => {
     }
   }, [activeTab, selectedPillar, searchTerm, user, loginTimestamp]);
 
-  // Fetch quests when in quests tab
-  useEffect(() => {
-    if (activeTab === 'quests' && user !== undefined) {
-      if (questPage === 1) {
-        fetchQuests(true);
-      } else {
-        fetchQuests(false);
-      }
-    }
-  }, [activeTab, questPage, selectedPillar, searchTerm, user, loginTimestamp]);
-
-  // Reset quest pagination when filters change
+  // Reset quest pagination when filters change (must run before fetch)
   useEffect(() => {
     if (activeTab === 'quests') {
       setQuestPage(1);
       setQuests([]);
       setHasMoreQuests(true);
+      isLoadingRef.current = false; // Reset loading ref
     }
   }, [selectedPillar, searchTerm]);
+
+  // Fetch quests when in quests tab
+  useEffect(() => {
+    if (activeTab === 'quests' && user !== undefined && questPage === 1) {
+      console.log('[HUB] Fetching initial quests...');
+      fetchQuests(true);
+    } else if (activeTab === 'quests' && user !== undefined && questPage > 1) {
+      console.log(`[HUB] Fetching page ${questPage}...`);
+      fetchQuests(false);
+    }
+  }, [activeTab, questPage, user, loginTimestamp]);
 
   // Fetch badges from API
   const fetchBadges = async () => {
@@ -143,8 +144,12 @@ const QuestBadgeHub = () => {
 
   // Fetch quests from API
   const fetchQuests = async (isInitial = true) => {
-    if (isLoadingRef.current) return;
+    if (isLoadingRef.current) {
+      console.log('[HUB] Fetch blocked - already loading');
+      return;
+    }
 
+    console.log(`[HUB] fetchQuests called - isInitial: ${isInitial}, page: ${questPage}`);
     isLoadingRef.current = true;
 
     if (isInitial) {
@@ -170,16 +175,19 @@ const QuestBadgeHub = () => {
         params.append('pillar', selectedPillar);
       }
 
+      console.log(`[HUB] Fetching: /api/quests?${params}`);
       const response = await api.get(`/api/quests?${params}`, {
         signal,
         headers: { 'Cache-Control': 'no-cache' }
       });
 
+      console.log(`[HUB] Response:`, response.data);
       return response.data;
     });
 
     if (result.success && isMounted()) {
       const data = result.data;
+      console.log(`[HUB] Success - Got ${data.quests?.length || 0} quests, total: ${data.total}`);
 
       if (isInitial) {
         setQuests(data.quests || []);
@@ -189,7 +197,9 @@ const QuestBadgeHub = () => {
 
       setTotalQuests(data.total || 0);
       setHasMoreQuests(data.has_more === true);
+      setQuestsError(''); // Clear any previous errors
     } else if (result.error && !result.aborted && isMounted()) {
+      console.error('[HUB] Quest fetch error:', result.error);
       setQuestsError('Failed to load quests. Please try again.');
     }
 
@@ -466,10 +476,13 @@ const QuestBadgeHub = () => {
           />
         </div>
 
-        {/* Content area with gradient background header */}
+        {/* Content area with gradient text header */}
         <div className="mb-6">
-          <div className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] rounded-t-xl p-6 mb-6">
-            <h2 className="text-3xl font-medium text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <div className="mb-6">
+            <h2
+              className="text-4xl font-medium bg-gradient-to-r from-[#6d469b] to-[#ef597b] bg-clip-text text-transparent"
+              style={{ fontFamily: 'Poppins, sans-serif' }}
+            >
               {activeTab === 'badges' ? 'RECOMMENDED BADGES' : 'AVAILABLE QUESTS'}
             </h2>
           </div>
