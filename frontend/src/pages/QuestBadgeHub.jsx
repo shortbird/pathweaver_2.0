@@ -3,12 +3,14 @@ import { useAuth } from '../contexts/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { useIsMounted, useObserver, useDebounceWithCleanup, useSafeAsync } from '../hooks/useMemoryLeakFix';
+import { Info } from 'lucide-react';
 
 // Import hub components
 import TabToggle from '../components/hub/TabToggle';
 import HubFilters from '../components/hub/HubFilters';
 import HubSearch from '../components/hub/HubSearch';
 import BadgeCarousel from '../components/hub/BadgeCarousel';
+import QuestBadgeInfoModal from '../components/hub/QuestBadgeInfoModal';
 
 // Import existing quest components
 import QuestCard from '../components/quest/improved/QuestCard';
@@ -68,11 +70,17 @@ const QuestBadgeHub = () => {
   const [showTeamUpModal, setShowTeamUpModal] = useState(false);
   const [selectedQuestForTeamUp, setSelectedQuestForTeamUp] = useState(null);
   const [showQuestSuggestionModal, setShowQuestSuggestionModal] = useState(false);
+  const [showInfoModal, setShowInfoModal] = useState(false);
 
   // Memory leak prevention
   const isMounted = useIsMounted();
   const safeAsync = useSafeAsync();
   const isLoadingRef = useRef(false);
+
+  // Scroll to top when component mounts or route changes
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [location.pathname]);
 
   // Save tab selection to localStorage
   useEffect(() => {
@@ -418,22 +426,30 @@ const QuestBadgeHub = () => {
       <div className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white py-16">
         <div className="max-w-7xl mx-auto px-4">
           <h1 className="text-5xl font-bold mb-4">EXPLORE NEW LEARNING PATHS</h1>
-          <p className="text-xl mb-2">
-            Choose from{' '}
-            <span className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full">
-              <strong>Badges</strong>
-            </span>
-            {' '}or{' '}
-            <span className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full">
-              <strong>Quests</strong>
-            </span>
-          </p>
-          <p className="text-lg opacity-90">
-            Quests are individual tasks and adventures.
-          </p>
-          <p className="text-lg opacity-90">
-            Badges contain a track of recommended quests, if you'd like the extra nudge towards greatness.
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="text-xl">
+              Choose from{' '}
+              <span className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full">
+                <strong>Badges</strong>
+              </span>
+              {' '}or{' '}
+              <span className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full">
+                <strong>Quests</strong>
+              </span>
+            </p>
+            <button
+              onClick={() => setShowInfoModal(true)}
+              className="
+                p-2 rounded-full bg-white/20 hover:bg-white/30
+                transition-all duration-200 hover:scale-110
+                border border-white/30 hover:border-white/50
+              "
+              aria-label="Learn about badges and quests"
+              title="Learn more about badges and quests"
+            >
+              <Info className="w-5 h-5 text-white" />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -509,6 +525,12 @@ const QuestBadgeHub = () => {
           onSuccess={() => {}}
         />
       )}
+
+      {/* Info Modal */}
+      <QuestBadgeInfoModal
+        isOpen={showInfoModal}
+        onClose={() => setShowInfoModal(false)}
+      />
     </div>
   );
 };
