@@ -38,7 +38,17 @@ const ActiveQuests = memo(({ activeQuests }) => {
           title: questData.title,
           description: questData.description || questData.big_idea,
           image_url: questData.image_url,
-          header_image_url: questData.header_image_url
+          header_image_url: questData.header_image_url,
+          user_enrollment: true, // Dashboard only shows enrolled quests
+          completed_enrollment: quest.status === 'completed' || quest.completed_at,
+          progress: {
+            completed_tasks: quest.tasks_completed || quest.completed_tasks || 0,
+            total_tasks: questData.task_count || questData.total_tasks || 1,
+            percentage: questData.task_count > 0
+              ? Math.round(((quest.tasks_completed || 0) / questData.task_count) * 100)
+              : 0
+          },
+          quest_tasks: questData.quest_tasks || []
         };
         return <QuestCardSimple key={transformedQuest.id} quest={transformedQuest} />;
       })}
