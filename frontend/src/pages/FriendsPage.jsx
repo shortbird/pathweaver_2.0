@@ -287,7 +287,7 @@ const FriendsPage = () => {
             </div>
           )}
           
-          <div className="card mb-6">
+          <div className="mb-6">
             <h2 className="text-xl font-semibold mb-4">Send Friend Request</h2>
             <form onSubmit={sendFriendRequest} className="flex gap-4">
               <input
@@ -308,7 +308,7 @@ const FriendsPage = () => {
           </div>
 
           {/* Friends Management with Tabs */}
-          <div className="bg-white rounded-xl shadow-lg mb-6">
+          <div className="mb-6">
             {/* Tab Navigation */}
             <div className="flex border-b">
               <TabButton
@@ -469,7 +469,7 @@ const FriendsPage = () => {
           </div>
 
           {/* Team-Up Management Container */}
-          <div className="bg-white rounded-xl shadow-lg mb-6">
+          <div className="mb-6">
             <div className="p-6 border-b">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -684,7 +684,7 @@ const FriendsPage = () => {
         </div>
 
         <div>
-          <div className="card">
+          <div>
             <h2 className="text-xl font-semibold mb-4">Community Benefits</h2>
             <div className="space-y-3">
               <div className="p-3 bg-purple-50 rounded-lg">

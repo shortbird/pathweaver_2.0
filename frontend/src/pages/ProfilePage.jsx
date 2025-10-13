@@ -111,7 +111,7 @@ const ProfilePage = () => {
 
       <div className="space-y-6">
         {/* Personal Information - Full Width */}
-        <div className="card">
+        <div>
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Personal Information</h2>
               {!editing && (
@@ -198,7 +198,7 @@ const ProfilePage = () => {
           </div>
 
         {/* Statistics - Full Width */}
-        <div className="card">
+        <div>
           <h2 className="text-xl font-semibold mb-4">Statistics</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -217,7 +217,7 @@ const ProfilePage = () => {
         </div>
 
         {/* My Learning - Full Width */}
-        <div className="card">
+        <div>
           <h2 className="text-xl font-semibold mb-4">My Learning</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <Link
@@ -295,7 +295,7 @@ const ProfilePage = () => {
         </div>
 
         {/* Danger Zone - Full Width */}
-        <div className="card border-red-200">
+        <div>
           <h2 className="text-xl font-semibold mb-4 text-red-600">Danger Zone</h2>
             {profileData?.user?.deletion_status === 'pending' ? (
               <div className="space-y-3">

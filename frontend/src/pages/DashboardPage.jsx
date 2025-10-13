@@ -124,7 +124,7 @@ const DashboardPage = () => {
       </div>
 
       {/* Active Quests Panel */}
-      <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
+      <div>
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 bg-gradient-to-r from-green-500 to-emerald-500 rounded-lg flex items-center justify-center">
