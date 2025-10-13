@@ -4,7 +4,6 @@ Calendar routes for managing user quest/task scheduling and deadlines.
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta, date
 from database import get_supabase_admin_client, get_user_client
-from middleware.csrf_protection import csrf_protect
 from utils.auth.decorators import require_auth
 from collections import defaultdict
 
@@ -119,7 +118,6 @@ def get_calendar_items(user_id):
 
 
 @calendar_bp.route('/deadline', methods=['PUT'])
-@csrf_protect
 @require_auth
 def update_deadline(user_id=None):
     """
@@ -173,7 +171,6 @@ def update_deadline(user_id=None):
 
 
 @calendar_bp.route('/bulk-deadline', methods=['PUT'])
-@csrf_protect
 @require_auth
 def bulk_update_deadlines(user_id=None):
     """
@@ -302,7 +299,6 @@ def get_preferences(user_id):
 
 
 @calendar_bp.route('/preferences/<user_id>', methods=['PUT'])
-@csrf_protect
 @require_auth
 def update_preferences(user_id):
     """
