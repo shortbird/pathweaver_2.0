@@ -33,6 +33,9 @@ const ActiveQuests = memo(({ activeQuests }) => {
       {allQuests.slice(0, 6).map(quest => {
         // Transform quest data to match QuestCardSimple expectations
         const questData = quest.quests || quest;
+        const completedTasks = quest.tasks_completed || quest.completed_tasks || 0;
+        const totalTasks = questData.task_count || questData.total_tasks || 1;
+
         const transformedQuest = {
           id: quest.quest_id || quest.id,
           title: questData.title,
@@ -42,10 +45,10 @@ const ActiveQuests = memo(({ activeQuests }) => {
           user_enrollment: true, // Dashboard only shows enrolled quests
           completed_enrollment: quest.status === 'completed' || quest.completed_at,
           progress: {
-            completed_tasks: quest.tasks_completed || quest.completed_tasks || 0,
-            total_tasks: questData.task_count || questData.total_tasks || 1,
-            percentage: questData.task_count > 0
-              ? Math.round(((quest.tasks_completed || 0) / questData.task_count) * 100)
+            completed_tasks: completedTasks,
+            total_tasks: totalTasks,
+            percentage: totalTasks > 0
+              ? Math.round((completedTasks / totalTasks) * 100)
               : 0
           },
           quest_tasks: questData.quest_tasks || []

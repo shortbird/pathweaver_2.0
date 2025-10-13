@@ -125,6 +125,7 @@ def get_active_quests(supabase, user_id: str) -> list:
                     .select('*')\
                     .eq('user_quest_id', enrollment_id)\
                     .eq('approval_status', 'approved')\
+                    .order('order_index')\
                     .execute()
 
                 tasks = user_tasks.data if user_tasks.data else []
@@ -147,21 +148,31 @@ def get_active_quests(supabase, user_id: str) -> list:
                 quest_info['task_count'] = task_count
                 quest_info['pillar_breakdown'] = pillar_breakdown
 
-                # Get completed tasks count for progress
+                # Get completed tasks for progress and marking tasks as complete
                 try:
                     if task_count > 0:
                         task_ids = [t['id'] for t in tasks]
-                        completed_tasks = supabase.table('quest_task_completions')\
-                            .select('id', count='exact')\
+                        completed_tasks_response = supabase.table('quest_task_completions')\
+                            .select('user_quest_task_id')\
                             .eq('user_id', user_id)\
                             .in_('user_quest_task_id', task_ids)\
                             .execute()
-                        enrollment['completed_tasks'] = completed_tasks.count if hasattr(completed_tasks, 'count') else 0
+
+                        completed_task_ids = {t['user_quest_task_id'] for t in (completed_tasks_response.data or [])}
+                        enrollment['completed_tasks'] = len(completed_task_ids)
+
+                        # Mark each task as completed or not for frontend
+                        for task in tasks:
+                            task['is_completed'] = task['id'] in completed_task_ids
                     else:
                         enrollment['completed_tasks'] = 0
+
+                    # Add enriched tasks to quest data for frontend
+                    quest_info['quest_tasks'] = tasks
                 except Exception as e:
                     print(f"Error getting completed tasks: {str(e)}")
                     enrollment['completed_tasks'] = 0
+                    quest_info['quest_tasks'] = []
 
                 print(f"    Tasks: {enrollment['completed_tasks']}/{task_count}, Total XP: {total_xp}")
             
@@ -199,6 +210,7 @@ def get_active_quests(supabase, user_id: str) -> list:
                             .select('*')\
                             .eq('user_quest_id', enrollment_id)\
                             .eq('approval_status', 'approved')\
+                            .order('order_index')\
                             .execute()
 
                         tasks = user_tasks.data if user_tasks.data else []
@@ -221,21 +233,31 @@ def get_active_quests(supabase, user_id: str) -> list:
                         quest_info['task_count'] = task_count
                         quest_info['pillar_breakdown'] = pillar_breakdown
 
-                        # Get completed tasks count
+                        # Get completed tasks count and mark completion status
                         try:
                             if task_count > 0:
                                 task_ids = [t['id'] for t in tasks]
-                                completed_tasks = supabase.table('quest_task_completions')\
-                                    .select('id', count='exact')\
+                                completed_tasks_response = supabase.table('quest_task_completions')\
+                                    .select('user_quest_task_id')\
                                     .eq('user_id', user_id)\
                                     .in_('user_quest_task_id', task_ids)\
                                     .execute()
-                                enrollment['completed_tasks'] = completed_tasks.count if hasattr(completed_tasks, 'count') else 0
+
+                                completed_task_ids = {t['user_quest_task_id'] for t in (completed_tasks_response.data or [])}
+                                enrollment['completed_tasks'] = len(completed_task_ids)
+
+                                # Mark each task as completed or not for frontend
+                                for task in tasks:
+                                    task['is_completed'] = task['id'] in completed_task_ids
                             else:
                                 enrollment['completed_tasks'] = 0
+
+                            # Add enriched tasks to quest data for frontend
+                            quest_info['quest_tasks'] = tasks
                         except Exception as e:
                             print(f"Error getting completed tasks fallback: {str(e)}")
                             enrollment['completed_tasks'] = 0
+                            quest_info['quest_tasks'] = []
                     except:
                         enrollment['quests'] = {}
                 
