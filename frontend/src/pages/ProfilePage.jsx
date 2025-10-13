@@ -263,43 +263,13 @@ const ProfilePage = () => {
           <h2 className="text-xl font-semibold mb-4">My Learning</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
             <Link
-              to="/badges"
-              className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">🎯</div>
-                <div>
-                  <div className="font-medium text-gray-900">Badge Explorer</div>
-                  <div className="text-xs text-gray-600">Browse all badges</div>
-                </div>
-              </div>
-              <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-
-            <Link
-              to="/badge-progress"
-              className="flex items-center justify-between p-3 bg-gradient-to-r from-green-50 to-emerald-50 hover:from-green-100 hover:to-emerald-100 rounded-lg transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">📈</div>
-                <div>
-                  <div className="font-medium text-gray-900">Badge Progress</div>
-                  <div className="text-xs text-gray-600">Track achievements</div>
-                </div>
-              </div>
-              <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-
-            <Link
               to="/constellation"
               className="flex items-center justify-between p-3 bg-gradient-to-r from-purple-50 to-pink-50 hover:from-purple-100 hover:to-pink-100 rounded-lg transition-all group"
             >
               <div className="flex items-center gap-3">
-                <div className="text-2xl">⭐</div>
+                <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
                 <div>
                   <div className="font-medium text-gray-900">Constellation</div>
                   <div className="text-xs text-gray-600">Star map view</div>
@@ -315,7 +285,9 @@ const ProfilePage = () => {
               className="flex items-center justify-between p-3 bg-gradient-to-r from-amber-50 to-orange-50 hover:from-amber-100 hover:to-orange-100 rounded-lg transition-all group"
             >
               <div className="flex items-center gap-3">
-                <div className="text-2xl">💳</div>
+                <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
                 <div>
                   <div className="font-medium text-gray-900">Credit Tracker</div>
                   <div className="text-xs text-gray-600">Academic credits</div>
@@ -331,7 +303,9 @@ const ProfilePage = () => {
               className="flex items-center justify-between p-3 bg-gradient-to-r from-rose-50 to-red-50 hover:from-rose-100 hover:to-red-100 rounded-lg transition-all group"
             >
               <div className="flex items-center gap-3">
-                <div className="text-2xl">📄</div>
+                <svg className="w-6 h-6 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
                 <div>
                   <div className="font-medium text-gray-900">Transcript</div>
                   <div className="text-xs text-gray-600">Full record</div>
@@ -342,66 +316,31 @@ const ProfilePage = () => {
               </svg>
             </Link>
 
-            <Link
-              to="/diploma"
-              className="flex items-center justify-between p-3 bg-gradient-to-r from-indigo-50 to-purple-50 hover:from-indigo-100 hover:to-purple-100 rounded-lg transition-all group"
+            <button
+              onClick={downloadAllData}
+              className="flex items-center justify-between p-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 rounded-lg transition-all group text-left"
             >
               <div className="flex items-center gap-3">
-                <div className="text-2xl">📜</div>
+                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
                 <div>
-                  <div className="font-medium text-gray-900">My Diploma</div>
-                  <div className="text-xs text-gray-600">Portfolio view</div>
+                  <div className="font-medium text-gray-900">Download All Data</div>
+                  <div className="text-xs text-gray-600">Export everything</div>
                 </div>
               </div>
               <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
-            </Link>
-
-            <Link
-              to="/dashboard"
-              className="flex items-center justify-between p-3 bg-gradient-to-r from-cyan-50 to-sky-50 hover:from-cyan-100 hover:to-sky-100 rounded-lg transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">📊</div>
-                <div>
-                  <div className="font-medium text-gray-900">Dashboard</div>
-                  <div className="text-xs text-gray-600">Overview</div>
-                </div>
-              </div>
-              <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
-
-            <Link
-              to="/quests"
-              className="flex items-center justify-between p-3 bg-gradient-to-r from-teal-50 to-green-50 hover:from-teal-100 hover:to-green-100 rounded-lg transition-all group"
-            >
-              <div className="flex items-center gap-3">
-                <div className="text-2xl">🗺️</div>
-                <div>
-                  <div className="font-medium text-gray-900">Quest Hub</div>
-                  <div className="text-xs text-gray-600">Explore quests</div>
-                </div>
-              </div>
-              <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </Link>
+            </button>
           </div>
         </div>
 
         {/* Subscription - Full Width */}
         <div className="card">
           <h2 className="text-xl font-semibold mb-4">Subscription</h2>
-            <div className="mb-4">
-              <span className="bg-secondary text-text px-3 py-1 rounded-full text-sm font-medium">
-                {getTierDisplayName(user?.subscription_tier).toUpperCase()}
-              </span>
-            </div>
-
-            <div className="mb-4">
+          <div className="space-y-4">
+            <div>
               <button
                 onClick={handleRefreshUserData}
                 disabled={refreshing}
@@ -424,22 +363,7 @@ const ProfilePage = () => {
                 Upgrade to Supported tier to download your transcript
               </p>
             )}
-        </div>
-
-        {/* Data & Privacy - Full Width */}
-        <div className="card">
-          <h2 className="text-xl font-semibold mb-4">Data & Privacy</h2>
-            <div className="space-y-3">
-              <button
-                onClick={downloadAllData}
-                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Download All My Data
-              </button>
-              <p className="text-xs text-gray-500">
-                Export all your data including profile, quests, evidence, and more (GDPR compliance)
-              </p>
-            </div>
+          </div>
         </div>
 
         {/* Danger Zone - Full Width */}

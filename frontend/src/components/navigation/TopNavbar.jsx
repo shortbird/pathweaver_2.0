@@ -12,6 +12,13 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
   }
 
   const isActiveToggle = (path) => {
+    // Dashboard toggle should be active for: /dashboard, /friends, /diploma, /profile, /badges
+    if (path === '/dashboard') {
+      return ['/dashboard', '/friends', '/diploma', '/profile', '/badges'].some(route =>
+        location.pathname === route || location.pathname.startsWith(route + '/')
+      )
+    }
+    // Explore toggle should be active only for /quests
     return location.pathname === path || location.pathname.startsWith(path + '/')
   }
 
