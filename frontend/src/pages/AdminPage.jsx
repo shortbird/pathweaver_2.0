@@ -1,6 +1,5 @@
 import React, { memo } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
-import AdminDashboard from '../components/admin/AdminDashboard'
 import AdminQuests from '../components/admin/AdminQuests'
 import AdminUsers from '../components/admin/AdminUsers'
 import AdminQuestSuggestions from '../components/admin/AdminQuestSuggestions'
@@ -23,14 +22,8 @@ const AdminPage = () => {
 
       <div className="flex gap-4 mb-8 border-b overflow-x-auto">
         <Link
-          to="/admin"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' ? 'border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
-        >
-          Dashboard
-        </Link>
-        <Link
           to="/admin/quests"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quests' ? 'border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' || currentPath === 'quests' ? 'border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Quests
         </Link>
@@ -73,7 +66,7 @@ const AdminPage = () => {
       </div>
 
       <Routes>
-        <Route index element={<AdminDashboard />} />
+        <Route index element={<AdminQuests />} />
         <Route path="quests" element={<AdminQuests />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="quest-suggestions" element={<AdminQuestSuggestions />} />
