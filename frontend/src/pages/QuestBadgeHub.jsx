@@ -12,7 +12,6 @@ import BadgeCarousel from '../components/hub/BadgeCarousel';
 
 // Import existing quest components
 import QuestCard from '../components/quest/improved/QuestCard';
-import QuestListItem from '../components/quest/improved/QuestListItem';
 import TeamUpModal from '../components/quest/TeamUpModal';
 import QuestSuggestionModal from '../components/QuestSuggestionModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
@@ -50,7 +49,6 @@ const QuestBadgeHub = () => {
   // Filter state
   const [selectedPillar, setSelectedPillar] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState('grid');
 
   // Badge state
   const [badgesByPillar, setBadgesByPillar] = useState({});
@@ -273,7 +271,7 @@ const QuestBadgeHub = () => {
     if (badgesLoading) {
       return (
         <div className="flex items-center justify-center py-16">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b]" />
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#6d469b]" />
         </div>
       );
     }
@@ -406,8 +404,8 @@ const QuestBadgeHub = () => {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Hero header with gradient */}
-      <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-16">
+      {/* Hero header with gradient - purple to pink */}
+      <div className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white py-16">
         <div className="max-w-7xl mx-auto px-4">
           <h1 className="text-5xl font-bold mb-4">EXPLORE NEW LEARNING PATHS</h1>
           <p className="text-xl mb-2">
@@ -441,7 +439,7 @@ const QuestBadgeHub = () => {
               <HubSearch
                 value={searchTerm}
                 onChange={setSearchTerm}
-                placeholder="Search..."
+                placeholder="SEARCH"
               />
             </div>
           </div>
@@ -451,7 +449,7 @@ const QuestBadgeHub = () => {
             <div className="flex justify-end">
               <button
                 onClick={handleQuestSuggestion}
-                className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center gap-2 shadow-lg"
+                className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center gap-2 shadow-lg"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
@@ -468,11 +466,13 @@ const QuestBadgeHub = () => {
           />
         </div>
 
-        {/* Content area */}
+        {/* Content area with gradient background header */}
         <div className="mb-6">
-          <h2 className="text-3xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent mb-6">
-            {activeTab === 'badges' ? 'RECOMMENDED BADGES' : 'AVAILABLE QUESTS'}
-          </h2>
+          <div className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] rounded-t-xl p-6 mb-6">
+            <h2 className="text-3xl font-medium text-white" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              {activeTab === 'badges' ? 'RECOMMENDED BADGES' : 'AVAILABLE QUESTS'}
+            </h2>
+          </div>
 
           {activeTab === 'badges' ? renderBadgesView() : renderQuestsView()}
         </div>

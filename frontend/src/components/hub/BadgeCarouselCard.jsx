@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
  * BadgeCarouselCard Component
  * Displays a badge in the carousel with progress indicator
  * Matches mockup design: shows icon, name, identity statement, and quest count
+ * Uses purple→pink gradient for progress text
  */
 export default function BadgeCarouselCard({ badge }) {
   const navigate = useNavigate();
@@ -73,9 +74,9 @@ export default function BadgeCarouselCard({ badge }) {
             </span>
           </div>
 
-          {/* Progress percentage indicator */}
+          {/* Progress percentage indicator - purple to pink gradient */}
           {hasProgress && (
-            <span className="text-xs font-medium bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+            <span className="text-xs font-medium bg-gradient-to-r from-[#6d469b] to-[#ef597b] bg-clip-text text-transparent">
               {Math.round(progressPercentage)}%
             </span>
           )}
@@ -91,9 +92,9 @@ export default function BadgeCarouselCard({ badge }) {
           </div>
         )}
 
-        {/* Call to action on hover */}
+        {/* Call to action on hover - purple to pink gradient */}
         <div className="mt-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-          <span className="text-sm font-semibold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+          <span className="text-sm font-semibold bg-gradient-to-r from-[#6d469b] to-[#ef597b] bg-clip-text text-transparent">
             View Details →
           </span>
         </div>
