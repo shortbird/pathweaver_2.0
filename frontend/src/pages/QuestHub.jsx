@@ -4,7 +4,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../services/api';
 import { handleApiResponse } from '../utils/errorHandling';
 import { useIsMounted, useObserver, useDebounceWithCleanup, useSafeAsync } from '../hooks/useMemoryLeakFix';
-import QuestCard from '../components/quest/improved/QuestCard';
+import QuestCardSimple from '../components/quest/QuestCardSimple';
 import QuestListItem from '../components/quest/improved/QuestListItem';
 import QuestFilters from '../components/quest/improved/QuestFilters';
 import TeamUpModal from '../components/quest/TeamUpModal';
@@ -364,21 +364,12 @@ const QuestHub = () => {
                   if (quests.length === index + 1) {
                     return (
                       <div ref={lastQuestElementRef} key={quest.id}>
-                        <QuestCard
-                          quest={quest}
-                          onEnroll={handleEnroll}
-                          onTeamUp={handleTeamUp}
-                        />
+                        <QuestCardSimple quest={quest} />
                       </div>
                     );
                   } else {
                     return (
-                      <QuestCard
-                        key={quest.id}
-                        quest={quest}
-                        onEnroll={handleEnroll}
-                        onTeamUp={handleTeamUp}
-                      />
+                      <QuestCardSimple key={quest.id} quest={quest} />
                     );
                   }
                 })}

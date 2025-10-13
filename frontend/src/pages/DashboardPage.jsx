@@ -2,7 +2,7 @@ import React, { useEffect, memo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
-import CompactQuestCard from '../components/dashboard/CompactQuestCard'
+import QuestCardSimple from '../components/quest/QuestCardSimple'
 import {
   RocketLaunchIcon
 } from '@heroicons/react/24/outline'
@@ -30,9 +30,18 @@ const ActiveQuests = memo(({ activeQuests }) => {
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-      {allQuests.slice(0, 6).map(quest => (
-        <CompactQuestCard key={quest.id || quest.quest_id} quest={quest} />
-      ))}
+      {allQuests.slice(0, 6).map(quest => {
+        // Transform quest data to match QuestCardSimple expectations
+        const questData = quest.quests || quest;
+        const transformedQuest = {
+          id: quest.quest_id || quest.id,
+          title: questData.title,
+          description: questData.description || questData.big_idea,
+          image_url: questData.image_url,
+          header_image_url: questData.header_image_url
+        };
+        return <QuestCardSimple key={transformedQuest.id} quest={transformedQuest} />;
+      })}
     </div>
   )
 })
