@@ -11,7 +11,11 @@ const MessageThread = ({ messages, otherUser, isLoading }) => {
   }
 
   useEffect(() => {
-    scrollToBottom()
+    // Only scroll to bottom if there are messages
+    // This prevents unwanted scroll on initial empty load
+    if (messages && messages.length > 0) {
+      scrollToBottom()
+    }
   }, [messages])
 
   const formatTime = (timestamp) => {
