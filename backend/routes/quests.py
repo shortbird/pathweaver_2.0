@@ -770,23 +770,55 @@ def end_quest(user_id: str, quest_id: str):
     End an active quest enrollment.
     Keeps all progress, submitted tasks, and XP earned.
     Simply marks the quest as inactive.
+
+    Note: This endpoint can be called even if the quest is already completed
+    (from auto-completion when all tasks are done). We handle both cases gracefully.
     """
     try:
         supabase = get_supabase_admin_client()
-        
-        # Check if user is enrolled in this quest
+
+        # Check if user is enrolled in this quest (allow both active and completed)
+        # Quest might already be auto-completed when last task was submitted
         enrollment = supabase.table('user_quests')\
             .select('*')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
-            .eq('is_active', True)\
             .execute()
-        
+
         if not enrollment.data:
             return jsonify({
                 'success': False,
                 'error': 'Not enrolled in this quest'
             }), 404
+
+        # Get the most recent enrollment (in case of multiple)
+        current_enrollment = enrollment.data[0]
+
+        # Check if already marked as inactive and completed
+        if not current_enrollment.get('is_active') and current_enrollment.get('completed_at'):
+            # Quest is already fully completed - return success with stats
+            user_quest_id = current_enrollment['id']
+
+            # Get task completion stats
+            completed_tasks = supabase.table('user_quest_tasks')\
+                .select('xp_value')\
+                .eq('user_quest_id', user_quest_id)\
+                .execute()
+
+            total_xp = sum(task.get('xp_value', 0) for task in (completed_tasks.data or []))
+            task_count = len(completed_tasks.data or [])
+
+            return jsonify({
+                'success': True,
+                'message': f'Quest already completed! You finished {task_count} tasks and earned {total_xp} XP.',
+                'already_completed': True,
+                'stats': {
+                    'tasks_completed': task_count,
+                    'xp_earned': total_xp
+                }
+            })
+
+        # If not already inactive, mark it as such
         
         user_quest_id = enrollment.data[0]['id']
         

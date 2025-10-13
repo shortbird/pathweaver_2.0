@@ -99,13 +99,20 @@ export const useCompleteTask = () => {
 
   return useMutation({
     mutationKey: [mutationKeys.completeTask],
-    mutationFn: async ({ taskId, evidence }) => {
+    mutationFn: async ({ taskId, evidence, userId }) => {
       const response = await api.post(`/api/tasks/${taskId}/complete`, evidence)
       return response.data
     },
     onSuccess: (data, variables) => {
+      const userId = variables.userId
+
       // Invalidate all quest-related data (React Query will auto-refetch)
-      queryKeys.invalidateQuests(queryClient)
+      queryKeys.invalidateQuests(queryClient, userId)
+
+      // Also invalidate user dashboard to update active quests immediately
+      if (userId) {
+        queryClient.invalidateQueries(queryKeys.user.dashboard(userId))
+      }
 
       toast.success('Task completed successfully!')
     },
