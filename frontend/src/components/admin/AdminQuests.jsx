@@ -1,7 +1,6 @@
 import React, { useState, useEffect, memo } from 'react'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
-import SourcesManager from '../SourcesManager'
 import UnifiedQuestForm from './UnifiedQuestForm'
 
 const AdminQuests = () => {
@@ -9,10 +8,7 @@ const AdminQuests = () => {
   const [loading, setLoading] = useState(true)
   const [showManager, setShowManager] = useState(false)
   const [editingQuest, setEditingQuest] = useState(null)
-  const [collapsedQuests, setCollapsedQuests] = useState(new Set())
-  const [showSourcesManager, setShowSourcesManager] = useState(false)
   const [showCreationForm, setShowCreationForm] = useState(false)
-  const [activeTab, setActiveTab] = useState('quests')
 
   useEffect(() => {
     fetchQuests()
@@ -22,9 +18,6 @@ const AdminQuests = () => {
     try {
       const response = await api.get('/api/v3/admin/quests')
       setQuests(response.data.quests)
-      // Set all quests as collapsed by default
-      const allQuestIds = new Set(response.data.quests.map(quest => quest.id))
-      setCollapsedQuests(allQuestIds)
     } catch (error) {
       toast.error('Failed to load quests')
     } finally {
@@ -57,7 +50,7 @@ const AdminQuests = () => {
 
   const handleRefreshImage = async (questId) => {
     try {
-      const response = await api.post(`/api/v3/admin/quests/${questId}/refresh-image`, {})
+      await api.post(`/api/v3/admin/quests/${questId}/refresh-image`, {})
       toast.success('Quest image refreshed successfully')
       fetchQuests()
     } catch (error) {
@@ -65,63 +58,21 @@ const AdminQuests = () => {
     }
   }
 
-  const getSkillCategoryName = (category) => {
-    const categoryNames = {
-      'reading_writing': 'Reading & Writing',
-      'thinking_skills': 'Thinking Skills',
-      'personal_growth': 'Personal Growth',
-      'life_skills': 'Life Skills',
-      'making_creating': 'Making & Creating',
-      'world_understanding': 'World Understanding'
-    }
-    return categoryNames[category] || category
-  }
-
-  const toggleQuestCollapse = (questId) => {
-    setCollapsedQuests(prev => {
-      const newSet = new Set(prev)
-      if (newSet.has(questId)) {
-        newSet.delete(questId)
-      } else {
-        newSet.add(questId)
-      }
-      return newSet
-    })
+  const handleUploadImage = (questId) => {
+    // TODO: Implement image upload functionality
+    toast('Image upload feature coming soon', { icon: 'ℹ️' })
   }
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Manage Quests</h2>
-        <div className="flex gap-2">
-          <button
-            onClick={() => {
-              if (collapsedQuests.size === quests.length) {
-                // All collapsed, so expand all
-                setCollapsedQuests(new Set())
-              } else {
-                // Some or all expanded, so collapse all
-                const allQuestIds = new Set(quests.map(quest => quest.id))
-                setCollapsedQuests(allQuestIds)
-              }
-            }}
-            className="bg-gray-200 text-gray-700 px-4 py-2 rounded hover:bg-gray-300"
-          >
-            {collapsedQuests.size === quests.length ? 'Expand All' : 'Collapse All'}
-          </button>
-          <button
-            onClick={() => setShowCreationForm(true)}
-            className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded hover:opacity-90"
-          >
-            Create New Quest
-          </button>
-          <button
-            onClick={() => setShowSourcesManager(true)}
-            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
-          >
-            Manage Source Images
-          </button>
-        </div>
+        <button
+          onClick={() => setShowCreationForm(true)}
+          className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
+        >
+          Create New Quest
+        </button>
       </div>
 
       {showManager && (
@@ -136,207 +87,109 @@ const AdminQuests = () => {
         />
       )}
 
-      {showSourcesManager && (
-        <SourcesManager
-          onClose={() => setShowSourcesManager(false)}
-        />
-      )}
-
       {showCreationForm && (
         <UnifiedQuestForm
           mode="create"
           onClose={() => setShowCreationForm(false)}
           onSuccess={(newQuest) => {
-            fetchQuests() // Refresh quest list
-            // Success toast is already shown by UnifiedQuestForm
+            fetchQuests()
           }}
         />
       )}
 
       {loading ? (
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
+        <div className="flex justify-center py-12">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b]"></div>
+        </div>
       ) : (
         <div>
           {quests.length === 0 ? (
-            <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
-              <p className="text-lg">No quests found</p>
+            <div className="text-center py-16 text-gray-500 bg-gray-50 rounded-xl">
+              <svg className="mx-auto h-16 w-16 text-gray-300 mb-4" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
+              </svg>
+              <p className="text-lg font-semibold">No quests found</p>
               <p className="text-sm mt-2">Create your first quest using the button above</p>
             </div>
           ) : (
-            <div className="grid gap-4">
-              {quests.map(quest => {
-                // Calculate total XP from tasks for V3 or fallback to old system
-                const totalXP = quest.quest_tasks?.reduce((sum, task) => sum + (task.xp_amount || 0), 0) ||
-                               quest.quest_skill_xp?.reduce((sum, award) => sum + award.xp_amount, 0) ||
-                               quest.quest_xp_awards?.reduce((sum, award) => sum + award.xp_amount, 0) ||
-                               quest.total_xp || 0;
-
-                const isCollapsed = collapsedQuests.has(quest.id);
-
-                return (
-                  <div key={quest.id} className="bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow">
-                    {/* Quest Image Preview */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {quests.map(quest => (
+                <div
+                  key={quest.id}
+                  className="group bg-white rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100"
+                >
+                  {/* Image Section with Title Overlay - Same as QuestCardSimple */}
+                  <div className="relative h-48 overflow-hidden">
+                    {/* Background Image */}
                     {quest.image_url || quest.header_image_url ? (
-                      <div className="relative h-32 overflow-hidden">
-                        <img
-                          src={quest.image_url || quest.header_image_url}
-                          alt={quest.title}
-                          className="w-full h-full object-cover"
-                        />
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRefreshImage(quest.id);
-                          }}
-                          className="absolute top-2 right-2 bg-white/90 hover:bg-white px-2 py-1 rounded text-xs text-gray-700 transition-colors"
-                        >
-                          🔄 Refresh Image
-                        </button>
-                      </div>
+                      <img
+                        src={quest.image_url || quest.header_image_url}
+                        alt={quest.title}
+                        className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      />
                     ) : (
-                      <div className="h-2 bg-gradient-to-r from-gray-200 to-gray-300"></div>
+                      <div className="w-full h-full bg-gradient-to-br from-[#6d469b] to-[#ef597b]" />
                     )}
 
-                    {/* Header Row */}
-                    <div className="p-6">
-                      <div className="flex justify-between items-start mb-4">
-                        <div className="flex-1 cursor-pointer" onClick={() => toggleQuestCollapse(quest.id)}>
-                          <div className="flex items-center gap-2">
-                            <span className="text-gray-500">
-                              {isCollapsed ? '▶' : '▼'}
-                            </span>
-                            <h3 className="text-lg font-semibold text-gray-900">{quest.title}</h3>
-                          </div>
-                          <p className="text-sm text-gray-600 mt-1 line-clamp-2 ml-6">
-                            {quest.big_idea || quest.description || 'No description'}
-                          </p>
-                        </div>
-                        <div className="flex gap-2 ml-4">
-                          <button
-                            onClick={() => handleEdit(quest)}
-                            className="px-3 py-1 text-sm bg-blue-50 text-blue-600 rounded hover:bg-blue-100 transition-colors"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            onClick={() => handleDelete(quest.id)}
-                            className="px-3 py-1 text-sm bg-red-50 text-red-600 rounded hover:bg-red-100 transition-colors"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </div>
+                    {/* Gradient Overlay for Text Readability */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent" />
 
-                    {/* Collapsible Content */}
-                    {!isCollapsed && (
-                      <>
-                    {/* Tasks Section for V3 Quests */}
-                    {quest.quest_tasks && quest.quest_tasks.length > 0 && (
-                      <div className="mb-4">
-                        <p className="text-xs font-semibold text-gray-500 mb-2">TASKS ({quest.quest_tasks.length}):</p>
-                        <div className="space-y-2">
-                          {quest.quest_tasks
-                            .sort((a, b) => (a.order_index || 0) - (b.order_index || 0))
-                            .map((task, idx) => (
-                            <div key={task.id || idx} className="bg-gray-50 p-3 rounded-lg">
-                              <div className="flex justify-between items-start">
-                                <div className="flex-1">
-                                  <span className="font-medium text-sm">{idx + 1}. {task.title}</span>
-                                  {task.description && (
-                                    <p className="text-xs text-gray-600 mt-1">{task.description}</p>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2 ml-2">
-                                  <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
-                                    {task.xp_amount} XP
-                                  </span>
-                                  <span className={`text-xs px-2 py-1 rounded ${
-                                    task.pillar === 'creativity' ? 'bg-purple-100 text-purple-700' :
-                                    task.pillar === 'critical_thinking' ? 'bg-blue-100 text-blue-700' :
-                                    task.pillar === 'practical_skills' ? 'bg-green-100 text-green-700' :
-                                    task.pillar === 'communication' ? 'bg-orange-100 text-orange-700' :
-                                    task.pillar === 'cultural_literacy' ? 'bg-red-100 text-red-700' :
-                                    'bg-gray-100 text-gray-700'
-                                  }`}>
-                                    {task.pillar?.replace('_', ' ')}
-                                  </span>
-                                  {task.is_collaboration_eligible && (
-                                    <span className="text-xs text-purple-600">Team-up eligible</span>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Skills or Subjects XP */}
-                    {(quest.quest_skill_xp?.length > 0 || quest.quest_xp_awards?.length > 0) && (
-                      <div className="mb-4">
-                        <p className="text-xs font-semibold text-gray-500 mb-2">XP AWARDS:</p>
-                        <div className="flex flex-wrap gap-2">
-                          {quest.quest_skill_xp?.map((award, idx) => (
-                            <div key={`skill-${idx}`} className="bg-gradient-to-r from-blue-50 to-purple-50 px-3 py-1 rounded-full border border-gray-200">
-                              <span className="text-xs font-medium text-gray-700">
-                                {getSkillCategoryName(award.skill_category)}:
-                              </span>
-                              <span className="text-xs font-bold text-primary ml-1">{award.xp_amount} XP</span>
-                            </div>
-                          ))}
-                          {quest.quest_xp_awards?.map((award, idx) => (
-                            <div key={`subject-${idx}`} className="bg-gradient-to-r from-green-50 to-blue-50 px-3 py-1 rounded-full border border-gray-200">
-                              <span className="text-xs font-medium text-gray-700">
-                                {award.subject?.replace(/_/g, ' ')}:
-                              </span>
-                              <span className="text-xs font-bold text-primary ml-1">{award.xp_amount} XP</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Core Skills */}
-                    {quest.core_skills?.length > 0 && (
-                      <div className="mb-4">
-                        <p className="text-xs font-semibold text-gray-500 mb-2">CORE SKILLS:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {quest.core_skills.map((skill, idx) => (
-                            <span key={idx} className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded">
-                              {skill.replace(/_/g, ' ')}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Additional Info */}
-                    <div className="mt-4 grid grid-cols-2 gap-4 text-xs text-gray-500">
-                      {quest.location_requirements && (
-                        <div>
-                          <span className="font-semibold">Location:</span> {quest.location_requirements}
-                        </div>
-                      )}
-                      {quest.resources_needed && (
-                        <div>
-                          <span className="font-semibold">Resources:</span> {quest.resources_needed}
-                        </div>
-                      )}
-                      {quest.optional_challenges?.length > 0 && (
-                        <div>
-                          <span className="font-semibold">Optional Challenges:</span> {quest.optional_challenges.length}
-                        </div>
-                      )}
-                      <div>
-                        <span className="font-semibold">Quest ID:</span> {quest.id.slice(0, 8)}...
-                      </div>
-                    </div>
-                    </>
-                    )}
+                    {/* Title Overlay */}
+                    <div className="absolute inset-x-0 bottom-0 p-6">
+                      <h3 className="text-white text-xl font-bold leading-tight drop-shadow-lg line-clamp-2">
+                        {quest.title}
+                      </h3>
                     </div>
                   </div>
-                );
-              })}
+
+                  {/* Description Section */}
+                  <div className="bg-white p-6">
+                    <p className="text-gray-600 text-sm leading-relaxed line-clamp-3 mb-4">
+                      {quest.description || quest.big_idea || 'No description available'}
+                    </p>
+
+                    {/* Admin Action Buttons */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        onClick={() => handleEdit(quest)}
+                        className="px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors font-medium flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDelete(quest.id)}
+                        className="px-4 py-2 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors font-medium flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Delete
+                      </button>
+                      <button
+                        onClick={() => handleUploadImage(quest.id)}
+                        className="px-4 py-2 text-sm bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors font-medium flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        Upload
+                      </button>
+                      <button
+                        onClick={() => handleRefreshImage(quest.id)}
+                        className="px-4 py-2 text-sm bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors font-medium flex items-center justify-center gap-2"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                        </svg>
+                        Refresh
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
