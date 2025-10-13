@@ -11,6 +11,7 @@ import AIPromptOptimizer from '../components/admin/AIPromptOptimizer'
 import BatchQuestGenerator from '../components/admin/BatchQuestGenerator'
 import BulkImageGenerator from '../components/admin/BulkImageGenerator'
 import TierManagement from '../components/admin/TierManagement'
+import SiteSettings from '../components/admin/SiteSettings'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -53,6 +54,12 @@ const AdminPage = () => {
           className={`pb-2 px-1 ${currentPath === 'subscription-tiers' ? 'border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Subscription Tiers
+        </Link>
+        <Link
+          to="/admin/site-settings"
+          className={`pb-2 px-1 ${currentPath === 'site-settings' ? 'border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+        >
+          Site Settings
         </Link>
         <div className="relative">
           <button
@@ -120,6 +127,7 @@ const AdminPage = () => {
         <Route path="users" element={<AdminUsers />} />
         <Route path="quest-suggestions" element={<AdminQuestSuggestions />} />
         <Route path="subscription-tiers" element={<TierManagement />} />
+        <Route path="site-settings" element={<SiteSettings />} />
         <Route path="ai-pipeline" element={<AIContentPipeline />} />
         <Route path="ai-quest-review" element={<AIQuestReview />} />
         <Route path="ai-performance" element={<AIPerformanceAnalytics />} />
