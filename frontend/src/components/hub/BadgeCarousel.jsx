@@ -86,13 +86,14 @@ export default function BadgeCarousel({ pillar, badges }) {
       <div className="relative">
         <div
           ref={scrollContainerRef}
-          className="
+          className={`
             flex gap-4 overflow-x-auto pb-4
             scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100
             scroll-smooth
-          "
+            ${badges.length <= 3 ? 'justify-center' : ''}
+          `}
           style={{
-            scrollSnapType: 'x mandatory',
+            scrollSnapType: badges.length > 3 ? 'x mandatory' : 'none',
             WebkitOverflowScrolling: 'touch',
             scrollbarWidth: 'thin',
             scrollbarColor: '#D1D5DB #F3F4F6'
@@ -101,16 +102,20 @@ export default function BadgeCarousel({ pillar, badges }) {
           {badges.map((badge) => (
             <div
               key={badge.id}
-              style={{ scrollSnapAlign: 'start' }}
+              style={{ scrollSnapAlign: badges.length > 3 ? 'start' : 'none' }}
             >
               <BadgeCarouselCard badge={badge} />
             </div>
           ))}
         </div>
 
-        {/* Gradient fade at edges for visual cue */}
-        <div className="absolute top-0 left-0 bottom-4 w-8 bg-gradient-to-r from-gray-50 to-transparent pointer-events-none" />
-        <div className="absolute top-0 right-0 bottom-4 w-8 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none" />
+        {/* Gradient fade at edges for visual cue - only show when scrollable */}
+        {badges.length > 3 && (
+          <>
+            <div className="absolute top-0 left-0 bottom-4 w-8 bg-gradient-to-r from-gray-50 to-transparent pointer-events-none" />
+            <div className="absolute top-0 right-0 bottom-4 w-8 bg-gradient-to-l from-gray-50 to-transparent pointer-events-none" />
+          </>
+        )}
       </div>
     </div>
   );

@@ -156,11 +156,26 @@ export function useDebounceWithCleanup(callback, delay) {
  */
 export function useSafeAsync() {
   const isMounted = useIsMounted()
-  const abortController = useAbortController()
+  const abortControllerRef = useRef(null)
+
+  useEffect(() => {
+    abortControllerRef.current = new AbortController()
+
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort()
+      }
+    }
+  }, [])
 
   const safeAsync = useCallback(async (asyncFn) => {
     try {
-      const result = await asyncFn(abortController.signal)
+      // Create abort controller if it doesn't exist
+      if (!abortControllerRef.current) {
+        abortControllerRef.current = new AbortController()
+      }
+
+      const result = await asyncFn(abortControllerRef.current.signal)
 
       // Only return result if component is still mounted
       if (isMounted()) {
@@ -176,7 +191,7 @@ export function useSafeAsync() {
 
       return { success: false, error }
     }
-  }, [isMounted, abortController])
+  }, [isMounted])
 
   return safeAsync
 }
