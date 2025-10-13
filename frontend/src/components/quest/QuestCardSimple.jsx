@@ -74,33 +74,40 @@ const QuestCardSimple = ({ quest }) => {
         </div>
       ) : isInProgress ? (
         /* In-Progress: Progress Info + Green Continue Bar */
-        <>
-          {/* Progress Info Section - White background */}
-          <div className="bg-white px-6 pt-4 pb-3">
-            <p className="text-gray-900 text-sm font-semibold mb-3 line-clamp-2">
+        <div className="flex flex-col h-[200px]">
+          {/* Current Task Section - Takes remaining space at top */}
+          <div className="bg-white px-6 pt-4 flex-grow">
+            <p className="text-gray-900 text-sm font-semibold line-clamp-2">
               Current Task: {currentTaskTitle}
             </p>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-gray-600 text-xs font-medium">{completedTasks}/{totalTasks} TASKS COMPLETED</span>
-              <span className="text-gray-900 text-sm font-bold">{Math.round(progressPercentage)}%</span>
-            </div>
-            {/* Progress Bar */}
-            <div className="w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] h-2 rounded-full transition-all duration-300"
-                style={{ width: `${progressPercentage}%` }}
-              />
-            </div>
           </div>
 
-          {/* Continue Button - Green background */}
-          <div className="px-6 py-4 bg-green-600 hover:bg-green-700 transition-colors flex items-center justify-center cursor-pointer gap-2">
-            <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-            </svg>
-            <span className="font-bold text-base text-white">Continue</span>
+          {/* Bottom Section - Anchored to bottom */}
+          <div className="mt-auto">
+            {/* Progress Bar Section */}
+            <div className="bg-white px-6 pb-3">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-gray-600 text-xs font-medium">{completedTasks}/{totalTasks} TASKS COMPLETED</span>
+                <span className="text-gray-900 text-sm font-bold">{Math.round(progressPercentage)}%</span>
+              </div>
+              {/* Progress Bar */}
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] h-2 rounded-full transition-all duration-300"
+                  style={{ width: `${progressPercentage}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Continue Button - Green background */}
+            <div className="px-6 py-4 bg-green-600 hover:bg-green-700 transition-colors flex items-center justify-center cursor-pointer gap-2">
+              <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+              </svg>
+              <span className="font-bold text-base text-white">Continue</span>
+            </div>
           </div>
-        </>
+        </div>
       ) : (
         /* Not Started: Description Only - No Buttons */
         <div className="bg-white p-6">
