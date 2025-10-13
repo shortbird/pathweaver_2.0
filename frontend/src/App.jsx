@@ -34,6 +34,7 @@ import DiplomaPage from './pages/DiplomaPage'
 import ProfilePage from './pages/ProfilePage'
 import FriendsPage from './pages/FriendsPage'
 import CommunicationPage from './pages/CommunicationPage'
+import CalendarPage from './pages/CalendarPage'
 import SubscriptionPage from './pages/SubscriptionPage'
 import SubscriptionSuccess from './pages/SubscriptionSuccess'
 import SubscriptionCancel from './pages/SubscriptionCancel'
@@ -118,6 +119,7 @@ function App() {
                 <Route path="profile" element={<ProfilePage />} />
                 <Route path="friends" element={<FriendsPage />} />
                 <Route path="communication" element={<CommunicationPage />} />
+                <Route path="calendar" element={<CalendarPage />} />
                 <Route path="subscription" element={<SubscriptionPage />} />
               </Route>
               

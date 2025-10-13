@@ -204,6 +204,14 @@ try:
 except Exception as e:
     print(f"Warning: Batch Quest Generation routes not available: {e}")
 
+# Register Calendar blueprint
+try:
+    from routes.calendar import calendar_bp
+    app.register_blueprint(calendar_bp)  # /api/calendar
+    print("Calendar routes registered successfully")
+except Exception as e:
+    print(f"Warning: Calendar routes not available: {e}")
+
 
 @app.route('/', methods=['GET', 'HEAD'])
 def root():

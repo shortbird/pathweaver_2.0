@@ -196,6 +196,198 @@ def update_quest_data(user_id, review_id):
         }), 500
 
 
+@bp.route('/<review_id>/refresh-image', methods=['POST'])
+@require_admin
+def refresh_review_quest_image(user_id, review_id):
+    """
+    Generate a new Pexels image for a quest in review queue.
+
+    Path params:
+        review_id: Review queue item UUID
+
+    Returns updated quest_data with new image_url
+    """
+    try:
+        from database import get_supabase_admin_client
+        from services.image_service import search_quest_image
+
+        supabase = get_supabase_admin_client()
+
+        # Fetch review item
+        review_result = supabase.table('ai_quest_review_queue').select('*').eq('id', review_id).single().execute()
+
+        if not review_result.data:
+            return jsonify({
+                'success': False,
+                'error': 'Review item not found'
+            }), 404
+
+        review_item = review_result.data
+        quest_data = review_item['quest_data']
+
+        # Get quest title and description for image search
+        quest_title = quest_data.get('title', '')
+        quest_desc = quest_data.get('big_idea', '') or quest_data.get('description', '')
+
+        if not quest_title:
+            return jsonify({
+                'success': False,
+                'error': 'Quest title is required for image generation'
+            }), 400
+
+        # Search for new image
+        image_url = search_quest_image(quest_title, quest_desc)
+
+        if not image_url:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to find suitable image'
+            }), 500
+
+        # Update quest_data with new image
+        quest_data['image_url'] = image_url
+        quest_data['header_image_url'] = image_url  # Legacy compatibility
+
+        # Update review queue item
+        update_result = supabase.table('ai_quest_review_queue').update({
+            'quest_data': quest_data,
+            'was_edited': True
+        }).eq('id', review_id).execute()
+
+        if not update_result.data:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to update quest data'
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'message': 'Image refreshed successfully',
+            'quest_data': quest_data,
+            'image_url': image_url
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Failed to refresh image: {str(e)}'
+        }), 500
+
+
+@bp.route('/<review_id>/upload-image', methods=['POST'])
+@require_admin
+def upload_review_quest_image(user_id, review_id):
+    """
+    Upload a custom image for a quest in review queue.
+
+    Path params:
+        review_id: Review queue item UUID
+
+    Request: multipart/form-data with 'file' field
+
+    Returns updated quest_data with uploaded image_url
+    """
+    try:
+        from database import get_supabase_admin_client
+        import uuid
+        from datetime import datetime
+
+        supabase = get_supabase_admin_client()
+
+        # Validate file exists
+        if 'file' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No file provided'
+            }), 400
+
+        file = request.files['file']
+
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'No file selected'
+            }), 400
+
+        # Validate file type
+        allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+        file_ext = file.filename.rsplit('.', 1)[1].lower() if '.' in file.filename else ''
+
+        if file_ext not in allowed_extensions:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'
+            }), 400
+
+        # Validate file size (5MB max)
+        file.seek(0, 2)  # Seek to end
+        file_size = file.tell()
+        file.seek(0)  # Reset to beginning
+
+        max_size = 5 * 1024 * 1024  # 5MB
+        if file_size > max_size:
+            return jsonify({
+                'success': False,
+                'error': 'File size must be less than 5MB'
+            }), 400
+
+        # Fetch review item
+        review_result = supabase.table('ai_quest_review_queue').select('*').eq('id', review_id).single().execute()
+
+        if not review_result.data:
+            return jsonify({
+                'success': False,
+                'error': 'Review item not found'
+            }), 404
+
+        review_item = review_result.data
+        quest_data = review_item['quest_data']
+
+        # Generate unique filename
+        unique_filename = f"quest-review-{review_id}-{uuid.uuid4()}.{file_ext}"
+        storage_path = f"quest_images/{unique_filename}"
+
+        # Upload to Supabase storage
+        file_bytes = file.read()
+        upload_result = supabase.storage.from_('quest-images').upload(
+            storage_path,
+            file_bytes,
+            {'content-type': file.content_type}
+        )
+
+        # Get public URL
+        public_url = supabase.storage.from_('quest-images').get_public_url(storage_path)
+
+        # Update quest_data with uploaded image
+        quest_data['image_url'] = public_url
+        quest_data['header_image_url'] = public_url  # Legacy compatibility
+
+        # Update review queue item
+        update_result = supabase.table('ai_quest_review_queue').update({
+            'quest_data': quest_data,
+            'was_edited': True
+        }).eq('id', review_id).execute()
+
+        if not update_result.data:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to update quest data'
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'message': 'Image uploaded successfully',
+            'quest_data': quest_data,
+            'image_url': public_url
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Failed to upload image: {str(e)}'
+        }), 500
+
+
 @bp.route('/stats', methods=['GET'])
 @require_admin
 def get_stats(user_id):
