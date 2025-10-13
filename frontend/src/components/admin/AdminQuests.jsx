@@ -166,7 +166,7 @@ const AdminQuests = () => {
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br from-[#6d469b] to-[#ef597b]" />
+                      <div className="w-full h-full bg-gradient-to-br from-[#ef597b] to-[#6d469b]" />
                     )}
 
                     {/* Gradient Overlay for Text Readability */}
