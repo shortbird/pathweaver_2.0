@@ -11,9 +11,15 @@ const ScheduleSidebar = ({ userId, calendarData, selectedPillar }) => {
     .filter(item => !selectedPillar || item.pillar === selectedPillar)
 
   const handleQuickSchedule = async (item, daysFromNow) => {
+    // Use local date to avoid timezone issues
     const targetDate = new Date()
     targetDate.setDate(targetDate.getDate() + daysFromNow)
-    const scheduledDate = targetDate.toISOString().split('T')[0]
+
+    // Format as YYYY-MM-DD using local timezone
+    const year = targetDate.getFullYear()
+    const month = String(targetDate.getMonth() + 1).padStart(2, '0')
+    const day = String(targetDate.getDate()).padStart(2, '0')
+    const scheduledDate = `${year}-${month}-${day}`
 
     try {
       await updateDeadline.mutateAsync({
@@ -85,8 +91,33 @@ const UnscheduledItem = ({ item, onQuickSchedule, onCustomSchedule }) => {
     setCustomDate('')
   }
 
+  // Handle drag start for external event
+  const handleDragStart = (e) => {
+    // Store the item data for FullCalendar to receive
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+      id: item.id,
+      title: item.task_title,
+      questId: item.quest_id,
+      questTitle: item.quest_title,
+      pillar: item.pillar,
+      xpValue: item.xp_value
+    }))
+  }
+
   return (
-    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
+    <div
+      draggable="true"
+      onDragStart={handleDragStart}
+      data-event={JSON.stringify({
+        id: item.id,
+        title: item.task_title,
+        questId: item.quest_id,
+        questTitle: item.quest_title,
+        pillar: item.pillar,
+        xpValue: item.xp_value
+      })}
+      className="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors cursor-move active:opacity-50"
+    >
       {/* Quest Image */}
       {item.quest_image && (
         <img

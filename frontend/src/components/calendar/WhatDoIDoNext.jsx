@@ -5,7 +5,7 @@ import { ChevronDownIcon, ChevronUpIcon, RocketLaunchIcon } from '@heroicons/rea
 
 const WhatDoIDoNext = ({ userId, selectedPillar, onPillarChange }) => {
   const { data: nextUpData, isLoading } = useNextUp(userId)
-  const [isExpanded, setIsExpanded] = useState(true)
+  const [isExpanded, setIsExpanded] = useState(false)
 
   const pillars = [
     'STEM & Logic',
@@ -167,22 +167,25 @@ const TaskCard = ({ item }) => {
   return (
     <Link
       to={`/quests/${item.quest_id}`}
-      className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group"
+      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group border border-gray-200 hover:border-gray-300"
     >
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
+        {/* Quest and Task Titles - Prominent */}
+        <h4 className="font-bold text-gray-900 text-lg mb-1 truncate">{item.quest_title}</h4>
+        <p className="font-medium text-gray-700 text-base mb-2 truncate">{item.task_title}</p>
+
+        {/* Pillar and XP - Secondary */}
+        <div className="flex items-center gap-2">
           <span className={`px-2 py-0.5 rounded text-xs font-medium ${pillarColors.bg} ${pillarColors.text}`}>
             {item.pillar}
           </span>
           {item.xp_value && (
-            <span className="text-xs font-medium text-gray-600">{item.xp_value} XP</span>
+            <span className="text-xs font-medium text-gray-500">{item.xp_value} XP</span>
           )}
         </div>
-        <h4 className="font-medium text-gray-900 truncate">{item.task_title}</h4>
-        <p className="text-sm text-gray-600 truncate">{item.quest_title}</p>
       </div>
       <button
-        className="ml-4 px-3 py-1.5 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-lg text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity"
+        className="ml-4 px-3 py-1.5 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-lg text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
         onClick={(e) => {
           e.preventDefault()
           window.location.href = `/quests/${item.quest_id}`

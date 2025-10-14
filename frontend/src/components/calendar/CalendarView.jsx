@@ -1,14 +1,16 @@
-import React, { useRef } from 'react'
+import React, { useRef, useState } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import { useUpdateDeadline, getPillarColor } from '../../hooks/api/useCalendar'
 import { useQueryClient } from '@tanstack/react-query'
+import EventDetailModal from './EventDetailModal'
 
 const CalendarView = ({ data, userId, selectedPillar }) => {
   const calendarRef = useRef(null)
   const queryClient = useQueryClient()
   const updateDeadline = useUpdateDeadline()
+  const [selectedEvent, setSelectedEvent] = useState(null)
 
   // Filter and transform items for calendar
   const events = (data?.items || [])
@@ -16,6 +18,7 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
     .filter(item => item.scheduled_date || item.completed_at) // Only show scheduled or completed
     .map(item => {
       const pillarColors = getPillarColor(item.pillar)
+      const isCompleted = item.status === 'completed'
 
       return {
         id: item.id,
@@ -23,6 +26,7 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
         date: item.scheduled_date || item.completed_at,
         backgroundColor: pillarColors.hex,
         borderColor: pillarColors.hex,
+        editable: !isCompleted, // Completed tasks cannot be dragged
         extendedProps: {
           ...item,
           questTitle: item.quest_title,
@@ -61,35 +65,53 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
     // Could open a modal to select tasks to schedule on this date
   }
 
-  // Handle event click (viewing task details)
-  const handleEventClick = (info) => {
-    const props = info.event.extendedProps
-    // Navigate to quest detail
-    window.location.href = `/quests/${props.quest_id}`
+  // Handle drop from external events (sidebar)
+  const handleDrop = async (info) => {
+    try {
+      // Get the dropped item data
+      const eventData = JSON.parse(info.draggedEl.dataset.event || '{}')
+      const newDate = info.dateStr
+
+      if (!eventData.id) {
+        console.error('No event data found')
+        return
+      }
+
+      await updateDeadline.mutateAsync({
+        userId,
+        questId: eventData.questId,
+        taskId: eventData.id,
+        scheduledDate: newDate
+      })
+    } catch (error) {
+      console.error('Failed to schedule item:', error)
+    }
   }
 
-  // Custom event content with quest image and status
+  // Handle drop zone styling
+  const handleEventReceive = async (info) => {
+    // This is called when an external event is dropped
+    // But we're using handleDrop instead for better control
+    info.event.remove()
+  }
+
+  // Handle event click (viewing task details)
+  const handleEventClick = (info) => {
+    setSelectedEvent(info.event)
+  }
+
+  // Custom event content - simple title only
   const renderEventContent = (eventInfo) => {
     const props = eventInfo.event.extendedProps
     const isCompleted = props.status === 'completed'
 
     return (
-      <div className="flex items-center gap-2 p-1 overflow-hidden">
-        {props.questImage && (
-          <img
-            src={props.questImage}
-            alt=""
-            className="w-6 h-6 rounded object-cover flex-shrink-0"
-          />
-        )}
+      <div className="flex items-center p-1 overflow-hidden">
         <div className="flex-1 min-w-0">
           <div className="text-xs font-medium truncate">
             {eventInfo.event.title}
             {isCompleted && ' ✓'}
           </div>
-          {props.xpValue && (
-            <div className="text-xs opacity-90">{props.xpValue} XP</div>
-          )}
         </div>
       </div>
     )
@@ -105,6 +127,8 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
         editable={true}
         droppable={true}
         eventDrop={handleEventDrop}
+        drop={handleDrop}
+        eventReceive={handleEventReceive}
         dateClick={handleDateClick}
         eventClick={handleEventClick}
         eventContent={renderEventContent}
@@ -122,7 +146,7 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
         eventClassNames={(arg) => {
           const status = arg.event.extendedProps.status
           if (status === 'completed') {
-            return ['opacity-60', 'cursor-pointer']
+            return ['opacity-60', 'cursor-pointer', '!cursor-default']
           }
           if (status === 'wandering') {
             return ['ring-2', 'ring-yellow-400', 'cursor-move']
@@ -152,9 +176,17 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
       {/* Instructions */}
       <div className="mt-4 p-3 bg-purple-50 rounded-lg">
         <p className="text-sm text-purple-900">
-          <strong>Tip:</strong> Drag and drop events to reschedule them. Click an event to view quest details.
+          <strong>Tip:</strong> Drag and drop events to reschedule them. Click an event to view details.
         </p>
       </div>
+
+      {/* Event Detail Modal */}
+      {selectedEvent && (
+        <EventDetailModal
+          event={selectedEvent}
+          onClose={() => setSelectedEvent(null)}
+        />
+      )}
     </div>
   )
 }
