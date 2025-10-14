@@ -103,7 +103,7 @@ const ConsultationPage = () => {
                 </div>
                 <div className="flex items-start">
                   <CheckCircle className="w-5 h-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-700">Discussion of your child's interests and your concerns</span>
+                  <span className="text-gray-700">Discussion of your child's interests and your ideas</span>
                 </div>
                 <div className="flex items-start">
                   <CheckCircle className="w-5 h-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
@@ -222,7 +222,7 @@ const ConsultationPage = () => {
                     onChange={handleInputChange}
                     rows="4"
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-[#6D469B] transition-colors resize-none"
-                    placeholder="What are you hoping to learn more about? What concerns do you have? What interests does your child have?"
+                    placeholder="What are you hoping to learn more about? What ideas do you have? What interests does your child have?"
                   ></textarea>
                 </div>
 
