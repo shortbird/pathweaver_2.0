@@ -21,7 +21,7 @@ const HomePage = () => {
         Skip to main content
       </a>
 
-      {/* Enhanced Hero Section - Parent-Focused */}
+      {/* Hero Section - Main Tagline Only */}
       <div
         className="bg-gradient-to-br from-[#6D469B] to-[#EF597B] text-white relative overflow-hidden"
         role="banner"
@@ -34,73 +34,61 @@ const HomePage = () => {
           <div className="absolute top-1/2 left-1/3 w-20 h-20 border-2 border-white/10 rounded-full"></div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24 relative">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32 relative">
           <div className="text-center">
-              <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight">
                 <span className="block drop-shadow-lg">Supporting Parents.</span>
                 <span className="block drop-shadow-lg mt-2">Empowering Students.</span>
                 <span className="block drop-shadow-lg mt-2">Building Futures.</span>
               </h1>
-
-              <p className="text-xl sm:text-2xl lg:text-3xl mb-8 leading-relaxed opacity-95 max-w-3xl mx-auto drop-shadow px-4 font-semibold">
-                A dedicated teacher in your corner.
-              </p>
-
-              {/* Visual separator */}
-              <div className="w-16 h-1 bg-white/40 mx-auto rounded-full mb-8"></div>
-
-              <p className="text-base sm:text-lg lg:text-xl mb-8 leading-relaxed opacity-85 max-w-2xl mx-auto drop-shadow px-4 italic">
-                Raising doers, not dependents.
-              </p>
-
-              {/* Enhanced CTAs - Consultation Focused */}
-              {!isAuthenticated && (
-                <div className="flex flex-col gap-4 justify-center items-center max-w-sm mx-auto sm:max-w-none sm:flex-row">
-                  <Link
-                    to="/consultation"
-                    className="bg-white text-[#6D469B] hover:bg-gray-100 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center min-h-[52px] touch-manipulation"
-                    aria-describedby="consultation-description"
-                  >
-                    <Users className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0" aria-hidden="true" />
-                    Schedule FREE Consultation
-                  </Link>
-                  <span id="consultation-description" className="sr-only">
-                    Schedule a free 30-minute consultation with a licensed teacher
-                  </span>
-
-                  <Link
-                    to="/demo"
-                    className="bg-transparent border-2 border-white text-white px-8 py-4 rounded-lg font-semibold inline-flex items-center hover:bg-white/10 transition-all w-full sm:w-auto justify-center shadow-lg min-h-[52px] touch-manipulation"
-                  >
-                    <Play className="mr-2 w-5 h-5" aria-hidden="true" />
-                    Try 2-Min Demo
-                  </Link>
-                </div>
-              )}
           </div>
+        </div>
+      </div>
+
+      {/* Secondary Hero Section - Teacher Focus */}
+      <div className="bg-white py-16">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-6 leading-tight">
+            A dedicated teacher in your corner.
+          </h2>
+          <p className="text-xl sm:text-2xl text-gray-700 mb-8 leading-relaxed italic">
+            Raising doers, not dependents.
+          </p>
+
+          {/* CTAs - Consultation Focused */}
+          {!isAuthenticated && (
+            <div className="flex flex-col gap-4 justify-center items-center max-w-sm mx-auto sm:max-w-none sm:flex-row">
+              <Link
+                to="/consultation"
+                className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white hover:from-[#5d3a85] hover:to-[#d94d6a] text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center min-h-[52px] touch-manipulation"
+                aria-describedby="consultation-description"
+              >
+                <Users className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0" aria-hidden="true" />
+                Schedule FREE Consultation
+              </Link>
+              <span id="consultation-description" className="sr-only">
+                Schedule a free 30-minute consultation with a licensed teacher
+              </span>
+
+              <Link
+                to="/demo"
+                className="bg-white border-2 border-[#6D469B] text-[#6D469B] hover:bg-[#6D469B] hover:text-white px-8 py-4 rounded-lg font-semibold inline-flex items-center transition-all w-full sm:w-auto justify-center shadow-md min-h-[52px] touch-manipulation"
+              >
+                <Play className="mr-2 w-5 h-5" aria-hidden="true" />
+                Try 2-Min Demo
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
       {/* If You're Feeling... Emotional Connection Section */}
       <div id="support" className="py-16 bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF]" role="main">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Hero Image: Parent and Child Learning Together - MOVED FIRST */}
-          <div className="mb-12 rounded-xl overflow-hidden shadow-lg max-w-3xl mx-auto border-2 border-gray-200 p-2 bg-white">
-            <img
-              src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/hero.jpg"
-              alt="Parent and teen collaborating on a learning project together at home"
-              className="w-full h-full object-cover aspect-[3/2] rounded-lg"
-              loading="lazy"
-            />
-          </div>
-
-          <div className="text-center mb-12">
+          <div className="text-center mb-8">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
               If You're Feeling...
             </h2>
-            <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-              You're not alone. We're here to support you.
-            </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 mb-8">
@@ -143,10 +131,16 @@ const HomePage = () => {
               </p>
             </div>
           </div>
+
+          <div className="text-center">
+            <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+              You're not alone. We're here to support you.
+            </p>
+          </div>
         </div>
       </div>
 
-      {/* What Optio Provides Section - Teacher-Collaboration Focus */}
+      {/* What Optio Provides Section - Column Layout with Image */}
       <div className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -158,49 +152,66 @@ const HomePage = () => {
             </p>
           </div>
 
-          {/* Teacher Supporting Family Image */}
-          <div className="mb-10 rounded-xl overflow-hidden shadow-md max-w-2xl mx-auto border-2 border-gray-200 p-2 bg-white">
-            <img
-              src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/teacher.jpg"
-              alt="Teacher collaborating with parent and student in a supportive learning environment"
-              className="w-full h-full object-cover aspect-[4/3] rounded-lg"
-              loading="lazy"
-            />
+          {/* Column Layout: Content Left, Image Right */}
+          <div className="grid md:grid-cols-2 gap-12 items-center">
+            {/* Left Column - Content */}
+            <div className="space-y-8">
+              {/* Your Own Dedicated Teacher */}
+              <div>
+                <div className="flex items-start mb-3">
+                  <div className="w-12 h-12 bg-gradient-to-r from-[#6D469B]/60 to-[#EF597B]/60 rounded-full flex items-center justify-center mr-4 flex-shrink-0 shadow-sm">
+                    <Users className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Your Own Dedicated Teacher</h3>
+                    <p className="text-gray-700 leading-relaxed">
+                      Your educational partner: a licensed educator for your family.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Student-Driven Learning Platform */}
+              <div>
+                <div className="flex items-start mb-3">
+                  <div className="w-12 h-12 bg-gradient-to-r from-[#6D469B]/60 to-[#EF597B]/60 rounded-full flex items-center justify-center mr-4 flex-shrink-0 shadow-sm">
+                    <BookOpen className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Student-Driven Learning Platform</h3>
+                    <p className="text-gray-700 leading-relaxed">
+                      Digital portfolio capturing your child's unique learning journey.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Parent Peace of Mind */}
+              <div>
+                <div className="flex items-start mb-3">
+                  <div className="w-12 h-12 bg-gradient-to-r from-[#6D469B]/60 to-[#EF597B]/60 rounded-full flex items-center justify-center mr-4 flex-shrink-0 shadow-sm">
+                    <Heart className="w-6 h-6 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Parent Peace of Mind</h3>
+                    <p className="text-gray-700 leading-relaxed">
+                      Professional oversight with flexibility and family control.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Right Column - Image */}
+            <div className="rounded-xl overflow-hidden shadow-lg border-2 border-gray-200">
+              <img
+                src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/teacher.jpg"
+                alt="Teacher collaborating with parent and student in a supportive learning environment"
+                className="w-full h-full object-cover aspect-[4/3]"
+                loading="lazy"
+              />
+            </div>
           </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Your Own Dedicated Teacher */}
-            <div className="text-center p-6 bg-gradient-to-br from-[#6D469B]/5 to-[#EF597B]/5 rounded-xl border border-gray-200">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/60 to-[#EF597B]/60 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
-                <Users className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Your Own Dedicated Teacher</h3>
-              <p className="text-gray-700 leading-relaxed">
-                Your educational partner: a licensed educator for your family.
-              </p>
-            </div>
-
-            {/* Student-Driven Learning Platform */}
-            <div className="text-center p-6 bg-gradient-to-br from-[#6D469B]/5 to-[#EF597B]/5 rounded-xl border border-gray-200">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/60 to-[#EF597B]/60 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
-                <BookOpen className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Student-Driven Learning Platform</h3>
-              <p className="text-gray-700 leading-relaxed">
-                Digital portfolio capturing your child's unique learning journey.
-              </p>
-            </div>
-
-            {/* Parent Peace of Mind */}
-            <div className="text-center p-6 bg-gradient-to-br from-[#6D469B]/5 to-[#EF597B]/5 rounded-xl border border-gray-200">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/60 to-[#EF597B]/60 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
-                <Heart className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Parent Peace of Mind</h3>
-              <p className="text-gray-700 leading-relaxed">
-                Professional oversight with flexibility and family control.
-              </p>
-            </div>
 
 {/* COMMENTED OUT - Diploma Graphic Column
             <div className="flex justify-center lg:col-span-1 md:col-span-2 lg:col-span-1">
@@ -583,7 +594,7 @@ const HomePage = () => {
                 What does a dedicated teacher actually do?
               </h3>
               <p className="text-gray-700 leading-relaxed">
-                Your dedicated teacher is a licensed educator who collaborates with your family to create and support your child's learning journey. They provide curriculum guidance, validate learning, answer questions, and offer professional insight—but they work WITH you, not instead of you. Think of them as your educational co-pilot.
+                Your dedicated teacher is a licensed educator who becomes a non-parent adult invested in your child's education. They work WITH you as a partner, providing experienced guidance, answering questions, and keeping momentum going. They can provide daily support, check-ins, and be the person who generally keeps everything moving forward. Your teacher is there to support your family's learning journey with professional insight and encouragement.
               </p>
             </div>
 
@@ -592,7 +603,7 @@ const HomePage = () => {
                 How much control do I have over my child's education?
               </h3>
               <p className="text-gray-700 leading-relaxed">
-                You maintain complete control over your family's learning vision and approach. Your teacher is there to support, not impose. Together, you'll find your family's natural learning rhythm without requirements or hurdles. The teacher's role is guidance and professional validation, not gatekeeping.
+                You maintain complete control over your family's learning vision and approach. Your teacher is there to support, not impose. Together, you'll find your family's natural learning rhythm without requirements or hurdles. The teacher's role is guidance and professional support, not gatekeeping.
               </p>
             </div>
 
@@ -601,7 +612,7 @@ const HomePage = () => {
                 How often do we meet with our teacher?
               </h3>
               <p className="text-gray-700 leading-relaxed">
-                That's up to your family! Options range from weekly check-ins for more support to monthly touchpoints for more independent families. Your teacher works around your schedule and needs—it's flexible by design.
+                That's up to your family! Options range from weekly check-ins for more support to monthly touchpoints for more independent families. Your teacher works around your schedule and needs. It's flexible by design.
               </p>
             </div>
 
@@ -619,7 +630,7 @@ const HomePage = () => {
                 What if we're already homeschooling?
               </h3>
               <p className="text-gray-700 leading-relaxed">
-                Perfect! Many Optio families are already homeschooling and use our teachers as professional support to enhance what they're already doing. Your teacher can help validate learning, offer curriculum guidance, and provide the accountability and expertise you've been looking for.
+                Perfect! Many Optio families are already homeschooling and use our teachers as professional support to enhance what they're already doing. Your teacher can offer guidance, provide accountability, and bring the expertise you've been looking for.
               </p>
             </div>
           </div>
