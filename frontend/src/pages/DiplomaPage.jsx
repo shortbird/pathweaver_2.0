@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import SkillsRadarChart from '../components/diploma/SkillsRadarChart';
 import AccreditedDiplomaModal from '../components/diploma/AccreditedDiplomaModal';
-import BadgeCard from '../components/badge/BadgeCard';
+import BadgeCarouselCard from '../components/hub/BadgeCarouselCard';
 import { SkeletonDiplomaHeader, SkeletonStats, SkeletonAchievementGrid } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 import { formatErrorMessage } from '../utils/errorMessages';
@@ -954,10 +954,9 @@ const DiplomaPage = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {earnedBadges.map((userBadge) => (
-                <BadgeCard
-                  key={userBadge.badge_id}
+                <BadgeCarouselCard
+                  key={userBadge.badge_id || userBadge.id}
                   badge={userBadge}
-                  showProgress={false}
                 />
               ))}
             </div>
