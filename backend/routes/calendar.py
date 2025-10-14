@@ -24,17 +24,36 @@ def get_calendar_items(user_id):
     """
     Get all calendar items for a user (scheduled quests/tasks + completed items).
     Returns data structured for both calendar and list views.
-    OPTIMIZED: Single query with joins to minimize database roundtrips.
+    OPTIMIZED: Filters out tasks from completed quests.
     """
     try:
         supabase = get_user_client()
         today = date.today()
 
-        # Get all user quest tasks
+        # Get user quests to check which are completed
+        user_quests_response = supabase.table('user_quests')\
+            .select('quest_id, completed_at, is_active')\
+            .eq('user_id', user_id)\
+            .execute()
+
+        # Build map of quest statuses - exclude completed quests
+        active_quest_ids = [
+            uq['quest_id'] for uq in user_quests_response.data
+            if not uq.get('completed_at') and uq.get('is_active', True)
+        ]
+
+        if not active_quest_ids:
+            return jsonify({'items': [], 'summary': {'total_active': 0, 'total_completed': 0, 'scheduled_today': 0, 'wandering': 0}}), 200
+
+        # Get all user quest tasks for active quests only
         tasks_response = supabase.table('user_quest_tasks')\
             .select('id, quest_id, title, description, pillar, xp_value, order_index, is_required')\
             .eq('user_id', user_id)\
+            .in_('quest_id', active_quest_ids)\
             .execute()
+
+        if not tasks_response.data:
+            return jsonify({'items': [], 'summary': {'total_active': 0, 'total_completed': 0, 'scheduled_today': 0, 'wandering': 0}}), 200
 
         # Get quest info separately (RLS-safe)
         quest_ids = list(set(task['quest_id'] for task in tasks_response.data))
@@ -216,40 +235,132 @@ def bulk_update_deadlines(user_id=None):
 def get_next_up(user_id):
     """
     Get prioritized list of what to do next (today, this week, wandering items).
+    OPTIMIZED: Direct query instead of calling get_calendar_items for better performance.
     """
     try:
         supabase = get_user_client()
         today = date.today()
+        today_str = str(today)
         week_end = today + timedelta(days=7)
+        week_end_str = str(week_end)
 
-        # Get all calendar items (reuse logic from get_calendar_items)
-        calendar_response = get_calendar_items(user_id)
-        if calendar_response[1] != 200:
-            return calendar_response
+        # Get active quests only (exclude completed)
+        user_quests_response = supabase.table('user_quests')\
+            .select('quest_id')\
+            .eq('user_id', user_id)\
+            .is_('completed_at', 'null')\
+            .eq('is_active', True)\
+            .execute()
 
-        calendar_data = calendar_response[0].get_json()
-        items = calendar_data['items']
+        active_quest_ids = [uq['quest_id'] for uq in user_quests_response.data]
 
-        # Filter and categorize
+        if not active_quest_ids:
+            return jsonify({
+                'today': [],
+                'this_week': [],
+                'wandering': [],
+                'has_more_today': False,
+                'has_more_week': False,
+                'has_more_wandering': False
+            }), 200
+
+        # Get tasks with deadlines from active quests
+        deadlines_response = supabase.table('user_quest_deadlines')\
+            .select('quest_id, task_id, scheduled_date')\
+            .eq('user_id', user_id)\
+            .in_('quest_id', active_quest_ids)\
+            .not_.is_('scheduled_date', 'null')\
+            .execute()
+
+        if not deadlines_response.data:
+            return jsonify({
+                'today': [],
+                'this_week': [],
+                'wandering': [],
+                'has_more_today': False,
+                'has_more_week': False,
+                'has_more_wandering': False
+            }), 200
+
+        # Get task IDs with deadlines
+        task_ids_with_deadlines = [d.get('task_id') for d in deadlines_response.data if d.get('task_id')]
+
+        if not task_ids_with_deadlines:
+            return jsonify({
+                'today': [],
+                'this_week': [],
+                'wandering': [],
+                'has_more_today': False,
+                'has_more_week': False,
+                'has_more_wandering': False
+            }), 200
+
+        # Get task details
+        tasks_response = supabase.table('user_quest_tasks')\
+            .select('id, quest_id, title, description, pillar, xp_value, order_index')\
+            .eq('user_id', user_id)\
+            .in_('id', task_ids_with_deadlines)\
+            .execute()
+
+        # Get quest info
+        quest_ids = list(set(task['quest_id'] for task in tasks_response.data))
+        quests_response = supabase.table('quests')\
+            .select('id, title, image_url, header_image_url')\
+            .in_('id', quest_ids)\
+            .execute()
+
+        # Get completions to filter out completed tasks
+        completions_response = supabase.table('quest_task_completions')\
+            .select('task_id')\
+            .eq('user_id', user_id)\
+            .in_('task_id', task_ids_with_deadlines)\
+            .execute()
+
+        # Build lookup maps
+        quests_map = {q['id']: q for q in quests_response.data}
+        completed_task_ids = {comp['task_id'] for comp in completions_response.data}
+        deadline_map = {d['task_id']: d['scheduled_date'] for d in deadlines_response.data if d.get('task_id')}
+
+        # Categorize tasks
         today_items = []
         this_week_items = []
         wandering_items = []
 
-        for item in items:
-            if item['status'] == 'completed':
+        for task in tasks_response.data:
+            task_id = task['id']
+
+            # Skip completed tasks
+            if task_id in completed_task_ids:
                 continue
 
-            scheduled_date_str = item.get('scheduled_date')
+            scheduled_date_str = deadline_map.get(task_id)
             if not scheduled_date_str:
                 continue
 
             scheduled_date = datetime.strptime(scheduled_date_str, '%Y-%m-%d').date()
+            quest = quests_map.get(task['quest_id'], {})
 
-            if item['status'] == 'wandering':
+            item = {
+                'id': task_id,
+                'quest_id': task['quest_id'],
+                'quest_title': quest.get('title', 'Unknown Quest'),
+                'quest_image': quest.get('image_url') or quest.get('header_image_url'),
+                'task_title': task['title'],
+                'task_description': task.get('description'),
+                'pillar': task['pillar'],
+                'xp_value': task.get('xp_value'),
+                'scheduled_date': scheduled_date_str,
+                'order_index': task.get('order_index', 0)
+            }
+
+            if scheduled_date < today:
+                item['status'] = 'wandering'
                 wandering_items.append(item)
             elif scheduled_date == today:
+                item['status'] = 'on-track'
                 today_items.append(item)
             elif scheduled_date <= week_end:
+                item['status'] = 'on-track'
                 this_week_items.append(item)
 
         # Sort by order_index and xp_value
@@ -258,7 +369,7 @@ def get_next_up(user_id):
         wandering_items.sort(key=lambda x: (x.get('order_index', 999), -x.get('xp_value', 0)))
 
         return jsonify({
-            'today': today_items[:3],  # Max 3 for display
+            'today': today_items[:3],
             'this_week': this_week_items[:5],
             'wandering': wandering_items[:5],
             'has_more_today': len(today_items) > 3,
@@ -268,6 +379,8 @@ def get_next_up(user_id):
 
     except Exception as e:
         print(f"Error fetching next-up items: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': 'Failed to fetch next-up items'}), 500
 
 
