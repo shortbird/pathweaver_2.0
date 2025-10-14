@@ -9,6 +9,7 @@ import AIPerformanceAnalytics from '../components/admin/AIPerformanceAnalytics'
 import AIPromptOptimizer from '../components/admin/AIPromptOptimizer'
 import BatchQuestGenerator from '../components/admin/BatchQuestGenerator'
 import BulkImageGenerator from '../components/admin/BulkImageGenerator'
+import BadgeImageGenerator from '../components/admin/BadgeImageGenerator'
 import TierManagement from '../components/admin/TierManagement'
 import SiteSettings from '../components/admin/SiteSettings'
 
@@ -52,6 +53,12 @@ const AdminPage = () => {
           Quest Images
         </Link>
         <Link
+          to="/admin/badge-images"
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'badge-images' ? 'border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+        >
+          Badge Images
+        </Link>
+        <Link
           to="/admin/subscription-tiers"
           className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'subscription-tiers' ? 'border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
         >
@@ -78,6 +85,7 @@ const AdminPage = () => {
         <Route path="ai-optimizer" element={<AIPromptOptimizer />} />
         <Route path="batch-generator" element={<BatchQuestGenerator />} />
         <Route path="quest-images" element={<BulkImageGenerator />} />
+        <Route path="badge-images" element={<BadgeImageGenerator />} />
       </Routes>
     </div>
   )
