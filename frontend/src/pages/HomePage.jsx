@@ -92,16 +92,12 @@ const HomePage = () => {
 
           {/* Hero Image: Parent and Child Learning Together */}
           <div className="mb-12 rounded-2xl overflow-hidden shadow-xl max-w-5xl mx-auto border-4 border-white">
-            <div className="aspect-[16/9] bg-gradient-to-br from-[#6D469B]/10 to-[#EF597B]/10 flex items-center justify-center">
-              <div className="text-center p-8">
-                <Image className="w-16 h-16 mx-auto text-[#6D469B] mb-4" />
-                <p className="text-sm font-semibold text-gray-600">IMAGE PLACEHOLDER</p>
-                <p className="text-xs text-gray-500 mt-2 max-w-md">
-                  Parent and teen collaborating on a project together at home<br/>
-                  (Warm, natural lighting, genuine connection)
-                </p>
-              </div>
-            </div>
+            <img
+              src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/hero.jpg"
+              alt="Parent and teen collaborating on a learning project together at home"
+              className="w-full h-full object-cover aspect-[16/9]"
+              loading="lazy"
+            />
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 mb-8">
@@ -147,117 +143,6 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Removed previous activity cards section */}
-      <div id="demo" className="py-16 bg-gradient-to-br from-purple-50 to-blue-50 hidden">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* Mobile-Optimized Scrolling Credit Cards */}
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-                Turn Activities Into Credits
-              </h2>
-              <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-                See how real activities become official high school credits
-              </p>
-            </div>
-
-            {/* Touch-friendly scroll hint for mobile */}
-            <div className="flex items-center justify-center mb-4 sm:hidden">
-              <div className="flex items-center text-sm text-gray-500 bg-white rounded-full px-4 py-2 shadow-sm border">
-                <ChevronLeft className="w-4 h-4 mr-1 animate-pulse" />
-                <span className="font-medium">Swipe to see examples</span>
-                <ChevronRight className="w-4 h-4 ml-1 animate-pulse" />
-              </div>
-            </div>
-
-            {/* Horizontal Scrolling Cards Container */}
-            <div className="relative">
-              <div
-                ref={scrollRef}
-                className="flex overflow-x-auto scrollbar-hide snap-x snap-mandatory pb-4 px-4 sm:px-6 -mx-4 sm:mx-0 scroll-smooth-mobile"
-                style={{
-                  scrollbarWidth: 'none',
-                  msOverflowStyle: 'none',
-                  WebkitOverflowScrolling: 'touch',
-                  scrollBehavior: 'smooth',
-                  touchAction: 'pan-x'
-                }}
-                onScroll={updateScrollButtons}
-              >
-                {/* Duplicate activities for infinite scroll */}
-                {[...creditActivities, ...creditActivities, ...creditActivities].map((activity, index) => (
-                  <div key={`${index}-${Math.floor(index / creditActivities.length)}`} className="snap-center flex-shrink-0 flex justify-center">
-                    <ActivityCard {...activity} />
-                  </div>
-                ))}
-              </div>
-
-              {/* Desktop Navigation Arrows - Always enabled for infinite scroll */}
-              <div className="hidden sm:flex absolute top-1/2 -translate-y-1/2 left-0 right-0 justify-between pointer-events-none">
-                <button
-                  onClick={() => scroll('left')}
-                  className="w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center pointer-events-auto hover:shadow-xl hover:scale-110 transition-all -ml-6 min-h-[48px] touch-manipulation"
-                  aria-label="Previous card"
-                >
-                  <ChevronLeft className="w-6 h-6 text-gray-600" />
-                </button>
-                <button
-                  onClick={() => scroll('right')}
-                  className="w-12 h-12 bg-white shadow-lg rounded-full flex items-center justify-center pointer-events-auto hover:shadow-xl hover:scale-110 transition-all -mr-6 min-h-[48px] touch-manipulation"
-                  aria-label="Next card"
-                >
-                  <ChevronRight className="w-6 h-6 text-gray-600" />
-                </button>
-              </div>
-            </div>
-
-            {/* Mobile Progress Indicators */}
-            <div className="flex justify-center mt-6 sm:hidden">
-              <div className="flex space-x-2">
-                {creditActivities.map((_, index) => (
-                  <div
-                    key={index}
-                    className={`w-2 h-2 rounded-full transition-all ${
-                      index === currentCardIndex 
-                        ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b]' 
-                        : 'bg-gray-300'
-                    }`}
-                  />
-                ))}
-              </div>
-            </div>
-
-            {/* Trust Indicators - Condensed for mobile */}
-            <div className="mt-8 pt-6 border-t border-gray-200">
-              <div className="flex flex-wrap justify-center items-center gap-4 sm:gap-6 text-sm text-gray-600">
-                <div className="flex items-center">
-                  <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
-                  Reviewed by licensed teachers
-                </div>
-                <div className="flex items-center">
-                  <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
-                  College-Accepted
-                </div>
-                <div className="flex items-center">
-                  <CheckCircle className="w-4 h-4 mr-2 text-green-600" />
-                  Portfolio Evidence
-                </div>
-              </div>
-            </div>
-
-            <div className="text-center mt-8">
-              <Link 
-                to="/demo"
-                className="inline-flex items-center text-[#ef597b] hover:text-[#e54469] font-medium text-lg hover:underline transition-all"
-              >
-                <Play className="mr-2 w-5 h-5" />
-                See more examples in demo
-              </Link>
-            </div>
-          </div>
-        </div>
-      </div>
-
       {/* What Optio Provides Section - Teacher-Collaboration Focus */}
       <div className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -272,16 +157,12 @@ const HomePage = () => {
 
           {/* Teacher Supporting Family Image */}
           <div className="mb-12 rounded-2xl overflow-hidden shadow-xl max-w-4xl mx-auto border-4 border-gray-100">
-            <div className="aspect-[16/9] bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] flex items-center justify-center">
-              <div className="text-center p-8">
-                <Image className="w-16 h-16 mx-auto text-[#6D469B] mb-4" />
-                <p className="text-sm font-semibold text-gray-600">IMAGE PLACEHOLDER</p>
-                <p className="text-xs text-gray-500 mt-2 max-w-md">
-                  Teacher on video call with parent and student, smiling and engaged<br/>
-                  (Professional yet approachable, collaborative atmosphere)
-                </p>
-              </div>
-            </div>
+            <img
+              src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/teacher.jpg"
+              alt="Teacher collaborating with parent and student in a supportive learning environment"
+              className="w-full h-full object-cover aspect-[16/9]"
+              loading="lazy"
+            />
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
@@ -509,43 +390,39 @@ const HomePage = () => {
           <div className="mb-12 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-6xl mx-auto">
             {/* Image 1 */}
             <div className="rounded-lg overflow-hidden shadow-md border-2 border-gray-200">
-              <div className="aspect-square bg-gradient-to-br from-[#6D469B]/10 to-[#EF597B]/10 flex items-center justify-center">
-                <div className="text-center p-4">
-                  <Image className="w-8 h-8 mx-auto text-[#6D469B] mb-2" />
-                  <p className="text-xs font-semibold text-gray-600">Parent 1</p>
-                  <p className="text-xs text-gray-500 mt-1">Natural moment</p>
-                </div>
-              </div>
+              <img
+                src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/fam1.jpg"
+                alt="Happy homeschooling family"
+                className="w-full h-full object-cover aspect-square"
+                loading="lazy"
+              />
             </div>
             {/* Image 2 */}
             <div className="rounded-lg overflow-hidden shadow-md border-2 border-gray-200">
-              <div className="aspect-square bg-gradient-to-br from-[#EF597B]/10 to-[#6D469B]/10 flex items-center justify-center">
-                <div className="text-center p-4">
-                  <Image className="w-8 h-8 mx-auto text-[#EF597B] mb-2" />
-                  <p className="text-xs font-semibold text-gray-600">Parent 2</p>
-                  <p className="text-xs text-gray-500 mt-1">Genuine smile</p>
-                </div>
-              </div>
+              <img
+                src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/fam2.jpg"
+                alt="Parent supporting student's learning"
+                className="w-full h-full object-cover aspect-square"
+                loading="lazy"
+              />
             </div>
             {/* Image 3 */}
             <div className="rounded-lg overflow-hidden shadow-md border-2 border-gray-200">
-              <div className="aspect-square bg-gradient-to-br from-[#6D469B]/10 to-[#EF597B]/10 flex items-center justify-center">
-                <div className="text-center p-4">
-                  <Image className="w-8 h-8 mx-auto text-[#6D469B] mb-2" />
-                  <p className="text-xs font-semibold text-gray-600">Family 1</p>
-                  <p className="text-xs text-gray-500 mt-1">Learning together</p>
-                </div>
-              </div>
+              <img
+                src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/fam4.jpg"
+                alt="Family learning together at home"
+                className="w-full h-full object-cover aspect-square"
+                loading="lazy"
+              />
             </div>
             {/* Image 4 */}
             <div className="rounded-lg overflow-hidden shadow-md border-2 border-gray-200">
-              <div className="aspect-square bg-gradient-to-br from-[#EF597B]/10 to-[#6D469B]/10 flex items-center justify-center">
-                <div className="text-center p-4">
-                  <Image className="w-8 h-8 mx-auto text-[#EF597B] mb-2" />
-                  <p className="text-xs font-semibold text-gray-600">Family 2</p>
-                  <p className="text-xs text-gray-500 mt-1">Warm connection</p>
-                </div>
-              </div>
+              <img
+                src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/fam5.jpg"
+                alt="Warm family connection while learning"
+                className="w-full h-full object-cover aspect-square"
+                loading="lazy"
+              />
             </div>
           </div>
 
