@@ -35,10 +35,10 @@ const HomePage = () => {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32 relative">
           <div className="text-center">
-              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight">
+              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-relaxed">
                 <span className="block drop-shadow-lg">Supporting Parents.</span>
-                <span className="block drop-shadow-lg mt-2">Empowering Students.</span>
-                <span className="block drop-shadow-lg mt-2">Building Futures.</span>
+                <span className="block drop-shadow-lg mt-4">Empowering Students.</span>
+                <span className="block drop-shadow-lg mt-4">Building Futures.</span>
               </h1>
           </div>
         </div>
@@ -229,17 +229,6 @@ const HomePage = () => {
               ))}
             </div>
           )}
-
-          {/* View full details button */}
-          <div className="text-center mt-8">
-            <button
-              onClick={() => setPricingModalOpen(true)}
-              className="inline-flex items-center text-[#ef597b] hover:text-[#e54469] font-medium"
-            >
-              <Info className="mr-2 w-4 h-4" aria-hidden="true" />
-              View Full Feature Comparison
-            </button>
-          </div>
         </div>
       </div>
 
