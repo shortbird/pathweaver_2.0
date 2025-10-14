@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Play, Sparkles, Trophy, Info, X, Award, BookOpen, Users, CheckCircle, Heart, Image } from 'lucide-react'
+import { Play, Info, X, BookOpen, Users, CheckCircle, Heart } from 'lucide-react'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
 import { useSubscriptionTiers, formatPrice } from '../hooks/useSubscriptionTiers'
 
