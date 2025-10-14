@@ -29,7 +29,10 @@ export const useNextUp = (userId, options = {}) => {
     queryKey: ['calendar', 'next-up', userId],
     queryFn: async () => {
       if (!userId) return null
-      const response = await api.get('/api/calendar/next-up')
+      // Send client's local date to avoid timezone issues
+      const today = new Date()
+      const clientDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+      const response = await api.get(`/api/calendar/next-up?client_date=${clientDate}`)
       return response.data
     },
     enabled: !!userId,

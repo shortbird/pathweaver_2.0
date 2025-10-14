@@ -237,10 +237,21 @@ def get_next_up(user_id):
     """
     Get prioritized list of what to do next (today, this week, wandering items).
     OPTIMIZED: Direct query instead of calling get_calendar_items for better performance.
+    Accepts client_date query parameter to handle timezone differences.
     """
     try:
         supabase = get_user_client()
-        today = date.today()
+
+        # Accept client's local date to avoid timezone issues
+        client_date_str = request.args.get('client_date')
+        if client_date_str:
+            try:
+                today = datetime.strptime(client_date_str, '%Y-%m-%d').date()
+            except ValueError:
+                today = date.today()
+        else:
+            today = date.today()
+
         today_str = str(today)
         week_end = today + timedelta(days=7)
         week_end_str = str(week_end)
@@ -327,8 +338,6 @@ def get_next_up(user_id):
         this_week_items = []
         wandering_items = []
 
-        print(f"[CALENDAR DEBUG] Server today (UTC): {today}, today_str: {today_str}")
-
         for task in tasks_response.data:
             task_id = task['id']
 
@@ -342,8 +351,6 @@ def get_next_up(user_id):
 
             scheduled_date = datetime.strptime(scheduled_date_str, '%Y-%m-%d').date()
             quest = quests_map.get(task['quest_id'], {})
-
-            print(f"[CALENDAR DEBUG] Task '{task['title'][:30]}': scheduled={scheduled_date_str} ({scheduled_date}), comparing to today={today}")
 
             item = {
                 'id': task_id,
@@ -361,15 +368,12 @@ def get_next_up(user_id):
             if scheduled_date < today:
                 item['status'] = 'wandering'
                 wandering_items.append(item)
-                print(f"[CALENDAR DEBUG]   -> wandering (past due)")
             elif scheduled_date == today:
                 item['status'] = 'on-track'
                 today_items.append(item)
-                print(f"[CALENDAR DEBUG]   -> today")
             elif scheduled_date <= week_end:
                 item['status'] = 'on-track'
                 this_week_items.append(item)
-                print(f"[CALENDAR DEBUG]   -> this week")
 
         # Sort by order_index and xp_value
         today_items.sort(key=lambda x: (x.get('order_index', 999), -x.get('xp_value', 0)))
