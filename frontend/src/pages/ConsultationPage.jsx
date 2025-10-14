@@ -85,9 +85,6 @@ const ConsultationPage = () => {
           <>
             {/* Header */}
             <div className="text-center mb-12">
-              <div className="w-20 h-20 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-6">
-                <Users className="w-10 h-10 text-white" />
-              </div>
               <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-4">
                 Schedule Your FREE Consultation
               </h1>

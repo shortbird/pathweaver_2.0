@@ -42,11 +42,14 @@ const HomePage = () => {
                 <span className="block drop-shadow-lg mt-2">Building Futures.</span>
               </h1>
 
-              <p className="text-xl sm:text-2xl lg:text-3xl mb-4 leading-relaxed opacity-95 max-w-3xl mx-auto drop-shadow px-4 font-semibold">
+              <p className="text-xl sm:text-2xl lg:text-3xl mb-8 leading-relaxed opacity-95 max-w-3xl mx-auto drop-shadow px-4 font-semibold">
                 A dedicated teacher in your corner.
               </p>
 
-              <p className="text-lg sm:text-xl lg:text-2xl mb-8 leading-relaxed opacity-90 max-w-3xl mx-auto drop-shadow px-4">
+              {/* Visual separator */}
+              <div className="w-16 h-1 bg-white/40 mx-auto rounded-full mb-8"></div>
+
+              <p className="text-base sm:text-lg lg:text-xl mb-8 leading-relaxed opacity-85 max-w-2xl mx-auto drop-shadow px-4 italic">
                 Raising doers, not dependents.
               </p>
 
@@ -81,6 +84,16 @@ const HomePage = () => {
       {/* If You're Feeling... Emotional Connection Section */}
       <div id="support" className="py-16 bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF]" role="main">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Hero Image: Parent and Child Learning Together - MOVED FIRST */}
+          <div className="mb-12 rounded-xl overflow-hidden shadow-lg max-w-3xl mx-auto border-2 border-gray-200 p-2 bg-white">
+            <img
+              src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/hero.jpg"
+              alt="Parent and teen collaborating on a learning project together at home"
+              className="w-full h-full object-cover aspect-[3/2] rounded-lg"
+              loading="lazy"
+            />
+          </div>
+
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
               If You're Feeling...
@@ -90,53 +103,43 @@ const HomePage = () => {
             </p>
           </div>
 
-          {/* Hero Image: Parent and Child Learning Together */}
-          <div className="mb-12 rounded-2xl overflow-hidden shadow-xl max-w-5xl mx-auto border-4 border-white">
-            <img
-              src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/hero.jpg"
-              alt="Parent and teen collaborating on a learning project together at home"
-              className="w-full h-full object-cover aspect-[16/9]"
-              loading="lazy"
-            />
-          </div>
-
           <div className="grid md:grid-cols-3 gap-8 mb-8">
             {/* Card 1: Nurturing Potential */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 hover:shadow-lg transition-shadow">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/70 to-[#EF597B]/70 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                 <Heart className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">
                 "I want to nurture my child's potential..."
               </h3>
               <p className="text-gray-700 leading-relaxed">
-                You don't have to carry the weight alone. Our licensed teachers work alongside you, providing expertise, accountability, and peace of mind without taking over.
+                Licensed teachers work alongside you, providing expertise and peace of mind.
               </p>
             </div>
 
             {/* Card 2: Protecting Love of Learning */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 hover:shadow-lg transition-shadow">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/70 to-[#EF597B]/70 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                 <Sparkles className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">
                 "I want to protect their love of learning..."
               </h3>
               <p className="text-gray-700 leading-relaxed">
-                You set the vision. We provide professional support. Your dedicated teacher collaborates with you to share the responsibility while you stay in charge of your child's learning.
+                You set the vision. We provide professional support that keeps you in charge.
               </p>
             </div>
 
             {/* Card 3: Real World Readiness */}
             <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 hover:shadow-lg transition-shadow">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/70 to-[#EF597B]/70 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                 <Trophy className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">
                 "Will my child be ready for the real world?"
               </h3>
               <p className="text-gray-700 leading-relaxed">
-                Our student-driven approach creates intrinsically motivated learners. They don't just complete assignments—they pursue passions, solve real problems, and build skills that launch them into adulthood.
+                Student-driven learning creates intrinsically motivated doers, not dependents.
               </p>
             </div>
           </div>
@@ -156,11 +159,11 @@ const HomePage = () => {
           </div>
 
           {/* Teacher Supporting Family Image */}
-          <div className="mb-12 rounded-2xl overflow-hidden shadow-xl max-w-4xl mx-auto border-4 border-gray-100">
+          <div className="mb-10 rounded-xl overflow-hidden shadow-md max-w-2xl mx-auto border-2 border-gray-200 p-2 bg-white">
             <img
               src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/teacher.jpg"
               alt="Teacher collaborating with parent and student in a supportive learning environment"
-              className="w-full h-full object-cover aspect-[16/9]"
+              className="w-full h-full object-cover aspect-[4/3] rounded-lg"
               loading="lazy"
             />
           </div>
@@ -168,89 +171,35 @@ const HomePage = () => {
           <div className="grid md:grid-cols-3 gap-8">
             {/* Your Own Dedicated Teacher */}
             <div className="text-center p-6 bg-gradient-to-br from-[#6D469B]/5 to-[#EF597B]/5 rounded-xl border border-gray-200">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/60 to-[#EF597B]/60 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                 <Users className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Your Own Dedicated Teacher</h3>
-              <p className="text-gray-700 leading-relaxed mb-3">
-                A licensed educator assigned to your family who becomes your educational partner.
+              <p className="text-gray-700 leading-relaxed">
+                Your educational partner: a licensed educator for your family.
               </p>
-              <ul className="text-left text-gray-600 space-y-2 text-sm">
-                <li className="flex items-start">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
-                  <span>Regular check-ins based on your family's needs</span>
-                </li>
-                <li className="flex items-start">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
-                  <span>Guides curriculum planning collaboratively</span>
-                </li>
-                <li className="flex items-start">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
-                  <span>Validates and celebrates learning progress</span>
-                </li>
-                <li className="flex items-start">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
-                  <span>Available for questions and mentorship</span>
-                </li>
-              </ul>
             </div>
 
             {/* Student-Driven Learning Platform */}
             <div className="text-center p-6 bg-gradient-to-br from-[#6D469B]/5 to-[#EF597B]/5 rounded-xl border border-gray-200">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/60 to-[#EF597B]/60 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                 <BookOpen className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Student-Driven Learning Platform</h3>
-              <p className="text-gray-700 leading-relaxed mb-3">
-                A digital portfolio that captures your child's unique learning journey.
+              <p className="text-gray-700 leading-relaxed">
+                Digital portfolio capturing your child's unique learning journey.
               </p>
-              <ul className="text-left text-gray-600 space-y-2 text-sm">
-                <li className="flex items-start">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
-                  <span>Document projects, experiments, and creations</span>
-                </li>
-                <li className="flex items-start">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
-                  <span>Turn real-world experiences into education</span>
-                </li>
-                <li className="flex items-start">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
-                  <span>Learn by doing what they love</span>
-                </li>
-                <li className="flex items-start">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
-                  <span>Build intrinsic motivation and confidence</span>
-                </li>
-              </ul>
             </div>
 
             {/* Parent Peace of Mind */}
             <div className="text-center p-6 bg-gradient-to-br from-[#6D469B]/5 to-[#EF597B]/5 rounded-xl border border-gray-200">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/60 to-[#EF597B]/60 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
                 <Heart className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Parent Peace of Mind</h3>
-              <p className="text-gray-700 leading-relaxed mb-3">
-                Professional oversight combined with flexibility and family control.
+              <p className="text-gray-700 leading-relaxed">
+                Professional oversight with flexibility and family control.
               </p>
-              <ul className="text-left text-gray-600 space-y-2 text-sm">
-                <li className="flex items-start">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
-                  <span>Professional oversight ensures quality learning</span>
-                </li>
-                <li className="flex items-start">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
-                  <span>Flexible structure adapts to your family</span>
-                </li>
-                <li className="flex items-start">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
-                  <span>Optional accredited diploma pathway</span>
-                </li>
-                <li className="flex items-start">
-                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
-                  <span>Community of families on the same journey</span>
-                </li>
-              </ul>
             </div>
 
 {/* COMMENTED OUT - Diploma Graphic Column
@@ -319,7 +268,7 @@ const HomePage = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {/* Step 1 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/75 to-[#EF597B]/75 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <span className="text-2xl font-bold text-white">1</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">Meet Your Teacher</h3>
@@ -330,7 +279,7 @@ const HomePage = () => {
 
             {/* Step 2 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/75 to-[#EF597B]/75 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <span className="text-2xl font-bold text-white">2</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">Create Your Plan</h3>
@@ -341,7 +290,7 @@ const HomePage = () => {
 
             {/* Step 3 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/75 to-[#EF597B]/75 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <span className="text-2xl font-bold text-white">3</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">Learn & Document</h3>
@@ -352,7 +301,7 @@ const HomePage = () => {
 
             {/* Step 4 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/75 to-[#EF597B]/75 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <span className="text-2xl font-bold text-white">4</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">Review & Celebrate</h3>
