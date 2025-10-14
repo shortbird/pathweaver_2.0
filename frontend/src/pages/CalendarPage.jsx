@@ -58,7 +58,7 @@ const CalendarPage = () => {
       <div className="flex justify-between items-center mb-6">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Your Learning Calendar</h1>
-          <p className="text-gray-600 mt-1">Plan your learning journey at your own pace</p>
+          <p className="text-gray-600 mt-1">Find your learning rhythm</p>
         </div>
         <ViewToggle currentView={viewMode} onChange={handleViewChange} />
       </div>
