@@ -440,6 +440,214 @@ def unlink_quest_from_badge(user_id, badge_id, quest_id):
     }), 200
 
 
+@bp.route('/admin/<badge_id>/refresh-image', methods=['POST'])
+@require_admin
+def refresh_badge_image(user_id, badge_id):
+    """
+    Refresh the badge image by fetching a new one from Pexels.
+
+    Path params:
+        badge_id: Badge UUID
+    """
+    from database import get_supabase_admin_client
+    from services.image_service import search_badge_image
+    from datetime import datetime
+
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Get badge
+        badge = supabase.table('badges').select('*').eq('id', badge_id).single().execute()
+        if not badge.data:
+            return jsonify({
+                'success': False,
+                'error': 'Badge not found'
+            }), 404
+
+        badge_data = badge.data
+
+        # Fetch new image using badge name and identity statement
+        image_url = search_badge_image(
+            badge_data['name'],
+            badge_data['identity_statement'],
+            badge_data.get('pillar_primary')
+        )
+
+        if not image_url:
+            return jsonify({
+                'success': False,
+                'error': 'Could not find a suitable image for this badge'
+            }), 404
+
+        # Update badge with new image
+        update_data = {
+            'image_url': image_url,
+            'image_generated_at': datetime.utcnow().isoformat(),
+            'image_generation_status': 'success',
+            'updated_at': datetime.utcnow().isoformat()
+        }
+
+        result = supabase.table('badges').update(update_data).eq('id', badge_id).execute()
+
+        return jsonify({
+            'success': True,
+            'message': 'Badge image refreshed successfully',
+            'image_url': image_url
+        }), 200
+
+    except Exception as e:
+        print(f"Error refreshing badge image: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to refresh badge image: {str(e)}'
+        }), 500
+
+
+@bp.route('/admin/batch-generate-images', methods=['POST'])
+@require_admin
+def batch_generate_badge_images(user_id):
+    """
+    Generate images for multiple badges.
+
+    Request body:
+    {
+        "badge_ids": ["id1", "id2", ...],  # Optional, if not provided processes all without images
+        "skip_existing": true,  # Default true - skip badges that already have images
+        "max_count": 50  # Optional limit on number of badges to process
+    }
+    """
+    from database import get_supabase_admin_client
+    from services.image_service import search_badge_image
+    from services.api_usage_tracker import pexels_tracker
+    from datetime import datetime
+
+    supabase = get_supabase_admin_client()
+
+    try:
+        data = request.get_json() or {}
+        badge_ids = data.get('badge_ids', [])
+        skip_existing = data.get('skip_existing', True)
+        max_count = data.get('max_count', 50)
+
+        # Build query
+        query = supabase.table('badges').select('id, name, identity_statement, pillar_primary, image_url')
+
+        # Filter by badge_ids if provided
+        if badge_ids:
+            query = query.in_('id', badge_ids)
+
+        # Filter out badges that already have images if skip_existing=true
+        if skip_existing:
+            query = query.is_('image_url', 'null')
+
+        # Limit results
+        query = query.limit(max_count)
+
+        badges = query.execute()
+
+        if not badges.data:
+            return jsonify({
+                'success': True,
+                'message': 'No badges found that need images',
+                'processed': 0,
+                'skipped': 0,
+                'failed': 0
+            }), 200
+
+        # Check if we have enough API capacity
+        needed_calls = len(badges.data)
+        usage = pexels_tracker.get_usage()
+
+        if usage['remaining'] < needed_calls:
+            return jsonify({
+                'success': False,
+                'error': f'Not enough API capacity. Need {needed_calls} calls but only {usage["remaining"]} remaining.',
+                'usage': usage
+            }), 429
+
+        # Process each badge
+        processed = 0
+        skipped = 0
+        failed = 0
+        results = []
+
+        for badge in badges.data:
+            try:
+                # Skip if already has image and skip_existing is true
+                if skip_existing and badge.get('image_url'):
+                    skipped += 1
+                    continue
+
+                # Generate image
+                image_url = search_badge_image(
+                    badge['name'],
+                    badge['identity_statement'],
+                    badge.get('pillar_primary')
+                )
+
+                if image_url:
+                    # Update badge with image
+                    update_result = supabase.table('badges').update({
+                        'image_url': image_url,
+                        'image_generated_at': datetime.utcnow().isoformat(),
+                        'image_generation_status': 'success',
+                        'updated_at': datetime.utcnow().isoformat()
+                    }).eq('id', badge['id']).execute()
+
+                    processed += 1
+                    results.append({
+                        'badge_id': badge['id'],
+                        'name': badge['name'],
+                        'status': 'success',
+                        'image_url': image_url
+                    })
+                else:
+                    failed += 1
+                    # Mark as failed
+                    supabase.table('badges').update({
+                        'image_generation_status': 'failed',
+                        'image_generated_at': datetime.utcnow().isoformat(),
+                        'updated_at': datetime.utcnow().isoformat()
+                    }).eq('id', badge['id']).execute()
+
+                    results.append({
+                        'badge_id': badge['id'],
+                        'name': badge['name'],
+                        'status': 'failed',
+                        'error': 'No image found'
+                    })
+
+            except Exception as e:
+                failed += 1
+                print(f"Error processing badge {badge['id']}: {str(e)}")
+                results.append({
+                    'badge_id': badge['id'],
+                    'name': badge['name'],
+                    'status': 'failed',
+                    'error': str(e)
+                })
+
+        # Get final usage
+        final_usage = pexels_tracker.get_usage()
+
+        return jsonify({
+            'success': True,
+            'message': f'Processed {processed} badges, skipped {skipped}, failed {failed}',
+            'processed': processed,
+            'skipped': skipped,
+            'failed': failed,
+            'results': results,
+            'usage': final_usage
+        }), 200
+
+    except Exception as e:
+        print(f"Error in bulk badge image generation: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to generate images: {str(e)}'
+        }), 500
+
+
 @bp.route('/admin/batch-link', methods=['POST'])
 @require_admin
 def batch_link_quests_to_badges(user_id):
