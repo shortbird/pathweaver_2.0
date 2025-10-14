@@ -1,14 +1,13 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Play, Info, X, BookOpen, Users, CheckCircle, Heart } from 'lucide-react'
+import { Play, X, BookOpen, Users, CheckCircle, Heart } from 'lucide-react'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
 import { useSubscriptionTiers, formatPrice } from '../hooks/useSubscriptionTiers'
 
 const HomePage = () => {
   const { isAuthenticated } = useAuth()
   const { data: tiers, isLoading: tiersLoading } = useSubscriptionTiers()
-  const [pricingModalOpen, setPricingModalOpen] = useState(false)
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
 
   return (
@@ -196,13 +195,26 @@ const HomePage = () => {
                   <h3 className="text-2xl font-bold mb-2">{tier.display_name}</h3>
                   <p className="text-3xl font-bold mb-1">{formatPrice(tier.price_monthly)}<span className="text-lg font-normal text-gray-600">/mo</span></p>
                   <p className="text-gray-600 mb-6">{tier.description}</p>
-                  <div className="flex-grow">
-                    {tier.features?.slice(0, 2).map((feature, index) => (
-                      <p key={index} className={`mb-4 ${feature.toLowerCase().includes('diploma') ? 'text-gray-700 font-semibold' : 'text-gray-700'}`}>
-                        ✓ {feature}
-                      </p>
+                  <ul className="space-y-2 mb-8 flex-grow text-sm">
+                    {tier.features?.map((feature, index) => (
+                      <li key={index} className="flex items-start">
+                        <svg className="w-4 h-4 text-green-500 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span className={`text-gray-700 ${feature.includes('Portfolio Diploma') || feature.includes('TWO diplomas') ? 'font-semibold' : ''}`}>
+                          {feature}
+                        </span>
+                      </li>
                     ))}
-                  </div>
+                    {tier.limitations?.map((limitation, index) => (
+                      <li key={`limit-${index}`} className="flex items-start">
+                        <svg className="w-4 h-4 text-gray-400 mr-2 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                        <span className="text-gray-500 line-through text-xs">{limitation}</span>
+                      </li>
+                    ))}
+                  </ul>
                   <Link
                     to="/register"
                     className={`block w-full py-3 px-6 rounded-lg font-bold transition-all text-center ${
@@ -246,7 +258,7 @@ const HomePage = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {/* Step 1 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/75 to-[#EF597B]/75 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/60 to-[#EF597B]/60 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <span className="text-2xl font-bold text-white">1</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">Meet Your Teacher</h3>
@@ -257,7 +269,7 @@ const HomePage = () => {
 
             {/* Step 2 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/75 to-[#EF597B]/75 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/60 to-[#EF597B]/60 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <span className="text-2xl font-bold text-white">2</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">Create Your Plan</h3>
@@ -268,7 +280,7 @@ const HomePage = () => {
 
             {/* Step 3 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/75 to-[#EF597B]/75 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/60 to-[#EF597B]/60 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <span className="text-2xl font-bold text-white">3</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">Learn & Document</h3>
@@ -279,7 +291,7 @@ const HomePage = () => {
 
             {/* Step 4 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/75 to-[#EF597B]/75 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/60 to-[#EF597B]/60 rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
                 <span className="text-2xl font-bold text-white">4</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">Review & Celebrate</h3>
@@ -355,7 +367,7 @@ const HomePage = () => {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
             {/* Testimonial 1 */}
-            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+            <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-6 border border-gray-200">
               <div className="text-4xl text-[#6D469B] mb-3">"</div>
               <p className="text-gray-700 leading-relaxed mb-4">
                 Finally, someone who understands that I need help without needing someone to take over.
@@ -365,7 +377,7 @@ const HomePage = () => {
             </div>
 
             {/* Testimonial 2 */}
-            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+            <div className="bg-gradient-to-br from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-6 border border-gray-200">
               <div className="text-4xl text-[#6D469B] mb-3">"</div>
               <p className="text-gray-700 leading-relaxed mb-4">
                 I was drowning trying to be teacher, mom, and curriculum planner all at once. Having our Optio teacher feels like finally having a co-parent in the education department.
@@ -375,7 +387,7 @@ const HomePage = () => {
             </div>
 
             {/* Testimonial 3 */}
-            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+            <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-xl p-6 border border-gray-200">
               <div className="text-4xl text-[#6D469B] mb-3">"</div>
               <p className="text-gray-700 leading-relaxed mb-4">
                 I finally stopped Googling 'am I homeschooling wrong' at 2am. Our teacher gives me the confidence I was missing.
@@ -385,7 +397,7 @@ const HomePage = () => {
             </div>
 
             {/* Testimonial 4 */}
-            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+            <div className="bg-gradient-to-br from-purple-50 to-blue-50 rounded-xl p-6 border border-gray-200">
               <div className="text-4xl text-[#6D469B] mb-3">"</div>
               <p className="text-gray-700 leading-relaxed mb-4">
                 It's not someone telling me what to do, it's someone helping me do what I already wanted to do. That's the difference.
@@ -395,7 +407,7 @@ const HomePage = () => {
             </div>
 
             {/* Testimonial 5 */}
-            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+            <div className="bg-gradient-to-br from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-6 border border-gray-200">
               <div className="text-4xl text-[#6D469B] mb-3">"</div>
               <p className="text-gray-700 leading-relaxed mb-4">
                 My son went from barely finishing assignments to staying up late working on his projects because he actually cares about them. That's not something I could force. It had to come from him.
@@ -405,7 +417,7 @@ const HomePage = () => {
             </div>
 
             {/* Testimonial 6 */}
-            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+            <div className="bg-gradient-to-br from-pink-50 to-purple-50 rounded-xl p-6 border border-gray-200">
               <div className="text-4xl text-[#6D469B] mb-3">"</div>
               <p className="text-gray-700 leading-relaxed mb-4">
                 She's not learning to follow instructions, she's learning to lead her own life. That's what I needed for her.
@@ -472,79 +484,6 @@ const HomePage = () => {
 
       {/* Our Philosophy Section */}
       <PhilosophySection onPhilosophyModalOpen={() => setPhilosophyModalOpen(true)} />
-      {/* Simplified Pricing with Modal */}
-      <div className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Simple Pricing</h2>
-            <p className="text-lg text-gray-700">
-              Start free. Upgrade when ready.
-            </p>
-          </div>
-
-          {tiersLoading ? (
-            <div className="flex justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-            </div>
-          ) : (
-            <div className="grid md:grid-cols-4 gap-6">
-              {tiers?.slice(0, 4).map((tier) => (
-                <div
-                  key={tier.id}
-                  className={`bg-white rounded-xl shadow-sm p-6 sm:p-8 flex flex-col relative ${
-                    tier.badge_text ? (tier.badge_color === 'gradient' ? 'border-2 border-[#ef597b] transform scale-105 shadow-lg' : '') : ''
-                  }`}
-                >
-                  {tier.badge_text && (
-                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-                      <span className={`text-white text-xs px-4 py-1 rounded-full inline-block font-bold ${
-                        tier.badge_color === 'gradient'
-                          ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b]'
-                          : tier.badge_color === 'green'
-                          ? 'bg-green-500'
-                          : 'bg-gray-500'
-                      }`}>
-                        {tier.badge_text}
-                      </span>
-                    </div>
-                  )}
-                  <h3 className="text-2xl font-bold mb-2">{tier.display_name}</h3>
-                  <p className="text-3xl font-bold mb-1">{formatPrice(tier.price_monthly)}<span className="text-lg font-normal text-gray-600">/mo</span></p>
-                  <p className="text-gray-600 mb-6">{tier.description}</p>
-                  <div className="flex-grow">
-                    {tier.features?.slice(0, 2).map((feature, index) => (
-                      <p key={index} className={`mb-4 ${feature.toLowerCase().includes('diploma') ? 'text-gray-700 font-semibold' : 'text-gray-700'}`}>
-                        ✓ {feature}
-                      </p>
-                    ))}
-                  </div>
-                  <Link
-                    to="/register"
-                    className={`block w-full py-3 px-6 rounded-lg font-bold transition-all text-center ${
-                      tier.tier_key === 'Explore'
-                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                        : 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg'
-                    }`}
-                  >
-                    {tier.tier_key === 'Explore' ? 'Start Free' : `Get ${tier.display_name}`}
-                  </Link>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* View full details button */}
-          <div className="text-center mt-8">
-            <button
-              onClick={() => setPricingModalOpen(true)}
-              className="inline-flex items-center text-[#ef597b] hover:text-[#e54469] font-medium"
-            >
-              <Info className="mr-2 w-4 h-4" aria-hidden="true" />
-              View Full Feature Comparison
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* FAQ Section - Teacher-Partnership Focus */}
       <div className="py-16 bg-white">
@@ -631,216 +570,6 @@ const HomePage = () => {
           </div>
         </div>
       </div>
-
-
-      {/* Pricing Details Modal */}
-      {pricingModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-5xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="text-2xl font-bold">Full Feature Comparison</h3>
-              <button
-                onClick={() => setPricingModalOpen(false)}
-                className="text-gray-500 hover:text-gray-700"
-                aria-label="Close modal"
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-            
-            {/* 3-Column Comparison Chart */}
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr>
-                    <th className="border-b-2 border-gray-200 p-4 text-left font-semibold text-gray-700">Features</th>
-                    {tiers?.slice(0, 4).map((tier) => (
-                      <th
-                        key={tier.id}
-                        className={`border-b-2 border-gray-200 p-4 text-center ${
-                          tier.badge_color === 'gradient' ? 'bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5' : ''
-                        }`}
-                      >
-                        <div className={`font-bold text-xl ${
-                          tier.badge_color === 'gradient' ? 'text-[#ef597b]' : tier.badge_color === 'green' ? 'text-green-600' : ''
-                        }`}>
-                          {tier.display_name}
-                        </div>
-                        <div className="text-2xl font-bold mt-1">{formatPrice(tier.price_monthly)}</div>
-                        <div className="text-sm text-gray-600">
-                          {tier.tier_key === 'Explore' ? 'Forever' : 'per month'}
-                        </div>
-                        {tier.badge_text && (
-                          <div className="mt-2">
-                            <span className={`text-white text-xs px-3 py-1 rounded-full font-semibold ${
-                              tier.badge_color === 'gradient'
-                                ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b]'
-                                : tier.badge_color === 'green'
-                                ? 'bg-green-500'
-                                : 'bg-gray-500'
-                            }`}>
-                              {tier.badge_text}
-                            </span>
-                          </div>
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* Core Features */}
-                  <tr className="border-b border-gray-100">
-                    <td colSpan="5" className="bg-gray-50 p-3 font-semibold text-gray-700">Core Features</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">Access to Quest Library</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">Track Learning Progress</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">Submit Evidence for Quests</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">Earn XP & Skill Badges</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700 font-semibold">Optio Portfolio Diploma</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-green-500 font-bold text-lg bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold text-lg">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold text-lg">✓</td>
-                  </tr>
-
-                  {/* Support & Community */}
-                  <tr className="border-b border-gray-100">
-                    <td colSpan="5" className="bg-gray-50 p-3 font-semibold text-gray-700">Support & Community</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">Community Forum Access</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">Educator Support Team</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">Team Learning & XP Bonuses</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">Custom Quest Submissions</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-green-500 font-bold bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-
-                  {/* Top Tier Exclusive */}
-                  <tr className="border-b border-gray-100">
-                    <td colSpan="5" className="bg-gray-50 p-3 font-semibold text-gray-700">Top Tier Exclusive Features</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700 font-semibold">Accredited High School Diploma</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-green-500 font-bold text-lg">✓</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">1-on-1 Licensed Teachers</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">Personal Learning Guide</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">Weekly Check-ins</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">Business Mentor Network</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">College Counseling</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-                  <tr className="border-b border-gray-100">
-                    <td className="p-4 text-gray-700">Official Transcripts</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-gray-400 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5">—</td>
-                    <td className="p-4 text-center text-gray-400">—</td>
-                    <td className="p-4 text-center text-green-500 font-bold">✓</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-            
-            <div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Link
-                to="/register"
-                className="block w-full bg-gray-100 text-gray-700 hover:bg-gray-200 py-3 px-6 rounded-lg font-semibold transition-colors text-center"
-              >
-                Start Free
-              </Link>
-              <Link
-                to="/register"
-                className="block w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-3 px-6 rounded-lg font-bold transition-all text-center transform hover:scale-105"
-              >
-                Get Supported
-              </Link>
-              <Link
-                to="/register"
-                className="block w-full bg-green-500 text-white hover:bg-green-600 py-3 px-6 rounded-lg font-bold transition-colors text-center"
-              >
-                Join Academy
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Philosophy Details Modal */}
       {philosophyModalOpen && (
