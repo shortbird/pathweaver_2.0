@@ -327,6 +327,8 @@ def get_next_up(user_id):
         this_week_items = []
         wandering_items = []
 
+        print(f"[CALENDAR DEBUG] Server today (UTC): {today}, today_str: {today_str}")
+
         for task in tasks_response.data:
             task_id = task['id']
 
@@ -340,6 +342,8 @@ def get_next_up(user_id):
 
             scheduled_date = datetime.strptime(scheduled_date_str, '%Y-%m-%d').date()
             quest = quests_map.get(task['quest_id'], {})
+
+            print(f"[CALENDAR DEBUG] Task '{task['title'][:30]}': scheduled={scheduled_date_str} ({scheduled_date}), comparing to today={today}")
 
             item = {
                 'id': task_id,
@@ -357,12 +361,15 @@ def get_next_up(user_id):
             if scheduled_date < today:
                 item['status'] = 'wandering'
                 wandering_items.append(item)
+                print(f"[CALENDAR DEBUG]   -> wandering (past due)")
             elif scheduled_date == today:
                 item['status'] = 'on-track'
                 today_items.append(item)
+                print(f"[CALENDAR DEBUG]   -> today")
             elif scheduled_date <= week_end:
                 item['status'] = 'on-track'
                 this_week_items.append(item)
+                print(f"[CALENDAR DEBUG]   -> this week")
 
         # Sort by order_index and xp_value
         today_items.sort(key=lambda x: (x.get('order_index', 999), -x.get('xp_value', 0)))

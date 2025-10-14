@@ -45,23 +45,35 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
     const { event } = info
     const newDate = event.start.toISOString().split('T')[0]
 
-    // Use optimistic update to prevent visual lag
+    // Optimistically update the local cache to prevent snapback
+    const previousData = queryClient.getQueryData(['calendar', userId])
+
+    // Optimistically update the cache
+    if (previousData) {
+      queryClient.setQueryData(['calendar', userId], (old) => {
+        return {
+          ...old,
+          items: old.items.map(item =>
+            item.id === event.id
+              ? { ...item, scheduled_date: newDate }
+              : item
+          )
+        }
+      })
+    }
+
     try {
-      // Don't await - let the mutation happen in background
-      updateDeadline.mutate({
+      // Mutate without automatic refetch
+      await updateDeadline.mutateAsync({
         userId,
         questId: event.extendedProps.quest_id,
         taskId: event.id,
         scheduledDate: newDate
-      }, {
-        onError: () => {
-          // Revert only if the update fails
-          info.revert()
-        }
       })
-      // Event stays in new position immediately
+      // Success - the cache is already updated
     } catch (error) {
-      // Revert on error
+      // Revert cache and UI on error
+      queryClient.setQueryData(['calendar', userId], previousData)
       info.revert()
       console.error('Failed to update deadline:', error)
     }
