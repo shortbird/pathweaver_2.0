@@ -45,13 +45,21 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
     const { event } = info
     const newDate = event.start.toISOString().split('T')[0]
 
+    // Use optimistic update to prevent visual lag
     try {
-      await updateDeadline.mutateAsync({
+      // Don't await - let the mutation happen in background
+      updateDeadline.mutate({
         userId,
         questId: event.extendedProps.quest_id,
         taskId: event.id,
         scheduledDate: newDate
+      }, {
+        onError: () => {
+          // Revert only if the update fails
+          info.revert()
+        }
       })
+      // Event stays in new position immediately
     } catch (error) {
       // Revert on error
       info.revert()

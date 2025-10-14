@@ -63,7 +63,7 @@ const ScheduleSidebar = ({ userId, calendarData, selectedPillar }) => {
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 sticky top-20">
       <div className="p-4 border-b border-gray-200">
         <h3 className="text-lg font-semibold text-gray-900">Unscheduled Items</h3>
-        <p className="text-sm text-gray-600 mt-1">Drag to calendar or quick schedule</p>
+        <p className="text-sm text-gray-600 mt-1">Use quick schedule buttons or pick a date</p>
       </div>
 
       <div className="p-4 space-y-3 max-h-[calc(100vh-200px)] overflow-y-auto">
@@ -91,32 +91,8 @@ const UnscheduledItem = ({ item, onQuickSchedule, onCustomSchedule }) => {
     setCustomDate('')
   }
 
-  // Handle drag start for external event
-  const handleDragStart = (e) => {
-    // Store the item data for FullCalendar to receive
-    e.dataTransfer.setData('text/plain', JSON.stringify({
-      id: item.id,
-      title: item.task_title,
-      questId: item.quest_id,
-      questTitle: item.quest_title,
-      pillar: item.pillar,
-      xpValue: item.xp_value
-    }))
-  }
-
   return (
-    <div
-      draggable="true"
-      onDragStart={handleDragStart}
-      data-event={JSON.stringify({
-        id: item.id,
-        title: item.task_title,
-        questId: item.quest_id,
-        questTitle: item.quest_title,
-        pillar: item.pillar,
-        xpValue: item.xp_value
-      })}
-      className="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors cursor-move active:opacity-50"
+    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors"
     >
       {/* Quest Image */}
       {item.quest_image && (
