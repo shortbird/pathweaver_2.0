@@ -157,6 +157,80 @@ const HomePage = () => {
         </div>
       </div>
 
+      {/* Simplified Pricing with Modal */}
+      <div className="py-16 bg-gray-50">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">Simple Pricing</h2>
+            <p className="text-lg text-gray-700">
+              Start free. Upgrade when ready.
+            </p>
+          </div>
+
+          {tiersLoading ? (
+            <div className="flex justify-center py-12">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-4 gap-6">
+              {tiers?.slice(0, 4).map((tier) => (
+                <div
+                  key={tier.id}
+                  className={`bg-white rounded-xl shadow-sm p-6 sm:p-8 flex flex-col relative ${
+                    tier.badge_text ? (tier.badge_color === 'gradient' ? 'border-2 border-[#ef597b] transform scale-105 shadow-lg' : '') : ''
+                  }`}
+                >
+                  {tier.badge_text && (
+                    <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
+                      <span className={`text-white text-xs px-4 py-1 rounded-full inline-block font-bold ${
+                        tier.badge_color === 'gradient'
+                          ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b]'
+                          : tier.badge_color === 'green'
+                          ? 'bg-green-500'
+                          : 'bg-gray-500'
+                      }`}>
+                        {tier.badge_text}
+                      </span>
+                    </div>
+                  )}
+                  <h3 className="text-2xl font-bold mb-2">{tier.display_name}</h3>
+                  <p className="text-3xl font-bold mb-1">{formatPrice(tier.price_monthly)}<span className="text-lg font-normal text-gray-600">/mo</span></p>
+                  <p className="text-gray-600 mb-6">{tier.description}</p>
+                  <div className="flex-grow">
+                    {tier.features?.slice(0, 2).map((feature, index) => (
+                      <p key={index} className={`mb-4 ${feature.toLowerCase().includes('diploma') ? 'text-gray-700 font-semibold' : 'text-gray-700'}`}>
+                        ✓ {feature}
+                      </p>
+                    ))}
+                  </div>
+                  <Link
+                    to="/register"
+                    className={`block w-full py-3 px-6 rounded-lg font-bold transition-all text-center ${
+                      tier.tier_key === 'Explore'
+                        ? 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        : 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg'
+                    }`}
+                  >
+                    {tier.tier_key === 'Explore' ? 'Start Free' : `Get ${tier.display_name}`}
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* View full details button */}
+          <div className="text-center mt-8">
+            <button
+              onClick={() => setPricingModalOpen(true)}
+              className="inline-flex items-center text-[#ef597b] hover:text-[#e54469] font-medium"
+            >
+              <Info className="mr-2 w-4 h-4" aria-hidden="true" />
+              View Full Feature Comparison
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* How It Works Section */}
       <div className="py-16 bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
