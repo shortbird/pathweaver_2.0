@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Play, Sparkles, Trophy, Info, X, Award, BookOpen, Users, CheckCircle, Heart } from 'lucide-react'
+import { Play, Sparkles, Trophy, Info, X, Award, BookOpen, Users, CheckCircle, Heart, Image } from 'lucide-react'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
 import { useSubscriptionTiers, formatPrice } from '../hooks/useSubscriptionTiers'
 
@@ -88,6 +88,20 @@ const HomePage = () => {
             <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
               You're not alone. We're here to support you.
             </p>
+          </div>
+
+          {/* Hero Image: Parent and Child Learning Together */}
+          <div className="mb-12 rounded-2xl overflow-hidden shadow-xl max-w-5xl mx-auto border-4 border-white">
+            <div className="aspect-[16/9] bg-gradient-to-br from-[#6D469B]/10 to-[#EF597B]/10 flex items-center justify-center">
+              <div className="text-center p-8">
+                <Image className="w-16 h-16 mx-auto text-[#6D469B] mb-4" />
+                <p className="text-sm font-semibold text-gray-600">IMAGE PLACEHOLDER</p>
+                <p className="text-xs text-gray-500 mt-2 max-w-md">
+                  Parent and teen collaborating on a project together at home<br/>
+                  (Warm, natural lighting, genuine connection)
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8 mb-8">
@@ -254,6 +268,20 @@ const HomePage = () => {
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
               A complete support system for your family's learning journey
             </p>
+          </div>
+
+          {/* Teacher Supporting Family Image */}
+          <div className="mb-12 rounded-2xl overflow-hidden shadow-xl max-w-4xl mx-auto border-4 border-gray-100">
+            <div className="aspect-[16/9] bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] flex items-center justify-center">
+              <div className="text-center p-8">
+                <Image className="w-16 h-16 mx-auto text-[#6D469B] mb-4" />
+                <p className="text-sm font-semibold text-gray-600">IMAGE PLACEHOLDER</p>
+                <p className="text-xs text-gray-500 mt-2 max-w-md">
+                  Teacher on video call with parent and student, smiling and engaged<br/>
+                  (Professional yet approachable, collaborative atmosphere)
+                </p>
+              </div>
+            </div>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
@@ -475,6 +503,50 @@ const HomePage = () => {
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
               Real stories from families using Optio
             </p>
+          </div>
+
+          {/* Happy Families Collage */}
+          <div className="mb-12 grid grid-cols-2 md:grid-cols-4 gap-4 max-w-6xl mx-auto">
+            {/* Image 1 */}
+            <div className="rounded-lg overflow-hidden shadow-md border-2 border-gray-200">
+              <div className="aspect-square bg-gradient-to-br from-[#6D469B]/10 to-[#EF597B]/10 flex items-center justify-center">
+                <div className="text-center p-4">
+                  <Image className="w-8 h-8 mx-auto text-[#6D469B] mb-2" />
+                  <p className="text-xs font-semibold text-gray-600">Parent 1</p>
+                  <p className="text-xs text-gray-500 mt-1">Natural moment</p>
+                </div>
+              </div>
+            </div>
+            {/* Image 2 */}
+            <div className="rounded-lg overflow-hidden shadow-md border-2 border-gray-200">
+              <div className="aspect-square bg-gradient-to-br from-[#EF597B]/10 to-[#6D469B]/10 flex items-center justify-center">
+                <div className="text-center p-4">
+                  <Image className="w-8 h-8 mx-auto text-[#EF597B] mb-2" />
+                  <p className="text-xs font-semibold text-gray-600">Parent 2</p>
+                  <p className="text-xs text-gray-500 mt-1">Genuine smile</p>
+                </div>
+              </div>
+            </div>
+            {/* Image 3 */}
+            <div className="rounded-lg overflow-hidden shadow-md border-2 border-gray-200">
+              <div className="aspect-square bg-gradient-to-br from-[#6D469B]/10 to-[#EF597B]/10 flex items-center justify-center">
+                <div className="text-center p-4">
+                  <Image className="w-8 h-8 mx-auto text-[#6D469B] mb-2" />
+                  <p className="text-xs font-semibold text-gray-600">Family 1</p>
+                  <p className="text-xs text-gray-500 mt-1">Learning together</p>
+                </div>
+              </div>
+            </div>
+            {/* Image 4 */}
+            <div className="rounded-lg overflow-hidden shadow-md border-2 border-gray-200">
+              <div className="aspect-square bg-gradient-to-br from-[#EF597B]/10 to-[#6D469B]/10 flex items-center justify-center">
+                <div className="text-center p-4">
+                  <Image className="w-8 h-8 mx-auto text-[#EF597B] mb-2" />
+                  <p className="text-xs font-semibold text-gray-600">Family 2</p>
+                  <p className="text-xs text-gray-500 mt-1">Warm connection</p>
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
