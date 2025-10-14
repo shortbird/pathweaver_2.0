@@ -78,15 +78,79 @@ def promo_signup():
         logger.error(f"Error in promo signup: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@promo_bp.route('/consultation', methods=['POST'])
+def consultation_request():
+    """Handle consultation booking form submissions"""
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ['parentName', 'email', 'childAge']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'{field} is required'}), 400
+
+        # Validate email format (basic)
+        email = data['email']
+        if '@' not in email or '.' not in email:
+            return jsonify({'error': 'Invalid email format'}), 400
+
+        supabase = get_supabase_client()
+
+        # Insert consultation request data
+        consultation_data = {
+            'parent_name': data['parentName'],
+            'email': email,
+            'phone': data.get('phone', ''),
+            'child_age': data['childAge'],
+            'preferred_times': data.get('preferredTimes', ''),
+            'notes': data.get('notes', ''),
+            'created_at': datetime.utcnow().isoformat(),
+            'status': 'pending',
+            'source': 'consultation_page'
+        }
+
+        result = supabase.table('consultation_requests').insert(consultation_data).execute()
+
+        if result.data:
+            logger.info(f"Consultation request recorded: {email}")
+
+            # Send confirmation email to parent
+            try:
+                email_sent = email_service.send_consultation_confirmation_email(
+                    parent_email=email,
+                    parent_name=data['parentName'],
+                    child_age=data['childAge']
+                )
+                if email_sent:
+                    logger.info(f"Consultation confirmation email sent to {email}")
+                else:
+                    logger.warning(f"Failed to send consultation confirmation email to {email}")
+            except Exception as e:
+                logger.error(f"Error sending consultation confirmation email to {email}: {str(e)}")
+
+            return jsonify({
+                'success': True,
+                'message': 'Consultation request recorded successfully',
+                'id': result.data[0]['id']
+            }), 201
+        else:
+            logger.error(f"Failed to record consultation request: {email}")
+            return jsonify({'error': 'Failed to record consultation request'}), 500
+
+    except Exception as e:
+        logger.error(f"Error in consultation request: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 @promo_bp.route('/signups', methods=['GET'])
 @require_admin
 def get_promo_signups(user_id):
     """Get all promo signups (admin only - basic version for now)"""
     try:
         supabase = get_supabase_client()
-        
+
         result = supabase.table('promo_signups').select('*').order('created_at', desc=True).execute()
-        
+
         if result.data:
             return jsonify({
                 'success': True,
@@ -99,7 +163,7 @@ def get_promo_signups(user_id):
                 'signups': [],
                 'total': 0
             }), 200
-    
+
     except Exception as e:
         logger.error(f"Error fetching promo signups: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500

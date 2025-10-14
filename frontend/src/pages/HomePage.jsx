@@ -1,293 +1,15 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Play, Sparkles, Trophy, Info, X, Award, BookOpen, Users, Music, Code, PenTool, Calculator, CheckCircle, ChevronLeft, ChevronRight, Camera, Palette, Microscope, Globe, Heart } from 'lucide-react'
+import { Play, Sparkles, Trophy, Info, X, Award, BookOpen, Users, CheckCircle, Heart } from 'lucide-react'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
-import { useSubscriptionTiers, getTierByKey, formatPrice } from '../hooks/useSubscriptionTiers'
-
-// Activity Card Component for the scrolling section
-const ActivityCard = ({ activity, icon: Icon, color, description, skills, credit, subject }) => (
-  <div className="flex-shrink-0 w-80 sm:w-96 h-80 bg-white rounded-xl border border-gray-200 hover:shadow-lg transition-all duration-300 p-6 mx-2 sm:mx-4 mb-8">
-    {/* Header with Icon */}
-    <div className="flex items-center mb-4">
-      <div className={`w-12 h-12 rounded-full flex items-center justify-center mr-3`} style={{ backgroundColor: `${color}20` }}>
-        <Icon className="w-6 h-6" style={{ color }} />
-      </div>
-      <div className="flex-1">
-        <div className="text-sm font-medium text-gray-600">{subject}</div>
-        <div className="text-lg font-bold" style={{ color }}>{credit} Credit</div>
-      </div>
-    </div>
-
-    {/* Student Description */}
-    <div className="mb-4">
-      <p className="text-gray-800 font-medium text-sm leading-relaxed">
-        {description}
-      </p>
-    </div>
-
-    {/* Key Skills - Limited to 4 skills max for better fit */}
-    <div className="">
-      <div className="text-xs text-gray-600 mb-2">Key Skills Demonstrated:</div>
-      <div className="flex flex-wrap gap-1">
-        {skills.slice(0, 4).map((skill, index) => (
-          <span 
-            key={index}
-            className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs"
-          >
-            {skill}
-          </span>
-        ))}
-      </div>
-    </div>
-  </div>
-)
+import { useSubscriptionTiers, formatPrice } from '../hooks/useSubscriptionTiers'
 
 const HomePage = () => {
   const { isAuthenticated } = useAuth()
   const { data: tiers, isLoading: tiersLoading } = useSubscriptionTiers()
   const [pricingModalOpen, setPricingModalOpen] = useState(false)
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
-  const [currentActivity, setCurrentActivity] = useState(0)
-  const [currentCardIndex, setCurrentCardIndex] = useState(0)
-  const [canScrollLeft, setCanScrollLeft] = useState(false)
-  const [canScrollRight, setCanScrollRight] = useState(true)
-  const scrollRef = useRef(null)
-  const [formData, setFormData] = useState({
-    parentName: '',
-    email: '',
-    teenAge: '',
-    activity: ''
-  })
-  const [isSubmitting, setIsSubmitting] = useState(false)
-  const [submitted, setSubmitted] = useState(false)
-
-  const activities = [
-    'Piano Lessons',
-    'Community Sports',
-    'Travel Experiences',
-    'App Development',
-    'Internships',
-    'Freelance Work',
-    'Social Media Marketing',
-    'Crypto Trading',
-    'YouTube Channel',
-    'Music Production',
-    'Film Making',
-    'Starting a Business',
-    'Online Tutoring',
-    'Influencer Work',
-    'E-commerce Stores'
-  ]
-
-  // Credit conversion card activities
-  const creditActivities = [
-    {
-      icon: Music,
-      color: '#ef597b',
-      subject: 'Fine Arts',
-      credit: '0.5',
-      description: 'Sophia took piano lessons for 6 months and can now play 8 classical pieces, including a Bach invention she performed at her school recital.',
-      skills: ['Musical theory', 'Practice discipline', 'Performance', 'Creativity']
-    },
-    {
-      icon: Code,
-      color: '#6d469b', 
-      subject: 'Computer Science',
-      credit: '0.5',
-      description: 'Evan taught himself Python programming and built a web app that helps his family track household chores and allowances.',
-      skills: ['Programming logic', 'Problem-solving', 'UI design', 'Project management']
-    },
-    {
-      icon: PenTool,
-      color: '#059669',
-      subject: 'English',
-      credit: '0.5', 
-      description: 'Maya traveled through Europe with her family and wrote 15 detailed travel blog posts, documenting cultural experiences and historical insights.',
-      skills: ['Written communication', 'Research', 'Cultural analysis', 'Digital publishing']
-    },
-    {
-      icon: Trophy,
-      color: '#ea580c',
-      subject: 'Physical Education', 
-      credit: '1.0',
-      description: 'Marcus played varsity soccer for two years as team captain, leading his team to the state championships while maintaining peak physical condition.',
-      skills: ['Physical fitness', 'Leadership', 'Strategic thinking', 'Team collaboration']
-    },
-    {
-      icon: Calculator,
-      color: '#2563eb',
-      subject: 'Applied Mathematics',
-      credit: '0.5',
-      description: 'Zoe started her own handmade jewelry business, managing inventory, calculating profit margins, and analyzing sales data to grow her revenue by 200%.',
-      skills: ['Applied mathematics', 'Financial literacy', 'Data analysis', 'Business operations']
-    },
-    {
-      icon: Camera,
-      color: '#7c3aed',
-      subject: 'Digital Media',
-      credit: '0.5',
-      description: 'Alex created a photography portfolio documenting local wildlife, learning advanced camera techniques and post-processing in Photoshop.',
-      skills: ['Technical photography', 'Digital editing', 'Composition', 'Nature observation']
-    },
-    {
-      icon: Palette,
-      color: '#dc2626',
-      subject: 'Visual Arts',
-      credit: '0.5',
-      description: 'Riley completed 20 oil paintings over 8 months, studying color theory and developing their own artistic style for a local gallery exhibition.',
-      skills: ['Color theory', 'Artistic technique', 'Creative expression', 'Art history']
-    },
-    {
-      icon: Microscope,
-      color: '#0891b2',
-      subject: 'Life Sciences',
-      credit: '0.5',
-      description: 'Jordan conducted independent research on local water quality, collecting samples, running tests, and presenting findings to the city council.',
-      skills: ['Scientific method', 'Data collection', 'Analysis', 'Public speaking']
-    },
-    {
-      icon: Globe,
-      color: '#059669',
-      subject: 'Social Studies',
-      credit: '0.5',
-      description: 'Carmen researched her family genealogy, tracing ancestors across three continents and creating a comprehensive historical timeline with cultural context.',
-      skills: ['Historical research', 'Cultural awareness', 'Genealogy', 'Timeline creation']
-    },
-    {
-      icon: Heart,
-      color: '#be185d',
-      subject: 'Community Service',
-      credit: '0.5',
-      description: 'Taylor organized a neighborhood food drive, coordinating with 15 families and local businesses to collect 500+ items for the food bank.',
-      skills: ['Community organizing', 'Leadership', 'Project coordination', 'Social awareness']
-    }
-  ]
-
-  // True infinite scrolling functions for credit cards
-  const scroll = (direction) => {
-    const container = scrollRef.current
-    if (!container) return
-    
-    const cardWidth = window.innerWidth < 640 ? 320 + 16 : 384 + 32 // Mobile: w-80 + smaller gaps, Desktop: w-96 + gaps
-    const scrollAmount = cardWidth
-    const totalCards = creditActivities.length * 3 // We have 3 copies
-    const singleSetWidth = cardWidth * creditActivities.length
-    
-    if (direction === 'left') {
-      container.scrollLeft -= scrollAmount
-      // Reset to third set when reaching first set
-      if (container.scrollLeft < scrollAmount) {
-        container.scrollLeft = singleSetWidth * 2 + container.scrollLeft
-      }
-    } else {
-      container.scrollLeft += scrollAmount
-      // Reset to first set when reaching end of third set
-      if (container.scrollLeft >= singleSetWidth * 2.5) {
-        container.scrollLeft = singleSetWidth + (container.scrollLeft - singleSetWidth * 2)
-      }
-    }
-    
-    // Update current index based on position in the middle set
-    const positionInMiddleSet = (container.scrollLeft - singleSetWidth) / cardWidth
-    setCurrentCardIndex(Math.max(0, Math.min(creditActivities.length - 1, Math.round(positionInMiddleSet))))
-  }
-
-  const updateScrollButtons = () => {
-    const container = scrollRef.current
-    if (container) {
-      // Always enable both buttons for infinite scroll
-      setCanScrollLeft(true)
-      setCanScrollRight(true)
-      
-      // Update current card index based on scroll position
-      const cardWidth = window.innerWidth < 640 ? 320 + 16 : 384 + 32
-      const singleSetWidth = cardWidth * creditActivities.length
-      
-      // Calculate position relative to the middle set (second copy)
-      let relativePosition = container.scrollLeft - singleSetWidth
-      if (relativePosition < 0) {
-        relativePosition = container.scrollLeft + singleSetWidth
-      }
-      
-      const newIndex = Math.round(relativePosition / cardWidth) % creditActivities.length
-      setCurrentCardIndex(Math.max(0, Math.min(creditActivities.length - 1, newIndex)))
-    }
-  }
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentActivity((prev) => (prev + 1) % activities.length)
-    }, 3000)
-    return () => clearInterval(interval)
-  }, [activities.length])
-
-  useEffect(() => {
-    const container = scrollRef.current
-    if (container) {
-      container.addEventListener('scroll', updateScrollButtons)
-      
-      // Start in the middle set for seamless infinite scroll
-      const cardWidth = window.innerWidth < 640 ? 320 + 16 : 384 + 32
-      const singleSetWidth = cardWidth * creditActivities.length
-      container.scrollLeft = singleSetWidth // Start at second copy
-      
-      updateScrollButtons() // Initial check
-      
-      return () => container.removeEventListener('scroll', updateScrollButtons)
-    }
-  }, [creditActivities.length])
-
-  const handleInputChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-    
-    try {
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-      const response = await fetch(`${apiUrl}/api/promo/signup`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      })
-
-      const result = await response.json()
-
-      if (response.ok) {
-        // Track lead conversion from homepage
-        try {
-          if (typeof fbq !== 'undefined') {
-            fbq('track', 'Lead', {
-              content_name: 'Homepage Signup Form',
-              value: 0.00,
-              currency: 'USD'
-            });
-          }
-        } catch (error) {
-          console.error('Meta Pixel tracking error:', error);
-        }
-        
-        setIsSubmitting(false)
-        setSubmitted(true)
-      } else {
-        throw new Error(result.error || 'Failed to submit signup')
-      }
-    } catch (error) {
-      console.error('Signup error:', error)
-      setIsSubmitting(false)
-      // For now, still show success to avoid blocking users
-      // In production, you might want to show an error message
-      setSubmitted(true)
-    }
-  }
 
   return (
     <div className="min-h-screen">
@@ -299,69 +21,56 @@ const HomePage = () => {
         Skip to main content
       </a>
 
-      {/* Enhanced Hero Section with Better Contrast */}
-      <div 
-        className="bg-gradient-to-br from-[#ef597b] to-[#6d469b] text-white relative overflow-hidden"
+      {/* Enhanced Hero Section - Parent-Focused */}
+      <div
+        className="bg-gradient-to-br from-[#6D469B] to-[#EF597B] text-white relative overflow-hidden"
         role="banner"
-        aria-label="Hero section introducing Optio Quest Platform"
+        aria-label="Hero section introducing Optio teacher-partnership model"
       >
-        {/* Removed animated pulse elements for accessibility */}
+        {/* Subtle background elements */}
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-20 left-10 w-32 h-32 border-2 border-white/20 rounded-full"></div>
           <div className="absolute bottom-20 right-10 w-24 h-24 border-2 border-white/20 rounded-full"></div>
           <div className="absolute top-1/2 left-1/3 w-20 h-20 border-2 border-white/10 rounded-full"></div>
         </div>
-        
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 lg:py-24 relative">
           <div className="text-center">
               <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold mb-6 leading-tight">
-                <span className="block drop-shadow-lg">GET HIGH SCHOOL CREDIT FOR</span>
-                <div className="relative h-32 sm:h-36 mt-4">
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <span 
-                      key={currentActivity}
-                      className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-black animate-fade-in py-4"
-                      style={{
-                        background: currentActivity % 4 === 0 ? 'linear-gradient(45deg, #FFD700, #FFA500)' :
-                                   currentActivity % 4 === 1 ? 'linear-gradient(45deg, #00CED1, #1E90FF)' :
-                                   currentActivity % 4 === 2 ? 'linear-gradient(45deg, #FF69B4, #FF1493)' :
-                                   'linear-gradient(45deg, #32CD32, #228B22)',
-                        WebkitBackgroundClip: 'text',
-                        backgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))'
-                      }}
-                    >
-                      {activities[currentActivity]}
-                    </span>
-                  </div>
-                </div>
+                <span className="block drop-shadow-lg">Supporting Parents.</span>
+                <span className="block drop-shadow-lg mt-2">Empowering Students.</span>
+                <span className="block drop-shadow-lg mt-2">Building Futures.</span>
               </h1>
-              
-              <p className="text-lg sm:text-xl lg:text-2xl mb-8 leading-relaxed opacity-95 max-w-4xl mx-auto drop-shadow px-4">
-                Turn your real-world passions into an accredited diploma.
+
+              <p className="text-xl sm:text-2xl lg:text-3xl mb-4 leading-relaxed opacity-95 max-w-3xl mx-auto drop-shadow px-4 font-semibold">
+                A dedicated teacher in your corner.
               </p>
 
-              {/* Enhanced CTAs with better contrast and mobile touch targets */}
+              <p className="text-lg sm:text-xl lg:text-2xl mb-8 leading-relaxed opacity-90 max-w-3xl mx-auto drop-shadow px-4">
+                Raising doers, not dependents.
+              </p>
+
+              {/* Enhanced CTAs - Consultation Focused */}
               {!isAuthenticated && (
                 <div className="flex flex-col gap-4 justify-center items-center max-w-sm mx-auto sm:max-w-none sm:flex-row">
                   <Link
-                    to="/demo"
-                    className="bg-white text-[#ef597b] hover:bg-gray-100 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center min-h-[52px] touch-manipulation"
-                    aria-describedby="demo-description"
+                    to="/consultation"
+                    className="bg-white text-[#6D469B] hover:bg-gray-100 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center min-h-[52px] touch-manipulation"
+                    aria-describedby="consultation-description"
                   >
-                    <Play className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0" aria-hidden="true" />
-                    Try 2-Min Demo
+                    <Users className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0" aria-hidden="true" />
+                    Schedule FREE Consultation
                   </Link>
-                  <span id="demo-description" className="sr-only">
-                    Try our 2-minute interactive demo to see how Optio works
+                  <span id="consultation-description" className="sr-only">
+                    Schedule a free 30-minute consultation with a licensed teacher
                   </span>
 
                   <Link
-                    to="/register"
-                    className="bg-[#6d469b] text-white px-8 py-4 rounded-lg font-medium inline-flex items-center hover:bg-[#5d3689] transition-all w-full sm:w-auto justify-center shadow-lg min-h-[52px] touch-manipulation"
+                    to="/demo"
+                    className="bg-transparent border-2 border-white text-white px-8 py-4 rounded-lg font-semibold inline-flex items-center hover:bg-white/10 transition-all w-full sm:w-auto justify-center shadow-lg min-h-[52px] touch-manipulation"
                   >
-                    Start Free
+                    <Play className="mr-2 w-5 h-5" aria-hidden="true" />
+                    Try 2-Min Demo
                   </Link>
                 </div>
               )}
@@ -369,8 +78,63 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Show What You Can Do Section */}
-      <div id="demo" className="py-16 bg-gradient-to-br from-purple-50 to-blue-50" role="main">
+      {/* If You're Feeling... Emotional Connection Section */}
+      <div id="support" className="py-16 bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF]" role="main">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              If You're Feeling...
+            </h2>
+            <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
+              You're not alone. We're here to support you.
+            </p>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-8 mb-8">
+            {/* Card 1: Nurturing Potential */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 hover:shadow-lg transition-shadow">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+                <Heart className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">
+                "I want to nurture my child's potential..."
+              </h3>
+              <p className="text-gray-700 leading-relaxed">
+                You don't have to carry the weight alone. Our licensed teachers work alongside you, providing expertise, accountability, and peace of mind without taking over.
+              </p>
+            </div>
+
+            {/* Card 2: Protecting Love of Learning */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 hover:shadow-lg transition-shadow">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+                <Sparkles className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">
+                "I want to protect their love of learning..."
+              </h3>
+              <p className="text-gray-700 leading-relaxed">
+                You set the vision. We provide professional support. Your dedicated teacher collaborates with you to share the responsibility while you stay in charge of your child's learning.
+              </p>
+            </div>
+
+            {/* Card 3: Real World Readiness */}
+            <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 hover:shadow-lg transition-shadow">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+                <Trophy className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">
+                "Will my child be ready for the real world?"
+              </h3>
+              <p className="text-gray-700 leading-relaxed">
+                Our student-driven approach creates intrinsically motivated learners. They don't just complete assignments—they pursue passions, solve real problems, and build skills that launch them into adulthood.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Removed previous activity cards section */}
+      <div id="demo" className="py-16 bg-gradient-to-br from-purple-50 to-blue-50 hidden">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Mobile-Optimized Scrolling Credit Cards */}
           <div className="max-w-7xl mx-auto">
@@ -480,47 +244,104 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Why Choose Optio Section */}
+      {/* What Optio Provides Section - Teacher-Collaboration Focus */}
       <div className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Why Choose Optio
+              What Optio Provides
             </h2>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              Finally, a way to recognize and credit your real-world learning
+              A complete support system for your family's learning journey
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center p-6 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 rounded-xl">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mx-auto mb-4">
-                <Award className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Accredited Diploma</h3>
-              <p className="text-gray-600 leading-relaxed">
-                Earn a fully accredited high school diploma that meets all state graduation requirements and college admission standards.
-              </p>
-            </div>
-
-            <div className="text-center p-6 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 rounded-xl">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mx-auto mb-4">
-                <BookOpen className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Portfolio Building</h3>
-              <p className="text-gray-600 leading-relaxed">
-                Document achievements with evidence that makes college applications stand out from the crowd.
-              </p>
-            </div>
-
-            <div className="text-center p-6 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 rounded-xl">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mx-auto mb-4">
+            {/* Your Own Dedicated Teacher */}
+            <div className="text-center p-6 bg-gradient-to-br from-[#6D469B]/5 to-[#EF597B]/5 rounded-xl border border-gray-200">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3">Personalized Path</h3>
-              <p className="text-gray-600 leading-relaxed">
-                Learn at your own pace, following your interests while meeting academic standards.
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Your Own Dedicated Teacher</h3>
+              <p className="text-gray-700 leading-relaxed mb-3">
+                A licensed educator assigned to your family who becomes your educational partner.
               </p>
+              <ul className="text-left text-gray-600 space-y-2 text-sm">
+                <li className="flex items-start">
+                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
+                  <span>Regular check-ins based on your family's needs</span>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
+                  <span>Guides curriculum planning collaboratively</span>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
+                  <span>Validates and celebrates learning progress</span>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
+                  <span>Available for questions and mentorship</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Student-Driven Learning Platform */}
+            <div className="text-center p-6 bg-gradient-to-br from-[#6D469B]/5 to-[#EF597B]/5 rounded-xl border border-gray-200">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+                <BookOpen className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Student-Driven Learning Platform</h3>
+              <p className="text-gray-700 leading-relaxed mb-3">
+                A digital portfolio that captures your child's unique learning journey.
+              </p>
+              <ul className="text-left text-gray-600 space-y-2 text-sm">
+                <li className="flex items-start">
+                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
+                  <span>Document projects, experiments, and creations</span>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
+                  <span>Turn real-world experiences into education</span>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
+                  <span>Learn by doing what they love</span>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
+                  <span>Build intrinsic motivation and confidence</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Parent Peace of Mind */}
+            <div className="text-center p-6 bg-gradient-to-br from-[#6D469B]/5 to-[#EF597B]/5 rounded-xl border border-gray-200">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+                <Heart className="w-8 h-8 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3">Parent Peace of Mind</h3>
+              <p className="text-gray-700 leading-relaxed mb-3">
+                Professional oversight combined with flexibility and family control.
+              </p>
+              <ul className="text-left text-gray-600 space-y-2 text-sm">
+                <li className="flex items-start">
+                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
+                  <span>Professional oversight ensures quality learning</span>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
+                  <span>Flexible structure adapts to your family</span>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
+                  <span>Optional accredited diploma pathway</span>
+                </li>
+                <li className="flex items-start">
+                  <CheckCircle className="w-4 h-4 mr-2 mt-0.5 text-green-600 flex-shrink-0" />
+                  <span>Community of families on the same journey</span>
+                </li>
+              </ul>
             </div>
 
 {/* COMMENTED OUT - Diploma Graphic Column
@@ -574,137 +395,201 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Signup Form Section */}
-      <div className="py-16 bg-gradient-to-br from-purple-50 to-blue-50">
-        <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-8">
+      {/* How It Works Section */}
+      <div className="py-16 bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              Start Your Journey Today
+              How It Works
             </h2>
-            <p className="text-lg text-gray-600 mb-2">
-              First month free • No credit card required • Cancel anytime
+            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+              A simple, supportive process designed around your family's needs
             </p>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-xl p-6 sm:p-8">
-            {!submitted ? (
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div>
-                  <label htmlFor="parentName" className="block text-sm font-medium text-gray-700 mb-2">
-                    Your Name *
-                  </label>
-                  <input
-                    type="text"
-                    id="parentName"
-                    name="parentName"
-                    value={formData.parentName}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ef597b] focus:border-[#ef597b] transition-colors"
-                    placeholder="Your full name"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    id="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ef597b] focus:border-[#ef597b] transition-colors"
-                    placeholder="your.email@example.com"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="teenAge" className="block text-sm font-medium text-gray-700 mb-2">
-                    Age (if student) *
-                  </label>
-                  <select
-                    id="teenAge"
-                    name="teenAge"
-                    value={formData.teenAge}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ef597b] focus:border-[#ef597b] transition-colors"
-                  >
-                    <option value="">Select age</option>
-                    <option value="13">13</option>
-                    <option value="14">14</option>
-                    <option value="15">15</option>
-                    <option value="16">16</option>
-                    <option value="17">17</option>
-                    <option value="18">18</option>
-                    <option value="adult">Adult/Parent</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="activity" className="block text-sm font-medium text-gray-700 mb-2">
-                    What activity are you passionate about?
-                  </label>
-                  <input
-                    type="text"
-                    id="activity"
-                    name="activity"
-                    value={formData.activity}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ef597b] focus:border-[#ef597b] transition-colors"
-                    placeholder="e.g., Music, Sports, Art, Technology..."
-                  />
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-4 px-6 rounded-lg font-bold text-lg hover:shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
-                >
-                  {isSubmitting ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                      Processing...
-                    </div>
-                  ) : (
-                    'Get Your First Month Free'
-                  )}
-                </button>
-              </form>
-            ) : (
-              <div className="text-center py-8">
-                <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-8 h-8 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <h3 className="text-2xl font-bold text-gray-900 mb-2">Thank You!</h3>
-                <p className="text-gray-600 mb-4">
-                  We've received your information and will send you access details within 24 hours.
-                </p>
-                <p className="text-sm text-gray-500">
-                  Check your email for next steps and your free month access.
-                </p>
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {/* Step 1 */}
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-white">1</span>
               </div>
-            )}
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Meet Your Teacher</h3>
+              <p className="text-gray-600 leading-relaxed text-sm">
+                Schedule a free consultation to discuss your family's vision and needs.
+              </p>
+            </div>
 
-            <p className="text-xs text-gray-500 text-center mt-4">
-              We respect your privacy. No spam, ever. Unsubscribe at any time.
+            {/* Step 2 */}
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-white">2</span>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Create Your Plan</h3>
+              <p className="text-gray-600 leading-relaxed text-sm">
+                Work with your teacher to design a learning approach that fits your child's interests and your family's goals.
+              </p>
+            </div>
+
+            {/* Step 3 */}
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-white">3</span>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Learn & Document</h3>
+              <p className="text-gray-600 leading-relaxed text-sm">
+                Your student pursues projects and interests while our platform captures their growth. Your teacher provides guidance along the way.
+              </p>
+            </div>
+
+            {/* Step 4 */}
+            <div className="text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B] to-[#EF597B] rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-white">4</span>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Review & Celebrate</h3>
+              <p className="text-gray-600 leading-relaxed text-sm">
+                Regular check-ins with your teacher ensure progress and celebrate milestones.
+              </p>
+            </div>
+          </div>
+
+          <div className="text-center mt-12">
+            <Link
+              to="/consultation"
+              className="inline-flex items-center bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+            >
+              <Users className="mr-2 w-5 h-5" />
+              Start with a Free Consultation
+            </Link>
+          </div>
+        </div>
+      </div>
+
+      {/* Parent Testimonials Section */}
+      <div className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
+              What Parents Are Saying
+            </h2>
+            <p className="text-lg text-gray-600 max-w-3xl mx-auto">
+              Real stories from families using Optio
             </p>
           </div>
 
-          <div className="text-center mt-8">
-            <p className="text-gray-600 mb-4">Or explore first:</p>
-            <Link 
-              to="/demo" 
-              className="inline-flex items-center text-[#ef597b] hover:text-[#e54469] font-medium"
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Testimonial 1 */}
+            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+              <div className="text-4xl text-[#6D469B] mb-3">"</div>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                Finally, someone who understands that I need help without needing someone to take over.
+              </p>
+              <p className="text-sm font-semibold text-gray-900">Sarah M.</p>
+              <p className="text-xs text-gray-600">Homeschooling parent of two</p>
+            </div>
+
+            {/* Testimonial 2 */}
+            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+              <div className="text-4xl text-[#6D469B] mb-3">"</div>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                I was drowning trying to be teacher, mom, and curriculum planner all at once. Having our Optio teacher feels like finally having a co-parent in the education department.
+              </p>
+              <p className="text-sm font-semibold text-gray-900">Jennifer K.</p>
+              <p className="text-xs text-gray-600">Working mom, two teens</p>
+            </div>
+
+            {/* Testimonial 3 */}
+            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+              <div className="text-4xl text-[#6D469B] mb-3">"</div>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                I finally stopped Googling 'am I homeschooling wrong' at 2am. Our teacher gives me the confidence I was missing.
+              </p>
+              <p className="text-sm font-semibold text-gray-900">Alicia R.</p>
+              <p className="text-xs text-gray-600">First-time homeschool parent</p>
+            </div>
+
+            {/* Testimonial 4 */}
+            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+              <div className="text-4xl text-[#6D469B] mb-3">"</div>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                It's not someone telling me what to do, it's someone helping me do what I already wanted to do. That's the difference.
+              </p>
+              <p className="text-sm font-semibold text-gray-900">David L.</p>
+              <p className="text-xs text-gray-600">Dad, homeschooling for 3 years</p>
+            </div>
+
+            {/* Testimonial 5 */}
+            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+              <div className="text-4xl text-[#6D469B] mb-3">"</div>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                My son went from barely finishing assignments to staying up late working on his projects because he actually cares about them. That's not something I could force. It had to come from him.
+              </p>
+              <p className="text-sm font-semibold text-gray-900">Kim S.</p>
+              <p className="text-xs text-gray-600">Mom of 14-year-old</p>
+            </div>
+
+            {/* Testimonial 6 */}
+            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+              <div className="text-4xl text-[#6D469B] mb-3">"</div>
+              <p className="text-gray-700 leading-relaxed mb-4">
+                She's not learning to follow instructions, she's learning to lead her own life. That's what I needed for her.
+              </p>
+              <p className="text-sm font-semibold text-gray-900">Monica G.</p>
+              <p className="text-xs text-gray-600">Mom of 16-year-old daughter</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Consultation CTA Section - Replaces Old Signup Form */}
+      <div className="py-16 bg-gradient-to-br from-[#6D469B] to-[#EF597B] text-white">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4">
+              Take the Next Step
+            </h2>
+            <p className="text-xl mb-6 opacity-95">
+              Schedule Your FREE Consultation
+            </p>
+            <p className="text-lg opacity-90 max-w-2xl mx-auto leading-relaxed">
+              Meet with an Optio teacher to discuss your family's unique situation. No pressure, no commitment—just a conversation about what's possible.
+            </p>
+          </div>
+
+          <div className="bg-white/10 backdrop-blur-sm rounded-2xl border-2 border-white/20 p-6 sm:p-8 mb-8">
+            <h3 className="text-xl font-bold mb-4 text-center">What to Expect:</h3>
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="flex items-start">
+                <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
+                <span>30-minute video call with a licensed teacher</span>
+              </div>
+              <div className="flex items-start">
+                <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
+                <span>Discussion of your child's interests and your concerns</span>
+              </div>
+              <div className="flex items-start">
+                <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
+                <span>Overview of how Optio could work for your family</span>
+              </div>
+              <div className="flex items-start">
+                <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
+                <span>Answers to all your questions</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-center">
+            <Link
+              to="/consultation"
+              className="inline-flex items-center bg-white text-[#6D469B] hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all"
             >
-              <Play className="mr-2 w-4 h-4" />
-              Try our 2-minute demo
+              <Users className="mr-2 w-5 h-5" />
+              Book Your Free Consultation
             </Link>
+
+            <p className="text-sm opacity-90 mt-6">
+              Questions? Email <a href="mailto:support@optioeducation.com" className="underline hover:no-underline">support@optioeducation.com</a>
+            </p>
           </div>
         </div>
       </div>
@@ -785,8 +670,8 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* FAQ Section */}
-      <div className="py-16 bg-gray-50">
+      {/* FAQ Section - Teacher-Partnership Focus */}
+      <div className="py-16 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
@@ -795,63 +680,76 @@ const HomePage = () => {
           </div>
 
           <div className="space-y-6">
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                Is this really accredited?
+            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">
+                What does a dedicated teacher actually do?
               </h3>
-              <p className="text-gray-600">
-                Yes, Optio provides fully accredited high school diplomas through partnerships with accredited educational institutions. Your diploma will meet all state graduation requirements and college admission standards.
+              <p className="text-gray-700 leading-relaxed">
+                Your dedicated teacher is a licensed educator who collaborates with your family to create and support your child's learning journey. They provide curriculum guidance, validate learning, answer questions, and offer professional insight—but they work WITH you, not instead of you. Think of them as your educational co-pilot.
               </p>
             </div>
 
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                How does the diploma work for college admissions?
+            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">
+                How much control do I have over my child's education?
               </h3>
-              <p className="text-gray-600">
-                You receive an official high school diploma and transcripts from an accredited institution. Colleges recognize and accept our diplomas the same as any traditional high school diploma.
+              <p className="text-gray-700 leading-relaxed">
+                You maintain complete control over your family's learning vision and approach. Your teacher is there to support, not impose. Together, you'll find your family's natural learning rhythm without requirements or hurdles. The teacher's role is guidance and professional validation, not gatekeeping.
               </p>
             </div>
 
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                What activities qualify for credit?
+            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">
+                How often do we meet with our teacher?
               </h3>
-              <p className="text-gray-600">
-                Almost any skill-building activity can qualify: arts, sports, technology, volunteering, entrepreneurship, trades, and more. Our educators help determine appropriate academic equivalencies.
+              <p className="text-gray-700 leading-relaxed">
+                That's up to your family! Options range from weekly check-ins for more support to monthly touchpoints for more independent families. Your teacher works around your schedule and needs—it's flexible by design.
               </p>
             </div>
 
-            <div className="bg-white rounded-xl p-6 shadow-sm">
-              <h3 className="text-lg font-semibold text-gray-900 mb-3">
-                How much support is provided?
+            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">
+                Is this accredited?
               </h3>
-              <p className="text-gray-600">
-                Think of our program as an online private school completely personalized to you. We pair you with a licensed teacher who supports you in your personalized learning journey.
+              <p className="text-gray-700 leading-relaxed">
+                For families pursuing the diploma pathway, yes. Optio provides fully accredited high school diplomas. However, the teacher's primary focus is supporting meaningful learning, not just checking boxes for certification. The accreditation is there when you need it, but it's not the driving force.
+              </p>
+            </div>
+
+            <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
+              <h3 className="text-lg font-bold text-gray-900 mb-3">
+                What if we're already homeschooling?
+              </h3>
+              <p className="text-gray-700 leading-relaxed">
+                Perfect! Many Optio families are already homeschooling and use our teachers as professional support to enhance what they're already doing. Your teacher can help validate learning, offer curriculum guidance, and provide the accountability and expertise you've been looking for.
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Final CTA - Simplified */}
-      <div className="py-16 bg-white">
+      {/* Final CTA - Consultation Focused */}
+      <div className="py-16 bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-8">Ready to Start?</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-gray-900">Ready to Talk?</h2>
+            <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
+              Connect with an Optio teacher to explore how we can support your family's learning journey.
+            </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <Link 
-                to="/demo" 
-                className="bg-white border-2 border-[#ef597b] text-[#ef597b] hover:bg-[#ef597b] hover:text-white text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center"
+              <Link
+                to="/consultation"
+                className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white hover:shadow-lg text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center transform hover:scale-105"
+              >
+                <Users className="mr-2 w-5 h-5" aria-hidden="true" />
+                Schedule Consultation
+              </Link>
+              <Link
+                to="/demo"
+                className="bg-white border-2 border-[#6D469B] text-[#6D469B] hover:bg-[#6D469B] hover:text-white text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center"
               >
                 <Play className="mr-2 w-5 h-5" aria-hidden="true" />
                 Try Demo First
-              </Link>
-              <Link 
-                to="/register" 
-                className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center"
-              >
-                Start Learning
               </Link>
             </div>
           </div>

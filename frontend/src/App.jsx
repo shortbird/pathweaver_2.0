@@ -11,6 +11,7 @@ import Layout from './components/Layout'
 import ScrollToTop from './components/ScrollToTop'
 import HomePage from './pages/HomePage'
 import PromoLandingPage from './pages/PromoLandingPage'
+import ConsultationPage from './pages/ConsultationPage'
 import DemoPage from './pages/DemoPage'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
@@ -89,6 +90,7 @@ function App() {
             <Route path="/" element={<Layout />}>
               <Route index element={<HomePage />} />
               <Route path="promo" element={<PromoLandingPage />} />
+              <Route path="consultation" element={<ConsultationPage />} />
               <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />
               <Route path="login" element={<LoginPage />} />
               <Route path="register" element={<RegisterPage />} />
