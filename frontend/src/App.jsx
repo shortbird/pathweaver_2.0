@@ -22,7 +22,6 @@ import PrivacyPolicy from './pages/PrivacyPolicy'
 import QuestBadgeHub from './pages/QuestBadgeHub'
 import QuestDetail from './pages/QuestDetail'
 // Badge Pages
-import BadgeExplorer from './pages/BadgeExplorer'
 import BadgeDetail from './pages/BadgeDetail'
 import BadgeProgressPage from './pages/BadgeProgressPage'
 import ConstellationPage from './pages/ConstellationPage'

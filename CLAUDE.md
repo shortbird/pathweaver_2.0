@@ -92,7 +92,8 @@ backend/
 │   └── uploads.py           # File upload handling
 ├── services/         # Business logic
 │   ├── atomic_quest_service.py  # Race condition prevention
-│   ├── image_service.py         # Pexels API for quest images
+│   ├── badge_service.py         # Badge logic & progress tracking
+│   ├── image_service.py         # Pexels API for quest & badge images
 │   └── quest_optimization.py    # N+1 query elimination
 ├── scripts/          # Database & maintenance scripts
 │   ├── apply_performance_indexes.py  # Database optimization
@@ -122,8 +123,8 @@ frontend/src/
 │   ├── PrivacyPolicy.jsx       # Legal pages
 │   ├── ProfilePage.jsx         # User profile management
 │   ├── PromoLandingPage.jsx    # Promotional campaigns
+│   ├── QuestBadgeHub.jsx       # Unified quest & badge hub (replaces old QuestHub)
 │   ├── QuestDetail.jsx         # Individual quest page
-│   ├── QuestHub.jsx            # Quest hub (memory optimized)
 │   ├── RegisterPage.jsx        # User registration
 │   ├── SubscriptionPage.jsx    # Stripe subscription management
 │   ├── SubscriptionSuccess.jsx # Subscription confirmation
@@ -134,9 +135,13 @@ frontend/src/
 │   │   ├── AdminDashboard.jsx   # Dashboard overview
 │   │   ├── AdminQuests.jsx      # Quest management
 │   │   ├── AdminUsers.jsx       # User management
-│   │   └── AdminQuestSuggestions.jsx # Quest idea approval
+│   │   ├── AdminQuestSuggestions.jsx # Quest idea approval
+│   │   └── BadgeImageGenerator.jsx # Badge image generation
 │   ├── diploma/      # Diploma components
 │   ├── demo/         # Demo feature components
+│   ├── hub/          # Quest & badge hub components
+│   │   ├── BadgeCarouselCard.jsx # Badge card with teen-focused images
+│   │   └── QuestCard.jsx         # Quest card component
 │   ├── tutor/        # AI Tutor components
 │   │   ├── ChatInterface.jsx    # Tutor chat interface
 │   │   ├── TutorWidget.jsx      # Tutor widget
@@ -209,6 +214,16 @@ frontend/src/
 - user_id, quest_id
 - is_active (false = abandoned)
 - started_at, completed_at
+
+**badges** (Achievement badges)
+- id (UUID, PK)
+- name, description, identity_statement
+- pillar_primary (STEM & Logic, Life & Wellness, etc.)
+- min_quests, min_xp (requirements to earn badge)
+- image_url (auto-fetched from Pexels API with teen-focused images)
+- image_generated_at, image_generation_status
+- is_active
+- created_at, updated_at
 
 ### Community & Social Features
 
@@ -327,6 +342,13 @@ frontend/src/
 - **Quest Ideas**: /api/admin/quest-ideas/* - Quest suggestions workflow
 - **Quest Sources**: /api/admin/quest-sources - Source management
 - **Quest Images**: POST /api/v3/admin/quests/:id/refresh-image - Refresh quest image from Pexels
+- **Badge Images**: POST /api/badges/admin/:badge_id/refresh-image - Refresh badge image from Pexels
+- **Badge Bulk Images**: POST /api/badges/admin/batch-generate-images - Generate images for multiple badges
+
+### Badges & Achievements
+- GET /api/badges - List all active badges
+- GET /api/badges/:id - Get badge details with user progress
+- POST /api/badges/:id/select - Select badge (empty JSON body required)
 
 ### Portfolio/Diploma (CORE FEATURE)
 - GET /api/portfolio/:slug - Public portfolio view
@@ -358,6 +380,17 @@ frontend/src/
 - **Race condition prevention**: Atomic quest completion with optimistic locking
 - **Performance optimized**: N+1 query elimination reduces database calls by ~80%
 - **Auto-generated images**: Quest images automatically fetched from Pexels API based on quest title
+
+### Badge System
+- **Achievement badges**: Visual recognition of skill mastery in specific areas
+- **Unified hub**: Badges displayed in horizontal carousels within QuestBadgeHub (/badges or /quests page)
+- **Teen-focused imagery**: Badge images auto-generated from Pexels with "teenage teen student" search terms
+- **Progress tracking**: Shows x/x quests completed and x/x XP earned toward badge requirements
+- **Identity statements**: Each badge has "I am..." or "I can..." statements reflecting achieved skills
+- **Pillar alignment**: Badges tied to one of five skill pillars with matching iconography
+- **Background images**: Badge cards feature background images with dark overlays for text readability
+- **Admin tools**: Batch image generation interface in admin dashboard
+- **Full descriptions**: Badge cards display complete description text for clarity
 
 ### Diploma Page (CORE PRODUCT)
 - **Public portfolio**: /diploma/:userId or /portfolio/:slug routes
