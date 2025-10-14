@@ -49,7 +49,7 @@ const HomePage = () => {
       <div className="bg-white py-16">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-6 leading-tight">
-            A dedicated teacher in your corner.
+            An experienced educator in your corner.
           </h2>
           <p className="text-xl sm:text-2xl text-gray-700 mb-8 leading-relaxed italic">
             Raising doers, not dependents.
@@ -82,60 +82,98 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* If You're Feeling... Emotional Connection Section */}
-      <div id="support" className="py-16 bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF]" role="main">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-8">
-            <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
-              If You're Feeling...
+      {/* You're In Good Company - Visual Community Section */}
+      <div id="support" className="py-20 bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF]" role="main">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Top Heading */}
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-6">
+              You're In Good Company
             </h2>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-8 mb-8">
-            {/* Card 1: Nurturing Potential */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 hover:shadow-lg transition-shadow">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/70 to-[#EF597B]/70 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
-                <Heart className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">
-                "I want to nurture my child's potential..."
-              </h3>
-              <p className="text-gray-700 leading-relaxed">
-                Licensed teachers work alongside you, providing expertise and peace of mind.
-              </p>
-            </div>
-
-            {/* Card 2: Protecting Love of Learning */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 hover:shadow-lg transition-shadow">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/70 to-[#EF597B]/70 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
-                <Sparkles className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">
-                "I want to protect their love of learning..."
-              </h3>
-              <p className="text-gray-700 leading-relaxed">
-                You set the vision. We provide professional support that keeps you in charge.
-              </p>
-            </div>
-
-            {/* Card 3: Real World Readiness */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 sm:p-8 hover:shadow-lg transition-shadow">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6D469B]/70 to-[#EF597B]/70 rounded-full flex items-center justify-center mx-auto mb-4 shadow-sm">
-                <Trophy className="w-8 h-8 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3 text-center">
-                "Will my child be ready for the real world?"
-              </h3>
-              <p className="text-gray-700 leading-relaxed">
-                Student-driven learning creates intrinsically motivated doers, not dependents.
-              </p>
-            </div>
-          </div>
-
-          <div className="text-center">
-            <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed">
-              You're not alone. We're here to support you.
+            <p className="text-xl sm:text-2xl text-gray-700 max-w-3xl mx-auto leading-relaxed">
+              The homeschool journey has its challenges. But you don't have to navigate them alone.
             </p>
+          </div>
+
+          {/* Photo Grid with Overlay Text */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
+            {/* Photo 1 */}
+            <div className="relative rounded-2xl overflow-hidden shadow-lg group">
+              <img
+                src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/fam1.jpg"
+                alt="Homeschool family finding their rhythm"
+                className="w-full h-full object-cover aspect-[3/2] group-hover:scale-105 transition-transform duration-300"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+              <div className="absolute bottom-0 left-0 right-0 p-6">
+                <p className="text-white text-xl sm:text-2xl font-semibold drop-shadow-lg">
+                  Finding our rhythm
+                </p>
+              </div>
+            </div>
+
+            {/* Photo 2 */}
+            <div className="relative rounded-2xl overflow-hidden shadow-lg group">
+              <img
+                src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/fam2.jpg"
+                alt="Parent building confidence in homeschool approach"
+                className="w-full h-full object-cover aspect-[3/2] group-hover:scale-105 transition-transform duration-300"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+              <div className="absolute bottom-0 left-0 right-0 p-6">
+                <p className="text-white text-xl sm:text-2xl font-semibold drop-shadow-lg">
+                  Building confidence
+                </p>
+              </div>
+            </div>
+
+            {/* Photo 3 */}
+            <div className="relative rounded-2xl overflow-hidden shadow-lg group">
+              <img
+                src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/fam4.jpg"
+                alt="Family learning and growing together"
+                className="w-full h-full object-cover aspect-[3/2] group-hover:scale-105 transition-transform duration-300"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+              <div className="absolute bottom-0 left-0 right-0 p-6">
+                <p className="text-white text-xl sm:text-2xl font-semibold drop-shadow-lg">
+                  Growing together
+                </p>
+              </div>
+            </div>
+
+            {/* Photo 4 */}
+            <div className="relative rounded-2xl overflow-hidden shadow-lg group">
+              <img
+                src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/fam5.jpg"
+                alt="Family discovering their unique homeschool path"
+                className="w-full h-full object-cover aspect-[3/2] group-hover:scale-105 transition-transform duration-300"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+              <div className="absolute bottom-0 left-0 right-0 p-6">
+                <p className="text-white text-xl sm:text-2xl font-semibold drop-shadow-lg">
+                  Discovering our way
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Section with CTA */}
+          <div className="text-center">
+            <p className="text-lg sm:text-xl text-gray-700 mb-8 max-w-2xl mx-auto leading-relaxed">
+              Join a community of families with experienced teachers in their corner.
+            </p>
+            <Link
+              to="/consultation"
+              className="inline-flex items-center bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white hover:from-[#5d3a85] hover:to-[#d94d6a] px-8 py-4 rounded-lg font-bold text-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+            >
+              <Users className="mr-2 w-5 h-5" aria-hidden="true" />
+              Schedule Your Free Consultation
+            </Link>
           </div>
         </div>
       </div>
@@ -148,7 +186,7 @@ const HomePage = () => {
               What Optio Provides
             </h2>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto">
-              A complete support system for your family's learning journey
+              A complete support system for your family's learning rhythm
             </p>
           </div>
 
@@ -163,9 +201,9 @@ const HomePage = () => {
                     <Users className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2">Your Own Dedicated Teacher</h3>
+                    <h3 className="text-xl font-bold text-gray-900 mb-2">Your Own Licensed Teacher</h3>
                     <p className="text-gray-700 leading-relaxed">
-                      Your educational partner: a licensed educator for your family.
+                      Your family's experienced educational partner.
                     </p>
                   </div>
                 </div>
@@ -205,7 +243,7 @@ const HomePage = () => {
             {/* Right Column - Image */}
             <div className="rounded-xl overflow-hidden shadow-lg border-2 border-gray-200">
               <img
-                src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/teacher.jpg"
+                src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/educator.jpg"
                 alt="Teacher collaborating with parent and student in a supportive learning environment"
                 className="w-full h-full object-cover aspect-[4/3]"
                 loading="lazy"
@@ -257,7 +295,7 @@ const HomePage = () => {
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2">Learn & Document</h3>
               <p className="text-gray-600 leading-relaxed text-sm">
-                Your student pursues projects and interests while our platform captures their growth. Your teacher provides guidance along the way.
+                Your student pursues projects and interests while our platform records their growth. Your teacher provides guidance along the way.
               </p>
             </div>
 
@@ -425,7 +463,7 @@ const HomePage = () => {
               </div>
               <div className="flex items-start">
                 <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
-                <span>Discussion of your child's interests and your concerns</span>
+                <span>Discussion of your child's interests and your ideas</span>
               </div>
               <div className="flex items-start">
                 <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
@@ -542,10 +580,10 @@ const HomePage = () => {
           <div className="space-y-6">
             <div className="bg-gradient-to-br from-[#F3EFF4] to-[#EEEBEF] rounded-xl p-6 border border-gray-200">
               <h3 className="text-lg font-bold text-gray-900 mb-3">
-                What does a dedicated teacher actually do?
+                What does an Optio teacher actually do?
               </h3>
               <p className="text-gray-700 leading-relaxed">
-                Your dedicated teacher is a licensed educator who becomes a non-parent adult invested in your child's education. They work WITH you as a partner, providing experienced guidance, answering questions, and keeping momentum going. They can provide daily support, check-ins, and be the person who generally keeps everything moving forward. Your teacher is there to support your family's learning journey with professional insight and encouragement.
+                Your Optio teacher is a licensed educator who becomes a non-parent adult invested in your child's education. They work WITH you as a partner, providing experienced guidance, answering questions, and keeping momentum going. They can provide daily support, check-ins, and be a person you can rely on to keep your kids' education moving when you get busy. Your teacher is there to support your family's learning journey with professional insight and encouragement.
               </p>
             </div>
 
@@ -572,7 +610,7 @@ const HomePage = () => {
                 Is this accredited?
               </h3>
               <p className="text-gray-700 leading-relaxed">
-                For families pursuing the diploma pathway, yes. Optio provides fully accredited high school diplomas. However, the teacher's primary focus is supporting meaningful learning, not just checking boxes for certification. The accreditation is there when you need it, but it's not the driving force.
+                Yes, Optio students can earn traditional accredited high school diplomas. We have created a unique system that combines student-driven learning with the necessary structure to meet accreditation standards. Our teachers ensure that your child meets all graduation requirements while pursuing their passions.
               </p>
             </div>
 
