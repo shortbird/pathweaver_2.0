@@ -141,7 +141,7 @@ const WhatDoIDoNext = ({ userId, selectedPillar, onPillarChange }) => {
               {/* Wandering Items */}
               {filteredWandering.length > 0 && (
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Ready for a Pivot</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Ready for a Pivot?</h3>
                   <p className="text-sm text-gray-600 mb-3">These items are past their date or haven't been active recently</p>
                   <div className="space-y-2">
                     {filteredWandering.slice(0, 3).map(item => (

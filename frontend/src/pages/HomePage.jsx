@@ -330,7 +330,7 @@ const HomePage = () => {
               <img
                 src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/fam2.jpg"
                 alt="Parent supporting student's learning"
-                className="w-full h-full object-cover aspect-square"
+                className="w-full h-full object-cover object-bottom aspect-square"
                 loading="lazy"
               />
             </div>
@@ -348,7 +348,7 @@ const HomePage = () => {
               <img
                 src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/fam5.jpg"
                 alt="Warm family connection while learning"
-                className="w-full h-full object-cover aspect-square"
+                className="w-full h-full object-cover object-bottom aspect-square"
                 loading="lazy"
               />
             </div>
