@@ -1,0 +1,20 @@
+Quest Completed!
+
+Great job, {{ user_name }}!
+
+You've successfully completed {{ quest_title }} and earned {{ xp_earned }} XP!
+
+YOUR ACHIEVEMENT
+Every quest you complete is more than just XP. It's evidence of your growth, your persistence, and your commitment to learning. This quest is now part of your public diploma.
+
+Keep up the great work on your learning journey.
+
+Find Your Next Quest: https://www.optioeducation.com/quests
+
+View your complete progress and achievements on your dashboard:
+https://www.optioeducation.com/dashboard
+
+---
+Optio Education
+www.optioeducation.com | support@optioeducation.com
+© 2024 Optio Education. All rights reserved.

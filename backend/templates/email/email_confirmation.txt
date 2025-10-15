@@ -1,0 +1,24 @@
+Welcome to Optio!
+
+Hi {{ user_name }},
+
+Thanks for signing up for Optio! We're excited to have you join our community of learners.
+
+Please confirm your email address to activate your account:
+
+{{ confirmation_link }}
+
+WHAT HAPPENS NEXT?
+Once you confirm your email, you'll be able to:
+- Access hundreds of educational quests
+- Track your progress across 5 skill pillars
+- Earn XP and unlock achievements
+- Build your public diploma to showcase your work
+
+---
+Optio Education
+www.optioeducation.com | support@optioeducation.com
+© 2024 Optio Education. All rights reserved.
+
+This confirmation link will expire in 24 hours for security reasons.
+If you didn't create an account with Optio, please ignore this email.

@@ -1,0 +1,29 @@
+Welcome to Optio!
+
+Hi {{ parent_name }},
+
+Thank you for your interest in helping your teen{% if teen_age %} (age {{ teen_age }}){% endif %} build real-world skills and create an impressive portfolio.{% if activity %} I noticed they're passionate about {{ activity }}! That's fantastic!{% endif %}
+
+We created Optio because we believe teens learn best when given the freedom to pursue their interests. Our platform helps students earn real high school credit for the learning experiences they have in their daily lives while building portfolios that showcase their excellent work.
+
+WANT TO LEARN MORE?
+
+1. Explore our demo: Take a quick tour at https://www.optioeducation.com/demo to see how Optio works
+
+2. Tell us about your teen: Reply to this email and share what makes your teen unique. What are their interests, goals, or challenges?
+
+3. Get personalized guidance: I will read every reply and respond with specific thoughts about how Optio could help your kid customize their own high school education.
+
+I'd love to hear from you! What are your teen's biggest interests? What educational challenges are you facing? What are your hopes for their future?
+
+Just hit reply and tell me about your situation. There's a real person (me!) who will read your message and respond personally.
+
+Best,
+Dr. Tanner Bowman
+Founder, Optio Education
+tanner@optioeducation.com
+
+---
+Optio Education
+www.optioeducation.com | support@optioeducation.com
+© 2024 Optio Education. All rights reserved.

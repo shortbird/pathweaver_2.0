@@ -1,0 +1,23 @@
+Welcome to Optio, {{ user_name }}!
+
+We're excited to have you join our learning community.
+
+Your account has been successfully created. Here's what you can do next:
+- Explore available quests across five skill pillars
+- Track your learning progress and earn XP
+- Build your public diploma showcasing your achievements
+- Join a community of motivated learners
+
+Go to Dashboard: https://www.optioeducation.com/dashboard
+
+THE PROCESS IS THE GOAL
+At Optio, we believe learning is about who you become through the journey, not just the destination. Every quest you complete, every skill you build, is a step toward becoming the person you want to be.
+
+If you have any questions, our support team is here to help.
+
+---
+Optio Education
+www.optioeducation.com | support@optioeducation.com
+© 2024 Optio Education. All rights reserved.
+
+If you didn't create this account, please ignore this email.

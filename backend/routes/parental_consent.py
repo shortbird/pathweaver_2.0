@@ -2,9 +2,13 @@ from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from middleware.error_handler import ValidationError, NotFoundError
 from middleware.rate_limiter import rate_limit
+from services.email_service import email_service
 import secrets
 import hashlib
 from datetime import datetime, timedelta
+import logging
+
+logger = logging.getLogger(__name__)
 
 bp = Blueprint('parental_consent', __name__)
 
@@ -69,19 +73,25 @@ def send_parental_consent():
             'user_agent': request.headers.get('User-Agent', '')
         }).execute()
 
-        # TODO: Send email to parent with verification link
-        # For now, we'll return the token (in production, this would be sent via email)
+        # Send email to parent with verification link
         verification_link = f"{request.host_url}verify-parental-consent?token={consent_token}"
 
-        # In production, send email here using email_service
-        # from services.email_service import send_parental_consent_email
-        # send_parental_consent_email(parent_email, child_first_name, verification_link)
+        email_sent = email_service.send_parental_consent_email(
+            parent_email=parent_email,
+            parent_name='Parent/Guardian',  # Generic name since we don't collect it
+            child_name=user.get('first_name', 'Student'),
+            verification_link=verification_link
+        )
+
+        if email_sent:
+            logger.info(f"Parental consent email sent to {parent_email}")
+        else:
+            logger.warning(f"Failed to send parental consent email to {parent_email}")
 
         return jsonify({
             'message': 'Parental consent verification email sent',
-            'verification_link': verification_link,  # Remove this in production
             'parent_email': parent_email,
-            'requires_email_setup': True  # Flag to indicate email service needs configuration
+            'email_sent': email_sent
         }), 200
 
     except ValidationError as e:
@@ -234,10 +244,23 @@ def resend_parental_consent():
 
         verification_link = f"{request.host_url}verify-parental-consent?token={consent_token}"
 
+        # Send email to parent
+        email_sent = email_service.send_parental_consent_email(
+            parent_email=user.get('parental_consent_email'),
+            parent_name='Parent/Guardian',
+            child_name=user.get('first_name', 'Student'),
+            verification_link=verification_link
+        )
+
+        if email_sent:
+            logger.info(f"Parental consent email resent to {user.get('parental_consent_email')}")
+        else:
+            logger.warning(f"Failed to resend parental consent email to {user.get('parental_consent_email')}")
+
         return jsonify({
             'message': 'Parental consent verification email resent',
-            'verification_link': verification_link,  # Remove in production
-            'parent_email': user.get('parental_consent_email')
+            'parent_email': user.get('parental_consent_email'),
+            'email_sent': email_sent
         }), 200
 
     except ValidationError as e:

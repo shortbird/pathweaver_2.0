@@ -1,0 +1,54 @@
+{% extends "email/base.html" %}
+
+{% block title %}Parental Consent Required - Optio Account{% endblock %}
+
+{% block content %}
+<div class="greeting">Parental Consent Required</div>
+
+<p class="text">Hi {{ parent_name }},</p>
+
+<p class="text">
+    Your child, <strong>{{ child_name }}</strong>, has created an account with Optio Education. Because they are under 13 years old, we require parental consent before they can use the platform.
+</p>
+
+<div class="highlight-box">
+    <h3>Why We Need Your Consent</h3>
+    <p>
+        Under the Children's Online Privacy Protection Act (COPPA), we must obtain verifiable parental consent before collecting personal information from children under 13. We take your child's safety and privacy seriously.
+    </p>
+</div>
+
+<p class="text">
+    To give your consent and allow {{ child_name }} to use Optio, please click the button below:
+</p>
+
+<div class="cta-container">
+    <a href="{{ verification_link }}" class="cta-button">
+        Verify Parental Consent
+    </a>
+</div>
+
+<p class="text">
+    Once verified, {{ child_name }} will be able to:
+</p>
+
+<div class="list-item">Complete educational quests across five skill pillars</div>
+<div class="list-item">Build a public diploma showcasing their learning</div>
+<div class="list-item">Track their progress and earn achievements</div>
+<div class="list-item">Learn in a safe, moderated environment</div>
+
+<p class="text" style="font-size: 13px; color: #999; margin-top: 30px;">
+    If the button doesn't work, copy and paste this link into your browser:
+</p>
+<p class="text" style="font-size: 12px; color: #6B46C1; word-break: break-all;">
+    {{ verification_link }}
+</p>
+
+<p class="text" style="margin-top: 30px;">
+    If you have any questions about our privacy practices or how we protect children's data, please review our <a href="https://www.optioeducation.com/privacy-policy" style="color: #6B46C1;">Privacy Policy</a> or contact us at <a href="mailto:support@optioeducation.com" style="color: #6B46C1;">support@optioeducation.com</a>.
+</p>
+{% endblock %}
+
+{% block footer_extra %}
+If you did not authorize this account creation, please contact us immediately at support@optioeducation.com.
+{% endblock %}

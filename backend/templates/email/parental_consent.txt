@@ -1,0 +1,27 @@
+Parental Consent Required
+
+Hi {{ parent_name }},
+
+Your child, {{ child_name }}, has created an account with Optio Education. Because they are under 13 years old, we require parental consent before they can use the platform.
+
+WHY WE NEED YOUR CONSENT
+Under the Children's Online Privacy Protection Act (COPPA), we must obtain verifiable parental consent before collecting personal information from children under 13. We take your child's safety and privacy seriously.
+
+To give your consent and allow {{ child_name }} to use Optio, please visit this link:
+
+{{ verification_link }}
+
+Once verified, {{ child_name }} will be able to:
+- Complete educational quests across five skill pillars
+- Build a public diploma showcasing their learning
+- Track their progress and earn achievements
+- Learn in a safe, moderated environment
+
+If you have any questions about our privacy practices or how we protect children's data, please review our Privacy Policy at https://www.optioeducation.com/privacy-policy or contact us at support@optioeducation.com.
+
+---
+Optio Education
+www.optioeducation.com | support@optioeducation.com
+© 2024 Optio Education. All rights reserved.
+
+If you did not authorize this account creation, please contact us immediately at support@optioeducation.com.

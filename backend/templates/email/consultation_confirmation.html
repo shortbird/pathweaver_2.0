@@ -1,0 +1,44 @@
+{% extends "email/base.html" %}
+
+{% block title %}Consultation Request Received{% endblock %}
+
+{% block content %}
+<div class="greeting">Thank You for Scheduling a Consultation!</div>
+
+<p class="text">Hi {{ parent_name }},</p>
+
+<p class="text">
+    We've received your consultation request for your {% if child_age %}{{ child_age }}-year-old{% else %}child{% endif %}, and we're excited to connect with you!
+</p>
+
+<div class="highlight-box">
+    <h3>What Happens Next?</h3>
+    <p>
+        Our education specialists will review your request and reach out within 24 hours to schedule a time that works best for you. We'll discuss your child's interests, goals, and how Optio can support their learning journey.
+    </p>
+</div>
+
+<p class="text">
+    In the meantime, feel free to:
+</p>
+
+<div class="list-item">Explore our <a href="https://www.optioeducation.com/demo" style="color: #6B46C1;">interactive demo</a></div>
+<div class="list-item">Review sample student diplomas to see what your child could create</div>
+<div class="list-item">Read about our approach to self-directed learning</div>
+
+<div class="cta-container">
+    <a href="https://www.optioeducation.com/demo" class="cta-button">
+        Try Our Demo
+    </a>
+</div>
+
+<p class="text">
+    If you have any immediate questions, don't hesitate to reply to this email or contact us at <a href="mailto:support@optioeducation.com" style="color: #6B46C1;">support@optioeducation.com</a>.
+</p>
+
+<p class="text" style="margin-top: 30px;">
+    Looking forward to speaking with you soon!<br><br>
+    Best,<br>
+    The Optio Team
+</p>
+{% endblock %}

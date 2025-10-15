@@ -1,0 +1,25 @@
+Thank You for Scheduling a Consultation!
+
+Hi {{ parent_name }},
+
+We've received your consultation request for your {% if child_age %}{{ child_age }}-year-old{% else %}child{% endif %}, and we're excited to connect with you!
+
+WHAT HAPPENS NEXT?
+Our education specialists will review your request and reach out within 24 hours to schedule a time that works best for you. We'll discuss your child's interests, goals, and how Optio can support their learning journey.
+
+In the meantime, feel free to:
+- Explore our interactive demo: https://www.optioeducation.com/demo
+- Review sample student diplomas to see what your child could create
+- Read about our approach to self-directed learning
+
+If you have any immediate questions, don't hesitate to reply to this email or contact us at support@optioeducation.com.
+
+Looking forward to speaking with you soon!
+
+Best,
+The Optio Team
+
+---
+Optio Education
+www.optioeducation.com | support@optioeducation.com
+© 2024 Optio Education. All rights reserved.

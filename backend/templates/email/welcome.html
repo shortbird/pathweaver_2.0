@@ -1,0 +1,42 @@
+{% extends "email/base.html" %}
+
+{% block title %}Welcome to Optio!{% endblock %}
+
+{% block content %}
+<div class="greeting">Welcome to Optio, {{ user_name }}!</div>
+
+<p class="text">
+    We're excited to have you join our learning community.
+</p>
+
+<p class="text">
+    Your account has been successfully created. Here's what you can do next:
+</p>
+
+<div class="list-item">Explore available quests across five skill pillars</div>
+<div class="list-item">Track your learning progress and earn XP</div>
+<div class="list-item">Build your public diploma showcasing your achievements</div>
+<div class="list-item">Join a community of motivated learners</div>
+
+<div class="cta-container">
+    <a href="https://www.optioeducation.com/dashboard" class="cta-button">
+        Go to Dashboard
+    </a>
+</div>
+
+<div class="highlight-box">
+    <h3>The Process Is The Goal</h3>
+    <p>
+        At Optio, we believe learning is about who you become through the journey, not just the destination.
+        Every quest you complete, every skill you build, is a step toward becoming the person you want to be.
+    </p>
+</div>
+
+<p class="text">
+    If you have any questions, our support team is here to help.
+</p>
+{% endblock %}
+
+{% block footer_extra %}
+If you didn't create this account, please ignore this email.
+{% endblock %}

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <title>{% block title %}Optio Education{% endblock %}</title>
+    <style>
+        /* Reset and base styles */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333333;
+            background-color: #f5f5f5;
+        }
+
+        /* Container */
+        .email-container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        /* Header with Optio branding */
+        .header {
+            background: linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%);
+            padding: 40px 30px;
+            text-align: center;
+            color: white;
+        }
+
+        .logo {
+            font-size: 32px;
+            font-weight: 600;
+            letter-spacing: -0.5px;
+            margin-bottom: 8px;
+        }
+
+        .tagline {
+            font-size: 14px;
+            opacity: 0.9;
+            font-weight: 400;
+        }
+
+        /* Main content */
+        .content {
+            padding: 40px 30px;
+        }
+
+        .greeting {
+            font-size: 24px;
+            font-weight: 600;
+            color: #2d3748;
+            margin-bottom: 20px;
+        }
+
+        .text {
+            font-size: 15px;
+            color: #4a5568;
+            margin-bottom: 16px;
+            line-height: 1.7;
+        }
+
+        /* Call-to-action button */
+        .cta-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .cta-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #6B46C1 0%, #8B5CF6 100%);
+            color: white;
+            text-decoration: none;
+            padding: 14px 40px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            box-shadow: 0 4px 15px rgba(107, 70, 193, 0.3);
+        }
+
+        .cta-button:hover {
+            background: linear-gradient(135deg, #5B36B1 0%, #7B4CE6 100%);
+        }
+
+        /* Highlight box */
+        .highlight-box {
+            background-color: #f8f7ff;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+            border-left: 4px solid #6B46C1;
+        }
+
+        .highlight-box h3 {
+            color: #6B46C1;
+            margin: 0 0 12px 0;
+            font-size: 16px;
+        }
+
+        .highlight-box p {
+            margin: 0;
+            color: #4a5568;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        /* List styling */
+        .list-item {
+            margin-bottom: 12px;
+            padding-left: 24px;
+            position: relative;
+            font-size: 15px;
+            color: #4a5568;
+        }
+
+        .list-item:before {
+            content: "•";
+            color: #6B46C1;
+            font-weight: bold;
+            position: absolute;
+            left: 8px;
+        }
+
+        /* Footer */
+        .footer {
+            background-color: #f8f7ff;
+            padding: 30px;
+            text-align: center;
+            border-top: 1px solid #e5e5e5;
+        }
+
+        .footer-text {
+            font-size: 12px;
+            color: #999;
+            line-height: 1.6;
+            margin-bottom: 10px;
+        }
+
+        .footer a {
+            color: #6B46C1;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            color: #5B36B1;
+        }
+
+        /* Mobile responsive */
+        @media only screen and (max-width: 600px) {
+            .email-container {
+                margin: 0;
+                box-shadow: none;
+            }
+
+            .header {
+                padding: 30px 20px;
+            }
+
+            .logo {
+                font-size: 28px;
+            }
+
+            .content {
+                padding: 30px 20px;
+            }
+
+            .greeting {
+                font-size: 22px;
+            }
+
+            .cta-button {
+                padding: 12px 32px;
+                font-size: 15px;
+            }
+
+            .footer {
+                padding: 25px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="email-container">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">Optio</div>
+            <div class="tagline">The Process Is The Goal</div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content">
+            {% block content %}
+            <!-- Email-specific content goes here -->
+            {% endblock %}
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p class="footer-text">
+                This email was sent from Optio Education<br>
+                {% block footer_extra %}{% endblock %}
+            </p>
+            <p class="footer-text">
+                <a href="https://www.optioeducation.com">www.optioeducation.com</a> |
+                <a href="mailto:support@optioeducation.com">support@optioeducation.com</a>
+            </p>
+            <p class="footer-text">
+                © 2024 Optio Education. All rights reserved.
+            </p>
+        </div>
+    </div>
+</body>
+</html>
