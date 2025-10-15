@@ -247,7 +247,7 @@ def get_conversations(user_id: str):
 
         # Sort by last_message_at (most recent first), with NULL values last
         # Fall back to created_at for conversations without message metadata
-        conversations = query.order('last_message_at.desc.nullslast,created_at.desc').range(offset, offset + limit - 1).execute()
+        conversations = query.order('last_message_at', desc=True, nullsfirst=False).order('created_at', desc=True).range(offset, offset + limit - 1).execute()
 
         return success_response({
             'conversations': conversations.data,
