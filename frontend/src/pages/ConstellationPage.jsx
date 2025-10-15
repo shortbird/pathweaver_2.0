@@ -11,6 +11,7 @@ const ConstellationPage = () => {
   const navigate = useNavigate();
   const [pillarsData, setPillarsData] = useState([]);
   const [questOrbs, setQuestOrbs] = useState([]);
+  const [badgeOrbs, setBadgeOrbs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -98,35 +99,35 @@ const ConstellationPage = () => {
 
       setPillarsData(pillars);
 
-      // Fetch user's quests with task completions
+      // Fetch user's completed quests with task details (request ALL quests)
       try {
-        const questsResponse = await api.get('/api/users/completed-quests');
-        const userQuests = questsResponse.data.completed_quests || [];
+        const questsResponse = await api.get('/api/users/completed-quests?per_page=1000');
+        // API returns {quests: [...], pagination: {...}}
+        const userQuests = questsResponse.data.quests || [];
 
-        // Also get in-progress quests
+        // Also get in-progress quests from dashboard data
         const dashboardQuests = data.active_quests || [];
 
         // Process quests to calculate XP distributions
         const processedQuests = [];
 
         // Process completed quests
-        userQuests.forEach((enrollment) => {
-          const quest = enrollment.quests;
+        userQuests.forEach((questData) => {
+          // API returns quest data directly (not enrollment wrapper)
+          const quest = questData;
           if (!quest) return;
 
-          // Calculate XP distribution across pillars
+          // Calculate XP distribution from xp_earned breakdown
           const xpDistribution = {};
           let totalXP = 0;
 
-          (quest.quest_tasks || []).forEach((task) => {
-            const pillar = task.pillar;
-            const xp = task.xp_amount || 0;
-
-            if (pillar && xp > 0) {
-              xpDistribution[pillar] = (xpDistribution[pillar] || 0) + xp;
+          if (quest.xp_earned && quest.xp_earned.breakdown) {
+            // Use the breakdown from the API
+            Object.entries(quest.xp_earned.breakdown).forEach(([pillar, xp]) => {
+              xpDistribution[pillar] = xp;
               totalXP += xp;
-            }
-          });
+            });
+          }
 
           if (totalXP > 0) {
             processedQuests.push({
@@ -135,29 +136,38 @@ const ConstellationPage = () => {
               totalXP,
               xpDistribution,
               status: 'completed',
-              completedAt: enrollment.completed_at
+              completedAt: quest.completed_at
             });
           }
         });
 
-        // Process in-progress quests
+        // Process in-progress quests from dashboard
         dashboardQuests.forEach((enrollment) => {
           const quest = enrollment.quests;
           if (!quest) return;
 
-          // Calculate XP distribution
+          // Calculate XP distribution from quest tasks
           const xpDistribution = {};
           let totalXP = 0;
 
+          // Use quest_tasks if available (enriched by dashboard endpoint)
           (quest.quest_tasks || []).forEach((task) => {
             const pillar = task.pillar;
-            const xp = task.xp_amount || 0;
+            const xp = task.xp_value || task.xp_amount || 0;
 
             if (pillar && xp > 0) {
               xpDistribution[pillar] = (xpDistribution[pillar] || 0) + xp;
               totalXP += xp;
             }
           });
+
+          // Fallback to pillar_breakdown if quest_tasks not available
+          if (totalXP === 0 && quest.pillar_breakdown) {
+            Object.entries(quest.pillar_breakdown).forEach(([pillar, xp]) => {
+              xpDistribution[pillar] = xp;
+              totalXP += xp;
+            });
+          }
 
           if (totalXP > 0 && !processedQuests.find(q => q.id === quest.id)) {
             processedQuests.push({
@@ -175,6 +185,30 @@ const ConstellationPage = () => {
       } catch (questError) {
         console.error('Error fetching quests:', questError);
         // Don't fail the whole page if quests fail
+      }
+
+      // Fetch user's earned badges
+      try {
+        const badgesResponse = await api.get('/api/badges/my-badges?status=completed');
+        const earnedBadges = badgesResponse.data.completed_badges || [];
+
+        // Process badges for constellation display
+        const processedBadges = earnedBadges.map(userBadge => {
+          const badge = userBadge.badges || {};
+          return {
+            id: badge.id,
+            name: badge.name,
+            description: badge.description,
+            pillar: badge.pillar || badge.pillar_primary,
+            earnedAt: userBadge.earned_at,
+            icon_url: badge.icon_url || badge.image_url
+          };
+        });
+
+        setBadgeOrbs(processedBadges);
+      } catch (badgeError) {
+        console.error('Error fetching badges:', badgeError);
+        // Don't fail the whole page if badges fail
       }
     } catch (error) {
       console.error('Error fetching constellation data:', error);
@@ -307,7 +341,7 @@ const ConstellationPage = () => {
   }
 
   // Main Constellation View
-  return <ConstellationView pillarsData={pillarsData} questOrbs={questOrbs} onExit={handleExit} />;
+  return <ConstellationView pillarsData={pillarsData} questOrbs={questOrbs} badgeOrbs={badgeOrbs} onExit={handleExit} />;
 };
 
 export default ConstellationPage;

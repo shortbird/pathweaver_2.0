@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 
-const ZoomPanControls = ({ zoom, onZoomChange, onResetView }) => {
+const ZoomPanControls = ({ zoom, onZoomChange, onResetView, showTimeTravel, onToggleTimeTravel, hasMultipleQuests = false }) => {
   const handleZoomIn = () => {
     onZoomChange(Math.min(zoom + 0.2, 3));
   };
@@ -99,6 +99,38 @@ const ZoomPanControls = ({ zoom, onZoomChange, onResetView }) => {
               />
             </svg>
           </button>
+
+          {/* Time Travel Button - Only show if there are multiple quests */}
+          {hasMultipleQuests && (
+            <>
+              {/* Divider */}
+              <div className="h-px bg-white/20 my-1" />
+
+              <button
+                onClick={onToggleTimeTravel}
+                className={`w-12 h-12 flex items-center justify-center rounded-lg transition-all group
+                  ${showTimeTravel
+                    ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b]'
+                    : 'bg-white/10 hover:bg-white/20'}`}
+                aria-label="Toggle time travel"
+                title="Time Travel Mode"
+              >
+                <svg
+                  className="w-6 h-6 text-white group-hover:scale-110 transition-transform"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+              </button>
+            </>
+          )}
         </div>
       </div>
 

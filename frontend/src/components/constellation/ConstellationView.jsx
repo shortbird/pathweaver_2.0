@@ -13,7 +13,7 @@ import ConstellationExit from './ConstellationExit';
 import TimeTravelSlider from './TimeTravelSlider';
 import ZoomPanControls from './ZoomPanControls';
 
-const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
+const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) => {
   const navigate = useNavigate();
   const [dimensions, setDimensions] = useState({
     width: window.innerWidth,
@@ -24,7 +24,6 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
   const [hoveredQuest, setHoveredQuest] = useState(null);
   const [hoveredQuestPosition, setHoveredQuestPosition] = useState(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
-  const [currentTime, setCurrentTime] = useState(Date.now());
   const [showTimeTravel, setShowTimeTravel] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -147,6 +146,16 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
     };
   }, [questOrbs]);
 
+  // Initialize currentTime to minTime (start with empty constellation)
+  const [currentTime, setCurrentTime] = useState(minTime);
+
+  // Update currentTime when minTime changes (when data loads)
+  useEffect(() => {
+    if (minTime) {
+      setCurrentTime(minTime);
+    }
+  }, [minTime]);
+
   // Filter quests based on current time
   const filteredQuestOrbs = useMemo(() => {
     return (questOrbs || []).filter(quest => {
@@ -200,9 +209,13 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
     // Future: could open a detailed modal here
   };
 
-  // Toggle time travel with 'T' key
+  // Handle time travel
   const handleTimeChange = useCallback((newTime) => {
     setCurrentTime(newTime);
+  }, []);
+
+  const handleToggleTimeTravel = useCallback(() => {
+    setShowTimeTravel(prev => !prev);
   }, []);
 
   // Zoom and pan handlers
@@ -277,11 +290,6 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
       switch (e.key) {
         case 'Escape':
           onExit?.();
-          break;
-        case 't':
-        case 'T':
-          e.preventDefault();
-          setShowTimeTravel(prev => !prev);
           break;
         case 'Tab':
           e.preventDefault();
@@ -425,6 +433,9 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
         zoom={zoom}
         onZoomChange={handleZoomChange}
         onResetView={handleResetView}
+        showTimeTravel={showTimeTravel}
+        onToggleTimeTravel={handleToggleTimeTravel}
+        hasMultipleQuests={(questOrbs && questOrbs.length > 1)}
       />
 
       {/* Time Travel Slider */}
@@ -442,7 +453,7 @@ const ConstellationView = ({ pillarsData, questOrbs, onExit }) => {
         <p>
           Use Tab or Arrow keys to navigate between learning pillars.
           Press Enter or Space to explore quests for the selected pillar.
-          Press T to toggle time travel mode.
+          Use the Time Travel button in the controls panel to view your constellation over time.
           Hold Shift and drag to pan. Use Ctrl/Cmd + scroll to zoom.
           Press Escape to exit the constellation view.
         </p>
