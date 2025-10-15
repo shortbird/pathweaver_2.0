@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 import logging
-from database import get_supabase_client
+from database import get_supabase_client, get_supabase_admin_client
 from services.email_service import email_service
 from utils.auth.decorators import require_admin
 
@@ -32,8 +32,9 @@ def promo_signup():
                 return jsonify({'error': 'Teen age must be between 13 and 18'}), 400
         except (ValueError, TypeError):
             return jsonify({'error': 'Invalid teen age'}), 400
-        
-        supabase = get_supabase_client()
+
+        # Use admin client for public form submissions
+        supabase = get_supabase_admin_client()
         
         # Insert promo signup data
         signup_data = {
@@ -95,7 +96,8 @@ def consultation_request():
         if '@' not in email or '.' not in email:
             return jsonify({'error': 'Invalid email format'}), 400
 
-        supabase = get_supabase_client()
+        # Use admin client for public form submissions
+        supabase = get_supabase_admin_client()
 
         # Insert consultation request data
         consultation_data = {
