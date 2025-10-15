@@ -7,8 +7,6 @@ const ConsultationPage = () => {
     parentName: '',
     email: '',
     phone: '',
-    childAge: '',
-    preferredTimes: '',
     notes: ''
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -141,73 +139,34 @@ const ConsultationPage = () => {
                   />
                 </div>
 
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
-                      Email Address *
-                    </label>
-                    <input
-                      type="email"
-                      id="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleInputChange}
-                      required
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-[#6D469B] transition-colors"
-                      placeholder="your.email@example.com"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
-                      Phone Number
-                    </label>
-                    <input
-                      type="tel"
-                      id="phone"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleInputChange}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-[#6D469B] transition-colors"
-                      placeholder="(555) 123-4567"
-                    />
-                  </div>
-                </div>
-
                 <div>
-                  <label htmlFor="childAge" className="block text-sm font-semibold text-gray-700 mb-2">
-                    Child's Age *
+                  <label htmlFor="email" className="block text-sm font-semibold text-gray-700 mb-2">
+                    Email Address *
                   </label>
-                  <select
-                    id="childAge"
-                    name="childAge"
-                    value={formData.childAge}
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={formData.email}
                     onChange={handleInputChange}
                     required
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-[#6D469B] transition-colors"
-                  >
-                    <option value="">Select age</option>
-                    <option value="5-7">5-7 years old</option>
-                    <option value="8-10">8-10 years old</option>
-                    <option value="11-13">11-13 years old</option>
-                    <option value="14-15">14-15 years old</option>
-                    <option value="16-18">16-18 years old</option>
-                    <option value="18+">18+ years old</option>
-                  </select>
+                    placeholder="your.email@example.com"
+                  />
                 </div>
 
                 <div>
-                  <label htmlFor="preferredTimes" className="block text-sm font-semibold text-gray-700 mb-2">
-                    Preferred Day/Time
+                  <label htmlFor="phone" className="block text-sm font-semibold text-gray-700 mb-2">
+                    Phone Number
                   </label>
                   <input
-                    type="text"
-                    id="preferredTimes"
-                    name="preferredTimes"
-                    value={formData.preferredTimes}
+                    type="tel"
+                    id="phone"
+                    name="phone"
+                    value={formData.phone}
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-[#6D469B] transition-colors"
-                    placeholder="e.g., Weekday mornings, Tuesday afternoons, etc."
+                    placeholder="(555) 123-4567"
                   />
                 </div>
 

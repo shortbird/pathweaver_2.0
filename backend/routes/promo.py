@@ -86,7 +86,7 @@ def consultation_request():
         data = request.get_json()
 
         # Validate required fields
-        required_fields = ['parentName', 'email', 'childAge']
+        required_fields = ['parentName', 'email']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'{field} is required'}), 400
@@ -104,8 +104,6 @@ def consultation_request():
             'parent_name': data['parentName'],
             'email': email,
             'phone': data.get('phone', ''),
-            'child_age': data['childAge'],
-            'preferred_times': data.get('preferredTimes', ''),
             'notes': data.get('notes', ''),
             'created_at': datetime.utcnow().isoformat(),
             'status': 'pending',
@@ -121,8 +119,7 @@ def consultation_request():
             try:
                 email_sent = email_service.send_consultation_confirmation_email(
                     parent_email=email,
-                    parent_name=data['parentName'],
-                    child_age=data['childAge']
+                    parent_name=data['parentName']
                 )
                 if email_sent:
                     logger.info(f"Consultation confirmation email sent to {email}")

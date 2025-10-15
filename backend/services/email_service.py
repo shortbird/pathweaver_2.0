@@ -18,8 +18,8 @@ class EmailService:
         self.smtp_port = int(os.getenv('SMTP_PORT', '587'))
         self.smtp_user = os.getenv('SMTP_USER', 'apikey')
         self.smtp_pass = os.getenv('SMTP_PASS', '')
-        self.sender_email = os.getenv('SENDER_EMAIL', 'noreply@optioeducation.com')
-        self.sender_name = os.getenv('SENDER_NAME', 'Tanner from Optio')
+        self.sender_email = os.getenv('SENDER_EMAIL', 'tanner@optioeducation.com')
+        self.sender_name = os.getenv('SENDER_NAME', 'Tanner at Optio')
 
         # Set up Jinja2 template environment
         template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
@@ -190,15 +190,14 @@ class EmailService:
             bcc=[tanner_email]  # Copy Tanner for personal follow-up
         )
 
-    def send_consultation_confirmation_email(self, parent_email: str, parent_name: str, child_age: str) -> bool:
+    def send_consultation_confirmation_email(self, parent_email: str, parent_name: str) -> bool:
         """Send confirmation email after consultation booking"""
         return self.send_templated_email(
             to_email=parent_email,
-            subject="Consultation Request Received - Optio Education",
+            subject="Consultation Request Received - Optio",
             template_name='consultation_confirmation',
             context={
-                'parent_name': parent_name,
-                'child_age': child_age
+                'parent_name': parent_name
             }
         )
 
