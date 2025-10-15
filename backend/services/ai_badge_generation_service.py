@@ -297,6 +297,35 @@ Output Format (JSON array):
         pillar = parameters.get('pillar_focus', 'Any pillar')
         seasonal = parameters.get('seasonal_context', '')
 
+        # Get existing badge information for uniqueness checking
+        existing_names = parameters.get('existing_badge_names', [])
+        existing_identities = parameters.get('existing_identity_statements', [])
+        generated_in_batch = parameters.get('generated_in_batch', [])
+        generated_identities_in_batch = parameters.get('generated_identity_statements_in_batch', [])
+
+        # Build uniqueness constraint section
+        uniqueness_section = ""
+        if existing_names or generated_in_batch:
+            all_existing_names = existing_names + generated_in_batch
+            uniqueness_section = f"""
+CRITICAL - UNIQUENESS REQUIREMENTS:
+The badge name and identity statement MUST be completely unique and different from ALL existing badges.
+
+Existing Badge Names to AVOID (do NOT create similar badges):
+{', '.join(all_existing_names[:50])}  # Showing first 50
+
+Existing Identity Statements to AVOID (do NOT create similar concepts):
+{', '.join(existing_identities[:30])}  # Showing first 30
+
+You MUST create a badge that is:
+1. Distinctly different in NAME from all existing badges
+2. Distinctly different in IDENTITY STATEMENT from all existing badges
+3. Offers a unique learning pathway not covered by existing badges
+4. Explores a fresh angle or perspective on learning
+
+If the requested topic/pillar is similar to existing badges, find a NEW and CREATIVE angle that hasn't been covered yet.
+"""
+
         prompt = f"""
 Create an identity-based learning badge for teenage students (ages 13-18).
 
@@ -306,12 +335,14 @@ Context:
 - Pillar Focus: {pillar}
 {f"- Seasonal Factor: {seasonal}" if seasonal else ""}
 
+{uniqueness_section}
+
 Core Philosophy:
 {AIBadgeGenerationService.CORE_PHILOSOPHY}
 
 Badge Requirements:
 - Identity Statement: Craft a compelling "I am a...", "I can...", or "I have..." statement
-- Name: Creative, aspirational title (2-4 words)
+- Name: Creative, aspirational title (2-4 words) - MUST be unique
 - Description: 2-3 engaging sentences about this learning path
 - Pillar Alignment: Map to one of these pillars as primary:
   * STEM & Logic
@@ -340,6 +371,7 @@ Output Format (JSON):
 
 Use encouraging, process-focused language. Avoid future-promises or external validation.
 Make it inspiring for teenagers exploring who they're becoming.
+REMEMBER: The badge must be COMPLETELY UNIQUE from all existing badges listed above.
 """
 
         return prompt

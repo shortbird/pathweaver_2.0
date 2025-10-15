@@ -51,10 +51,27 @@ class BatchBadgeGenerationService:
         if not batch_id:
             batch_id = str(uuid.uuid4())
 
+        # Fetch existing badge names and identity statements from database
+        supabase = get_supabase_admin_client()
+        try:
+            existing_badges_result = supabase.table('badges')\
+                .select('name, identity_statement')\
+                .eq('is_active', True)\
+                .execute()
+
+            existing_badge_names = [b['name'] for b in existing_badges_result.data] if existing_badges_result.data else []
+            existing_identity_statements = [b['identity_statement'] for b in existing_badges_result.data] if existing_badges_result.data else []
+        except Exception as e:
+            logger.error(f"Error fetching existing badges: {str(e)}")
+            existing_badge_names = []
+            existing_identity_statements = []
+
         # Build generation parameters
         base_params = {
             'pillar_focus': target_pillar,
             'trending_topic': trending_topic or 'Student interests',
+            'existing_badge_names': existing_badge_names,
+            'existing_identity_statements': existing_identity_statements,
         }
 
         # Map complexity to XP ranges
@@ -67,6 +84,8 @@ class BatchBadgeGenerationService:
             base_params['complexity'] = complexity_mapping.get(complexity_level, {})
 
         generated = []
+        generated_names = []  # Track names generated in this batch
+        generated_identity_statements = []  # Track identity statements in this batch
         failed = []
 
         # Generate badges
@@ -74,11 +93,28 @@ class BatchBadgeGenerationService:
             try:
                 # Add variety by varying the context slightly
                 params = base_params.copy()
+                params['generated_in_batch'] = generated_names.copy()
+                params['generated_identity_statements_in_batch'] = generated_identity_statements.copy()
+
                 if i > 0:
                     params['target_gap'] = f"Badge variation {i+1} for diverse content library"
 
                 # Generate badge
                 badge_data = AIBadgeGenerationService.generate_badge(params)
+
+                # Check for duplicates within batch
+                badge_name = badge_data.get('name', '')
+                badge_identity = badge_data.get('identity_statement', '')
+
+                if badge_name in generated_names:
+                    raise ValueError(f"Duplicate badge name generated in batch: {badge_name}")
+
+                if badge_identity in generated_identity_statements:
+                    raise ValueError(f"Duplicate identity statement generated in batch: {badge_identity}")
+
+                # Add to tracking lists
+                generated_names.append(badge_name)
+                generated_identity_statements.append(badge_identity)
 
                 # Add temporary ID for frontend tracking
                 badge_data['temp_id'] = f"{batch_id}-badge-{i}"
