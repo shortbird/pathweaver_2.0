@@ -239,9 +239,7 @@ def get_conversations(user_id: str):
 
         query = supabase.table('tutor_conversations').select('''
             id, title, conversation_mode, quest_id, task_id,
-            is_active, message_count, last_message_at, created_at,
-            quests(title),
-            quest_tasks(title, pillar)
+            is_active, message_count, last_message_at, created_at, updated_at
         ''').eq('user_id', user_id)
 
         if not include_inactive:
