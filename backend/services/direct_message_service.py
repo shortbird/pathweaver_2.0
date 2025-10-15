@@ -14,7 +14,12 @@ class DirectMessageService:
     """Service for direct messaging operations"""
 
     def __init__(self):
-        self.supabase = get_supabase_admin_client()
+        # Don't store the client - get fresh one for each operation
+        pass
+
+    def _get_client(self):
+        """Get a fresh Supabase client for each operation"""
+        return get_supabase_admin_client()
 
     # ==================== Permission Checking ====================
 
@@ -30,18 +35,20 @@ class DirectMessageService:
             Boolean indicating if messaging is allowed
         """
         try:
+            supabase = self._get_client()
+
             # Check if target is user's advisor
-            user = self.supabase.table('users').select('advisor_id').eq('id', user_id).single().execute()
+            user = supabase.table('users').select('advisor_id').eq('id', user_id).single().execute()
             if user.data and user.data.get('advisor_id') == target_id:
                 return True
 
             # Check if user is target's advisor
-            target = self.supabase.table('users').select('advisor_id').eq('id', target_id).single().execute()
+            target = supabase.table('users').select('advisor_id').eq('id', target_id).single().execute()
             if target.data and target.data.get('advisor_id') == user_id:
                 return True
 
             # Check if they are friends (accepted status)
-            friendship = self.supabase.table('friendships').select('status').or_(
+            friendship = supabase.table('friendships').select('status').or_(
                 f'and(requester_id.eq.{user_id},addressee_id.eq.{target_id})',
                 f'and(requester_id.eq.{target_id},addressee_id.eq.{user_id})'
             ).execute()
@@ -70,11 +77,13 @@ class DirectMessageService:
             Conversation record
         """
         try:
+            supabase = self._get_client()
+
             # Always store IDs in consistent order (smaller UUID first)
             p1_id, p2_id = (user_id, target_id) if user_id < target_id else (target_id, user_id)
 
             # Try to find existing conversation
-            conversation = self.supabase.table('message_conversations').select('*').eq(
+            conversation = supabase.table('message_conversations').select('*').eq(
                 'participant_1_id', p1_id
             ).eq('participant_2_id', p2_id).execute()
 
@@ -94,7 +103,7 @@ class DirectMessageService:
                 'updated_at': datetime.utcnow().isoformat()
             }
 
-            result = self.supabase.table('message_conversations').insert(new_conversation).execute()
+            result = supabase.table('message_conversations').insert(new_conversation).execute()
             return result.data[0]
 
         except Exception as e:
@@ -112,15 +121,17 @@ class DirectMessageService:
             List of conversation records with participant info
         """
         try:
+            supabase = self._get_client()
+
             # Get conversations where user is participant_1
-            convos_p1 = self.supabase.table('message_conversations').select('''
+            convos_p1 = supabase.table('message_conversations').select('''
                 id, participant_1_id, participant_2_id, last_message_at,
                 last_message_preview, unread_count_p1, unread_count_p2,
                 created_at, updated_at
             ''').eq('participant_1_id', user_id).execute()
 
             # Get conversations where user is participant_2
-            convos_p2 = self.supabase.table('message_conversations').select('''
+            convos_p2 = supabase.table('message_conversations').select('''
                 id, participant_1_id, participant_2_id, last_message_at,
                 last_message_preview, unread_count_p1, unread_count_p2,
                 created_at, updated_at
@@ -161,7 +172,8 @@ class DirectMessageService:
     def _get_user_info(self, user_id: str) -> Dict[str, Any]:
         """Get basic user info for conversation list"""
         try:
-            user = self.supabase.table('users').select(
+            supabase = self._get_client()
+            user = supabase.table('users').select(
                 'id, display_name, first_name, last_name, avatar_url, role'
             ).eq('id', user_id).single().execute()
 
@@ -191,6 +203,8 @@ class DirectMessageService:
             # Get or create conversation
             conversation = self.get_or_create_conversation(sender_id, recipient_id)
 
+            supabase = self._get_client()
+
             # Create message
             message = {
                 'id': str(uuid.uuid4()),
@@ -202,7 +216,7 @@ class DirectMessageService:
                 'created_at': datetime.utcnow().isoformat()
             }
 
-            result = self.supabase.table('direct_messages').insert(message).execute()
+            result = supabase.table('direct_messages').insert(message).execute()
 
             # Update conversation metadata
             self._update_conversation_metadata(
@@ -238,8 +252,10 @@ class DirectMessageService:
             List of message records
         """
         try:
+            supabase = self._get_client()
+
             # Verify user is a participant
-            conversation = self.supabase.table('message_conversations').select('*').eq(
+            conversation = supabase.table('message_conversations').select('*').eq(
                 'id', conversation_id
             ).single().execute()
 
@@ -250,7 +266,7 @@ class DirectMessageService:
                 raise ValueError("You are not a participant in this conversation")
 
             # Get messages
-            messages = self.supabase.table('direct_messages').select('*').eq(
+            messages = supabase.table('direct_messages').select('*').eq(
                 'conversation_id', conversation_id
             ).order('created_at', desc=False).range(offset, offset + limit - 1).execute()
 
@@ -272,8 +288,10 @@ class DirectMessageService:
             Success boolean
         """
         try:
+            supabase = self._get_client()
+
             # Get message
-            message = self.supabase.table('direct_messages').select('*').eq(
+            message = supabase.table('direct_messages').select('*').eq(
                 'id', message_id
             ).single().execute()
 
@@ -285,7 +303,7 @@ class DirectMessageService:
                 raise ValueError("You can only mark your own messages as read")
 
             # Update message
-            self.supabase.table('direct_messages').update({
+            supabase.table('direct_messages').update({
                 'read_at': datetime.utcnow().isoformat()
             }).eq('id', message_id).execute()
 
@@ -313,10 +331,11 @@ class DirectMessageService:
             Total unread count
         """
         try:
+            supabase = self._get_client()
             total_unread = 0
 
             # Get unread count where user is participant_1
-            convos_p1 = self.supabase.table('message_conversations').select(
+            convos_p1 = supabase.table('message_conversations').select(
                 'unread_count_p1'
             ).eq('participant_1_id', user_id).execute()
 
@@ -324,7 +343,7 @@ class DirectMessageService:
                 total_unread += sum(c['unread_count_p1'] for c in convos_p1.data)
 
             # Get unread count where user is participant_2
-            convos_p2 = self.supabase.table('message_conversations').select(
+            convos_p2 = supabase.table('message_conversations').select(
                 'unread_count_p2'
             ).eq('participant_2_id', user_id).execute()
 
@@ -348,7 +367,8 @@ class DirectMessageService:
     ):
         """Update conversation last_message_at, preview, and unread count"""
         try:
-            conversation = self.supabase.table('message_conversations').select('*').eq(
+            supabase = self._get_client()
+            conversation = supabase.table('message_conversations').select('*').eq(
                 'id', conversation_id
             ).single().execute()
 
@@ -370,7 +390,7 @@ class DirectMessageService:
             else:
                 update_data['unread_count_p1'] = conversation.data['unread_count_p1'] + 1
 
-            self.supabase.table('message_conversations').update(update_data).eq(
+            supabase.table('message_conversations').update(update_data).eq(
                 'id', conversation_id
             ).execute()
 
@@ -385,7 +405,8 @@ class DirectMessageService:
     ):
         """Decrement unread count when message is marked as read"""
         try:
-            conversation = self.supabase.table('message_conversations').select('*').eq(
+            supabase = self._get_client()
+            conversation = supabase.table('message_conversations').select('*').eq(
                 'id', conversation_id
             ).single().execute()
 
@@ -398,12 +419,12 @@ class DirectMessageService:
             # Decrement unread count (don't go below 0)
             if is_recipient_p1:
                 new_count = max(0, conversation.data['unread_count_p1'] - 1)
-                self.supabase.table('message_conversations').update({
+                supabase.table('message_conversations').update({
                     'unread_count_p1': new_count
                 }).eq('id', conversation_id).execute()
             else:
                 new_count = max(0, conversation.data['unread_count_p2'] - 1)
-                self.supabase.table('message_conversations').update({
+                supabase.table('message_conversations').update({
                     'unread_count_p2': new_count
                 }).eq('id', conversation_id).execute()
 
