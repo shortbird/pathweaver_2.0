@@ -7,10 +7,12 @@
 -- 1. FIX SECURITY DEFINER VIEW
 -- =============================================================================
 
--- Drop and recreate user_credit_summary without SECURITY DEFINER
-DROP VIEW IF EXISTS public.user_credit_summary;
+-- Drop and recreate user_credit_summary with explicit SECURITY INVOKER
+DROP VIEW IF EXISTS public.user_credit_summary CASCADE;
 
-CREATE VIEW public.user_credit_summary AS
+CREATE VIEW public.user_credit_summary
+WITH (security_invoker = true)
+AS
 SELECT
     user_id,
     credit_type,
