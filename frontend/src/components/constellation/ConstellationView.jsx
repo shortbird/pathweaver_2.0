@@ -89,8 +89,18 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
         x += pillarPos.x * weight;
         y += pillarPos.y * weight;
         totalWeight += weight;
+      } else {
+        console.warn(`Quest "${quest.title}" references unknown pillar: "${pillarId}". Available pillars:`, Object.keys(pillarPositions));
       }
     });
+
+    // Fallback: If no valid pillar positions found, place at center
+    if (totalWeight === 0) {
+      console.warn(`Quest "${quest.title}" has no valid pillar matches. Placing at center. XP Distribution:`, quest.xpDistribution);
+      x = dimensions.width / 2;
+      y = dimensions.height / 2;
+      totalWeight = 1;
+    }
 
     // Add deterministic orbit offset based on quest ID
     const hash = quest.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
@@ -146,15 +156,15 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
     };
   }, [questOrbs]);
 
-  // Initialize currentTime to minTime (start with empty constellation)
-  const [currentTime, setCurrentTime] = useState(minTime);
+  // Initialize currentTime to maxTime (show all quests by default, "Now" view)
+  const [currentTime, setCurrentTime] = useState(maxTime);
 
-  // Update currentTime when minTime changes (when data loads)
+  // Update currentTime when maxTime changes (when data loads)
   useEffect(() => {
-    if (minTime) {
-      setCurrentTime(minTime);
+    if (maxTime) {
+      setCurrentTime(maxTime);
     }
-  }, [minTime]);
+  }, [maxTime]);
 
   // Filter quests based on current time
   const filteredQuestOrbs = useMemo(() => {

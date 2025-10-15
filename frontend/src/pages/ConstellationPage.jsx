@@ -143,6 +143,9 @@ const ConstellationPage = () => {
               xpDistribution[pillar] = xp;
               totalXP += xp;
             });
+
+            // Debug: Log the XP distribution to check pillar keys
+            console.log(`Quest "${quest.title}" XP distribution:`, xpDistribution);
           }
 
           if (totalXP > 0) {
