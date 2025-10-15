@@ -19,7 +19,7 @@ class EmailService:
         self.smtp_user = os.getenv('SMTP_USER', 'apikey')
         self.smtp_pass = os.getenv('SMTP_PASS', '')
         self.sender_email = os.getenv('SENDER_EMAIL', 'tanner@optioeducation.com')
-        self.sender_name = os.getenv('SENDER_NAME', 'Tanner at Optio')
+        self.sender_name = os.getenv('SENDER_NAME', 'Tanner from Optio')
 
         # Set up Jinja2 template environment
         template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
