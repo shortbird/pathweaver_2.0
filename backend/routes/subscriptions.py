@@ -323,6 +323,18 @@ def create_checkout_session(user_id):
                     print(f"Debug - User has active subscription, redirecting to update flow")
                     # Instead of creating new checkout, modify existing subscription
                     return update_subscription_tier(user_id, tier, billing_period)
+            except stripe.error.InvalidRequestError as stripe_check_error:
+                # Customer doesn't exist in Stripe - clear invalid customer ID
+                if 'No such customer' in str(stripe_check_error):
+                    print(f"Warning: Invalid Stripe customer ID {user['stripe_customer_id']} for user {user_id}. Clearing from database.")
+                    supabase.table('users').update({
+                        'stripe_customer_id': None
+                    }).eq('id', user_id).execute()
+                    # Clear the customer ID so we create a new one below
+                    user['stripe_customer_id'] = None
+                else:
+                    print(f"Debug - Error checking existing subscriptions: {stripe_check_error}")
+                    # Continue with checkout creation if check fails
             except Exception as stripe_check_error:
                 print(f"Debug - Error checking existing subscriptions: {stripe_check_error}")
                 # Continue with checkout creation if check fails
@@ -618,11 +630,28 @@ def get_subscription_status(user_id):
             }), 200
         
         # Get active subscriptions from Stripe
-        subscriptions = stripe.Subscription.list(
-            customer=user['stripe_customer_id'],
-            status='all',
-            limit=1
-        )
+        try:
+            subscriptions = stripe.Subscription.list(
+                customer=user['stripe_customer_id'],
+                status='all',
+                limit=1
+            )
+        except stripe.error.InvalidRequestError as e:
+            # Customer doesn't exist in Stripe - clear invalid customer ID
+            if 'No such customer' in str(e):
+                print(f"Warning: Invalid Stripe customer ID {user['stripe_customer_id']} for user {user_id}. Clearing from database.")
+                supabase.table('users').update({
+                    'stripe_customer_id': None,
+                    'subscription_tier': 'Explore',
+                    'subscription_status': 'inactive'
+                }).eq('id', user_id).execute()
+
+                return jsonify({
+                    'tier': 'Explore',
+                    'status': 'inactive',
+                    'stripe_customer': False
+                }), 200
+            raise
         
         if subscriptions.data:
             subscription = subscriptions.data[0]
