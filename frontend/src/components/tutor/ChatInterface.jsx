@@ -27,7 +27,7 @@ const ChatInterface = ({
   const [inputMessage, setInputMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [conversation, setConversation] = useState(null);
-  const [internalSelectedMode, setInternalSelectedMode] = useState('study_buddy');
+  const [internalSelectedMode, setInternalSelectedMode] = useState('teacher');
   const selectedMode = propSelectedMode || internalSelectedMode;
   const setSelectedMode = propSelectedMode ? () => {} : setInternalSelectedMode;
   const [usageStats, setUsageStats] = useState(null);
@@ -78,7 +78,7 @@ const ChatInterface = ({
         const response = await api.get(`/api/tutor/conversations/${conversationId}`);
         setConversation(response.data.conversation);
         setMessages(response.data.messages || []);
-        setSelectedMode(response.data.conversation.conversation_mode || 'study_buddy');
+        setSelectedMode(response.data.conversation.conversation_mode || 'teacher');
       }
     } catch (error) {
       console.error('Failed to load conversation:', error);
@@ -225,8 +225,8 @@ const ChatInterface = ({
       setShowHistory(false);
 
       // Update the mode to match the conversation
-      if (conversationData.mode) {
-        setSelectedMode(conversationData.mode);
+      if (conversationData.conversation_mode) {
+        setSelectedMode(conversationData.conversation_mode);
       }
     } catch (error) {
       console.error('Error loading conversation:', error);

@@ -30,7 +30,7 @@ class TutorContext:
     current_quest: Optional[Dict] = None
     current_task: Optional[Dict] = None
     learning_style: Optional[str] = None
-    conversation_mode: ConversationMode = ConversationMode.STUDY_BUDDY
+    conversation_mode: ConversationMode = ConversationMode.TEACHER
     previous_messages: List[Dict] = None
 
 @dataclass

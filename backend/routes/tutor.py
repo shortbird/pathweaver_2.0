@@ -68,7 +68,7 @@ def send_message(user_id: str):
 
         message = data['message'].strip()
         conversation_id = data.get('conversation_id')
-        conversation_mode = data.get('mode', 'study_buddy')
+        conversation_mode = data.get('mode', 'teacher')
 
         # Validate message
         if not message:
@@ -643,7 +643,7 @@ def _get_conversation(supabase, conversation_id: str, user_id: str) -> Optional[
     except Exception:
         return None
 
-def _create_conversation(supabase, user_id: str, mode: str = 'study_buddy') -> Dict:
+def _create_conversation(supabase, user_id: str, mode: str = 'teacher') -> Dict:
     """Create new tutor conversation"""
     conversation_data = {
         'id': str(uuid.uuid4()),

@@ -19,7 +19,7 @@ const OptioBotModal = ({
   onConversationCreate = null,
   onStartNewConversation = null
 }) => {
-  const [selectedMode, setSelectedMode] = useState('study_buddy');
+  const [selectedMode, setSelectedMode] = useState('teacher');
   const [showModeSelector, setShowModeSelector] = useState(false);
 
   // Close modal on Escape key

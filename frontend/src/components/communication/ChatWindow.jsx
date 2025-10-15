@@ -96,8 +96,7 @@ const ChatWindow = ({ conversation, onConversationCreate }) => {
             currentQuest={null}
             currentTask={null}
             onClose={null}
-            selectedMode="study_buddy"
-            hideHeader={true}
+            hideHeader={false}
             className="h-full border-0 shadow-none rounded-none"
             onConversationCreate={(convId) => {
               setTutorConversationId(convId)

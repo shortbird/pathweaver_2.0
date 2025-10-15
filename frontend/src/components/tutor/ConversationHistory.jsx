@@ -125,13 +125,13 @@ const ConversationHistory = ({ onSelectConversation, onBack, onCreateNew }) => {
               >
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center space-x-2">
-                    <span className="text-lg">{getModeIcon(conv.mode)}</span>
+                    <span className="text-lg">{getModeIcon(conv.conversation_mode)}</span>
                     <h3 className="font-semibold text-gray-900 truncate">
                       {conv.title || 'Untitled Chat'}
                     </h3>
                   </div>
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${getModeColor(conv.mode)}`}>
-                    {getModeDisplay(conv.mode)}
+                  <span className={`text-xs px-2 py-1 rounded-full font-medium ${getModeColor(conv.conversation_mode)}`}>
+                    {getModeDisplay(conv.conversation_mode)}
                   </span>
                 </div>
 
