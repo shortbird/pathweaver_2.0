@@ -380,7 +380,6 @@ def check_enrollment_status(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/enroll', methods=['POST'])
 @require_auth
-@require_paid_tier
 def enroll_in_quest(user_id: str, quest_id: str):
     """
     Enroll a user in a quest.

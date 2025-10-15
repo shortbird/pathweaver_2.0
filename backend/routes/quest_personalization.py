@@ -16,7 +16,6 @@ bp = Blueprint('quest_personalization', __name__, url_prefix='/api/quests')
 
 @bp.route('/<quest_id>/start-personalization', methods=['POST'])
 @require_auth
-@require_paid_tier
 def start_personalization(user_id: str, quest_id: str):
     """
     Begin the personalization flow for a quest.
@@ -48,7 +47,6 @@ def start_personalization(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/generate-tasks', methods=['POST'])
 @require_auth
-@require_paid_tier
 def generate_tasks(user_id: str, quest_id: str):
     """
     Generate AI task suggestions based on student inputs.
@@ -125,7 +123,6 @@ def generate_tasks(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/refine-tasks', methods=['POST'])
 @require_auth
-@require_paid_tier
 def refine_tasks(user_id: str, quest_id: str):
     """
     Regenerate tasks with different interests/subjects.
@@ -171,7 +168,6 @@ def refine_tasks(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/edit-task', methods=['POST'])
 @require_auth
-@require_paid_tier
 def edit_task(user_id: str, quest_id: str):
     """
     Student edits a task description. AI reformats and enhances it.
@@ -220,7 +216,6 @@ def edit_task(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/add-manual-task', methods=['POST'])
 @require_auth
-@require_paid_tier
 def add_manual_task(user_id: str, quest_id: str):
     """
     Student adds a custom task. Requires admin approval.
@@ -308,7 +303,6 @@ def add_manual_task(user_id: str, quest_id: str):
 
 @bp.route('/<quest_id>/finalize-tasks', methods=['POST'])
 @require_auth
-@require_paid_tier
 def finalize_tasks(user_id: str, quest_id: str):
     """
     Finalize personalization and create user-specific tasks.
