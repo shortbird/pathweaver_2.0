@@ -89,14 +89,11 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
         x += pillarPos.x * weight;
         y += pillarPos.y * weight;
         totalWeight += weight;
-      } else {
-        console.warn(`Quest "${quest.title}" references unknown pillar: "${pillarId}". Available pillars:`, Object.keys(pillarPositions));
       }
     });
 
     // Fallback: If no valid pillar positions found, place at center
     if (totalWeight === 0) {
-      console.warn(`Quest "${quest.title}" has no valid pillar matches. Placing at center. XP Distribution:`, quest.xpDistribution);
       x = dimensions.width / 2;
       y = dimensions.height / 2;
       totalWeight = 1;

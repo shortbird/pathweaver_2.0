@@ -15,6 +15,23 @@ const ConstellationPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Map pillar display names (from API) to pillar IDs (for positioning)
+  const mapPillarNameToId = (pillarName) => {
+    const mapping = {
+      'STEM & Logic': 'stem_logic',
+      'Language & Communication': 'language_communication',
+      'Arts & Creativity': 'arts_creativity',
+      'Life & Wellness': 'life_wellness',
+      'Society & Culture': 'society_culture',
+      // Legacy mappings for old data
+      'thinking_skills': 'stem_logic',
+      'creativity': 'arts_creativity',
+      'practical_skills': 'life_wellness',
+      'general': 'stem_logic' // Default fallback
+    };
+    return mapping[pillarName] || pillarName.toLowerCase().replace(/\s+/g, '_').replace(/&/g, '');
+  };
+
   useEffect(() => {
     if (user?.id) {
       fetchConstellationData();
@@ -138,14 +155,12 @@ const ConstellationPage = () => {
           let totalXP = 0;
 
           if (quest.xp_earned && quest.xp_earned.breakdown) {
-            // Use the breakdown from the API
-            Object.entries(quest.xp_earned.breakdown).forEach(([pillar, xp]) => {
-              xpDistribution[pillar] = xp;
+            // Use the breakdown from the API and map pillar names to IDs
+            Object.entries(quest.xp_earned.breakdown).forEach(([pillarName, xp]) => {
+              const pillarId = mapPillarNameToId(pillarName);
+              xpDistribution[pillarId] = (xpDistribution[pillarId] || 0) + xp;
               totalXP += xp;
             });
-
-            // Debug: Log the XP distribution to check pillar keys
-            console.log(`Quest "${quest.title}" XP distribution:`, xpDistribution);
           }
 
           if (totalXP > 0) {
@@ -171,19 +186,21 @@ const ConstellationPage = () => {
 
           // Use quest_tasks if available (enriched by dashboard endpoint)
           (quest.quest_tasks || []).forEach((task) => {
-            const pillar = task.pillar;
+            const pillarName = task.pillar;
             const xp = task.xp_value || task.xp_amount || 0;
 
-            if (pillar && xp > 0) {
-              xpDistribution[pillar] = (xpDistribution[pillar] || 0) + xp;
+            if (pillarName && xp > 0) {
+              const pillarId = mapPillarNameToId(pillarName);
+              xpDistribution[pillarId] = (xpDistribution[pillarId] || 0) + xp;
               totalXP += xp;
             }
           });
 
           // Fallback to pillar_breakdown if quest_tasks not available
           if (totalXP === 0 && quest.pillar_breakdown) {
-            Object.entries(quest.pillar_breakdown).forEach(([pillar, xp]) => {
-              xpDistribution[pillar] = xp;
+            Object.entries(quest.pillar_breakdown).forEach(([pillarName, xp]) => {
+              const pillarId = mapPillarNameToId(pillarName);
+              xpDistribution[pillarId] = (xpDistribution[pillarId] || 0) + xp;
               totalXP += xp;
             });
           }
