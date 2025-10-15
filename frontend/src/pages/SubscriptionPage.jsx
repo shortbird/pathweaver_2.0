@@ -112,7 +112,7 @@ const SubscriptionPage = () => {
               >
                 Yearly
                 <span className="ml-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                  Save 17%
+                  get summers off
                 </span>
               </button>
             </div>
@@ -160,11 +160,6 @@ const SubscriptionPage = () => {
                     ) : (
                       <div>
                         <p className="text-3xl font-bold">{formatPrice(yearlyPrice)}<span className="text-base font-normal text-gray-600">/yr</span></p>
-                        {savings && (
-                          <p className="text-xs text-green-600 font-medium">
-                            ${savings.monthlyEquivalent}/mo • Save {savings.percent}%
-                          </p>
-                        )}
                       </div>
                     )}
                   </div>

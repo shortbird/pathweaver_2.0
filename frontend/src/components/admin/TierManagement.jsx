@@ -221,11 +221,6 @@ const TierManagement = () => {
                       <p className="text-2xl font-bold">
                         {tier.price_yearly ? `${formatPrice(tier.price_yearly)}/yr` : 'N/A'}
                       </p>
-                      {savings && (
-                        <p className="text-xs text-green-600">
-                          ${savings.monthlyEquivalent}/mo • Save {savings.percent}%
-                        </p>
-                      )}
                     </div>
                   )}
                 </div>
