@@ -204,6 +204,14 @@ try:
 except Exception as e:
     print(f"Warning: Batch Quest Generation routes not available: {e}")
 
+# Register Batch Badge Generation blueprint (admin)
+try:
+    from routes.admin import batch_badge_generation
+    app.register_blueprint(batch_badge_generation.batch_badge_generation_bp, url_prefix='/api/v3/admin/batch-badge-generation')  # /api/v3/admin/batch-badge-generation/*
+    print("Batch Badge Generation routes registered successfully")
+except Exception as e:
+    print(f"Warning: Batch Badge Generation routes not available: {e}")
+
 # Register Calendar blueprint
 try:
     from routes.calendar import calendar_bp

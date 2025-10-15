@@ -7,7 +7,7 @@ import AIContentPipeline from './admin/AIContentPipeline'
 import AIQuestReview from '../components/admin/AIQuestReview'
 import AIPerformanceAnalytics from '../components/admin/AIPerformanceAnalytics'
 import AIPromptOptimizer from '../components/admin/AIPromptOptimizer'
-import BatchQuestGenerator from '../components/admin/BatchQuestGenerator'
+import BatchContentGenerator from '../components/admin/BatchContentGenerator'
 import BulkImageGenerator from '../components/admin/BulkImageGenerator'
 import BadgeImageGenerator from '../components/admin/BadgeImageGenerator'
 import TierManagement from '../components/admin/TierManagement'
@@ -83,7 +83,7 @@ const AdminPage = () => {
         <Route path="ai-quest-review" element={<AIQuestReview />} />
         <Route path="ai-performance" element={<AIPerformanceAnalytics />} />
         <Route path="ai-optimizer" element={<AIPromptOptimizer />} />
-        <Route path="batch-generator" element={<BatchQuestGenerator />} />
+        <Route path="batch-generator" element={<BatchContentGenerator />} />
         <Route path="quest-images" element={<BulkImageGenerator />} />
         <Route path="badge-images" element={<BadgeImageGenerator />} />
       </Routes>
