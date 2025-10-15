@@ -4,8 +4,8 @@
 
 **IMPORTANT INSTRUCTIONS:**
 - **NEVER RUN LOCALLY** - Always test in the develop branch deployment at https://optio-dev-frontend.onrender.com
-- **ALWAYS PUSH TO DEVELOP** - Push all changes to the develop branch for immediate live testing
-- Always commit and push changes automatically unless explicitly told otherwise
+- **ALWAYS COMMIT TO DEVELOP** - COMMIT all changes to the develop branch for immediate live testing
+- Always commit changes automatically unless explicitly told otherwise (but do not push unless requested)
 - The diploma page is the CORE offering - students use it on resumes to showcase education
 - Keep this documentation up to date with code changes
 - Follow core_philosophy.md for all updates - "The Process Is The Goal"
