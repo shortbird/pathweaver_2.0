@@ -75,37 +75,21 @@ const ChatWindow = ({ conversation, onConversationCreate }) => {
   // Render OptioBot chat
   if (chatType === 'bot') {
     return (
-      <div className="flex-1 flex flex-col">
-        {/* Header */}
-        <div className="border-b border-gray-200 bg-white p-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center">
-              <Bot className="w-7 h-7 text-white" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-gray-900">OptioBot</h2>
-              <p className="text-sm text-gray-500">Your AI Learning Companion</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Chat Interface */}
-        <div className="flex-1 overflow-hidden">
-          <ChatInterface
-            conversationId={tutorConversationId}
-            currentQuest={null}
-            currentTask={null}
-            onClose={null}
-            hideHeader={false}
-            className="h-full border-0 shadow-none rounded-none"
-            onConversationCreate={(convId) => {
-              setTutorConversationId(convId)
-              if (onConversationCreate) {
-                onConversationCreate(convId)
-              }
-            }}
-          />
-        </div>
+      <div className="flex-1 overflow-hidden">
+        <ChatInterface
+          conversationId={conversation?.tutorConversationId || tutorConversationId}
+          currentQuest={null}
+          currentTask={null}
+          onClose={null}
+          hideHeader={false}
+          className="h-full border-0 shadow-none rounded-none"
+          onConversationCreate={(convId) => {
+            setTutorConversationId(convId)
+            if (onConversationCreate) {
+              onConversationCreate(convId)
+            }
+          }}
+        />
       </div>
     )
   }

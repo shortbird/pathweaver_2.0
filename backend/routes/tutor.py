@@ -655,7 +655,7 @@ def _create_conversation(supabase, user_id: str, mode: str = 'teacher') -> Dict:
     return result.data[0]
 
 def _store_message(supabase, conversation_id: str, role: str, content: str, user_id: str, metadata: Optional[Dict] = None) -> Dict:
-    """Store message in database"""
+    """Store message in database and update conversation metadata"""
     message_data = {
         'id': str(uuid.uuid4()),
         'conversation_id': conversation_id,
@@ -675,7 +675,29 @@ def _store_message(supabase, conversation_id: str, role: str, content: str, user
         })
 
     result = supabase.table('tutor_messages').insert(message_data).execute()
+
+    # Update conversation metadata (message_count and last_message_at)
+    _update_conversation_metadata(supabase, conversation_id)
+
     return result.data[0]
+
+def _update_conversation_metadata(supabase, conversation_id: str):
+    """Update conversation's message_count and last_message_at"""
+    try:
+        # Get message count
+        messages = supabase.table('tutor_messages').select('id', count='exact').eq(
+            'conversation_id', conversation_id
+        ).execute()
+
+        # Update conversation
+        supabase.table('tutor_conversations').update({
+            'message_count': messages.count if messages.count else 0,
+            'last_message_at': datetime.utcnow().isoformat(),
+            'updated_at': datetime.utcnow().isoformat()
+        }).eq('id', conversation_id).execute()
+    except Exception as e:
+        logger.error(f"Failed to update conversation metadata: {e}")
+        # Don't raise - this is not critical enough to fail the message storage
 
 def _build_tutor_context(supabase, user_id: str, conversation: Optional[Dict] = None) -> TutorContext:
     """Build tutor context from user data"""

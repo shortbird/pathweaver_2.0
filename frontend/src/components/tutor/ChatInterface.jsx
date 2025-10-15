@@ -238,6 +238,10 @@ const ChatInterface = ({
     setConversation(null);
     setMessages([]);
     setShowHistory(false);
+    // Notify parent component to clear conversation ID
+    if (onConversationCreate) {
+      onConversationCreate(null);
+    }
   };
 
   const handleShowHistory = () => {
@@ -276,6 +280,20 @@ const ChatInterface = ({
           </div>
 
           <div className="flex items-center space-x-2">
+            {/* New Chat Button - Only show if there's an active conversation */}
+            {conversation && (
+              <button
+                onClick={handleCreateNewConversation}
+                className="bg-white/20 text-white px-3 py-2 rounded-lg hover:bg-white/30 transition-colors text-sm flex items-center space-x-1"
+                title="Start new conversation"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span>New</span>
+              </button>
+            )}
+
             {/* History Button */}
             <button
               onClick={handleShowHistory}
