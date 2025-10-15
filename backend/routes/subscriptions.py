@@ -136,6 +136,95 @@ def refresh_subscription_status(user_id):
         print(f"Error refreshing subscription status: {str(e)}")
         return jsonify({'error': 'Failed to refresh subscription status'}), 500
 
+def update_subscription_tier(user_id, new_tier, billing_period='monthly'):
+    """Helper function to update an existing subscription to a new tier/billing period"""
+    supabase = get_supabase_client()
+
+    try:
+        # Get user data
+        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
+        if not user_response.data:
+            return jsonify({'error': 'User not found'}), 404
+        user = user_response.data[0]
+
+        if not user.get('stripe_customer_id'):
+            return jsonify({'error': 'No Stripe customer found'}), 400
+
+        # Get active subscription
+        subscriptions = stripe.Subscription.list(
+            customer=user['stripe_customer_id'],
+            status='active',
+            limit=1
+        )
+
+        if not subscriptions.data:
+            return jsonify({'error': 'No active subscription found'}), 400
+
+        subscription = subscriptions.data[0]
+
+        # Handle downgrade to Explore
+        if new_tier == 'Explore':
+            stripe.Subscription.modify(
+                subscription.id,
+                cancel_at_period_end=True
+            )
+            supabase.table('users').update({
+                'subscription_status': 'canceling'
+            }).eq('id', user_id).execute()
+            return jsonify({'message': 'Subscription will be cancelled at the end of the billing period'}), 200
+
+        # Get the new price ID
+        tier_prices = SUBSCRIPTION_PRICES.get(new_tier)
+        if isinstance(tier_prices, dict):
+            new_price_id = tier_prices.get(billing_period)
+        else:
+            new_price_id = tier_prices if billing_period == 'monthly' else None
+
+        if not new_price_id:
+            return jsonify({'error': f'Price not configured for {new_tier} tier ({billing_period})'}), 500
+
+        print(f"Debug - Updating subscription to {new_tier} ({billing_period}) with price ID: {new_price_id}")
+
+        # Update subscription with new price
+        try:
+            updated_subscription = stripe.Subscription.modify(
+                subscription.id,
+                items=[{
+                    'id': subscription['items']['data'][0]['id'],
+                    'price': new_price_id
+                }],
+                proration_behavior='create_prorations'
+            )
+            print(f"Debug - Stripe subscription updated successfully: {updated_subscription.id}")
+        except Exception as stripe_error:
+            print(f"Error updating Stripe subscription: {stripe_error}")
+            return jsonify({'error': f'Failed to update subscription in Stripe: {str(stripe_error)}'}), 500
+
+        # Update database
+        try:
+            result = supabase.table('users').update({
+                'subscription_tier': new_tier,
+                'subscription_status': 'active'
+            }).eq('id', user_id).execute()
+            print(f"Debug - Database updated for user {user_id} to tier {new_tier}")
+        except Exception as db_error:
+            print(f"Error updating database: {db_error}")
+            return jsonify({'error': f'Failed to update user tier in database: {str(db_error)}'}), 500
+
+        return jsonify({
+            'success': True,
+            'message': f'Subscription updated to {new_tier} tier',
+            'tier': new_tier,
+            'billing_period': billing_period
+        }), 200
+
+    except Exception as e:
+        print(f"Error in update_subscription_tier: {str(e)}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        return jsonify({'error': f'Failed to update subscription: {str(e)}'}), 500
+
+
 @bp.route('/create-checkout', methods=['POST'])
 @require_auth
 def create_checkout_session(user_id):
@@ -219,7 +308,25 @@ def create_checkout_session(user_id):
         print(f"Debug - User data retrieved: {user}")
         print(f"Debug - User data type: {type(user)}")
         print(f"Debug - User keys: {user.keys() if hasattr(user, 'keys') else 'Not a dict'}")
-        
+
+        # Check if user has an existing active subscription
+        if user.get('stripe_customer_id'):
+            try:
+                print(f"Debug - Checking for existing subscriptions for customer: {user['stripe_customer_id']}")
+                existing_subs = stripe.Subscription.list(
+                    customer=user['stripe_customer_id'],
+                    status='active',
+                    limit=1
+                )
+                if existing_subs.data:
+                    # User has an active subscription - use the update endpoint instead
+                    print(f"Debug - User has active subscription, redirecting to update flow")
+                    # Instead of creating new checkout, modify existing subscription
+                    return update_subscription_tier(user_id, tier, billing_period)
+            except Exception as stripe_check_error:
+                print(f"Debug - Error checking existing subscriptions: {stripe_check_error}")
+                # Continue with checkout creation if check fails
+
         # Create or retrieve Stripe customer
         if not user.get('stripe_customer_id'):
             # Use email from user data if available
