@@ -313,7 +313,7 @@ export default function BadgeDetail() {
                   </button>
                 </div>
                 <p className="text-sm text-gray-600 mt-4">
-                  You can still view badges and quests on the free tier, but you'll need to upgrade to start pursuing them.
+                  You can still view badges on the free tier, but you'll need to upgrade to start pursuing them.
                 </p>
               </>
             ) : (
