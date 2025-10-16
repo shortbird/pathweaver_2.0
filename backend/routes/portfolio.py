@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify
 from flask_cors import cross_origin
-from database import get_supabase_client
+from database import get_supabase_client, get_supabase_admin_client
 from datetime import datetime
 from utils.auth.decorators import require_auth, require_paid_tier
 
@@ -295,15 +295,16 @@ def get_public_diploma_by_user_id(user_id):
     """
     try:
         print(f"=== DIPLOMA ENDPOINT CALLED FOR USER: {user_id} ===")
-        supabase = get_supabase_client()
+        # Use admin client to bypass RLS for public diploma viewing
+        # We're only reading non-sensitive data (first_name, last_name) for display
+        supabase = get_supabase_admin_client()
 
         # Get user's basic info (not sensitive data)
         user = supabase.table('users').select('id, first_name, last_name').eq('id', user_id).execute()
-        print(f"User query result - data: {user.data}, type: {type(user.data)}, len: {len(user.data) if user.data else 0}")
-        print(f"User query result - full response: {user}")
+        print(f"User query result - data: {user.data}")
 
         if not user.data or len(user.data) == 0:
-            print(f"ERROR: User not found for ID: {user_id}, user.data is empty or None")
+            print(f"ERROR: User not found for ID: {user_id}")
             return jsonify({'error': 'User not found'}), 404
         
         # Get user's completed quests with V3 data structure - optimized query
