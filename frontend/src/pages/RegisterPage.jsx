@@ -13,16 +13,8 @@ const RegisterPage = () => {
   const password = watch('password')
   const dateOfBirth = watch('date_of_birth')
   
-  // Password validation checks - Updated to match Supabase requirements
-  const passwordChecks = {
-    length: password?.length >= 6,
-    uppercase: password && /[A-Z]/.test(password),
-    lowercase: password && /[a-z]/.test(password),
-    number: password && /[0-9]/.test(password)
-  }
-  
-  const isPasswordValid = passwordChecks.length && passwordChecks.uppercase &&
-                          passwordChecks.lowercase && passwordChecks.number
+  // Password validation - simplified to only check length
+  const isPasswordValid = password?.length >= 6
 
   // Check age when date of birth changes
   React.useEffect(() => {
@@ -117,6 +109,132 @@ const RegisterPage = () => {
             </div>
 
             <div>
+              <label htmlFor="phone_number" className="block text-sm font-medium text-gray-700">
+                Phone Number <span className="text-gray-400">(Optional)</span>
+              </label>
+              <input
+                {...registerField('phone_number')}
+                type="tel"
+                className="input-field mt-1"
+                placeholder="+1 (555) 123-4567"
+              />
+              {errors.phone_number && (
+                <p className="mt-1 text-sm text-red-600">{errors.phone_number.message}</p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                International format accepted (e.g., +1 555-123-4567)
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="address_line1" className="block text-sm font-medium text-gray-700">
+                Address Line 1 <span className="text-gray-400">(Optional)</span>
+              </label>
+              <input
+                {...registerField('address_line1')}
+                type="text"
+                className="input-field mt-1"
+                placeholder="123 Main Street"
+              />
+              {errors.address_line1 && (
+                <p className="mt-1 text-sm text-red-600">{errors.address_line1.message}</p>
+              )}
+            </div>
+
+            <div>
+              <label htmlFor="address_line2" className="block text-sm font-medium text-gray-700">
+                Address Line 2 <span className="text-gray-400">(Optional)</span>
+              </label>
+              <input
+                {...registerField('address_line2')}
+                type="text"
+                className="input-field mt-1"
+                placeholder="Apt 4B"
+              />
+              {errors.address_line2 && (
+                <p className="mt-1 text-sm text-red-600">{errors.address_line2.message}</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="city" className="block text-sm font-medium text-gray-700">
+                  City <span className="text-gray-400">(Optional)</span>
+                </label>
+                <input
+                  {...registerField('city')}
+                  type="text"
+                  className="input-field mt-1"
+                  placeholder="New York"
+                />
+                {errors.city && (
+                  <p className="mt-1 text-sm text-red-600">{errors.city.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="state" className="block text-sm font-medium text-gray-700">
+                  State/Province <span className="text-gray-400">(Optional)</span>
+                </label>
+                <input
+                  {...registerField('state')}
+                  type="text"
+                  className="input-field mt-1"
+                  placeholder="NY"
+                />
+                {errors.state && (
+                  <p className="mt-1 text-sm text-red-600">{errors.state.message}</p>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label htmlFor="postal_code" className="block text-sm font-medium text-gray-700">
+                  Postal Code <span className="text-gray-400">(Optional)</span>
+                </label>
+                <input
+                  {...registerField('postal_code')}
+                  type="text"
+                  className="input-field mt-1"
+                  placeholder="10001"
+                />
+                {errors.postal_code && (
+                  <p className="mt-1 text-sm text-red-600">{errors.postal_code.message}</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="country" className="block text-sm font-medium text-gray-700">
+                  Country <span className="text-gray-400">(Optional)</span>
+                </label>
+                <select
+                  {...registerField('country')}
+                  className="input-field mt-1"
+                >
+                  <option value="">Select a country</option>
+                  <option value="United States">United States</option>
+                  <option value="Canada">Canada</option>
+                  <option value="United Kingdom">United Kingdom</option>
+                  <option value="Australia">Australia</option>
+                  <option value="Germany">Germany</option>
+                  <option value="France">France</option>
+                  <option value="Spain">Spain</option>
+                  <option value="Italy">Italy</option>
+                  <option value="Japan">Japan</option>
+                  <option value="China">China</option>
+                  <option value="India">India</option>
+                  <option value="Brazil">Brazil</option>
+                  <option value="Mexico">Mexico</option>
+                  <option value="Other">Other</option>
+                </select>
+                {errors.country && (
+                  <p className="mt-1 text-sm text-red-600">{errors.country.message}</p>
+                )}
+              </div>
+            </div>
+
+            <div>
               <label htmlFor="date_of_birth" className="block text-sm font-medium text-gray-700">
                 Date of Birth
               </label>
@@ -172,12 +290,9 @@ const RegisterPage = () => {
                 <input
                   {...registerField('password', {
                     required: 'Password is required',
-                    validate: value => {
-                      if (value.length < 6) return 'Password must be at least 6 characters'
-                      if (!/[A-Z]/.test(value)) return 'Password must contain at least one uppercase letter'
-                      if (!/[a-z]/.test(value)) return 'Password must contain at least one lowercase letter'
-                      if (!/[0-9]/.test(value)) return 'Password must contain at least one number'
-                      return true
+                    minLength: {
+                      value: 6,
+                      message: 'Password must be at least 6 characters'
                     }
                   })}
                   type={showPassword ? "text" : "password"}
@@ -201,60 +316,9 @@ const RegisterPage = () => {
                   )}
                 </button>
               </div>
-              
-              {/* Password requirements checklist */}
-              {password && (
-                <div className="mt-2 space-y-1">
-                  <p className="text-xs font-medium text-gray-700">Password must contain:</p>
-                  <div className="space-y-1">
-                    <div className={`text-xs flex items-center ${passwordChecks.length ? 'text-green-600' : 'text-gray-400'}`}>
-                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        {passwordChecks.length ? (
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        ) : (
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        )}
-                      </svg>
-                      At least 6 characters
-                    </div>
-                    <div className={`text-xs flex items-center ${passwordChecks.uppercase ? 'text-green-600' : 'text-gray-400'}`}>
-                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        {passwordChecks.uppercase ? (
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        ) : (
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        )}
-                      </svg>
-                      One uppercase letter
-                    </div>
-                    <div className={`text-xs flex items-center ${passwordChecks.lowercase ? 'text-green-600' : 'text-gray-400'}`}>
-                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        {passwordChecks.lowercase ? (
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        ) : (
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        )}
-                      </svg>
-                      One lowercase letter
-                    </div>
-                    <div className={`text-xs flex items-center ${passwordChecks.number ? 'text-green-600' : 'text-gray-400'}`}>
-                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                        {passwordChecks.number ? (
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                        ) : (
-                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                        )}
-                      </svg>
-                      One number
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    ⚠️ Avoid common passwords like "Test123", "Password1", etc. 
-                    Try something unique like "Zx9m2K" or "Blu3Sky"
-                  </p>
-                </div>
-              )}
-              
+              <p className="mt-1 text-xs text-gray-500">
+                Password must be at least 6 characters long
+              </p>
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>
               )}
@@ -297,46 +361,30 @@ const RegisterPage = () => {
             </div>
           </div>
 
-          {/* Terms of Service and Privacy Policy checkboxes */}
+          {/* Combined Terms of Service and Privacy Policy checkbox */}
           <div className="space-y-3">
             <div className="flex items-start">
               <input
-                {...registerField('acceptedTerms', {
-                  required: 'You must accept the Terms of Service'
+                {...registerField('acceptedLegalTerms', {
+                  required: 'You must accept the Terms of Service and Privacy Policy'
                 })}
                 type="checkbox"
-                id="acceptedTerms"
+                id="acceptedLegalTerms"
                 className="mt-1 h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
               />
-              <label htmlFor="acceptedTerms" className="ml-2 text-sm text-gray-700">
+              <label htmlFor="acceptedLegalTerms" className="ml-2 text-sm text-gray-700">
                 I agree to the{' '}
                 <Link to="/terms" target="_blank" className="text-primary hover:text-purple-600 underline">
                   Terms of Service
                 </Link>
-              </label>
-            </div>
-            {errors.acceptedTerms && (
-              <p className="ml-6 text-sm text-red-600">{errors.acceptedTerms.message}</p>
-            )}
-
-            <div className="flex items-start">
-              <input
-                {...registerField('acceptedPrivacy', {
-                  required: 'You must accept the Privacy Policy'
-                })}
-                type="checkbox"
-                id="acceptedPrivacy"
-                className="mt-1 h-4 w-4 text-primary border-gray-300 rounded focus:ring-primary"
-              />
-              <label htmlFor="acceptedPrivacy" className="ml-2 text-sm text-gray-700">
-                I agree to the{' '}
+                {' '}and{' '}
                 <Link to="/privacy" target="_blank" className="text-primary hover:text-purple-600 underline">
                   Privacy Policy
                 </Link>
               </label>
             </div>
-            {errors.acceptedPrivacy && (
-              <p className="ml-6 text-sm text-red-600">{errors.acceptedPrivacy.message}</p>
+            {errors.acceptedLegalTerms && (
+              <p className="ml-6 text-sm text-red-600">{errors.acceptedLegalTerms.message}</p>
             )}
           </div>
 

@@ -24,29 +24,67 @@ def validate_email(email: str) -> Tuple[bool, Optional[str]]:
 
 def validate_password(password: str) -> Tuple[bool, Optional[str]]:
     """
-    Validate password strength to match Supabase requirements
+    Validate password strength - simplified requirements
     Returns: (is_valid, error_message)
     """
     if not password:
         return False, "Password is required"
-    
+
     if len(password) < 6:
         return False, "Password must be at least 6 characters long"
-    
+
     if len(password) > 128:
         return False, "Password is too long (max 128 characters)"
-    
-    # Check for at least one uppercase, one lowercase, and one number
-    has_upper = any(c.isupper() for c in password)
-    has_lower = any(c.islower() for c in password)
-    has_digit = any(c.isdigit() for c in password)
-    
-    if not (has_upper and has_lower and has_digit):
-        return False, "Password must contain at least one uppercase letter, one lowercase letter, and one number. Example: Abc123"
-    
-    # Skip weak pattern check for short passwords
-    # With only 6 characters required, weak pattern checking is less relevant
-    
+
+    return True, None
+
+def validate_phone_number(phone: str) -> Tuple[bool, Optional[str]]:
+    """
+    Validate phone number format (international format supported)
+    Returns: (is_valid, error_message)
+    """
+    if not phone:
+        return True, None  # Phone is optional
+
+    # Remove common formatting characters
+    cleaned = re.sub(r'[\s\-\(\)\.]', '', phone)
+
+    # Check if it contains only digits and optional leading +
+    if not re.match(r'^\+?\d+$', cleaned):
+        return False, "Phone number can only contain digits, spaces, hyphens, parentheses, and an optional leading +"
+
+    # Check length (international numbers typically 7-15 digits)
+    digit_only = cleaned.lstrip('+')
+    if len(digit_only) < 7 or len(digit_only) > 15:
+        return False, "Phone number must be between 7 and 15 digits"
+
+    return True, None
+
+def validate_address(address_data: Dict[str, Any]) -> Tuple[bool, Optional[str]]:
+    """
+    Validate address fields (all optional)
+    Returns: (is_valid, error_message)
+    """
+    # All address fields are optional, just validate lengths if provided
+
+    if address_data.get('address_line1') and len(address_data['address_line1']) > 255:
+        return False, "Address line 1 is too long (max 255 characters)"
+
+    if address_data.get('address_line2') and len(address_data['address_line2']) > 255:
+        return False, "Address line 2 is too long (max 255 characters)"
+
+    if address_data.get('city') and len(address_data['city']) > 100:
+        return False, "City is too long (max 100 characters)"
+
+    if address_data.get('state') and len(address_data['state']) > 100:
+        return False, "State/Province is too long (max 100 characters)"
+
+    if address_data.get('postal_code') and len(address_data['postal_code']) > 20:
+        return False, "Postal code is too long (max 20 characters)"
+
+    if address_data.get('country') and len(address_data['country']) > 100:
+        return False, "Country is too long (max 100 characters)"
+
     return True, None
 
 def validate_name(name: str, field_name: str = "Name") -> Tuple[bool, Optional[str]]:
@@ -80,27 +118,38 @@ def validate_registration_data(data: Dict[str, Any]) -> Tuple[bool, Optional[str
     for field in required_fields:
         if field not in data or not data[field]:
             return False, f"Missing required field: {field}"
-    
+
     # Validate email
     is_valid, error = validate_email(data['email'])
     if not is_valid:
         return False, error
-    
+
     # Validate password
     is_valid, error = validate_password(data['password'])
     if not is_valid:
         return False, error
-    
+
     # Validate first name
     is_valid, error = validate_name(data['first_name'], "First name")
     if not is_valid:
         return False, error
-    
+
     # Validate last name
     is_valid, error = validate_name(data['last_name'], "Last name")
     if not is_valid:
         return False, error
-    
+
+    # Validate optional phone number
+    if data.get('phone_number'):
+        is_valid, error = validate_phone_number(data['phone_number'])
+        if not is_valid:
+            return False, error
+
+    # Validate optional address fields
+    is_valid, error = validate_address(data)
+    if not is_valid:
+        return False, error
+
     return True, None
 
 def validate_quest_data(data: Dict[str, Any]) -> Tuple[bool, Optional[str]]:

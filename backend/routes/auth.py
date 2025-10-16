@@ -96,12 +96,9 @@ def register():
             print(f"[REGISTRATION] Validation failed: {error_message}")
             raise ValidationError(error_message)
         
-        # Check for Terms of Service and Privacy Policy acceptance
-        if not data.get('acceptedTerms'):
-            raise ValidationError("You must accept the Terms of Service to create an account")
-        
-        if not data.get('acceptedPrivacy'):
-            raise ValidationError("You must accept the Privacy Policy to create an account")
+        # Check for Terms of Service and Privacy Policy acceptance (combined)
+        if not data.get('acceptedLegalTerms') and not (data.get('acceptedTerms') and data.get('acceptedPrivacy')):
+            raise ValidationError("You must accept the Terms of Service and Privacy Policy to create an account")
         
         # Store original names for Supabase Auth (no HTML encoding)
         original_first_name = data['first_name'].strip()
@@ -192,6 +189,24 @@ def register():
                 'created_at': 'now()'
             }
 
+            # Add optional phone number
+            if data.get('phone_number'):
+                user_data['phone_number'] = sanitize_input(data['phone_number'].strip())
+
+            # Add optional address fields
+            if data.get('address_line1'):
+                user_data['address_line1'] = sanitize_input(data['address_line1'].strip())
+            if data.get('address_line2'):
+                user_data['address_line2'] = sanitize_input(data['address_line2'].strip())
+            if data.get('city'):
+                user_data['city'] = sanitize_input(data['city'].strip())
+            if data.get('state'):
+                user_data['state'] = sanitize_input(data['state'].strip())
+            if data.get('postal_code'):
+                user_data['postal_code'] = sanitize_input(data['postal_code'].strip())
+            if data.get('country'):
+                user_data['country'] = sanitize_input(data['country'].strip())
+
             # Add date of birth and parental consent fields if provided
             if date_of_birth:
                 user_data['date_of_birth'] = date_of_birth
@@ -281,10 +296,10 @@ def register():
             # Supabase might be rejecting certain email domains
             raise ValidationError('This email address cannot be used for registration. Please use a different email.')
         elif 'weak' in error_str and 'password' in error_str:
-            raise ValidationError('Password is too common or easy to guess. Please choose a more unique password (6+ characters with mix of letters and numbers, avoiding common words like "password", "test", "123456")')
+            raise ValidationError('Password is too common or easy to guess. Please choose a more unique password (6+ characters)')
         elif 'password' in error_str:
             # If Supabase rejects the password for any reason, provide our requirement message
-            raise ValidationError('Password must be at least 6 characters with uppercase, lowercase, and numbers. Avoid common passwords like "Test123" or "Password1"')
+            raise ValidationError('Password must be at least 6 characters long')
         elif 'rate limit' in error_str or 'too many requests' in error_str or 'security purposes' in error_str:
             # Extract wait time if available
             import re
