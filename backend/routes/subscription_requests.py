@@ -70,9 +70,13 @@ def submit_subscription_request(user_id):
         user_name = user.get('display_name') or user.get('first_name') or 'there'
         current_tier = user.get('subscription_tier', 'Explore')
 
+        # Fetch tier display name from subscription_tiers table
+        tier_response = supabase.table('subscription_tiers').select('display_name').eq('tier_key', tier_requested).single().execute()
+        tier_display_name = tier_response.data.get('display_name') if tier_response.data else tier_requested
+
         # Don't allow requesting current tier
         if tier_requested == current_tier:
-            return jsonify({'error': f'You are already on the {tier_requested} tier'}), 400
+            return jsonify({'error': f'You are already on the {tier_display_name} tier'}), 400
 
         # Insert subscription request into database
         request_data = {
@@ -97,6 +101,7 @@ def submit_subscription_request(user_id):
             user_email=user_email,
             user_name=user_name,
             tier_requested=tier_requested,
+            tier_display_name=tier_display_name,
             contact_preference=contact_preference,
             phone_number=phone_number
         )
@@ -104,12 +109,13 @@ def submit_subscription_request(user_id):
         if not user_email_sent:
             logger.warning(f"Failed to send confirmation email to {user_email}")
 
-        # Send notification email to admin (Tanner)
+        # Send notification email to admin
         admin_email_sent = email_service.send_subscription_request_admin_notification(
             user_name=user_name,
             user_email=user_email,
             user_id=user_id,
             tier_requested=tier_requested,
+            tier_display_name=tier_display_name,
             current_tier=current_tier,
             contact_preference=contact_preference,
             phone_number=phone_number,

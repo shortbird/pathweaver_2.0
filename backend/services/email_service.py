@@ -18,8 +18,8 @@ class EmailService:
         self.smtp_port = int(os.getenv('SMTP_PORT', '587'))
         self.smtp_user = os.getenv('SMTP_USER', 'apikey')
         self.smtp_pass = os.getenv('SMTP_PASS', '')
-        self.sender_email = os.getenv('SENDER_EMAIL', 'tanner@optioeducation.com')
-        self.sender_name = os.getenv('SENDER_NAME', 'Tanner from Optio')
+        self.sender_email = os.getenv('SENDER_EMAIL', 'support@optioeducation.com')
+        self.sender_name = os.getenv('SENDER_NAME', 'Optio Support')
 
         # Set up Jinja2 template environment
         template_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'templates')
@@ -225,17 +225,19 @@ class EmailService:
         user_email: str,
         user_name: str,
         tier_requested: str,
+        tier_display_name: str,
         contact_preference: str,
         phone_number: str = None
     ) -> bool:
         """Send confirmation email to user after subscription upgrade request"""
         return self.send_templated_email(
             to_email=user_email,
-            subject=f"Your {tier_requested} Upgrade Request Has Been Received",
+            subject=f"Your {tier_display_name} Upgrade Request Has Been Received",
             template_name='subscription_request_user',
             context={
                 'user_name': user_name,
                 'tier_requested': tier_requested,
+                'tier_display_name': tier_display_name,
                 'contact_preference': contact_preference,
                 'phone_number': phone_number
             }
@@ -247,6 +249,7 @@ class EmailService:
         user_email: str,
         user_id: str,
         tier_requested: str,
+        tier_display_name: str,
         current_tier: str,
         contact_preference: str,
         phone_number: str = None,
@@ -256,13 +259,14 @@ class EmailService:
         admin_email = os.getenv('ADMIN_EMAIL', 'support@optioeducation.com')
         return self.send_templated_email(
             to_email=admin_email,
-            subject=f"New Subscription Request: {user_name} → {tier_requested}",
+            subject=f"New Subscription Request: {user_name} → {tier_display_name}",
             template_name='subscription_request_admin',
             context={
                 'user_name': user_name,
                 'user_email': user_email,
                 'user_id': user_id,
                 'tier_requested': tier_requested,
+                'tier_display_name': tier_display_name,
                 'current_tier': current_tier,
                 'contact_preference': contact_preference,
                 'phone_number': phone_number,

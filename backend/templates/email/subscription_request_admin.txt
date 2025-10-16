@@ -12,7 +12,7 @@ Current Tier: {{ current_tier }}
 
 REQUEST DETAILS
 ---------------
-Requested Tier: {{ tier_requested }}
+Requested Tier: {{ tier_display_name }}
 Contact Preference: {{ contact_preference|capitalize }}
 {% if phone_number %}Phone Number: {{ phone_number }}{% endif %}
 

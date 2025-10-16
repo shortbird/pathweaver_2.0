@@ -2,21 +2,21 @@ Your Upgrade Request Has Been Received
 
 Hi {{ user_name }},
 
-Thank you for your interest in upgrading to {{ tier_requested }}. We've received your request and our support team will reach out to you within the next 24-48 hours.
+Thank you for your interest in upgrading to {{ tier_display_name }}. We've received your request and our support team will reach out to you within the next 24-48 hours.
 
 REQUEST DETAILS
 ---------------
-Requested Tier: {{ tier_requested }}
+Requested Tier: {{ tier_display_name }}
 Preferred Contact: {{ contact_preference|capitalize }}
 {% if phone_number %}Phone Number: {{ phone_number }}{% endif %}
 
-We're excited to learn more about your goals and discuss how {{ tier_requested }} can support your learning journey. This is about finding the right rhythm for your growth.
+We're excited to learn more about your goals and discuss how {{ tier_display_name }} can support your learning journey. This is about finding the right rhythm for your growth.
 
 WHAT HAPPENS NEXT?
 -------------------
 - Our team will review your request and current progress
 - We'll reach out via {{ contact_preference }} within 1-2 business days
-- We'll discuss your goals and how {{ tier_requested }} fits your needs
+- We'll discuss your goals and how {{ tier_display_name }} fits your needs
 - If it's the right fit, we'll help you get set up immediately
 
 Have questions in the meantime? Just reply to this email - our team reads every message personally.
