@@ -180,7 +180,8 @@ def register():
                 'id': auth_response.user.id,
                 'first_name': sanitized_first_name,
                 'last_name': sanitized_last_name,
-                'subscription_tier': 'free',
+                'email': email,
+                'subscription_tier': 'Free',  # Must match database constraint (capitalized)
                 'subscription_status': 'active',  # Free tier is always active
                 'tos_accepted_at': 'now()',
                 'privacy_policy_accepted_at': 'now()',
@@ -417,7 +418,8 @@ def login():
                         'id': auth_response.user.id,
                         'first_name': auth_response.user.user_metadata.get('first_name', 'User'),
                         'last_name': auth_response.user.user_metadata.get('last_name', ''),
-                        'subscription_tier': 'free',
+                        'email': auth_response.user.email,
+                        'subscription_tier': 'Free',  # Must match database constraint (capitalized)
                         'subscription_status': 'active',
                         'created_at': 'now()'
                     }
