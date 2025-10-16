@@ -102,59 +102,45 @@ class Config:
     STRIPE_SECRET_KEY = os.getenv('STRIPE_SECRET_KEY')
     STRIPE_WEBHOOK_SECRET = os.getenv('STRIPE_WEBHOOK_SECRET')
     
-    # Subscription tier price IDs - Monthly
-    STRIPE_EXPLORE_PRICE_ID = None  # Free tier has no Stripe price
-    STRIPE_ACCELERATE_MONTHLY_PRICE_ID = os.getenv('STRIPE_ACCELERATE_MONTHLY_PRICE_ID', os.getenv('STRIPE_SUPPORTED_MONTHLY_PRICE_ID'))  # $39.99/month
-    STRIPE_ACHIEVE_MONTHLY_PRICE_ID = os.getenv('STRIPE_ACHIEVE_MONTHLY_PRICE_ID')  # $199.99/month
-    STRIPE_EXCEL_MONTHLY_PRICE_ID = os.getenv('STRIPE_EXCEL_MONTHLY_PRICE_ID', os.getenv('STRIPE_ACADEMY_MONTHLY_PRICE_ID'))  # $499.99/month
+    # Subscription tier price IDs - Monthly only (no yearly billing)
+    STRIPE_FREE_PRICE_ID = None  # Free tier has no Stripe price
+    STRIPE_PARENT_SUPPORTED_PRICE_ID = os.getenv('STRIPE_PARENT_SUPPORTED_MONTHLY_PRICE_ID', os.getenv('STRIPE_ACCELERATE_MONTHLY_PRICE_ID'))  # $50/month
+    STRIPE_WEEKLY_PRICE_ID = os.getenv('STRIPE_WEEKLY_MONTHLY_PRICE_ID', os.getenv('STRIPE_ACHIEVE_MONTHLY_PRICE_ID'))  # $300/month
+    STRIPE_DAILY_PRICE_ID = os.getenv('STRIPE_DAILY_MONTHLY_PRICE_ID', os.getenv('STRIPE_EXCEL_MONTHLY_PRICE_ID'))  # $600/month
 
-    # Subscription tier price IDs - Yearly (with discount)
-    STRIPE_ACCELERATE_YEARLY_PRICE_ID = os.getenv('STRIPE_ACCELERATE_YEARLY_PRICE_ID', os.getenv('STRIPE_SUPPORTED_YEARLY_PRICE_ID'))  # ~17% off
-    STRIPE_ACHIEVE_YEARLY_PRICE_ID = os.getenv('STRIPE_ACHIEVE_YEARLY_PRICE_ID')  # ~17% off
-    STRIPE_EXCEL_YEARLY_PRICE_ID = os.getenv('STRIPE_EXCEL_YEARLY_PRICE_ID', os.getenv('STRIPE_ACADEMY_YEARLY_PRICE_ID'))  # ~17% off
-
-    # Stripe configuration mapping with billing periods
+    # Stripe configuration mapping (monthly only)
     STRIPE_TIER_PRICES = {
-        'Explore': {'monthly': None, 'yearly': None},
-        'Accelerate': {
-            'monthly': STRIPE_ACCELERATE_MONTHLY_PRICE_ID,
-            'yearly': STRIPE_ACCELERATE_YEARLY_PRICE_ID
-        },
-        'Achieve': {
-            'monthly': STRIPE_ACHIEVE_MONTHLY_PRICE_ID,
-            'yearly': STRIPE_ACHIEVE_YEARLY_PRICE_ID
-        },
-        'Excel': {
-            'monthly': STRIPE_EXCEL_MONTHLY_PRICE_ID,
-            'yearly': STRIPE_EXCEL_YEARLY_PRICE_ID
-        }
+        'Free': None,
+        'Parent Supported': STRIPE_PARENT_SUPPORTED_PRICE_ID,
+        'Weekly': STRIPE_WEEKLY_PRICE_ID,
+        'Daily': STRIPE_DAILY_PRICE_ID
     }
 
-    # Tier features and limits
+    # Tier features and limits (NOTE: Frontend uses database subscription_tiers as single source of truth)
     TIER_FEATURES = {
-        'Explore': {
-            'name': 'Explore',
+        'Free': {
+            'name': 'Free',
             'price_monthly': 0,
-            'max_quests': 5,
-            'features': ['Basic quest access', 'Public diploma page', 'Community support']
-        },
-        'Accelerate': {
-            'name': 'Accelerate',
-            'price_monthly': 39.99,
             'max_quests': None,  # Unlimited
-            'features': ['Unlimited quests', 'Priority support', 'Advanced analytics', 'Custom quest submissions']
+            'features': ['Quest library access', 'Portfolio tracking', 'Quest customization']
         },
-        'Achieve': {
-            'name': 'Achieve',
-            'price_monthly': 199.99,
+        'Parent Supported': {
+            'name': 'Parent Supported',
+            'price_monthly': 50.00,
             'max_quests': None,  # Unlimited
-            'features': ['Everything in Accelerate', 'Team collaboration', 'Advanced AI tutor', 'Custom learning paths']
+            'features': ['Everything in Free', 'Badge library', 'Advanced parent tools', 'Priority support']
         },
-        'Excel': {
-            'name': 'Excel',
-            'price_monthly': 499.99,
+        'Weekly': {
+            'name': 'Weekly',
+            'price_monthly': 300.00,
             'max_quests': None,  # Unlimited
-            'features': ['Everything in Achieve', '1-on-1 mentorship', 'Accredited diploma', 'Verified certificates']
+            'features': ['Everything in Parent Supported', 'Weekly educator check-ins', 'Quarterly strategy sessions']
+        },
+        'Daily': {
+            'name': 'Daily',
+            'price_monthly': 600.00,
+            'max_quests': None,  # Unlimited
+            'features': ['Everything in Weekly', 'Daily educator availability', 'Near-immediate support']
         }
     }
     

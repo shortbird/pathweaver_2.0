@@ -136,8 +136,8 @@ def refresh_subscription_status(user_id):
         print(f"Error refreshing subscription status: {str(e)}")
         return jsonify({'error': 'Failed to refresh subscription status'}), 500
 
-def update_subscription_tier(user_id, new_tier, billing_period='monthly'):
-    """Helper function to update an existing subscription to a new tier/billing period"""
+def update_subscription_tier(user_id, new_tier):
+    """Helper function to update an existing subscription to a new tier (monthly only)"""
     supabase = get_supabase_client()
 
     try:
@@ -162,8 +162,8 @@ def update_subscription_tier(user_id, new_tier, billing_period='monthly'):
 
         subscription = subscriptions.data[0]
 
-        # Handle downgrade to Explore
-        if new_tier == 'Explore':
+        # Handle downgrade to Free
+        if new_tier == 'Free':
             stripe.Subscription.modify(
                 subscription.id,
                 cancel_at_period_end=True
@@ -173,17 +173,13 @@ def update_subscription_tier(user_id, new_tier, billing_period='monthly'):
             }).eq('id', user_id).execute()
             return jsonify({'message': 'Subscription will be cancelled at the end of the billing period'}), 200
 
-        # Get the new price ID
-        tier_prices = SUBSCRIPTION_PRICES.get(new_tier)
-        if isinstance(tier_prices, dict):
-            new_price_id = tier_prices.get(billing_period)
-        else:
-            new_price_id = tier_prices if billing_period == 'monthly' else None
+        # Get the new price ID (monthly only)
+        new_price_id = SUBSCRIPTION_PRICES.get(new_tier)
 
         if not new_price_id:
-            return jsonify({'error': f'Price not configured for {new_tier} tier ({billing_period})'}), 500
+            return jsonify({'error': f'Price not configured for {new_tier} tier'}), 500
 
-        print(f"Debug - Updating subscription to {new_tier} ({billing_period}) with price ID: {new_price_id}")
+        print(f"Debug - Updating subscription to {new_tier} with price ID: {new_price_id}")
 
         # Update subscription with new price
         try:
@@ -214,8 +210,7 @@ def update_subscription_tier(user_id, new_tier, billing_period='monthly'):
         return jsonify({
             'success': True,
             'message': f'Subscription updated to {new_tier} tier',
-            'tier': new_tier,
-            'billing_period': billing_period
+            'tier': new_tier
         }), 200
 
     except Exception as e:
@@ -230,8 +225,8 @@ def update_subscription_tier(user_id, new_tier, billing_period='monthly'):
 def create_checkout_session(user_id):
     """Create a Stripe checkout session for subscription upgrade"""
     data = request.json
-    tier = data.get('tier', 'Accelerate')
-    billing_period = data.get('billing_period', 'monthly')  # 'monthly' or 'yearly'
+    tier = data.get('tier', 'Parent Supported')
+    # Note: billing_period removed - only monthly billing supported now
 
     # Validate Stripe configuration first
     if not Config.STRIPE_SECRET_KEY or Config.STRIPE_SECRET_KEY in ['sk_test_your-key', 'your-key']:
@@ -242,36 +237,26 @@ def create_checkout_session(user_id):
         }), 500
 
     # Validate tier
-    if tier not in ['Accelerate', 'Achieve', 'Excel']:
-        return jsonify({'error': 'Invalid subscription tier. Choose "Accelerate", "Achieve", or "Excel".'}), 400
-    
-    # Validate billing period
-    if billing_period not in ['monthly', 'yearly']:
-        return jsonify({'error': 'Invalid billing period. Choose "monthly" or "yearly".'}), 400
-    
-    # Get price ID from config based on tier and billing period
-    tier_prices = SUBSCRIPTION_PRICES.get(tier)
-    if isinstance(tier_prices, dict):
-        price_id = tier_prices.get(billing_period)
-    else:
-        # Backwards compatibility for old config format
-        price_id = tier_prices if billing_period == 'monthly' else None
-    
+    if tier not in ['Parent Supported', 'Weekly', 'Daily']:
+        return jsonify({'error': 'Invalid subscription tier. Choose "Parent Supported", "Weekly", or "Daily".'}), 400
+
+    # Get price ID from config (monthly only)
+    price_id = SUBSCRIPTION_PRICES.get(tier)
+
     # Debug logging
-    print(f"Debug - Tier: {tier}, Billing: {billing_period}")
-    print(f"Debug - Tier prices config: {tier_prices}")
+    print(f"Debug - Tier: {tier}, Billing: monthly (only option)")
     print(f"Debug - Selected price_id: {price_id}")
     print(f"Debug - All subscription prices: {SUBSCRIPTION_PRICES}")
     print(f"Debug - Stripe key present: {bool(Config.STRIPE_SECRET_KEY)}")
     print(f"Debug - Stripe key prefix: {Config.STRIPE_SECRET_KEY[:7] if Config.STRIPE_SECRET_KEY else 'None'}...")
-    
+
     if not price_id:
-        error_msg = f'Stripe price ID not configured for {tier} tier ({billing_period}). Please contact support.'
+        error_msg = f'Stripe price ID not configured for {tier} tier. Please contact support.'
         print(f"Error: {error_msg}")
         print(f"Available prices: {SUBSCRIPTION_PRICES}")
         return jsonify({
             'error': error_msg,
-            'debug': f'Missing environment variable: STRIPE_{tier.upper()}_{billing_period.upper()}_PRICE_ID'
+            'debug': f'Missing environment variable for {tier} tier'
         }), 500
     
     # Use regular client for user data, admin client for auth operations
@@ -322,7 +307,7 @@ def create_checkout_session(user_id):
                     # User has an active subscription - use the update endpoint instead
                     print(f"Debug - User has active subscription, redirecting to update flow")
                     # Instead of creating new checkout, modify existing subscription
-                    return update_subscription_tier(user_id, tier, billing_period)
+                    return update_subscription_tier(user_id, tier)
             except stripe.error.InvalidRequestError as stripe_check_error:
                 # Customer doesn't exist in Stripe - clear invalid customer ID
                 if 'No such customer' in str(stripe_check_error):
@@ -435,14 +420,12 @@ def create_checkout_session(user_id):
             cancel_url=f"{Config.FRONTEND_URL}/subscription/cancel",
             metadata={
                 'user_id': user_id,
-                'tier': tier,
-                'billing_period': billing_period
+                'tier': tier
             },
             subscription_data={
                 'metadata': {
                     'user_id': user_id,
-                    'tier': tier,
-                    'billing_period': billing_period
+                    'tier': tier
                 }
                 # Removed proration_behavior - only valid for existing subscriptions
             },
@@ -743,7 +726,7 @@ def update_subscription(user_id):
     data = request.json
     new_tier = data.get('tier')
     
-    if new_tier not in ['Explore', 'Accelerate', 'Achieve', 'Excel']:
+    if new_tier not in ['Free', 'Parent Supported', 'Weekly', 'Daily']:
         return jsonify({'error': 'Invalid subscription tier'}), 400
     
     supabase = get_supabase_client()
@@ -758,10 +741,10 @@ def update_subscription(user_id):
         
         if not user.get('stripe_customer_id'):
             # If upgrading from free, create checkout session
-            if new_tier != 'Explore':
+            if new_tier != 'Free':
                 return create_checkout_session(user_id)
             else:
-                return jsonify({'message': 'Already on Explore tier'}), 200
+                return jsonify({'message': 'Already on Free tier'}), 200
         
         # Get active subscription
         subscriptions = stripe.Subscription.list(
@@ -772,35 +755,30 @@ def update_subscription(user_id):
         
         if not subscriptions.data:
             # No active subscription, create new one if not free
-            if new_tier != 'Explore':
+            if new_tier != 'Free':
                 return create_checkout_session(user_id)
             else:
-                return jsonify({'message': 'Already on Explore tier'}), 200
-        
+                return jsonify({'message': 'Already on Free tier'}), 200
+
         subscription = subscriptions.data[0]
-        
-        # Handle downgrade to Explore
-        if new_tier == 'Explore':
+
+        # Handle downgrade to Free
+        if new_tier == 'Free':
             # Cancel subscription at period end
             stripe.Subscription.modify(
                 subscription.id,
                 cancel_at_period_end=True
             )
-            
+
             # Update database using existing columns
             supabase.table('users').update({
                 'subscription_status': 'canceling'
             }).eq('id', user_id).execute()
-            
+
             return jsonify({'message': 'Subscription will be cancelled at the end of the billing period'}), 200
-        
-        # Handle tier change - get the correct price ID format
-        tier_prices = SUBSCRIPTION_PRICES.get(new_tier)
-        if isinstance(tier_prices, dict):
-            # Use monthly price for downgrades by default
-            new_price_id = tier_prices.get('monthly')
-        else:
-            new_price_id = tier_prices
+
+        # Handle tier change - get the price ID (monthly only)
+        new_price_id = SUBSCRIPTION_PRICES.get(new_tier)
 
         if not new_price_id:
             return jsonify({'error': f'Price not configured for {new_tier} tier'}), 500

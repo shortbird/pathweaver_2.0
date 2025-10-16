@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify
 from flask_cors import cross_origin
 from database import get_supabase_client, get_supabase_admin_client
 from datetime import datetime
-from utils.auth.decorators import require_auth, require_paid_tier
+from utils.auth.decorators import require_auth
 
 bp = Blueprint('portfolio', __name__)
 
@@ -132,7 +132,6 @@ def get_public_portfolio(portfolio_slug):
 @bp.route('/user/<user_id>', methods=['GET'])
 @cross_origin()
 @require_auth
-@require_paid_tier
 def get_user_portfolio(auth_user_id: str, user_id: str):
     """
     Get portfolio data for a specific user
@@ -408,11 +407,24 @@ def get_public_diploma_by_user_id(user_id):
                 quest_id = quest.get('id')
 
                 # Get task completions for this quest from our task_completions data
-                quest_task_completions = [
-                    tc for tc in (task_completions.data or [])
-                    if tc.get('user_quest_tasks', {}).get('quest_id') == quest_id
-                    and tc.get('user_quest_tasks', {}).get('user_quest_id') == user_quest_id
-                ]
+                # Supabase returns nested data from !inner joins
+                quest_task_completions = []
+                for tc in (task_completions.data or []):
+                    task_info = tc.get('user_quest_tasks')
+                    # Check if task_info exists and is a dict (not None or list)
+                    if task_info and isinstance(task_info, dict):
+                        if (task_info.get('quest_id') == quest_id and
+                            task_info.get('user_quest_id') == user_quest_id):
+                            quest_task_completions.append(tc)
+                    # Handle case where Supabase returns it as a list with one element
+                    elif task_info and isinstance(task_info, list) and len(task_info) > 0:
+                        task_info = task_info[0]
+                        if (task_info.get('quest_id') == quest_id and
+                            task_info.get('user_quest_id') == user_quest_id):
+                            # Flatten the structure
+                            tc_copy = tc.copy()
+                            tc_copy['user_quest_tasks'] = task_info
+                            quest_task_completions.append(tc_copy)
 
                 # Organize evidence by task
                 task_evidence = {}
@@ -495,11 +507,24 @@ def get_public_diploma_by_user_id(user_id):
                 quest_id = quest.get('id')
 
                 # Get task completions for this in-progress quest
-                quest_task_completions = [
-                    tc for tc in (task_completions.data or [])
-                    if tc.get('user_quest_tasks', {}).get('quest_id') == quest_id
-                    and tc.get('user_quest_tasks', {}).get('user_quest_id') == user_quest_id
-                ]
+                # Supabase returns nested data from !inner joins
+                quest_task_completions = []
+                for tc in (task_completions.data or []):
+                    task_info = tc.get('user_quest_tasks')
+                    # Check if task_info exists and is a dict (not None or list)
+                    if task_info and isinstance(task_info, dict):
+                        if (task_info.get('quest_id') == quest_id and
+                            task_info.get('user_quest_id') == user_quest_id):
+                            quest_task_completions.append(tc)
+                    # Handle case where Supabase returns it as a list with one element
+                    elif task_info and isinstance(task_info, list) and len(task_info) > 0:
+                        task_info = task_info[0]
+                        if (task_info.get('quest_id') == quest_id and
+                            task_info.get('user_quest_id') == user_quest_id):
+                            # Flatten the structure
+                            tc_copy = tc.copy()
+                            tc_copy['user_quest_tasks'] = task_info
+                            quest_task_completions.append(tc_copy)
 
                 # Skip if no tasks completed yet
                 if not quest_task_completions:
