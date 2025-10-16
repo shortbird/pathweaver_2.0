@@ -5,7 +5,7 @@ import api from '../services/api'
 
 const SubscriptionRequestForm = ({ tier, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
-    tier_requested: tier?.display_name || tier?.tier_key || '',
+    tier_requested: tier?.tier_key || '',
     contact_preference: 'email',
     phone_number: '',
     message: ''
