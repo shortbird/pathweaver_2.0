@@ -294,12 +294,15 @@ def get_public_diploma_by_user_id(user_id):
     This is the route called by the diploma page when viewing /diploma/:userId
     """
     try:
+        print(f"=== DIPLOMA ENDPOINT CALLED FOR USER: {user_id} ===")
         supabase = get_supabase_client()
-        
+
         # Get user's basic info (not sensitive data)
         user = supabase.table('users').select('id, first_name, last_name').eq('id', user_id).execute()
-        
+        print(f"User query result: {user.data}")
+
         if not user.data:
+            print(f"ERROR: User not found for ID: {user_id}")
             return jsonify({'error': 'User not found'}), 404
         
         # Get user's completed quests with V3 data structure - optimized query
@@ -573,7 +576,12 @@ def get_public_diploma_by_user_id(user_id):
 
         # Sort achievements by date (completed_at for completed, started_at for in-progress)
         achievements.sort(key=lambda x: x.get('completed_at') or x.get('started_at'), reverse=True)
-        
+
+        print(f"=== RETURNING DIPLOMA DATA ===")
+        print(f"Student: {user.data[0]}")
+        print(f"Achievements: {len(achievements)}")
+        print(f"Total XP: {total_xp}")
+
         return jsonify({
             'student': user.data[0],
             'achievements': achievements,
@@ -581,9 +589,10 @@ def get_public_diploma_by_user_id(user_id):
             'total_xp': total_xp,
             'total_quests_completed': len(achievements)
         }), 200
-        
+
     except Exception as e:
         import traceback
+        print(f"=== ERROR IN DIPLOMA ENDPOINT ===")
         print(f"Error fetching diploma: {str(e)}")
         print(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to fetch diploma'}), 500
