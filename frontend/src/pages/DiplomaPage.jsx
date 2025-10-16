@@ -182,9 +182,10 @@ const DiplomaPage = () => {
       const diplomaData = response.data;
       setDiploma(diplomaData);
 
-      // Fetch badges for public diploma if user_id is available
+      // Fetch badges and learning events for public diploma if user_id is available
       if (diplomaData?.user_id) {
         await fetchEarnedBadges(diplomaData.user_id);
+        await fetchLearningEvents(diplomaData.user_id);
       }
 
       // Transform the data to match achievements format if needed
@@ -224,9 +225,10 @@ const DiplomaPage = () => {
         setTotalXPCount(data.total_xp);
       }
 
-      // Fetch badges for public diploma
+      // Fetch badges and learning events for public diploma
       if (userId) {
         await fetchEarnedBadges(userId);
+        await fetchLearningEvents(userId);
       }
     } catch (error) {
       console.error('Error fetching public diploma:', error);
@@ -361,6 +363,33 @@ const DiplomaPage = () => {
     } catch (error) {
       // Silently handle error - badges are optional
       setEarnedBadges([]);
+    }
+  };
+
+  const fetchLearningEvents = async (targetUserId = null) => {
+    try {
+      const userIdToFetch = targetUserId || user?.id;
+      if (!userIdToFetch) return;
+
+      // Use public endpoint if viewing someone else's diploma (via slug or userId)
+      const endpoint = slug || userId
+        ? `/api/users/${userIdToFetch}/learning-events/public`
+        : `/api/learning-events`;
+
+      const response = await api.get(endpoint, {
+        headers: {
+          'Cache-Control': 'no-cache'
+        }
+      });
+
+      if (response.data && response.data.events) {
+        setLearningEvents(response.data.events);
+      } else {
+        setLearningEvents([]);
+      }
+    } catch (error) {
+      // Silently handle error - learning events are optional
+      setLearningEvents([]);
     }
   };
 
@@ -985,6 +1014,27 @@ const DiplomaPage = () => {
                 <p className="text-gray-500">No badges earned yet - complete quests to earn your first badge!</p>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Learning Moments Section */}
+        {learningEvents.length > 0 && (
+          <div className="mb-12 pb-12 border-b border-gray-100">
+            <div className="text-center mb-8">
+              <h2 className="text-3xl font-bold mb-3" style={{ color: '#003f5c' }}>Learning Moments</h2>
+              <p className="text-gray-600 max-w-2xl mx-auto">
+                Spontaneous discoveries and growth captured along the journey
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {learningEvents.map((event) => (
+                <LearningEventCard
+                  key={event.id}
+                  event={event}
+                />
+              ))}
+            </div>
           </div>
         )}
 
