@@ -299,10 +299,11 @@ def get_public_diploma_by_user_id(user_id):
 
         # Get user's basic info (not sensitive data)
         user = supabase.table('users').select('id, first_name, last_name').eq('id', user_id).execute()
-        print(f"User query result: {user.data}")
+        print(f"User query result - data: {user.data}, type: {type(user.data)}, len: {len(user.data) if user.data else 0}")
+        print(f"User query result - full response: {user}")
 
-        if not user.data:
-            print(f"ERROR: User not found for ID: {user_id}")
+        if not user.data or len(user.data) == 0:
+            print(f"ERROR: User not found for ID: {user_id}, user.data is empty or None")
             return jsonify({'error': 'User not found'}), 404
         
         # Get user's completed quests with V3 data structure - optimized query
