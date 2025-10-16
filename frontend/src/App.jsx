@@ -36,8 +36,6 @@ import FriendsPage from './pages/FriendsPage'
 import CommunicationPage from './pages/CommunicationPage'
 import CalendarPage from './pages/CalendarPage'
 import SubscriptionPage from './pages/SubscriptionPage'
-import SubscriptionSuccess from './pages/SubscriptionSuccess'
-import SubscriptionCancel from './pages/SubscriptionCancel'
 import AdminPage from './pages/AdminPage'
 import AdvisorDashboard from './pages/AdvisorDashboard'
 import AdvisorBadgeForm from './pages/AdvisorBadgeForm'
@@ -99,9 +97,7 @@ function App() {
               <Route path="privacy" element={<PrivacyPolicy />} />
               <Route path="portfolio/:slug" element={<DiplomaPage />} />
               <Route path="diploma/:userId" element={<DiplomaPage />} />
-              <Route path="subscription/success" element={<SubscriptionSuccess />} />
-              <Route path="subscription/cancel" element={<SubscriptionCancel />} />
-              
+
               <Route element={<PrivateRoute />}>
                 <Route path="dashboard" element={<DashboardPage />} />
                 {/* Quest Routes */}

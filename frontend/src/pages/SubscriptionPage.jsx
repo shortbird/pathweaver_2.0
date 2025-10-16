@@ -1,91 +1,45 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import api from '../services/api'
-import toast from 'react-hot-toast'
 import { useSubscriptionTiers, formatPrice } from '../hooks/useSubscriptionTiers'
+import SubscriptionRequestForm from '../components/SubscriptionRequestForm'
 
 const SubscriptionPage = () => {
   const { user } = useAuth()
   const { data: tiers, isLoading: tiersLoading } = useSubscriptionTiers()
-  const [loadingTier, setLoadingTier] = useState(null)
-  const [canceling, setCanceling] = useState(false)
-  const [subscriptionStatus, setSubscriptionStatus] = useState(null)
-  const [loadingStatus, setLoadingStatus] = useState(true)
-  const [loading, setLoading] = useState(false)
+  const [selectedTier, setSelectedTier] = useState(null)
+  const [showRequestForm, setShowRequestForm] = useState(false)
 
-  const currentTier = user?.subscription_tier || 'Free'
+  const currentTier = user?.subscription_tier || 'Explore'
 
-  useEffect(() => {
-    fetchSubscriptionStatus()
-  }, [])
-
-  const fetchSubscriptionStatus = async () => {
-    try {
-      const response = await api.get('/api/subscriptions/status')
-      setSubscriptionStatus(response.data)
-    } catch (error) {
-      console.error('Failed to fetch subscription status:', error)
-    } finally {
-      setLoadingStatus(false)
-    }
+  const handleRequestUpgrade = (tier) => {
+    setSelectedTier(tier)
+    setShowRequestForm(true)
   }
 
-  const handleUpgrade = async (tier) => {
-    setLoadingTier(tier)
-    try {
-      const response = await api.post('/api/subscriptions/create-checkout', {
-        tier
-      })
-      window.location.href = response.data.checkout_url
-    } catch (error) {
-      if (error.response?.status === 404 && error.response?.data?.error?.includes('profile')) {
-        toast.error('User profile not found. Please contact support.')
-        console.error('User profile missing:', error.response?.data)
-      } else {
-        toast.error('Failed to create checkout session. Please try again.')
-        console.error('Checkout error:', error)
-      }
-      setLoadingTier(null)
-    }
+  const handleFormClose = () => {
+    setShowRequestForm(false)
+    setSelectedTier(null)
   }
 
-  const handleCancel = async () => {
-    if (!window.confirm('Are you sure you want to cancel your subscription? You will retain access until the end of your billing period.')) {
-      return
-    }
-
-    setCanceling(true)
-    try {
-      await api.post('/api/subscriptions/cancel', {})
-      toast.success('Subscription will be cancelled at the end of the billing period')
-      await fetchSubscriptionStatus()
-    } catch (error) {
-      toast.error('Failed to cancel subscription')
-    } finally {
-      setCanceling(false)
-    }
-  }
-
-  const handleBillingPortal = async () => {
-    setLoading(true)
-    try {
-      const response = await api.post('/api/subscriptions/billing-portal')
-      window.location.href = response.data.portal_url
-    } catch (error) {
-      toast.error('Failed to access billing portal')
-      setLoading(false)
-    }
+  const handleFormSuccess = () => {
+    // Could add additional success handling here
+    // For now, the form handles the toast notification
   }
 
   return (
-    <div className="py-16 bg-gray-50">
+    <div className="py-16 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-12">
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">Choose Your Learning Rhythm</h2>
           <p className="text-lg text-gray-700 max-w-3xl mx-auto">
             Start with a diploma. Make it valuable through real work.
           </p>
+          {user && (
+            <p className="text-sm text-gray-600 mt-4">
+              Current tier: <span className="font-semibold text-purple-600">{currentTier}</span>
+            </p>
+          )}
         </div>
 
         {tiersLoading ? (
@@ -97,6 +51,7 @@ const SubscriptionPage = () => {
             {tiers?.map((tier) => {
               const isCurrentTier = currentTier === tier.tier_key
               const monthlyPrice = parseFloat(tier.price_monthly)
+              const isFree = tier.tier_key === 'Explore'
 
               return (
                 <div
@@ -148,44 +103,86 @@ const SubscriptionPage = () => {
                     ))}
                   </ul>
 
+                  {/* Action Button */}
                   {isCurrentTier ? (
-                    tier.tier_key === 'Free' ? (
-                      <button className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold cursor-not-allowed text-sm" disabled>
-                        Current Plan
-                      </button>
-                    ) : (
-                      <div className="space-y-2">
-                        <button onClick={handleBillingPortal} disabled={loading} className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-2 px-4 rounded-lg font-bold transition-all text-sm">
-                          {loading ? 'Loading...' : 'Manage'}
-                        </button>
-                        {subscriptionStatus?.status !== 'canceling' && (
-                          <button onClick={handleCancel} disabled={canceling} className="w-full text-red-600 hover:bg-red-50 py-2 px-4 rounded-lg font-medium transition-all text-xs">
-                            {canceling ? 'Canceling...' : 'Cancel'}
-                          </button>
-                        )}
-                      </div>
-                    )
+                    <button className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold cursor-not-allowed text-sm" disabled>
+                      Current Plan
+                    </button>
+                  ) : isFree && !user ? (
+                    <Link to="/register" className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 px-4 rounded-lg font-semibold transition-colors text-center text-sm">
+                      Start Free
+                    </Link>
+                  ) : !user ? (
+                    <Link to="/login" className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-2 px-4 rounded-lg font-bold transition-all text-center text-sm">
+                      Sign In to Upgrade
+                    </Link>
                   ) : (
-                    tier.tier_key === 'Free' ? (
-                      <Link to="/register" className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 px-4 rounded-lg font-semibold transition-colors text-center text-sm">
-                        Start Free
-                      </Link>
-                    ) : (
-                      <button
-                        onClick={() => handleUpgrade(tier.tier_key)}
-                        disabled={loadingTier !== null}
-                        className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-2 px-4 rounded-lg font-bold transition-all text-sm disabled:opacity-75"
-                      >
-                        {loadingTier === tier.tier_key ? 'Processing...' : `Get ${tier.display_name}`}
-                      </button>
-                    )
+                    <button
+                      onClick={() => handleRequestUpgrade(tier)}
+                      className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-2 px-4 rounded-lg font-bold transition-all text-sm"
+                    >
+                      Get {tier.display_name}
+                    </button>
                   )}
                 </div>
               )
             })}
           </div>
         )}
+
+        {/* Additional Info Section */}
+        <div className="mt-16 bg-white rounded-xl shadow-sm p-8 max-w-3xl mx-auto">
+          <h3 className="text-2xl font-bold mb-4 text-center">How It Works</h3>
+          <div className="space-y-4 text-gray-700">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center text-white font-bold">
+                1
+              </div>
+              <div>
+                <h4 className="font-semibold mb-1">Choose Your Tier</h4>
+                <p className="text-sm">Select the tier that fits your learning rhythm and goals.</p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center text-white font-bold">
+                2
+              </div>
+              <div>
+                <h4 className="font-semibold mb-1">Submit Your Request</h4>
+                <p className="text-sm">Fill out a quick form with your contact preferences.</p>
+              </div>
+            </div>
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0 w-8 h-8 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center text-white font-bold">
+                3
+              </div>
+              <div>
+                <h4 className="font-semibold mb-1">Connect with Tanner</h4>
+                <p className="text-sm">Tanner will reach out within 24-48 hours to discuss your goals and help you get started.</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-gray-200">
+            <p className="text-sm text-gray-600 text-center">
+              <strong>Questions?</strong> Email{' '}
+              <a href="mailto:tanner@optioeducation.com" className="text-purple-600 hover:underline font-semibold">
+                tanner@optioeducation.com
+              </a>
+              {' '}- Tanner reads every message personally.
+            </p>
+          </div>
+        </div>
       </div>
+
+      {/* Subscription Request Form Modal */}
+      {showRequestForm && selectedTier && (
+        <SubscriptionRequestForm
+          tier={selectedTier}
+          onClose={handleFormClose}
+          onSuccess={handleFormSuccess}
+        />
+      )}
     </div>
   )
 }

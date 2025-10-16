@@ -1,0 +1,64 @@
+{% extends "email/base.html" %}
+
+{% block content %}
+<h1 style="color: #6d469b; font-size: 28px; margin-bottom: 20px;">Your Upgrade Request Has Been Received</h1>
+
+<p style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 20px;">
+    Hi {{ user_name }},
+</p>
+
+<p style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 20px;">
+    Thank you for your interest in upgrading to <strong>{{ tier_requested }}</strong>. I've received your request and will reach out to you personally within the next 24-48 hours.
+</p>
+
+<div style="background: linear-gradient(135deg, #ef597b 0%, #6d469b 100%); padding: 20px; border-radius: 8px; margin: 30px 0;">
+    <h2 style="color: white; font-size: 20px; margin: 0 0 15px 0;">Request Details</h2>
+    <table style="width: 100%; color: white;">
+        <tr>
+            <td style="padding: 8px 0;"><strong>Requested Tier:</strong></td>
+            <td style="padding: 8px 0; text-align: right;">{{ tier_requested }}</td>
+        </tr>
+        <tr>
+            <td style="padding: 8px 0;"><strong>Preferred Contact:</strong></td>
+            <td style="padding: 8px 0; text-align: right;">{{ contact_preference|capitalize }}</td>
+        </tr>
+        {% if phone_number %}
+        <tr>
+            <td style="padding: 8px 0;"><strong>Phone Number:</strong></td>
+            <td style="padding: 8px 0; text-align: right;">{{ phone_number }}</td>
+        </tr>
+        {% endif %}
+    </table>
+</div>
+
+<p style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 20px;">
+    I'm excited to learn more about your goals and discuss how {{ tier_requested }} can support your learning journey. This is about finding the right rhythm for your growth.
+</p>
+
+<p style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 20px;">
+    <strong>What happens next?</strong>
+</p>
+
+<ul style="font-size: 16px; line-height: 1.8; color: #333; margin-bottom: 30px; padding-left: 20px;">
+    <li>I'll review your request and current progress</li>
+    <li>I'll reach out via {{ contact_preference }} within 1-2 business days</li>
+    <li>We'll discuss your goals and how {{ tier_requested }} fits your needs</li>
+    <li>If it's the right fit, I'll help you get set up immediately</li>
+</ul>
+
+<p style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 20px;">
+    Have questions in the meantime? Just reply to this email - I read every message personally.
+</p>
+
+<p style="font-size: 16px; line-height: 1.6; color: #333; margin-top: 40px;">
+    Talk soon,<br>
+    <strong>Tanner</strong><br>
+    <span style="color: #6d469b;">Founder, Optio</span>
+</p>
+
+<div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee;">
+    <p style="font-size: 14px; color: #666; line-height: 1.6;">
+        <strong>Remember:</strong> The process is the goal. Every step you take matters, and I'm here to support you on this journey.
+    </p>
+</div>
+{% endblock %}

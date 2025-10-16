@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Subscription Request</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+        <tr>
+            <td align="center" style="padding: 40px 0;">
+                <table role="presentation" style="width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                    <tr>
+                        <td style="padding: 40px 40px 20px 40px;">
+                            <h1 style="color: #ef597b; font-size: 24px; margin: 0 0 20px 0;">New Subscription Upgrade Request</h1>
+
+                            <p style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 30px;">
+                                A user has requested to upgrade their subscription tier.
+                            </p>
+
+                            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 4px solid #6d469b;">
+                                <h2 style="color: #6d469b; font-size: 18px; margin: 0 0 15px 0;">User Information</h2>
+                                <table style="width: 100%; font-size: 14px;">
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #666;"><strong>Name:</strong></td>
+                                        <td style="padding: 8px 0; color: #333;">{{ user_name }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #666;"><strong>Email:</strong></td>
+                                        <td style="padding: 8px 0; color: #333;">{{ user_email }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #666;"><strong>User ID:</strong></td>
+                                        <td style="padding: 8px 0; color: #333; font-family: monospace; font-size: 12px;">{{ user_id }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0; color: #666;"><strong>Current Tier:</strong></td>
+                                        <td style="padding: 8px 0; color: #333;">{{ current_tier }}</td>
+                                    </tr>
+                                </table>
+                            </div>
+
+                            <div style="background: linear-gradient(135deg, #ef597b 0%, #6d469b 100%); padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+                                <h2 style="color: white; font-size: 18px; margin: 0 0 15px 0;">Request Details</h2>
+                                <table style="width: 100%; color: white;">
+                                    <tr>
+                                        <td style="padding: 8px 0;"><strong>Requested Tier:</strong></td>
+                                        <td style="padding: 8px 0; text-align: right; font-size: 20px;">{{ tier_requested }}</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="padding: 8px 0;"><strong>Contact Preference:</strong></td>
+                                        <td style="padding: 8px 0; text-align: right;">{{ contact_preference|capitalize }}</td>
+                                    </tr>
+                                    {% if phone_number %}
+                                    <tr>
+                                        <td style="padding: 8px 0;"><strong>Phone Number:</strong></td>
+                                        <td style="padding: 8px 0; text-align: right;">{{ phone_number }}</td>
+                                    </tr>
+                                    {% endif %}
+                                </table>
+                            </div>
+
+                            {% if message %}
+                            <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 8px; margin-bottom: 30px;">
+                                <h3 style="color: #856404; font-size: 16px; margin: 0 0 10px 0;">User's Message:</h3>
+                                <p style="color: #856404; margin: 0; font-style: italic; line-height: 1.6;">
+                                    "{{ message }}"
+                                </p>
+                            </div>
+                            {% endif %}
+
+                            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee;">
+                                <p style="font-size: 14px; color: #666; margin: 0;">
+                                    <strong>Next Steps:</strong>
+                                </p>
+                                <ul style="font-size: 14px; color: #666; margin: 10px 0 0 0; padding-left: 20px;">
+                                    <li>Review user's progress and activity</li>
+                                    <li>Contact user via {{ contact_preference }} within 24-48 hours</li>
+                                    <li>Discuss their goals and tier fit</li>
+                                    <li>Manually update their tier in admin panel if appropriate</li>
+                                </ul>
+                            </div>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 20px 40px 40px 40px; text-align: center; color: #999; font-size: 12px;">
+                            <p style="margin: 0;">This is an automated notification from Optio subscription system</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

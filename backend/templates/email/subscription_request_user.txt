@@ -1,0 +1,29 @@
+Your Upgrade Request Has Been Received
+
+Hi {{ user_name }},
+
+Thank you for your interest in upgrading to {{ tier_requested }}. I've received your request and will reach out to you personally within the next 24-48 hours.
+
+REQUEST DETAILS
+---------------
+Requested Tier: {{ tier_requested }}
+Preferred Contact: {{ contact_preference|capitalize }}
+{% if phone_number %}Phone Number: {{ phone_number }}{% endif %}
+
+I'm excited to learn more about your goals and discuss how {{ tier_requested }} can support your learning journey. This is about finding the right rhythm for your growth.
+
+WHAT HAPPENS NEXT?
+-------------------
+- I'll review your request and current progress
+- I'll reach out via {{ contact_preference }} within 1-2 business days
+- We'll discuss your goals and how {{ tier_requested }} fits your needs
+- If it's the right fit, I'll help you get set up immediately
+
+Have questions in the meantime? Just reply to this email - I read every message personally.
+
+Talk soon,
+Tanner
+Founder, Optio
+
+---
+Remember: The process is the goal. Every step you take matters, and I'm here to support you on this journey.

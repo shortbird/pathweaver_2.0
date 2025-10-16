@@ -2,7 +2,7 @@ from flask import Flask, jsonify, request, make_response
 from dotenv import load_dotenv
 import os
 
-from routes import auth, subscriptions, users, community, portfolio
+from routes import auth, subscription_requests, users, community, portfolio
 from routes.quest_ideas import quest_ideas_bp
 from routes import uploads
 from routes.settings import settings_bp
@@ -53,7 +53,7 @@ memory_monitor.init_app(app)
 
 # Register existing routes
 app.register_blueprint(auth.bp, url_prefix='/api/auth')
-app.register_blueprint(subscriptions.bp, url_prefix='/api/subscriptions')
+app.register_blueprint(subscription_requests.bp)  # /api/subscription-requests (blueprint has url_prefix)
 app.register_blueprint(users.bp, url_prefix='/api/users')
 # Also register users blueprint under v3 for compatibility with unique name
 app.register_blueprint(users.bp, url_prefix='/api/v3/users', name='users_v3')

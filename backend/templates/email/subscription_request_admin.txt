@@ -1,0 +1,33 @@
+NEW SUBSCRIPTION UPGRADE REQUEST
+=================================
+
+A user has requested to upgrade their subscription tier.
+
+USER INFORMATION
+----------------
+Name: {{ user_name }}
+Email: {{ user_email }}
+User ID: {{ user_id }}
+Current Tier: {{ current_tier }}
+
+REQUEST DETAILS
+---------------
+Requested Tier: {{ tier_requested }}
+Contact Preference: {{ contact_preference|capitalize }}
+{% if phone_number %}Phone Number: {{ phone_number }}{% endif %}
+
+{% if message %}
+USER'S MESSAGE
+--------------
+"{{ message }}"
+{% endif %}
+
+NEXT STEPS
+----------
+1. Review user's progress and activity
+2. Contact user via {{ contact_preference }} within 24-48 hours
+3. Discuss their goals and tier fit
+4. Manually update their tier in admin panel if appropriate
+
+---
+This is an automated notification from Optio subscription system

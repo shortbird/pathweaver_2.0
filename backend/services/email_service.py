@@ -220,5 +220,55 @@ class EmailService:
             }
         )
 
+    def send_subscription_request_confirmation(
+        self,
+        user_email: str,
+        user_name: str,
+        tier_requested: str,
+        contact_preference: str,
+        phone_number: str = None
+    ) -> bool:
+        """Send confirmation email to user after subscription upgrade request"""
+        return self.send_templated_email(
+            to_email=user_email,
+            subject=f"Your {tier_requested} Upgrade Request Has Been Received",
+            template_name='subscription_request_user',
+            context={
+                'user_name': user_name,
+                'tier_requested': tier_requested,
+                'contact_preference': contact_preference,
+                'phone_number': phone_number
+            }
+        )
+
+    def send_subscription_request_admin_notification(
+        self,
+        user_name: str,
+        user_email: str,
+        user_id: str,
+        tier_requested: str,
+        current_tier: str,
+        contact_preference: str,
+        phone_number: str = None,
+        message: str = None
+    ) -> bool:
+        """Send notification email to admin (Tanner) about new subscription request"""
+        admin_email = os.getenv('ADMIN_EMAIL', 'tanner@optioeducation.com')
+        return self.send_templated_email(
+            to_email=admin_email,
+            subject=f"New Subscription Request: {user_name} → {tier_requested}",
+            template_name='subscription_request_admin',
+            context={
+                'user_name': user_name,
+                'user_email': user_email,
+                'user_id': user_id,
+                'tier_requested': tier_requested,
+                'current_tier': current_tier,
+                'contact_preference': contact_preference,
+                'phone_number': phone_number,
+                'message': message
+            }
+        )
+
 # Create singleton instance
 email_service = EmailService()
