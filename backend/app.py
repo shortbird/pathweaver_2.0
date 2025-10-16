@@ -220,6 +220,14 @@ try:
 except Exception as e:
     print(f"Warning: Calendar routes not available: {e}")
 
+# Register Learning Events blueprint
+try:
+    from routes.learning_events import learning_events_bp
+    app.register_blueprint(learning_events_bp)  # /api/learning-events
+    print("Learning Events routes registered successfully")
+except Exception as e:
+    print(f"Warning: Learning Events routes not available: {e}")
+
 
 @app.route('/', methods=['GET', 'HEAD'])
 def root():

@@ -33,6 +33,7 @@ import TranscriptPage from './pages/TranscriptPage'
 import DiplomaPage from './pages/DiplomaPage'
 import ProfilePage from './pages/ProfilePage'
 import FriendsPage from './pages/FriendsPage'
+import ConnectionsPage from './pages/ConnectionsPage'
 import CommunicationPage from './pages/CommunicationPage'
 import CalendarPage from './pages/CalendarPage'
 import SubscriptionPage from './pages/SubscriptionPage'
@@ -114,7 +115,8 @@ function App() {
                 {/* Other Routes */}
                 <Route path="diploma" element={<DiplomaPage />} />
                 <Route path="profile" element={<ProfilePage />} />
-                <Route path="friends" element={<FriendsPage />} />
+                <Route path="friends" element={<Navigate to="/connections" replace />} />
+                <Route path="connections" element={<ConnectionsPage />} />
                 <Route path="communication" element={<CommunicationPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
                 <Route path="subscription" element={<SubscriptionPage />} />

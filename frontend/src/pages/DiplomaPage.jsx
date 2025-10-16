@@ -5,6 +5,7 @@ import api from '../services/api';
 import SkillsRadarChart from '../components/diploma/SkillsRadarChart';
 import AccreditedDiplomaModal from '../components/diploma/AccreditedDiplomaModal';
 import BadgeCarouselCard from '../components/hub/BadgeCarouselCard';
+import LearningEventCard from '../components/learning-events/LearningEventCard';
 import { SkeletonDiplomaHeader, SkeletonStats, SkeletonAchievementGrid } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 import { formatErrorMessage } from '../utils/errorMessages';
@@ -24,6 +25,7 @@ const DiplomaPage = () => {
   const [totalXP, setTotalXP] = useState({});
   const [subjectXP, setSubjectXP] = useState({});  // NEW: Subject-specific XP
   const [earnedBadges, setEarnedBadges] = useState([]);  // Earned badges
+  const [learningEvents, setLearningEvents] = useState([]);  // Learning events
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAchievement, setSelectedAchievement] = useState(null);
   const [shareableLink, setShareableLink] = useState('');
@@ -131,6 +133,7 @@ const DiplomaPage = () => {
         fetchAchievements();
         fetchSubjectXP();  // NEW: Fetch subject-specific XP
         fetchEarnedBadges();  // Fetch earned badges
+        fetchLearningEvents();  // Fetch learning events
         generateShareableLink();
       } else {
         // User doesn't have access, just stop loading
@@ -149,17 +152,19 @@ const DiplomaPage = () => {
         fetchAchievements();
         fetchSubjectXP();
         fetchEarnedBadges();
+        fetchLearningEvents();
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
+
     // Also refresh on focus
     const handleFocus = () => {
       if (user && !slug && !userId && hasAccess) {
         fetchAchievements();
         fetchSubjectXP();
         fetchEarnedBadges();
+        fetchLearningEvents();
       }
     };
     

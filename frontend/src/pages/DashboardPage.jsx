@@ -1,8 +1,9 @@
-import React, { useEffect, memo } from 'react'
+import React, { useEffect, memo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
 import QuestCardSimple from '../components/quest/QuestCardSimple'
+import LearningEventModal from '../components/learning-events/LearningEventModal'
 import {
   RocketLaunchIcon
 } from '@heroicons/react/24/outline'
@@ -62,6 +63,7 @@ const ActiveQuests = memo(({ activeQuests }) => {
 
 const DashboardPage = () => {
   const { user } = useAuth()
+  const [showLearningEventModal, setShowLearningEventModal] = useState(false)
 
   // Use React Query hooks for data fetching
   const {
@@ -123,6 +125,18 @@ const DashboardPage = () => {
         </p>
       </div>
 
+      {/* Capture Learning Moment Button */}
+      <button
+        onClick={() => setShowLearningEventModal(true)}
+        className="w-full bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white py-4 px-6 rounded-xl hover:shadow-lg transition-all duration-300 mb-8 flex items-center justify-center gap-3 font-semibold text-lg"
+      >
+        <span className="text-2xl">✨</span>
+        <div className="text-left">
+          <div>Capture a Learning Moment</div>
+          <div className="text-white/80 text-sm font-normal">Record any discovery, skill, or growth</div>
+        </div>
+      </button>
+
       {/* Active Quests Panel */}
       <div>
         <div className="flex items-center justify-between mb-6">
@@ -136,6 +150,16 @@ const DashboardPage = () => {
         </div>
         <ActiveQuests activeQuests={dashboardData?.active_quests} />
       </div>
+
+      {/* Learning Event Modal */}
+      <LearningEventModal
+        isOpen={showLearningEventModal}
+        onClose={() => setShowLearningEventModal(false)}
+        onSuccess={() => {
+          setShowLearningEventModal(false);
+          // Optionally refetch dashboard data here if needed
+        }}
+      />
     </div>
   )
 }

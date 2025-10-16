@@ -117,7 +117,8 @@ frontend/src/
 │   ├── DemoPage.jsx            # Demo features
 │   ├── DiplomaPage.jsx         # CORE FEATURE
 │   ├── EmailVerificationPage.jsx  # Email verification
-│   ├── FriendsPage.jsx         # Community features (paid tier)
+│   ├── ConnectionsPage.jsx     # Connections/community features (paid tier) - NEW REDESIGN
+│   ├── FriendsPage.jsx         # DEPRECATED - Redirects to /connections
 │   ├── HomePage.jsx            # Landing page
 │   ├── LoginPage.jsx           # Authentication
 │   ├── PrivacyPolicy.jsx       # Legal pages
@@ -139,6 +140,25 @@ frontend/src/
 │   │   └── BadgeImageGenerator.jsx # Badge image generation
 │   ├── diploma/      # Diploma components
 │   ├── demo/         # Demo feature components
+│   ├── connections/  # Connections page components (NEW REDESIGN)
+│   │   ├── ConnectionsHeader.jsx      # Hero header with philosophy-aligned copy
+│   │   ├── ConnectionsTabs.jsx        # Tab navigation (Activity/Connections/Invitations)
+│   │   ├── ActivityFeed/              # NEW: Activity feed tab
+│   │   │   ├── ActivityFeedTab.jsx
+│   │   │   ├── ActivityCard.jsx
+│   │   │   └── ActivityEmptyState.jsx
+│   │   ├── YourConnections/           # Connections grid view
+│   │   │   ├── ConnectionsTab.jsx
+│   │   │   ├── ConnectionCard.jsx
+│   │   │   ├── ConnectionSearch.jsx
+│   │   │   └── ConnectionsEmptyState.jsx
+│   │   ├── Invitations/               # Unified invitations view
+│   │   │   ├── InvitationsTab.jsx
+│   │   │   ├── ConnectionRequest.jsx
+│   │   │   ├── TeamUpInvite.jsx
+│   │   │   └── InvitationsEmptyState.jsx
+│   │   └── Modals/
+│   │       └── AddConnectionModal.jsx
 │   ├── hub/          # Quest & badge hub components
 │   │   ├── BadgeCarouselCard.jsx # Badge card with teen-focused images
 │   │   └── QuestCard.jsx         # Quest card component
@@ -401,11 +421,18 @@ frontend/src/
 - **Auto-navigation**: Scrolls to top when navigating between sections
 - **Critical importance**: This is what students showcase to employers
 
-### Community Features (Paid Tier Only)
-- **Friends system**: Add friends, view friend activity
-- **Collaboration invites**: Team up on quests with friends
-- **Friend requests**: Send/accept/reject friendship requests
-- **Activity sharing**: See friends' quest completions and achievements
+### Connections Feature (Paid Tier Only) - NEW REDESIGN 2025
+- **Rebranded**: "Friends" → "Connections" for more professional, educational focus
+- **Three-tab interface**: Activity Feed, Your Connections, Invitations
+- **Activity Feed (NEW)**: See what connections are learning RIGHT NOW with present-focused language
+- **Connection Cards**: Rich cards showing current pillar focus and learning activity
+- **Unified Invitations**: Connection requests + team-up invites in one organized view
+- **Process-focused copy**: "is exploring", "currently learning", "learning partners" terminology
+- **Brand gradient design**: Purple (#6D469B) → Pink (#EF597B) with pillar-specific accent colors
+- **Poppins typography**: Bold/Semi-Bold/Medium only (700/600/500)
+- **Mobile-first responsive**: Optimized for all screen sizes
+- **WCAG 2.1 AA accessible**: Full keyboard navigation, screen reader support
+- **Modular architecture**: Clean component structure in `/components/connections/`
 - **Database optimization**: Friendship updates use bypass function to avoid timestamp triggers
 
 ### Authentication & Security
