@@ -71,12 +71,32 @@ def get_badge_detail(badge_id):
 @require_auth
 def select_badge(user_id, badge_id):
     """
-    Start pursuing this badge.
+    Start pursuing this badge (paid tier only).
 
     Path params:
         badge_id: Badge UUID
     """
+    from database import get_supabase_admin_client
+
     try:
+        # Check if user is on paid tier
+        supabase = get_supabase_admin_client()
+        user = supabase.table('users').select('subscription_tier').eq('id', user_id).single().execute()
+
+        if not user.data:
+            return jsonify({
+                'success': False,
+                'error': 'User not found'
+            }), 404
+
+        # Free tier users cannot start badges
+        if user.data.get('subscription_tier') == 'Free':
+            return jsonify({
+                'success': False,
+                'error': 'Badges are a paid feature. Upgrade to start pursuing badges and unlock your full potential!',
+                'requires_upgrade': True
+            }), 403
+
         user_badge = BadgeService.select_badge(user_id, badge_id)
 
         return jsonify({

@@ -2,9 +2,10 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 import toast from 'react-hot-toast';
-import { CheckCircle, Circle, ArrowLeft, Trophy, Target, Zap, Info } from 'lucide-react';
+import { CheckCircle, Circle, ArrowLeft, Trophy, Target, Zap, Info, Lock, Crown } from 'lucide-react';
 import { BadgePillarIcon } from '../components/badges/BadgePillarIcon';
 import BadgeInfoModal from '../components/badges/BadgeInfoModal';
+import { useAuth } from '../contexts/AuthContext';
 
 /**
  * Updated pillar color gradients - matching BadgeCard design
@@ -21,10 +22,14 @@ const pillarColors = {
 export default function BadgeDetail() {
   const { badgeId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [badge, setBadge] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selecting, setSelecting] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
+
+  // Check if user is on free tier
+  const isFreeTier = user?.subscription_tier === 'Free';
 
   useEffect(() => {
     // Scroll to top handled globally by ScrollToTop component
@@ -44,6 +49,13 @@ export default function BadgeDetail() {
   };
 
   const handleSelectBadge = async () => {
+    // Check if user is on free tier
+    if (isFreeTier) {
+      toast.error('Badges are a paid feature. Upgrade to unlock!');
+      navigate('/subscription');
+      return;
+    }
+
     setSelecting(true);
     try {
       await api.post(`/api/badges/${badgeId}/select`, {});
@@ -51,7 +63,13 @@ export default function BadgeDetail() {
       await fetchBadgeDetail();
     } catch (error) {
       console.error('Error selecting badge:', error);
-      toast.error(error.response?.data?.error || 'Failed to select badge');
+      const errorMessage = error.response?.data?.error || 'Failed to select badge';
+      toast.error(errorMessage);
+
+      // If backend says upgrade required, redirect to subscription page
+      if (error.response?.data?.requires_upgrade) {
+        setTimeout(() => navigate('/subscription'), 1500);
+      }
     } finally {
       setSelecting(false);
     }
@@ -264,21 +282,58 @@ export default function BadgeDetail() {
 
         {/* Select Badge Section (if not active) - Redesigned */}
         {!isActive && !isCompleted && (
-          <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl shadow-lg p-8 mb-8 border-2 border-purple-100">
-            <h2 className="text-2xl font-bold mb-4">Ready to Start Your Journey?</h2>
-            <p className="text-gray-700 mb-6 leading-relaxed">
-              Select this badge to begin your learning adventure. You'll be able to complete quests,
-              track your progress, and earn this badge as you develop new skills.
-            </p>
-            <button
-              onClick={handleSelectBadge}
-              disabled={selecting}
-              className={`px-8 py-4 bg-gradient-to-r ${gradientClass} text-white rounded-xl font-bold text-lg hover:shadow-xl hover:-translate-y-0.5 transition-all ${
-                selecting ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
-            >
-              {selecting ? 'Selecting...' : 'Start This Badge'}
-            </button>
+          <div className={`rounded-xl shadow-lg p-8 mb-8 border-2 ${
+            isFreeTier
+              ? 'bg-gradient-to-br from-amber-50 to-yellow-50 border-amber-200'
+              : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-100'
+          }`}>
+            {isFreeTier ? (
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <Crown className="w-8 h-8 text-amber-600" />
+                  <h2 className="text-2xl font-bold text-gray-900">Unlock Badges with a Paid Plan</h2>
+                </div>
+                <p className="text-gray-700 mb-6 leading-relaxed">
+                  Badges are an exclusive feature for paid subscribers. Upgrade to start pursuing badges,
+                  track your progress across quests, and showcase your achievements on your diploma.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-4">
+                  <button
+                    onClick={() => navigate('/subscription')}
+                    className="px-8 py-4 bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-xl font-bold text-lg hover:shadow-xl hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                  >
+                    <Crown className="w-5 h-5" />
+                    Upgrade Now
+                  </button>
+                  <button
+                    onClick={() => navigate('/badges')}
+                    className="px-8 py-4 border-2 border-gray-300 text-gray-700 rounded-xl font-bold text-lg hover:bg-gray-50 transition-all"
+                  >
+                    Browse Other Badges
+                  </button>
+                </div>
+                <p className="text-sm text-gray-600 mt-4">
+                  You can still view badges and quests on the free tier, but you'll need to upgrade to start pursuing them.
+                </p>
+              </>
+            ) : (
+              <>
+                <h2 className="text-2xl font-bold mb-4">Ready to Start Your Journey?</h2>
+                <p className="text-gray-700 mb-6 leading-relaxed">
+                  Select this badge to begin your learning adventure. You'll be able to complete quests,
+                  track your progress, and earn this badge as you develop new skills.
+                </p>
+                <button
+                  onClick={handleSelectBadge}
+                  disabled={selecting}
+                  className={`px-8 py-4 bg-gradient-to-r ${gradientClass} text-white rounded-xl font-bold text-lg hover:shadow-xl hover:-translate-y-0.5 transition-all ${
+                    selecting ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {selecting ? 'Selecting...' : 'Start This Badge'}
+                </button>
+              </>
+            )}
           </div>
         )}
 

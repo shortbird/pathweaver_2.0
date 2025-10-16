@@ -1,6 +1,8 @@
 import React from 'react';
 import { BadgePillarIcon } from '../badges/BadgePillarIcon';
 import { useNavigate } from 'react-router-dom';
+import { Crown } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * BadgeCarouselCard Component
@@ -10,10 +12,15 @@ import { useNavigate } from 'react-router-dom';
  * - Teen-focused imagery
  * - Full description display
  * - Progress metrics (x/x quests, x/x XP)
+ * - Paid feature indicator for free tier users
  * - Entire card is clickable
  */
 export default function BadgeCarouselCard({ badge }) {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Check if user is on free tier
+  const isFreeTier = user?.subscription_tier === 'Free';
 
   const handleClick = () => {
     navigate(`/badges/${badge.id}`);
@@ -77,6 +84,14 @@ export default function BadgeCarouselCard({ badge }) {
         <div className="absolute top-3 left-3 bg-white/20 backdrop-blur-sm rounded-full p-2">
           <BadgePillarIcon pillar={badge.pillar_primary} className="w-6 h-6 text-white drop-shadow" />
         </div>
+
+        {/* Paid Feature Badge - Top Right */}
+        {isFreeTier && (
+          <div className="absolute top-3 right-3 bg-amber-500/90 backdrop-blur-sm text-white px-3 py-1.5 rounded-full text-xs font-bold flex items-center gap-1.5 shadow-lg">
+            <Crown className="w-3.5 h-3.5" />
+            PAID
+          </div>
+        )}
       </div>
 
       {/* Card content */}
