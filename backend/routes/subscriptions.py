@@ -68,9 +68,9 @@ def refresh_subscription_status(user_id):
         stripe_customer_id = user.get('stripe_customer_id')
 
         if not stripe_customer_id:
-            # User has no Stripe customer - they're on Explore tier
+            # User has no Stripe customer - they're on Free tier
             return jsonify({
-                'tier': 'Explore',
+                'tier': 'Free',
                 'status': 'inactive',
                 'refreshed': True
             }), 200
@@ -83,14 +83,14 @@ def refresh_subscription_status(user_id):
         )
 
         if not subscriptions.data:
-            # No subscriptions found - downgrade to Explore
+            # No subscriptions found - downgrade to Free
             supabase.table('users').update({
-                'subscription_tier': 'Explore',
+                'subscription_tier': 'Free',
                 'subscription_status': 'inactive'
             }).eq('id', user_id).execute()
 
             return jsonify({
-                'tier': 'Explore',
+                'tier': 'Free',
                 'status': 'inactive',
                 'refreshed': True
             }), 200
@@ -111,7 +111,7 @@ def refresh_subscription_status(user_id):
             elif tier_prices:
                 price_to_tier[tier_prices] = tier_name
 
-        current_tier = price_to_tier.get(price_id, 'Explore')
+        current_tier = price_to_tier.get(price_id, 'Free')
 
         # Update database with latest info
         update_data = {
@@ -524,7 +524,7 @@ def verify_checkout_session(user_id):
                     # Legacy format (single price)
                     price_to_tier[tier_prices] = tier_name
 
-            tier = price_to_tier.get(price_id, 'Accelerate')
+            tier = price_to_tier.get(price_id, 'Free')
             print(f"Tier from price mapping: {tier}")
             print(f"Available price mappings: {price_to_tier}")
         
@@ -598,7 +598,7 @@ def get_subscription_status(user_id):
             print(f"Debug - No user found for id: {user_id}, returning default free tier")
             # Return default free tier status if user not in database yet
             return jsonify({
-                'tier': 'Explore',
+                'tier': 'Free',
                 'status': 'inactive',
                 'stripe_customer': False
             }), 200
@@ -607,7 +607,7 @@ def get_subscription_status(user_id):
         # Basic response for users without Stripe customer
         if not user.get('stripe_customer_id'):
             return jsonify({
-                'tier': user.get('subscription_tier', 'Explore'),
+                'tier': user.get('subscription_tier', 'Free'),
                 'status': 'inactive',
                 'stripe_customer': False
             }), 200
@@ -625,12 +625,12 @@ def get_subscription_status(user_id):
                 print(f"Warning: Invalid Stripe customer ID {user['stripe_customer_id']} for user {user_id}. Clearing from database.")
                 supabase.table('users').update({
                     'stripe_customer_id': None,
-                    'subscription_tier': 'Explore',
+                    'subscription_tier': 'Free',
                     'subscription_status': 'inactive'
                 }).eq('id', user_id).execute()
 
                 return jsonify({
-                    'tier': 'Explore',
+                    'tier': 'Free',
                     'status': 'inactive',
                     'stripe_customer': False
                 }), 200
@@ -656,7 +656,7 @@ def get_subscription_status(user_id):
                     price_to_tier[tier_prices] = tier_name
             
             # Get tier from price mapping or metadata
-            current_tier = price_to_tier.get(price_id, 'Explore')
+            current_tier = price_to_tier.get(price_id, 'Free')
             
             # Also check subscription metadata as fallback
             if subscription.get('metadata') and subscription['metadata'].get('tier'):
@@ -682,7 +682,7 @@ def get_subscription_status(user_id):
             }), 200
         else:
             return jsonify({
-                'tier': user.get('subscription_tier', 'Explore'),
+                'tier': user.get('subscription_tier', 'Free'),
                 'status': 'inactive',
                 'stripe_customer': True
             }), 200
@@ -987,7 +987,7 @@ def stripe_webhook():
                         # Legacy format (single price)
                         price_to_tier[tier_prices] = tier_name
 
-                new_tier = price_to_tier.get(price_id, 'Explore')
+                new_tier = price_to_tier.get(price_id, 'Free')
                 print(f"Webhook: Price ID {price_id} mapped to tier {new_tier}")
                 
                 # Update user subscription info - only update fields that exist
@@ -1022,7 +1022,7 @@ def stripe_webhook():
                 # Downgrade to Explore tier
                 try:
                     supabase.table('users').update({
-                        'subscription_tier': 'Explore'
+                        'subscription_tier': 'Free'
                     }).eq('id', user['id']).execute()
                     print(f"Webhook: Downgraded user {user['id']} to Explore tier")
                 except Exception as e:
@@ -1039,7 +1039,7 @@ def stripe_webhook():
                 supabase.table('subscription_history').insert({
                     'user_id': user['id'],
                     'stripe_subscription_id': subscription['id'],
-                    'tier': 'Explore',
+                    'tier': 'Free',
                     'status': 'cancelled',
                     'ended_at': datetime.now().isoformat(),
                     'stripe_event_id': event['id'],
