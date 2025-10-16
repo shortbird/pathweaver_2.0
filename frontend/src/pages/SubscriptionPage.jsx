@@ -157,8 +157,8 @@ const SubscriptionPage = () => {
                 3
               </div>
               <div>
-                <h4 className="font-semibold mb-1">Connect with Tanner</h4>
-                <p className="text-sm">Tanner will reach out within 24-48 hours to discuss your goals and help you get started.</p>
+                <h4 className="font-semibold mb-1">Connect with Our Team</h4>
+                <p className="text-sm">Our support team will reach out within 24-48 hours to discuss your goals and help you get started.</p>
               </div>
             </div>
           </div>
@@ -166,10 +166,10 @@ const SubscriptionPage = () => {
           <div className="mt-8 pt-6 border-t border-gray-200">
             <p className="text-sm text-gray-600 text-center">
               <strong>Questions?</strong> Email{' '}
-              <a href="mailto:tanner@optioeducation.com" className="text-purple-600 hover:underline font-semibold">
-                tanner@optioeducation.com
+              <a href="mailto:support@optioeducation.com" className="text-purple-600 hover:underline font-semibold">
+                support@optioeducation.com
               </a>
-              {' '}- Tanner reads every message personally.
+              {' '}- our team reads every message personally.
             </p>
           </div>
         </div>

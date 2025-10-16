@@ -252,8 +252,8 @@ class EmailService:
         phone_number: str = None,
         message: str = None
     ) -> bool:
-        """Send notification email to admin (Tanner) about new subscription request"""
-        admin_email = os.getenv('ADMIN_EMAIL', 'tanner@optioeducation.com')
+        """Send notification email to support team about new subscription request"""
+        admin_email = os.getenv('ADMIN_EMAIL', 'support@optioeducation.com')
         return self.send_templated_email(
             to_email=admin_email,
             subject=f"New Subscription Request: {user_name} → {tier_requested}",

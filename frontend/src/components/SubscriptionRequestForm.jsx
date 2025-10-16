@@ -39,7 +39,7 @@ const SubscriptionRequestForm = ({ tier, onClose, onSuccess }) => {
       })
 
       if (response.data.success) {
-        toast.success('Request submitted! Tanner will contact you soon.')
+        toast.success('Request submitted! Our support team will contact you soon.')
         if (onSuccess) {
           onSuccess(response.data)
         }
@@ -94,7 +94,7 @@ const SubscriptionRequestForm = ({ tier, onClose, onSuccess }) => {
             {/* Contact Preference */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                How would you like Tanner to reach you?
+                How would you like our support team to reach you?
               </label>
               <div className="space-y-2">
                 <label className="flex items-center space-x-3 cursor-pointer">
@@ -173,10 +173,10 @@ const SubscriptionRequestForm = ({ tier, onClose, onSuccess }) => {
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
               <h4 className="font-semibold text-blue-900 mb-2">What happens next?</h4>
               <ul className="text-sm text-blue-700 space-y-1">
-                <li>✓ Tanner will personally review your request</li>
-                <li>✓ He'll reach out within 24-48 hours</li>
+                <li>✓ Our support team will review your request</li>
+                <li>✓ We'll reach out within 24-48 hours</li>
                 <li>✓ You'll discuss your goals and see if it's the right fit</li>
-                <li>✓ If so, he'll help you get started immediately</li>
+                <li>✓ If so, we'll help you get started immediately</li>
               </ul>
             </div>
 

@@ -39,8 +39,8 @@ def submit_subscription_request(user_id):
         # Validate required fields
         tier_requested = data.get('tier_requested')
         contact_preference = data.get('contact_preference')
-        phone_number = data.get('phone_number', '').strip()
-        message = data.get('message', '').strip()
+        phone_number = (data.get('phone_number') or '').strip()
+        message = (data.get('message') or '').strip()
 
         # Validation
         if not tier_requested:
