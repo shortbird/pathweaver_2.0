@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import toast from 'react-hot-toast'
-import { useSubscriptionTiers, formatPrice, calculateYearlySavings } from '../hooks/useSubscriptionTiers'
+import { useSubscriptionTiers, formatPrice } from '../hooks/useSubscriptionTiers'
 
 const SubscriptionPage = () => {
   const { user } = useAuth()
@@ -13,9 +13,8 @@ const SubscriptionPage = () => {
   const [subscriptionStatus, setSubscriptionStatus] = useState(null)
   const [loadingStatus, setLoadingStatus] = useState(true)
   const [loading, setLoading] = useState(false)
-  const [billingPeriod, setBillingPeriod] = useState('monthly')
 
-  const currentTier = user?.subscription_tier || 'Explore'
+  const currentTier = user?.subscription_tier || 'Free'
 
   useEffect(() => {
     fetchSubscriptionStatus()
@@ -32,12 +31,11 @@ const SubscriptionPage = () => {
     }
   }
 
-  const handleUpgrade = async (tier, period = billingPeriod) => {
+  const handleUpgrade = async (tier) => {
     setLoadingTier(tier)
     try {
       const response = await api.post('/api/subscriptions/create-checkout', {
-        tier,
-        billing_period: period
+        tier
       })
       window.location.href = response.data.checkout_url
     } catch (error) {
@@ -88,35 +86,6 @@ const SubscriptionPage = () => {
           <p className="text-lg text-gray-700 max-w-3xl mx-auto">
             Start with a diploma. Make it valuable through real work.
           </p>
-
-          {/* Billing Period Toggle */}
-          <div className="flex justify-center mt-8 mb-6">
-            <div className="bg-gray-100 p-1 rounded-lg flex">
-              <button
-                onClick={() => setBillingPeriod('monthly')}
-                className={`px-6 py-2 rounded-md transition-colors ${
-                  billingPeriod === 'monthly'
-                    ? 'bg-white text-gray-900 shadow-sm font-medium'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Monthly
-              </button>
-              <button
-                onClick={() => setBillingPeriod('yearly')}
-                className={`px-6 py-2 rounded-md transition-colors ${
-                  billingPeriod === 'yearly'
-                    ? 'bg-white text-gray-900 shadow-sm font-medium'
-                    : 'text-gray-600 hover:text-gray-900'
-                }`}
-              >
-                Yearly
-                <span className="ml-1 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full">
-                  get summers off
-                </span>
-              </button>
-            </div>
-          </div>
         </div>
 
         {tiersLoading ? (
@@ -128,8 +97,6 @@ const SubscriptionPage = () => {
             {tiers?.map((tier) => {
               const isCurrentTier = currentTier === tier.tier_key
               const monthlyPrice = parseFloat(tier.price_monthly)
-              const yearlyPrice = tier.price_yearly ? parseFloat(tier.price_yearly) : null
-              const savings = yearlyPrice ? calculateYearlySavings(monthlyPrice, yearlyPrice) : null
 
               return (
                 <div
@@ -155,13 +122,7 @@ const SubscriptionPage = () => {
                   <h3 className="text-2xl font-bold mb-2">{tier.display_name}</h3>
 
                   <div className="mb-1">
-                    {billingPeriod === 'monthly' || !yearlyPrice ? (
-                      <p className="text-3xl font-bold">{formatPrice(monthlyPrice)}<span className="text-base font-normal text-gray-600">/mo</span></p>
-                    ) : (
-                      <div>
-                        <p className="text-3xl font-bold">{formatPrice(yearlyPrice)}<span className="text-base font-normal text-gray-600">/yr</span></p>
-                      </div>
-                    )}
+                    <p className="text-3xl font-bold">{formatPrice(monthlyPrice)}<span className="text-base font-normal text-gray-600">/mo</span></p>
                   </div>
 
                   <p className="text-gray-600 mb-6 text-sm">{tier.description}</p>
@@ -188,7 +149,7 @@ const SubscriptionPage = () => {
                   </ul>
 
                   {isCurrentTier ? (
-                    tier.tier_key === 'Explore' ? (
+                    tier.tier_key === 'Free' ? (
                       <button className="w-full bg-gray-100 text-gray-700 py-2 px-4 rounded-lg font-semibold cursor-not-allowed text-sm" disabled>
                         Current Plan
                       </button>
@@ -205,13 +166,13 @@ const SubscriptionPage = () => {
                       </div>
                     )
                   ) : (
-                    tier.tier_key === 'Explore' ? (
+                    tier.tier_key === 'Free' ? (
                       <Link to="/register" className="w-full bg-gray-100 text-gray-700 hover:bg-gray-200 py-2 px-4 rounded-lg font-semibold transition-colors text-center text-sm">
                         Start Free
                       </Link>
                     ) : (
                       <button
-                        onClick={() => handleUpgrade(tier.tier_key, billingPeriod)}
+                        onClick={() => handleUpgrade(tier.tier_key)}
                         disabled={loadingTier !== null}
                         className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg py-2 px-4 rounded-lg font-bold transition-all text-sm disabled:opacity-75"
                       >
