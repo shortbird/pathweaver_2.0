@@ -196,14 +196,9 @@ const DiplomaPage = () => {
 
   const fetchPublicDiplomaByUserId = async () => {
     try {
-      const apiBase = import.meta.env.VITE_API_URL || '';
-      const response = await fetch(`${apiBase}/api/portfolio/diploma/${userId}`);
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch diploma');
-      }
-
-      const data = await response.json();
+      // Use api service for proper CORS handling, but this is a public endpoint
+      const response = await api.get(`/api/portfolio/diploma/${userId}`);
+      const data = response.data;
       setDiploma(data);
 
       // Fetch badges for public diploma
