@@ -199,13 +199,32 @@ const DiplomaPage = () => {
       // Use api service for proper CORS handling, but this is a public endpoint
       const response = await api.get(`/api/portfolio/diploma/${userId}`);
       const data = response.data;
+
+      console.log('Public diploma data received:', data);
+
+      // Set diploma state with the full response
       setDiploma(data);
+
+      // Extract and set achievements (completed and in-progress quests)
+      if (data.achievements) {
+        setAchievements(data.achievements);
+      }
+
+      // Extract and set XP data
+      if (data.skill_xp) {
+        setTotalXP(data.skill_xp);
+      }
+
+      if (data.total_xp) {
+        setTotalXPCount(data.total_xp);
+      }
 
       // Fetch badges for public diploma
       if (userId) {
         await fetchEarnedBadges(userId);
       }
     } catch (error) {
+      console.error('Error fetching public diploma:', error);
       const errorInfo = formatErrorMessage(
         error.response?.status === 404 ? 'diploma/not-found' : 'diploma/private'
       );
