@@ -325,6 +325,12 @@ def get_public_diploma_by_user_id(user_id):
             '''
         ).eq('user_id', user_id).execute()
 
+        print(f"=== TASK COMPLETIONS DEBUG ===")
+        print(f"Found {len(task_completions.data) if task_completions.data else 0} task completions")
+        if task_completions.data and len(task_completions.data) > 0:
+            print(f"Sample task completion structure: {task_completions.data[0]}")
+        print(f"================================")
+
         # Get multi-format evidence documents with their content blocks
         # This query fetches both the document metadata AND all associated blocks
         evidence_documents_response = supabase.table('user_task_evidence_documents').select(
