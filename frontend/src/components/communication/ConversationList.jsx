@@ -91,13 +91,18 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
       `${conversation.other_user?.first_name} ${conversation.other_user?.last_name}`
     const initial = displayName?.charAt(0)?.toUpperCase() || '?'
 
-    let bgColor = 'bg-gradient-to-br from-gray-400 to-gray-500'
+    let bgColor = 'bg-purple-100'
+    let iconColor = 'text-[#6d469b]'
+
     if (conversation.type === 'bot') {
-      bgColor = 'bg-gradient-to-br from-[#ef597b] to-[#6d469b]'
+      bgColor = 'bg-purple-100'
+      iconColor = 'text-[#6d469b]'
     } else if (conversation.type === 'advisor') {
-      bgColor = 'bg-gradient-to-br from-blue-400 to-purple-500'
+      bgColor = 'bg-purple-100'
+      iconColor = 'text-[#6d469b]'
     } else {
-      bgColor = 'bg-gradient-to-br from-green-400 to-emerald-500'
+      bgColor = 'bg-purple-100'
+      iconColor = 'text-[#6d469b]'
     }
 
     return (
@@ -111,7 +116,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
         <div className="relative flex-shrink-0">
           {conversation.type === 'bot' ? (
             <div className={`w-12 h-12 ${bgColor} rounded-full flex items-center justify-center`}>
-              <Bot className="w-6 h-6 text-white" />
+              <Bot className={`w-6 h-6 ${iconColor}`} />
             </div>
           ) : conversation.other_user?.avatar_url ? (
             <img
@@ -120,7 +125,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
               className="w-12 h-12 rounded-full object-cover"
             />
           ) : (
-            <div className={`w-12 h-12 ${bgColor} rounded-full flex items-center justify-center text-white font-bold`}>
+            <div className={`w-12 h-12 ${bgColor} rounded-full flex items-center justify-center ${iconColor} font-bold`}>
               {initial}
             </div>
           )}

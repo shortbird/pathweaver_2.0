@@ -51,7 +51,7 @@ export default {
         },
       },
       backgroundImage: {
-        'gradient-primary': 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)',
+        'gradient-primary': 'linear-gradient(135deg, #6d469b 0%, #ef597b 100%)',
       },
       screens: {
         'xs': '475px',

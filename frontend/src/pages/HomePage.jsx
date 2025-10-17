@@ -103,8 +103,8 @@ const HomePage = () => {
               {/* Your Own Dedicated Teacher */}
               <div>
                 <div className="flex items-start mb-3">
-                  <div className="w-12 h-12 bg-gradient-to-r from-[#6d469b] to-[#ef597b] rounded-full flex items-center justify-center mr-4 flex-shrink-0 shadow-md">
-                    <Users className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                    <Users className="w-6 h-6 text-[#6d469b]" />
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Your Own Licensed Teacher</h3>
@@ -118,8 +118,8 @@ const HomePage = () => {
               {/* Student-Driven Learning Platform */}
               <div>
                 <div className="flex items-start mb-3">
-                  <div className="w-12 h-12 bg-gradient-to-r from-[#6d469b] to-[#ef597b] rounded-full flex items-center justify-center mr-4 flex-shrink-0 shadow-md">
-                    <BookOpen className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                    <BookOpen className="w-6 h-6 text-[#6d469b]" />
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Student-Driven Learning Platform</h3>
@@ -133,8 +133,8 @@ const HomePage = () => {
               {/* Parent Peace of Mind */}
               <div>
                 <div className="flex items-start mb-3">
-                  <div className="w-12 h-12 bg-gradient-to-r from-[#6d469b] to-[#ef597b] rounded-full flex items-center justify-center mr-4 flex-shrink-0 shadow-md">
-                    <Heart className="w-6 h-6 text-white" />
+                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
+                    <Heart className="w-6 h-6 text-[#6d469b]" />
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Parent Peace of Mind</h3>
@@ -269,8 +269,8 @@ const HomePage = () => {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {/* Step 1 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6d469b] to-[#ef597b] rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
-                <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>1</span>
+              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-[#6d469b]" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>1</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Meet Your Teacher</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
@@ -280,8 +280,8 @@ const HomePage = () => {
 
             {/* Step 2 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6d469b] to-[#ef597b] rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
-                <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>2</span>
+              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-[#6d469b]" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>2</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Create Your Plan</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
@@ -291,8 +291,8 @@ const HomePage = () => {
 
             {/* Step 3 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6d469b] to-[#ef597b] rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
-                <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>3</span>
+              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-[#6d469b]" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>3</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Learn & Document</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
@@ -302,8 +302,8 @@ const HomePage = () => {
 
             {/* Step 4 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#6d469b] to-[#ef597b] rounded-full flex items-center justify-center mx-auto mb-4 shadow-md">
-                <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>4</span>
+              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-[#6d469b]" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>4</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Review & Celebrate</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
