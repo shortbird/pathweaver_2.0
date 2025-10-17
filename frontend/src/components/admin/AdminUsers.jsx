@@ -6,6 +6,7 @@ import UserDetailsModal from './UserDetailsModal'
 import BulkEmailModal from './BulkEmailModal'
 import ChatLogsModal from './ChatLogsModal'
 import QuestSelectionModal from './QuestSelectionModal'
+import { useAdminSubscriptionTiers } from '../../hooks/useSubscriptionTiers'
 
 const AdminUsers = () => {
   const [users, setUsers] = useState([])
@@ -29,6 +30,9 @@ const AdminUsers = () => {
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const usersPerPage = 20
+
+  // Fetch subscription tiers dynamically
+  const { data: tiers, isLoading: tiersLoading } = useAdminSubscriptionTiers()
 
   useEffect(() => {
     fetchUsers()
@@ -229,11 +233,14 @@ const AdminUsers = () => {
             value={filters.subscription}
             onChange={(e) => handleFilterChange('subscription', e.target.value)}
             className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            disabled={tiersLoading}
           >
             <option value="all">All Subscriptions</option>
-            <option value="free">Free</option>
-            <option value="supported">Supported</option>
-            <option value="academy">Academy</option>
+            {tiers?.map((tier) => (
+              <option key={tier.id} value={tier.tier_key}>
+                {tier.display_name}
+              </option>
+            ))}
           </select>
           <select
             value={filters.activity}

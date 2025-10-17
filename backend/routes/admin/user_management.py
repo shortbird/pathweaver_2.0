@@ -194,7 +194,14 @@ def update_user_subscription(user_id, target_user_id):
         if not subscription_tier:
             return jsonify({'success': False, 'error': 'Subscription tier is required'}), 400
 
-        valid_tiers = ['Explore', 'Accelerate', 'Achieve', 'Excel']
+        # Fetch valid tier keys from database (single source of truth)
+        tiers_result = supabase.table('subscription_tiers').select('tier_key, display_name').eq('is_active', True).execute()
+        valid_tiers = [tier['tier_key'] for tier in tiers_result.data] if tiers_result.data else []
+
+        if not valid_tiers:
+            print("Warning: No active subscription tiers found in database")
+            valid_tiers = ['Explore', 'Accelerate', 'Achieve', 'Excel']  # Fallback
+
         if subscription_tier not in valid_tiers:
             return jsonify({'success': False, 'error': f'Invalid subscription tier. Must be one of: {valid_tiers}'}), 400
 
@@ -249,11 +256,23 @@ def update_user_role(user_id, target_user_id):
             'updated_at': datetime.utcnow().isoformat()
         }
 
+        print(f"Attempting to update role for user {target_user_id} to {new_role}")
         result = supabase.table('users').update(update_data).eq('id', target_user_id).execute()
 
-        if not result.data:
-            return jsonify({'success': False, 'error': 'User not found'}), 404
+        # Check for errors in the response
+        if hasattr(result, 'error') and result.error:
+            error_msg = str(result.error)
+            print(f"Supabase error updating role: {error_msg}")
+            return jsonify({
+                'success': False,
+                'error': f'Database error: {error_msg}'
+            }), 500
 
+        if not result.data or len(result.data) == 0:
+            print(f"No data returned after role update for user {target_user_id}")
+            return jsonify({'success': False, 'error': 'User not found or update failed'}), 404
+
+        print(f"Successfully updated role for user {target_user_id}")
         return jsonify({
             'success': True,
             'message': f'User role updated to {new_role}',
@@ -261,7 +280,10 @@ def update_user_role(user_id, target_user_id):
         })
 
     except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
         print(f"Error updating role: {str(e)}")
+        print(f"Full traceback: {error_trace}")
         return jsonify({
             'success': False,
             'error': f'Failed to update role: {str(e)}'

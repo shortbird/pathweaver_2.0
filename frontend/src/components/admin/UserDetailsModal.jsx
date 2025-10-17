@@ -2,6 +2,7 @@ import React, { useState, useEffect, memo } from 'react'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import AdvisorTaskForm from './AdvisorTaskForm'
+import { useAdminSubscriptionTiers, formatPrice } from '../../hooks/useSubscriptionTiers'
 
 const UserDetailsModal = ({ user, onClose, onSave }) => {
   const [activeTab, setActiveTab] = useState('profile')
@@ -19,6 +20,9 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const [questEnrollments, setQuestEnrollments] = useState({ enrolled: [], available: [] })
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [selectedQuest, setSelectedQuest] = useState(null)
+
+  // Fetch subscription tiers dynamically
+  const { data: tiers, isLoading: tiersLoading } = useAdminSubscriptionTiers()
 
   useEffect(() => {
     fetchUserDetails()
@@ -84,13 +88,10 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   }
 
   const handleUpdateSubscription = async () => {
-    const tierDisplayNames = {
-      Explore: 'Explore',
-      Accelerate: 'Accelerate',
-      Achieve: 'Achieve',
-      Excel: 'Excel'
-    };
-    const displayName = tierDisplayNames[formData.subscription_tier] || formData.subscription_tier;
+    // Find the tier display name from the fetched tiers
+    const selectedTier = tiers?.find(t => t.tier_key === formData.subscription_tier)
+    const displayName = selectedTier?.display_name || formData.subscription_tier
+
     if (window.confirm(`Change subscription to ${displayName}?`)) {
       setLoading(true)
       try {
@@ -345,17 +346,31 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Subscription Tier
                 </label>
-                <select
-                  name="subscription_tier"
-                  value={formData.subscription_tier}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="Explore">Explore (Free)</option>
-                  <option value="Accelerate">Accelerate ($39.99/month)</option>
-                  <option value="Achieve">Achieve ($199.99/month)</option>
-                  <option value="Excel">Excel ($499.99/month)</option>
-                </select>
+                {tiersLoading ? (
+                  <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
+                    Loading tiers...
+                  </div>
+                ) : (
+                  <select
+                    name="subscription_tier"
+                    value={formData.subscription_tier}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    {tiers?.map((tier) => {
+                      const price = parseFloat(tier.price_monthly)
+                      const priceLabel = price === 0 ? 'Free' : `$${price.toFixed(2)}/month`
+                      return (
+                        <option key={tier.id} value={tier.tier_key}>
+                          {tier.display_name} ({priceLabel})
+                        </option>
+                      )
+                    })}
+                  </select>
+                )}
+                <p className="text-xs text-gray-500 mt-1">
+                  Current tier in database: {user.subscription_tier}
+                </p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -374,7 +389,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
               </div>
               <button
                 onClick={handleUpdateSubscription}
-                disabled={loading}
+                disabled={loading || tiersLoading}
                 className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 disabled:bg-gray-400"
               >
                 {loading ? 'Updating...' : 'Update Subscription'}
