@@ -16,7 +16,6 @@ bp = Blueprint('task_collaboration', __name__, url_prefix='/api/tasks')
 
 @bp.route('/<task_id>/invite-collaborator', methods=['POST'])
 @require_auth
-@require_paid_tier
 def invite_collaborator(user_id: str, task_id: str):
     """
     Invite a friend to collaborate on a specific task.
@@ -107,7 +106,6 @@ def invite_collaborator(user_id: str, task_id: str):
 
 @bp.route('/<task_id>/collaboration/accept', methods=['PUT'])
 @require_auth
-@require_paid_tier
 def accept_collaboration(user_id: str, task_id: str):
     """
     Accept a collaboration invitation for a task.
@@ -152,7 +150,6 @@ def accept_collaboration(user_id: str, task_id: str):
 
 @bp.route('/<task_id>/collaboration/decline', methods=['PUT'])
 @require_auth
-@require_paid_tier
 def decline_collaboration(user_id: str, task_id: str):
     """
     Decline a collaboration invitation.
