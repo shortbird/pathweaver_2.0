@@ -1,41 +1,48 @@
-OPTIO EDUCATION
-Supporting Parents. Empowering Students. Building Futures.
+{% if salutation %}
+{{ salutation }}
 
----
+{% endif %}
+{% for paragraph in paragraphs %}
+{{ paragraph }}
 
-Thank You for Reaching Out!
+{% endfor %}
+{% if cta %}
+{{ cta.text|upper }}
+{{ cta.url }}
 
-Hi {{ parent_name }},
+{% if cta_subtext %}
+{{ cta_subtext }}
 
-Partnering with an experienced educator can truly magnify your family's learning experience. I'm excited to explore how we can work together to support your child's educational journey.
+{% endif %}
+{% endif %}
+{% if highlight_box %}
+{{ highlight_box.title|upper }}
 
-BOOK YOUR FREE CONSULTATION
-https://optio.zohobookings.com/#/free_consult
+{{ highlight_box.content }}
 
-Choose a time that works best for your schedule.
+{% if highlight_box.italic_note %}
+{{ highlight_box.italic_note }}
 
----
+{% endif %}
+{% endif %}
+{% if closing_section %}
+{{ closing_section.paragraph }}
 
-WHAT TO EXPECT ON OUR CALL
+{% if closing_section.bullet_points %}
+{% for item in closing_section.bullet_points %}
+• {{ item }}
+{% endfor %}
 
-We'll spend about 30 minutes in a collaborative conversation about your family. I want to hear about your child's interests, your vision for their education, and how we might work together as partners in their learning journey.
+{% endif %}
+{% if closing_section.final_paragraph %}
+{{ closing_section.final_paragraph }}
 
-Think of it as a planning session with a colleague - no sales pitch, just a genuine exploration of whether Optio is the right fit for your family.
+{% endif %}
+{% endif %}
+{% if closing_line %}
+{{ closing_line }}
 
----
-
-Before our call, I recommend exploring these resources to get a sense of what's possible:
-
-• Try our 2-minute interactive demo: https://www.optioeducation.com/demo
-• Read about our philosophy: https://www.optioeducation.com
-• Think about what questions matter most to you
-
----
-
-Have questions before we meet? Simply reply to this email - I respond personally to every message. A consultation is not the only way to get in touch.
-
-Looking forward to connecting with you!
-
+{% endif %}
 Dr. Tanner Bowman
 Founder, Optio
 tanner@optioeducation.com

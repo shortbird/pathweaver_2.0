@@ -1,44 +1,51 @@
 {% extends "email/base.html" %}
+{% from "email/signatures.html" import signature_support %}
 
-{% block title %}Confirm your Optio account{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="greeting">Welcome to Optio!</div>
+<div class="greeting">{{ greeting }}</div>
 
-<p class="text">Hi {{ user_name }},</p>
+{% if salutation %}
+<p class="text">{{ salutation }}</p>
+{% endif %}
 
-<p class="text">
-    Thanks for signing up for Optio! We're excited to have you join our community of learners.
-</p>
+{% for paragraph in paragraphs %}
+<p class="text">{{ paragraph }}</p>
+{% endfor %}
 
-<p class="text">
-    Please confirm your email address to activate your account and start exploring quests:
-</p>
-
+{% if cta %}
 <div class="cta-container">
-    <a href="{{ confirmation_link }}" class="cta-button">
-        Confirm Email Address
+    <a href="{{ cta.url }}" class="cta-button">
+        {{ cta.text }}
     </a>
 </div>
+{% endif %}
 
+{% if highlight_box %}
 <div class="highlight-box">
-    <h3>What happens next?</h3>
-    <p style="margin-bottom: 8px;">Once you confirm your email, you'll be able to:</p>
-    <div class="list-item">Access hundreds of educational quests</div>
-    <div class="list-item">Track your progress across 5 skill pillars</div>
-    <div class="list-item">Earn XP and unlock achievements</div>
-    <div class="list-item">Build your public diploma to showcase your work</div>
+    <h3>{{ highlight_box.title }}</h3>
+    <p>{{ highlight_box.content }}</p>
+    {% if highlight_box.bullet_points %}
+    {% for item in highlight_box.bullet_points %}
+    <div class="list-item">{{ item }}</div>
+    {% endfor %}
+    {% endif %}
 </div>
+{% endif %}
 
+{% if link_fallback %}
 <p class="text" style="font-size: 13px; color: #999; margin-top: 30px;">
-    If the button doesn't work, copy and paste this link into your browser:
+    {{ link_fallback }}
 </p>
 <p class="text" style="font-size: 12px; color: #6B46C1; word-break: break-all;">
     {{ confirmation_link }}
 </p>
+{% endif %}
 {% endblock %}
 
-{% block footer_extra %}
-This confirmation link will expire in 24 hours for security reasons.<br>
-If you didn't create an account with Optio, please ignore this email.
+{% block signature %}
+{{ signature_support() }}
 {% endblock %}
+
+{% block footer_extra %}{{ footer_extra }}{% endblock %}

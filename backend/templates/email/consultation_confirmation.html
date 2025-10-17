@@ -1,50 +1,63 @@
 {% extends "email/base.html" %}
+{% from "email/signatures.html" import signature_tanner %}
 
-{% block title %}Let's Explore How We Can Work Together{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<p class="text">Hi {{ parent_name }},</p>
+{% if salutation %}
+<p class="text">{{ salutation }}</p>
+{% endif %}
 
-<p class="text">
-    Partnering with an experienced educator can truly magnify your family's learning experience. I'm excited to explore how we can work together to support your child's educational journey.
-</p>
+{% for paragraph in paragraphs %}
+<p class="text">{{ paragraph }}</p>
+{% endfor %}
 
+{% if cta %}
 <div class="cta-container">
-    <a href="https://optio.zohobookings.com/#/free_consult" class="cta-button" style="background-color: #6D469B; color: #ffffff; text-decoration: none; display: inline-block; padding: 16px 48px; border-radius: 6px; font-size: 16px; font-weight: 600;">
-        Book Your Free Consultation
+    <a href="{{ cta.url }}" class="cta-button" style="background-color: #6D469B; color: #ffffff; text-decoration: none; display: inline-block; padding: 16px 48px; border-radius: 6px; font-size: 16px; font-weight: 600;">
+        {{ cta.text }}
     </a>
 </div>
-
+{% if cta_subtext %}
 <p class="text" style="text-align: center; font-size: 13px; color: #666; margin-top: 10px;">
-    Choose a time that works best for your schedule.
+    {{ cta_subtext }}
 </p>
+{% endif %}
+{% endif %}
 
+{% if highlight_box %}
 <div class="highlight-box">
-    <h3>What to Expect on Our Call</h3>
-    <p>
-        We'll spend about 30 minutes in a collaborative conversation about your family. I want to hear about your child's interests, your vision for their education, and how we might work together as partners in their learning journey.
-    </p>
+    <h3>{{ highlight_box.title }}</h3>
+    <p>{{ highlight_box.content }}</p>
+    {% if highlight_box.italic_note %}
     <p style="margin-top: 10px; font-style: italic; color: #6D469B;">
-        Think of it as a planning session with a colleague - no sales pitch, just a genuine exploration of whether Optio is the right fit for your family.
+        {{ highlight_box.italic_note }}
     </p>
+    {% endif %}
 </div>
+{% endif %}
 
-<p class="text">
-    Before our call, I recommend exploring these resources to get a sense of what's possible:
-</p>
-
-<div class="list-item">Try our <a href="https://www.optioeducation.com/demo" style="color: #6D469B; text-decoration: none; font-weight: 600;">2-minute interactive demo</a> to see the student experience</div>
-<div class="list-item">Read about our philosophy on the <a href="https://www.optioeducation.com" style="color: #6D469B; text-decoration: none; font-weight: 600;">homepage</a></div>
-<div class="list-item">Think about what questions matter most to you</div>
-
+{% if closing_section %}
+<p class="text">{{ closing_section.paragraph }}</p>
+{% if closing_section.bullet_points %}
+{% for item in closing_section.bullet_points %}
+<div class="list-item">{{ item|safe }}</div>
+{% endfor %}
+{% endif %}
+{% if closing_section.final_paragraph %}
 <p class="text" style="margin-top: 24px;">
-    Have questions before we meet? Simply reply to this email - I respond personally to every message. A consultation is not the only way to get in touch.
+    {{ closing_section.final_paragraph }}
 </p>
+{% endif %}
+{% endif %}
 
+{% if closing_line %}
 <p class="text" style="margin-top: 30px;">
-    Looking forward to connecting with you!<br><br>
-    Dr. Tanner Bowman<br>
-    Founder, Optio<br>
-    <a href="mailto:tanner@optioeducation.com" style="color: #6D469B; text-decoration: none;">tanner@optioeducation.com</a>
+    {{ closing_line }}
 </p>
+{% endif %}
+{% endblock %}
+
+{% block signature %}
+{{ signature_tanner() }}
 {% endblock %}

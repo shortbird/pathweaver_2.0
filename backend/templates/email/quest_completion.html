@@ -1,35 +1,31 @@
 {% extends "email/base.html" %}
+{% from "email/signatures.html" import signature_team %}
 
-{% block title %}Quest Completed!{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="greeting">Quest Completed!</div>
+<div class="greeting">{{ greeting }}</div>
 
-<p class="text">Great job, {{ user_name }}!</p>
+{% for paragraph in paragraphs %}
+<p class="text">{{ paragraph }}</p>
+{% endfor %}
 
-<p class="text">
-    You've successfully completed <strong>{{ quest_title }}</strong> and earned <strong>{{ xp_earned }} XP</strong>!
-</p>
-
-<div class="highlight-box">
-    <h3>Your Achievement</h3>
-    <p>
-        Every quest you complete is more than just XP. It's evidence of your growth, your persistence,
-        and your commitment to learning. This quest is now part of your public diploma.
-    </p>
-</div>
-
-<p class="text">
-    Keep up the great work on your learning journey.
-</p>
-
+{% if cta %}
 <div class="cta-container">
-    <a href="https://www.optioeducation.com/quests" class="cta-button">
-        Find Your Next Quest
+    <a href="{{ cta.url }}" class="cta-button">
+        {{ cta.text }}
     </a>
 </div>
+{% endif %}
 
-<p class="text" style="font-size: 14px; color: #666; margin-top: 30px;">
-    View your complete progress and achievements on your <a href="https://www.optioeducation.com/dashboard" style="color: #6B46C1;">dashboard</a>.
-</p>
+{% if highlight_box %}
+<div class="highlight-box">
+    <h3>{{ highlight_box.title }}</h3>
+    <p>{{ highlight_box.content }}</p>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block signature %}
+{{ signature_team() }}
 {% endblock %}

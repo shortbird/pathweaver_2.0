@@ -1,45 +1,45 @@
 {% extends "email/base.html" %}
+{% from "email/signatures.html" import signature_tanner %}
 
-{% block title %}Welcome to Optio! Let's Chat About Your Teen's Future{% endblock %}
+{% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-<div class="greeting">Welcome to Optio!</div>
+<div class="greeting">{{ greeting }}</div>
 
-<p class="text">Hi {{ parent_name }},</p>
+{% if salutation %}
+<p class="text">{{ salutation }}</p>
+{% endif %}
 
-<p class="text">
-    Thank you for your interest in helping your teen{% if teen_age %} (age {{ teen_age }}){% endif %} build real-world skills and create an impressive portfolio.{% if activity %} I noticed they're passionate about {{ activity }}! That's fantastic!{% endif %}
-</p>
+{% for paragraph in paragraphs %}
+<p class="text">{{ paragraph }}</p>
+{% endfor %}
 
-<p class="text">
-    We created Optio because we believe teens learn best when given the freedom to pursue their interests. Our platform helps students earn real high school credit for the learning experiences they have in their daily lives while building portfolios that showcase their excellent work.
-</p>
-
+{% if highlight_box %}
 <div class="highlight-box">
-    <h3>Want to learn more?</h3>
-    <div class="list-item"><strong>Explore our demo:</strong> <a href="https://www.optioeducation.com/demo" style="color: #6B46C1;">Take a quick tour</a> to see how Optio works.</div>
-    <div class="list-item"><strong>Tell us about your teen:</strong> Reply to this email and share what makes your teen unique. What are their interests, goals, or challenges?</div>
-    <div class="list-item"><strong>Get personalized guidance:</strong> I will read every reply and respond with specific thoughts about how Optio could help your kid customize their own high school education.</div>
+    <h3>{{ highlight_box.title }}</h3>
+    {% if highlight_box.bullet_points %}
+    {% for item in highlight_box.bullet_points %}
+    <div class="list-item">{{ item|safe }}</div>
+    {% endfor %}
+    {% endif %}
 </div>
+{% endif %}
 
-<p class="text">
-    <strong>I'd love to hear from you!</strong> What are your teen's biggest interests? What educational challenges are you facing? What are your hopes for their future?
-</p>
+{% if closing_paragraphs %}
+{% for paragraph in closing_paragraphs %}
+<p class="text">{{ paragraph|safe }}</p>
+{% endfor %}
+{% endif %}
 
-<p class="text">
-    Just hit reply and tell me about your situation. There's a real person (me!) who will read your message and respond personally.
-</p>
-
+{% if cta %}
 <div class="cta-container">
-    <a href="https://www.optioeducation.com/demo" class="cta-button">
-        Explore Our Demo
+    <a href="{{ cta.url }}" class="cta-button">
+        {{ cta.text }}
     </a>
 </div>
+{% endif %}
+{% endblock %}
 
-<p class="text" style="margin-top: 30px;">
-    Best,<br>
-    Dr. Tanner Bowman<br>
-    Founder, Optio Education<br>
-    <a href="mailto:tanner@optioeducation.com" style="color: #6B46C1;">tanner@optioeducation.com</a>
-</p>
+{% block signature %}
+{{ signature_tanner() }}
 {% endblock %}

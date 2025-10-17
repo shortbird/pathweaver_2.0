@@ -1,95 +1,80 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>New Subscription Request</title>
-</head>
-<body style="margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; background-color: #f4f4f4;">
-    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+{% extends "email/base.html" %}
+{% from "email/signatures.html" import signature_support %}
+
+{% block content %}
+<h1 style="color: #ef597b; font-size: 24px; margin-bottom: 20px;">{{ title }}</h1>
+
+<p style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 30px;">
+    {{ intro }}
+</p>
+
+{% if user_details %}
+<div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 4px solid #6d469b;">
+    <h2 style="color: #6d469b; font-size: 18px; margin: 0 0 15px 0;">{{ user_details.title }}</h2>
+    <table style="width: 100%; font-size: 14px;">
+        {% for field in user_details.fields %}
         <tr>
-            <td align="center" style="padding: 40px 0;">
-                <table role="presentation" style="width: 600px; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                    <tr>
-                        <td style="padding: 40px 40px 20px 40px;">
-                            <h1 style="color: #ef597b; font-size: 24px; margin: 0 0 20px 0;">New Subscription Upgrade Request</h1>
-
-                            <p style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 30px;">
-                                A user has requested to upgrade their subscription tier.
-                            </p>
-
-                            <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 30px; border-left: 4px solid #6d469b;">
-                                <h2 style="color: #6d469b; font-size: 18px; margin: 0 0 15px 0;">User Information</h2>
-                                <table style="width: 100%; font-size: 14px;">
-                                    <tr>
-                                        <td style="padding: 8px 0; color: #666;"><strong>Name:</strong></td>
-                                        <td style="padding: 8px 0; color: #333;">{{ user_name }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 8px 0; color: #666;"><strong>Email:</strong></td>
-                                        <td style="padding: 8px 0; color: #333;">{{ user_email }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 8px 0; color: #666;"><strong>User ID:</strong></td>
-                                        <td style="padding: 8px 0; color: #333; font-family: monospace; font-size: 12px;">{{ user_id }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 8px 0; color: #666;"><strong>Current Tier:</strong></td>
-                                        <td style="padding: 8px 0; color: #333;">{{ current_tier }}</td>
-                                    </tr>
-                                </table>
-                            </div>
-
-                            <div style="background: linear-gradient(135deg, #ef597b 0%, #6d469b 100%); padding: 20px; border-radius: 8px; margin-bottom: 30px;">
-                                <h2 style="color: white; font-size: 18px; margin: 0 0 15px 0;">Request Details</h2>
-                                <table style="width: 100%; color: white;">
-                                    <tr>
-                                        <td style="padding: 8px 0;"><strong>Requested Tier:</strong></td>
-                                        <td style="padding: 8px 0; text-align: right; font-size: 20px;">{{ tier_display_name }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td style="padding: 8px 0;"><strong>Contact Preference:</strong></td>
-                                        <td style="padding: 8px 0; text-align: right;">{{ contact_preference|capitalize }}</td>
-                                    </tr>
-                                    {% if phone_number %}
-                                    <tr>
-                                        <td style="padding: 8px 0;"><strong>Phone Number:</strong></td>
-                                        <td style="padding: 8px 0; text-align: right;">{{ phone_number }}</td>
-                                    </tr>
-                                    {% endif %}
-                                </table>
-                            </div>
-
-                            {% if message %}
-                            <div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 8px; margin-bottom: 30px;">
-                                <h3 style="color: #856404; font-size: 16px; margin: 0 0 10px 0;">User's Message:</h3>
-                                <p style="color: #856404; margin: 0; font-style: italic; line-height: 1.6;">
-                                    "{{ message }}"
-                                </p>
-                            </div>
-                            {% endif %}
-
-                            <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee;">
-                                <p style="font-size: 14px; color: #666; margin: 0;">
-                                    <strong>Next Steps:</strong>
-                                </p>
-                                <ul style="font-size: 14px; color: #666; margin: 10px 0 0 0; padding-left: 20px;">
-                                    <li>Review user's progress and activity</li>
-                                    <li>Contact user via {{ contact_preference }} within 24-48 hours</li>
-                                    <li>Discuss their goals and tier fit</li>
-                                    <li>Manually update their tier in admin panel if appropriate</li>
-                                </ul>
-                            </div>
-                        </td>
-                    </tr>
-                    <tr>
-                        <td style="padding: 20px 40px 40px 40px; text-align: center; color: #999; font-size: 12px;">
-                            <p style="margin: 0;">This is an automated notification from Optio subscription system</p>
-                        </td>
-                    </tr>
-                </table>
-            </td>
+            <td style="padding: 8px 0; color: #666;"><strong>{{ field.label }}:</strong></td>
+            <td style="padding: 8px 0; color: #333;">{{ field.value|safe }}</td>
         </tr>
+        {% endfor %}
     </table>
-</body>
-</html>
+</div>
+{% endif %}
+
+{% if request_details %}
+<div style="background: linear-gradient(135deg, #ef597b 0%, #6d469b 100%); padding: 20px; border-radius: 8px; margin-bottom: 30px;">
+    <h2 style="color: white; font-size: 18px; margin: 0 0 15px 0;">{{ request_details.title }}</h2>
+    <table style="width: 100%; color: white;">
+        {% for field in request_details.fields %}
+        {% if not field.conditional or (field.conditional and locals().get(field.conditional)) %}
+        <tr>
+            <td style="padding: 8px 0;"><strong>{{ field.label }}:</strong></td>
+            <td style="padding: 8px 0; text-align: right;">{{ field.value|safe }}</td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+    </table>
+</div>
+{% endif %}
+
+{% if message_section and message %}
+<div style="background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 8px; margin-bottom: 30px;">
+    <h3 style="color: #856404; font-size: 16px; margin: 0 0 10px 0;">{{ message_section.title }}:</h3>
+    <p style="color: #856404; margin: 0; font-style: italic; line-height: 1.6;">
+        "{{ message }}"
+    </p>
+</div>
+{% elif message_section and not message %}
+<div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 30px;">
+    <p style="color: #666; margin: 0; font-style: italic;">
+        {{ message_section.empty_text }}
+    </p>
+</div>
+{% endif %}
+
+{% if action_items %}
+<div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #eee;">
+    <p style="font-size: 14px; color: #666; margin: 0;">
+        <strong>{{ action_items.title }}:</strong>
+    </p>
+    <ul style="font-size: 14px; color: #666; margin: 10px 0 0 0; padding-left: 20px;">
+        {% for item in action_items.bullet_points %}
+        <li>{{ item|safe }}</li>
+        {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if dashboard_link %}
+<div style="text-align: center; margin-top: 30px;">
+    <a href="{{ dashboard_link.url }}" style="display: inline-block; background-color: #6D469B; color: #ffffff; text-decoration: none; padding: 12px 32px; border-radius: 6px; font-size: 14px; font-weight: 600;">
+        {{ dashboard_link.text }}
+    </a>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block signature %}
+{{ signature_support() }}
+{% endblock %}

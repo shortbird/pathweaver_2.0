@@ -1,24 +1,35 @@
-Welcome to Optio!
+{{ greeting }}
 
-Hi {{ user_name }},
+{% if salutation %}
+{{ salutation }}
 
-Thanks for signing up for Optio! We're excited to have you join our community of learners.
+{% endif %}
+{% for paragraph in paragraphs %}
+{{ paragraph }}
 
-Please confirm your email address to activate your account:
+{% endfor %}
+{% if cta %}
+{{ cta.text }}: {{ cta.url }}
 
+{% endif %}
+{% if highlight_box %}
+{{ highlight_box.title|upper }}
+{{ highlight_box.content }}
+{% if highlight_box.bullet_points %}
+{% for item in highlight_box.bullet_points %}
+- {{ item }}
+{% endfor %}
+{% endif %}
+
+{% endif %}
+{% if link_fallback %}
+{{ link_fallback }}
 {{ confirmation_link }}
 
-WHAT HAPPENS NEXT?
-Once you confirm your email, you'll be able to:
-- Access hundreds of educational quests
-- Track your progress across 5 skill pillars
-- Earn XP and unlock achievements
-- Build your public diploma to showcase your work
-
+{% endif %}
 ---
 Optio Education
 www.optioeducation.com | support@optioeducation.com
-© 2024 Optio Education. All rights reserved.
+© 2025 Optio Education. All rights reserved.
 
-This confirmation link will expire in 24 hours for security reasons.
-If you didn't create an account with Optio, please ignore this email.
+{{ footer_extra }}

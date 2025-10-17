@@ -1,63 +1,70 @@
 {% extends "email/base.html" %}
+{% from "email/signatures.html" import signature_team %}
 
 {% block content %}
-<h1 style="color: #6d469b; font-size: 28px; margin-bottom: 20px;">Your Upgrade Request Has Been Received</h1>
+<h1 style="color: #6d469b; font-size: 28px; margin-bottom: 20px;">{{ title }}</h1>
 
+{% if salutation %}
 <p style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 20px;">
-    Hi {{ user_name }},
+    {{ salutation }}
 </p>
+{% endif %}
 
+{% for paragraph in paragraphs %}
 <p style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 20px;">
-    Thank you for your interest in upgrading to <strong>{{ tier_display_name }}</strong>. We've received your request and our support team will reach out to you within the next 24-48 hours.
+    {{ paragraph|safe }}
 </p>
+{% endfor %}
 
+{% if details_box %}
 <div style="background: linear-gradient(135deg, #ef597b 0%, #6d469b 100%); padding: 20px; border-radius: 8px; margin: 30px 0;">
-    <h2 style="color: white; font-size: 20px; margin: 0 0 15px 0;">Request Details</h2>
+    <h2 style="color: white; font-size: 20px; margin: 0 0 15px 0;">{{ details_box.title }}</h2>
     <table style="width: 100%; color: white;">
+        {% for field in details_box.fields %}
+        {% if not field.conditional or (field.conditional and locals().get(field.conditional)) %}
         <tr>
-            <td style="padding: 8px 0;"><strong>Requested Tier:</strong></td>
-            <td style="padding: 8px 0; text-align: right;">{{ tier_display_name }}</td>
-        </tr>
-        <tr>
-            <td style="padding: 8px 0;"><strong>Preferred Contact:</strong></td>
-            <td style="padding: 8px 0; text-align: right;">{{ contact_preference|capitalize }}</td>
-        </tr>
-        {% if phone_number %}
-        <tr>
-            <td style="padding: 8px 0;"><strong>Phone Number:</strong></td>
-            <td style="padding: 8px 0; text-align: right;">{{ phone_number }}</td>
+            <td style="padding: 8px 0;"><strong>{{ field.label }}:</strong></td>
+            <td style="padding: 8px 0; text-align: right;">{{ field.value|safe }}</td>
         </tr>
         {% endif %}
+        {% endfor %}
     </table>
 </div>
+{% endif %}
 
+{% if middle_paragraph %}
 <p style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 20px;">
-    We're excited to learn more about your goals and discuss how {{ tier_display_name }} can support your learning journey. This is about finding the right rhythm for your growth.
+    {{ middle_paragraph|safe }}
 </p>
+{% endif %}
 
+{% if what_next %}
 <p style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 20px;">
-    <strong>What happens next?</strong>
+    <strong>{{ what_next.title }}</strong>
 </p>
 
 <ul style="font-size: 16px; line-height: 1.8; color: #333; margin-bottom: 30px; padding-left: 20px;">
-    <li>Our team will review your request and current progress</li>
-    <li>We'll reach out via {{ contact_preference }} within 1-2 business days</li>
-    <li>We'll discuss your goals and how {{ tier_display_name }} fits your needs</li>
-    <li>If it's the right fit, we'll help you get set up immediately</li>
+    {% for item in what_next.bullet_points %}
+    <li>{{ item|safe }}</li>
+    {% endfor %}
 </ul>
+{% endif %}
 
+{% if closing_paragraph %}
 <p style="font-size: 16px; line-height: 1.6; color: #333; margin-bottom: 20px;">
-    Have questions in the meantime? Just reply to this email - our team reads every message personally.
+    {{ closing_paragraph }}
 </p>
+{% endif %}
 
-<p style="font-size: 16px; line-height: 1.6; color: #333; margin-top: 40px;">
-    Talk soon,<br>
-    <strong>The Optio Team</strong>
-</p>
-
+{% if footer_note %}
 <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee;">
     <p style="font-size: 14px; color: #666; line-height: 1.6;">
-        <strong>Remember:</strong> The process is the goal. Every step you take matters, and we're here to support you on this journey.
+        {{ footer_note|safe }}
     </p>
 </div>
+{% endif %}
+{% endblock %}
+
+{% block signature %}
+{{ signature_team() }}
 {% endblock %}
