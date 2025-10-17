@@ -11,6 +11,13 @@
 - Follow core_philosophy.md for all updates - "The Process Is The Goal"
 - Never use emojis
 
+**SUBSCRIPTION TIERS:**
+- Tiers are stored in the `subscription_tiers` database table and fetched dynamically via `/api/tiers`
+- View current tier information and pricing at `/subscription` page (https://optio-dev-frontend.onrender.com/subscription)
+- Tier data includes: display_name, tier_key, price_monthly, description, features[], limitations[], badge_text, badge_color, sort_order
+- All tier information is managed through the admin panel, NOT hardcoded in code
+- DO NOT hardcode tier names or prices - always fetch from database
+
 **DEVELOPMENT WORKFLOW:**
 - **Current Branch**: `develop` - All development happens here
 - **Development**: Push to `develop` branch for immediate live testing on dev environment
@@ -72,8 +79,8 @@ backend/
 │   │   └── transcript.py         # Academic transcript
 │   ├── admin_core.py        # Core admin functions
 │   ├── auth.py              # Authentication & JWT
-│   ├── collaborations.py    # Team-up invitations (paid tier)
-│   ├── community.py         # Friends system (paid tier)
+│   ├── collaborations.py    # Team-up invitations (ALL users)
+│   ├── community.py         # Connections/friends system (ALL users)
 │   ├── evidence_documents.py # Evidence file uploads
 │   ├── portfolio.py         # Diploma/portfolio (CORE)
 │   ├── promo.py             # Promo codes
@@ -111,7 +118,7 @@ frontend/src/
 │   ├── DemoPage.jsx            # Demo features
 │   ├── DiplomaPage.jsx         # CORE FEATURE
 │   ├── EmailVerificationPage.jsx  # Email verification
-│   ├── ConnectionsPage.jsx     # Connections/community features (paid tier) - NEW REDESIGN
+│   ├── ConnectionsPage.jsx     # Connections/community features (ALL users) - NEW REDESIGN
 │   ├── FriendsPage.jsx         # DEPRECATED - Redirects to /connections
 │   ├── HomePage.jsx            # Landing page
 │   ├── LoginPage.jsx           # Authentication
@@ -241,14 +248,14 @@ frontend/src/
 
 ### Community & Social Features
 
-**friendships** (Friends system - paid tier only)
+**friendships** (Connections system - available to ALL users)
 - id (UUID, PK)
 - requester_id, addressee_id (both FK to users)
 - status (pending/accepted/rejected)
 - created_at, updated_at
 - Note: Updated via bypass function to avoid timestamp triggers
 
-**quest_collaborations** (Team-up system - paid tier only)
+**quest_collaborations** (Team-up system - available to ALL users)
 - id (UUID, PK)
 - sender_id, receiver_id (both FK to users)
 - quest_id (FK to quests)
@@ -343,12 +350,17 @@ frontend/src/
 - GET /api/users/:userId/completed-quests - Quest history
 - GET /api/users/:userId/transcript - Academic transcript
 
-### Community Features (Paid Tier Only)
-- GET /api/community/friends - List friends
-- POST /api/community/friends/request - Send friend request
-- PUT /api/community/friends/:id/accept - Accept friend request
-- POST /api/collaborations/invite - Send collaboration invite
-- GET /api/collaborations - List collaboration invites
+### Connections & Community Features (Available to ALL Users)
+- GET /api/community/friends - List connections
+- POST /api/community/friends/request - Send connection request
+- PUT /api/community/friends/:id/accept - Accept connection request
+- DELETE /api/community/friends/:id/decline - Decline connection request
+- DELETE /api/community/friends/:id/cancel - Cancel sent connection request
+- POST /api/collaborations/invite - Send team-up collaboration invite
+- GET /api/collaborations/invites - List all collaboration invites (received & sent)
+- POST /api/collaborations/:id/accept - Accept team-up invitation
+- POST /api/collaborations/:id/decline - Decline team-up invitation
+- DELETE /api/collaborations/:id/cancel - Cancel sent team-up invitation
 
 ### Admin API (Modular)
 - **User Management**: /api/admin/users/* - User CRUD, roles, subscriptions

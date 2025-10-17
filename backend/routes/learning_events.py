@@ -276,6 +276,161 @@ def save_evidence_blocks(user_id, event_id):
         return jsonify({'error': 'Internal server error'}), 500
 
 
+@learning_events_bp.route('/api/learning-events/<event_id>/upload', methods=['POST'])
+@require_auth
+def upload_event_file(user_id, event_id):
+    """Upload a file for a learning event evidence block"""
+    try:
+        from database import get_supabase_admin_client, get_user_client
+        from werkzeug.utils import secure_filename
+        from datetime import datetime
+        import os
+        import mimetypes
+
+        supabase = get_user_client(user_id)
+        admin_supabase = get_supabase_admin_client()
+
+        # Verify event belongs to user
+        event_check = supabase.table('learning_events') \
+            .select('id') \
+            .eq('id', event_id) \
+            .eq('user_id', user_id) \
+            .single() \
+            .execute()
+
+        if not event_check.data:
+            return jsonify({
+                'success': False,
+                'error': 'Learning event not found or access denied'
+            }), 404
+
+        # Handle file upload
+        if 'file' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No file provided'
+            }), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'No file selected'
+            }), 400
+
+        # Get block information
+        block_type = request.form.get('block_type', 'document')
+        order_index = request.form.get('order_index', 0)
+
+        # Validate file
+        filename = secure_filename(file.filename)
+        ext = filename.rsplit('.', 1)[1].lower() if '.' in filename else ''
+
+        # Determine allowed extensions based on block type
+        if block_type == 'image':
+            allowed_extensions = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
+            max_file_size = 10 * 1024 * 1024  # 10MB
+        elif block_type == 'document':
+            allowed_extensions = {'pdf', 'doc', 'docx', 'txt'}
+            max_file_size = 10 * 1024 * 1024  # 10MB
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Invalid block type for file upload'
+            }), 400
+
+        if ext not in allowed_extensions:
+            return jsonify({
+                'success': False,
+                'error': f'Invalid file type. Allowed: {", ".join(allowed_extensions)}'
+            }), 400
+
+        # Check file size
+        file.seek(0, os.SEEK_END)
+        file_size = file.tell()
+        file.seek(0)
+
+        if file_size > max_file_size:
+            max_size_mb = max_file_size // (1024*1024)
+            file_size_mb = file_size / (1024*1024)
+            return jsonify({
+                'success': False,
+                'error': f'File too large ({file_size_mb:.1f}MB). Maximum: {max_size_mb}MB.'
+            }), 413
+
+        # Upload to Supabase storage
+        try:
+            timestamp = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+            unique_filename = f"learning-events/{user_id}/{event_id}_{timestamp}_{filename}"
+
+            file_content = file.read()
+            content_type = file.content_type or mimetypes.guess_type(filename)[0] or 'application/octet-stream'
+
+            storage_response = admin_supabase.storage.from_('quest-evidence').upload(
+                path=unique_filename,
+                file=file_content,
+                file_options={"content-type": content_type}
+            )
+
+            public_url = admin_supabase.storage.from_('quest-evidence').get_public_url(unique_filename)
+
+            # Find the evidence block to update
+            blocks_response = supabase.table('learning_event_evidence_blocks') \
+                .select('*') \
+                .eq('learning_event_id', event_id) \
+                .eq('order_index', int(order_index)) \
+                .execute()
+
+            if blocks_response.data and len(blocks_response.data) > 0:
+                block = blocks_response.data[0]
+                block_id = block['id']
+
+                # Update block content with file information
+                current_content = block.get('content', {})
+                current_content.update({
+                    'url': public_url,
+                    'filename': filename,
+                    'file_size': file_size,
+                    'content_type': content_type
+                })
+
+                if block_type == 'image' and not current_content.get('alt'):
+                    current_content['alt'] = filename
+
+                supabase.table('learning_event_evidence_blocks') \
+                    .update({'content': current_content}) \
+                    .eq('id', block_id) \
+                    .execute()
+
+                return jsonify({
+                    'success': True,
+                    'message': 'File uploaded successfully',
+                    'file_url': public_url,
+                    'block_id': block_id,
+                    'filename': filename,
+                    'file_size': file_size
+                })
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': 'Evidence block not found'
+                }), 404
+
+        except Exception as upload_error:
+            logger.error(f"Error uploading file: {str(upload_error)}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to upload file'
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error in upload_event_file: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to process file upload'
+        }), 500
+
+
 @learning_events_bp.route('/api/users/<target_user_id>/learning-events/public', methods=['GET'])
 def get_public_learning_events(target_user_id):
     """Get learning events for public diploma view (no auth required)"""

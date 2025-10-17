@@ -378,7 +378,6 @@ def accept_friend_request(user_id, friendship_id):
 
 @bp.route('/friends/decline/<friendship_id>', methods=['DELETE'])
 @require_auth
-@require_paid_tier
 def decline_friend_request(user_id, friendship_id):
     supabase = get_supabase_client()
 
@@ -401,7 +400,6 @@ def decline_friend_request(user_id, friendship_id):
 
 @bp.route('/friends/cancel/<friendship_id>', methods=['DELETE'])
 @require_auth
-@require_paid_tier
 def cancel_friend_request(user_id, friendship_id):
     supabase = get_supabase_client()
 
@@ -448,7 +446,6 @@ def cancel_friend_request(user_id, friendship_id):
 
 @bp.route('/quests/<quest_id>/invite', methods=['POST'])
 @require_auth
-@require_paid_tier
 def invite_to_quest(user_id, quest_id):
     data = request.json
     friend_ids = data.get('friend_ids', [])

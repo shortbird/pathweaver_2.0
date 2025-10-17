@@ -14,7 +14,7 @@ bp = Blueprint('collaborations', __name__, url_prefix='/api/collaborations')
 
 @bp.route('/invite', methods=['POST'])
 @require_auth
-@require_paid_tier
+
 def send_collaboration_invite(user_id: str):
     """
     Send a team-up invitation to a friend for a specific quest.
@@ -167,7 +167,7 @@ def send_collaboration_invite(user_id: str):
 
 @bp.route('/invites', methods=['GET'])
 @require_auth
-@require_paid_tier
+
 def get_all_invites(user_id: str):
     """
     Get all team-up invitations for the current user (received and sent).
@@ -296,7 +296,7 @@ def get_all_invites(user_id: str):
 
 @bp.route('/<invite_id>/accept', methods=['POST'])
 @require_auth
-@require_paid_tier
+
 def accept_invitation(user_id: str, invite_id: str):
     """
     Accept a team-up invitation.
@@ -411,7 +411,7 @@ def accept_invitation(user_id: str, invite_id: str):
 
 @bp.route('/<invite_id>/decline', methods=['POST'])
 @require_auth
-@require_paid_tier
+
 def decline_invitation(user_id: str, invite_id: str):
     """
     Decline a team-up invitation.
@@ -463,7 +463,7 @@ def decline_invitation(user_id: str, invite_id: str):
 
 @bp.route('/<invite_id>/cancel', methods=['DELETE'])
 @require_auth
-@require_paid_tier
+
 def cancel_invitation(user_id: str, invite_id: str):
     """
     Cancel a team-up invitation that the user sent.
@@ -524,7 +524,7 @@ def cancel_invitation(user_id: str, invite_id: str):
 
 @bp.route('/quest/<quest_id>', methods=['GET'])
 @require_auth
-@require_paid_tier
+
 def get_quest_invitations(user_id: str, quest_id: str):
     """
     Get invitations and collaborations for a specific quest.
@@ -636,7 +636,7 @@ def get_quest_invitations(user_id: str, quest_id: str):
 
 @bp.route('/active', methods=['GET'])
 @require_auth
-@require_paid_tier
+
 def get_active_collaborations(user_id: str):
     """
     Get all active collaborations for the current user.
@@ -717,7 +717,7 @@ def get_active_collaborations(user_id: str):
 
 @bp.route('/<collab_id>/complete', methods=['POST'])
 @require_auth
-@require_paid_tier
+
 def mark_collaboration_complete(user_id: str, collab_id: str):
     """
     Mark a collaboration as completed when the quest is finished.
