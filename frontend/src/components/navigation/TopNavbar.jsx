@@ -1,6 +1,7 @@
 import React from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
+import { getTierDisplayName, getTierBadgeColor } from '../../utils/tierMapping'
 
 const TopNavbar = ({ onMenuClick, siteSettings }) => {
   const location = useLocation()
@@ -104,21 +105,12 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                   to="/subscription"
                   className={`
                     hidden sm:block text-xs px-3 py-1 rounded-full font-poppins font-semibold
-                    uppercase tracking-wider cursor-pointer hover:opacity-80 transition-opacity
-                    ${
-                      user?.subscription_tier === 'academy' || user?.subscription_tier === 'enterprise'
-                        ? 'bg-gradient-to-r from-yellow-400 to-yellow-500 text-white shadow-md'
-                        : user?.subscription_tier === 'supported' || user?.subscription_tier === 'creator' || user?.subscription_tier === 'premium'
-                        ? 'bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white shadow-md'
-                        : 'bg-[#EEEBEF] text-[#605C61]'
-                    }
+                    tracking-wider cursor-pointer hover:opacity-80 transition-opacity
+                    ${getTierBadgeColor(user?.subscription_tier)}
                   `}
                   title="Click to manage subscription"
                 >
-                  {user?.subscription_tier === 'free' || user?.subscription_tier === 'explorer' ? 'Free' :
-                   user?.subscription_tier === 'supported' || user?.subscription_tier === 'creator' || user?.subscription_tier === 'premium' ? 'Supported' :
-                   user?.subscription_tier === 'academy' || user?.subscription_tier === 'enterprise' ? 'Academy' :
-                   user?.subscription_tier?.toUpperCase() || 'Free'}
+                  {getTierDisplayName(user?.subscription_tier)}
                 </Link>
 
                 {/* Logout */}
