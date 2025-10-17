@@ -258,7 +258,10 @@ def register():
             # Fetch the complete user profile data to return to frontend
             user_profile = supabase.table('users').select('*').eq('id', auth_response.user.id).single().execute()
 
-            # Skip welcome email to avoid timeout - Supabase sends its own
+            # NOTE: Supabase Auth automatically sends email verification
+            # To use custom branded email templates, configure in Supabase dashboard:
+            # Authentication > Email Templates > Confirm signup
+            # For now, Supabase's default verification email is sent automatically
 
             response_data = {
                 'user': user_profile.data if user_profile.data else auth_response.user.model_dump(),
