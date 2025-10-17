@@ -37,7 +37,7 @@ const InvitationsTab = ({
             className="text-2xl font-bold text-[#3B383C] mb-6 flex items-center gap-2"
             style={{ fontFamily: 'Poppins', fontWeight: 700 }}
           >
-            <EnvelopeIcon className="w-6 h-6" />
+            <EnvelopeIcon className="w-6 h-6 text-[#6d469b]" />
             Connection Requests
           </h2>
 
@@ -100,7 +100,7 @@ const InvitationsTab = ({
             className="text-2xl font-bold text-[#3B383C] mb-6 flex items-center gap-2"
             style={{ fontFamily: 'Poppins', fontWeight: 700 }}
           >
-            <UserGroupIcon className="w-6 h-6" />
+            <UserGroupIcon className="w-6 h-6 text-[#6d469b]" />
             Team-Up Invitations
           </h2>
 
