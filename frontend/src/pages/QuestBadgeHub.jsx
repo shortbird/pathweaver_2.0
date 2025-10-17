@@ -416,9 +416,11 @@ const QuestBadgeHub = () => {
       {/* Hero header with gradient - purple to pink */}
       <div className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white py-16">
         <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-5xl font-bold mb-4">EXPLORE NEW LEARNING PATHS</h1>
+          <h1 className="text-5xl font-bold mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            EXPLORE NEW LEARNING PATHS
+          </h1>
           <div className="flex items-center gap-3">
-            <p className="text-xl">
+            <p className="text-xl" style={{ fontFamily: 'Poppins, sans-serif' }}>
               Choose from{' '}
               <span
                 className="inline-flex items-center gap-2 px-3 py-1 bg-white/20 rounded-full cursor-default relative group"

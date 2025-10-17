@@ -20,7 +20,8 @@ const ActiveQuests = memo(({ activeQuests }) => {
         <p className="text-gray-600 mb-4">No quests yet.</p>
         <Link
           to="/quests"
-          className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+          className="inline-flex items-center px-6 py-3 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-lg font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+          style={{ fontFamily: 'Poppins, sans-serif' }}
         >
           <RocketLaunchIcon className="w-5 h-5 mr-2" />
           Start Your First Quest
