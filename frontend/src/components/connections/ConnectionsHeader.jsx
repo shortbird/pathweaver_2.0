@@ -25,7 +25,7 @@ const ConnectionsHeader = ({ returnToQuest, onBackToQuest }) => {
           )}
         </div>
         <p className="text-base sm:text-lg text-[#605C61]" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-          Learning partners who celebrate your journey right now
+          Learning is more fun when you do it with others!
         </p>
       </div>
     </header>

@@ -35,14 +35,14 @@ const ConnectionsPage = () => {
     data: friendsData,
     isLoading: loadingFriends,
   } = useFriends(user?.id, {
-    enabled: !!user?.id && hasFeatureAccess(user?.subscription_tier, 'supported'),
+    enabled: !!user?.id && hasFeatureAccess(user?.subscription_tier, 'Accelerate'),
   })
 
   const {
     data: collaborationsData,
     isLoading: loadingCollaborations,
   } = useCollaborations(user?.id, {
-    enabled: !!user?.id && hasFeatureAccess(user?.subscription_tier, 'supported'),
+    enabled: !!user?.id && hasFeatureAccess(user?.subscription_tier, 'Accelerate'),
   })
 
   // Mutations
@@ -52,7 +52,7 @@ const ConnectionsPage = () => {
   const cancelFriendRequestMutation = useCancelFriendRequest()
 
   // Check if user has access to connections feature
-  const hasAccess = hasFeatureAccess(user?.subscription_tier, 'supported')
+  const hasAccess = hasFeatureAccess(user?.subscription_tier, 'Accelerate')
 
   // Extract data from React Query
   const friends = friendsData?.friends || []
