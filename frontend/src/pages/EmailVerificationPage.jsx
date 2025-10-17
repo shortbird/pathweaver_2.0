@@ -117,14 +117,6 @@ const EmailVerificationPage = () => {
                 Didn't receive the email? Check your spam folder or
               </p>
               
-              {/* Rate limit warning */}
-              <div className="bg-blue-50 border border-blue-200 rounded-md p-3">
-                <p className="text-xs text-blue-700">
-                  <strong>Note:</strong> Supabase free tier allows 4 verification emails per hour. 
-                  If you've tried multiple times, you may need to wait for the limit to reset.
-                </p>
-              </div>
-              
               <button
                 onClick={handleResendEmail}
                 disabled={resending || resent}
