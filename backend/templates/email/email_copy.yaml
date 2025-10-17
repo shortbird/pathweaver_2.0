@@ -1,0 +1,217 @@
+# Email Copy Configuration
+# Single source of truth for all email content
+# Edit this file to change email text across the platform
+
+# Signature blocks
+signatures:
+  team:
+    name: "The Optio Team"
+    email: "support@optioeducation.com"
+
+  tanner:
+    name: "Dr. Tanner Bowman"
+    title: "Founder, Optio"
+    email: "tanner@optioeducation.com"
+
+  support:
+    name: "Optio Support"
+    email: "support@optioeducation.com"
+
+# Email templates
+emails:
+  welcome:
+    subject: "Welcome to Optio!"
+    title: "Welcome to Optio!"
+    greeting: "Welcome to Optio, {user_name}!"
+    paragraphs:
+      - "We're excited to have you join our learning community."
+      - "Your account has been successfully created. Here's what you can do next:"
+    bullet_points:
+      - "Explore available quests across five skill pillars"
+      - "Track your learning progress and earn XP"
+      - "Build your public diploma showcasing your achievements"
+      - "Join a community of motivated learners"
+    cta:
+      text: "Go to Dashboard"
+      url: "https://www.optioeducation.com/dashboard"
+    highlight_box:
+      title: "The Process Is The Goal"
+      content: "At Optio, we believe learning is about who you become through the journey, not just the destination. Every quest you complete, every skill you build, is a step toward becoming the person you want to be."
+    closing_paragraph: "If you have any questions, our support team is here to help."
+    signature: "support"
+    footer_extra: "If you didn't create this account, please ignore this email."
+
+  email_confirmation:
+    subject: "Confirm your Optio account"
+    title: "Confirm your Optio account"
+    greeting: "Welcome to Optio!"
+    salutation: "Hi {user_name},"
+    paragraphs:
+      - "Thanks for signing up for Optio! We're excited to have you join our community of learners."
+      - "Please confirm your email address to activate your account and start exploring quests:"
+    cta:
+      text: "Confirm Email Address"
+      url: "{confirmation_link}"
+    highlight_box:
+      title: "What happens next?"
+      content: "Once you confirm your email, you'll be able to:"
+      bullet_points:
+        - "Access hundreds of educational quests"
+        - "Track your progress across 5 skill pillars"
+        - "Earn XP and unlock achievements"
+        - "Build your public diploma to showcase your work"
+    link_fallback: "If the button doesn't work, copy and paste this link into your browser:"
+    signature: "support"
+    footer_extra: "This confirmation link will expire in 24 hours for security reasons.\nIf you didn't create an account with Optio, please ignore this email."
+
+  quest_completion:
+    subject: "Congratulations! You completed '{quest_title}'"
+    title: "Quest Complete!"
+    greeting: "Congratulations, {user_name}!"
+    paragraphs:
+      - "You've successfully completed the quest: **{quest_title}**"
+      - "You earned **{xp_earned} XP** for this achievement!"
+    cta:
+      text: "View Your Progress"
+      url: "https://www.optioeducation.com/dashboard"
+    highlight_box:
+      title: "Keep the momentum going!"
+      content: "Every quest you complete brings you closer to mastering new skills. Check out more quests to continue your learning journey."
+    signature: "team"
+
+  promo_welcome:
+    subject: "Welcome to Optio! Let's Chat About Your Teen's Future"
+    title: "Welcome to Optio! Let's Chat About Your Teen's Future"
+    greeting: "Welcome to Optio!"
+    salutation: "Hi {parent_name},"
+    paragraphs:
+      - "Thank you for your interest in helping your teen{teen_age_text} build real-world skills and create an impressive portfolio.{activity_text}"
+      - "We created Optio because we believe teens learn best when given the freedom to pursue their interests. Our platform helps students earn real high school credit for the learning experiences they have in their daily lives while building portfolios that showcase their excellent work."
+    highlight_box:
+      title: "Want to learn more?"
+      bullet_points:
+        - "**Explore our demo:** [Take a quick tour](https://www.optioeducation.com/demo) to see how Optio works."
+        - "**Tell us about your teen:** Reply to this email and share what makes your teen unique. What are their interests, goals, or challenges?"
+        - "**Get personalized guidance:** I will read every reply and respond with specific thoughts about how Optio could help your kid customize their own high school education."
+    closing_paragraphs:
+      - "**I'd love to hear from you!** What are your teen's biggest interests? What educational challenges are you facing? What are your hopes for their future?"
+      - "Just hit reply and tell me about your situation. There's a real person (me!) who will read your message and respond personally."
+    cta:
+      text: "Explore Our Demo"
+      url: "https://www.optioeducation.com/demo"
+    signature: "tanner"
+
+  consultation_confirmation:
+    subject: "Let's Explore How We Can Work Together"
+    title: "Let's Explore How We Can Work Together"
+    salutation: "Hi {parent_name},"
+    paragraphs:
+      - "Partnering with an experienced educator can truly magnify your family's learning experience. I'm excited to explore how we can work together to support your child's educational journey."
+    cta:
+      text: "Book Your Free Consultation"
+      url: "https://optio.zohobookings.com/#/free_consult"
+    cta_subtext: "Choose a time that works best for your schedule."
+    highlight_box:
+      title: "What to Expect on Our Call"
+      content: "We'll spend about 30 minutes in a collaborative conversation about your family. I want to hear about your child's interests, your vision for their education, and how we might work together as partners in their learning journey."
+      italic_note: "Think of it as a planning session with a colleague - no sales pitch, just a genuine exploration of whether Optio is the right fit for your family."
+    closing_section:
+      paragraph: "Before our call, I recommend exploring these resources to get a sense of what's possible:"
+      bullet_points:
+        - "Try our [2-minute interactive demo](https://www.optioeducation.com/demo) to see the student experience"
+        - "Read about our philosophy on the [homepage](https://www.optioeducation.com)"
+        - "Think about what questions matter most to you"
+      final_paragraph: "Have questions before we meet? Simply reply to this email - I respond personally to every message. A consultation is not the only way to get in touch."
+    closing_line: "Looking forward to connecting with you!"
+    signature: "tanner"
+
+  parental_consent:
+    subject: "Parental Consent Required - Optio Account"
+    title: "Parental Consent Required"
+    salutation: "Hi {parent_name},"
+    paragraphs:
+      - "Your child, {child_name}, has created an account on Optio Education. As a parent or guardian, we need your consent before they can use our platform."
+      - "Optio is an educational platform where students complete learning quests, build skills, and create portfolios of their work. We take student safety and privacy seriously."
+    cta:
+      text: "Verify Parental Consent"
+      url: "{verification_link}"
+    highlight_box:
+      title: "What you're consenting to:"
+      bullet_points:
+        - "Your child can create and complete educational quests"
+        - "Their learning progress will be tracked and displayed"
+        - "They can build a public portfolio (optional)"
+        - "We follow COPPA guidelines for student data protection"
+    closing_paragraph: "If you have any questions about our platform or privacy practices, please don't hesitate to contact us."
+    signature: "support"
+    footer_extra: "This verification link will expire in 7 days.\nIf you did not expect this email, please contact us immediately."
+
+  subscription_request_user:
+    subject: "Your {tier_display_name} Upgrade Request Has Been Received"
+    title: "Your Upgrade Request Has Been Received"
+    salutation: "Hi {user_name},"
+    paragraphs:
+      - "Thank you for your interest in upgrading to **{tier_display_name}**. We've received your request and our support team will reach out to you within the next 24-48 hours."
+    details_box:
+      title: "Request Details"
+      fields:
+        - label: "Requested Tier"
+          value: "{tier_display_name}"
+        - label: "Preferred Contact"
+          value: "{contact_preference}"
+        - label: "Phone Number"
+          value: "{phone_number}"
+          conditional: "phone_number"
+    middle_paragraph: "We're excited to learn more about your goals and discuss how {tier_display_name} can support your learning journey. This is about finding the right rhythm for your growth."
+    what_next:
+      title: "What happens next?"
+      bullet_points:
+        - "Our team will review your request and current progress"
+        - "We'll reach out via {contact_preference} within 1-2 business days"
+        - "We'll discuss your goals and how {tier_display_name} fits your needs"
+        - "If it's the right fit, we'll help you get set up immediately"
+    closing_paragraph: "Have questions in the meantime? Just reply to this email - our team reads every message personally."
+    signature: "team"
+    footer_note: "**Remember:** The process is the goal. Every step you take matters, and we're here to support you on this journey."
+
+  subscription_request_admin:
+    subject: "New Subscription Request: {user_name} → {tier_display_name}"
+    title: "New Subscription Request"
+    intro: "A user has requested a subscription upgrade and needs follow-up."
+    user_details:
+      title: "User Information"
+      fields:
+        - label: "Name"
+          value: "{user_name}"
+        - label: "Email"
+          value: "{user_email}"
+        - label: "User ID"
+          value: "{user_id}"
+    request_details:
+      title: "Request Details"
+      fields:
+        - label: "Current Tier"
+          value: "{current_tier}"
+        - label: "Requested Tier"
+          value: "{tier_display_name}"
+        - label: "Preferred Contact"
+          value: "{contact_preference}"
+        - label: "Phone Number"
+          value: "{phone_number}"
+          conditional: "phone_number"
+    message_section:
+      title: "User Message"
+      content: "{message}"
+      conditional: "message"
+      empty_text: "No additional message provided."
+    action_items:
+      title: "Action Required"
+      bullet_points:
+        - "Review user's current progress and engagement"
+        - "Contact user via {contact_preference} within 24-48 hours"
+        - "Discuss their goals and ensure {tier_display_name} is the right fit"
+        - "If approved, process upgrade and send confirmation"
+    dashboard_link:
+      text: "View User in Admin Dashboard"
+      url: "https://www.optioeducation.com/admin/users/{user_id}"
+    signature: "support"

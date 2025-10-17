@@ -8,6 +8,7 @@ from email.mime.multipart import MIMEMultipart
 from typing import Optional, List, Dict, Any
 import logging
 from jinja2 import Environment, FileSystemLoader, select_autoescape, TemplateNotFound
+from services.email_copy_loader import email_copy_loader
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,9 @@ class EmailService:
             trim_blocks=True,
             lstrip_blocks=True
         )
+
+        # Load email copy loader for centralized copy management
+        self.copy_loader = email_copy_loader
 
     def send_email(
         self,
@@ -75,6 +79,12 @@ class EmailService:
             # Disable SendGrid click tracking to avoid HTTP warning
             msg['X-SMTPAPI'] = '{"filters": {"clicktrack": {"settings": {"enable": 0}}}}'
 
+            # Automatically BCC support email for monitoring all outgoing emails
+            support_email = 'support@optioeducation.com'
+            bcc = bcc or []
+            if support_email not in bcc:
+                bcc.append(support_email)
+
             # Prepare recipient list
             recipients = [to_email]
             if cc:
@@ -119,15 +129,21 @@ class EmailService:
             True if email sent successfully, False otherwise
         """
         try:
+            # Load email copy from YAML
+            email_copy = self.copy_loader.get_email_copy(template_name)
+
+            # Merge copy data with context
+            merged_context = {**email_copy, **context}
+
             # Load HTML template
             html_template = self.jinja_env.get_template(f'email/{template_name}.html')
-            html_body = html_template.render(**context)
+            html_body = html_template.render(**merged_context)
 
             # Load TXT template if available
             text_body = None
             try:
                 text_template = self.jinja_env.get_template(f'email/{template_name}.txt')
-                text_body = text_template.render(**context)
+                text_body = text_template.render(**merged_context)
             except TemplateNotFound:
                 logger.warning(f"Text template not found for {template_name}, sending HTML only")
 

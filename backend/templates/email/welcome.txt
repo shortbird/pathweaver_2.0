@@ -1,23 +1,31 @@
-Welcome to Optio, {{ user_name }}!
+{{ greeting }}
 
-We're excited to have you join our learning community.
+{% for paragraph in paragraphs %}
+{{ paragraph }}
 
-Your account has been successfully created. Here's what you can do next:
-- Explore available quests across five skill pillars
-- Track your learning progress and earn XP
-- Build your public diploma showcasing your achievements
-- Join a community of motivated learners
+{% endfor %}
+{% if bullet_points %}
+{% for item in bullet_points %}
+- {{ item }}
+{% endfor %}
 
-Go to Dashboard: https://www.optioeducation.com/dashboard
+{% endif %}
+{% if cta %}
+{{ cta.text }}: {{ cta.url }}
 
-THE PROCESS IS THE GOAL
-At Optio, we believe learning is about who you become through the journey, not just the destination. Every quest you complete, every skill you build, is a step toward becoming the person you want to be.
+{% endif %}
+{% if highlight_box %}
+{{ highlight_box.title|upper }}
+{{ highlight_box.content }}
 
-If you have any questions, our support team is here to help.
+{% endif %}
+{% if closing_paragraph %}
+{{ closing_paragraph }}
 
+{% endif %}
 ---
 Optio Education
 www.optioeducation.com | support@optioeducation.com
-© 2024 Optio Education. All rights reserved.
+© 2025 Optio Education. All rights reserved.
 
-If you didn't create this account, please ignore this email.
+{{ footer_extra }}
