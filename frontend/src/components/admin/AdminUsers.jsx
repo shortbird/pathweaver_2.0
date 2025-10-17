@@ -1,7 +1,6 @@
 import React, { useState, useEffect, memo } from 'react'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
-import { getTierDisplayName } from '../../utils/tierMapping'
 import UserDetailsModal from './UserDetailsModal'
 import BulkEmailModal from './BulkEmailModal'
 import ChatLogsModal from './ChatLogsModal'
@@ -145,13 +144,14 @@ const AdminUsers = () => {
   }
 
   const getSubscriptionBadge = (tier) => {
+    // Map tier_key values to badge colors
     const badges = {
-      free: 'bg-gray-100 text-gray-700',
-      explorer: 'bg-gray-100 text-gray-700',
-      supported: 'bg-blue-100 text-blue-700',
-      academy: 'bg-purple-100 text-purple-700'
+      Explore: 'bg-gray-100 text-gray-700',       // Free tier
+      Accelerate: 'bg-blue-100 text-blue-700',    // Parent Support
+      Achieve: 'bg-purple-100 text-purple-700',   // Weekly Support
+      Excel: 'bg-pink-100 text-pink-700'          // Daily Support
     }
-    return badges[tier] || badges.free
+    return badges[tier] || badges.Explore
   }
 
   const getRoleBadge = (role) => {
@@ -181,6 +181,13 @@ const AdminUsers = () => {
       day: 'numeric',
       year: 'numeric'
     })
+  }
+
+  // Get tier display name from fetched tiers (single source of truth)
+  const getTierDisplayNameFromData = (tierKey) => {
+    if (!tiers) return tierKey
+    const tier = tiers.find(t => t.tier_key === tierKey)
+    return tier?.display_name || tierKey
   }
 
   if (loading) {
@@ -330,7 +337,7 @@ const AdminUsers = () => {
                 </td>
                 <td className="px-6 py-4">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getSubscriptionBadge(user.subscription_tier || 'free')}`}>
-                    {getTierDisplayName(user.subscription_tier || 'free')}
+                    {getTierDisplayNameFromData(user.subscription_tier || 'Explore')}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500">
