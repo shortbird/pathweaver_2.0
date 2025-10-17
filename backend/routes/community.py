@@ -542,35 +542,41 @@ def get_friends_activity(user_id):
         from datetime import datetime, timedelta
         thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
 
-        activities = []
+        # OPTIMIZED: Fetch all completions in a single query using .in_() filter
+        try:
+            # Get all recent task completions from all friends at once
+            completions = admin_supabase.table('quest_task_completions')\
+                .select('*, quest_tasks(title, pillar, quest_id, quests(id, title, image_url))')\
+                .in_('user_id', friend_ids)\
+                .gte('completed_at', thirty_days_ago)\
+                .order('completed_at', desc=True)\
+                .limit(50)\
+                .execute()
 
-        for friend_id in friend_ids:
-            try:
-                # Get friend's recent task completions with quest info
-                completions = admin_supabase.table('quest_task_completions')\
-                    .select('*, quest_tasks(title, pillar, quest_id, quests(id, title, image_url))')\
-                    .eq('user_id', friend_id)\
-                    .gte('completed_at', thirty_days_ago)\
-                    .order('completed_at', desc=True)\
-                    .limit(10)\
-                    .execute()
+            # Get all friends' user data in a single query
+            friends_data = admin_supabase.table('users')\
+                .select('id, first_name, last_name, avatar_url')\
+                .in_('id', friend_ids)\
+                .execute()
 
-                # Get friend's user data
-                friend_data = admin_supabase.table('users')\
-                    .select('id, first_name, last_name, avatar_url')\
-                    .eq('id', friend_id)\
-                    .single()\
-                    .execute()
+            # Create a lookup dictionary for friend data
+            friends_lookup = {friend['id']: friend for friend in (friends_data.data or [])}
 
-                if completions.data and friend_data.data:
-                    for completion in completions.data:
-                        if completion.get('quest_tasks'):
-                            task = completion['quest_tasks']
-                            quest = task.get('quests', {})
+            # Format activities
+            activities = []
+            if completions.data:
+                for completion in completions.data:
+                    if completion.get('quest_tasks'):
+                        task = completion['quest_tasks']
+                        quest = task.get('quests', {})
+                        user_id = completion['user_id']
 
+                        # Get friend data from lookup
+                        friend_data = friends_lookup.get(user_id)
+                        if friend_data:
                             activities.append({
                                 'id': completion['id'],
-                                'user': friend_data.data,
+                                'user': friend_data,
                                 'quest': {
                                     'id': quest.get('id'),
                                     'title': quest.get('title', 'Unknown Quest'),
@@ -585,15 +591,9 @@ def get_friends_activity(user_id):
                                 'type': 'task_completion'
                             })
 
-            except Exception as friend_error:
-                print(f"[FRIENDS_ACTIVITY] Error fetching activity for friend {friend_id}: {str(friend_error)}")
-                continue
-
-        # Sort all activities by completion time (most recent first)
-        activities.sort(key=lambda x: x['completed_at'], reverse=True)
-
-        # Return top 50
-        activities = activities[:50]
+        except Exception as query_error:
+            print(f"[FRIENDS_ACTIVITY] Error fetching activities: {str(query_error)}")
+            activities = []
 
         print(f"[FRIENDS_ACTIVITY] Returning {len(activities)} activities")
 
