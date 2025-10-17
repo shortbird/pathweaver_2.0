@@ -19,6 +19,22 @@ export const useFriends = (userId, options = {}) => {
 }
 
 /**
+ * Hook for fetching friends' activity feed
+ */
+export const useFriendsActivity = (userId, options = {}) => {
+  return useQuery({
+    queryKey: queryKeys.social.activity(userId),
+    queryFn: async () => {
+      const response = await friendsAPI.getFriendsActivity()
+      return response.data
+    },
+    enabled: !!userId,
+    staleTime: 60000, // Consider data fresh for 1 minute
+    ...options,
+  })
+}
+
+/**
  * Hook for sending friend request
  */
 export const useSendFriendRequest = () => {

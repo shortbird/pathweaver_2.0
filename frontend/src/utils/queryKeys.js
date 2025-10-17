@@ -36,6 +36,7 @@ export const queryKeys = {
   social: {
     all: ['social'],
     friends: (userId) => [...queryKeys.social.all, 'friends', userId],
+    activity: (userId) => [...queryKeys.social.all, 'activity', userId],
     friendRequests: (userId) => [...queryKeys.social.all, 'friendRequests', userId],
     collaborations: (userId) => [...queryKeys.social.all, 'collaborations', userId],
     questCollaborations: (questId) => [...queryKeys.social.all, 'questCollaborations', questId],

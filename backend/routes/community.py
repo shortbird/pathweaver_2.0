@@ -483,6 +483,124 @@ def invite_to_quest(user_id, quest_id):
                 pass
         
         return jsonify({'message': f'Invited {len(friend_ids)} friends to quest'}), 200
-        
+
     except Exception as e:
+        return jsonify({'error': str(e)}), 400
+
+@bp.route('/friends/activity', methods=['GET'])
+@require_auth
+def get_friends_activity(user_id):
+    """
+    Get recent quest activity from user's connections.
+    Returns task completions from friends for the activity feed.
+    """
+    from database import get_supabase_admin_client
+    admin_supabase = get_supabase_admin_client()
+    supabase = get_supabase_client()
+
+    try:
+        print(f"[FRIENDS_ACTIVITY] Fetching activity for user: {user_id}")
+
+        # First, get list of accepted friends
+        try:
+            friendships = supabase.table('friendships')\
+                .select('*')\
+                .or_(f'requester_id.eq.{user_id},addressee_id.eq.{user_id}')\
+                .eq('status', 'accepted')\
+                .execute()
+
+            all_friendships = friendships.data or []
+        except Exception as db_error:
+            print(f"[FRIENDS_ACTIVITY] Database error: {str(db_error)}")
+            # Fallback to separate queries
+            friendships_as_requester = supabase.table('friendships')\
+                .select('*')\
+                .eq('requester_id', user_id)\
+                .eq('status', 'accepted')\
+                .execute()
+
+            friendships_as_addressee = supabase.table('friendships')\
+                .select('*')\
+                .eq('addressee_id', user_id)\
+                .eq('status', 'accepted')\
+                .execute()
+
+            all_friendships = (friendships_as_requester.data or []) + (friendships_as_addressee.data or [])
+
+        # Extract friend IDs
+        friend_ids = []
+        for friendship in all_friendships:
+            friend_id = friendship['addressee_id'] if friendship['requester_id'] == user_id else friendship['requester_id']
+            friend_ids.append(friend_id)
+
+        print(f"[FRIENDS_ACTIVITY] Found {len(friend_ids)} friends")
+
+        if not friend_ids:
+            return jsonify({'activities': []}), 200
+
+        # Get recent task completions from friends (last 30 days, limit 50)
+        from datetime import datetime, timedelta
+        thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
+
+        activities = []
+
+        for friend_id in friend_ids:
+            try:
+                # Get friend's recent task completions with quest info
+                completions = admin_supabase.table('quest_task_completions')\
+                    .select('*, quest_tasks(title, pillar, quest_id, quests(id, title, image_url))')\
+                    .eq('user_id', friend_id)\
+                    .gte('completed_at', thirty_days_ago)\
+                    .order('completed_at', desc=True)\
+                    .limit(10)\
+                    .execute()
+
+                # Get friend's user data
+                friend_data = admin_supabase.table('users')\
+                    .select('id, first_name, last_name, avatar_url')\
+                    .eq('id', friend_id)\
+                    .single()\
+                    .execute()
+
+                if completions.data and friend_data.data:
+                    for completion in completions.data:
+                        if completion.get('quest_tasks'):
+                            task = completion['quest_tasks']
+                            quest = task.get('quests', {})
+
+                            activities.append({
+                                'id': completion['id'],
+                                'user': friend_data.data,
+                                'quest': {
+                                    'id': quest.get('id'),
+                                    'title': quest.get('title', 'Unknown Quest'),
+                                    'image_url': quest.get('image_url')
+                                },
+                                'task': {
+                                    'title': task.get('title', 'Task'),
+                                    'pillar': task.get('pillar', 'STEM & Logic')
+                                },
+                                'xp_awarded': completion.get('xp_awarded', 0),
+                                'completed_at': completion.get('completed_at'),
+                                'type': 'task_completion'
+                            })
+
+            except Exception as friend_error:
+                print(f"[FRIENDS_ACTIVITY] Error fetching activity for friend {friend_id}: {str(friend_error)}")
+                continue
+
+        # Sort all activities by completion time (most recent first)
+        activities.sort(key=lambda x: x['completed_at'], reverse=True)
+
+        # Return top 50
+        activities = activities[:50]
+
+        print(f"[FRIENDS_ACTIVITY] Returning {len(activities)} activities")
+
+        return jsonify({'activities': activities}), 200
+
+    except Exception as e:
+        import traceback
+        print(f"[FRIENDS_ACTIVITY] Error: {str(e)}", file=sys.stderr, flush=True)
+        print(f"[FRIENDS_ACTIVITY] Full traceback: {traceback.format_exc()}", file=sys.stderr, flush=True)
         return jsonify({'error': str(e)}), 400

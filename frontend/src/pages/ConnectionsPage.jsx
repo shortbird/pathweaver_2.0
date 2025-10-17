@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
 import {
   useFriends,
+  useFriendsActivity,
   useSendFriendRequest,
   useAcceptFriendRequest,
   useDeclineFriendRequest,
@@ -45,6 +46,13 @@ const ConnectionsPage = () => {
     enabled: !!user?.id,
   })
 
+  const {
+    data: activityData,
+    isLoading: loadingActivity,
+  } = useFriendsActivity(user?.id, {
+    enabled: !!user?.id,
+  })
+
   // Mutations
   const sendFriendRequestMutation = useSendFriendRequest()
   const acceptFriendRequestMutation = useAcceptFriendRequest()
@@ -62,7 +70,7 @@ const ConnectionsPage = () => {
   const sentTeamInvitations = collaborationsData?.sent_invitations || []
 
   // Loading state
-  const loading = loadingFriends || loadingCollaborations
+  const loading = loadingFriends || loadingCollaborations || loadingActivity
 
   // Check if we should return to a quest after adding friends
   useEffect(() => {
@@ -72,15 +80,8 @@ const ConnectionsPage = () => {
     }
   }, [])
 
-  // Generate activity feed from friends' recent quest activity
-  // TODO: This would ideally come from a dedicated API endpoint
-  const generateActivityFeed = () => {
-    // Mock activity feed for now
-    // In production, this would fetch from API showing friends' recent quest starts/completions
-    return []
-  }
-
-  const activities = generateActivityFeed()
+  // Get activity feed from API
+  const activities = activityData?.activities || []
 
   // Helper function to format time ago
   const formatTimeAgo = (timestamp) => {
