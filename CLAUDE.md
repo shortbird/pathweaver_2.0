@@ -62,6 +62,13 @@ Optio is an educational platform where students create self-validated diplomas t
 - Database: Supabase (shared across environments)
 - Custom Domain: www.optioeducation.com → optio-prod-frontend service
 
+## Important Files
+
+**CRITICAL - Python Dependencies:**
+- **ROOT `requirements.txt`** - Used by Render for production deploys (THIS IS THE ONE THAT MATTERS!)
+- `backend/requirements.txt` - Local development reference only (NOT used by Render)
+- **ALWAYS update the ROOT requirements.txt when adding Python packages**
+
 ## Key Directory Structure
 
 ```
