@@ -555,6 +555,14 @@ claude mcp add supabase npx -- -y @supabase/mcp-server-supabase@latest --access-
 ```
 
 This enables direct read-only SQL queries against the production database for debugging and analysis.
+
+**CRITICAL: ALWAYS USE SUPABASE MCP TO CHECK SCHEMA BEFORE WRITING QUERIES**
+- Before writing ANY database query, ALWAYS use `mcp__supabase__list_tables` to verify table names exist
+- Use `mcp__supabase__execute_sql` with `DESCRIBE` or `SELECT * FROM table LIMIT 0` to check table schemas, column names, and relationships
+- Check foreign key relationships with SQL queries to understand how tables join
+- NEVER rely on documentation alone - the database is the source of truth and may have different table/column names
+- The schema documentation in this file may be outdated - always verify with MCP tools first
+- Example: If documentation says `quest_tasks` but database has `user_quest_tasks`, the database wins
 **Service IDs (Clean Architecture):**
 - **Dev Backend**: `srv-d2tnvlvfte5s73ae8npg` (optio-dev-backend)
 - **Dev Frontend**: `srv-d2tnvrffte5s73ae8s4g` (optio-dev-frontend)

@@ -5,7 +5,6 @@ API endpoints for spontaneous learning moment capture
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from services.learning_events_service import LearningEventsService
-from middleware.csrf_protection import csrf_protect
 import logging
 
 logger = logging.getLogger(__name__)
@@ -14,7 +13,6 @@ learning_events_bp = Blueprint('learning_events', __name__)
 
 
 @learning_events_bp.route('/api/learning-events', methods=['POST'])
-@csrf_protect
 @require_auth
 def create_learning_event(user_id):
     """Create a new learning event"""
@@ -139,7 +137,6 @@ def get_learning_event(user_id, event_id):
 
 
 @learning_events_bp.route('/api/learning-events/<event_id>', methods=['PUT'])
-@csrf_protect
 @require_auth
 def update_learning_event(user_id, event_id):
     """Update a learning event"""
@@ -198,7 +195,6 @@ def update_learning_event(user_id, event_id):
 
 
 @learning_events_bp.route('/api/learning-events/<event_id>', methods=['DELETE'])
-@csrf_protect
 @require_auth
 def delete_learning_event(user_id, event_id):
     """Delete a learning event"""
@@ -225,7 +221,6 @@ def delete_learning_event(user_id, event_id):
 
 
 @learning_events_bp.route('/api/learning-events/<event_id>/evidence', methods=['POST'])
-@csrf_protect
 @require_auth
 def save_evidence_blocks(user_id, event_id):
     """Save or update evidence blocks for a learning event"""
