@@ -113,29 +113,28 @@ const DashboardPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      {/* Header Section */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">
-          {isNewUser ? `Welcome to Optio, ${user?.first_name}!` : `Welcome back, ${user?.first_name}!`}
-        </h1>
-        <p className="text-gray-600 mt-2">
-          {isNewUser ?
-            'Start your learning journey by completing quests and earning XP!' :
-            'Choose a quest that calls to you and see where it leads.'}
-        </p>
-      </div>
-
-      {/* Capture Learning Moment Button */}
-      <button
-        onClick={() => setShowLearningEventModal(true)}
-        className="w-full bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white py-4 px-6 rounded-xl hover:shadow-lg transition-all duration-300 mb-8 flex items-center justify-center gap-3 font-semibold text-lg"
-      >
-        <span className="text-2xl">✨</span>
-        <div className="text-left">
-          <div>Capture a Learning Moment</div>
-          <div className="text-white/80 text-sm font-normal">Record any discovery, skill, or growth</div>
+      {/* Header Section with Capture Button */}
+      <div className="mb-8 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            {isNewUser ? `Welcome to Optio, ${user?.first_name}!` : `Welcome back, ${user?.first_name}!`}
+          </h1>
+          <p className="text-gray-600 mt-2">
+            {isNewUser ?
+              'Start your learning journey by completing quests and earning XP!' :
+              'Choose a quest that calls to you and see where it leads.'}
+          </p>
         </div>
-      </button>
+        <button
+          onClick={() => setShowLearningEventModal(true)}
+          className="flex-shrink-0 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-300 flex items-center gap-2 font-medium text-sm"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          Capture Moment
+        </button>
+      </div>
 
       {/* Active Quests Panel */}
       <div>

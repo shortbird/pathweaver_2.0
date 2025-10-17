@@ -3,9 +3,9 @@ Learning Events Routes
 API endpoints for spontaneous learning moment capture
 """
 from flask import Blueprint, request, jsonify
-from backend.utils.auth.decorators import require_auth
-from backend.services.learning_events_service import LearningEventsService
-from backend.middleware.csrf_protection import csrf_protect
+from utils.auth.decorators import require_auth
+from services.learning_events_service import LearningEventsService
+from middleware.csrf_protection import csrf_protect
 import logging
 
 logger = logging.getLogger(__name__)
@@ -243,10 +243,14 @@ def save_evidence_blocks(user_id, event_id):
         # Validate block types
         valid_block_types = ['text', 'image', 'video', 'link', 'document']
         for block in blocks:
-            if 'type' not in block:
-                return jsonify({'error': 'Each block must have a type'}), 400
-            if block['type'] not in valid_block_types:
-                return jsonify({'error': f'Invalid block type: {block["type"]}'}), 400
+            block_type = block.get('block_type') or block.get('type')
+            if not block_type:
+                return jsonify({'error': 'Each block must have a block_type or type'}), 400
+            if block_type not in valid_block_types:
+                return jsonify({'error': f'Invalid block type: {block_type}'}), 400
+            # Normalize to block_type
+            if 'type' in block and 'block_type' not in block:
+                block['block_type'] = block.pop('type')
 
         result = LearningEventsService.save_evidence_blocks(
             user_id=user_id,

@@ -30,19 +30,19 @@ const ConnectionsPage = () => {
   const [showAddModal, setShowAddModal] = useState(false)
   const [returnToQuest, setReturnToQuest] = useState(null)
 
-  // React Query hooks
+  // React Query hooks - Connections feature is available to ALL users including free tier
   const {
     data: friendsData,
     isLoading: loadingFriends,
   } = useFriends(user?.id, {
-    enabled: !!user?.id && hasFeatureAccess(user?.subscription_tier, 'Accelerate'),
+    enabled: !!user?.id,
   })
 
   const {
     data: collaborationsData,
     isLoading: loadingCollaborations,
   } = useCollaborations(user?.id, {
-    enabled: !!user?.id && hasFeatureAccess(user?.subscription_tier, 'Accelerate'),
+    enabled: !!user?.id,
   })
 
   // Mutations
@@ -51,8 +51,8 @@ const ConnectionsPage = () => {
   const declineFriendRequestMutation = useDeclineFriendRequest()
   const cancelFriendRequestMutation = useCancelFriendRequest()
 
-  // Check if user has access to connections feature
-  const hasAccess = hasFeatureAccess(user?.subscription_tier, 'Accelerate')
+  // Connections feature is available to ALL users - no tier restriction
+  const hasAccess = true
 
   // Extract data from React Query
   const friends = friendsData?.friends || []
@@ -194,179 +194,7 @@ const ConnectionsPage = () => {
     )
   }
 
-  // If user doesn't have access, show upgrade message
-  if (!hasAccess) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center">
-          <div className="mb-8">
-            <svg
-              className="w-16 h-16 mx-auto text-gray-400"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
-              />
-            </svg>
-          </div>
-
-          <h1
-            className="text-3xl font-bold mb-4"
-            style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-          >
-            Connect with Learning Partners
-          </h1>
-          <p
-            className="text-lg text-[#605C61] mb-8 max-w-2xl mx-auto"
-            style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-          >
-            Build your learning community by connecting with others, collaborating on quests, and earning bonus XP together.
-          </p>
-
-          <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-            <h2
-              className="text-xl font-semibold mb-6"
-              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-            >
-              Accelerate Tier Features
-            </h2>
-            <div className="grid md:grid-cols-2 gap-6 text-left">
-              <div className="flex items-start gap-3">
-                <svg
-                  className="w-5 h-5 text-green-500 mt-1 flex-shrink-0"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <div>
-                  <h3
-                    className="font-medium"
-                    style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-                  >
-                    Connect with Learning Partners
-                  </h3>
-                  <p
-                    className="text-sm text-[#605C61]"
-                    style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-                  >
-                    Send and accept connection requests to build your learning community
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <svg
-                  className="w-5 h-5 text-green-500 mt-1 flex-shrink-0"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <div>
-                  <h3
-                    className="font-medium"
-                    style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-                  >
-                    Team-Up for 2x XP
-                  </h3>
-                  <p
-                    className="text-sm text-[#605C61]"
-                    style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-                  >
-                    Collaborate on quests with others to earn double experience points
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <svg
-                  className="w-5 h-5 text-green-500 mt-1 flex-shrink-0"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <div>
-                  <h3
-                    className="font-medium"
-                    style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-                  >
-                    Learning Activity Feed
-                  </h3>
-                  <p
-                    className="text-sm text-[#605C61]"
-                    style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-                  >
-                    See what your connections are discovering right now
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <svg
-                  className="w-5 h-5 text-green-500 mt-1 flex-shrink-0"
-                  fill="currentColor"
-                  viewBox="0 0 20 20"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <div>
-                  <h3
-                    className="font-medium"
-                    style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-                  >
-                    Portfolio Diploma Access
-                  </h3>
-                  <p
-                    className="text-sm text-[#605C61]"
-                    style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-                  >
-                    Build and share your professional learning portfolio
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex justify-center gap-4">
-            <button
-              onClick={() => navigate('/subscription')}
-              className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white px-8 py-3 rounded-full font-semibold shadow-[0_4px_20px_rgba(109,70,155,0.15)] hover:shadow-[0_6px_25px_rgba(109,70,155,0.25)] hover:-translate-y-0.5 transition-all duration-300"
-              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-            >
-              Upgrade to Accelerate
-            </button>
-            <button
-              onClick={() => navigate('/quests')}
-              className="bg-gray-100 text-gray-700 px-6 py-3 rounded-full font-medium hover:bg-gray-200 transition-colors"
-              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-            >
-              Continue Learning
-            </button>
-          </div>
-        </div>
-      </div>
-    )
-  }
+  // Connections feature is available to all users - no upgrade wall needed
 
   return (
     <div className="min-h-screen bg-white">

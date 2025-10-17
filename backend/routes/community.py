@@ -7,7 +7,6 @@ bp = Blueprint('community', __name__)
 
 @bp.route('/friends', methods=['GET'])
 @require_auth
-@require_paid_tier
 def get_friends(user_id):
     supabase = get_supabase_client()
     from database import get_supabase_admin_client
@@ -114,7 +113,6 @@ def get_friends(user_id):
 
 @bp.route('/friends/request', methods=['POST'])
 @require_auth
-@require_paid_tier
 def send_friend_request(user_id):
     data = request.json
     addressee_email = data.get('email')
@@ -260,7 +258,6 @@ def send_friend_request(user_id):
 
 @bp.route('/friends/accept/<friendship_id>', methods=['POST'])
 @require_auth
-@require_paid_tier
 def accept_friend_request(user_id, friendship_id):
     supabase = get_supabase_client()
     from database import get_supabase_admin_client

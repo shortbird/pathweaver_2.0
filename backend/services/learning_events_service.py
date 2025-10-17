@@ -5,7 +5,7 @@ Handles business logic for spontaneous learning moment capture
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import logging
-from backend.database import get_supabase_admin_client, get_user_client
+from database import get_supabase_admin_client, get_user_client
 
 logger = logging.getLogger(__name__)
 
@@ -301,9 +301,9 @@ class LearningEventsService:
             for block in blocks:
                 block_data = {
                     'learning_event_id': event_id,
-                    'block_type': block.get('type'),
+                    'block_type': block.get('block_type') or block.get('type'),
                     'content': block.get('content', {}),
-                    'order_index': block.get('order', 0)
+                    'order_index': block.get('order_index', block.get('order', 0))
                 }
 
                 response = supabase.table('learning_event_evidence_blocks') \
