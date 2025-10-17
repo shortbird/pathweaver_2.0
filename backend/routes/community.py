@@ -545,8 +545,9 @@ def get_friends_activity(user_id):
         # OPTIMIZED: Fetch all completions in a single query using .in_() filter
         try:
             # Get all recent task completions from all friends at once
+            # Note: quest_task_completions -> user_quest_tasks (via user_quest_task_id) -> quests
             completions = admin_supabase.table('quest_task_completions')\
-                .select('*, quest_tasks(title, pillar, quest_id, quests(id, title, image_url))')\
+                .select('*, user_quest_tasks(id, title, pillar, xp_value, quest_id, quests(id, title, image_url))')\
                 .in_('user_id', friend_ids)\
                 .gte('completed_at', thirty_days_ago)\
                 .order('completed_at', desc=True)\
@@ -566,8 +567,8 @@ def get_friends_activity(user_id):
             activities = []
             if completions.data:
                 for completion in completions.data:
-                    if completion.get('quest_tasks'):
-                        task = completion['quest_tasks']
+                    if completion.get('user_quest_tasks'):
+                        task = completion['user_quest_tasks']
                         quest = task.get('quests', {})
                         user_id = completion['user_id']
 
@@ -586,7 +587,7 @@ def get_friends_activity(user_id):
                                     'title': task.get('title', 'Task'),
                                     'pillar': task.get('pillar', 'STEM & Logic')
                                 },
-                                'xp_awarded': completion.get('xp_awarded', 0),
+                                'xp_awarded': task.get('xp_value', 0),
                                 'completed_at': completion.get('completed_at'),
                                 'type': 'task_completion'
                             })
