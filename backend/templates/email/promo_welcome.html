@@ -19,7 +19,7 @@
     <h3>{{ highlight_box.title }}</h3>
     {% if highlight_box.bullet_points %}
     {% for item in highlight_box.bullet_points %}
-    <div class="list-item">{{ item|safe }}</div>
+    <div class="list-item"><span style="color: #6D469B; font-weight: bold;">• </span>{{ item|safe }}</div>
     {% endfor %}
     {% endif %}
 </div>

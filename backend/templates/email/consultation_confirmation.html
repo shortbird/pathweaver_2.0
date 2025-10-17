@@ -41,7 +41,7 @@
 <p class="text">{{ closing_section.paragraph }}</p>
 {% if closing_section.bullet_points %}
 {% for item in closing_section.bullet_points %}
-<div class="list-item">{{ item|safe }}</div>
+<div class="list-item"><span style="color: #6D469B; font-weight: bold;">• </span>{{ item|safe }}</div>
 {% endfor %}
 {% endif %}
 {% if closing_section.final_paragraph %}
