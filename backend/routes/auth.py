@@ -465,10 +465,11 @@ def login():
             if isinstance(user_response_data, list):
                 user_response_data = user_response_data[0] if user_response_data else None
 
-            # Send welcome email on first login (when last_active is NULL)
+            # Send welcome email on first login (when welcome_email_sent is False/NULL)
             # This happens after user verifies their email and logs in for the first time
             try:
-                is_first_login = user_response_data and user_response_data.get('last_active') is None
+                welcome_sent = user_response_data.get('welcome_email_sent') if user_response_data else True
+                is_first_login = user_response_data and not welcome_sent
 
                 if is_first_login:
                     from services.email_service import EmailService
@@ -478,6 +479,14 @@ def login():
                         user_name=user_response_data.get('first_name', 'there')
                     )
                     print(f"[LOGIN] Sent welcome email to {auth_response.user.email[:3]}*** on first login")
+
+                    # Mark welcome email as sent
+                    try:
+                        admin_client.table('users').update({
+                            'welcome_email_sent': True
+                        }).eq('id', auth_response.user.id).execute()
+                    except Exception as update_error:
+                        print(f"Warning: Failed to update welcome_email_sent flag: {update_error}")
             except Exception as welcome_error:
                 # Don't fail login if welcome email fails
                 print(f"Warning: Failed to send welcome email on first login: {welcome_error}")
