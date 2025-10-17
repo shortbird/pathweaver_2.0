@@ -82,6 +82,7 @@ class LearningEventsService:
         try:
             supabase = get_user_client(user_id)
 
+            # Fetch events
             response = supabase.table('learning_events') \
                 .select('*') \
                 .eq('user_id', user_id) \
@@ -90,9 +91,21 @@ class LearningEventsService:
                 .offset(offset) \
                 .execute()
 
+            events = response.data or []
+
+            # Fetch evidence blocks for each event
+            for event in events:
+                blocks_response = supabase.table('learning_event_evidence_blocks') \
+                    .select('*') \
+                    .eq('learning_event_id', event['id']) \
+                    .order('order_index') \
+                    .execute()
+
+                event['evidence_blocks'] = blocks_response.data or []
+
             return {
                 'success': True,
-                'events': response.data or []
+                'events': events
             }
 
         except Exception as e:

@@ -47,39 +47,56 @@ def get_friends(user_id):
             # Combine both results
             all_friendships = (friendships_as_requester.data or []) + (friendships_as_addressee.data or [])
         
+        # OPTIMIZED: Collect all unique user IDs first, then fetch in a single batch query
+        all_user_ids = set()
+        for friendship in all_friendships:
+            all_user_ids.add(friendship['requester_id'])
+            all_user_ids.add(friendship['addressee_id'])
+
+        # Remove current user from the set
+        all_user_ids.discard(user_id)
+
+        # Fetch all user data in a single batch query
+        user_lookup = {}
+        if all_user_ids:
+            try:
+                users_result = admin_supabase.table('users').select('*').in_('id', list(all_user_ids)).execute()
+                user_lookup = {user['id']: user for user in (users_result.data or [])}
+                print(f"[GET_FRIENDS] Fetched {len(user_lookup)} user records in batch")
+            except Exception as batch_error:
+                print(f"[GET_FRIENDS] Error fetching users in batch: {str(batch_error)}")
+
+        # Now process friendships using the lookup dictionary
         friends = []
         pending_requests = []
         sent_requests = []
 
-        # Now fetch user data for each friendship
         for friendship in all_friendships:
             print(f"[GET_FRIENDS] Processing friendship: {friendship}")
             if friendship['status'] == 'accepted':
                 # Determine which user is the friend
                 friend_id = friendship['addressee_id'] if friendship['requester_id'] == user_id else friendship['requester_id']
-                print(f"[GET_FRIENDS] Looking up friend with ID: {friend_id}")
-                # Fetch friend's user data using admin client to bypass RLS
-                friend_result = admin_supabase.table('users').select('*').eq('id', friend_id).execute()
-                if friend_result.data and len(friend_result.data) > 0:
-                    friends.append(friend_result.data[0])
+                friend_data = user_lookup.get(friend_id)
+                if friend_data:
+                    friends.append(friend_data)
             elif friendship['status'] == 'pending':
                 if friendship['addressee_id'] == user_id:
-                    # Incoming pending request - fetch requester's data
-                    requester_result = admin_supabase.table('users').select('*').eq('id', friendship['requester_id']).execute()
-                    if requester_result.data and len(requester_result.data) > 0:
+                    # Incoming pending request - get requester's data from lookup
+                    requester_data = user_lookup.get(friendship['requester_id'])
+                    if requester_data:
                         pending_requests.append({
                             'friendship_id': friendship['id'],
-                            'requester': requester_result.data[0],
+                            'requester': requester_data,
                             'created_at': friendship.get('created_at'),
                             'updated_at': friendship.get('updated_at')
                         })
                 elif friendship['requester_id'] == user_id:
-                    # Outgoing pending request - fetch addressee's data
-                    addressee_result = admin_supabase.table('users').select('*').eq('id', friendship['addressee_id']).execute()
-                    if addressee_result.data and len(addressee_result.data) > 0:
+                    # Outgoing pending request - get addressee's data from lookup
+                    addressee_data = user_lookup.get(friendship['addressee_id'])
+                    if addressee_data:
                         sent_requests.append({
                             'friendship_id': friendship['id'],
-                            'addressee': addressee_result.data[0],
+                            'addressee': addressee_data,
                             'status': friendship['status'],
                             'created_at': friendship.get('created_at'),
                             'updated_at': friendship.get('updated_at')
