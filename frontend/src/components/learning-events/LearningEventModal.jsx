@@ -5,18 +5,9 @@ import toast from 'react-hot-toast';
 
 const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
   const [description, setDescription] = useState('');
-  const [selectedPillars, setSelectedPillars] = useState([]);
   const [evidenceBlocks, setEvidenceBlocks] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const fileInputRef = useRef(null);
-
-  const pillars = [
-    { id: 'stem_logic', name: 'STEM & Logic', icon: '🔬', color: 'from-blue-500 to-cyan-500' },
-    { id: 'life_wellness', name: 'Life & Wellness', icon: '🌱', color: 'from-green-500 to-emerald-500' },
-    { id: 'language_communication', name: 'Language', icon: '💬', color: 'from-orange-500 to-yellow-500' },
-    { id: 'society_culture', name: 'Society', icon: '🌍', color: 'from-red-500 to-rose-500' },
-    { id: 'arts_creativity', name: 'Arts', icon: '🎨', color: 'from-purple-500 to-pink-500' }
-  ];
 
   const blockTypes = {
     text: { icon: '📝', label: 'Text', color: 'bg-blue-50', border: 'border-blue-200' },
@@ -26,13 +17,6 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
     document: { icon: '📄', label: 'Document', color: 'bg-gray-50', border: 'border-gray-200' }
   };
 
-  const togglePillar = (pillarId) => {
-    setSelectedPillars(prev =>
-      prev.includes(pillarId)
-        ? prev.filter(id => id !== pillarId)
-        : [...prev, pillarId]
-    );
-  };
 
   const addBlock = (type) => {
     const newBlock = {
@@ -142,10 +126,9 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
 
     setIsSubmitting(true);
     try {
-      // Step 1: Create learning event with description and pillars
+      // Step 1: Create learning event with description
       const response = await api.post('/api/learning-events', {
-        description: description.trim(),
-        pillars: selectedPillars
+        description: description.trim()
       });
 
       if (response.data.success) {
@@ -204,7 +187,6 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
     });
 
     setDescription('');
-    setSelectedPillars([]);
     setEvidenceBlocks([]);
     onClose();
   };
@@ -376,33 +358,6 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
             />
             <div className="mt-1 text-xs text-gray-500 text-right">
               {description.length} / 5000 characters
-            </div>
-          </div>
-
-          {/* Pillar Selection */}
-          <div className="mb-6">
-            <label className="block text-sm font-semibold text-gray-900 mb-2">
-              Skill Pillars (Optional)
-            </label>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-              {pillars.map((pillar) => (
-                <button
-                  key={pillar.id}
-                  onClick={() => togglePillar(pillar.id)}
-                  className={`
-                    p-2 rounded-lg border-2 transition-all duration-200
-                    ${selectedPillars.includes(pillar.id)
-                      ? `bg-gradient-to-r ${pillar.color} text-white border-transparent`
-                      : 'bg-white text-gray-700 border-gray-200 hover:border-gray-300'
-                    }
-                  `}
-                >
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-xl">{pillar.icon}</span>
-                    <span className="text-xs font-medium text-center">{pillar.name}</span>
-                  </div>
-                </button>
-              ))}
             </div>
           </div>
 
