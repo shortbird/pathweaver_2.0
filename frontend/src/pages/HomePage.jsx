@@ -404,7 +404,7 @@ const HomePage = () => {
                 How often do we meet with our teacher?
               </h3>
               <p className="text-gray-700 leading-relaxed">
-                That's up to your family! Options range from weekly check-ins for more support to monthly touchpoints for more independent families. Your teacher works around your schedule and needs. It's flexible by design.
+                That's up to your family! Options range from daily check-ins for more support to quarterly touchpoints for more independent families. Your teacher works around your schedule and needs. It's flexible by design.
               </p>
             </div>
 

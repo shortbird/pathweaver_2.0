@@ -97,7 +97,7 @@ const ConsultationPage = () => {
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="flex items-start">
                   <CheckCircle className="w-5 h-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
-                  <span className="text-gray-700">30-minute video call with a licensed teacher</span>
+                  <span className="text-gray-700">30-minute video or phone call with a licensed teacher</span>
                 </div>
                 <div className="flex items-start">
                   <CheckCircle className="w-5 h-5 text-green-600 mr-3 mt-0.5 flex-shrink-0" />
