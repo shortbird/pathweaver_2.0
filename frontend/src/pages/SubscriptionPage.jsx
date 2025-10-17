@@ -138,7 +138,7 @@ const SubscriptionPage = () => {
               <a href="mailto:support@optioeducation.com" className="text-purple-600 hover:underline font-semibold">
                 support@optioeducation.com
               </a>
-              {' '}for information on family discounts.
+              {' '}for information on family or microschool discounts.
             </p>
           </div>
         )}
