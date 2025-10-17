@@ -242,6 +242,18 @@ def register():
             
             # If no session, email verification is required
             if not auth_response.session:
+                # Send branded welcome email (Supabase sends verification separately)
+                try:
+                    from services.email_service import EmailService
+                    email_service = EmailService()
+                    email_service.send_welcome_email(
+                        user_email=email,
+                        user_name=sanitized_first_name
+                    )
+                except Exception as email_error:
+                    # Don't fail registration if welcome email fails
+                    print(f"Warning: Failed to send welcome email: {email_error}")
+
                 response_data = {
                     'message': 'Account created successfully! Please check your email to verify your account.',
                     'email_verification_required': True
@@ -258,10 +270,18 @@ def register():
             # Fetch the complete user profile data to return to frontend
             user_profile = supabase.table('users').select('*').eq('id', auth_response.user.id).single().execute()
 
-            # NOTE: Supabase Auth automatically sends email verification
-            # To use custom branded email templates, configure in Supabase dashboard:
-            # Authentication > Email Templates > Confirm signup
-            # For now, Supabase's default verification email is sent automatically
+            # NOTE: Supabase Auth automatically sends plain verification email
+            # Send our own branded welcome email as well (with BCC to support)
+            try:
+                from services.email_service import EmailService
+                email_service = EmailService()
+                email_service.send_welcome_email(
+                    user_email=email,
+                    user_name=sanitized_first_name
+                )
+            except Exception as email_error:
+                # Don't fail registration if welcome email fails
+                print(f"Warning: Failed to send welcome email: {email_error}")
 
             response_data = {
                 'user': user_profile.data if user_profile.data else auth_response.user.model_dump(),
