@@ -6,7 +6,7 @@ Replaces automated Stripe checkout with human-mediated communication.
 """
 
 from flask import Blueprint, request, jsonify
-from database import get_supabase_client
+from database import get_user_client
 from utils.auth.decorators import require_auth
 from services.email_service import email_service
 import logging
@@ -59,7 +59,7 @@ def submit_subscription_request(user_id):
             return jsonify({'error': 'Phone number is required when phone contact is preferred'}), 400
 
         # Get user details from database
-        supabase = get_supabase_client()
+        supabase = get_user_client()
         user_response = supabase.table('users').select('*').eq('id', user_id).single().execute()
 
         if not user_response.data:
@@ -147,7 +147,7 @@ def submit_subscription_request(user_id):
 def get_user_requests(user_id):
     """Get all subscription requests for the current user"""
     try:
-        supabase = get_supabase_client()
+        supabase = get_user_client()
 
         response = supabase.table('subscription_requests')\
             .select('*')\
@@ -168,7 +168,7 @@ def get_all_requests(user_id):
     """Get all subscription requests (admin only)"""
     try:
         # Verify admin role
-        supabase = get_supabase_client()
+        supabase = get_user_client()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
 
         if not user_response.data or user_response.data.get('role') != 'admin':
@@ -202,7 +202,7 @@ def update_request_status(user_id, request_id):
     """Update subscription request status (admin only)"""
     try:
         # Verify admin role
-        supabase = get_supabase_client()
+        supabase = get_user_client()
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
 
         if not user_response.data or user_response.data.get('role') != 'admin':
