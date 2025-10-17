@@ -1,15 +1,15 @@
 // Tier mapping utility for the new 4-tier subscription system
 
 export const TIER_DISPLAY_NAMES = {
-  // New tier names (case-sensitive to match database)
-  Explore: 'Explore',
-  Accelerate: 'Accelerate',
-  Achieve: 'Achieve',
-  Excel: 'Excel'
+  // Tier keys map to display names from database
+  Explore: 'Free',
+  Accelerate: 'Parent Support',
+  Achieve: 'Weekly Support',
+  Excel: 'Daily Support'
 };
 
 export const getTierDisplayName = (backendTier) => {
-  if (!backendTier) return 'Explore';
+  if (!backendTier) return 'Free';
   return TIER_DISPLAY_NAMES[backendTier] || backendTier;
 };
 
