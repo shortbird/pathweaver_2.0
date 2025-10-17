@@ -145,6 +145,22 @@ emails:
     signature: "support"
     footer_extra: "This verification link will expire in 7 days.\nIf you did not expect this email, please contact us immediately."
 
+  parent_invitation:
+    title: "{student_name} invited you to Optio"
+    heading: "You've been invited!"
+    greeting: "Hello,"
+    body_p1: "<strong>{student_name}</strong> has invited you to join them on Optio as a parent. They want to share their learning journey with you!"
+    body_p2: "The Parent Dashboard gives you a window into their world of learning. You'll see their progress, celebrate their wins, and know when they might need support - all while respecting their independence."
+    body_p3: "This invitation link will expire in 48 hours. Click the button above to create your free parent account and get started."
+    cta_button: "Create Parent Account"
+    features_heading: "What you'll be able to do:"
+    feature_1: "See an at-a-glance view of their learning rhythm (green = flowing, yellow = may need support)"
+    feature_2: "View their active quests, calendar, and progress across 5 skill pillars"
+    feature_3: "Upload evidence for their tasks (photos, documents, etc.) - they approve before it counts"
+    feature_4: "Access their AI tutor conversations with automatic safety monitoring"
+    closing: "We believe parents should support, not control. Your dashboard is designed to give you visibility while honoring your learner's autonomy."
+    signature: "team"
+
   subscription_request_user:
     subject: "Your {tier_display_name} Upgrade Request Has Been Received"
     title: "Your Upgrade Request Has Been Received"

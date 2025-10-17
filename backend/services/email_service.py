@@ -258,6 +258,23 @@ class EmailService:
             }
         )
 
+    def send_parent_invitation_email(
+        self,
+        parent_email: str,
+        student_name: str,
+        invitation_link: str
+    ) -> bool:
+        """Send parent invitation email from student"""
+        return self.send_templated_email(
+            to_email=parent_email,
+            subject=f"{student_name} invited you to Optio",
+            template_name='parent_invitation',
+            context={
+                'student_name': student_name,
+                'invitation_link': invitation_link
+            }
+        )
+
     def send_subscription_request_confirmation(
         self,
         user_email: str,

@@ -448,6 +448,38 @@ frontend/src/
 - **Modular architecture**: Clean component structure in `/components/connections/`
 - **Database optimization**: Friendship updates use bypass function to avoid timestamp triggers
 
+### Parent Dashboard (NEW 2025)
+- **Purpose**: Read-only dashboard for parents to support their learner's journey
+- **Core Feature - Learning Rhythm Indicator**: Green/yellow light system showing student flow state
+  - **Green (Flow)**: No overdue tasks AND progress in last 7 days
+  - **Yellow (Needs Support)**: Overdue tasks OR no recent progress
+  - Dynamic content box: Weekly Wins (green) or Conversation Starters (yellow)
+- **Multi-child support**: Parents can switch between multiple linked students
+- **Four main tabs**: Overview, Calendar, Insights, Communications
+- **Key capabilities**:
+  - View active quests with progress bars
+  - See calendar with scheduled tasks and deadlines
+  - Access learning insights (time patterns, pillar preferences, completion velocity)
+  - Monitor AI tutor conversations (safety monitoring)
+  - Upload evidence on behalf of students (requires student approval)
+- **Process-focused language**: Aligned with "The Process Is The Goal" philosophy
+- **Privacy-respecting**: Students must approve parent connection (2-step: invite + approval)
+- **No revocation**: Once approved, parent access is permanent (by design)
+- **Parents cannot start quests**: Only observe and upload evidence for active tasks
+- **Database tables**:
+  - `parent_student_links`: Active connections (no revoke status)
+  - `parent_invitations`: Pending invitations with 48-hour expiry
+  - `parent_evidence_uploads`: Parent-uploaded evidence (requires student approval)
+- **API endpoints**:
+  - `/api/parents/*` - Parent-student linking workflow
+  - `/api/parent/dashboard/:studentId` - Main dashboard data with learning rhythm
+  - `/api/parent/calendar/:studentId` - Calendar view
+  - `/api/parent/progress/:studentId` - XP breakdown by pillar
+  - `/api/parent/insights/:studentId` - Time patterns and learning analytics
+  - `/api/parent/evidence/:studentId` - Evidence upload
+- **Frontend route**: `/parent/dashboard` or `/parent/dashboard/:studentId`
+- **Encouragement tips**: Context-aware conversation starters for process-focused support
+
 ### Authentication & Security
 - **httpOnly cookies**: JWT tokens stored in secure httpOnly cookies
 - **CSRF protection**: Double-submit cookie pattern for state-changing requests

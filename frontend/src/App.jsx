@@ -40,6 +40,7 @@ import SubscriptionPage from './pages/SubscriptionPage'
 import AdminPage from './pages/AdminPage'
 import AdvisorDashboard from './pages/AdvisorDashboard'
 import AdvisorBadgeForm from './pages/AdvisorBadgeForm'
+import ParentDashboardPage from './pages/ParentDashboardPage'
 import PrivateRoute from './components/PrivateRoute'
 
 // Configure React Query with proper defaults for data freshness
@@ -130,6 +131,11 @@ function App() {
                 <Route path="advisor" element={<AdvisorDashboard />} />
                 <Route path="advisor/badges/create" element={<AdvisorBadgeForm />} />
                 <Route path="advisor/badges/:badgeId/edit" element={<AdvisorBadgeForm />} />
+              </Route>
+
+              <Route element={<PrivateRoute requiredRole="parent" />}>
+                <Route path="parent/dashboard" element={<ParentDashboardPage />} />
+                <Route path="parent/dashboard/:studentId" element={<ParentDashboardPage />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />

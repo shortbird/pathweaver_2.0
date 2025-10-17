@@ -228,6 +228,16 @@ try:
 except Exception as e:
     print(f"Warning: Learning Events routes not available: {e}")
 
+# Register Parent Dashboard blueprints
+try:
+    from routes import parent_linking, parent_dashboard, parent_evidence
+    app.register_blueprint(parent_linking.bp)  # /api/parents
+    app.register_blueprint(parent_dashboard.bp)  # /api/parent
+    app.register_blueprint(parent_evidence.bp)  # /api/parent (evidence endpoints)
+    print("Parent Dashboard routes registered successfully")
+except Exception as e:
+    print(f"Warning: Parent Dashboard routes not available: {e}")
+
 
 @app.route('/', methods=['GET', 'HEAD'])
 def root():
