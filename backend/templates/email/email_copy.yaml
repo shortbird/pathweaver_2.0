@@ -106,23 +106,23 @@ emails:
     title: "Let's Explore How We Can Work Together"
     salutation: "Hi {parent_name},"
     paragraphs:
-      - "Partnering with an experienced educator can significantly enhance your family's learning experience. I'm excited to explore how we can work together to support your child's educational journey."
+      - "Partnering with an experienced educator can significantly enhance your family's learning experience. Our team here at Optio is excited to explore how we can work together to support your child's educational journey."
     cta:
       text: "Book Your Free Consultation"
       url: "https://optio.zohobookings.com/#/free_consult"
     cta_subtext: "Choose a time that works best for your schedule."
     highlight_box:
       title: "What to Expect on Our Call"
-      content: "We'll spend about 30 minutes in a collaborative conversation about your family. I want to hear about your child's interests, your vision for their education, and how we might work together as partners in their learning journey."
-      italic_note: "Think of it as a planning session with a colleague - no sales pitch, just a genuine exploration of whether Optio is the right fit for your family."
+      content: "We'll spend about 30 minutes in a collaborative conversation about your family. We want to hear about your child's interests, your vision for their education, and how we might work together as partners in their learning journey."
+      italic_note: "Think of it as a planning session with a colleague. No sales pitch, just a genuine exploration of whether Optio is the right fit for your family."
     closing_section:
-      paragraph: "Before our call, I recommend exploring these resources to get a sense of what's possible:"
+      paragraph: "Before our call, we recommend exploring these resources to get a sense of what's possible:"
       bullet_points:
         - "Try our <a href='https://www.optioeducation.com/demo'>2-minute interactive demo</a> to see the student experience"
-        - "Read about our philosophy on the <a href='https://www.optioeducation.com'>homepage</a>"
+        - "Read about our philosophy on the <a href='https://www.optioeducation.com/#:~:text=Read%20Our%20Full%20Philosophy'>homepage</a>"
         - "Think about what questions matter most to you"
-      final_paragraph: "Have questions before we meet? Simply reply to this email - I respond personally to every message. A consultation is not the only way to get in touch."
-    signature: "tanner"
+      final_paragraph: "Have questions before we meet? Simply reply to this email. Someone from our team will read and respond personally to every message. A consultation is not the only way to get in touch."
+    signature: "support"
 
   parental_consent:
     subject: "Parental Consent Required - Optio Account"
