@@ -136,7 +136,7 @@ const HomePage = () => {
                   <div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2">Parent Peace of Mind</h3>
                     <p className="text-gray-700 leading-relaxed">
-                      Professional oversight with flexibility and family control.
+                      Professional support with flexibility and family control.
                     </p>
                   </div>
                 </div>
