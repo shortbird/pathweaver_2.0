@@ -69,8 +69,8 @@ emails:
     title: "Quest Complete!"
     greeting: "Congratulations, {user_name}!"
     paragraphs:
-      - "You've successfully completed the quest: **{quest_title}**"
-      - "You earned **{xp_earned} XP** for this achievement!"
+      - "You've successfully completed the quest: <strong>{quest_title}</strong>"
+      - "You earned <strong>{xp_earned} XP</strong> for this achievement!"
     cta:
       text: "View Your Progress"
       url: "https://www.optioeducation.com/dashboard"
@@ -90,11 +90,11 @@ emails:
     highlight_box:
       title: "Want to learn more?"
       bullet_points:
-        - "**Explore our demo:** [Take a quick tour](https://www.optioeducation.com/demo) to see how Optio works."
-        - "**Tell us about your teen:** Reply to this email and share what makes your teen unique. What are their interests, goals, or challenges?"
-        - "**Get personalized guidance:** I will read every reply and respond with specific thoughts about how Optio could help your kid customize their own high school education."
+        - "<strong>Explore our demo:</strong> <a href='https://www.optioeducation.com/demo'>Take a quick tour</a> to see how Optio works."
+        - "<strong>Tell us about your teen:</strong> Reply to this email and share what makes your teen unique. What are their interests, goals, or challenges?"
+        - "<strong>Get personalized guidance:</strong> I will read every reply and respond with specific thoughts about how Optio could help your kid customize their own high school education."
     closing_paragraphs:
-      - "**I'd love to hear from you!** What are your teen's biggest interests? What educational challenges are you facing? What are your hopes for their future?"
+      - "<strong>I'd love to hear from you!</strong> What are your teen's biggest interests? What educational challenges are you facing? What are your hopes for their future?"
       - "Just hit reply and tell me about your situation. There's a real person (me!) who will read your message and respond personally."
     cta:
       text: "Explore Our Demo"
@@ -118,8 +118,8 @@ emails:
     closing_section:
       paragraph: "Before our call, I recommend exploring these resources to get a sense of what's possible:"
       bullet_points:
-        - "Try our [2-minute interactive demo](https://www.optioeducation.com/demo) to see the student experience"
-        - "Read about our philosophy on the [homepage](https://www.optioeducation.com)"
+        - "Try our <a href='https://www.optioeducation.com/demo'>2-minute interactive demo</a> to see the student experience"
+        - "Read about our philosophy on the <a href='https://www.optioeducation.com'>homepage</a>"
         - "Think about what questions matter most to you"
       final_paragraph: "Have questions before we meet? Simply reply to this email - I respond personally to every message. A consultation is not the only way to get in touch."
     closing_line: "Looking forward to connecting with you!"
@@ -151,7 +151,7 @@ emails:
     title: "Your Upgrade Request Has Been Received"
     salutation: "Hi {user_name},"
     paragraphs:
-      - "Thank you for your interest in upgrading to **{tier_display_name}**. We've received your request and our support team will reach out to you within the next 24-48 hours."
+      - "Thank you for your interest in upgrading to <strong>{tier_display_name}</strong>. We've received your request and our support team will reach out to you within the next 24-48 hours."
     details_box:
       title: "Request Details"
       fields:
@@ -172,7 +172,7 @@ emails:
         - "If it's the right fit, we'll help you get set up immediately"
     closing_paragraph: "Have questions in the meantime? Just reply to this email - our team reads every message personally."
     signature: "team"
-    footer_note: "**Remember:** The process is the goal. Every step you take matters, and we're here to support you on this journey."
+    footer_note: "<strong>Remember:</strong> The process is the goal. Every step you take matters, and we're here to support you on this journey."
 
   subscription_request_admin:
     subject: "New Subscription Request: {user_name} → {tier_display_name}"
