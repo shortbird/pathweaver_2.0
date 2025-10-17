@@ -160,7 +160,7 @@ def update_user(user_id, target_user_id):
         if not update_data:
             return jsonify({'success': False, 'error': 'No valid fields to update'}), 400
 
-        update_data['updated_at'] = datetime.utcnow().isoformat()
+        # Note: users table has no updated_at column
 
         # Update user
         result = supabase.table('users').update(update_data).eq('id', target_user_id).execute()
@@ -250,10 +250,9 @@ def update_user_role(user_id, target_user_id):
         if target_user_id == user_id and new_role != 'admin':
             return jsonify({'success': False, 'error': 'Cannot remove your own admin privileges'}), 403
 
-        # Update role
+        # Update role (note: users table has no updated_at column)
         update_data = {
-            'role': new_role,
-            'updated_at': datetime.utcnow().isoformat()
+            'role': new_role
         }
 
         print(f"Attempting to update role for user {target_user_id} to {new_role}")
@@ -309,10 +308,9 @@ def toggle_user_status(user_id, target_user_id):
         current_status = user.data.get('subscription_status', 'active')
         new_status = 'inactive' if current_status == 'active' else 'active'
 
-        # Update status
+        # Update status (note: users table has no updated_at column)
         update_data = {
-            'subscription_status': new_status,
-            'updated_at': datetime.utcnow().isoformat()
+            'subscription_status': new_status
         }
 
         result = supabase.table('users').update(update_data).eq('id', target_user_id).execute()
