@@ -242,18 +242,6 @@ def register():
             
             # If no session, email verification is required
             if not auth_response.session:
-                # Send branded welcome email (Supabase sends verification separately)
-                try:
-                    from services.email_service import EmailService
-                    email_service = EmailService()
-                    email_service.send_welcome_email(
-                        user_email=email,
-                        user_name=sanitized_first_name
-                    )
-                except Exception as email_error:
-                    # Don't fail registration if welcome email fails
-                    print(f"Warning: Failed to send welcome email: {email_error}")
-
                 response_data = {
                     'message': 'Account created successfully! Please check your email to verify your account.',
                     'email_verification_required': True
@@ -269,19 +257,6 @@ def register():
 
             # Fetch the complete user profile data to return to frontend
             user_profile = supabase.table('users').select('*').eq('id', auth_response.user.id).single().execute()
-
-            # NOTE: Supabase Auth automatically sends plain verification email
-            # Send our own branded welcome email as well (with BCC to support)
-            try:
-                from services.email_service import EmailService
-                email_service = EmailService()
-                email_service.send_welcome_email(
-                    user_email=email,
-                    user_name=sanitized_first_name
-                )
-            except Exception as email_error:
-                # Don't fail registration if welcome email fails
-                print(f"Warning: Failed to send welcome email: {email_error}")
 
             response_data = {
                 'user': user_profile.data if user_profile.data else auth_response.user.model_dump(),
@@ -485,6 +460,28 @@ def login():
             except Exception as diploma_error:
                 print(f"Non-critical: Failed to ensure diploma/skills during login: {diploma_error}")
             
+            # Normalize user data before using it
+            user_response_data = user_data.data
+            if isinstance(user_response_data, list):
+                user_response_data = user_response_data[0] if user_response_data else None
+
+            # Send welcome email on first login (when last_active is NULL)
+            # This happens after user verifies their email and logs in for the first time
+            try:
+                is_first_login = user_response_data and user_response_data.get('last_active') is None
+
+                if is_first_login:
+                    from services.email_service import EmailService
+                    email_service = EmailService()
+                    email_service.send_welcome_email(
+                        user_email=auth_response.user.email,
+                        user_name=user_response_data.get('first_name', 'there')
+                    )
+                    print(f"[LOGIN] Sent welcome email to {auth_response.user.email[:3]}*** on first login")
+            except Exception as welcome_error:
+                # Don't fail login if welcome email fails
+                print(f"Warning: Failed to send welcome email on first login: {welcome_error}")
+
             # Try to log activity, but don't fail login if it doesn't work
             try:
                 admin_client.table('activity_log').insert({
@@ -494,12 +491,8 @@ def login():
                 }).execute()
             except Exception as log_error:
                 print(f"Failed to log activity: {log_error}")
-            
+
             # Create response with user data
-            # Ensure user data is a single record, not a list
-            user_response_data = user_data.data
-            if isinstance(user_response_data, list):
-                user_response_data = user_response_data[0] if user_response_data else None
 
             # Extract session data
             session_data = auth_response.session.model_dump() if auth_response.session else {}
