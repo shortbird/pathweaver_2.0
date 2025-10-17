@@ -229,6 +229,19 @@ const HomePage = () => {
               ))}
             </div>
           )}
+
+          {/* Pricing Note */}
+          {!tiersLoading && (
+            <div className="mt-6 text-center">
+              <p className="text-sm text-gray-600">
+                Pricing is per student. Contact{' '}
+                <a href="mailto:support@optioeducation.com" className="text-purple-600 hover:underline font-semibold">
+                  support@optioeducation.com
+                </a>
+                {' '}for information on family discounts.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
