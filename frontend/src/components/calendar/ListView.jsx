@@ -231,7 +231,7 @@ const ListView = ({ data, userId, selectedPillar }) => {
 const Section = ({ title, subtitle, items, selectedItems, toggleSelection, handleReschedule, userId, showCompleted }) => {
   return (
     <div className="p-4">
-      <h3 className="text-lg font-semibold text-gray-900 mb-1">{title}</h3>
+      <h3 className="text-lg font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{title}</h3>
       {subtitle && <p className="text-sm text-gray-600 mb-3">{subtitle}</p>}
       <div className="space-y-2">
         {items.map(item => (
@@ -286,7 +286,15 @@ const TaskRow = ({ item, isSelected, onToggle, onReschedule, showCompleted }) =>
 
       {/* Content */}
       <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 mb-1">
+        {/* Task Title - Main (EMPHASIZED) */}
+        <Link to={`/quests/${item.quest_id}`} className="font-bold text-gray-900 hover:text-purple-600 truncate block text-base mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          {item.task_title}
+        </Link>
+        {/* Quest Title - Subheading (secondary) */}
+        <p className="text-sm text-gray-600 truncate mb-1">{item.quest_title}</p>
+
+        {/* Pillar, XP, Status - Tertiary */}
+        <div className="flex items-center gap-2">
           <span className={`px-2 py-0.5 rounded text-xs font-medium ${pillarColors.bg} ${pillarColors.text}`}>
             {item.pillar}
           </span>
@@ -297,10 +305,6 @@ const TaskRow = ({ item, isSelected, onToggle, onReschedule, showCompleted }) =>
             {taskStatus.label}
           </span>
         </div>
-        <Link to={`/quests/${item.quest_id}`} className="font-medium text-gray-900 hover:text-purple-600 truncate block">
-          {item.task_title}
-        </Link>
-        <p className="text-sm text-gray-600 truncate">{item.quest_title}</p>
       </div>
 
       {/* Date */}

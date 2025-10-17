@@ -57,8 +57,12 @@ const CalendarPage = () => {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Your Learning Calendar</h1>
-          <p className="text-gray-600 mt-1">Find your learning rhythm</p>
+          <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            Your Learning Calendar
+          </h1>
+          <p className="text-gray-600 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            Find your learning rhythm
+          </p>
         </div>
         <ViewToggle currentView={viewMode} onChange={handleViewChange} />
       </div>

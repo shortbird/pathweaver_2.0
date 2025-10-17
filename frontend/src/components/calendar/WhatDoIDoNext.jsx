@@ -54,7 +54,9 @@ const WhatDoIDoNext = ({ userId, selectedPillar, onPillarChange }) => {
       >
         <div className="flex items-center">
           <RocketLaunchIcon className="w-6 h-6 text-purple-600 mr-3" />
-          <h2 className="text-xl font-bold text-gray-900">What Do I Do Next?</h2>
+          <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            What Do I Do Next?
+          </h2>
         </div>
         {isExpanded ? (
           <ChevronUpIcon className="w-5 h-5 text-gray-400" />
@@ -109,7 +111,7 @@ const WhatDoIDoNext = ({ userId, selectedPillar, onPillarChange }) => {
               {/* Today's Items */}
               {filteredToday.length > 0 && (
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Today</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>Today</h3>
                   <div className="space-y-2">
                     {filteredToday.map(item => (
                       <TaskCard key={item.id} item={item} />
@@ -126,7 +128,7 @@ const WhatDoIDoNext = ({ userId, selectedPillar, onPillarChange }) => {
               {/* This Week's Items */}
               {filteredWeek.length > 0 && (
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">This Week</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>This Week</h3>
                   <div className="space-y-2">
                     {filteredWeek.slice(0, 3).map(item => (
                       <TaskCard key={item.id} item={item} />
@@ -141,7 +143,7 @@ const WhatDoIDoNext = ({ userId, selectedPillar, onPillarChange }) => {
               {/* Wandering Items */}
               {filteredWandering.length > 0 && (
                 <div>
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Ready for a Pivot?</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>Ready for a Pivot?</h3>
                   <p className="text-sm text-gray-600 mb-3">These items are past their date or haven't been active recently</p>
                   <div className="space-y-2">
                     {filteredWandering.slice(0, 3).map(item => (
@@ -170,9 +172,12 @@ const TaskCard = ({ item }) => {
       className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors group border border-gray-200 hover:border-gray-300"
     >
       <div className="flex-1 min-w-0">
-        {/* Quest and Task Titles - Prominent */}
-        <h4 className="font-bold text-gray-900 text-lg mb-1 truncate">{item.quest_title}</h4>
-        <p className="font-medium text-gray-700 text-base mb-2 truncate">{item.task_title}</p>
+        {/* Task Title - Main Heading (EMPHASIZED) */}
+        <h4 className="font-bold text-gray-900 text-lg mb-1 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          {item.task_title}
+        </h4>
+        {/* Quest Title - Subheading (secondary) */}
+        <p className="font-medium text-gray-600 text-sm mb-2 truncate">{item.quest_title}</p>
 
         {/* Pillar and XP - Secondary */}
         <div className="flex items-center gap-2">
@@ -186,6 +191,7 @@ const TaskCard = ({ item }) => {
       </div>
       <button
         className="ml-4 px-3 py-1.5 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-lg text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+        style={{ fontFamily: 'Poppins, sans-serif' }}
         onClick={(e) => {
           e.preventDefault()
           window.location.href = `/quests/${item.quest_id}`

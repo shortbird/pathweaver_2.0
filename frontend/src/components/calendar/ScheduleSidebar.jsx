@@ -51,7 +51,7 @@ const ScheduleSidebar = ({ userId, calendarData, selectedPillar }) => {
   if (unscheduledItems.length === 0) {
     return (
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">Unscheduled Items</h3>
+        <h3 className="text-lg font-semibold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>Unscheduled Items</h3>
         <p className="text-sm text-gray-600">
           All your items are scheduled! Start a new quest to add more.
         </p>
@@ -62,7 +62,7 @@ const ScheduleSidebar = ({ userId, calendarData, selectedPillar }) => {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 sticky top-20">
       <div className="p-4 border-b border-gray-200">
-        <h3 className="text-lg font-semibold text-gray-900">Unscheduled Items</h3>
+        <h3 className="text-lg font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>Unscheduled Items</h3>
         <p className="text-sm text-gray-600 mt-1">Use quick schedule buttons or pick a date</p>
       </div>
 
@@ -105,14 +105,20 @@ const UnscheduledItem = ({ item, onQuickSchedule, onCustomSchedule }) => {
 
       {/* Task Info */}
       <div className="mb-2">
-        <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${pillarColors.bg} ${pillarColors.text} mb-1`}>
-          {item.pillar}
-        </span>
-        <h4 className="font-medium text-gray-900 text-sm line-clamp-2">{item.task_title}</h4>
-        <p className="text-xs text-gray-600 mt-1 line-clamp-1">{item.quest_title}</p>
-        {item.xp_value && (
-          <p className="text-xs text-gray-600 mt-1">{item.xp_value} XP</p>
-        )}
+        {/* Task Title - Main (EMPHASIZED) */}
+        <h4 className="font-bold text-gray-900 text-sm line-clamp-2 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>{item.task_title}</h4>
+        {/* Quest Title - Subheading (secondary) */}
+        <p className="text-xs text-gray-600 line-clamp-1 mb-1">{item.quest_title}</p>
+
+        {/* Pillar and XP - Tertiary */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${pillarColors.bg} ${pillarColors.text}`}>
+            {item.pillar}
+          </span>
+          {item.xp_value && (
+            <span className="text-xs text-gray-600 font-medium">{item.xp_value} XP</span>
+          )}
+        </div>
       </div>
 
       {/* Quick Schedule Buttons */}
