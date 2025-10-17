@@ -164,7 +164,7 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
           }
         }
 
-        toast.success('Learning moment captured! Your growth matters.');
+        toast.success('Learning moment captured successfully.');
         onSuccess && onSuccess(response.data.event);
         handleClose();
       } else {

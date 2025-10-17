@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Calendar } from 'lucide-react';
+import LearningEventDetailModal from './LearningEventDetailModal';
 
 const LearningEventCard = ({ event }) => {
+  const [showDetailModal, setShowDetailModal] = useState(false);
   const pillarConfig = {
     'stem_logic': { name: 'STEM & Logic', icon: '🔬', color: 'from-blue-500 to-cyan-500', bg: 'bg-blue-50', text: 'text-blue-700' },
     'life_wellness': { name: 'Life & Wellness', icon: '🌱', color: 'from-green-500 to-emerald-500', bg: 'bg-green-50', text: 'text-green-700' },
@@ -22,7 +24,10 @@ const LearningEventCard = ({ event }) => {
   const hasEvidence = event.evidence_blocks && event.evidence_blocks.length > 0;
 
   return (
-    <div className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-all duration-200">
+    <>
+      <div
+        onClick={() => setShowDetailModal(true)}
+        className="bg-white rounded-xl border border-gray-200 p-6 hover:shadow-md transition-all duration-200 cursor-pointer">
       {/* Date */}
       <div className="flex items-center gap-2 text-gray-500 text-sm mb-3">
         <Calendar className="w-4 h-4" />
@@ -64,7 +69,14 @@ const LearningEventCard = ({ event }) => {
           </div>
         )}
       </div>
-    </div>
+      </div>
+
+      <LearningEventDetailModal
+        event={event}
+        isOpen={showDetailModal}
+        onClose={() => setShowDetailModal(false)}
+      />
+    </>
   );
 };
 
