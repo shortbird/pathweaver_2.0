@@ -105,6 +105,25 @@ class EmailService:
             logger.error(f"Failed to send email to {to_email}: {str(e)}")
             return False
 
+    def _process_copy_strings(self, data: Any, context: Dict[str, Any]) -> Any:
+        """
+        Recursively process YAML copy data to substitute variables using Python string formatting.
+        Handles {variable_name} syntax in YAML strings.
+        """
+        if isinstance(data, str):
+            # Use Python string formatting for {variable_name} syntax
+            try:
+                return data.format(**context)
+            except KeyError:
+                # If a variable is missing, return the string as-is
+                return data
+        elif isinstance(data, dict):
+            return {key: self._process_copy_strings(value, context) for key, value in data.items()}
+        elif isinstance(data, list):
+            return [self._process_copy_strings(item, context) for item in data]
+        else:
+            return data
+
     def send_templated_email(
         self,
         to_email: str,
@@ -132,8 +151,11 @@ class EmailService:
             # Load email copy from YAML
             email_copy = self.copy_loader.get_email_copy(template_name)
 
-            # Merge copy data with context
-            merged_context = {**email_copy, **context}
+            # Process YAML strings to substitute {variable_name} with actual values
+            processed_copy = self._process_copy_strings(email_copy, context)
+
+            # Merge processed copy data with context
+            merged_context = {**processed_copy, **context}
 
             # Load HTML template
             html_template = self.jinja_env.get_template(f'email/{template_name}.html')
