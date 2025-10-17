@@ -27,7 +27,7 @@
     <h2 style="color: white; font-size: 18px; margin: 0 0 15px 0;">{{ request_details.title }}</h2>
     <table style="width: 100%; color: white;">
         {% for field in request_details.fields %}
-        {% if not field.conditional or (field.conditional and locals().get(field.conditional)) %}
+        {% if not field.conditional or (field.conditional and field.value) %}
         <tr>
             <td style="padding: 8px 0;"><strong>{{ field.label }}:</strong></td>
             <td style="padding: 8px 0; text-align: right;">{{ field.value|safe }}</td>
