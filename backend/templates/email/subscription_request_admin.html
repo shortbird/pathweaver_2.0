@@ -1,5 +1,5 @@
 {% extends "email/base.html" %}
-{% from "email/signatures.html" import signature_support %}
+{% from "email/signatures.html" import signature_team, signature_tanner, signature_support %}
 
 {% block content %}
 <h1 style="color: #ef597b; font-size: 24px; margin-bottom: 20px;">{{ title }}</h1>
@@ -76,5 +76,11 @@
 {% endblock %}
 
 {% block signature %}
+{% if signature == 'tanner' %}
+{{ signature_tanner() }}
+{% elif signature == 'team' %}
+{{ signature_team() }}
+{% else %}
 {{ signature_support() }}
+{% endif %}
 {% endblock %}
