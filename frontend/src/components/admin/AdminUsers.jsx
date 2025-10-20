@@ -12,7 +12,6 @@ const AdminUsers = () => {
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [filters, setFilters] = useState({
-    subscription: 'all',
     role: 'all',
     activity: 'all',
     sortBy: 'created_at',
@@ -30,9 +29,6 @@ const AdminUsers = () => {
   const [totalPages, setTotalPages] = useState(1)
   const usersPerPage = 20
 
-  // Fetch subscription tiers dynamically
-  const { data: tiers, isLoading: tiersLoading } = useAdminSubscriptionTiers()
-
   useEffect(() => {
     fetchUsers()
   }, [currentPage, filters])
@@ -43,7 +39,6 @@ const AdminUsers = () => {
         page: currentPage,
         limit: usersPerPage,
         search: searchTerm,
-        subscription: filters.subscription,
         role: filters.role,
         activity: filters.activity,
         sort_by: filters.sortBy,
@@ -143,17 +138,6 @@ const AdminUsers = () => {
     }
   }
 
-  const getSubscriptionBadge = (tier) => {
-    // Map tier_key values to badge colors
-    const badges = {
-      Explore: 'bg-gray-100 text-gray-700',       // Free tier
-      Accelerate: 'bg-blue-100 text-blue-700',    // Parent Support
-      Achieve: 'bg-purple-100 text-purple-700',   // Weekly Support
-      Excel: 'bg-pink-100 text-pink-700'          // Daily Support
-    }
-    return badges[tier] || badges.Explore
-  }
-
   const getRoleBadge = (role) => {
     const badges = {
       student: 'bg-blue-100 text-blue-700',
@@ -183,13 +167,6 @@ const AdminUsers = () => {
     })
   }
 
-  // Get tier display name from fetched tiers (single source of truth)
-  const getTierDisplayNameFromData = (tierKey) => {
-    if (!tiers) return tierKey
-    const tier = tiers.find(t => t.tier_key === tierKey)
-    return tier?.display_name || tierKey
-  }
-
   if (loading) {
     return <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
   }
@@ -213,7 +190,7 @@ const AdminUsers = () => {
 
       {/* Search and Filters */}
       <div className="bg-white p-4 rounded-lg shadow mb-6">
-        <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <div className="md:col-span-2">
             <form onSubmit={handleSearch}>
               <input
@@ -235,19 +212,6 @@ const AdminUsers = () => {
             <option value="parent">Parents</option>
             <option value="advisor">Advisors</option>
             <option value="admin">Admins</option>
-          </select>
-          <select
-            value={filters.subscription}
-            onChange={(e) => handleFilterChange('subscription', e.target.value)}
-            className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={tiersLoading}
-          >
-            <option value="all">All Subscriptions</option>
-            {tiers?.map((tier) => (
-              <option key={tier.id} value={tier.tier_key}>
-                {tier.display_name}
-              </option>
-            ))}
           </select>
           <select
             value={filters.activity}
@@ -292,9 +256,6 @@ const AdminUsers = () => {
                 Role
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Subscription
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Last Active
               </th>
               <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -333,11 +294,6 @@ const AdminUsers = () => {
                 <td className="px-6 py-4">
                   <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadge(user.role || 'student')}`}>
                     {getRoleDisplayName(user.role || 'student')}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getSubscriptionBadge(user.subscription_tier || 'free')}`}>
-                    {getTierDisplayNameFromData(user.subscription_tier || 'Explore')}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-500">
