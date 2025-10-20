@@ -125,27 +125,11 @@ class TutorTierService:
 
     def get_user_tier(self, user_id: str) -> TutorTier:
         """Get user's tutor tier based on subscription"""
-        try:
-            supabase = get_supabase_admin_client()
-
-            # Use execute() instead of single() to avoid blocking/timeout issues
-            result = supabase.table('users').select('subscription_tier').eq(
-                'id', user_id
-            ).execute()
-
-            if not result.data or len(result.data) == 0:
-                logger.warning(f"No user found with id {user_id}, defaulting to EXPLORE tier")
-                return TutorTier.EXPLORE
-
-            subscription_tier = result.data[0].get('subscription_tier', 'Explore')
-            mapped_tier = self.tier_mappings.get(subscription_tier, TutorTier.EXPLORE)
-            logger.debug(f"User {user_id} has tier: {subscription_tier} -> {mapped_tier}")
-            return mapped_tier
-
-        except Exception as e:
-            logger.error(f"Failed to get user tier for {user_id}: {e}")
-            # Return EXPLORE tier as fallback to allow chat to continue
-            return TutorTier.EXPLORE
+        # NEUTERED - Phase 3 refactoring (January 2025)
+        # All users now have EXPLORE tier (free tier) - no subscription tiers
+        # subscription_tier column was deleted from users table in Phase 1
+        logger.debug(f"All users have EXPLORE tier (free tier) - user {user_id}")
+        return TutorTier.EXPLORE
 
     def get_tier_limits(self, tier: TutorTier) -> TierLimits:
         """Get limits and features for a specific tier"""

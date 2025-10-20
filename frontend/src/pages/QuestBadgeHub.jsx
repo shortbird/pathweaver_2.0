@@ -14,7 +14,7 @@ import QuestBadgeInfoModal from '../components/hub/QuestBadgeInfoModal';
 
 // Import existing quest components
 import QuestCardSimple from '../components/quest/QuestCardSimple';
-import TeamUpModal from '../components/quest/TeamUpModal';
+// import TeamUpModal from '../components/quest/TeamUpModal'; // REMOVED - Phase 3 refactoring (January 2025)
 import QuestSuggestionModal from '../components/QuestSuggestionModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import { hasFeatureAccess } from '../utils/tierMapping';
@@ -67,8 +67,8 @@ const QuestBadgeHub = () => {
   const [isLoadingMoreQuests, setIsLoadingMoreQuests] = useState(false);
 
   // Modal state
-  const [showTeamUpModal, setShowTeamUpModal] = useState(false);
-  const [selectedQuestForTeamUp, setSelectedQuestForTeamUp] = useState(null);
+  // const [showTeamUpModal, setShowTeamUpModal] = useState(false); // REMOVED - Phase 3 refactoring (January 2025)
+  // const [selectedQuestForTeamUp, setSelectedQuestForTeamUp] = useState(null); // REMOVED - Phase 3 refactoring (January 2025)
   const [showQuestSuggestionModal, setShowQuestSuggestionModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
 
@@ -265,14 +265,8 @@ const QuestBadgeHub = () => {
     }
   }, [quests, user]);
 
-  const handleTeamUp = useCallback((quest) => {
-    if (!user) {
-      window.location.href = '/login';
-      return;
-    }
-    setSelectedQuestForTeamUp(quest);
-    setShowTeamUpModal(true);
-  }, [user]);
+  // Team-up handler removed - Phase 3 refactoring (January 2025)
+  // const handleTeamUp = useCallback((quest) => { ... }, [user]);
 
   const handleQuestSuggestion = useCallback(() => {
     if (!user) {
@@ -535,16 +529,7 @@ const QuestBadgeHub = () => {
       </div>
 
       {/* Modals */}
-      {showTeamUpModal && selectedQuestForTeamUp && (
-        <TeamUpModal
-          quest={selectedQuestForTeamUp}
-          onClose={() => {
-            setShowTeamUpModal(false);
-            setSelectedQuestForTeamUp(null);
-          }}
-          onInviteSent={() => {}}
-        />
-      )}
+      {/* Team-up modal removed - Phase 3 refactoring (January 2025) */}
 
       {showQuestSuggestionModal && (
         <QuestSuggestionModal
