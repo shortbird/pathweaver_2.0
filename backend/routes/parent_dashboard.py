@@ -22,32 +22,47 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
     IMPORTANT: Accepts supabase client to avoid connection exhaustion.
 
     Special case: Admin users can view their own student data for demo purposes.
+    Optimized to ONE database query to prevent HTTP/2 stream exhaustion.
     """
     try:
-        # Allow admin to view their own data (skip database query if IDs match)
+        # Special case: Admin viewing their own data (self-link for demo)
         if parent_user_id == student_user_id:
-            # Quick check: verify user is admin
+            # Single query to verify admin role
             user_response = supabase.table('users').select('role').eq('id', parent_user_id).single().execute()
             if user_response.data and user_response.data.get('role') == 'admin':
                 return True
+            # If not admin, fall through to normal parent validation
 
-        # Get user role for non-self access
-        user_response = supabase.table('users').select('role').eq('id', parent_user_id).single().execute()
+        # OPTIMIZED: Single query with JOIN to get user role AND link status
+        # This reduces 3 queries to 1, preventing HTTP/2 stream exhaustion
+        user_response = supabase.table('users').select('''
+            role,
+            parent_student_links!parent_student_links_parent_user_id_fkey(
+                id,
+                status,
+                student_user_id
+            )
+        ''').eq('id', parent_user_id).single().execute()
+
         if not user_response.data:
             raise AuthorizationError("User not found")
 
-        user_role = user_response.data.get('role')
+        user = user_response.data
+        user_role = user.get('role')
 
-        # Verify parent role for non-admin users
+        # Verify parent role
         if user_role != 'parent':
             raise AuthorizationError("Only parent accounts can access this endpoint")
 
-        # Verify active link for parent users
-        link_response = supabase.table('parent_student_links').select('id').eq(
-            'parent_user_id', parent_user_id
-        ).eq('student_user_id', student_user_id).eq('status', 'active').limit(1).execute()
+        # Check for active link to this specific student
+        links = user.get('parent_student_links', [])
+        has_active_link = any(
+            link.get('student_user_id') == student_user_id and
+            link.get('status') == 'active'
+            for link in links
+        )
 
-        if not link_response.data:
+        if not has_active_link:
             raise AuthorizationError("You do not have access to this student's data")
 
         return True
