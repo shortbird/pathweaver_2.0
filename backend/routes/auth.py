@@ -181,8 +181,7 @@ def register():
                 'first_name': sanitized_first_name,
                 'last_name': sanitized_last_name,
                 'email': email,
-                'subscription_tier': 'Free',  # Must match database constraint (capitalized)
-                'subscription_status': 'active',  # Free tier is always active
+                # subscription_tier and subscription_status removed in Phase 1 refactoring
                 'tos_accepted_at': 'now()',
                 'privacy_policy_accepted_at': 'now()',
                 'tos_version': CURRENT_TOS_VERSION,
@@ -417,8 +416,7 @@ def login():
                         'first_name': auth_response.user.user_metadata.get('first_name', 'User'),
                         'last_name': auth_response.user.user_metadata.get('last_name', ''),
                         'email': auth_response.user.email,
-                        'subscription_tier': 'Free',  # Must match database constraint (capitalized)
-                        'subscription_status': 'active',
+                        # subscription_tier and subscription_status removed in Phase 1 refactoring
                         'created_at': 'now()'
                     }
                     

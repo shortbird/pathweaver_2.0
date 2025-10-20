@@ -18,34 +18,14 @@ CACHE_DURATION = timedelta(minutes=5)
 
 @bp.route('/api/tiers', methods=['GET'])
 def get_active_tiers():
-    """Get all active subscription tiers for public display"""
-    global _tier_cache
+    """Get all active subscription tiers for public display
 
-    try:
-        # Check cache
-        now = datetime.now()
-        if (_tier_cache['data'] is not None and
-            _tier_cache['timestamp'] is not None and
-            now - _tier_cache['timestamp'] < CACHE_DURATION):
-            return jsonify(_tier_cache['data']), 200
-
-        # Fetch from database
-        supabase = get_supabase_client()
-        response = supabase.table('subscription_tiers')\
-            .select('*')\
-            .eq('is_active', True)\
-            .order('sort_order')\
-            .execute()
-
-        # Update cache
-        _tier_cache['data'] = response.data
-        _tier_cache['timestamp'] = now
-
-        return jsonify(response.data), 200
-
-    except Exception as e:
-        print(f"Error fetching tiers: {str(e)}")
-        return jsonify({'error': 'Failed to fetch subscription tiers'}), 500
+    NOTE: Subscription tiers removed in Phase 1 refactoring (January 2025)
+    This endpoint returns empty array to prevent frontend errors.
+    Will be completely removed in Phase 2.
+    """
+    # Return empty array - subscription system removed
+    return jsonify([]), 200
 
 
 @bp.route('/api/tiers/clear-cache', methods=['POST'])
