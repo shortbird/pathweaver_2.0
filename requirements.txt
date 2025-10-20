@@ -15,8 +15,8 @@ openai==1.101.0
 google-generativeai==0.8.5
 httpx==0.28.1
 
-# Stripe Payment Processing
-stripe==9.12.0
+# LMS Integration
+cryptography==41.0.4  # For LTI 1.3 JWT verification
 
 # Utilities
 python-dateutil==2.9.0.post0

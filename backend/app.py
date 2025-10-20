@@ -91,6 +91,14 @@ try:
 except Exception as e:
     print(f"Warning: AI Tutor routes not available: {e}")
 
+# Register LMS Integration blueprint
+try:
+    from routes import lms_integration
+    app.register_blueprint(lms_integration.bp)  # /lti/* and /api/lms/*
+    print("LMS Integration routes registered successfully")
+except Exception as e:
+    print(f"Warning: LMS Integration routes not available: {e}")
+
 # Register Badge System blueprints
 try:
     from routes import badges, credits, ai_content, admin_badge_seed, quest_badge_hub
