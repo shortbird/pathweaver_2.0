@@ -10,9 +10,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     first_name: user.first_name || '',
     last_name: user.last_name || '',
     email: user.email || '',
-    role: user.role || 'student',
-    subscription_tier: user.subscription_tier || 'Explore',
-    subscription_expires: user.subscription_expires || ''
+    role: user.role || 'student'
   })
   const [roleChangeReason, setRoleChangeReason] = useState('')
   const [loading, setLoading] = useState(false)
@@ -20,9 +18,6 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const [questEnrollments, setQuestEnrollments] = useState({ enrolled: [], available: [] })
   const [showTaskForm, setShowTaskForm] = useState(false)
   const [selectedQuest, setSelectedQuest] = useState(null)
-
-  // Fetch subscription tiers dynamically
-  const { data: tiers, isLoading: tiersLoading } = useAdminSubscriptionTiers()
 
   useEffect(() => {
     fetchUserDetails()
@@ -84,28 +79,6 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
       toast.error('Failed to update profile')
     } finally {
       setLoading(false)
-    }
-  }
-
-  const handleUpdateSubscription = async () => {
-    // Find the tier display name from the fetched tiers
-    const selectedTier = tiers?.find(t => t.tier_key === formData.subscription_tier)
-    const displayName = selectedTier?.display_name || formData.subscription_tier
-
-    if (window.confirm(`Change subscription to ${displayName}?`)) {
-      setLoading(true)
-      try {
-        await api.post(`/api/v3/admin/users/${user.id}/subscription`, {
-          subscription_tier: formData.subscription_tier,
-          expires: formData.subscription_expires
-        })
-        toast.success('Subscription updated successfully')
-        onSave()
-      } catch (error) {
-        toast.error('Failed to update subscription')
-      } finally {
-        setLoading(false)
-      }
     }
   }
 
@@ -183,7 +156,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
         {/* Tabs */}
         <div className="flex border-b">
-          {['profile', 'role', 'subscription', 'quests', 'activity'].map((tab) => (
+          {['profile', 'role', 'quests', 'activity'].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -336,63 +309,6 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 } disabled:bg-gray-400`}
               >
                 {loading ? 'Updating...' : 'Update Role'}
-              </button>
-            </div>
-          )}
-
-          {activeTab === 'subscription' && (
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Subscription Tier
-                </label>
-                {tiersLoading ? (
-                  <div className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50 text-gray-500">
-                    Loading tiers...
-                  </div>
-                ) : (
-                  <select
-                    name="subscription_tier"
-                    value={formData.subscription_tier}
-                    onChange={handleInputChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {tiers?.map((tier) => {
-                      const price = parseFloat(tier.price_monthly)
-                      const priceLabel = price === 0 ? 'Free' : `$${price.toFixed(2)}/month`
-                      return (
-                        <option key={tier.id} value={tier.tier_key}>
-                          {tier.display_name} ({priceLabel})
-                        </option>
-                      )
-                    })}
-                  </select>
-                )}
-                <p className="text-xs text-gray-500 mt-1">
-                  Current tier in database: {user.subscription_tier}
-                </p>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Subscription Expires
-                </label>
-                <input
-                  type="datetime-local"
-                  name="subscription_expires"
-                  value={formData.subscription_expires}
-                  onChange={handleInputChange}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Leave empty for free tier or lifetime access
-                </p>
-              </div>
-              <button
-                onClick={handleUpdateSubscription}
-                disabled={loading || tiersLoading}
-                className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 disabled:bg-gray-400"
-              >
-                {loading ? 'Updating...' : 'Update Subscription'}
               </button>
             </div>
           )}
