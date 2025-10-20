@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
-import { useFriends, useSendFriendRequest, useAcceptFriendRequest, useDeclineFriendRequest, useCancelFriendRequest, useCollaborations } from '../hooks/api/useFriends'
-import { friendsAPI, collaborationAPI } from '../services/api'
+import { useFriends, useSendFriendRequest, useAcceptFriendRequest, useDeclineFriendRequest, useCancelFriendRequest } from '../hooks/api/useFriends'
+// import { useCollaborations } from '../hooks/api/useFriends' // REMOVED - Phase 3 refactoring (January 2025)
+import { friendsAPI } from '../services/api'
+// import { collaborationAPI } from '../services/api' // REMOVED - Phase 3 refactoring (January 2025)
 import api from '../services/api'
 import { hasFeatureAccess } from '../utils/tierMapping'
 import StatusBadge from '../components/ui/StatusBadge'
-import CollaborationBadge from '../components/ui/CollaborationBadge'
+// import CollaborationBadge from '../components/ui/CollaborationBadge' // REMOVED - Phase 3 refactoring (January 2025)
 import { UserPlusIcon, ClockIcon, CheckCircleIcon, UsersIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline'
 
 const FriendsPage = () => {
@@ -529,7 +531,8 @@ const FriendsPage = () => {
                                 Quest: {invite.quest?.title}
                               </p>
                               <div className="flex flex-wrap items-center gap-2 mt-2">
-                                <CollaborationBadge status={invite.status} showXpBonus={false} />
+                                {/* <CollaborationBadge status={invite.status} showXpBonus={false} /> */}
+                                <StatusBadge status={invite.status} />
                                 <div className="flex items-center gap-1 text-xs text-gray-500">
                                   <ClockIcon className="w-3 h-3" />
                                   <span>{formatTimeAgo(invite.created_at)}</span>
@@ -584,7 +587,8 @@ const FriendsPage = () => {
                                 Quest: {invite.quest?.title}
                               </p>
                               <div className="flex flex-wrap items-center gap-2 mt-2">
-                                <CollaborationBadge status={invite.status} showXpBonus={false} />
+                                {/* <CollaborationBadge status={invite.status} showXpBonus={false} /> */}
+                                <StatusBadge status={invite.status} />
                                 <div className="flex items-center gap-1 text-xs text-gray-500">
                                   <ClockIcon className="w-3 h-3" />
                                   <span>Sent {formatTimeAgo(invite.created_at)}</span>
