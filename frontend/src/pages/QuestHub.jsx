@@ -7,7 +7,7 @@ import { useIsMounted, useObserver, useDebounceWithCleanup, useSafeAsync } from 
 import QuestCardSimple from '../components/quest/QuestCardSimple';
 import QuestListItem from '../components/quest/improved/QuestListItem';
 import QuestFilters from '../components/quest/improved/QuestFilters';
-import TeamUpModal from '../components/quest/TeamUpModal';
+// import TeamUpModal from '../components/quest/TeamUpModal'; // REMOVED - Phase 3 refactoring (January 2025)
 import QuestSuggestionModal from '../components/QuestSuggestionModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
@@ -43,8 +43,8 @@ const QuestHub = () => {
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [error, setError] = useState('');
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
-  const [showTeamUpModal, setShowTeamUpModal] = useState(false);
-  const [selectedQuestForTeamUp, setSelectedQuestForTeamUp] = useState(null);
+  // const [showTeamUpModal, setShowTeamUpModal] = useState(false); // REMOVED - Phase 3 refactoring
+  // const [selectedQuestForTeamUp, setSelectedQuestForTeamUp] = useState(null); // REMOVED - Phase 3 refactoring
   const [showQuestSuggestionModal, setShowQuestSuggestionModal] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
@@ -233,19 +233,9 @@ const QuestHub = () => {
     }
   }, [quests, user]);
 
-  const handleTeamUp = useCallback((quest) => {
-    if (!user) {
-      window.location.href = '/login';
-      return;
-    }
-    setSelectedQuestForTeamUp(quest);
-    setShowTeamUpModal(true);
-  }, [user]);
-
-  const handleInviteSent = useCallback((result) => {
-    // TODO: Replace with toast
-    // Success message handled by UI feedback
-  }, []);
+  // Team-up handler removed - Phase 3 refactoring (January 2025)
+  // const handleTeamUp = useCallback((quest) => { ... }, [user]);
+  // const handleInviteSent = useCallback((result) => { ... }, []);
 
   const handleQuestSuggestion = useCallback(() => {
     if (!user) {
@@ -394,7 +384,7 @@ const QuestHub = () => {
                         key={quest.id}
                         quest={quest}
                         onEnroll={handleEnroll}
-                        onTeamUp={handleTeamUp}
+                        // onTeamUp={handleTeamUp} // REMOVED - Phase 3 refactoring
                       />
                     );
                   }
@@ -426,17 +416,7 @@ const QuestHub = () => {
           </>
         )}
 
-        {/* Team Up Modal */}
-        {showTeamUpModal && selectedQuestForTeamUp && (
-          <TeamUpModal
-            quest={selectedQuestForTeamUp}
-            onClose={() => {
-              setShowTeamUpModal(false);
-              setSelectedQuestForTeamUp(null);
-            }}
-            onInviteSent={handleInviteSent}
-          />
-        )}
+        {/* Team Up Modal - REMOVED Phase 3 refactoring (January 2025) */}
 
         {/* Quest Suggestion Modal */}
         {showQuestSuggestionModal && (
