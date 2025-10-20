@@ -134,28 +134,7 @@ export const friendsAPI = {
   cancelFriendRequest: (friendshipId) => api.delete(`/api/community/friends/cancel/${friendshipId}`)
 }
 
-// Collaboration/Team-up management API methods
-export const collaborationAPI = {
-  // Get all invitations (received and sent)
-  getInvites: () => api.get('/api/collaborations/invites'),
-
-  // Get active collaborations
-  getActive: () => api.get('/api/collaborations/active'),
-
-  // Get quest-specific invitations and collaborations
-  getQuestCollaborations: (questId) => api.get(`/api/collaborations/quest/${questId}`),
-
-  // Send team-up invitation
-  sendInvite: (questId, friendId) => api.post('/api/collaborations/invite', { quest_id: questId, friend_id: friendId }),
-
-  // Accept team-up invitation
-  acceptInvite: (inviteId) => api.post(`/api/collaborations/${inviteId}/accept`),
-
-  // Decline team-up invitation
-  declineInvite: (inviteId) => api.post(`/api/collaborations/${inviteId}/decline`),
-
-  // Cancel sent team-up invitation
-  cancelInvite: (inviteId) => api.delete(`/api/collaborations/${inviteId}/cancel`)
-}
+// Collaboration API removed in Phase 3 refactoring (January 2025)
+// Team-up feature has been removed from the platform
 
 export default api

@@ -36,7 +36,7 @@ import FriendsPage from './pages/FriendsPage'
 import ConnectionsPage from './pages/ConnectionsPage'
 import CommunicationPage from './pages/CommunicationPage'
 import CalendarPage from './pages/CalendarPage'
-import SubscriptionPage from './pages/SubscriptionPage'
+// import SubscriptionPage from './pages/SubscriptionPage' // REMOVED - Phase 3 refactoring (January 2025)
 import AdminPage from './pages/AdminPage'
 import AdvisorDashboard from './pages/AdvisorDashboard'
 import AdvisorBadgeForm from './pages/AdvisorBadgeForm'
@@ -120,7 +120,7 @@ function App() {
                 <Route path="connections" element={<ConnectionsPage />} />
                 <Route path="communication" element={<CommunicationPage />} />
                 <Route path="calendar" element={<CalendarPage />} />
-                <Route path="subscription" element={<SubscriptionPage />} />
+                {/* <Route path="subscription" element={<SubscriptionPage />} /> REMOVED - Phase 3 refactoring (January 2025) */}
               </Route>
               
               <Route element={<PrivateRoute requiredRole="admin" />}>

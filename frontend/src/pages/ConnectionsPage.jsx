@@ -9,10 +9,10 @@ import {
   useAcceptFriendRequest,
   useDeclineFriendRequest,
   useCancelFriendRequest,
-  useCollaborations,
+  // useCollaborations, // REMOVED - Phase 3 refactoring (January 2025)
 } from '../hooks/api/useFriends'
-import { collaborationAPI } from '../services/api'
-import { hasFeatureAccess } from '../utils/tierMapping'
+// import { collaborationAPI } from '../services/api' // REMOVED - Phase 3 refactoring (January 2025)
+// import { hasFeatureAccess } from '../utils/tierMapping' // REMOVED - Phase 3 refactoring (January 2025)
 
 // Import new components
 import ConnectionsHeader from '../components/connections/ConnectionsHeader'
@@ -39,12 +39,12 @@ const ConnectionsPage = () => {
     enabled: !!user?.id,
   })
 
-  const {
-    data: collaborationsData,
-    isLoading: loadingCollaborations,
-  } = useCollaborations(user?.id, {
-    enabled: !!user?.id,
-  })
+  // const { // REMOVED - Phase 3 refactoring (January 2025)
+  //   data: collaborationsData,
+  //   isLoading: loadingCollaborations,
+  // } = useCollaborations(user?.id, {
+  //   enabled: !!user?.id,
+  // })
 
   const {
     data: activityData,
@@ -66,11 +66,11 @@ const ConnectionsPage = () => {
   const friends = friendsData?.friends || []
   const pendingRequests = friendsData?.pending_requests || []
   const sentRequests = friendsData?.sent_requests || []
-  const teamInvitations = collaborationsData?.received_invitations || []
-  const sentTeamInvitations = collaborationsData?.sent_invitations || []
+  // const teamInvitations = collaborationsData?.received_invitations || [] // REMOVED - Phase 3 refactoring (January 2025)
+  // const sentTeamInvitations = collaborationsData?.sent_invitations || [] // REMOVED - Phase 3 refactoring (January 2025)
 
   // Loading state
-  const loading = loadingFriends || loadingCollaborations || loadingActivity
+  const loading = loadingFriends || loadingActivity // loadingCollaborations removed (Phase 3 refactoring)
 
   // Check if we should return to a quest after adding friends
   useEffect(() => {
@@ -107,15 +107,16 @@ const ConnectionsPage = () => {
     timeAgo: formatTimeAgo(req.created_at),
   }))
 
-  const formattedTeamInvitations = teamInvitations.map((invite) => ({
-    ...invite,
-    timeAgo: formatTimeAgo(invite.created_at),
-  }))
+  // Team-up invitations removed - Phase 3 refactoring (January 2025)
+  // const formattedTeamInvitations = teamInvitations.map((invite) => ({
+  //   ...invite,
+  //   timeAgo: formatTimeAgo(invite.created_at),
+  // }))
 
-  const formattedSentTeamInvitations = sentTeamInvitations.map((invite) => ({
-    ...invite,
-    timeAgo: formatTimeAgo(invite.created_at),
-  }))
+  // const formattedSentTeamInvitations = sentTeamInvitations.map((invite) => ({
+  //   ...invite,
+  //   timeAgo: formatTimeAgo(invite.created_at),
+  // }))
 
   // Handlers
   const handleBackToQuest = () => {

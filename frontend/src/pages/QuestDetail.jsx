@@ -3,15 +3,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuestDetail, useEnrollQuest, useCompleteTask, useEndQuest } from '../hooks/api/useQuests';
-import { useQuestCollaborations } from '../hooks/api/useFriends';
 import { handleApiResponse } from '../utils/errorHandling';
 import { getPillarData } from '../utils/pillarMappings';
 import { hasFeatureAccess } from '../utils/tierMapping';
 import { queryKeys } from '../utils/queryKeys';
 import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import TaskDetailModal from '../components/quest/TaskDetailModal';
-import TeamUpModal from '../components/quest/TeamUpModal';
-import CollaborationBadge from '../components/ui/CollaborationBadge';
 import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
 import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus } from 'lucide-react';
@@ -35,13 +32,6 @@ const QuestDetail = () => {
     cacheTime: 0,
   });
 
-  const {
-    data: collaborationData,
-    isLoading: isLoadingCollaborations,
-  } = useQuestCollaborations(id, {
-    enabled: !!id && !!user && hasFeatureAccess(user?.subscription_tier, 'supported'),
-  });
-
   // React Query mutations
   const enrollMutation = useEnrollQuest();
   const completeTaskMutation = useCompleteTask();
@@ -57,14 +47,8 @@ const QuestDetail = () => {
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);
   const [taskDetailToShow, setTaskDetailToShow] = useState(null);
-  const [showTeamUpModal, setShowTeamUpModal] = useState(false);
   const [showPersonalizationWizard, setShowPersonalizationWizard] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState(new Set());
-
-  // Get pending invitation from collaboration data
-  const pendingInvite = collaborationData?.received_invitations?.find(invite =>
-    invite.quest?.id === id && invite.status === 'pending'
-  ) || null;
 
   // Handle error display
   if (error) {
@@ -183,48 +167,7 @@ const QuestDetail = () => {
     refetchQuest();
   };
 
-  const handleInviteSent = async (inviteData) => {
-    // Show success message
-    if (inviteData?.message) {
-      toast.success(inviteData.message);
-    }
-
-    // Refresh quest details to show any new collaboration status
-    try {
-      await fetchQuestDetails();
-      await fetchQuestCollaborations();
-    } catch (error) {
-    }
-  };
-
-  const handleAcceptInvite = async (inviteId) => {
-    try {
-      await collaborationAPI.acceptInvite(inviteId);
-      toast.success('Team-up invitation accepted! You now earn 2x XP on this quest.');
-
-      // Refresh both quest details and collaboration status
-      await Promise.all([
-        fetchQuestDetails(),
-        fetchQuestCollaborations()
-      ]);
-    } catch (error) {
-      const errorMessage = error.response?.data?.error || 'Failed to accept invitation';
-      toast.error(errorMessage);
-    }
-  };
-
-  const handleDeclineInvite = async (inviteId) => {
-    try {
-      await collaborationAPI.declineInvite(inviteId);
-      toast.success('Team-up invitation declined.');
-
-      // Refresh collaboration status
-      await fetchQuestCollaborations();
-    } catch (error) {
-      const errorMessage = error.response?.data?.error || 'Failed to decline invitation';
-      toast.error(errorMessage);
-    }
-  };
+  // Collaboration functions removed in Phase 3 refactoring (January 2025)
 
   const toggleTaskExpansion = (taskId) => {
     const newExpanded = new Set(expandedTasks);
@@ -238,20 +181,18 @@ const QuestDetail = () => {
 
   const calculateXP = () => {
     if (!quest?.quest_tasks) return { baseXP: 0, bonusXP: 0, totalXP: 0, earnedXP: 0, earnedBonusXP: 0 };
-    
+
     const tasks = quest.quest_tasks;
     const baseXP = tasks.reduce((sum, task) => sum + (task.xp_amount || 0), 0);
     const earnedXP = tasks
       .filter(task => task.is_completed)
       .reduce((sum, task) => sum + (task.xp_amount || 0), 0);
-    
-    const completedCount = tasks.filter(task => task.is_completed).length;
-    const totalCount = tasks.length;
-    
-    const bonusXP = Math.round(baseXP * 0.5 / 50) * 50; // Round to nearest 50
-    const totalXP = baseXP + bonusXP;
-    const earnedBonusXP = (completedCount === totalCount && totalCount > 0) ? bonusXP : 0;
-    
+
+    // Completion bonus removed in Phase 2 refactoring (January 2025)
+    const bonusXP = 0;
+    const totalXP = baseXP;
+    const earnedBonusXP = 0;
+
     return { baseXP, bonusXP, totalXP, earnedXP, earnedBonusXP };
   };
 
@@ -363,45 +304,7 @@ const QuestDetail = () => {
         </div>
       </div>
 
-      {/* Team-up Invitation Banner */}
-      {pendingInvite && (
-        <div className="bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200 rounded-xl p-6 mb-6">
-          <div className="flex items-start justify-between">
-            <div className="flex-1">
-              <div className="flex items-center mb-3">
-                <UserPlus className="w-6 h-6 text-purple-600 mr-3" />
-                <h3 className="text-lg font-bold text-purple-900">Team-up Invitation</h3>
-                <CollaborationBadge status="pending" className="ml-3" />
-              </div>
-              <p className="text-purple-800 mb-4">
-                <span className="font-medium">
-                  {pendingInvite.sender?.first_name} {pendingInvite.sender?.last_name}
-                </span>
-                {' '}has invited you to team up on this quest! Work together and earn double XP for all tasks.
-              </p>
-              {pendingInvite.message && (
-                <div className="bg-white/50 rounded-lg p-3 mb-4">
-                  <p className="text-purple-700 text-sm italic">"{pendingInvite.message}"</p>
-                </div>
-              )}
-            </div>
-          </div>
-          <div className="flex gap-3">
-            <button
-              onClick={() => handleAcceptInvite(pendingInvite.id)}
-              className="px-6 py-3 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-lg hover:from-green-600 hover:to-green-700 transition-all duration-300 font-medium"
-            >
-              Accept & Team Up
-            </button>
-            <button
-              onClick={() => handleDeclineInvite(pendingInvite.id)}
-              className="px-6 py-3 bg-white text-red-600 border-2 border-red-200 rounded-lg hover:bg-red-50 hover:border-red-300 transition-all duration-300 font-medium"
-            >
-              Decline
-            </button>
-          </div>
-        </div>
-      )}
+      {/* Team-up invitation banner removed in Phase 3 refactoring (January 2025) */}
 
       {/* Quest Metadata Strip */}
       <div className="bg-white rounded-xl shadow-md p-4 mb-6">
@@ -449,25 +352,6 @@ const QuestDetail = () => {
             <h2 className="text-xl font-bold text-gray-900">Your Progress</h2>
             <div className="flex items-center gap-4">
               <div className="text-2xl font-bold text-gray-900">{Math.round(progressPercentage)}%</div>
-              {!isQuestCompleted && (
-                canStartQuests ? (
-                  <button
-                    onClick={() => setShowTeamUpModal(true)}
-                    className="bg-purple-600 text-white py-2 px-4 rounded-[20px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-medium text-sm shadow-lg"
-                  >
-                    <Users className="w-4 h-4 inline mr-1" />
-                    Team Up
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => navigate('/subscription')}
-                    className="bg-gray-100 text-gray-600 py-2 px-4 rounded-[20px] hover:bg-gray-200 transition-all duration-300 font-medium text-sm border-2 border-gray-300"
-                  >
-                    <Lock className="w-4 h-4 inline mr-1" />
-                    Upgrade to Team Up
-                  </button>
-                )
-              )}
             </div>
           </div>
 
@@ -504,21 +388,7 @@ const QuestDetail = () => {
         </div>
       )}
 
-      {/* Collaboration Status */}
-      {quest.collaboration && (
-        <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6">
-          <div className="flex items-center">
-            <Users className="w-5 h-5 text-purple-600 mr-3" />
-            <span className="text-purple-700 font-medium">
-              {quest.collaboration.status === 'accepted' 
-                ? quest.collaboration.collaborator_names?.length > 0
-                  ? `You're teamed up with ${quest.collaboration.collaborator_names.join(' and ')}! All tasks earn double XP`
-                  : 'You\'re teamed up! All tasks earn double XP'
-                : 'Team-up invitation pending'}
-            </span>
-          </div>
-        </div>
-      )}
+      {/* Collaboration status removed in Phase 3 refactoring (January 2025) */}
 
       {/* 4. Call-to-Action Buttons */}
       {(isQuestCompleted || !quest.user_enrollment || (quest.user_enrollment && totalTasks === 0)) && (
@@ -543,42 +413,24 @@ const QuestDetail = () => {
             ) : !quest.user_enrollment ? (
               <>
                 {canStartQuests ? (
-                  // Paid tier users - show normal start and team up buttons
-                  <>
-                    <button
-                      onClick={handleEnroll}
-                      disabled={isEnrolling}
-                      className="flex-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <Target className="w-5 h-5 inline mr-2" />
-                      {isEnrolling ? 'Enrolling...' : 'Start Quest'}
-                    </button>
-                    <button
-                      onClick={() => setShowTeamUpModal(true)}
-                      className="bg-purple-600 text-white py-4 px-8 rounded-[30px] hover:bg-purple-700 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
-                    >
-                      <Users className="w-5 h-5 inline mr-2" />
-                      Team Up First
-                    </button>
-                  </>
+                  // Paid tier users - show start button only
+                  <button
+                    onClick={handleEnroll}
+                    disabled={isEnrolling}
+                    className="flex-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <Target className="w-5 h-5 inline mr-2" />
+                    {isEnrolling ? 'Enrolling...' : 'Start Quest'}
+                  </button>
                 ) : (
-                  // Free tier users - show upgrade buttons
-                  <>
-                    <button
-                      onClick={() => navigate('/subscription')}
-                      className="flex-1 bg-gray-100 text-gray-600 py-4 px-8 rounded-[30px] hover:bg-gray-200 transition-all duration-300 font-bold text-lg border-2 border-gray-300"
-                    >
-                      <Lock className="w-5 h-5 inline mr-2" />
-                      Upgrade to Start
-                    </button>
-                    <button
-                      onClick={() => navigate('/subscription')}
-                      className="bg-gray-100 text-gray-600 py-4 px-8 rounded-[30px] hover:bg-gray-200 transition-all duration-300 font-bold text-lg border-2 border-gray-300"
-                    >
-                      <Lock className="w-5 h-5 inline mr-2" />
-                      Upgrade to Team Up
-                    </button>
-                  </>
+                  // Free tier users - show upgrade button
+                  <button
+                    onClick={() => navigate('/subscription')}
+                    className="flex-1 bg-gray-100 text-gray-600 py-4 px-8 rounded-[30px] hover:bg-gray-200 transition-all duration-300 font-bold text-lg border-2 border-gray-300"
+                  >
+                    <Lock className="w-5 h-5 inline mr-2" />
+                    Upgrade to Start
+                  </button>
                 )}
               </>
             ) : null}
@@ -592,7 +444,7 @@ const QuestDetail = () => {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold">Quest Tasks</h2>
-              <p className="text-white/80 mt-2">Complete all tasks to earn the full completion bonus</p>
+              <p className="text-white/80 mt-2">Complete tasks to earn XP and progress</p>
             </div>
             {isRefreshing && (
               <div className="flex items-center gap-2 text-white/90">
@@ -637,9 +489,6 @@ const QuestDetail = () => {
                             </div>
                             <div className="font-bold text-base text-gray-900">
                               {task.xp_amount} XP
-                              {task.is_collaboration_eligible && quest.collaboration?.status === 'accepted' && (
-                                <span className="text-purple-600 text-sm block">(×2 = {task.xp_amount * 2} XP)</span>
-                              )}
                             </div>
                           </div>
 
@@ -796,13 +645,7 @@ const QuestDetail = () => {
         />
       )}
 
-      {showTeamUpModal && (
-        <TeamUpModal
-          quest={quest}
-          onClose={() => setShowTeamUpModal(false)}
-          onInviteSent={handleInviteSent}
-        />
-      )}
+      {/* Team-up modal removed in Phase 3 refactoring (January 2025) */}
 
       {showPersonalizationWizard && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">

@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { friendsAPI, collaborationAPI } from '../../services/api'
+import { friendsAPI } from '../../services/api'
 import { queryKeys, mutationKeys } from '../../utils/queryKeys'
 import toast from 'react-hot-toast'
 
@@ -129,106 +129,5 @@ export const useCancelFriendRequest = () => {
   })
 }
 
-/**
- * Hook for fetching collaboration invitations
- */
-export const useCollaborations = (userId, options = {}) => {
-  return useQuery({
-    queryKey: queryKeys.social.collaborations(userId),
-    queryFn: async () => {
-      const response = await collaborationAPI.getInvites()
-      return response.data
-    },
-    enabled: !!userId,
-    ...options,
-  })
-}
-
-/**
- * Hook for fetching quest-specific collaborations
- */
-export const useQuestCollaborations = (questId, options = {}) => {
-  return useQuery({
-    queryKey: queryKeys.social.questCollaborations(questId),
-    queryFn: async () => {
-      const response = await collaborationAPI.getQuestCollaborations(questId)
-      return response.data
-    },
-    enabled: !!questId,
-    ...options,
-  })
-}
-
-/**
- * Hook for sending collaboration invitation
- */
-export const useSendCollaboration = () => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationKey: [mutationKeys.sendCollaboration],
-    mutationFn: async ({ questId, friendId }) => {
-      const response = await collaborationAPI.sendInvite(questId, friendId)
-      return response.data
-    },
-    onSuccess: (data, variables) => {
-      // Invalidate collaboration queries
-      queryKeys.invalidateSocial(queryClient)
-      queryClient.invalidateQueries(
-        queryKeys.social.questCollaborations(variables.questId)
-      )
-
-      toast.success('Team-up invitation sent!')
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.error || 'Failed to send team-up invitation')
-    },
-  })
-}
-
-/**
- * Hook for accepting collaboration invitation
- */
-export const useAcceptCollaboration = () => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationKey: [mutationKeys.acceptCollaboration],
-    mutationFn: async (inviteId) => {
-      const response = await collaborationAPI.acceptInvite(inviteId)
-      return response.data
-    },
-    onSuccess: () => {
-      // Invalidate collaboration queries
-      queryKeys.invalidateSocial(queryClient)
-
-      toast.success('Team-up invitation accepted!')
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.error || 'Failed to accept team-up invitation')
-    },
-  })
-}
-
-/**
- * Hook for declining collaboration invitation
- */
-export const useDeclineCollaboration = () => {
-  const queryClient = useQueryClient()
-
-  return useMutation({
-    mutationFn: async (inviteId) => {
-      const response = await collaborationAPI.declineInvite(inviteId)
-      return response.data
-    },
-    onSuccess: () => {
-      // Invalidate collaboration queries
-      queryKeys.invalidateSocial(queryClient)
-
-      toast.success('Team-up invitation declined')
-    },
-    onError: (error) => {
-      toast.error(error.response?.data?.error || 'Failed to decline team-up invitation')
-    },
-  })
-}
+// Collaboration hooks removed in Phase 3 refactoring (January 2025)
+// Team-up feature has been removed from the platform
