@@ -511,8 +511,8 @@ def get_student_communications(user_id, student_id):
     Read-only access for parents.
     """
     try:
-        verify_parent_access(user_id, student_id)
         supabase = get_supabase_admin_client()
+        verify_parent_access(supabase, user_id, student_id)
 
         # Get tutor conversations
         conversations_response = supabase.table('tutor_conversations').select('''
@@ -577,8 +577,8 @@ def get_encouragement_tips(user_id, student_id):
     Get context-aware process-focused encouragement tips for parents.
     """
     try:
-        verify_parent_access(user_id, student_id)
         supabase = get_supabase_admin_client()
+        verify_parent_access(supabase, user_id, student_id)
 
         # Get learning rhythm
         rhythm_response = supabase.rpc('get_learning_rhythm_status', {
