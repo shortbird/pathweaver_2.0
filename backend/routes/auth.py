@@ -504,13 +504,19 @@ def login():
             # Extract session data
             session_data = auth_response.session.model_dump() if auth_response.session else {}
 
+            # Generate custom JWT tokens for incognito mode fallback
+            # These are the SAME tokens that get set in httpOnly cookies
+            custom_access_token = session_manager.generate_access_token(auth_response.user.id)
+            custom_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
+
             response_data = {
                 'user': user_response_data,
                 'session': session_data,
-                # Include tokens at top level for incognito mode fallback
+                # Include CUSTOM JWT tokens at top level for incognito mode fallback
                 # Incognito browsers block SameSite=None cookies
-                'access_token': session_data.get('access_token'),
-                'refresh_token': session_data.get('refresh_token')
+                # These match the tokens set in httpOnly cookies
+                'access_token': custom_access_token,
+                'refresh_token': custom_refresh_token
             }
             response = make_response(jsonify(response_data), 200)
 
@@ -582,9 +588,15 @@ def refresh_token():
     if refresh_result:
         new_access_token, new_refresh_token, user_id = refresh_result
 
-        # Create response with new tokens in cookies
+        # Create response with new tokens for incognito mode fallback
         response = make_response(jsonify({
-            'message': 'Tokens refreshed successfully'
+            'message': 'Tokens refreshed successfully',
+            'access_token': new_access_token,
+            'refresh_token': new_refresh_token,
+            'session': {
+                'access_token': new_access_token,
+                'refresh_token': new_refresh_token
+            }
         }), 200)
 
         # Set new secure cookies
@@ -592,36 +604,40 @@ def refresh_token():
 
         return response
 
-    # Fallback to legacy refresh token method for backward compatibility
+    # Fallback to localStorage refresh token for incognito mode
     data = request.json if request.json else {}
-    refresh_token = data.get('refresh_token')
+    refresh_token_input = data.get('refresh_token')
 
-    if not refresh_token:
+    if not refresh_token_input:
         return jsonify({'error': 'No refresh token provided'}), 401
 
-    supabase = get_supabase_client()
+    # Verify the custom JWT refresh token
+    payload = session_manager.verify_refresh_token(refresh_token_input)
+    if not payload:
+        return jsonify({'error': 'Invalid or expired refresh token'}), 401
 
-    try:
-        auth_response = supabase.auth.refresh_session(refresh_token)
+    user_id = payload.get('user_id')
+    if not user_id:
+        return jsonify({'error': 'Invalid refresh token'}), 401
 
-        if auth_response.session:
-            session_data = auth_response.session.model_dump()
-            response = make_response(jsonify({
-                'session': session_data,
-                'access_token': session_data.get('access_token'),
-                'refresh_token': session_data.get('refresh_token')
-            }), 200)
+    # Generate new custom JWT tokens
+    new_access_token = session_manager.generate_access_token(user_id)
+    new_refresh_token = session_manager.generate_refresh_token(user_id)
 
-            # Also set cookies if we have user_id
-            if auth_response.user:
-                session_manager.set_auth_cookies(response, auth_response.user.id)
+    response = make_response(jsonify({
+        'message': 'Tokens refreshed successfully',
+        'access_token': new_access_token,
+        'refresh_token': new_refresh_token,
+        'session': {
+            'access_token': new_access_token,
+            'refresh_token': new_refresh_token
+        }
+    }), 200)
 
-            return response
-        else:
-            return jsonify({'error': 'Failed to refresh token'}), 401
+    # Set cookies for those browsers that support them
+    session_manager.set_auth_cookies(response, user_id)
 
-    except Exception as e:
-        return jsonify({'error': str(e)}), 400
+    return response
 
 @bp.route('/resend-verification', methods=['POST'])
 @rate_limit(max_requests=3, window_seconds=600)  # 3 resends per 10 minutes
