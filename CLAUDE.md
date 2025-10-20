@@ -47,7 +47,7 @@ Optio is an educational platform where students create self-validated diplomas t
 - Flask 3.0.0 + Supabase (PostgreSQL)
 - JWT authentication (secure httpOnly cookies + CSRF protection)
 - Gemini API for AI features (Model: **gemini-2.5-flash-lite** - ALWAYS use this model)
-- Stripe for payments
+- LMS Integration (LTI 1.3, OAuth 2.0) for Canvas, Google Classroom, Schoology, Moodle
 - Performance optimized with database indexes
 
 **Frontend:**
@@ -94,15 +94,19 @@ backend/
 │   ├── quests.py            # Quest system
 │   ├── ratings.py           # Quest ratings & feedback
 │   ├── settings.py          # User settings
-│   ├── subscriptions.py     # Stripe subscription management
 │   ├── tasks.py             # Task completions
 │   ├── tutor.py             # AI Tutor features
+│   ├── lms_integration.py   # LMS integration (LTI, roster sync, grade passback)
 │   └── uploads.py           # File upload handling
 ├── services/         # Business logic
 │   ├── atomic_quest_service.py  # Race condition prevention
 │   ├── badge_service.py         # Badge logic & progress tracking
 │   ├── image_service.py         # Pexels API for quest & badge images
+│   ├── lti_service.py           # LTI 1.3 integration service
+│   ├── lms_sync_service.py      # LMS roster & grade sync
 │   └── quest_optimization.py    # N+1 query elimination
+├── config/           # Configuration
+│   └── lms_platforms.py         # LMS platform configuration
 ├── scripts/          # Database & maintenance scripts
 │   ├── apply_performance_indexes.py  # Database optimization
 │   └── simple_indexes.py             # Index management
@@ -145,7 +149,8 @@ frontend/src/
 │   │   ├── AdminQuests.jsx      # Quest management
 │   │   ├── AdminUsers.jsx       # User management
 │   │   ├── AdminQuestSuggestions.jsx # Quest idea approval
-│   │   └── BadgeImageGenerator.jsx # Badge image generation
+│   │   ├── BadgeImageGenerator.jsx # Badge image generation
+│   │   └── LMSIntegrationPanel.jsx # LMS integration admin panel
 │   ├── diploma/      # Diploma components
 │   ├── demo/         # Demo feature components
 │   ├── connections/  # Connections page components (NEW REDESIGN)
@@ -325,6 +330,42 @@ frontend/src/
 - action_taken, reviewed_by
 - created_at
 
+### LMS Integration Tables (January 2025)
+
+**lms_integrations** (User LMS connections)
+- id (UUID, PK)
+- user_id (FK to users)
+- lms_platform (canvas/google_classroom/schoology/moodle)
+- lms_user_id (LMS-specific user ID)
+- lms_course_id (optional)
+- sync_enabled (boolean)
+- sync_status (active/paused/error)
+- last_sync_at
+- created_at, updated_at
+
+**lms_sessions** (LTI session tracking)
+- id (UUID, PK)
+- user_id (FK to users)
+- lms_platform
+- session_token
+- expires_at
+- created_at
+
+**lms_grade_sync** (Grade passback queue)
+- id (UUID, PK)
+- user_id (FK to users)
+- quest_id (FK to quests)
+- lms_platform
+- lms_assignment_id
+- score (numeric)
+- max_score (default 100)
+- sync_status (pending/completed/failed)
+- sync_attempts (integer)
+- error_message (text, nullable)
+- synced_at (nullable)
+- last_attempt_at (nullable)
+- created_at
+
 ## Key API Endpoints
 
 ### Authentication (httpOnly cookies + CSRF)
@@ -391,6 +432,14 @@ frontend/src/
 - POST /api/tutor/conversations - Create new tutor conversation
 - GET /api/tutor/parent-dashboard/:userId - Get parent dashboard data
 - POST /api/tutor/feedback - Submit tutor feedback
+
+### LMS Integration API (January 2025)
+- POST /lti/launch - Handle LTI 1.3 launches from LMS (SSO authentication)
+- GET /api/lms/platforms - List supported LMS platforms with config status (admin)
+- POST /api/lms/sync/roster - Upload OneRoster CSV for bulk user import (admin)
+- POST /api/lms/sync/assignments - Import LMS assignments as quests (admin)
+- GET /api/lms/grade-sync/status - Monitor grade passback queue (admin)
+- GET /api/lms/integration/status - Get user's LMS integration status
 
 ### Additional Features
 - POST /api/uploads - File upload handling
@@ -492,6 +541,27 @@ frontend/src/
 - **Conversation history**: Persistent chat sessions for continuity
 - **Feedback system**: Quality assurance and improvement tracking
 
+### LMS Integration (NEW - January 2025)
+- **Multi-platform support**: Canvas, Google Classroom, Schoology, Moodle
+- **LTI 1.3**: Standards-based integration with SSO for Canvas and Moodle
+- **OAuth 2.0**: API integration for Google Classroom and Schoology
+- **OneRoster CSV**: Bulk user import/sync with validation and error handling
+- **Grade passback**: Queue-based grade sync to LMS gradebooks (LTI AGS)
+- **Assignment import**: Convert LMS assignments to Optio quests
+- **Admin panel**: Full-featured LMS integration dashboard with:
+  - Platform configuration status with missing env var detection
+  - Roster sync interface with real-time results
+  - Grade sync monitoring (pending/completed/failed)
+  - Link to comprehensive setup documentation
+- **Supported features by platform**:
+  - **Canvas**: LTI 1.3, SSO, roster sync, grade passback, deep linking
+  - **Google Classroom**: OAuth 2.0, roster sync (manual CSV)
+  - **Schoology**: OAuth 2.0, roster sync, grade passback
+  - **Moodle**: LTI 1.3, SSO, roster sync, grade passback
+- **Security**: JWT validation, JWKS fetching, role mapping, session management
+- **Documentation**: Complete setup guides at `docs/LMS_INTEGRATION.md`
+- **Frontend route**: `/admin/lms-integration` (admin only)
+
 ### Additional Features
 - **Quest ratings**: 1-5 star rating system with optional feedback
 - **Evidence documents**: File upload system for rich evidence submission
@@ -522,8 +592,24 @@ frontend/src/
 
 - **Optional:**
   - `GEMINI_API_KEY` (AI features)
-  - `STRIPE_SECRET_KEY` (payments)
   - `PEXELS_API_KEY` (Quest image auto-generation)
+
+- **LMS Integration (January 2025):**
+  - Canvas LMS:
+    - `CANVAS_CLIENT_ID` - Canvas Developer Key ID
+    - `CANVAS_PLATFORM_URL` - Your institution's Canvas URL
+  - Google Classroom:
+    - `GOOGLE_CLIENT_ID` - Google Cloud OAuth client ID
+    - `GOOGLE_CLIENT_SECRET` - Google Cloud OAuth client secret
+  - Schoology:
+    - `SCHOOLOGY_CLIENT_ID` - Schoology OAuth client ID
+    - `SCHOOLOGY_CLIENT_SECRET` - Schoology OAuth client secret
+  - Moodle:
+    - `MOODLE_URL` - Your Moodle instance URL
+    - `MOODLE_CLIENT_ID` - Moodle LTI client ID
+  - Feature flags:
+    - `ENABLE_LMS_SYNC` - Enable roster synchronization (default: true)
+    - `ENABLE_GRADE_PASSBACK` - Enable grade passback to LMS (default: true)
 
 **Frontend Environment Variables:**
 - **Required for all environments:**
