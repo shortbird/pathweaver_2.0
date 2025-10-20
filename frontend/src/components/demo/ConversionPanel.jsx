@@ -5,19 +5,21 @@ import {
   Rocket, Gift, Shield, Star, ArrowRight, CheckCircle, X,
   Users, Calendar, Trophy, Sparkles, Lock, Globe, GraduationCap
 } from 'lucide-react';
-import { useSubscriptionTiers, getTierByKey, formatPrice } from '../../hooks/useSubscriptionTiers';
+// import { useSubscriptionTiers, getTierByKey, formatPrice } from '../../hooks/useSubscriptionTiers'; // REMOVED - Phase 3 refactoring (January 2025)
 
 const ConversionPanel = () => {
   const { demoState, actions } = useDemo();
   const navigate = useNavigate();
-  const { data: dbTiers, isLoading: tiersLoading } = useSubscriptionTiers();
+  // const { data: dbTiers, isLoading: tiersLoading } = useSubscriptionTiers(); // REMOVED - Phase 3 refactoring (January 2025)
+  const dbTiers = []
+  const tiersLoading = false
   const [selectedTier, setSelectedTier] = useState('supported');
   const [email, setEmail] = useState('');
 
-  // Map database tiers to demo tier structure
-  const exploreTier = getTierByKey(dbTiers, 'Explore');
-  const accelerateTier = getTierByKey(dbTiers, 'Accelerate');
-  const excelTier = getTierByKey(dbTiers, 'Excel');
+  // Map database tiers to demo tier structure - NEUTERED (Phase 3 refactoring)
+  const exploreTier = null
+  const accelerateTier = null
+  const excelTier = null
 
   const tiers = [
     {

@@ -5,7 +5,7 @@ import UserDetailsModal from './UserDetailsModal'
 import BulkEmailModal from './BulkEmailModal'
 import ChatLogsModal from './ChatLogsModal'
 import QuestSelectionModal from './QuestSelectionModal'
-import { useAdminSubscriptionTiers } from '../../hooks/useSubscriptionTiers'
+// import { useAdminSubscriptionTiers } from '../../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const AdminUsers = () => {
   const [users, setUsers] = useState([])

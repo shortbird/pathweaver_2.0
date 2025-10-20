@@ -2,7 +2,7 @@ import React, { useState, useEffect, memo } from 'react'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import AdvisorTaskForm from './AdvisorTaskForm'
-import { useAdminSubscriptionTiers, formatPrice } from '../../hooks/useSubscriptionTiers'
+// import { useAdminSubscriptionTiers, formatPrice } from '../../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const UserDetailsModal = ({ user, onClose, onSave }) => {
   const [activeTab, setActiveTab] = useState('profile')

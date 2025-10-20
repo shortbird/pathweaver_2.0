@@ -3,11 +3,11 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Play, X, BookOpen, Users, CheckCircle, Heart } from 'lucide-react'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
-import { useSubscriptionTiers, formatPrice } from '../hooks/useSubscriptionTiers'
+// import { useSubscriptionTiers, formatPrice } from '../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const HomePage = () => {
   const { isAuthenticated } = useAuth()
-  const { data: tiers, isLoading: tiersLoading } = useSubscriptionTiers()
+  // const { data: tiers, isLoading: tiersLoading } = useSubscriptionTiers() // REMOVED - Phase 3 refactoring (January 2025)
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
 
   return (

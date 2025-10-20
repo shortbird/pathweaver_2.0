@@ -1,11 +1,15 @@
 import React, { useState } from 'react'
-import { useAdminSubscriptionTiers, useUpdateTier, formatPrice, calculateYearlySavings } from '../../hooks/useSubscriptionTiers'
+// import { useAdminSubscriptionTiers, useUpdateTier, formatPrice, calculateYearlySavings } from '../../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 import { Edit2, Save, X, Plus, Trash2, Eye, EyeOff } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 const TierManagement = () => {
-  const { data: tiers, isLoading, error } = useAdminSubscriptionTiers()
-  const updateTier = useUpdateTier()
+  // Tier management neutered - Phase 3 refactoring (January 2025)
+  const tiers = []
+  const isLoading = false
+  const error = null
+  // const { data: tiers, isLoading, error } = useAdminSubscriptionTiers()
+  // const updateTier = useUpdateTier()
   const [editingId, setEditingId] = useState(null)
   const [editData, setEditData] = useState({})
 
