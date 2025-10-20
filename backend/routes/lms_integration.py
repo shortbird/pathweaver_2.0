@@ -10,7 +10,7 @@ from services.lms_sync_service import LMSSyncService
 from utils.auth.decorators import require_admin
 from utils.session_manager import session_manager
 from middleware.error_handler import ValidationError, AuthenticationError
-from config.lms_platforms import get_supported_platforms, get_platform_config, validate_platform_config
+from lms_config.lms_platforms import get_supported_platforms, get_platform_config, validate_platform_config
 
 bp = Blueprint('lms', __name__)
 

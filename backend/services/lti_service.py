@@ -9,7 +9,7 @@ import jwt
 import requests
 from datetime import datetime, timedelta, timezone
 from flask import current_app
-from config.lms_platforms import get_platform_config
+from lms_config.lms_platforms import get_platform_config
 from database import get_supabase_admin_client
 
 

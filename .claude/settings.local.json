@@ -348,7 +348,8 @@
       "Bash(git pull:*)",
       "Bash(git stash:*)",
       "Bash(mcp__render__list_logs:*)",
-      "Bash(mcp__render__list_services:*)"
+      "Bash(mcp__render__list_services:*)",
+      "Bash(mv config lms_config)"
     ],
     "deny": [],
     "ask": []
