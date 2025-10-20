@@ -201,6 +201,30 @@ def get_parent_dashboard(user_id, student_id):
         # Sort weekly wins by date
         weekly_wins.sort(key=lambda x: x['date'], reverse=True)
 
+        # Get recent task completions (last 10)
+        recent_completions_response = supabase.table('quest_task_completions').select('''
+            completed_at,
+            user_quest_task_id,
+            user_quest_tasks!inner(
+                title,
+                pillar,
+                xp_value,
+                quest_id,
+                quests!inner(title)
+            )
+        ''').eq('user_id', student_id).order('completed_at', desc=True).limit(10).execute()
+
+        recent_completions = []
+        for comp in recent_completions_response.data:
+            task = comp['user_quest_tasks']
+            recent_completions.append({
+                'task_title': task['title'],
+                'quest_title': task['quests']['title'],
+                'pillar': get_pillar_name(task.get('pillar', 0)),
+                'xp_earned': task.get('xp_value', 0),
+                'completed_at': comp['completed_at']
+            })
+
         return jsonify({
             'student': {
                 'id': student['id'],
@@ -219,7 +243,8 @@ def get_parent_dashboard(user_id, student_id):
                 'overdue_task_count': rhythm_data['overdue_task_count']
             },
             'active_quests': active_quests,
-            'weekly_wins': weekly_wins[:10]  # Limit to 10 most recent
+            'weekly_wins': weekly_wins[:10],  # Limit to 10 most recent
+            'recent_completions': recent_completions  # NEW: Recent task completions
         }), 200
 
     except AuthorizationError as e:
@@ -494,6 +519,66 @@ def get_learning_insights(user_id, student_id):
 
         avg_completion_days = sum(completion_times) / len(completion_times) if completion_times else None
 
+        # Get recent task completions for conversation starters
+        recent_tasks_response = supabase.table('quest_task_completions').select('''
+            completed_at,
+            user_quest_task_id,
+            user_quest_tasks!inner(
+                title,
+                pillar,
+                quest_id,
+                quests!inner(title)
+            )
+        ''').eq('user_id', student_id).order('completed_at', desc=True).limit(5).execute()
+
+        # Generate process-focused conversation starters
+        conversation_starters = []
+
+        if recent_tasks_response.data:
+            for comp in recent_tasks_response.data[:3]:  # Top 3 most recent
+                task = comp['user_quest_tasks']
+                task_title = task['title']
+                quest_title = task['quests']['title']
+                pillar = get_pillar_name(task.get('pillar', 0))
+
+                # Process-focused starters emphasizing journey over outcome
+                starters = [
+                    f"What was the most interesting part of working on '{task_title}'?",
+                    f"What did you learn while exploring '{task_title}' in {quest_title}?",
+                    f"How did it feel when you were figuring out '{task_title}'?",
+                    f"What surprised you most while working on '{task_title}'?",
+                    f"What would you do differently if you tackled '{task_title}' again?"
+                ]
+
+                # Pick one based on task position (variety)
+                starter_index = len(conversation_starters) % len(starters)
+                conversation_starters.append({
+                    'question': starters[starter_index],
+                    'context': {
+                        'task': task_title,
+                        'quest': quest_title,
+                        'pillar': pillar,
+                        'completed_at': comp['completed_at']
+                    }
+                })
+
+        # Add pillar-based starters if student has clear preferences
+        if pillar_preferences:
+            top_pillar = pillar_preferences[0]['pillar']
+            pillar_starters = [
+                f"I noticed you've been exploring a lot of {top_pillar} lately. What draws you to this area?",
+                f"You seem to really enjoy {top_pillar}. What's your favorite part about learning in this area?",
+                f"How does working on {top_pillar} make you feel compared to other subjects?"
+            ]
+            conversation_starters.append({
+                'question': pillar_starters[0],
+                'context': {
+                    'type': 'pillar_preference',
+                    'pillar': top_pillar,
+                    'completions': pillar_preferences[0]['completions']
+                }
+            })
+
         return jsonify({
             'time_patterns': {
                 'peak_hour': peak_hour_str,
@@ -506,7 +591,8 @@ def get_learning_insights(user_id, student_id):
                 'average_days_per_quest': round(avg_completion_days, 1) if avg_completion_days else None,
                 'total_quests_analyzed': len(completion_times)
             },
-            'total_activities_last_60_days': len(completions_response.data)
+            'total_activities_last_60_days': len(completions_response.data),
+            'conversation_starters': conversation_starters  # NEW: Process-focused conversation starters
         }), 200
 
     except AuthorizationError as e:
