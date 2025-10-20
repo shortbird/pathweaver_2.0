@@ -157,35 +157,10 @@ const ConnectionsPage = () => {
     cancelFriendRequestMutation.mutate(friendshipId)
   }
 
-  const handleAcceptTeamInvite = async (inviteId, questId) => {
-    try {
-      await collaborationAPI.acceptInvite(inviteId)
-      toast.success("Team-up accepted - you'll both earn 2x XP on this quest!")
-      setTimeout(() => {
-        navigate(`/quests/${questId}`)
-      }, 1500)
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to accept team-up invitation')
-    }
-  }
-
-  const handleDeclineTeamInvite = async (inviteId) => {
-    try {
-      await collaborationAPI.declineInvite(inviteId)
-      toast.success('Team-up invitation declined')
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to decline team-up invitation')
-    }
-  }
-
-  const handleCancelTeamInvite = async (inviteId) => {
-    try {
-      await collaborationAPI.cancelInvite(inviteId)
-      toast.success('Team-up invitation cancelled')
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to cancel team-up invitation')
-    }
-  }
+  // Team-up handlers removed - Phase 3 refactoring (January 2025)
+  // const handleAcceptTeamInvite = async (inviteId, questId) => { ... }
+  // const handleDeclineTeamInvite = async (inviteId) => { ... }
+  // const handleCancelTeamInvite = async (inviteId) => { ... }
 
   // Loading state
   if (loading) {
@@ -208,7 +183,7 @@ const ConnectionsPage = () => {
         counts={{
           connections: friends.length,
           pendingRequests: pendingRequests.length,
-          teamInvitations: teamInvitations.length,
+          // teamInvitations: teamInvitations.length, // REMOVED - Phase 3 refactoring (January 2025)
         }}
       />
 
@@ -230,14 +205,14 @@ const ConnectionsPage = () => {
         <InvitationsTab
           pendingRequests={formattedPendingRequests}
           sentRequests={formattedSentRequests}
-          teamInvitations={formattedTeamInvitations}
-          sentTeamInvitations={formattedSentTeamInvitations}
+          // teamInvitations={formattedTeamInvitations} // REMOVED - Phase 3 refactoring (January 2025)
+          // sentTeamInvitations={formattedSentTeamInvitations} // REMOVED - Phase 3 refactoring (January 2025)
           onAcceptRequest={handleAcceptRequest}
           onDeclineRequest={handleDeclineRequest}
           onCancelRequest={handleCancelRequest}
-          onAcceptTeamInvite={handleAcceptTeamInvite}
-          onDeclineTeamInvite={handleDeclineTeamInvite}
-          onCancelTeamInvite={handleCancelTeamInvite}
+          // onAcceptTeamInvite={handleAcceptTeamInvite} // REMOVED - Phase 3 refactoring (January 2025)
+          // onDeclineTeamInvite={handleDeclineTeamInvite} // REMOVED - Phase 3 refactoring (January 2025)
+          // onCancelTeamInvite={handleCancelTeamInvite} // REMOVED - Phase 3 refactoring (January 2025)
         />
       )}
 

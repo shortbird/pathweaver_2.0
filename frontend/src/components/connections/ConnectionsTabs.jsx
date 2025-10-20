@@ -19,7 +19,7 @@ const ConnectionsTabs = ({ activeTab, onTabChange, counts = {} }) => {
       id: 'invitations',
       label: 'Invitations',
       icon: EnvelopeIcon,
-      count: (counts.pendingRequests || 0) + (counts.teamInvitations || 0),
+      count: counts.pendingRequests || 0, // Team invitations removed (Phase 3 refactoring)
     },
   ]
 
