@@ -51,7 +51,10 @@ const ParentDashboardPage = () => {
   // Load dashboard data when student selected
   useEffect(() => {
     const loadDashboardData = async () => {
-      if (!selectedStudentId) return;
+      if (!selectedStudentId) {
+        setLoading(false);
+        return;
+      }
 
       setLoading(true);
       try {
@@ -95,14 +98,46 @@ const ParentDashboardPage = () => {
 
   if (children.length === 0 && !loading) {
     return (
-      <div className="max-w-7xl mx-auto px-4 py-12 text-center">
-        <UserGroupIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
-        <h2 className="text-2xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-          No Students Linked
-        </h2>
-        <p className="text-gray-600 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-          You don't have any students linked to your account yet. Ask your student to send you an invitation from their settings page.
-        </p>
+      <div className="max-w-7xl mx-auto px-4 py-12">
+        <div className="max-w-2xl mx-auto text-center">
+          <UserGroupIcon className="w-20 h-20 text-purple-300 mx-auto mb-6" />
+          <h1 className="text-3xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            Welcome to Your Family Dashboard
+          </h1>
+          <p className="text-lg text-gray-600 font-medium mb-8" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            You don't have any students linked to your account yet.
+          </p>
+
+          <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6 text-left">
+            <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              How to Connect with Your Student:
+            </h3>
+            <ol className="space-y-3 text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
+                <span>Ask your student to log in to their Optio account</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
+                <span>Have them go to their <strong>Profile</strong> page</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                <span>They can send you a parent invitation using your email address</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</span>
+                <span>Check your email and approve the invitation</span>
+              </li>
+            </ol>
+          </div>
+
+          <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <p className="text-sm text-yellow-900 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              💡 <strong>Note:</strong> Once you approve the invitation, you'll have permanent read-only access to support your student's learning journey.
+            </p>
+          </div>
+        </div>
       </div>
     );
   }
@@ -110,6 +145,15 @@ const ParentDashboardPage = () => {
   const selectedStudent = children.find(c => c.student_id === selectedStudentId);
   const rhythmStatus = dashboardData?.learning_rhythm?.status || 'needs_support';
   const isFlowState = rhythmStatus === 'flow';
+
+  // Show loading spinner while children list is loading
+  if (loading && children.length === 0) {
+    return (
+      <div className="flex justify-center items-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -119,9 +163,11 @@ const ParentDashboardPage = () => {
           <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
             Family Dashboard
           </h1>
-          <p className="text-gray-600 mt-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            Supporting {selectedStudent?.first_name}'s learning journey
-          </p>
+          {selectedStudent && (
+            <p className="text-gray-600 mt-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Supporting {selectedStudent.first_name}'s learning journey
+            </p>
+          )}
         </div>
 
         {/* Multi-Child Selector */}
