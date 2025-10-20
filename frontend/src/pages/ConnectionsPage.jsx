@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useAuth } from '../contexts/AuthContext'
+import api from '../services/api'
 import {
   useFriends,
   useFriendsActivity,
@@ -30,6 +31,7 @@ const ConnectionsPage = () => {
   const [activeTab, setActiveTab] = useState('activity')
   const [showAddModal, setShowAddModal] = useState(false)
   const [returnToQuest, setReturnToQuest] = useState(null)
+  const [parentRequests, setParentRequests] = useState([])
 
   // React Query hooks - Connections feature is available to ALL users including free tier
   const {
@@ -80,6 +82,22 @@ const ConnectionsPage = () => {
     }
   }, [])
 
+  // Load parent requests
+  useEffect(() => {
+    const loadParentRequests = async () => {
+      try {
+        const response = await api.get('/api/parents/pending-approvals')
+        setParentRequests(response.data.pending_approvals || [])
+      } catch (error) {
+        console.error('Error loading parent requests:', error)
+      }
+    }
+
+    if (user?.id) {
+      loadParentRequests()
+    }
+  }, [user])
+
   // Get activity feed from API
   const activities = activityData?.activities || []
 
@@ -105,6 +123,12 @@ const ConnectionsPage = () => {
   const formattedSentRequests = sentRequests.map((req) => ({
     ...req,
     timeAgo: formatTimeAgo(req.created_at),
+  }))
+
+  const formattedParentRequests = parentRequests.map((req) => ({
+    ...req,
+    parent_name: `${req.parent_first_name || ''} ${req.parent_last_name || ''}`.trim(),
+    timeAgo: formatTimeAgo(req.requested_at),
   }))
 
   // Team-up invitations removed - Phase 3 refactoring (January 2025)
@@ -157,6 +181,34 @@ const ConnectionsPage = () => {
     cancelFriendRequestMutation.mutate(friendshipId)
   }
 
+  // Parent request handlers
+  const handleAcceptParentRequest = async (linkId) => {
+    try {
+      await api.post(`/api/parents/approve-link/${linkId}`, {})
+      toast.success('Parent access approved! They can now view your progress.')
+      // Reload parent requests
+      const response = await api.get('/api/parents/pending-approvals')
+      setParentRequests(response.data.pending_approvals || [])
+    } catch (error) {
+      console.error('Error approving parent:', error)
+      const message = error.response?.data?.error || 'Failed to approve parent'
+      toast.error(message)
+    }
+  }
+
+  const handleDeclineParentRequest = async (linkId) => {
+    try {
+      await api.delete(`/api/parents/decline-link/${linkId}`)
+      toast.success('Parent request declined')
+      // Reload parent requests
+      const response = await api.get('/api/parents/pending-approvals')
+      setParentRequests(response.data.pending_approvals || [])
+    } catch (error) {
+      console.error('Error declining parent:', error)
+      toast.error('Failed to decline parent request')
+    }
+  }
+
   // Team-up handlers removed - Phase 3 refactoring (January 2025)
   // const handleAcceptTeamInvite = async (inviteId, questId) => { ... }
   // const handleDeclineTeamInvite = async (inviteId) => { ... }
@@ -205,11 +257,14 @@ const ConnectionsPage = () => {
         <InvitationsTab
           pendingRequests={formattedPendingRequests}
           sentRequests={formattedSentRequests}
+          parentRequests={formattedParentRequests}
           // teamInvitations={formattedTeamInvitations} // REMOVED - Phase 3 refactoring (January 2025)
           // sentTeamInvitations={formattedSentTeamInvitations} // REMOVED - Phase 3 refactoring (January 2025)
           onAcceptRequest={handleAcceptRequest}
           onDeclineRequest={handleDeclineRequest}
           onCancelRequest={handleCancelRequest}
+          onAcceptParentRequest={handleAcceptParentRequest}
+          onDeclineParentRequest={handleDeclineParentRequest}
           // onAcceptTeamInvite={handleAcceptTeamInvite} // REMOVED - Phase 3 refactoring (January 2025)
           // onDeclineTeamInvite={handleDeclineTeamInvite} // REMOVED - Phase 3 refactoring (January 2025)
           // onCancelTeamInvite={handleCancelTeamInvite} // REMOVED - Phase 3 refactoring (January 2025)

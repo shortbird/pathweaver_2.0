@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams } from 'react-router-dom';
 import { parentAPI } from '../services/api';
+import api from '../services/api';
+import toast from 'react-hot-toast';
 import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
@@ -10,7 +12,9 @@ import {
   ChatBubbleLeftRightIcon,
   ArrowPathIcon,
   UserGroupIcon,
-  LightBulbIcon
+  LightBulbIcon,
+  PaperAirplaneIcon,
+  XMarkIcon
 } from '@heroicons/react/24/outline';
 
 const ParentDashboardPage = () => {
@@ -25,17 +29,25 @@ const ParentDashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [error, setError] = useState(null);
+  const [studentEmail, setStudentEmail] = useState('');
+  const [sending, setSending] = useState(false);
+  const [pendingRequests, setPendingRequests] = useState([]);
 
-  // Load children list
+  // Load children list and pending requests
   useEffect(() => {
     const loadChildren = async () => {
       try {
-        const response = await parentAPI.getMyChildren();
-        setChildren(response.data.children || []);
+        const [childrenResponse, requestsResponse] = await Promise.all([
+          parentAPI.getMyChildren(),
+          api.get('/api/parents/pending-requests')
+        ]);
+
+        setChildren(childrenResponse.data.children || []);
+        setPendingRequests(requestsResponse.data.pending_requests || []);
 
         // Auto-select first child if none selected
-        if (!selectedStudentId && response.data.children?.length > 0) {
-          setSelectedStudentId(response.data.children[0].student_id);
+        if (!selectedStudentId && childrenResponse.data.children?.length > 0) {
+          setSelectedStudentId(childrenResponse.data.children[0].student_id);
         }
       } catch (error) {
         console.error('Error loading children:', error);
@@ -47,6 +59,30 @@ const ParentDashboardPage = () => {
       loadChildren();
     }
   }, [user]);
+
+  const sendLinkRequest = async (e) => {
+    e.preventDefault();
+    if (!studentEmail.trim()) {
+      toast.error('Please enter a student email address');
+      return;
+    }
+
+    setSending(true);
+    try {
+      const response = await api.post('/api/parents/request-link', { student_email: studentEmail });
+      toast.success(response.data.message);
+      setStudentEmail('');
+      // Reload to show new pending request
+      const requestsResponse = await api.get('/api/parents/pending-requests');
+      setPendingRequests(requestsResponse.data.pending_requests || []);
+    } catch (error) {
+      console.error('Error sending link request:', error);
+      const message = error.response?.data?.error || 'Failed to send link request';
+      toast.error(message);
+    } finally {
+      setSending(false);
+    }
+  };
 
   // Load dashboard data when student selected
   useEffect(() => {
@@ -99,42 +135,115 @@ const ParentDashboardPage = () => {
   if (children.length === 0 && !loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-12">
-        <div className="max-w-2xl mx-auto text-center">
-          <UserGroupIcon className="w-20 h-20 text-purple-300 mx-auto mb-6" />
-          <h1 className="text-3xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            Welcome to Your Family Dashboard
-          </h1>
-          <p className="text-lg text-gray-600 font-medium mb-8" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            You don't have any students linked to your account yet.
-          </p>
+        <div className="max-w-3xl mx-auto">
+          <div className="text-center mb-8">
+            <UserGroupIcon className="w-20 h-20 text-purple-300 mx-auto mb-6" />
+            <h1 className="text-3xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Welcome to Your Family Dashboard
+            </h1>
+            <p className="text-lg text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Connect with your student to view their learning progress
+            </p>
+          </div>
 
-          <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6 text-left">
+          {/* Send Connection Request Form */}
+          <div className="bg-white rounded-xl shadow-sm border-2 border-purple-200 p-6 mb-6">
             <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              How to Connect with Your Student:
+              Send Connection Request
+            </h3>
+            <p className="text-gray-600 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Enter your student's email address to send them a connection request. They'll see it in their Connections page and can approve it.
+            </p>
+            <form onSubmit={sendLinkRequest} className="flex gap-3">
+              <input
+                type="email"
+                value={studentEmail}
+                onChange={(e) => setStudentEmail(e.target.value)}
+                placeholder="student@example.com"
+                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent font-medium"
+                style={{ fontFamily: 'Poppins, sans-serif' }}
+                disabled={sending}
+              />
+              <button
+                type="submit"
+                disabled={sending}
+                className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                style={{ fontFamily: 'Poppins, sans-serif' }}
+              >
+                {sending ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <PaperAirplaneIcon className="w-5 h-5" />
+                    Send Request
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* Pending Requests */}
+          {pendingRequests.length > 0 && (
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+              <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Pending Requests ({pendingRequests.length})
+              </h3>
+              <div className="space-y-3">
+                {pendingRequests.map((request) => (
+                  <div key={request.link_id} className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
+                        {request.student_avatar_url ? (
+                          <img src={request.student_avatar_url} alt="" className="w-full h-full object-cover" />
+                        ) : (
+                          <UserGroupIcon className="w-6 h-6 text-blue-600" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                          {request.student_first_name} {request.student_last_name}
+                        </p>
+                        <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                          {request.student_email} • Sent {new Date(request.requested_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      Awaiting Approval
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Alternative Method */}
+          <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6">
+            <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Or, have your student send you a request:
             </h3>
             <ol className="space-y-3 text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
               <li className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
-                <span>Ask your student to log in to their Optio account</span>
+                <span>Your student logs in to their Optio account</span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
-                <span>Have them go to their <strong>Profile</strong> page</span>
+                <span>They go to their <strong>Profile</strong> page</span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
-                <span>They can send you a parent invitation using your email address</span>
-              </li>
-              <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</span>
-                <span>Check your email and approve the invitation</span>
+                <span>You'll see their request here to approve</span>
               </li>
             </ol>
           </div>
 
           <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <p className="text-sm text-yellow-900 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              💡 <strong>Note:</strong> Once you approve the invitation, you'll have permanent read-only access to support your student's learning journey.
+              💡 <strong>Note:</strong> Once your student approves the connection, you'll have permanent read-only access to support their learning journey.
             </p>
           </div>
         </div>

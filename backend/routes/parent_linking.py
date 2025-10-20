@@ -484,3 +484,202 @@ def get_pending_approvals(user_id):
     except Exception as e:
         logger.error(f"Error getting pending approvals: {str(e)}")
         return jsonify({'error': 'Failed to get pending approvals'}), 500
+
+
+@bp.route('/request-link', methods=['POST'])
+@require_auth
+def parent_request_link(user_id):
+    """
+    Parent sends link request to student by email.
+    Creates pending approval link that appears in student's connections page.
+    """
+    try:
+        data = request.get_json()
+        student_email = data.get('student_email', '').strip().lower()
+
+        if not student_email:
+            raise ValidationError("Student email is required")
+
+        # Validate email format
+        if '@' not in student_email or '.' not in student_email.split('@')[1]:
+            raise ValidationError("Invalid email format")
+
+        supabase = get_supabase_admin_client()
+
+        # Get parent info and verify role
+        parent_response = supabase.table('users').select(
+            'id, first_name, last_name, email, role'
+        ).eq('id', user_id).execute()
+
+        if not parent_response.data:
+            raise NotFoundError("Parent not found")
+
+        parent = parent_response.data[0]
+
+        # Verify user is a parent
+        if parent.get('role') != 'parent':
+            raise AuthorizationError("Only parent accounts can send link requests")
+
+        # Check if student exists with this email
+        student_response = supabase.table('users').select('id, role, first_name, last_name').eq(
+            'email', student_email
+        ).execute()
+
+        if not student_response.data:
+            return jsonify({
+                'error': 'No student account found with this email address'
+            }), 404
+
+        student_user = student_response.data[0]
+
+        # Verify they're a student
+        if student_user.get('role') not in ['student', None]:
+            return jsonify({
+                'error': 'The account with this email is not a student account'
+            }), 400
+
+        # Check if already linked
+        existing_link = supabase.table('parent_student_links').select('id, status').eq(
+            'parent_user_id', user_id
+        ).eq('student_user_id', student_user['id']).execute()
+
+        if existing_link.data:
+            link_status = existing_link.data[0]['status']
+            if link_status == 'active':
+                return jsonify({'error': 'You are already linked to this student'}), 400
+            elif link_status == 'pending_approval':
+                return jsonify({'error': 'A link request is already pending with this student'}), 400
+
+        # Create pending approval link
+        link_data = {
+            'id': str(uuid.uuid4()),
+            'parent_user_id': user_id,
+            'student_user_id': student_user['id'],
+            'status': 'pending_approval',
+            'created_at': datetime.utcnow().isoformat()
+        }
+
+        supabase.table('parent_student_links').insert(link_data).execute()
+
+        logger.info(f"Parent {user_id} sent link request to student {student_user['id']}")
+
+        student_name = f"{student_user.get('first_name', '')} {student_user.get('last_name', '')}".strip()
+
+        return jsonify({
+            'message': f'Link request sent to {student_name}. They will see it in their Connections page.',
+            'status': 'pending_approval',
+            'link_id': link_data['id'],
+            'student_name': student_name
+        }), 201
+
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
+    except NotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error sending parent link request: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to send link request'}), 500
+
+
+@bp.route('/decline-link/<link_id>', methods=['DELETE'])
+@require_auth
+def decline_parent_link(user_id, link_id):
+    """
+    Student declines parent connection request.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get link
+        link_response = supabase.table('parent_student_links').select('''
+            id, parent_user_id, student_user_id, status
+        ''').eq('id', link_id).execute()
+
+        if not link_response.data:
+            raise NotFoundError("Link request not found")
+
+        link = link_response.data[0]
+
+        # Verify student owns this link
+        if link['student_user_id'] != user_id:
+            raise AuthorizationError("You can only decline your own parent link requests")
+
+        # Check if pending approval
+        if link['status'] != 'pending_approval':
+            return jsonify({'error': 'This link is not pending approval'}), 400
+
+        # Delete the link (decline)
+        supabase.table('parent_student_links').delete().eq('id', link_id).execute()
+
+        logger.info(f"Student {user_id} declined parent link {link_id}")
+
+        return jsonify({
+            'message': 'Parent connection request declined'
+        }), 200
+
+    except NotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error declining parent link: {str(e)}")
+        return jsonify({'error': 'Failed to decline parent link'}), 500
+
+
+@bp.route('/pending-requests', methods=['GET'])
+@require_auth
+def get_pending_requests(user_id):
+    """
+    Parent gets list of pending link requests they've sent.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get user role
+        user_response = supabase.table('users').select('role').eq('id', user_id).execute()
+
+        if not user_response.data or user_response.data[0].get('role') != 'parent':
+            raise AuthorizationError("Only parent accounts can access this endpoint")
+
+        # Get pending links for this parent
+        links_response = supabase.table('parent_student_links').select('''
+            id, student_user_id, status, created_at
+        ''').eq('parent_user_id', user_id).eq('status', 'pending_approval').execute()
+
+        if not links_response.data:
+            return jsonify({'pending_requests': []}), 200
+
+        # Get student details
+        student_ids = [link['student_user_id'] for link in links_response.data]
+        students_response = supabase.table('users').select('''
+            id, first_name, last_name, email, avatar_url
+        ''').in_('id', student_ids).execute()
+
+        # Build response
+        pending_requests = []
+        students_map = {s['id']: s for s in students_response.data}
+
+        for link in links_response.data:
+            student = students_map.get(link['student_user_id'])
+            if student:
+                pending_requests.append({
+                    'link_id': link['id'],
+                    'student_id': student['id'],
+                    'student_first_name': student.get('first_name'),
+                    'student_last_name': student.get('last_name'),
+                    'student_email': student.get('email'),
+                    'student_avatar_url': student.get('avatar_url'),
+                    'requested_at': link['created_at']
+                })
+
+        return jsonify({'pending_requests': pending_requests}), 200
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error getting pending requests: {str(e)}")
+        return jsonify({'error': 'Failed to get pending requests'}), 500

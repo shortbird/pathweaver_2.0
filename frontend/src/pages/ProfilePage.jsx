@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import toast from 'react-hot-toast'
+import ParentInvitationSection from '../components/parent/ParentInvitationSection'
 import {
   DocumentTextIcon,
   StarIcon,
@@ -265,6 +266,9 @@ const ProfilePage = () => {
               </div>
             )}
           </div>
+
+          {/* Parent Access Section (students only) */}
+          {user?.role !== 'parent' && <ParentInvitationSection />}
 
           {/* Your Growth (Stats) Card */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">

@@ -1,17 +1,21 @@
 import React from 'react'
-import { EnvelopeIcon } from '@heroicons/react/24/outline'
+import { EnvelopeIcon, UserGroupIcon } from '@heroicons/react/24/outline'
 import ConnectionRequest from './ConnectionRequest'
+import ParentRequest from './ParentRequest'
 // import TeamUpInvite from './TeamUpInvite' // REMOVED - Phase 3 refactoring (January 2025)
 import InvitationsEmptyState from './InvitationsEmptyState'
 
 const InvitationsTab = ({
   pendingRequests = [],
   sentRequests = [],
+  parentRequests = [],
   // teamInvitations = [], // REMOVED - Phase 3 refactoring (January 2025)
   // sentTeamInvitations = [], // REMOVED - Phase 3 refactoring (January 2025)
   onAcceptRequest,
   onDeclineRequest,
   onCancelRequest,
+  onAcceptParentRequest,
+  onDeclineParentRequest,
   // onAcceptTeamInvite, // REMOVED - Phase 3 refactoring (January 2025)
   // onDeclineTeamInvite, // REMOVED - Phase 3 refactoring (January 2025)
   // onCancelTeamInvite, // REMOVED - Phase 3 refactoring (January 2025)
@@ -84,6 +88,29 @@ const InvitationsTab = ({
             )}
           </div>
         </div>
+
+        {/* Parent Access Requests Section */}
+        {parentRequests.length > 0 && (
+          <div>
+            <h2
+              className="text-2xl font-bold text-[#3B383C] mb-6 flex items-center gap-2"
+              style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+            >
+              <UserGroupIcon className="w-6 h-6 text-[#6d469b]" />
+              Parent Access Requests
+            </h2>
+            <div className="space-y-3">
+              {parentRequests.map((request) => (
+                <ParentRequest
+                  key={request.link_id}
+                  request={request}
+                  onAccept={onAcceptParentRequest}
+                  onDecline={onDeclineParentRequest}
+                />
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Team-Up Invitations Section - REMOVED Phase 3 refactoring (January 2025) */}
       </div>
