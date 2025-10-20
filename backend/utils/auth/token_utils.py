@@ -9,22 +9,39 @@ from datetime import datetime, timedelta
 def verify_token(token):
     """
     Verify a JWT token and return the user ID
-    
+    Supports both Supabase tokens and custom JWT tokens (for incognito mode)
+
     Args:
         token: JWT token string
-    
+
     Returns:
         user_id if valid, None otherwise
     """
     if not token:
         return None
-    
+
+    # First try to verify as custom JWT token (for incognito mode fallback)
+    try:
+        secret_key = os.getenv('JWT_SECRET_KEY') or os.getenv('SECRET_KEY') or os.getenv('FLASK_SECRET_KEY')
+        if secret_key:
+            payload = jwt.decode(token, secret_key, algorithms=['HS256'])
+            # Check if this is our custom token format
+            if payload.get('user_id') and payload.get('type') in ['access', 'refresh']:
+                return payload['user_id']
+    except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+        # Not a valid custom JWT, try Supabase verification
+        pass
+    except Exception:
+        # Any other error, continue to Supabase verification
+        pass
+
+    # Fallback to Supabase token verification (for regular mode)
     supabase = get_supabase_client()
-    
+
     @retry_database_operation
     def get_user():
         return supabase.auth.get_user(token)
-    
+
     try:
         user = get_user()
         return user.user.id if user.user else None
