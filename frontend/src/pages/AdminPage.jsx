@@ -12,6 +12,7 @@ import BulkImageGenerator from '../components/admin/BulkImageGenerator'
 import BadgeImageGenerator from '../components/admin/BadgeImageGenerator'
 import TierManagement from '../components/admin/TierManagement'
 import SiteSettings from '../components/admin/SiteSettings'
+import LMSIntegrationPanel from '../components/admin/LMSIntegrationPanel'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -70,6 +71,12 @@ const AdminPage = () => {
         >
           Site Settings
         </Link>
+        <Link
+          to="/admin/lms-integration"
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'lms-integration' ? 'border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+        >
+          LMS Integration
+        </Link>
       </div>
 
       <Routes>
@@ -86,6 +93,7 @@ const AdminPage = () => {
         <Route path="batch-generator" element={<BatchContentGenerator />} />
         <Route path="quest-images" element={<BulkImageGenerator />} />
         <Route path="badge-images" element={<BadgeImageGenerator />} />
+        <Route path="lms-integration" element={<LMSIntegrationPanel />} />
       </Routes>
     </div>
   )

@@ -137,4 +137,33 @@ export const friendsAPI = {
 // Collaboration API removed in Phase 3 refactoring (January 2025)
 // Team-up feature has been removed from the platform
 
+// LMS Integration API methods
+export const lmsAPI = {
+  // Get list of supported LMS platforms
+  getPlatforms: () => api.get('/api/lms/platforms'),
+
+  // Get integration status for current user
+  getIntegrationStatus: () => api.get('/api/lms/integration/status'),
+
+  // Sync roster from OneRoster CSV (admin only)
+  syncRoster: (file, platform) => {
+    const formData = new FormData()
+    formData.append('roster_csv', file)
+    formData.append('lms_platform', platform)
+
+    return api.post('/api/lms/sync/roster', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+  },
+
+  // Sync assignments from LMS (admin only)
+  syncAssignments: (assignments, platform) =>
+    api.post('/api/lms/sync/assignments', { assignments, lms_platform: platform }),
+
+  // Get grade sync status (admin only)
+  getGradeSyncStatus: () => api.get('/api/lms/grade-sync/status'),
+}
+
 export default api
