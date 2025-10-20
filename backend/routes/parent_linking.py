@@ -394,13 +394,15 @@ def get_linked_children(user_id):
     try:
         supabase = get_supabase_admin_client()
 
-        # Get user role
-        user_response = supabase.table('users').select('role, first_name, last_name, avatar_url, level, total_xp').eq('id', user_id).execute()
+        # Get user role - single optimized query
+        user_response = supabase.table('users').select(
+            'role, first_name, last_name, avatar_url, level, total_xp'
+        ).eq('id', user_id).single().execute()
 
         if not user_response.data:
             raise AuthorizationError("User not found")
 
-        user = user_response.data[0]
+        user = user_response.data
         user_role = user.get('role')
 
         # Special case: Admin users see themselves as a demo "child"
@@ -424,30 +426,34 @@ def get_linked_children(user_id):
         if user_role != 'parent':
             raise AuthorizationError("Only parent accounts can access this endpoint")
 
-        # Get all active links
+        # Single optimized query with JOIN to get links AND student details
         links_response = supabase.table('parent_student_links').select('''
-            id, student_user_id, status, approved_at, created_at
+            id,
+            student_user_id,
+            status,
+            approved_at,
+            created_at,
+            users!parent_student_links_student_user_id_fkey(
+                id,
+                first_name,
+                last_name,
+                avatar_url,
+                level,
+                total_xp
+            )
         ''').eq('parent_user_id', user_id).eq('status', 'active').execute()
 
         if not links_response.data:
             return jsonify({'children': []}), 200
 
-        # Get student details
-        student_ids = [link['student_user_id'] for link in links_response.data]
-        students_response = supabase.table('users').select('''
-            id, first_name, last_name, avatar_url, level, total_xp
-        ''').in_('id', student_ids).execute()
-
-        # Build response
+        # Build response from joined data
         children = []
-        students_map = {s['id']: s for s in students_response.data}
-
         for link in links_response.data:
-            student = students_map.get(link['student_user_id'])
+            student = link.get('users')
             if student:
                 children.append({
                     'link_id': link['id'],
-                    'student_id': student['id'],
+                    'student_id': link['student_user_id'],
                     'first_name': student.get('first_name'),
                     'last_name': student.get('last_name'),
                     'avatar_url': student.get('avatar_url'),
@@ -463,6 +469,8 @@ def get_linked_children(user_id):
         return jsonify({'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error getting linked children: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': 'Failed to get linked children'}), 500
 
 
@@ -665,36 +673,38 @@ def get_pending_requests(user_id):
     try:
         supabase = get_supabase_admin_client()
 
-        # Get user role
-        user_response = supabase.table('users').select('role').eq('id', user_id).execute()
+        # Get user role - single optimized query
+        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
 
-        if not user_response.data or user_response.data[0].get('role') != 'parent':
+        if not user_response.data or user_response.data.get('role') != 'parent':
             raise AuthorizationError("Only parent accounts can access this endpoint")
 
-        # Get pending links for this parent
+        # Single optimized query with JOIN to get links AND student details
         links_response = supabase.table('parent_student_links').select('''
-            id, student_user_id, status, created_at
+            id,
+            student_user_id,
+            status,
+            created_at,
+            users!parent_student_links_student_user_id_fkey(
+                id,
+                first_name,
+                last_name,
+                email,
+                avatar_url
+            )
         ''').eq('parent_user_id', user_id).eq('status', 'pending_approval').execute()
 
         if not links_response.data:
             return jsonify({'pending_requests': []}), 200
 
-        # Get student details
-        student_ids = [link['student_user_id'] for link in links_response.data]
-        students_response = supabase.table('users').select('''
-            id, first_name, last_name, email, avatar_url
-        ''').in_('id', student_ids).execute()
-
-        # Build response
+        # Build response from joined data
         pending_requests = []
-        students_map = {s['id']: s for s in students_response.data}
-
         for link in links_response.data:
-            student = students_map.get(link['student_user_id'])
+            student = link.get('users')
             if student:
                 pending_requests.append({
                     'link_id': link['id'],
-                    'student_id': student['id'],
+                    'student_id': link['student_user_id'],
                     'student_first_name': student.get('first_name'),
                     'student_last_name': student.get('last_name'),
                     'student_email': student.get('email'),
@@ -708,4 +718,6 @@ def get_pending_requests(user_id):
         return jsonify({'error': str(e)}), 403
     except Exception as e:
         logger.error(f"Error getting pending requests: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': 'Failed to get pending requests'}), 500
