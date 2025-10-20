@@ -184,15 +184,19 @@ frontend/src/
 
 ## Database Schema (Current State)
 
+**⚠️ UPDATED January 2025 - Phase 1 Refactoring Complete**
+
 ### Core Tables
 
 **users**
 - id (UUID, PK, references auth.users)
 - display_name, first_name, last_name, email
-- role (student/parent/advisor/admin)
-- subscription_tier (explorer/creator/visionary)
-- subscription_status, subscription_end_date
-- stripe_customer_id, stripe_subscription_id
+- role (student/parent/advisor/admin/observer) ← **UPDATED: observer role added**
+- ~~subscription_tier~~ ← **REMOVED**
+- ~~subscription_status~~ ← **REMOVED**
+- ~~subscription_end_date~~ ← **REMOVED**
+- ~~stripe_customer_id~~ ← **REMOVED**
+- ~~stripe_subscription_id~~ ← **REMOVED**
 - portfolio_slug, bio, avatar_url
 - level, total_xp, achievements_count, streak_days
 - tos_accepted_at, privacy_policy_accepted_at
@@ -201,7 +205,8 @@ frontend/src/
 **quests**
 - id (UUID, PK)
 - title, description
-- source (khan_academy/brilliant/custom)
+- source (optio/lms) ← **UPDATED: Simplified from khan_academy/brilliant/custom/ai_generated**
+- lms_course_id, lms_assignment_id, lms_platform ← **NEW: LMS integration columns**
 - image_url (auto-fetched from Pexels API)
 - header_image_url (legacy, same as image_url)
 - is_active
@@ -262,20 +267,12 @@ frontend/src/
 - created_at, updated_at
 - Note: Updated via bypass function to avoid timestamp triggers
 
-**quest_collaborations** (Team-up system - available to ALL users)
-- id (UUID, PK)
-- sender_id, receiver_id (both FK to users)
-- quest_id (FK to quests)
-- status (pending/accepted/rejected/cancelled)
-- message (optional)
-- created_at, updated_at
-
-**quest_ratings** (Quest feedback system)
-- id (UUID, PK)
-- user_id, quest_id
-- rating (1-5 stars)
-- feedback_text (optional)
-- created_at, updated_at
+~~**quest_collaborations**~~ ← **REMOVED January 2025**
+~~**task_collaborations**~~ ← **REMOVED January 2025**
+~~**quest_ratings**~~ ← **REMOVED January 2025**
+~~**subscription_tiers**~~ ← **REMOVED January 2025**
+~~**subscription_requests**~~ ← **REMOVED January 2025**
+~~**subscription_history**~~ ← **REMOVED January 2025**
 
 ### Additional Features
 
@@ -363,11 +360,11 @@ frontend/src/
 - PUT /api/community/friends/:id/accept - Accept connection request
 - DELETE /api/community/friends/:id/decline - Decline connection request
 - DELETE /api/community/friends/:id/cancel - Cancel sent connection request
-- POST /api/collaborations/invite - Send team-up collaboration invite
-- GET /api/collaborations/invites - List all collaboration invites (received & sent)
-- POST /api/collaborations/:id/accept - Accept team-up invitation
-- POST /api/collaborations/:id/decline - Decline team-up invitation
-- DELETE /api/collaborations/:id/cancel - Cancel sent team-up invitation
+~~- POST /api/collaborations/invite~~ ← **REMOVED January 2025**
+~~- GET /api/collaborations/invites~~ ← **REMOVED January 2025**
+~~- POST /api/collaborations/:id/accept~~ ← **REMOVED January 2025**
+~~- POST /api/collaborations/:id/decline~~ ← **REMOVED January 2025**
+~~- DELETE /api/collaborations/:id/cancel~~ ← **REMOVED January 2025**
 
 ### Admin API (Modular)
 - **User Management**: /api/admin/users/* - User CRUD, roles, subscriptions
@@ -398,8 +395,8 @@ frontend/src/
 ### Additional Features
 - POST /api/uploads - File upload handling
 - POST /api/evidence-documents - Upload evidence files
-- POST /api/quest-ratings - Rate completed quest
-- POST /api/subscriptions/create - Create Stripe subscription
+~~- POST /api/quest-ratings~~ ← **REMOVED January 2025**
+~~- POST /api/subscriptions/create~~ ← **REMOVED January 2025**
 - GET /api/health - Health check endpoint
 
 ## Key Features
@@ -408,11 +405,12 @@ frontend/src/
 - **Task-based structure**: Each quest contains multiple tasks with individual XP values
 - **Per-task configuration**: Each task has its own pillar and XP value
 - **Evidence submission**: Text, images, videos, documents via evidence_document_blocks table
-- **Completion bonus**: 50% XP bonus for completing all tasks (rounded to nearest 50)
+- ~~**Completion bonus**: 50% XP bonus~~ ← **TO BE REMOVED in Phase 2**
 - **Custom quests**: Students can submit quest ideas for admin approval
 - **Race condition prevention**: Atomic quest completion with optimistic locking
 - **Performance optimized**: N+1 query elimination reduces database calls by ~80%
 - **Auto-generated images**: Quest images automatically fetched from Pexels API based on quest title
+- **Quest sources**: Simplified to 'optio' (Optio-created) or 'lms' (LMS-integrated) ← **UPDATED January 2025**
 
 ### Badge System
 - **Achievement badges**: Visual recognition of skill mastery in specific areas
@@ -671,6 +669,21 @@ This enables direct read-only SQL queries against the production database for de
 - **Performance Optimization**: Reduced database calls by ~80% through query optimization
 - **Memory Management**: Implemented custom React hooks for leak prevention
 - **Race Condition Prevention**: Added atomic operations for critical paths
+
+### Phase 1 Refactoring Complete (January 2025)
+**Database Simplification - ALL MIGRATIONS EXECUTED:**
+- ✅ **6 Tables Deleted**: quest_collaborations, task_collaborations, quest_ratings, subscription_tiers, subscription_requests, subscription_history
+- ✅ **5 User Columns Removed**: subscription_tier, subscription_status, subscription_end_date, stripe_customer_id, stripe_subscription_id
+- ✅ **Observer Role Added**: users.role now supports student/parent/admin/advisor/observer
+- ✅ **Quest Sources Simplified**: All quests migrated to source='optio' (from khan_academy/brilliant/custom/ai_generated)
+- ✅ **LMS Integration Columns**: Added lms_course_id, lms_assignment_id, lms_platform to quests table
+- ✅ **Backup Schema Created**: All deleted data preserved in backup_schema for rollback safety
+
+**Still Active (Phase 2 Pending):**
+- ⚠️ Backend routes still exist: collaborations.py, ratings.py, tiers.py, subscription_requests.py (to be deleted)
+- ⚠️ XP bonuses still active: 2x collaboration, 50% completion, 500 XP badge bonus (to be removed)
+- ⚠️ @require_paid_tier decorator still active (to be removed)
+- ⚠️ Connections page still shows "Team-up invitations" (frontend cleanup needed)
 
 ### Key Files to Reference
 - **Core Philosophy**: `core_philosophy.md` - Essential for all user-facing features
