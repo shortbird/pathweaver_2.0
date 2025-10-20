@@ -200,15 +200,10 @@ class AtomicQuestService:
                 return {'quest_completed': False, 'already_completed': True}
 
             quest_completed = True
+            # Completion bonus removed in Phase 1 refactoring (January 2025)
             completion_bonus_awarded = 0
             completion_bonus_pillar = None
             total_quest_xp = sum(task['xp_amount'] for task in all_tasks)
-
-            # Check if all tasks (including optional) are completed for bonus
-            if all_task_ids.issubset(completed_task_ids):
-                bonus_result = self.award_completion_bonus(user_id, quest_id, all_tasks)
-                completion_bonus_awarded = bonus_result['bonus_xp']
-                completion_bonus_pillar = bonus_result['pillar']
 
             return {
                 'quest_completed': quest_completed,

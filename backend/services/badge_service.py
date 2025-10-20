@@ -413,23 +413,8 @@ class BadgeService:
         if not progress['is_complete']:
             raise ValueError(f"Badge not yet complete. Progress: {progress['percentage']}%")
 
-        # Award 500 XP completion bonus for earning the badge
-        BADGE_COMPLETION_BONUS = 500
-
-        # Get badge details to find pillar for XP distribution
-        admin_supabase = get_supabase_admin_client()
-        badge = admin_supabase.table('badges')\
-            .select('pillar_primary')\
-            .eq('id', badge_id)\
-            .single()\
-            .execute()
-
-        pillar = badge.data.get('pillar_primary') if badge.data else 'STEM & Logic'
-
-        # Award completion bonus XP to the badge's primary pillar
-        from services.xp_service import XPService
-        xp_service = XPService()
-        xp_service.award_xp(user_id, BADGE_COMPLETION_BONUS, pillar)
+        # Badge completion bonus removed in Phase 1 refactoring (January 2025)
+        # Users now only receive XP from quest completions
 
         # Update user_badge record
         updated = supabase.table('user_badges')\

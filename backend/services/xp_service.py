@@ -32,15 +32,14 @@ class XPService:
         Returns:
             Tuple of (final_xp_amount, has_collaboration_bonus)
         """
-        # Check for active collaboration
-        has_collaboration = self._check_active_collaboration(user_id, quest_id)
-        
-        # Apply collaboration multiplier if applicable
-        final_xp = base_xp * 2 if has_collaboration else base_xp
-        
+        # Collaboration bonus removed in Phase 1 refactoring (January 2025)
+        # XP is now simply the base task XP value
+        final_xp = base_xp
+        has_collaboration = False
+
         # Log XP calculation for audit
         self._log_xp_calculation(user_id, task_id, base_xp, final_xp, has_collaboration)
-        
+
         return final_xp, has_collaboration
     
     def award_xp(self, 

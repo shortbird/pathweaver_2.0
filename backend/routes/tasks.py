@@ -202,8 +202,9 @@ def complete_task(user_id: str, task_id: str):
             .eq('status', 'active')\
             .execute()
 
-        has_collaboration = bool(collaboration.data)
-        final_xp = base_xp * 2 if has_collaboration else base_xp
+        # Collaboration bonus removed in Phase 1 refactoring (January 2025)
+        has_collaboration = False
+        final_xp = base_xp
 
         # Create task completion record
         completion = supabase.table('quest_task_completions')\
@@ -340,51 +341,9 @@ def complete_task(user_id: str, task_id: str):
                 .execute()
             
             quest_completed = True
-            
-            # Award completion bonus if ALL tasks are done (50% bonus, rounded up to nearest 50)
-            if all_tasks_completed and len(all_task_ids) == len(completed_task_ids):
-                # Calculate total base XP for the quest from user's personalized tasks
-                total_base_xp = sum(task['xp_value'] for task in all_tasks.data)
-                
-                # Calculate 50% bonus
-                bonus_xp = total_base_xp * 0.5
-                
-                # Round up to nearest multiple of 50
-                bonus_xp = math.ceil(bonus_xp / 50) * 50
-                
-                # Get the quest's primary pillar for the bonus
-                quest_pillar = 'creativity'  # Default pillar
-                try:
-                    quest_info = supabase.table('quests')\
-                        .select('pillar')\
-                        .eq('id', quest_id)\
-                        .single()\
-                        .execute()
-                    
-                    if quest_info.data and quest_info.data.get('pillar'):
-                        quest_pillar = quest_info.data['pillar']
-                except Exception as e:
-                    print(f"Warning: Could not fetch quest pillar, using default: {e}")
-                    # Use the most common pillar from tasks as fallback
-                    try:
-                        task_pillars = [task['pillar'] for task in all_tasks.data if task.get('pillar')]
-                        if task_pillars:
-                            quest_pillar = max(set(task_pillars), key=task_pillars.count)
-                    except:
-                        pass
-                
-                # Award the completion bonus
-                print(f"=== QUEST COMPLETION BONUS ===")
-                print(f"User {user_id} completed ALL tasks for quest {quest_id}")
-                print(f"Total base XP: {total_base_xp}, Bonus XP: {bonus_xp}")
-                print("==============================")
-                
-                bonus_awarded = xp_service.award_xp(
-                    user_id,
-                    quest_pillar,
-                    bonus_xp,
-                    f'quest_completion_bonus:{quest_id}'
-                )
+
+            # Completion bonus removed in Phase 1 refactoring (January 2025)
+            # Users now only receive XP from individual task completions
                 
                 # Return response with or without bonus
                 return jsonify({

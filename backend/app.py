@@ -2,14 +2,14 @@ from flask import Flask, jsonify, request, make_response
 from dotenv import load_dotenv
 import os
 
-from routes import auth, subscription_requests, users, community, portfolio
+from routes import auth, users, community, portfolio
 from routes.quest_ideas import quest_ideas_bp
 from routes import uploads
 from routes.settings import settings_bp
 from routes.promo import promo_bp
 
 # Import routes
-from routes import quests, tasks, collaborations, admin_core, evidence_documents
+from routes import quests, tasks, admin_core, evidence_documents
 from routes.admin import user_management, quest_management, quest_ideas, analytics, student_task_management
 from cors_config import configure_cors
 from middleware.security import security_middleware
@@ -53,7 +53,7 @@ memory_monitor.init_app(app)
 
 # Register existing routes
 app.register_blueprint(auth.bp, url_prefix='/api/auth')
-app.register_blueprint(subscription_requests.bp)  # /api/subscription-requests (blueprint has url_prefix)
+# subscription_requests.bp removed in Phase 1 refactoring (January 2025)
 app.register_blueprint(users.bp, url_prefix='/api/users')
 # Also register users blueprint under v3 for compatibility with unique name
 app.register_blueprint(users.bp, url_prefix='/api/v3/users', name='users_v3')
@@ -74,7 +74,7 @@ app.register_blueprint(quest_management.bp)  # /api/v3/admin (blueprint has url_
 app.register_blueprint(quest_ideas.bp)  # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
 app.register_blueprint(analytics.bp)  # /api/v3/admin/analytics (blueprint has url_prefix='/api/v3/admin/analytics')
 app.register_blueprint(student_task_management.bp)  # /api/v3/admin/users (blueprint has url_prefix='/api/v3/admin/users')
-app.register_blueprint(collaborations.bp)  # /api/collaborations (blueprint has url_prefix='/api/collaborations')
+# collaborations.bp removed in Phase 1 refactoring (January 2025)
 # Conditionally import and register Quest AI blueprint
 try:
     from routes import quest_ai
@@ -163,10 +163,10 @@ except Exception as e:
 
 # Register Personalized Quest System blueprints
 try:
-    from routes import quest_personalization, task_collaboration
+    from routes import quest_personalization
     from routes.admin import task_approval
     app.register_blueprint(quest_personalization.bp)  # /api/quests/*
-    app.register_blueprint(task_collaboration.bp)  # /api/tasks/*
+    # task_collaboration.bp removed in Phase 1 refactoring (January 2025)
     app.register_blueprint(task_approval.bp)  # /api/v3/admin/manual-tasks/*
     print("Personalized Quest System routes registered successfully")
 except Exception as e:
