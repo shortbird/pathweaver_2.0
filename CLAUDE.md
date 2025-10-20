@@ -178,7 +178,10 @@ frontend/src/
 │   ├── tutor/        # AI Tutor components
 │   │   ├── ChatInterface.jsx    # Tutor chat interface
 │   │   ├── TutorWidget.jsx      # Tutor widget
-│   │   └── ParentDashboard.jsx  # Parent tutor dashboard
+│   │   └── ParentDashboard.jsx  # Parent tutor monitoring dashboard
+│   ├── parent/       # Parent dashboard components
+│   │   ├── ParentLinking.jsx    # Student view: send parent invitations
+│   │   └── ParentInvitationApproval.jsx # Parent view: accept/decline invitations
 │   └── ui/           # Reusable UI components
 ├── hooks/            # Custom hooks
 │   └── useMemoryLeakFix.js      # Memory leak prevention
@@ -517,14 +520,32 @@ frontend/src/
   - `parent_student_links`: Active connections (no revoke status)
   - `parent_invitations`: Pending invitations with 48-hour expiry
   - `parent_evidence_uploads`: Parent-uploaded evidence (requires student approval)
-- **API endpoints**:
-  - `/api/parents/*` - Parent-student linking workflow
+- **Backend API endpoints**:
+  - `/api/parents/my-children` - Get list of linked students
+  - `/api/parents/my-links` - Get linked parents and pending invitations (student view)
+  - `/api/parents/invite` - Send parent invitation (student)
+  - `/api/parents/invitations/:id` - Cancel invitation (student)
+  - `/api/parents/pending-invitations` - Get pending invitations (parent view)
+  - `/api/parents/invitations/:id/approve` - Approve invitation (parent)
+  - `/api/parents/invitations/:id/decline` - Decline invitation (parent)
   - `/api/parent/dashboard/:studentId` - Main dashboard data with learning rhythm
   - `/api/parent/calendar/:studentId` - Calendar view
   - `/api/parent/progress/:studentId` - XP breakdown by pillar
   - `/api/parent/insights/:studentId` - Time patterns and learning analytics
   - `/api/parent/evidence/:studentId` - Evidence upload
-- **Frontend route**: `/parent/dashboard` or `/parent/dashboard/:studentId`
+  - `/api/tutor/parent/conversations/:studentId` - AI tutor conversations (safety monitoring)
+  - `/api/tutor/parent/conversations/:conversationId/messages` - Conversation messages
+  - `/api/tutor/parent/safety-reports/:studentId` - Safety reports
+  - `/api/tutor/parent/settings/:studentId` - Parent monitoring settings
+- **Frontend implementation**:
+  - **Main page**: `ParentDashboardPage.jsx` at `/parent/dashboard` or `/parent/dashboard/:studentId`
+  - **Components**:
+    - `ParentLinking.jsx` - Student view for sending parent invitations and managing connections
+    - `ParentInvitationApproval.jsx` - Parent view for accepting/declining student invitations
+    - `ParentDashboard.jsx` (tutor folder) - AI tutor monitoring dashboard
+  - **API service**: `parentAPI` in `api.js` with all parent-related API methods
+  - **Access control**: Routes protected with `<PrivateRoute requiredRole="parent" />`
+  - **Design**: Poppins typography, purple/pink gradient accents, process-focused language
 - **Encouragement tips**: Context-aware conversation starters for process-focused support
 
 ### Authentication & Security
