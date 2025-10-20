@@ -122,7 +122,10 @@ def require_role(*allowed_roles):
     return decorator
 
 def require_paid_tier(f):
-    """Decorator to require a paid subscription tier (supported or academy) - prioritizes secure cookies"""
+    """
+    Decorator to require a paid subscription tier - NEUTERED in Phase 3 refactoring (January 2025)
+    All features now free for all users - this decorator now acts like require_auth
+    """
     @wraps(f)
     def decorated_function(*args, **kwargs):
         # Skip authentication for OPTIONS requests (CORS preflight)
@@ -144,37 +147,10 @@ def require_paid_tier(f):
         # Store user_id in request context
         request.user_id = user_id
 
-        # Check subscription tier
-        supabase = get_authenticated_supabase_client()
+        # NEUTERED - Phase 3 refactoring (January 2025)
+        # All features now free for all users - no tier checking
+        print(f"[REQUIRE_PAID_TIER] NEUTERED - All features free for user {user_id[:8]}", file=sys.stderr, flush=True)
 
-        try:
-            user = supabase.table('users').select('subscription_tier').eq('id', user_id).execute()
-
-            if not user.data or len(user.data) == 0:
-                raise AuthorizationError('User not found')
-
-            subscription_tier = user.data[0].get('subscription_tier', 'Explore')
-
-            # Allow paid tiers: Accelerate, Achieve, Excel (Explore is free)
-            allowed_tiers = ['Accelerate', 'Achieve', 'Excel']
-            print(f"[REQUIRE_PAID_TIER] User {user_id} has tier: '{subscription_tier}', allowed tiers: {allowed_tiers}", file=sys.stderr, flush=True)
-            if subscription_tier not in allowed_tiers:
-                return jsonify({
-                    'error': 'subscription_required',
-                    'message': 'This feature requires a paid subscription (Accelerate, Achieve, or Excel)',
-                    'required_tier': 'Accelerate',
-                    'current_tier': subscription_tier,
-                    'upgrade_url': '/subscription'
-                }), 403
-
-            return f(*args, **kwargs)
-
-        except (AuthenticationError, AuthorizationError):
-            raise
-        except Exception as e:
-            import traceback
-            print(f"Error verifying subscription tier: {str(e)}", file=sys.stderr, flush=True)
-            print(f"Full traceback: {traceback.format_exc()}", file=sys.stderr, flush=True)
-            raise AuthorizationError('Failed to verify subscription tier')
+        return f(user_id, *args, **kwargs)
 
     return decorated_function

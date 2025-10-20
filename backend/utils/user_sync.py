@@ -59,12 +59,12 @@ def ensure_user_exists(user_id: str) -> Optional[Dict]:
                         first_name = email_parts[0].capitalize()
                 
                 # Create user in users table
+                # UPDATED - Phase 3 refactoring (January 2025)
+                # Removed subscription_tier and subscription_status (columns deleted)
                 new_user = {
                     'id': user_id,
                     'first_name': first_name,
                     'last_name': last_name,
-                    'subscription_tier': 'free',
-                    'subscription_status': 'active',
                     'created_at': auth_user.user.created_at
                 }
                 
