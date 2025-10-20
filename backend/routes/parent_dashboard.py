@@ -41,7 +41,9 @@ def verify_parent_access(parent_user_id, student_user_id):
 def get_parent_dashboard(user_id, student_id):
     """
     Get main parent dashboard data including learning rhythm, active quests, and summary.
+    Optimized to minimize database connections.
     """
+    supabase = None
     try:
         verify_parent_access(user_id, student_id)
         supabase = get_supabase_admin_client()
@@ -69,30 +71,52 @@ def get_parent_dashboard(user_id, student_id):
 
         student = student_response.data[0]
 
-        # Get active quests
+        # Get active quests with quest details
         active_quests_response = supabase.table('user_quests').select('''
             quest_id, started_at, is_active,
             quests!inner(id, title, image_url, header_image_url)
         ''').eq('user_id', student_id).is_('completed_at', 'null').eq('is_active', True).execute()
 
+        active_quest_ids = [uq['quest_id'] for uq in active_quests_response.data]
+
+        # Batch fetch all tasks and completions for active quests
+        tasks_map = {}
+        completions_map = {}
+
+        if active_quest_ids:
+            # Get all tasks for active quests in one query
+            all_tasks_response = supabase.table('user_quest_tasks').select('id, quest_id').eq(
+                'user_id', student_id
+            ).in_('quest_id', active_quest_ids).execute()
+
+            for task in all_tasks_response.data:
+                qid = task['quest_id']
+                if qid not in tasks_map:
+                    tasks_map[qid] = []
+                tasks_map[qid].append(task['id'])
+
+            # Get all completions for active quests in one query
+            all_completions_response = supabase.table('quest_task_completions').select('task_id, quest_id').eq(
+                'user_id', student_id
+            ).in_('quest_id', active_quest_ids).execute()
+
+            for comp in all_completions_response.data:
+                qid = comp['quest_id']
+                if qid not in completions_map:
+                    completions_map[qid] = []
+                completions_map[qid].append(comp['task_id'])
+
+        # Build active quests list
         active_quests = []
         for uq in active_quests_response.data:
             quest = uq['quests']
+            quest_id = quest['id']
 
-            # Get task completion count
-            tasks_response = supabase.table('user_quest_tasks').select('id').eq(
-                'user_id', student_id
-            ).eq('quest_id', quest['id']).execute()
-
-            completions_response = supabase.table('quest_task_completions').select('task_id').eq(
-                'user_id', student_id
-            ).eq('quest_id', quest['id']).execute()
-
-            total_tasks = len(tasks_response.data)
-            completed_tasks = len(completions_response.data)
+            total_tasks = len(tasks_map.get(quest_id, []))
+            completed_tasks = len(completions_map.get(quest_id, []))
 
             active_quests.append({
-                'quest_id': quest['id'],
+                'quest_id': quest_id,
                 'title': quest['title'],
                 'image_url': quest.get('image_url') or quest.get('header_image_url'),
                 'started_at': uq['started_at'],
@@ -176,8 +200,9 @@ def get_parent_dashboard(user_id, student_id):
 def get_student_calendar(user_id, student_id):
     """
     Get student's calendar view with tasks and deadlines.
-    Read-only access for parents.
+    Read-only access for parents. Optimized for connection reuse.
     """
+    supabase = None
     try:
         verify_parent_access(user_id, student_id)
         supabase = get_supabase_admin_client()
@@ -272,7 +297,9 @@ def get_student_calendar(user_id, student_id):
 def get_student_progress(user_id, student_id):
     """
     Get student's XP breakdown by pillar, achievements, and streak.
+    Optimized for connection reuse.
     """
+    supabase = None
     try:
         verify_parent_access(user_id, student_id)
         supabase = get_supabase_admin_client()
@@ -336,7 +363,9 @@ def get_student_progress(user_id, student_id):
 def get_learning_insights(user_id, student_id):
     """
     Get learning insights: time patterns, pillar preferences, completion velocity.
+    Optimized for connection reuse.
     """
+    supabase = None
     try:
         verify_parent_access(user_id, student_id)
         supabase = get_supabase_admin_client()

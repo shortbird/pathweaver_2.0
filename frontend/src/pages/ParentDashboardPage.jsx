@@ -32,6 +32,7 @@ const ParentDashboardPage = () => {
   const [studentEmail, setStudentEmail] = useState('');
   const [sending, setSending] = useState(false);
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [showAddChildModal, setShowAddChildModal] = useState(false);
 
   // Load children list and pending requests
   useEffect(() => {
@@ -72,6 +73,7 @@ const ParentDashboardPage = () => {
       const response = await api.post('/api/parents/request-link', { student_email: studentEmail });
       toast.success(response.data.message);
       setStudentEmail('');
+      setShowAddChildModal(false); // Close modal if open
       // Reload to show new pending request
       const requestsResponse = await api.get('/api/parents/pending-requests');
       setPendingRequests(requestsResponse.data.pending_requests || []);
@@ -232,7 +234,7 @@ const ParentDashboardPage = () => {
               </li>
               <li className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
-                <span>They go to their <strong>Profile</strong> page</span>
+                <span>They go to their <strong>Connections</strong> page</span> and enter your email address
               </li>
               <li className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
@@ -279,22 +281,89 @@ const ParentDashboardPage = () => {
           )}
         </div>
 
-        {/* Multi-Child Selector */}
-        {children.length > 1 && (
-          <select
-            value={selectedStudentId || ''}
-            onChange={(e) => setSelectedStudentId(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg font-medium focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+        {/* Multi-Child Selector + Add Child Button */}
+        <div className="flex gap-3 items-center">
+          {children.length > 1 && (
+            <select
+              value={selectedStudentId || ''}
+              onChange={(e) => setSelectedStudentId(e.target.value)}
+              className="px-4 py-2 border border-gray-300 rounded-lg font-medium focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+              style={{ fontFamily: 'Poppins, sans-serif' }}
+            >
+              {children.map((child) => (
+                <option key={child.student_id} value={child.student_id}>
+                  {child.first_name} {child.last_name}
+                </option>
+              ))}
+            </select>
+          )}
+          <button
+            onClick={() => setShowAddChildModal(true)}
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg font-semibold hover:shadow-lg transition-shadow flex items-center gap-2"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
-            {children.map((child) => (
-              <option key={child.student_id} value={child.student_id}>
-                {child.first_name} {child.last_name}
-              </option>
-            ))}
-          </select>
-        )}
+            <UserGroupIcon className="w-5 h-5" />
+            Add Child
+          </button>
+        </div>
       </div>
+
+      {/* Add Child Modal */}
+      {showAddChildModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Add Another Child
+              </h2>
+              <button
+                onClick={() => {
+                  setShowAddChildModal(false);
+                  setStudentEmail('');
+                }}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+
+            <p className="text-gray-600 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Enter your student's email address to send them a connection request. They'll see it in their Connections page and can approve it.
+            </p>
+
+            <form onSubmit={sendLinkRequest} className="space-y-4">
+              <input
+                type="email"
+                value={studentEmail}
+                onChange={(e) => setStudentEmail(e.target.value)}
+                placeholder="student@example.com"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent font-medium"
+                style={{ fontFamily: 'Poppins, sans-serif' }}
+                disabled={sending}
+                autoFocus
+              />
+              <button
+                type="submit"
+                disabled={sending}
+                className="w-full px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                style={{ fontFamily: 'Poppins, sans-serif' }}
+              >
+                {sending ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <PaperAirplaneIcon className="w-5 h-5" />
+                    Send Request
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
 
       {error && (
         <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
