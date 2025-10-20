@@ -2,19 +2,10 @@ from supabase import create_client, Client
 from config import Config
 from flask import request
 from typing import Optional
-import httpx
 
 # Create singleton clients - connection pooling is handled internally by supabase-py
 _supabase_client = None
 _supabase_admin_client = None
-
-# Custom HTTPX limits to prevent HTTP/2 stream exhaustion
-# When multiple parallel requests hit the same singleton client, we need higher limits
-_httpx_limits = httpx.Limits(
-    max_connections=100,         # Allow up to 100 concurrent connections
-    max_keepalive_connections=50, # Keep up to 50 connections alive in pool
-    keepalive_expiry=60.0        # Keep connections alive for 60 seconds
-)
 
 def get_supabase_client() -> Client:
     """Get anonymous Supabase client - only for public operations"""
@@ -38,32 +29,18 @@ def get_supabase_admin_client() -> Client:
 
     WARNING: This bypasses RLS policies. Use get_user_client() for user operations.
 
-    Configured with custom HTTPX limits to prevent connection exhaustion when
-    multiple parallel requests use the singleton client.
+    NOTE: Each call creates a NEW client to prevent HTTP/2 stream exhaustion.
+    The singleton pattern was causing connection exhaustion when multiple parallel
+    requests shared the same HTTP/2 connection.
     """
     global _supabase_admin_client
     if not Config.SUPABASE_URL or not Config.SUPABASE_SERVICE_ROLE_KEY:
         raise ValueError("Missing Supabase admin configuration. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.")
 
-    # Create singleton admin client with custom HTTPX configuration
-    if _supabase_admin_client is None:
-        # Create custom HTTPX client with increased connection limits
-        http_client = httpx.Client(
-            limits=_httpx_limits,
-            timeout=30.0,  # 30 second timeout
-            http2=True     # Enable HTTP/2
-        )
-
-        # Create Supabase client
-        _supabase_admin_client = create_client(
-            Config.SUPABASE_URL,
-            Config.SUPABASE_SERVICE_ROLE_KEY
-        )
-
-        # Inject custom HTTP client into postgrest (main API client)
-        _supabase_admin_client.postgrest.session = http_client
-
-    return _supabase_admin_client
+    # CHANGED: Create a NEW client on each call instead of singleton
+    # This prevents HTTP/2 stream exhaustion from parallel requests
+    # Trade-off: Slightly more memory usage for much better concurrency
+    return create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
 
 def get_user_client(token: Optional[str] = None) -> Client:
     """
