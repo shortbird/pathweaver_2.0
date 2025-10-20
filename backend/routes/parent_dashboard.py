@@ -16,10 +16,11 @@ logger = logging.getLogger(__name__)
 bp = Blueprint('parent_dashboard', __name__, url_prefix='/api/parent')
 
 
-def verify_parent_access(parent_user_id, student_user_id):
-    """Helper function to verify parent has active access to student"""
-    supabase = get_supabase_admin_client()
-
+def verify_parent_access(supabase, parent_user_id, student_user_id):
+    """
+    Helper function to verify parent has active access to student.
+    IMPORTANT: Accepts supabase client to avoid connection exhaustion.
+    """
     # Verify parent role
     user_response = supabase.table('users').select('role').eq('id', parent_user_id).execute()
     if not user_response.data or user_response.data[0].get('role') != 'parent':
@@ -45,8 +46,8 @@ def get_parent_dashboard(user_id, student_id):
     """
     supabase = None
     try:
-        verify_parent_access(user_id, student_id)
         supabase = get_supabase_admin_client()
+        verify_parent_access(supabase, user_id, student_id)
 
         # Get learning rhythm status
         rhythm_response = supabase.rpc('get_learning_rhythm_status', {
@@ -204,8 +205,8 @@ def get_student_calendar(user_id, student_id):
     """
     supabase = None
     try:
-        verify_parent_access(user_id, student_id)
         supabase = get_supabase_admin_client()
+        verify_parent_access(supabase, user_id, student_id)
 
         # Get active quests
         user_quests_response = supabase.table('user_quests').select(
@@ -301,8 +302,8 @@ def get_student_progress(user_id, student_id):
     """
     supabase = None
     try:
-        verify_parent_access(user_id, student_id)
         supabase = get_supabase_admin_client()
+        verify_parent_access(supabase, user_id, student_id)
 
         # Get XP by pillar
         xp_response = supabase.table('user_skill_xp').select('''
@@ -317,18 +318,31 @@ def get_student_progress(user_id, student_id):
         # Get recent completions (last 30 days)
         thirty_days_ago = (date.today() - timedelta(days=30)).isoformat()
         completions_response = supabase.table('quest_task_completions').select('''
-            completed_at, xp_awarded, task_id,
-            quest_tasks!inner(title, pillar)
+            completed_at, xp_awarded, task_id, user_quest_task_id
         ''').eq('user_id', student_id).gte('completed_at', thirty_days_ago).execute()
 
+        # Get task details if we have completions
         recent_completions = []
-        for comp in completions_response.data:
-            recent_completions.append({
-                'task_title': comp['quest_tasks']['title'],
-                'pillar': get_pillar_name(comp['quest_tasks']['pillar']),
-                'xp_awarded': comp.get('xp_awarded', 0),
-                'completed_at': comp['completed_at']
-            })
+        if completions_response.data:
+            task_ids = [comp['user_quest_task_id'] for comp in completions_response.data if comp.get('user_quest_task_id')]
+
+            if task_ids:
+                tasks_response = supabase.table('user_quest_tasks').select('''
+                    id, title, pillar
+                ''').in_('id', task_ids).execute()
+
+                tasks_map = {task['id']: task for task in tasks_response.data}
+
+                for comp in completions_response.data:
+                    task_id = comp.get('user_quest_task_id')
+                    if task_id and task_id in tasks_map:
+                        task = tasks_map[task_id]
+                        recent_completions.append({
+                            'task_title': task['title'],
+                            'pillar': get_pillar_name(task['pillar']),
+                            'xp_awarded': comp.get('xp_awarded', 0),
+                            'completed_at': comp['completed_at']
+                        })
 
         # Sort by date
         recent_completions.sort(key=lambda x: x['completed_at'], reverse=True)
@@ -367,15 +381,22 @@ def get_learning_insights(user_id, student_id):
     """
     supabase = None
     try:
-        verify_parent_access(user_id, student_id)
         supabase = get_supabase_admin_client()
+        verify_parent_access(supabase, user_id, student_id)
 
         # Get completions from last 60 days for pattern analysis
         sixty_days_ago = (date.today() - timedelta(days=60)).isoformat()
         completions_response = supabase.table('quest_task_completions').select('''
-            completed_at, task_id,
-            quest_tasks!inner(pillar)
+            completed_at, task_id, user_quest_task_id
         ''').eq('user_id', student_id).gte('completed_at', sixty_days_ago).execute()
+
+        # Get task details for pillar analysis
+        task_pillars = {}
+        if completions_response.data:
+            task_ids = [comp['user_quest_task_id'] for comp in completions_response.data if comp.get('user_quest_task_id')]
+            if task_ids:
+                tasks_response = supabase.table('user_quest_tasks').select('id, pillar').in_('id', task_ids).execute()
+                task_pillars = {task['id']: task['pillar'] for task in tasks_response.data}
 
         # Analyze time patterns
         hour_activity = defaultdict(int)
@@ -406,8 +427,10 @@ def get_learning_insights(user_id, student_id):
         # Analyze pillar preferences
         pillar_completions = defaultdict(int)
         for comp in completions_response.data:
-            pillar_name = get_pillar_name(comp['quest_tasks']['pillar'])
-            pillar_completions[pillar_name] += 1
+            task_id = comp.get('user_quest_task_id')
+            if task_id and task_id in task_pillars:
+                pillar_name = get_pillar_name(task_pillars[task_id])
+                pillar_completions[pillar_name] += 1
 
         # Sort pillars by completion count
         pillar_preferences = sorted(

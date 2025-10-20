@@ -86,11 +86,16 @@ const ParentDashboardPage = () => {
     }
   };
 
-  // Load dashboard data when student selected
+  // Load dashboard data when student selected and children are loaded
   useEffect(() => {
     const loadDashboardData = async () => {
-      if (!selectedStudentId) {
-        setLoading(false);
+      // Wait until we have children data before trying to load dashboard
+      if (!selectedStudentId || children.length === 0) {
+        if (children.length === 0) {
+          setLoading(true); // Keep loading while children are being fetched
+        } else {
+          setLoading(false); // No children selected
+        }
         return;
       }
 
@@ -118,7 +123,7 @@ const ParentDashboardPage = () => {
     };
 
     loadDashboardData();
-  }, [selectedStudentId]);
+  }, [selectedStudentId, children.length]);
 
   if (!user || user.role !== 'parent') {
     return (
@@ -225,22 +230,35 @@ const ParentDashboardPage = () => {
           {/* Alternative Method */}
           <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6">
             <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Or, have your student send you a request:
+              Or, have your student send you an invitation:
             </h3>
-            <ol className="space-y-3 text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            <ol className="space-y-3 text-gray-700 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
               <li className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
-                <span>Your student logs in to their Optio account</span>
+                <span>Your student logs in to their Optio account at <strong>optioeducation.com</strong></span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
-                <span>They go to their <strong>Connections</strong> page</span> and enter your email address
+                <span>They click on <strong>Connections</strong> in the navigation menu</span>
               </li>
               <li className="flex items-start gap-3">
                 <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
-                <span>You'll see their request here to approve</span>
+                <span>In the <strong>Invitations</strong> tab, they'll find a section called "Invite Your Parent"</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</span>
+                <span>They enter your email address (the one you used to create this parent account) and send the invitation</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">5</span>
+                <span>You'll see their invitation here, ready to approve</span>
               </li>
             </ol>
+            <div className="bg-white rounded-lg p-4 border-l-4 border-purple-600">
+              <p className="text-sm text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <strong>Note:</strong> The student must approve the connection from their end. This ensures they're in control of who can view their learning journey.
+              </p>
+            </div>
           </div>
 
           <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
