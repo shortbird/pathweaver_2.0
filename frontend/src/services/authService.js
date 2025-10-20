@@ -94,6 +94,7 @@ class AuthService {
       const accessToken = response.data.access_token || response.data.session?.access_token
       const refreshToken = response.data.refresh_token || response.data.session?.refresh_token
 
+      console.log('[AuthService] Token storage:', {
         hasAccessToken: !!accessToken,
         hasRefreshToken: !!refreshToken,
         accessTokenLength: accessToken?.length,
