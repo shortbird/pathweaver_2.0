@@ -330,7 +330,7 @@ def get_student_progress(user_id, student_id):
         # Get recent completions (last 30 days)
         thirty_days_ago = (date.today() - timedelta(days=30)).isoformat()
         completions_response = supabase.table('quest_task_completions').select('''
-            completed_at, xp_awarded, task_id, user_quest_task_id
+            completed_at, task_id, user_quest_task_id
         ''').eq('user_id', student_id).gte('completed_at', thirty_days_ago).execute()
 
         # Get task details if we have completions
@@ -340,7 +340,7 @@ def get_student_progress(user_id, student_id):
 
             if task_ids:
                 tasks_response = supabase.table('user_quest_tasks').select('''
-                    id, title, pillar
+                    id, title, pillar, xp_value
                 ''').in_('id', task_ids).execute()
 
                 tasks_map = {task['id']: task for task in tasks_response.data}
@@ -352,7 +352,7 @@ def get_student_progress(user_id, student_id):
                         recent_completions.append({
                             'task_title': task['title'],
                             'pillar': get_pillar_name(task['pillar']),
-                            'xp_awarded': comp.get('xp_awarded', 0),
+                            'xp_awarded': task.get('xp_value', 0),  # XP comes from task definition
                             'completed_at': comp['completed_at']
                         })
 
