@@ -1,7 +1,7 @@
 import React from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../../contexts/AuthContext'
-import { getTierDisplayName, getTierBadgeColor } from '../../utils/tierMapping'
+// import { getTierDisplayName, getTierBadgeColor } from '../../utils/tierMapping' // REMOVED - Phase 3 refactoring (January 2025)
 
 const TopNavbar = ({ onMenuClick, siteSettings }) => {
   const location = useLocation()
@@ -100,18 +100,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                   {user?.first_name} {user?.last_name}
                 </Link>
 
-                {/* Subscription Tier Badge */}
-                <Link
-                  to="/subscription"
-                  className={`
-                    hidden sm:block text-xs px-3 py-1 rounded-full font-poppins font-semibold
-                    tracking-wider cursor-pointer hover:opacity-80 transition-opacity
-                    ${getTierBadgeColor(user?.subscription_tier)}
-                  `}
-                  title="Click to manage subscription"
-                >
-                  {getTierDisplayName(user?.subscription_tier)}
-                </Link>
+                {/* Subscription Tier Badge - REMOVED Phase 3 refactoring (January 2025) */}
 
                 {/* Logout */}
                 <button

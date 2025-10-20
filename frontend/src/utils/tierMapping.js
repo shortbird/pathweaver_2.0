@@ -1,7 +1,9 @@
-// Tier mapping utility for the new 4-tier subscription system
+// NEUTERED - Phase 3 refactoring (January 2025)
+// All tier functionality removed - all features now free for all users
+// This file maintained for backward compatibility only
 
 export const TIER_DISPLAY_NAMES = {
-  // Tier keys map to display names from database
+  // Legacy tier names - no longer used
   Explore: 'Free',
   Accelerate: 'Parent Support',
   Achieve: 'Weekly Support',
@@ -9,8 +11,7 @@ export const TIER_DISPLAY_NAMES = {
 };
 
 export const getTierDisplayName = (backendTier) => {
-  if (!backendTier) return 'Free';
-  return TIER_DISPLAY_NAMES[backendTier] || backendTier;
+  return 'Free'; // All users are "Free" tier now
 };
 
 export const TIER_FEATURES = {
@@ -105,18 +106,9 @@ export const getTierFeaturesByBackendValue = (backendTier) => {
 };
 
 // Check if user has access to a feature based on tier
+// NEUTERED - Always returns true (all features free for all users)
 export const hasFeatureAccess = (userTier, requiredTier) => {
-  const tierOrder = {
-    Explore: 0,
-    Accelerate: 1,
-    Achieve: 2,
-    Excel: 3
-  };
-
-  const userLevel = tierOrder[userTier] ?? 0;
-  const requiredLevel = tierOrder[requiredTier] ?? 0;
-
-  return userLevel >= requiredLevel;
+  return true; // All features available to all users (Phase 3 refactoring)
 };
 
 // Get the next upgrade tier
