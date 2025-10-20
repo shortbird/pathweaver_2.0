@@ -117,7 +117,7 @@ const ParentDashboardPage = () => {
       <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            Parent Dashboard
+            Family Dashboard
           </h1>
           <p className="text-gray-600 mt-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
             Supporting {selectedStudent?.first_name}'s learning journey

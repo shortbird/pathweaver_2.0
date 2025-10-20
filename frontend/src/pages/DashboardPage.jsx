@@ -1,5 +1,5 @@
 import React, { useEffect, memo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { useUserDashboard } from '../hooks/api/useUserData'
 import QuestCardSimple from '../components/quest/QuestCardSimple'
@@ -65,6 +65,11 @@ const ActiveQuests = memo(({ activeQuests }) => {
 const DashboardPage = () => {
   const { user } = useAuth()
   const [showLearningEventModal, setShowLearningEventModal] = useState(false)
+
+  // Redirect parents to their dedicated dashboard
+  if (user?.role === 'parent') {
+    return <Navigate to="/parent/dashboard" replace />
+  }
 
   // Use React Query hooks for data fetching
   const {
