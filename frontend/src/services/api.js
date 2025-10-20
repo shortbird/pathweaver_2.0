@@ -9,7 +9,6 @@ const api = axios.create({
 })
 
 // Helper function to get auth headers for fetch requests (backward compatibility)
-// Note: This is now primarily for backward compatibility - cookies are preferred
 export const getAuthHeaders = () => {
   const headers = {
     'Content-Type': 'application/json',
@@ -17,7 +16,7 @@ export const getAuthHeaders = () => {
   return headers
 }
 
-// Add Authorization header from localStorage as fallback for incognito mode
+// Add Authorization header with JWT token from localStorage
 api.interceptors.request.use(
   (config) => {
     // Add CSRF token for state-changing requests
@@ -28,8 +27,7 @@ api.interceptors.request.use(
       }
     }
 
-    // Fallback to localStorage tokens for incognito mode
-    // (cookies with SameSite=None are blocked in incognito on cross-site requests)
+    // Add JWT token to Authorization header (works in all browsers including incognito)
     const accessToken = localStorage.getItem('access_token')
     if (accessToken) {
       config.headers.Authorization = `Bearer ${accessToken}`
@@ -74,13 +72,13 @@ api.interceptors.response.use(
       originalRequest._retry = true
 
       try {
-        // Try to refresh using localStorage tokens as fallback for incognito mode
+        // Try to refresh using localStorage refresh token
         const refreshToken = localStorage.getItem('refresh_token')
         const payload = refreshToken ? { refresh_token: refreshToken } : {}
 
         const response = await api.post('/api/auth/refresh', payload)
 
-        // If refresh succeeds, update localStorage tokens if provided
+        // Update localStorage with new tokens
         if (response.status === 200 && response.data.session) {
           if (response.data.session.access_token) {
             localStorage.setItem('access_token', response.data.session.access_token)
@@ -91,7 +89,7 @@ api.interceptors.response.use(
           return api(originalRequest)
         }
       } catch (refreshError) {
-        // Clear localStorage tokens on refresh failure
+        // Clear localStorage on refresh failure
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
         localStorage.removeItem('user')
@@ -164,6 +162,47 @@ export const lmsAPI = {
 
   // Get grade sync status (admin only)
   getGradeSyncStatus: () => api.get('/api/lms/grade-sync/status'),
+}
+
+// Parent Dashboard API methods
+export const parentAPI = {
+  // Get list of linked students (children)
+  getMyChildren: () => api.get('/api/parents/my-children'),
+
+  // Get dashboard data for a specific student
+  getDashboard: (studentId) => api.get(`/api/parent/dashboard/${studentId}`),
+
+  // Get calendar data for a specific student
+  getCalendar: (studentId) => api.get(`/api/parent/calendar/${studentId}`),
+
+  // Get progress/XP breakdown by pillar for a student
+  getProgress: (studentId) => api.get(`/api/parent/progress/${studentId}`),
+
+  // Get learning insights and analytics for a student
+  getInsights: (studentId) => api.get(`/api/parent/insights/${studentId}`),
+
+  // Upload evidence on behalf of student (requires student approval)
+  uploadEvidence: (studentId, taskId, formData) =>
+    api.post(`/api/parent/evidence/${studentId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
+
+  // Get AI tutor conversations for monitoring (Communications tab)
+  getTutorConversations: (studentId) => api.get(`/api/tutor/parent/conversations/${studentId}`),
+
+  // Get specific conversation messages
+  getConversationMessages: (conversationId) => api.get(`/api/tutor/parent/conversations/${conversationId}/messages`),
+
+  // Get safety reports for student
+  getSafetyReports: (studentId) => api.get(`/api/tutor/parent/safety-reports/${studentId}`),
+
+  // Get parent monitoring settings
+  getSettings: (studentId) => api.get(`/api/tutor/parent/settings/${studentId}`),
+
+  // Update parent monitoring settings
+  updateSettings: (studentId, settings) => api.put(`/api/tutor/parent/settings/${studentId}`, settings),
 }
 
 export default api

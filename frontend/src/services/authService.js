@@ -88,27 +88,17 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // Store tokens in localStorage as fallback for incognito mode
-      // Incognito browsers block SameSite=None cookies on cross-site requests
-      // Tokens can be at top level or nested in session object
+      // Store tokens in localStorage for Authorization header authentication
+      // Works in all browsers including incognito mode
       const accessToken = response.data.access_token || response.data.session?.access_token
       const refreshToken = response.data.refresh_token || response.data.session?.refresh_token
-
-      console.log('[AuthService] Token storage:', {
-        hasAccessToken: !!accessToken,
-        hasRefreshToken: !!refreshToken,
-        accessTokenLength: accessToken?.length,
-        responseKeys: Object.keys(response.data)
-      })
 
       if (accessToken && refreshToken) {
         localStorage.setItem('access_token', accessToken)
         localStorage.setItem('refresh_token', refreshToken)
-      } else {
-        console.warn('[AuthService] No tokens to store!', { accessToken, refreshToken })
       }
 
-      // Store user data for quick access (not sensitive data)
+      // Store user data for quick access (non-sensitive only)
       if (this.user) {
         localStorage.setItem('user', JSON.stringify(this.user))
       }
@@ -144,14 +134,13 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // Store tokens for incognito mode fallback
-      if (response.data.session) {
-        if (response.data.session.access_token) {
-          localStorage.setItem('access_token', response.data.session.access_token)
-        }
-        if (response.data.session.refresh_token) {
-          localStorage.setItem('refresh_token', response.data.session.refresh_token)
-        }
+      // Store tokens for Authorization header authentication
+      const accessToken = response.data.access_token || response.data.session?.access_token
+      const refreshToken = response.data.refresh_token || response.data.session?.refresh_token
+
+      if (accessToken && refreshToken) {
+        localStorage.setItem('access_token', accessToken)
+        localStorage.setItem('refresh_token', refreshToken)
       }
 
       // Store user data for quick access
@@ -182,10 +171,8 @@ class AuthService {
       this.isAuthenticated = false
       this.csrfToken = null
 
-      // Clear user data from localStorage
+      // Clear localStorage data
       localStorage.removeItem('user')
-
-      // Clear any legacy tokens
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
 

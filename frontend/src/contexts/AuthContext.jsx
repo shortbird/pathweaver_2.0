@@ -61,8 +61,7 @@ export const AuthProvider = ({ children }) => {
       const response = await api.post('/api/auth/login', { email, password })
       const { user: loginUser, session: loginSession, access_token, refresh_token } = response.data
 
-      // Store tokens in localStorage for incognito mode fallback
-      // Incognito browsers block SameSite=None cookies
+      // Store tokens in localStorage for Authorization header authentication
       if (access_token && refresh_token) {
         localStorage.setItem('access_token', access_token)
         localStorage.setItem('refresh_token', refresh_token)
@@ -139,7 +138,7 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (session) {
-        // Store tokens in localStorage for incognito mode fallback
+        // Store tokens in localStorage for Authorization header authentication
         if (access_token && refresh_token) {
           localStorage.setItem('access_token', access_token)
           localStorage.setItem('refresh_token', refresh_token)

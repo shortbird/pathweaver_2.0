@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams } from 'react-router-dom';
-import api from '../services/api';
+import { parentAPI } from '../services/api';
 import {
   CheckCircleIcon,
   ExclamationTriangleIcon,
@@ -30,7 +30,7 @@ const ParentDashboardPage = () => {
   useEffect(() => {
     const loadChildren = async () => {
       try {
-        const response = await api.get('/parents/my-children');
+        const response = await parentAPI.getMyChildren();
         setChildren(response.data.children || []);
 
         // Auto-select first child if none selected
@@ -57,10 +57,10 @@ const ParentDashboardPage = () => {
       try {
         // Load all data in parallel
         const [dashboard, calendar, progress, insights] = await Promise.all([
-          api.get(`/parent/dashboard/${selectedStudentId}`),
-          api.get(`/parent/calendar/${selectedStudentId}`),
-          api.get(`/parent/progress/${selectedStudentId}`),
-          api.get(`/parent/insights/${selectedStudentId}`)
+          parentAPI.getDashboard(selectedStudentId),
+          parentAPI.getCalendar(selectedStudentId),
+          parentAPI.getProgress(selectedStudentId),
+          parentAPI.getInsights(selectedStudentId)
         ]);
 
         setDashboardData(dashboard.data);

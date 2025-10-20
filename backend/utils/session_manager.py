@@ -18,16 +18,17 @@ class SessionManager:
         self.access_token_expiry = timedelta(minutes=15)  # Short-lived access token
         self.refresh_token_expiry = timedelta(days=7)  # Longer-lived refresh token
 
-        # Check if we're on Render (both dev and prod environments need secure cookies for cross-origin)
+        # Detect cross-origin deployment (frontend and backend on different domains)
         frontend_url = os.getenv('FRONTEND_URL', '')
+        backend_url = os.getenv('BACKEND_URL', request.host_url if request else '')
         is_on_render = 'onrender.com' in frontend_url
         is_production = os.getenv('FLASK_ENV') == 'production'
 
-        # Use secure cookies for both production and Render dev environment
+        # Cross-origin means different domains - cookies with SameSite=None are blocked in incognito
+        self.is_cross_origin = is_on_render or is_production
+
+        # Cookie settings (for same-origin deployments only)
         self.cookie_secure = is_production or is_on_render
-        # MUST use None for cross-site requests (frontend and backend on different domains)
-        # SameSite=Lax won't work for cross-origin API calls
-        # Note: This requires secure=True and will be blocked in some incognito modes
         self.cookie_samesite = 'None' if (is_production or is_on_render) else 'Lax'
         
     def generate_access_token(self, user_id: str) -> str:
@@ -106,25 +107,27 @@ class SessionManager:
         return response
     
     def get_current_user_id(self) -> Optional[str]:
-        """Get current user ID from cookie or Authorization header"""
-        # First try to get from cookie
+        """Get current user ID from Authorization header or cookie"""
+        # Prioritize Authorization header (works in all browsers including incognito)
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            access_token = auth_header.replace('Bearer ', '')
+            payload = self.verify_access_token(access_token)
+            if payload:
+                return payload.get('user_id')
+
+        # Fallback to cookie for same-origin deployments
         access_token = request.cookies.get('access_token')
-
-        # Fallback to Authorization header for backward compatibility
-        if not access_token:
-            auth_header = request.headers.get('Authorization', '')
-            if auth_header.startswith('Bearer '):
-                access_token = auth_header.replace('Bearer ', '')
-
         if not access_token:
             return None
 
         payload = self.verify_access_token(access_token)
         return payload.get('user_id') if payload else None
     
-    def refresh_session(self) -> Optional[tuple]:
-        """Refresh the session using refresh token"""
-        refresh_token = request.cookies.get('refresh_token')
+    def refresh_session(self, refresh_token_override: Optional[str] = None) -> Optional[tuple]:
+        """Refresh the session using refresh token from cookie or request body"""
+        # Allow refresh token to be passed in request body for cross-origin
+        refresh_token = refresh_token_override or request.cookies.get('refresh_token')
 
         if not refresh_token:
             return None

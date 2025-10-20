@@ -504,24 +504,21 @@ def login():
             # Extract session data
             session_data = auth_response.session.model_dump() if auth_response.session else {}
 
-            # Generate custom JWT tokens for incognito mode fallback
-            # These are the SAME tokens that get set in httpOnly cookies
+            # Generate custom JWT tokens for Authorization header authentication
             custom_access_token = session_manager.generate_access_token(auth_response.user.id)
             custom_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
 
             response_data = {
                 'user': user_response_data,
                 'session': session_data,
-                # Include CUSTOM JWT tokens at top level for incognito mode fallback
-                # Incognito browsers block SameSite=None cookies
-                # These match the tokens set in httpOnly cookies
+                # Include JWT tokens for Authorization header authentication
+                # Works in all browsers including incognito mode
                 'access_token': custom_access_token,
                 'refresh_token': custom_refresh_token
             }
             response = make_response(jsonify(response_data), 200)
 
-            # Set secure httpOnly cookies for new sessions (preferred method)
-            # These will work in normal browsing but may be blocked in incognito
+            # Also set httpOnly cookies for same-origin deployments
             session_manager.set_auth_cookies(response, auth_response.user.id)
 
             return response
@@ -582,48 +579,19 @@ def logout():
 
 @bp.route('/refresh', methods=['POST'])
 def refresh_token():
-    # Try to refresh using httpOnly cookies first
-    refresh_result = session_manager.refresh_session()
-
-    if refresh_result:
-        new_access_token, new_refresh_token, user_id = refresh_result
-
-        # Create response with new tokens for incognito mode fallback
-        response = make_response(jsonify({
-            'message': 'Tokens refreshed successfully',
-            'access_token': new_access_token,
-            'refresh_token': new_refresh_token,
-            'session': {
-                'access_token': new_access_token,
-                'refresh_token': new_refresh_token
-            }
-        }), 200)
-
-        # Set new secure cookies
-        session_manager.set_auth_cookies(response, user_id)
-
-        return response
-
-    # Fallback to localStorage refresh token for incognito mode
+    # Try to get refresh token from request body (primary method for cross-origin)
     data = request.json if request.json else {}
     refresh_token_input = data.get('refresh_token')
 
-    if not refresh_token_input:
-        return jsonify({'error': 'No refresh token provided'}), 401
+    # Use session manager with override if provided
+    refresh_result = session_manager.refresh_session(refresh_token_override=refresh_token_input)
 
-    # Verify the custom JWT refresh token
-    payload = session_manager.verify_refresh_token(refresh_token_input)
-    if not payload:
+    if not refresh_result:
         return jsonify({'error': 'Invalid or expired refresh token'}), 401
 
-    user_id = payload.get('user_id')
-    if not user_id:
-        return jsonify({'error': 'Invalid refresh token'}), 401
+    new_access_token, new_refresh_token, user_id = refresh_result
 
-    # Generate new custom JWT tokens
-    new_access_token = session_manager.generate_access_token(user_id)
-    new_refresh_token = session_manager.generate_refresh_token(user_id)
-
+    # Return tokens in response body for Authorization header authentication
     response = make_response(jsonify({
         'message': 'Tokens refreshed successfully',
         'access_token': new_access_token,
@@ -634,7 +602,7 @@ def refresh_token():
         }
     }), 200)
 
-    # Set cookies for those browsers that support them
+    # Also set httpOnly cookies for same-origin deployments
     session_manager.set_auth_cookies(response, user_id)
 
     return response
