@@ -23,30 +23,40 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
 
     Special case: Admin users can view their own student data for demo purposes.
     """
-    # Get user role
-    user_response = supabase.table('users').select('role').eq('id', parent_user_id).execute()
-    if not user_response.data:
-        raise AuthorizationError("User not found")
+    try:
+        # Allow admin to view their own data (skip database query if IDs match)
+        if parent_user_id == student_user_id:
+            # Quick check: verify user is admin
+            user_response = supabase.table('users').select('role').eq('id', parent_user_id).single().execute()
+            if user_response.data and user_response.data.get('role') == 'admin':
+                return True
 
-    user_role = user_response.data[0].get('role')
+        # Get user role for non-self access
+        user_response = supabase.table('users').select('role').eq('id', parent_user_id).single().execute()
+        if not user_response.data:
+            raise AuthorizationError("User not found")
 
-    # Allow admin to view their own data (admin acting as both parent and student)
-    if user_role == 'admin' and parent_user_id == student_user_id:
+        user_role = user_response.data.get('role')
+
+        # Verify parent role for non-admin users
+        if user_role != 'parent':
+            raise AuthorizationError("Only parent accounts can access this endpoint")
+
+        # Verify active link for parent users
+        link_response = supabase.table('parent_student_links').select('id').eq(
+            'parent_user_id', parent_user_id
+        ).eq('student_user_id', student_user_id).eq('status', 'active').limit(1).execute()
+
+        if not link_response.data:
+            raise AuthorizationError("You do not have access to this student's data")
+
         return True
 
-    # Verify parent role for non-admin users
-    if user_role != 'parent':
-        raise AuthorizationError("Only parent accounts can access this endpoint")
-
-    # Verify active link for parent users
-    link_response = supabase.table('parent_student_links').select('id').eq(
-        'parent_user_id', parent_user_id
-    ).eq('student_user_id', student_user_id).eq('status', 'active').execute()
-
-    if not link_response.data:
-        raise AuthorizationError("You do not have access to this student's data")
-
-    return True
+    except AuthorizationError:
+        raise
+    except Exception as e:
+        logger.error(f"Error in verify_parent_access: {str(e)}")
+        raise AuthorizationError("Failed to verify parent access")
 
 
 @bp.route('/dashboard/<student_id>', methods=['GET'])
