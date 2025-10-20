@@ -33,13 +33,8 @@ const SubscriptionPage = () => {
         <div className="text-center mb-12">
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">Choose Your Learning Rhythm</h2>
           <p className="text-lg text-gray-700 max-w-3xl mx-auto">
-            Start with a diploma. Make it valuable through real work.
+            Select the support level that best fits your educational journey.
           </p>
-          {user && (
-            <p className="text-sm text-gray-600 mt-4">
-              Current tier: <span className="font-semibold text-purple-600">{currentTier}</span>
-            </p>
-          )}
         </div>
 
         {tiersLoading ? (
