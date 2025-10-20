@@ -344,20 +344,6 @@ def complete_task(user_id: str, task_id: str):
 
             # Completion bonus removed in Phase 1 refactoring (January 2025)
             # Users now only receive XP from individual task completions
-                
-                # Return response with or without bonus
-                return jsonify({
-                    'success': True,
-                    'message': f'Task completed! Earned {final_xp} XP. Quest fully completed!' + 
-                              (f' Bonus {bonus_xp} XP awarded!' if bonus_awarded else ' (Bonus XP award pending)'),
-                    'xp_awarded': final_xp,
-                    'completion_bonus': bonus_xp if bonus_awarded else 0,
-                    'has_collaboration_bonus': has_collaboration,
-                    'quest_completed': quest_completed,
-                    'all_tasks_completed': True,
-                    'bonus_awarded': bonus_awarded,
-                    'completion': completion.data[0]
-                })
         else:
             quest_completed = False
         
