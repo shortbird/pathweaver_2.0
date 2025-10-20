@@ -125,7 +125,8 @@ const ParentDashboardPage = () => {
     loadDashboardData();
   }, [selectedStudentId, children.length]);
 
-  if (!user || user.role !== 'parent') {
+  // Allow parent and admin roles to access the dashboard
+  if (!user || (user.role !== 'parent' && user.role !== 'admin')) {
     return (
       <div className="max-w-7xl mx-auto px-4 py-12 text-center">
         <ExclamationTriangleIcon className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -286,6 +287,15 @@ const ParentDashboardPage = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Admin Demo Mode Notice */}
+      {user.role === 'admin' && (
+        <div className="mb-6 bg-blue-50 border-2 border-blue-200 rounded-lg p-4">
+          <p className="text-blue-900 font-semibold text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            Admin Demo Mode: You're viewing your own student data as a demo parent. This allows you to demonstrate parent dashboard features without switching accounts.
+          </p>
+        </div>
+      )}
+
       {/* Header with Child Selector */}
       <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div>

@@ -388,14 +388,40 @@ def get_linked_children(user_id):
     """
     Get all children linked to this parent account.
     Returns list of active student connections.
+
+    Special case: Admin users see themselves as a "child" for demo purposes.
     """
     try:
         supabase = get_supabase_admin_client()
 
         # Get user role
-        user_response = supabase.table('users').select('role').eq('id', user_id).execute()
+        user_response = supabase.table('users').select('role, first_name, last_name, avatar_url, level, total_xp').eq('id', user_id).execute()
 
-        if not user_response.data or user_response.data[0].get('role') != 'parent':
+        if not user_response.data:
+            raise AuthorizationError("User not found")
+
+        user = user_response.data[0]
+        user_role = user.get('role')
+
+        # Special case: Admin users see themselves as a demo "child"
+        if user_role == 'admin':
+            return jsonify({
+                'children': [{
+                    'link_id': 'admin-self-link',
+                    'student_id': user_id,
+                    'first_name': user.get('first_name'),
+                    'last_name': user.get('last_name'),
+                    'avatar_url': user.get('avatar_url'),
+                    'level': user.get('level', 0),
+                    'total_xp': user.get('total_xp', 0),
+                    'approved_at': datetime.utcnow().isoformat(),
+                    'linked_since': datetime.utcnow().isoformat(),
+                    'is_demo': True
+                }]
+            }), 200
+
+        # Verify parent role for non-admin users
+        if user_role != 'parent':
             raise AuthorizationError("Only parent accounts can access this endpoint")
 
         # Get all active links

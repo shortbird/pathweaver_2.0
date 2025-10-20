@@ -20,13 +20,25 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
     """
     Helper function to verify parent has active access to student.
     IMPORTANT: Accepts supabase client to avoid connection exhaustion.
+
+    Special case: Admin users can view their own student data for demo purposes.
     """
-    # Verify parent role
+    # Get user role
     user_response = supabase.table('users').select('role').eq('id', parent_user_id).execute()
-    if not user_response.data or user_response.data[0].get('role') != 'parent':
+    if not user_response.data:
+        raise AuthorizationError("User not found")
+
+    user_role = user_response.data[0].get('role')
+
+    # Allow admin to view their own data (admin acting as both parent and student)
+    if user_role == 'admin' and parent_user_id == student_user_id:
+        return True
+
+    # Verify parent role for non-admin users
+    if user_role != 'parent':
         raise AuthorizationError("Only parent accounts can access this endpoint")
 
-    # Verify active link
+    # Verify active link for parent users
     link_response = supabase.table('parent_student_links').select('id').eq(
         'parent_user_id', parent_user_id
     ).eq('student_user_id', student_user_id).eq('status', 'active').execute()
