@@ -730,7 +730,6 @@ const MultiFormatEvidenceEditor = forwardRef(({
             </div>
           )}
         </div>
-        </div>
       </div>
 
       {/* Evidence Blocks */}
