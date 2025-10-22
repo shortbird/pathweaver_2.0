@@ -295,27 +295,14 @@ const QuestDetail = () => {
 
         {/* Content */}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-          {/* Header Bar with Back Button and Finish Quest */}
-          <div className="flex items-center justify-between mb-6">
-            <button
-              onClick={() => navigate('/dashboard')}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-full hover:shadow-lg transition-all font-semibold"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              BACK
-            </button>
-
-            {quest.user_enrollment && !isQuestCompleted && (
-              <button
-                onClick={handleEndQuest}
-                disabled={endQuestMutation.isPending}
-                className="px-6 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-                style={{ fontFamily: 'Poppins' }}
-              >
-                {endQuestMutation.isPending ? 'Finishing...' : 'FINISH QUEST'}
-              </button>
-            )}
-          </div>
+          {/* Back Button */}
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-full hover:shadow-lg transition-all font-semibold mb-6"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            BACK
+          </button>
 
           {/* Quest Title and Description */}
           <div className="max-w-2xl mb-6">
@@ -378,7 +365,7 @@ const QuestDetail = () => {
               </div>
 
               {/* Stats Row */}
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 mb-3">
                 <div className="px-4 py-2 bg-green-50 border-2 border-green-200 rounded-lg text-center">
                   <div className="text-xl font-bold text-green-700" style={{ fontFamily: 'Poppins' }}>{completedTasks}</div>
                   <div className="text-xs text-green-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Completed</div>
@@ -396,6 +383,18 @@ const QuestDetail = () => {
                   <div className="text-xs text-gray-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Tasks</div>
                 </div>
               </div>
+
+              {/* Finish Quest Button - Left-aligned below stats */}
+              {quest.user_enrollment && !isQuestCompleted && (
+                <button
+                  onClick={handleEndQuest}
+                  disabled={endQuestMutation.isPending}
+                  className="px-6 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  {endQuestMutation.isPending ? 'Finishing...' : 'FINISH QUEST'}
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -469,7 +468,7 @@ const QuestDetail = () => {
                       style={{
                         background: task.is_completed
                           ? pillarData.color
-                          : `linear-gradient(to right, #ffffff 0%, ${pillarData.color} 100%)`
+                          : `linear-gradient(to right, #ffffff 0%, ${pillarData.color}15 100%)`
                       }}
                     >
                       {/* Task Content */}
@@ -502,7 +501,7 @@ const QuestDetail = () => {
                         {/* Middle Section - Task Title */}
                         <div className="flex-1 flex items-center justify-center px-2">
                           <h3
-                            className="text-sm font-bold text-center leading-tight"
+                            className="text-base font-bold text-center leading-tight uppercase"
                             style={{
                               fontFamily: 'Poppins',
                               color: task.is_completed ? 'white' : '#333'

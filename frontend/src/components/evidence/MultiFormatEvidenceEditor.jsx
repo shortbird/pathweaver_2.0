@@ -679,40 +679,41 @@ const MultiFormatEvidenceEditor = ({
 
   return (
     <div className="max-w-4xl mx-auto">
-      {/* Header with save status */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <h3 className="text-lg font-semibold text-gray-900">Evidence Document</h3>
-          <div className="flex items-center gap-2 text-sm">
-            {saveStatus === 'saving' && (
-              <>
-                <div className="w-4 h-4 border-2 border-[#6d469b] border-t-transparent rounded-full animate-spin"></div>
-                <span className="text-gray-600">Saving...</span>
-              </>
-            )}
-            {saveStatus === 'saved' && (
-              <>
-                <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <span className="text-green-600">Saved</span>
-                {lastSaved && (
-                  <span className="text-gray-500">
-                    {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
-              </>
-            )}
-            {saveStatus === 'unsaved' && (
-              <>
-                <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
-                <span className="text-orange-600">Unsaved changes</span>
-              </>
-            )}
+      {/* Header with save status and add content options */}
+      <div className="mb-6">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-semibold text-gray-900">Evidence Document</h3>
+            <div className="flex items-center gap-2 text-sm">
+              {saveStatus === 'saving' && (
+                <>
+                  <div className="w-4 h-4 border-2 border-[#6d469b] border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-gray-600">Saving...</span>
+                </>
+              )}
+              {saveStatus === 'saved' && (
+                <>
+                  <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-green-600">Saved</span>
+                  {lastSaved && (
+                    <span className="text-gray-500">
+                      {lastSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  )}
+                </>
+              )}
+              {saveStatus === 'unsaved' && (
+                <>
+                  <div className="w-2 h-2 bg-orange-400 rounded-full"></div>
+                  <span className="text-orange-600">Unsaved changes</span>
+                </>
+              )}
+            </div>
           </div>
-        </div>
 
-        <div className="flex gap-2">
+          <div className="flex gap-2">
           <button
             onClick={handleManualSave}
             disabled={isLoading || saveStatus === 'saving'}
@@ -743,22 +744,9 @@ const MultiFormatEvidenceEditor = ({
             </div>
           )}
         </div>
-      </div>
+        </div>
 
-      {/* Evidence Blocks */}
-      <DragDropContext onDragEnd={handleDragEnd}>
-        <Droppable droppableId="evidence-blocks">
-          {(provided) => (
-            <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
-              {blocks.map((block, index) => renderBlock(block, index))}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
-      </DragDropContext>
-
-      {/* Content Block Options - Direct Display */}
-      <div className="mt-6">
+        {/* Content Block Options - Moved to header */}
         <div className="bg-white border border-gray-200 rounded-xl p-4">
           <h4 className="text-sm font-semibold text-gray-700 mb-3">Add Content Block</h4>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
@@ -780,6 +768,18 @@ const MultiFormatEvidenceEditor = ({
           </div>
         </div>
       </div>
+
+      {/* Evidence Blocks */}
+      <DragDropContext onDragEnd={handleDragEnd}>
+        <Droppable droppableId="evidence-blocks">
+          {(provided) => (
+            <div {...provided.droppableProps} ref={provided.innerRef} className="space-y-4">
+              {blocks.map((block, index) => renderBlock(block, index))}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
+      </DragDropContext>
 
       {/* Hidden file input */}
       <input
