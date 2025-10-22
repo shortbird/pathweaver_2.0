@@ -50,16 +50,21 @@ SCHOOL_SUBJECT_DESCRIPTIONS = {
 
 # Default subject mappings based on pillar (for migration/suggestions)
 PILLAR_TO_SUBJECTS = {
+    # Current pillar names (January 2025)
+    'art': ['fine_arts'],
+    'stem': ['math', 'science'],
+    'wellness': ['health', 'pe'],
+    'communication': ['language_arts'],
+    'civics': ['social_studies'],
+    # Legacy pillar mappings (for backward compatibility)
     'arts_creativity': ['fine_arts'],
     'stem_logic': ['math', 'science'],
     'life_wellness': ['health', 'pe'],
     'language_communication': ['language_arts'],
     'society_culture': ['social_studies'],
-    # Legacy pillar mappings
     'creativity': ['fine_arts'],
     'critical_thinking': ['math', 'science'],
     'practical_skills': ['health', 'pe'],
-    'communication': ['language_arts'],
     'cultural_literacy': ['social_studies']
 }
 

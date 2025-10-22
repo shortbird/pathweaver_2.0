@@ -1,31 +1,14 @@
 """
-Utility functions for handling the new subject-aligned pillar system.
+Utility functions for handling the pillar system.
+Updated January 2025: Simplified to single-word pillar names
 """
 
-# Old to new pillar mapping
-PILLAR_MIGRATION_MAP = {
-    'creativity': 'arts_creativity',
-    'critical_thinking': 'stem_logic',
-    'practical_skills': 'life_wellness',
-    'communication': 'language_communication',
-    'cultural_literacy': 'society_culture'
-}
-
-# Reverse mapping for database storage (database constraint only accepts old names)
-NEW_TO_OLD_PILLAR_MAP = {
-    'arts_creativity': 'creativity',
-    'stem_logic': 'critical_thinking', 
-    'life_wellness': 'practical_skills',
-    'language_communication': 'communication',
-    'society_culture': 'cultural_literacy'
-}
-
-# New pillar definitions
+# New single-word pillar definitions
 PILLARS = {
-    'arts_creativity': {
-        'name': 'Arts & Creativity',
+    'art': {
+        'name': 'Art',
         'description': 'Original creation, artistic expression, innovation',
-        'color': '#ef597b',  # Pink
+        'color': '#AF56E5',  # Purple
         'icon': 'palette',
         'subcategories': [
             'Visual Arts',
@@ -36,10 +19,10 @@ PILLARS = {
             'Design'
         ]
     },
-    'stem_logic': {
-        'name': 'STEM & Logic',
+    'stem': {
+        'name': 'STEM',
         'description': 'Analysis, problem-solving, technical skills, research',
-        'color': '#4A90E2',  # Blue
+        'color': '#2469D1',  # Blue
         'icon': 'flask',
         'subcategories': [
             'Mathematics',
@@ -51,10 +34,10 @@ PILLARS = {
             'Data Science'
         ]
     },
-    'language_communication': {
-        'name': 'Language & Communication',
+    'communication': {
+        'name': 'Communication',
         'description': 'Expression, connection, teaching, sharing ideas',
-        'color': '#50C878',  # Green
+        'color': '#3DA24A',  # Green
         'icon': 'message-circle',
         'subcategories': [
             'English',
@@ -65,10 +48,10 @@ PILLARS = {
             'Literature'
         ]
     },
-    'society_culture': {
-        'name': 'Society & Culture',
+    'civics': {
+        'name': 'Civics',
         'description': 'Understanding context, community impact, global awareness',
-        'color': '#FFB347',  # Orange
+        'color': '#FF9028',  # Orange
         'icon': 'globe',
         'subcategories': [
             'History',
@@ -80,10 +63,10 @@ PILLARS = {
             'Sociology'
         ]
     },
-    'life_wellness': {
-        'name': 'Life & Wellness',
+    'wellness': {
+        'name': 'Wellness',
         'description': 'Physical activity, practical skills, personal development',
-        'color': '#6d469b',  # Purple
+        'color': '#E65C5C',  # Red
         'icon': 'heart',
         'subcategories': [
             'Physical Education',
@@ -115,50 +98,6 @@ def get_pillar_subcategories(pillar_key):
     """Get subcategories for a pillar."""
     info = get_pillar_info(pillar_key)
     return info.get('subcategories', [])
-
-def migrate_old_pillar(old_pillar):
-    """Convert old pillar value to new."""
-    return PILLAR_MIGRATION_MAP.get(old_pillar, old_pillar)
-
-def normalize_pillar_key(pillar_input):
-    """
-    Normalize pillar input to a valid pillar key.
-    Handles display names, old keys, and variations.
-    """
-    if not pillar_input:
-        return None
-    
-    # First check if it's already a valid key
-    if pillar_input in PILLARS:
-        return pillar_input
-    
-    # Try migrating old pillar
-    migrated = migrate_old_pillar(pillar_input)
-    if migrated in PILLARS:
-        return migrated
-    
-    # Create reverse mapping from display names to keys
-    name_to_key = {info['name']: key for key, info in PILLARS.items()}
-    
-    # Check if it's a display name
-    if pillar_input in name_to_key:
-        return name_to_key[pillar_input]
-    
-    # Try case-insensitive matching for display names
-    pillar_lower = pillar_input.lower()
-    for name, key in name_to_key.items():
-        if name.lower() == pillar_lower:
-            return key
-    
-    # Return the original input if no match found
-    return pillar_input
-
-def get_database_pillar_key(pillar_key):
-    """
-    Convert new pillar key to old pillar key for database storage.
-    The database constraint only accepts old pillar names.
-    """
-    return NEW_TO_OLD_PILLAR_MAP.get(pillar_key, pillar_key)
 
 def is_valid_pillar(pillar_key):
     """Check if a pillar key is valid."""
@@ -210,18 +149,18 @@ def calculate_mastery_level(total_xp):
 def get_xp_for_next_level(current_xp):
     """Get XP required for next level."""
     level = calculate_mastery_level(current_xp)
-    
+
     # XP thresholds for each level
     thresholds = [
         500, 1500, 3500, 7000, 12500, 20000,
         30000, 45000, 65000, 90000, 120000, 160000
     ]
-    
+
     if level <= 12:
         next_threshold = thresholds[level - 1] if level <= len(thresholds) else None
         if next_threshold:
             return next_threshold - current_xp
-    
+
     # For levels 13+
     next_level = level + 1
     next_threshold = 160000 + ((next_level - 13) * 40000)
@@ -232,7 +171,7 @@ def format_pillar_for_frontend(pillar_key):
     info = get_pillar_info(pillar_key)
     if not info:
         return None
-        
+
     return {
         'key': pillar_key,
         'name': info['name'],

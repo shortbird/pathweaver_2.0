@@ -6,7 +6,8 @@ Handles XP calculations with collaboration bonuses and audit trails.
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 from database import get_supabase_admin_client
-from utils.pillar_utils import migrate_old_pillar, is_valid_pillar, normalize_pillar_key, get_database_pillar_key
+from utils.pillar_utils import is_valid_pillar
+from utils.pillar_mapping import normalize_pillar_name
 import json
 
 class XPService:
@@ -63,30 +64,19 @@ class XPService:
         print(f"User: {user_id}, Pillar: {pillar}, Amount: {xp_amount}, Source: {source}")
         
         # Normalize pillar input (handles display names, old keys, etc.)
+        # Updated January 2025: New single-word pillar names
         original_pillar = pillar
-        
-        # Handle pillar key normalization - we need to store in DB using new keys
-        # Map old pillar keys to new pillar keys for database storage
-        pillar_mapping = {
-            'creativity': 'arts_creativity',
-            'critical_thinking': 'stem_logic',
-            'practical_skills': 'life_wellness',
-            'communication': 'language_communication',
-            'cultural_literacy': 'society_culture',
-            'arts_creativity': 'arts_creativity',
-            'stem_logic': 'stem_logic',
-            'life_wellness': 'life_wellness',
-            'language_communication': 'language_communication',
-            'society_culture': 'society_culture'
-        }
 
-        # For database storage, we use new pillar keys
-        db_pillar = pillar_mapping.get(pillar, pillar)
-        print(f"Mapped pillar from '{original_pillar}' to database key '{db_pillar}' for storage")
+        try:
+            # Normalize to new single-word format (art, stem, communication, civics, wellness)
+            db_pillar = normalize_pillar_name(pillar)
+            print(f"Mapped pillar from '{original_pillar}' to database key '{db_pillar}' for storage")
+        except ValueError as e:
+            print(f"[ERROR] Invalid pillar name: {pillar} - {str(e)}")
+            return False
 
         # Validate that we have a valid pillar for storage
-        valid_storage_pillars = ['arts_creativity', 'stem_logic', 'life_wellness',
-                               'language_communication', 'society_culture']
+        valid_storage_pillars = ['art', 'stem', 'wellness', 'communication', 'civics']
         if db_pillar not in valid_storage_pillars:
             print(f"[ERROR] Invalid pillar for database storage: {db_pillar}")
             return False

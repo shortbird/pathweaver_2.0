@@ -225,7 +225,7 @@ frontend/src/
 - id (UUID, PK)
 - quest_id (FK to quests)
 - title, description
-- pillar (STEM & Logic, Life & Wellness, Language & Communication, Society & Culture, Arts & Creativity)
+- pillar (stem, wellness, communication, civics, art) ← **UPDATED January 2025: Simplified to single-word names**
 - xp_value (XP for completing this task)
 - order_index, is_required
 - created_at, updated_at
@@ -259,7 +259,7 @@ frontend/src/
 **badges** (Achievement badges)
 - id (UUID, PK)
 - name, description, identity_statement
-- pillar_primary (STEM & Logic, Life & Wellness, etc.)
+- pillar_primary (stem, wellness, communication, civics, art) ← **UPDATED January 2025**
 - min_quests, min_xp (requirements to earn badge)
 - image_url (auto-fetched from Pexels API with teen-focused images)
 - image_generated_at, image_generation_status
@@ -592,7 +592,7 @@ frontend/src/
 ### XP System & Skill Progression
 - **XP Per Task**: Each task has individual XP value based on difficulty and pillar
 - **Completion Bonus**: 50% bonus XP when completing all tasks in a quest (rounded to nearest 50)
-- **Five Skill Pillars**: STEM & Logic, Life & Wellness, Language & Communication, Society & Culture, Arts & Creativity
+- **Five Skill Pillars**: STEM, Wellness, Communication, Civics, Art ← **UPDATED January 2025: Simplified to single-word names (lowercase keys: stem, wellness, communication, civics, art)**
 - **Achievement Levels**: Explorer (0 XP) → Builder (250 XP) → Creator (750 XP) → Scholar (1,500 XP) → Sage (3,000 XP)
 - **Atomic Updates**: XP stored in user_skill_xp table with race condition prevention
 

@@ -33,10 +33,10 @@ export default {
         // Design System: Pillar colors
         'pillar': {
           'stem': '#2469D1',
-          'arts': '#AF56E5',
+          'art': '#AF56E5',
           'communication': '#3DA24A',
-          'life': '#E65C5C',
-          'society': '#FF9028',
+          'wellness': '#E65C5C',
+          'civics': '#FF9028',
         },
 
         // Design System: Neutral palette
