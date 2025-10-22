@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { X, Award, BookOpen, Info } from 'lucide-react';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import ModalErrorBoundary from '../ModalErrorBoundary';
@@ -8,6 +8,7 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [completionData, setCompletionData] = useState(null);
+  const editorRef = useRef(null);
 
   const handleComplete = (data) => {
     setSuccessMessage(data.message);
@@ -18,7 +19,22 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
     setError(errorMessage);
   };
 
+  const handleAddBlock = (type) => {
+    // This will be called by the evidence editor via ref
+    if (editorRef.current && editorRef.current.addBlock) {
+      editorRef.current.addBlock(type);
+    }
+  };
+
   const pillarData = getPillarData(task.pillar);
+
+  const blockTypes = {
+    text: { icon: '📝', label: 'Text' },
+    image: { icon: '📸', label: 'Image' },
+    video: { icon: '🎥', label: 'Video' },
+    link: { icon: '🔗', label: 'Link' },
+    document: { icon: '📄', label: 'Document' }
+  };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto">
@@ -62,6 +78,35 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
               </div>
             </div>
 
+            {/* Add Content Block Buttons - Right below header */}
+            <div className="px-8 py-4 border-b border-gray-200 bg-gray-50">
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(blockTypes).map(([type, config]) => (
+                  <button
+                    key={type}
+                    onClick={() => handleAddBlock(type)}
+                    className="px-4 py-2 rounded-full border-2 transition-all duration-200 hover:shadow-md bg-white flex items-center gap-2 text-sm font-semibold"
+                    style={{
+                      borderColor: pillarData.color,
+                      color: pillarData.color,
+                      fontFamily: 'Poppins'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = pillarData.color;
+                      e.currentTarget.style.color = 'white';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'white';
+                      e.currentTarget.style.color = pillarData.color;
+                    }}
+                  >
+                    <span>{config.icon}</span>
+                    <span>+ {config.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* Content */}
             <div className="px-8 py-6 space-y-6">
               {/* Description */}
@@ -95,52 +140,6 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
                   })}
                 </div>
               )}
-
-              {/* Instructions */}
-              <div
-                className="border-2 rounded-xl p-6"
-                style={{
-                  backgroundColor: `${pillarData.color}10`,
-                  borderColor: pillarData.color
-                }}
-              >
-                <h4 className="font-bold text-lg mb-3 flex items-center gap-2" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>
-                  <Info className="w-5 h-5" />
-                  How to Use Multi-Format Evidence
-                </h4>
-                <ul className="space-y-2">
-                  <li className="flex items-start">
-                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
-                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Add different types of content:</strong> Mix text, images, videos, links, and documents
-                    </span>
-                  </li>
-                  <li className="flex items-start">
-                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
-                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Build your story:</strong> Document your learning process step by step
-                    </span>
-                  </li>
-                  <li className="flex items-start">
-                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
-                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Auto-save:</strong> Your work is automatically saved as you type
-                    </span>
-                  </li>
-                  <li className="flex items-start">
-                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
-                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Drag to reorder:</strong> Arrange content blocks in any order
-                    </span>
-                  </li>
-                  <li className="flex items-start">
-                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
-                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Mark complete when ready:</strong> Submit your evidence to earn XP
-                    </span>
-                  </li>
-                </ul>
-              </div>
 
               {/* Success Message */}
               {successMessage && (
@@ -188,6 +187,7 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
               {!successMessage && (
                 <div>
                   <MultiFormatEvidenceEditor
+                    ref={editorRef}
                     taskId={task.id}
                     userId={null} // Will be extracted from auth token
                     onComplete={handleComplete}
@@ -196,6 +196,52 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
                   />
                 </div>
               )}
+
+              {/* Instructions - Moved to bottom */}
+              <div
+                className="border-2 rounded-xl p-6"
+                style={{
+                  backgroundColor: `${pillarData.color}10`,
+                  borderColor: pillarData.color
+                }}
+              >
+                <h4 className="font-bold text-lg mb-3 flex items-center gap-2" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>
+                  <Info className="w-5 h-5" />
+                  How to Use Multi-Format Evidence
+                </h4>
+                <ul className="space-y-2">
+                  <li className="flex items-start">
+                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
+                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+                      <strong>Add different types of content:</strong> Mix text, images, videos, links, and documents
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
+                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+                      <strong>Build your story:</strong> Document your learning process step by step
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
+                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+                      <strong>Auto-save:</strong> Your work is automatically saved as you type
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
+                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+                      <strong>Drag to reorder:</strong> Arrange content blocks in any order
+                    </span>
+                  </li>
+                  <li className="flex items-start">
+                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
+                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+                      <strong>Mark complete when ready:</strong> Submit your evidence to earn XP
+                    </span>
+                  </li>
+                </ul>
+              </div>
             </div>
 
             {/* Footer */}

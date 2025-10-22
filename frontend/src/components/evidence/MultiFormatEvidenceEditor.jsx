@@ -1,14 +1,14 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
 
-const MultiFormatEvidenceEditor = ({
+const MultiFormatEvidenceEditor = forwardRef(({
   taskId,
   userId,
   onComplete,
   onError,
   autoSaveEnabled = true
-}) => {
+}, ref) => {
   const [blocks, setBlocks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [lastSaved, setLastSaved] = useState(null);
@@ -275,6 +275,23 @@ const MultiFormatEvidenceEditor = ({
     }
   };
 
+  const getDefaultContent = (type) => {
+    switch (type) {
+      case 'text':
+        return { text: '' };
+      case 'image':
+        return { url: '', alt: '', caption: '' };
+      case 'video':
+        return { url: '', title: '', platform: 'youtube' };
+      case 'link':
+        return { url: '', title: '', description: '' };
+      case 'document':
+        return { url: '', title: '', filename: '' };
+      default:
+        return {};
+    }
+  };
+
   const addBlock = (type, position = blocks.length) => {
     const newBlock = {
       id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -297,22 +314,10 @@ const MultiFormatEvidenceEditor = ({
     setActiveBlock(newBlock.id);
   };
 
-  const getDefaultContent = (type) => {
-    switch (type) {
-      case 'text':
-        return { text: '' };
-      case 'image':
-        return { url: '', alt: '', caption: '' };
-      case 'video':
-        return { url: '', title: '', platform: 'youtube' };
-      case 'link':
-        return { url: '', title: '', description: '' };
-      case 'document':
-        return { url: '', title: '', filename: '' };
-      default:
-        return {};
-    }
-  };
+  // Expose addBlock method to parent component via ref
+  useImperativeHandle(ref, () => ({
+    addBlock
+  }));
 
   const updateBlock = (blockId, newContent) => {
     setBlocks(blocks.map(block =>
@@ -745,28 +750,6 @@ const MultiFormatEvidenceEditor = ({
           )}
         </div>
         </div>
-
-        {/* Content Block Options - Moved to header */}
-        <div className="bg-white border border-gray-200 rounded-xl p-4">
-          <h4 className="text-sm font-semibold text-gray-700 mb-3">Add Content Block</h4>
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-            {Object.entries(blockTypes).map(([type, config]) => (
-              <button
-                key={type}
-                onClick={() => addBlock(type)}
-                className={`
-                  p-3 rounded-lg border-2 transition-all duration-200 hover:shadow-md
-                  ${config.borderColor} ${config.bgColor} border-opacity-50 hover:border-opacity-100
-                `}
-              >
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-2xl">{config.icon}</span>
-                  <span className="text-xs font-medium text-gray-700">{config.label}</span>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
 
       {/* Evidence Blocks */}
@@ -845,6 +828,8 @@ const MultiFormatEvidenceEditor = ({
       )}
     </div>
   );
-};
+});
+
+MultiFormatEvidenceEditor.displayName = 'MultiFormatEvidenceEditor';
 
 export default MultiFormatEvidenceEditor;
