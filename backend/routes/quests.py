@@ -9,7 +9,8 @@ from utils.auth.decorators import require_auth, require_paid_tier
 from utils.source_utils import get_quest_header_image
 from utils.user_sync import ensure_user_exists, get_user_name
 from services.quest_optimization import quest_optimization_service
-from utils.pillar_utils import migrate_old_pillar, get_pillar_name
+from utils.pillar_utils import get_pillar_name
+from utils.pillar_mapping import normalize_pillar_name
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -273,11 +274,14 @@ def get_quest_detail(user_id: str, quest_id: str):
                 if 'diploma_subjects' in task:
                     task['school_subjects'] = task['diploma_subjects']
                 # Normalize pillar to new key format for frontend
-                # Frontend expects keys like 'stem_logic', not display names like 'STEM & Logic'
+                # Frontend expects lowercase keys like 'stem', 'art', etc.
                 if 'pillar' in task:
                     original_pillar = task['pillar']
-                    # Migrate old pillar to new key if needed
-                    pillar_key = migrate_old_pillar(task['pillar'])
+                    # Normalize pillar to new single-word key (handles legacy values)
+                    try:
+                        pillar_key = normalize_pillar_name(task['pillar'])
+                    except ValueError:
+                        pillar_key = 'art'  # Default fallback
                     print(f"[QUEST_DETAIL] Task '{task.get('title')}': DB pillar='{original_pillar}' -> sending key='{pillar_key}' to frontend")
                     task['pillar'] = pillar_key  # Send key, not display name
 

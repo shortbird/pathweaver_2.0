@@ -11,7 +11,7 @@ import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
 from database import get_supabase_admin_client
-from utils.pillar_utils import normalize_pillar_key, get_database_pillar_key
+from utils.pillar_mapping import normalize_pillar_name
 
 class TaskCacheService:
     """Caching service for AI-generated tasks"""
@@ -395,7 +395,7 @@ class PersonalizationService:
 
                 # Convert pillar display name to new pillar key (database accepts both old and new keys)
                 # AI returns display names like "STEM & Logic", we normalize to new keys like 'stem_logic'
-                pillar_key = normalize_pillar_key(pillar_value)
+                pillar_key = normalize_pillar_name(pillar_value)
 
                 # Use the new pillar key directly - database enum accepts both old and new format
                 # No need to convert to old keys anymore
