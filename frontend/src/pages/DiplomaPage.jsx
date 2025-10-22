@@ -40,44 +40,57 @@ const DiplomaPage = () => {
   const hasAccess = hasFeatureAccess(user?.subscription_tier, 'supported');
 
   const pillarColors = {
-    'Arts & Creativity': 'from-[#ef597b] to-[#6d469b]',
-    'STEM & Logic': 'from-[#6d469b] to-[#ef597b]',
-    'Life & Wellness': 'from-[#ef597b] to-[#6d469b]',
-    'Language & Communication': 'from-[#6d469b] to-[#ef597b]',
-    'Society & Culture': 'from-[#ef597b] to-[#6d469b]',
-    // Legacy mappings
-    creativity: 'from-[#ef597b] to-[#6d469b]',
-    critical_thinking: 'from-[#6d469b] to-[#ef597b]',
-    practical_skills: 'from-[#ef597b] to-[#6d469b]',
-    communication: 'from-[#6d469b] to-[#ef597b]',
-    cultural_literacy: 'from-[#ef597b] to-[#6d469b]',
-    // Underscore format mappings for database consistency
-    'arts_creativity': 'from-[#ef597b] to-[#6d469b]',
-    'stem_logic': 'from-[#6d469b] to-[#ef597b]',
-    'life_wellness': 'from-[#ef597b] to-[#6d469b]',
-    'language_communication': 'from-[#6d469b] to-[#ef597b]',
-    'society_culture': 'from-[#ef597b] to-[#6d469b]'
+    // New pillar keys (current)
+    art: 'from-[#AF56E5] to-[#9945D1]',
+    stem: 'from-[#2469D1] to-[#1B4FA3]',
+    wellness: 'from-[#E65C5C] to-[#D14545]',
+    communication: 'from-[#3DA24A] to-[#2E8838]',
+    civics: 'from-[#FF9028] to-[#E67A15]',
+    // Legacy mappings (old multi-word format)
+    'Arts & Creativity': 'from-[#AF56E5] to-[#9945D1]',
+    'STEM & Logic': 'from-[#2469D1] to-[#1B4FA3]',
+    'Life & Wellness': 'from-[#E65C5C] to-[#D14545]',
+    'Language & Communication': 'from-[#3DA24A] to-[#2E8838]',
+    'Society & Culture': 'from-[#FF9028] to-[#E67A15]',
+    // Legacy underscore format mappings
+    'arts_creativity': 'from-[#AF56E5] to-[#9945D1]',
+    'stem_logic': 'from-[#2469D1] to-[#1B4FA3]',
+    'life_wellness': 'from-[#E65C5C] to-[#D14545]',
+    'language_communication': 'from-[#3DA24A] to-[#2E8838]',
+    'society_culture': 'from-[#FF9028] to-[#E67A15]',
+    // Very old legacy mappings
+    creativity: 'from-[#AF56E5] to-[#9945D1]',
+    critical_thinking: 'from-[#2469D1] to-[#1B4FA3]',
+    practical_skills: 'from-[#E65C5C] to-[#D14545]',
+    communication: 'from-[#3DA24A] to-[#2E8838]',
+    cultural_literacy: 'from-[#FF9028] to-[#E67A15]'
   };
 
   // Pillar display names for UI
   const pillarDisplayNames = {
-    'Arts & Creativity': 'Arts & Creativity',
-    'STEM & Logic': 'STEM & Logic',
-    'Life & Wellness': 'Life & Wellness',
-    'Language & Communication': 'Language & Communication',
-    'Society & Culture': 'Society & Culture',
-    // Legacy mappings
-    creativity: 'Arts & Creativity',
-    critical_thinking: 'STEM & Logic',
-    practical_skills: 'Life & Wellness',
-    communication: 'Language & Communication',
-    cultural_literacy: 'Society & Culture',
-    // Underscore format mappings for database consistency
-    'arts_creativity': 'Arts & Creativity',
-    'stem_logic': 'STEM & Logic',
-    'life_wellness': 'Life & Wellness',
-    'language_communication': 'Language & Communication',
-    'society_culture': 'Society & Culture'
+    // New pillar keys (current) - proper capitalization
+    art: 'Art',
+    stem: 'STEM',
+    wellness: 'Wellness',
+    communication: 'Communication',
+    civics: 'Civics',
+    // Legacy mappings (old multi-word format)
+    'Arts & Creativity': 'Art',
+    'STEM & Logic': 'STEM',
+    'Life & Wellness': 'Wellness',
+    'Language & Communication': 'Communication',
+    'Society & Culture': 'Civics',
+    // Legacy underscore format mappings
+    'arts_creativity': 'Art',
+    'stem_logic': 'STEM',
+    'life_wellness': 'Wellness',
+    'language_communication': 'Communication',
+    'society_culture': 'Civics',
+    // Very old legacy mappings
+    creativity: 'Art',
+    critical_thinking: 'STEM',
+    practical_skills: 'Wellness',
+    cultural_literacy: 'Civics'
   };
 
   // School subject display names for diploma credits
@@ -1082,12 +1095,12 @@ const DiplomaPage = () => {
                   if (taskPillars.length > 0 && taskPillars[0].pillar) {
                     return taskPillars[0].pillar;
                   }
-                  return 'Arts & Creativity'; // Default
+                  return 'art'; // Default
                 };
 
                 const pillar = getPillarForQuest();
                 const displayName = pillarDisplayNames[pillar] || pillar;
-                const gradientClass = pillarColors[pillar] || pillarColors['Arts & Creativity'];
+                const gradientClass = pillarColors[pillar] || pillarColors['art'];
                 const isInProgress = achievement.status === 'in_progress';
 
                 return (
