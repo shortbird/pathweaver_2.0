@@ -1089,18 +1089,6 @@ const DiplomaPage = () => {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {achievements.map((achievement, index) => {
-                const getPillarForQuest = () => {
-                  // Get the first task's pillar as the primary pillar
-                  const taskPillars = Object.values(achievement.task_evidence || {});
-                  if (taskPillars.length > 0 && taskPillars[0].pillar) {
-                    return taskPillars[0].pillar;
-                  }
-                  return 'art'; // Default
-                };
-
-                const pillar = getPillarForQuest();
-                const displayName = pillarDisplayNames[pillar] || pillar;
-                const gradientClass = pillarColors[pillar] || pillarColors['art'];
                 const isInProgress = achievement.status === 'in_progress';
 
                 return (
@@ -1121,17 +1109,14 @@ const DiplomaPage = () => {
                         <div className={`absolute inset-0 bg-gradient-to-t from-black/30 to-transparent`} />
                       </div>
                     ) : (
-                      <div className={`h-2 bg-gradient-to-r ${gradientClass}`}></div>
+                      <div className="h-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b]"></div>
                     )}
 
                     <div className="p-4 sm:p-6 flex flex-col flex-grow">
-                      {/* Header with badges and date */}
+                      {/* Header with status badge and date */}
                       <div className="mb-3">
                         <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
                           <div className="flex flex-wrap gap-2">
-                            <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass}`}>
-                              {displayName}
-                            </span>
                             {isInProgress && (
                               <span className="inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-blue-600 bg-blue-100">
                                 In Progress
