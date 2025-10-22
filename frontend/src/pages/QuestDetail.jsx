@@ -364,8 +364,8 @@ const QuestDetail = () => {
                 </div>
               </div>
 
-              {/* Stats Row */}
-              <div className="flex flex-wrap gap-2 mb-3">
+              {/* Stats Row with Finish Quest Button */}
+              <div className="flex flex-wrap items-center gap-2">
                 <div className="px-4 py-2 bg-green-50 border-2 border-green-200 rounded-lg text-center">
                   <div className="text-xl font-bold text-green-700" style={{ fontFamily: 'Poppins' }}>{completedTasks}</div>
                   <div className="text-xs text-green-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Completed</div>
@@ -382,19 +382,19 @@ const QuestDetail = () => {
                   <div className="text-xl font-bold text-gray-700" style={{ fontFamily: 'Poppins' }}>{completedTasks}/{totalTasks}</div>
                   <div className="text-xs text-gray-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Tasks</div>
                 </div>
-              </div>
 
-              {/* Finish Quest Button - Left-aligned below stats */}
-              {quest.user_enrollment && !isQuestCompleted && (
-                <button
-                  onClick={handleEndQuest}
-                  disabled={endQuestMutation.isPending}
-                  className="px-6 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50"
-                  style={{ fontFamily: 'Poppins' }}
-                >
-                  {endQuestMutation.isPending ? 'Finishing...' : 'FINISH QUEST'}
-                </button>
-              )}
+                {/* Finish Quest Button - In same row as stats */}
+                {quest.user_enrollment && !isQuestCompleted && (
+                  <button
+                    onClick={handleEndQuest}
+                    disabled={endQuestMutation.isPending}
+                    className="px-6 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50 ml-auto"
+                    style={{ fontFamily: 'Poppins' }}
+                  >
+                    {endQuestMutation.isPending ? 'Finishing...' : 'FINISH QUEST'}
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -526,10 +526,11 @@ const QuestDetail = () => {
                         </div>
                       </div>
 
-                      {/* Completed Check Mark */}
+                      {/* Completed Indicator */}
                       {task.is_completed && (
-                        <div className="absolute top-2 right-2">
-                          <CheckCircle className="w-6 h-6 text-white drop-shadow-lg" />
+                        <div className="absolute top-2 right-2 flex items-center gap-1 bg-white/20 backdrop-blur-sm px-2 py-1 rounded-full">
+                          <CheckCircle className="w-5 h-5 text-white drop-shadow-lg" />
+                          <span className="text-white text-xs font-bold uppercase" style={{ fontFamily: 'Poppins' }}>Complete!</span>
                         </div>
                       )}
 

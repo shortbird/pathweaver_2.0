@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Award, BookOpen, Info } from 'lucide-react';
+import { X, Award, BookOpen, Info, Type, Image, Video, Link2, FileText, AlertCircle } from 'lucide-react';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import ModalErrorBoundary from '../ModalErrorBoundary';
 import { getPillarData } from '../../utils/pillarMappings';
@@ -26,14 +26,21 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
     }
   };
 
+  const handleSubmitForXP = () => {
+    // Trigger submit via editor ref
+    if (editorRef.current && editorRef.current.submitTask) {
+      editorRef.current.submitTask();
+    }
+  };
+
   const pillarData = getPillarData(task.pillar);
 
   const blockTypes = {
-    text: { icon: '📝', label: 'Text' },
-    image: { icon: '📸', label: 'Image' },
-    video: { icon: '🎥', label: 'Video' },
-    link: { icon: '🔗', label: 'Link' },
-    document: { icon: '📄', label: 'Document' }
+    text: { icon: Type, label: 'Text' },
+    image: { icon: Image, label: 'Image' },
+    video: { icon: Video, label: 'Video' },
+    link: { icon: Link2, label: 'Link' },
+    document: { icon: FileText, label: 'Document' }
   };
 
   return (
@@ -67,6 +74,16 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
                       <Award className="w-5 h-5" />
                       {task.xp_amount} XP
                     </div>
+                    {!successMessage && (
+                      <button
+                        onClick={handleSubmitForXP}
+                        className="px-6 py-2 bg-white text-gray-900 rounded-full text-lg font-bold hover:bg-white/90 transition-all flex items-center gap-2"
+                        style={{ fontFamily: 'Poppins' }}
+                      >
+                        <Award className="w-5 h-5" />
+                        Submit for XP
+                      </button>
+                    )}
                   </div>
                 </div>
                 <button
