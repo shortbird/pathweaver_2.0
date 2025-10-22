@@ -488,13 +488,16 @@ class QuestAIService:
         AI returns display names like "STEM & Logic", we need to store keys like 'stem_logic'.
         """
         if not pillar:
-            return 'stem_logic'  # Default to key, not display name
+            return 'stem'  # Default to new single-word key
 
         # Import pillar utilities for proper conversion
-        from utils.pillar_utils import normalize_pillar_key
+        from utils.pillar_mapping import normalize_pillar_name
 
         # Try to normalize the pillar (handles display names, old keys, new keys)
-        normalized = normalize_pillar_key(pillar)
+        try:
+            normalized = normalize_pillar_name(pillar)
+        except ValueError:
+            return 'stem'  # Fallback if normalization fails
 
         # If normalize returned a valid key, use it
         if normalized:

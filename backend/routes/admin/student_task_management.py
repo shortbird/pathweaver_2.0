@@ -8,7 +8,8 @@ Supports both creating custom tasks and copying from existing task templates.
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
-from utils.pillar_utils import normalize_pillar_key, is_valid_pillar
+from utils.pillar_utils import is_valid_pillar
+from utils.pillar_mapping import normalize_pillar_name
 from utils.school_subjects import validate_school_subjects
 from datetime import datetime
 import json
@@ -131,7 +132,7 @@ def create_student_task(user_id, target_user_id, quest_id):
                     'error': f'Invalid pillar: {pillar}'
                 }), 400
 
-            normalized_pillar = normalize_pillar_key(pillar)
+            normalized_pillar = normalize_pillar_name(pillar)
 
             # Validate subject XP distribution
             subject_xp_distribution = data.get('subject_xp_distribution', {})
