@@ -295,14 +295,27 @@ const QuestDetail = () => {
 
         {/* Content */}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-          {/* Back Button */}
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-full hover:shadow-lg transition-all font-semibold mb-6"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            BACK
-          </button>
+          {/* Header Bar with Back Button and Finish Quest */}
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-full hover:shadow-lg transition-all font-semibold"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              BACK
+            </button>
+
+            {quest.user_enrollment && !isQuestCompleted && (
+              <button
+                onClick={handleEndQuest}
+                disabled={endQuestMutation.isPending}
+                className="px-6 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                {endQuestMutation.isPending ? 'Finishing...' : 'FINISH QUEST'}
+              </button>
+            )}
+          </div>
 
           {/* Quest Title and Description */}
           <div className="max-w-2xl mb-6">
@@ -377,10 +390,6 @@ const QuestDetail = () => {
                 <div className="px-4 py-2 bg-purple-50 border-2 border-purple-200 rounded-lg text-center">
                   <div className="text-xl font-bold text-purple-700" style={{ fontFamily: 'Poppins' }}>{earnedXP}</div>
                   <div className="text-xs text-purple-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>XP Earned</div>
-                </div>
-                <div className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-lg text-center">
-                  <div className="text-xl font-bold text-white" style={{ fontFamily: 'Poppins' }}>{totalXP}</div>
-                  <div className="text-xs text-white font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Total XP</div>
                 </div>
                 <div className="px-4 py-2 bg-gray-100 border-2 border-gray-300 rounded-lg text-center">
                   <div className="text-xl font-bold text-gray-700" style={{ fontFamily: 'Poppins' }}>{completedTasks}/{totalTasks}</div>
@@ -460,7 +469,7 @@ const QuestDetail = () => {
                       style={{
                         background: task.is_completed
                           ? pillarData.color
-                          : `linear-gradient(135deg, ${pillarData.color}40 0%, ${pillarData.color}20 100%)`
+                          : `linear-gradient(to right, #ffffff 0%, ${pillarData.color} 100%)`
                       }}
                     >
                       {/* Task Content */}
@@ -475,26 +484,45 @@ const QuestDetail = () => {
                           }
                         }}
                         className="absolute inset-0 p-3 flex flex-col justify-between"
-                        style={{ color: task.is_completed ? 'white' : pillarData.color }}
                       >
-                        {/* Top Section - Pillar Name */}
+                        {/* Top Section - Pillar Name Pill */}
                         <div>
-                          <div className="text-xs font-semibold uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>
+                          <div
+                            className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold"
+                            style={{
+                              backgroundColor: task.is_completed ? 'rgba(255,255,255,0.3)' : pillarData.color,
+                              color: 'white',
+                              fontFamily: 'Poppins'
+                            }}
+                          >
                             {pillarData.name}
                           </div>
                         </div>
 
                         {/* Middle Section - Task Title */}
-                        <div className="flex-1 flex items-center justify-center">
-                          <h3 className="text-sm font-bold text-center leading-tight" style={{ fontFamily: 'Poppins' }}>
+                        <div className="flex-1 flex items-center justify-center px-2">
+                          <h3
+                            className="text-sm font-bold text-center leading-tight"
+                            style={{
+                              fontFamily: 'Poppins',
+                              color: task.is_completed ? 'white' : '#333'
+                            }}
+                          >
                             {task.title}
                           </h3>
                         </div>
 
-                        {/* Bottom Section - XP */}
-                        <div className="text-center">
-                          <div className="text-lg font-bold" style={{ fontFamily: 'Poppins' }}>
-                            {task.xp_amount} XP!
+                        {/* Bottom Section - XP Pill */}
+                        <div className="flex justify-center">
+                          <div
+                            className="px-2 py-0.5 rounded-full text-xs font-bold"
+                            style={{
+                              backgroundColor: task.is_completed ? 'rgba(255,255,255,0.3)' : pillarData.color,
+                              color: 'white',
+                              fontFamily: 'Poppins'
+                            }}
+                          >
+                            {task.xp_amount} XP
                           </div>
                         </div>
                       </div>
@@ -573,18 +601,6 @@ const QuestDetail = () => {
         </div>
 
 
-        {/* Quest Management - Finish Quest */}
-        {quest.user_enrollment && !isQuestCompleted && (
-          <div className="bg-white rounded-xl shadow-md p-6 text-center">
-            <button
-              onClick={handleEndQuest}
-              disabled={endQuestMutation.isPending}
-              className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-[25px] hover:shadow-[0_6px_20px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {endQuestMutation.isPending ? 'Finishing...' : 'Finish Quest'}
-            </button>
-          </div>
-        )}
       </div>
       {/* End Main Content Container */}
 
