@@ -15,7 +15,7 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
   // Filter and transform items for calendar
   const events = (data?.items || [])
     .filter(item => !selectedPillar || item.pillar === selectedPillar)
-    .filter(item => item.scheduled_date || item.completed_at) // Only show scheduled or completed
+    .filter(item => item.scheduled_date || item.completed_at) // Show scheduled or completed tasks
     .map(item => {
       const pillarColors = getPillarColor(item.pillar)
       const isCompleted = item.status === 'completed'
@@ -23,7 +23,8 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
       return {
         id: item.id,
         title: item.task_title,
-        date: item.scheduled_date || item.completed_at,
+        // Show completed tasks on their completion date, scheduled tasks on scheduled date
+        date: isCompleted ? item.completed_at : item.scheduled_date,
         backgroundColor: pillarColors.hex,
         borderColor: pillarColors.hex,
         editable: !isCompleted, // Completed tasks cannot be dragged
@@ -177,19 +178,27 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
         navLinks={true}
       />
 
-      {/* Legend */}
+      {/* Legend - Pillar Colors */}
       <div className="mt-4 flex flex-wrap gap-4 text-sm">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-green-500"></div>
-          <span className="text-gray-600">Completed</span>
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#2469D1' }}></div>
+          <span className="text-gray-600">STEM</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-blue-500"></div>
-          <span className="text-gray-600">On Track</span>
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#E65C5C' }}></div>
+          <span className="text-gray-600">Wellness</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full bg-yellow-500 ring-2 ring-yellow-400"></div>
-          <span className="text-gray-600">Ready for a Pivot</span>
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#3DA24A' }}></div>
+          <span className="text-gray-600">Communication</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#FF9028' }}></div>
+          <span className="text-gray-600">Civics</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#AF56E5' }}></div>
+          <span className="text-gray-600">Art</span>
         </div>
       </div>
 

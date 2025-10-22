@@ -5,7 +5,6 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta, date
 from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth
-from utils.pillar_utils import get_pillar_name
 from collections import defaultdict
 
 calendar_bp = Blueprint('calendar', __name__, url_prefix='/api/calendar')
@@ -107,7 +106,7 @@ def get_calendar_items(user_id):
                 'quest_image': quest.get('image_url') or quest.get('header_image_url'),
                 'task_title': task['title'],
                 'task_description': task.get('description'),
-                'pillar': get_pillar_name(task['pillar']),  # Convert key to display name
+                'pillar': task['pillar'],  # Keep as lowercase key for frontend color mapping
                 'xp_value': task.get('xp_value'),
                 'scheduled_date': task_deadline,
                 'completed_at': completion['completed_at'] if completion else None,
@@ -359,7 +358,7 @@ def get_next_up(user_id):
                 'quest_image': quest.get('image_url') or quest.get('header_image_url'),
                 'task_title': task['title'],
                 'task_description': task.get('description'),
-                'pillar': get_pillar_name(task['pillar']),  # Convert key to display name
+                'pillar': task['pillar'],  # Keep as lowercase key for frontend color mapping
                 'xp_value': task.get('xp_value'),
                 'scheduled_date': scheduled_date_str,
                 'order_index': task.get('order_index', 0)
