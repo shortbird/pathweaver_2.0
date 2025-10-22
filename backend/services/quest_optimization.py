@@ -7,7 +7,7 @@ to eliminate the N+1 problem identified in quest_v3.py.
 
 from typing import Dict, List, Optional, Set, Any
 from database import get_supabase_client
-from utils.pillar_mapping import pillar_to_underscore
+from utils.pillar_mapping import normalize_pillar_name
 
 
 class QuestOptimizationService:
@@ -230,11 +230,14 @@ class QuestOptimizationService:
                 pillar_breakdown = {}
                 print(f"[PILLAR DEBUG] Processing completed quest {quest_id[:8]}, {len(user_tasks)} tasks")
                 for task in user_tasks:
-                    db_pillar = task.get('pillar', 'arts_creativity')
-                    # Convert database pillar format to frontend format
-                    pillar = pillar_to_underscore(db_pillar)
+                    db_pillar = task.get('pillar', 'art')
+                    # Normalize pillar name (handles legacy values, new values already normalized)
+                    try:
+                        pillar = normalize_pillar_name(db_pillar)
+                    except ValueError:
+                        pillar = 'art'  # Default fallback
                     xp = task.get('xp_value', 0)
-                    print(f"[PILLAR DEBUG]   Task: db_pillar={db_pillar}, converted={pillar}, xp={xp}")
+                    print(f"[PILLAR DEBUG]   Task: db_pillar={db_pillar}, normalized={pillar}, xp={xp}")
                     pillar_breakdown[pillar] = pillar_breakdown.get(pillar, 0) + xp
                 quest['pillar_breakdown'] = pillar_breakdown
                 print(f"[PILLAR DEBUG] Final breakdown for quest {quest_id[:8]}: {pillar_breakdown}")
@@ -262,11 +265,14 @@ class QuestOptimizationService:
                 pillar_breakdown = {}
                 print(f"[PILLAR DEBUG] Processing active quest {quest_id[:8]}, {len(user_tasks)} tasks")
                 for task in user_tasks:
-                    db_pillar = task.get('pillar', 'arts_creativity')
-                    # Convert database pillar format to frontend format
-                    pillar = pillar_to_underscore(db_pillar)
+                    db_pillar = task.get('pillar', 'art')
+                    # Normalize pillar name (handles legacy values, new values already normalized)
+                    try:
+                        pillar = normalize_pillar_name(db_pillar)
+                    except ValueError:
+                        pillar = 'art'  # Default fallback
                     xp = task.get('xp_value', 0)
-                    print(f"[PILLAR DEBUG]   Task: db_pillar={db_pillar}, converted={pillar}, xp={xp}")
+                    print(f"[PILLAR DEBUG]   Task: db_pillar={db_pillar}, normalized={pillar}, xp={xp}")
                     pillar_breakdown[pillar] = pillar_breakdown.get(pillar, 0) + xp
                 quest['pillar_breakdown'] = pillar_breakdown
                 print(f"[PILLAR DEBUG] Final breakdown for quest {quest_id[:8]}: {pillar_breakdown}")
