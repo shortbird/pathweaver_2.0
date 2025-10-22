@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuestDetail, useEnrollQuest, useCompleteTask, useEndQuest } from '../hooks/api/useQuests';
 import { handleApiResponse } from '../utils/errorHandling';
-import { getPillarData } from '../utils/pillarMappings';
+import { getPillarData, normalizePillarKey } from '../utils/pillarMappings';
 import { hasFeatureAccess } from '../utils/tierMapping';
 import { queryKeys } from '../utils/queryKeys';
 import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
@@ -195,16 +195,19 @@ const QuestDetail = () => {
 
   const getPillarBreakdown = () => {
     if (!quest?.quest_tasks) return {};
-    
+
     const breakdown = {};
     quest.quest_tasks.forEach(task => {
-      const pillar = task.pillar || 'life_wellness';
-      if (!breakdown[pillar]) {
-        breakdown[pillar] = 0;
+      const rawPillar = task.pillar || 'wellness';
+      // Normalize pillar key to handle legacy naming (e.g., "Arts & Creativity" -> "art")
+      const normalizedPillar = normalizePillarKey(rawPillar);
+
+      if (!breakdown[normalizedPillar]) {
+        breakdown[normalizedPillar] = 0;
       }
-      breakdown[pillar] += task.xp_amount || 0;
+      breakdown[normalizedPillar] += task.xp_amount || 0;
     });
-    
+
     return breakdown;
   };
 
@@ -528,7 +531,7 @@ const QuestDetail = () => {
 
                       {/* Completed Indicator */}
                       {task.is_completed && (
-                        <div className="absolute top-2 right-2 flex items-center gap-1 bg-white/20 backdrop-blur-sm px-2 py-1 rounded-full">
+                        <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-white/20 backdrop-blur-sm px-2 py-1 rounded-full">
                           <CheckCircle className="w-5 h-5 text-white drop-shadow-lg" />
                           <span className="text-white text-xs font-bold uppercase" style={{ fontFamily: 'Poppins' }}>Complete!</span>
                         </div>

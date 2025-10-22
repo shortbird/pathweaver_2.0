@@ -77,7 +77,7 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
                     {!successMessage && (
                       <button
                         onClick={handleSubmitForXP}
-                        className="px-6 py-2 bg-white text-gray-900 rounded-full text-lg font-bold hover:bg-white/90 transition-all flex items-center gap-2"
+                        className="px-6 py-2 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-full text-lg font-bold hover:shadow-lg transition-all flex items-center gap-2"
                         style={{ fontFamily: 'Poppins' }}
                       >
                         <Award className="w-5 h-5" />
@@ -97,6 +97,9 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
 
             {/* Add Content Block Buttons - Right below header */}
             <div className="px-8 py-4 border-b border-gray-200 bg-gray-50">
+              <div className="mb-2">
+                <span className="text-sm font-semibold text-gray-700" style={{ fontFamily: 'Poppins' }}>Add new content block</span>
+              </div>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(blockTypes).map(([type, config]) => {
                   const IconComponent = config.icon;
