@@ -315,8 +315,11 @@ const MultiFormatEvidenceEditor = forwardRef(({
   };
 
   // Expose addBlock method to parent component via ref
+  // Expose methods to parent component via ref
+  // Expose methods to parent component via ref
   useImperativeHandle(ref, () => ({
-    addBlock
+    addBlock,
+    submitTask: () => setShowCompleteConfirm(true)
   }));
 
   const updateBlock = (blockId, newContent) => {
@@ -718,28 +721,6 @@ const MultiFormatEvidenceEditor = forwardRef(({
             </div>
           </div>
 
-          <div className="flex gap-2">
-          <button
-            onClick={handleManualSave}
-            disabled={isLoading || saveStatus === 'saving'}
-            className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:shadow-md transition-all disabled:opacity-50"
-          >
-            {saveStatus === 'saving' ? 'Saving...' : 'Save Progress'}
-          </button>
-
-          {documentStatus === 'draft' && blocks.length > 0 && (
-            <button
-              onClick={() => setShowCompleteConfirm(true)}
-              disabled={isLoading}
-              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-all disabled:opacity-50 flex items-center gap-2"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-              {isLoading ? 'Submitting Task...' : 'Submit Task for XP'}
-            </button>
-          )}
-
           {documentStatus === 'completed' && (
             <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-lg">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
@@ -782,24 +763,15 @@ const MultiFormatEvidenceEditor = forwardRef(({
                 </svg>
               </div>
               <div>
-                <h3 className="text-lg font-semibold text-gray-900">Submit Task for XP</h3>
-                <p className="text-sm text-gray-600">Are you ready to complete this task?</p>
+                <h3 className="text-lg font-semibold text-gray-900">Ready to submit?</h3>
+                <p className="text-sm text-gray-600">This will mark the task as completed and award you XP.</p>
               </div>
             </div>
 
             <div className="mb-6">
-              <p className="text-sm text-gray-700 mb-3">
-                This will mark the task as completed and award you XP points. You can still edit your evidence later, but the task will be marked as done.
+              <p className="text-sm text-gray-700">
+                You can still edit your evidence later, but the task will be marked as done and added to your portfolio.
               </p>
-              <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                <p className="text-xs text-blue-700 font-medium mb-1">What happens next:</p>
-                <ul className="text-xs text-blue-600 space-y-1">
-                  <li>• Your evidence will be saved</li>
-                  <li>• Task will be marked as completed</li>
-                  <li>• XP will be awarded to your profile</li>
-                  <li>• Evidence becomes part of your portfolio</li>
-                </ul>
-              </div>
             </div>
 
             <div className="flex gap-3">
