@@ -4,11 +4,11 @@ from typing import Tuple, Dict, List
 from cache import cached as cache_decorator
 
 SKILL_CATEGORIES = [
-    'arts_creativity',
-    'stem_logic',
-    'life_wellness',
-    'language_communication',
-    'society_culture'
+    'art',
+    'stem',
+    'wellness',
+    'communication',
+    'civics'
 ]
 
 # Mapping for legacy subject system to skill categories
@@ -58,22 +58,18 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                     skill_breakdown[pillar] += xp_amount
                     print(f"  ✓ Added {xp_amount} XP to {pillar} (total now: {skill_breakdown[pillar]})")
                 else:
-                    # Handle old pillar keys - map them to new
-                    pillar_mapping = {
-                        'creativity': 'arts_creativity',
-                        'critical_thinking': 'stem_logic',
-                        'practical_skills': 'life_wellness',
-                        'communication': 'language_communication',
-                        'cultural_literacy': 'society_culture'
-                    }
-                    normalized_pillar = pillar_mapping.get(pillar, pillar)
-
-                    if normalized_pillar in skill_breakdown:
-                        total_xp += xp_amount
-                        skill_breakdown[normalized_pillar] += xp_amount
-                        print(f"  ✓ Mapped '{pillar}' -> '{normalized_pillar}', added {xp_amount} XP")
-                    else:
-                        print(f"  ❌ WARNING: Unknown pillar '{pillar}' (normalized: '{normalized_pillar}') not in {list(skill_breakdown.keys())}")
+                    # Handle old pillar keys - map them to new single-word format
+                    from utils.pillar_mapping import normalize_pillar_name
+                    try:
+                        normalized_pillar = normalize_pillar_name(pillar)
+                        if normalized_pillar in skill_breakdown:
+                            total_xp += xp_amount
+                            skill_breakdown[normalized_pillar] += xp_amount
+                            print(f"  ✓ Mapped '{pillar}' -> '{normalized_pillar}', added {xp_amount} XP")
+                        else:
+                            print(f"  ❌ WARNING: Normalized pillar '{normalized_pillar}' not in {list(skill_breakdown.keys())}")
+                    except ValueError:
+                        print(f"  ❌ WARNING: Unknown pillar '{pillar}' could not be normalized")
 
             print(f"After processing all records - skill breakdown: {skill_breakdown}")
         else:
@@ -108,21 +104,17 @@ def calculate_xp_from_legacy_tables(supabase, user_id: str) -> Tuple[int, Dict[s
         print(f"Raw skill_xp query response count: {len(skill_xp.data) if skill_xp.data else 0}")
 
         if skill_xp.data:
+            from utils.pillar_mapping import normalize_pillar_name
             for record in skill_xp.data:
                 xp_amount = record.get('xp_amount', 0)
                 skill_cat = record.get('pillar')
 
-                # Handle both old and new pillar keys - map old to new
-                pillar_mapping = {
-                    'creativity': 'arts_creativity',
-                    'critical_thinking': 'stem_logic',
-                    'practical_skills': 'life_wellness',
-                    'communication': 'language_communication',
-                    'cultural_literacy': 'society_culture'
-                }
-
-                # Convert old pillar keys to new ones
-                normalized_pillar = pillar_mapping.get(skill_cat, skill_cat)
+                # Normalize pillar to new single-word format
+                try:
+                    normalized_pillar = normalize_pillar_name(skill_cat)
+                except ValueError:
+                    # If normalization fails, try direct match
+                    normalized_pillar = skill_cat
 
                 if normalized_pillar in skill_breakdown:
                     total_xp += xp_amount
@@ -275,13 +267,13 @@ def format_skill_data(skill_breakdown: Dict[str, int]) -> List[Dict]:
     """Format skill breakdown for frontend consumption"""
     formatted = []
     skill_display_names = {
-        'arts_creativity': 'Arts & Creativity',
-        'stem_logic': 'STEM & Logic',
-        'life_wellness': 'Life & Wellness',
-        'language_communication': 'Language & Communication',
-        'society_culture': 'Society & Culture'
+        'art': 'Art',
+        'stem': 'STEM',
+        'wellness': 'Wellness',
+        'communication': 'Communication',
+        'civics': 'Civics'
     }
-    
+
     for category, xp in skill_breakdown.items():
         formatted.append({
             'category': category,
@@ -289,5 +281,5 @@ def format_skill_data(skill_breakdown: Dict[str, int]) -> List[Dict]:
             'xp': xp,
             'percentage': 0  # Will be calculated on frontend based on total
         })
-    
+
     return formatted
