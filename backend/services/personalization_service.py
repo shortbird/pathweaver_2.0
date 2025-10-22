@@ -393,13 +393,16 @@ class PersonalizationService:
                 pillar_value = task.get('pillar', 'STEM & Logic')
                 print(f"[FINALIZE] Task {index}: '{task.get('title')}' - Pillar from task: {pillar_value}")
 
-                # Convert pillar display name to new pillar key (database accepts both old and new keys)
-                # AI returns display names like "STEM & Logic", we normalize to new keys like 'stem_logic'
-                pillar_key = normalize_pillar_name(pillar_value)
+                # Convert pillar display name to new pillar key
+                # AI returns display names like "STEM", we normalize to lowercase keys like 'stem'
+                try:
+                    pillar_key = normalize_pillar_name(pillar_value)
+                except ValueError:
+                    pillar_key = 'stem'  # Default fallback
 
-                # Use the new pillar key directly - database enum accepts both old and new format
-                # No need to convert to old keys anymore
-                db_pillar = pillar_key if pillar_key else 'stem_logic'
+                # Use the new pillar key directly - database now uses single-word lowercase keys
+                db_pillar = pillar_key
+                print(f"[FINALIZE] Pillar conversion: '{pillar_value}' -> normalized key: '{pillar_key}' -> storing as: '{db_pillar}'")
                 print(f"[FINALIZE] Pillar conversion: '{pillar_value}' -> normalized key: '{pillar_key}' -> storing as: '{db_pillar}'")
 
                 # Handle diploma_subjects - ensure proper format
