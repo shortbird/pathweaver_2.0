@@ -199,41 +199,41 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6">
+    <div className="max-w-4xl mx-auto p-8">
       {/* Progress indicator */}
       <div className="mb-8">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-medium">Step {step} of 4</span>
+        <div className="flex items-center justify-between mb-3">
+          <span className="text-sm font-bold uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Step {step} of 4</span>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-2">
+        <div className="w-full bg-gray-200 rounded-full h-3">
           <div
-            className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] h-2 rounded-full transition-all duration-300"
+            className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] h-3 rounded-full transition-all duration-300"
             style={{ width: `${(step / 4) * 100}%` }}
           />
         </div>
       </div>
 
       {error && (
-        <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
-          {error}
+        <div className="mb-6 p-5 bg-red-50 border-2 border-red-200 rounded-xl text-red-700">
+          <p className="font-semibold" style={{ fontFamily: 'Poppins' }}>{error}</p>
         </div>
       )}
 
       {/* Step 1: Welcome */}
       {step === 1 && (
         <div className="text-center">
-          <h2 className="text-3xl font-bold mb-4">Personalize Your Quest</h2>
-          <p className="text-gray-600 mb-6 max-w-2xl mx-auto">
+          <h2 className="text-4xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>Personalize Your Quest</h2>
+          <p className="text-gray-600 mb-6 max-w-2xl mx-auto text-lg" style={{ fontFamily: 'Poppins' }}>
             Let's customize "{questTitle}" to match your interests and learning style.
             Our AI will help generate tasks that are meaningful to you.
           </p>
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-4 max-w-2xl mx-auto">
-            <p className="text-sm text-red-900">
+          <div className="bg-red-50 border-2 border-red-200 rounded-xl p-5 mb-4 max-w-2xl mx-auto">
+            <p className="text-sm text-red-900" style={{ fontFamily: 'Poppins' }}>
               <strong>⚠️ Important:</strong> All personalized quests must be approved by a licensed teacher before they count toward XP or diploma credits.
             </p>
           </div>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6 max-w-2xl mx-auto">
-            <p className="text-sm text-blue-900">
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 mb-6 max-w-2xl mx-auto">
+            <p className="text-sm text-blue-900" style={{ fontFamily: 'Poppins' }}>
               💡 <strong>Remember:</strong> You're in control. The AI suggests tasks based on your choices,
               but you decide what to learn. We recommend working with an Optio teacher for the best experience.
             </p>
@@ -241,7 +241,8 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
           <button
             onClick={startSession}
             disabled={loading}
-            className="px-8 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg font-semibold hover:opacity-90 disabled:opacity-50"
+            className="px-8 py-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all disabled:opacity-50"
+            style={{ fontFamily: 'Poppins' }}
           >
             {loading ? 'Starting...' : 'Begin Personalization'}
           </button>
@@ -251,24 +252,24 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       {/* Step 2: Choose Approach */}
       {step === 2 && (
         <div>
-          <h2 className="text-2xl font-bold mb-4">How do you want to learn?</h2>
-          <p className="text-gray-600 mb-6">Choose the approach that excites you most</p>
-          <div className="grid md:grid-cols-3 gap-4 mb-6">
+          <h2 className="text-3xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>How do you want to learn?</h2>
+          <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins' }}>Choose the approach that excites you most</p>
+          <div className="grid md:grid-cols-3 gap-4 mb-8">
             {APPROACH_OPTIONS.map(option => {
               const IconComponent = option.IconComponent;
               return (
                 <button
                   key={option.id}
                   onClick={() => setSelectedApproach(option.id)}
-                  className={`p-6 border-2 rounded-lg text-left transition-all ${
+                  className={`p-6 border-2 rounded-xl text-left transition-all hover:shadow-lg ${
                     selectedApproach === option.id
-                      ? 'border-[#ef597b] bg-pink-50'
+                      ? 'border-[#ef597b] bg-pink-50 shadow-lg'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
                   <IconComponent className="w-12 h-12 mb-3 text-[#6d469b]" />
-                  <h3 className="font-semibold text-lg mb-2">{option.title}</h3>
-                  <p className="text-sm text-gray-600">{option.description}</p>
+                  <h3 className="font-bold text-lg mb-2" style={{ fontFamily: 'Poppins' }}>{option.title}</h3>
+                  <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins' }}>{option.description}</p>
                 </button>
               );
             })}
@@ -276,14 +277,16 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
           <div className="flex justify-between">
             <button
               onClick={() => setStep(1)}
-              className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+              className="px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-all"
+              style={{ fontFamily: 'Poppins' }}
             >
               Back
             </button>
             <button
               onClick={() => setStep(3)}
               disabled={!selectedApproach}
-              className="px-6 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg disabled:opacity-50"
+              className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-xl disabled:opacity-50 font-bold hover:shadow-xl transition-all"
+              style={{ fontFamily: 'Poppins' }}
             >
               Continue
             </button>
@@ -294,8 +297,8 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       {/* Step 3: Select Interests & Subjects */}
       {step === 3 && (
         <div>
-          <h2 className="text-2xl font-bold mb-4">What are you interested in?</h2>
-          <p className="text-gray-600 mb-6">Select your interests (at least one)</p>
+          <h2 className="text-3xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>What are you interested in?</h2>
+          <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins' }}>Select your interests (at least one)</p>
 
           <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
             {INTEREST_OPTIONS.map(interest => (
@@ -363,8 +366,8 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       {/* Step 4: Review & Finalize Tasks */}
       {step === 4 && (
         <div>
-          <h2 className="text-2xl font-bold mb-4">Select Tasks to Keep</h2>
-          <p className="text-gray-600 mb-6">Choose which tasks to include in your quest</p>
+          <h2 className="text-3xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>Select Tasks to Keep</h2>
+          <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins' }}>Choose which tasks to include in your quest</p>
 
           <div className="space-y-3 mb-8">
             {generatedTasks.map((task, index) => {

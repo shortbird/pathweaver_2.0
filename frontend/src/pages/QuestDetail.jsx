@@ -11,7 +11,7 @@ import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import TaskDetailModal from '../components/quest/TaskDetailModal';
 import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
-import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus } from 'lucide-react';
+import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus, ArrowLeft, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const QuestDetail = () => {
@@ -180,7 +180,7 @@ const QuestDetail = () => {
   };
 
   const calculateXP = () => {
-    if (!quest?.quest_tasks) return { baseXP: 0, bonusXP: 0, totalXP: 0, earnedXP: 0, earnedBonusXP: 0 };
+    if (!quest?.quest_tasks) return { baseXP: 0, totalXP: 0, earnedXP: 0 };
 
     const tasks = quest.quest_tasks;
     const baseXP = tasks.reduce((sum, task) => sum + (task.xp_amount || 0), 0);
@@ -188,12 +188,9 @@ const QuestDetail = () => {
       .filter(task => task.is_completed)
       .reduce((sum, task) => sum + (task.xp_amount || 0), 0);
 
-    // Completion bonus removed in Phase 2 refactoring (January 2025)
-    const bonusXP = 0;
     const totalXP = baseXP;
-    const earnedBonusXP = 0;
 
-    return { baseXP, bonusXP, totalXP, earnedXP, earnedBonusXP };
+    return { baseXP, totalXP, earnedXP };
   };
 
   const getPillarBreakdown = () => {
@@ -275,118 +272,130 @@ const QuestDetail = () => {
   const totalTasks = quest.quest_tasks?.length || 0;
   const progressPercentage = quest.progress?.percentage || (totalTasks > 0 ? (completedTasks / totalTasks) * 100 : 0);
   const isQuestCompleted = quest.completed_enrollment || (quest.progress && quest.progress.percentage === 100);
-  const { baseXP, bonusXP, totalXP, earnedXP, earnedBonusXP } = calculateXP();
+  const { baseXP, totalXP, earnedXP } = calculateXP();
   const pillarBreakdown = getPillarBreakdown();
   const locationDisplay = getLocationDisplay();
   const seasonalDisplay = getSeasonalDisplay();
 
+  // Get quest header image
+  const questImage = quest.image_url || quest.header_image_url || getQuestHeaderImageSync(quest.source);
+
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      {/* Quest Title and Information Section */}
-      <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-        <h1 className="text-4xl font-bold mb-4 text-gray-900">{quest.title}</h1>
-        <p className="text-lg text-gray-700 mb-6">{quest.big_idea || quest.description}</p>
-        
-        {/* Stats Cards */}
-        <div className="flex flex-wrap gap-3">
-          <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-lg text-center">
-            <div className="font-bold text-lg">{totalXP}</div>
-            <div className="text-white/90 text-xs">Total XP</div>
-          </div>
-          <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-2 rounded-lg text-center">
-            <div className="font-bold text-lg">{completedTasks} / {totalTasks}</div>
-            <div className="text-white/90 text-xs">Tasks</div>
-          </div>
-          <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white px-4 py-2 rounded-lg text-center">
-            <div className="font-bold text-lg">+{bonusXP}</div>
-            <div className="text-white/90 text-xs">Completion Bonus</div>
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero Section with Background Image */}
+      <div className="relative h-[400px] w-full overflow-hidden">
+        {/* Background Image */}
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${questImage})` }}
+        />
+
+        {/* Left-to-right gradient overlay (white to transparent) */}
+        <div className="absolute inset-0 bg-gradient-to-r from-white via-white/80 to-transparent" />
+
+        {/* Content */}
+        <div className="relative h-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Back Button */}
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="absolute top-6 left-4 sm:left-6 flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-full hover:shadow-lg transition-all font-semibold"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            BACK
+          </button>
+
+          {/* Quest Title and Description - Positioned on left over white gradient */}
+          <div className="absolute bottom-8 left-4 sm:left-6 right-1/3 max-w-2xl">
+            <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins' }}>
+              {quest.title}
+            </h1>
+            <p className="text-lg text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+              {quest.big_idea || quest.description}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Team-up invitation banner removed in Phase 3 refactoring (January 2025) */}
+      {/* Main Content Container */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Quest Metadata Strip */}
+        <div className="bg-white rounded-xl shadow-md p-4 mb-6">
+          <div className="flex flex-wrap gap-4 items-center text-sm">
+            {locationDisplay && (
+              <div className="flex items-center gap-2 text-gray-600">
+                <MapPin className="w-4 h-4" />
+                <span>{locationDisplay}</span>
+              </div>
+            )}
 
-      {/* Quest Metadata Strip */}
-      <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-        <div className="flex flex-wrap gap-4 items-center text-sm">
-          {locationDisplay && (
-            <div className="flex items-center gap-2 text-gray-600">
-              <MapPin className="w-4 h-4" />
-              <span>{locationDisplay}</span>
-            </div>
-          )}
-          
-          {seasonalDisplay && (
-            <div className="flex items-center gap-2 text-gray-600">
-              <Calendar className="w-4 h-4" />
-              <span>{seasonalDisplay}</span>
+            {seasonalDisplay && (
+              <div className="flex items-center gap-2 text-gray-600">
+                <Calendar className="w-4 h-4" />
+                <span>{seasonalDisplay}</span>
+              </div>
+            )}
+          </div>
+
+          {/* Pillar XP Breakdown */}
+          {Object.keys(pillarBreakdown).length > 0 && (
+            <div className="mt-4">
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(pillarBreakdown).map(([pillar, xp]) => {
+                  const pillarData = getPillarData(pillar);
+                  return (
+                    <div
+                      key={pillar}
+                      className={`px-3 py-1 rounded-full text-sm font-medium ${pillarData.bg} ${pillarData.text}`}
+                    >
+                      {pillarData.icon} {pillarData.name}: {xp} XP
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           )}
         </div>
-        
-        {/* Pillar XP Breakdown */}
-        {Object.keys(pillarBreakdown).length > 0 && (
-          <div className="mt-4">
-            <div className="flex flex-wrap gap-2">
-              {Object.entries(pillarBreakdown).map(([pillar, xp]) => {
-                const pillarData = getPillarData(pillar);
-                return (
-                  <div 
-                    key={pillar} 
-                    className={`px-3 py-1 rounded-full text-sm font-medium ${pillarData.bg} ${pillarData.text}`}
-                  >
-                    {pillarData.icon} {pillarData.name}: {xp} XP
-                  </div>
-                );
-              })}
+
+
+        {/* Progress Bar and Stats */}
+        {(quest.user_enrollment || isQuestCompleted) && (
+          <div className="bg-white rounded-xl shadow-md p-6 mb-6">
+            {/* Progress Bar */}
+            <div className="w-full bg-gray-200 rounded-full h-6 mb-6 overflow-hidden relative">
+              <div
+                className="h-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full transition-all duration-1000 ease-out"
+                style={{ width: `${progressPercentage}%` }}
+              />
+              <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                {Math.round(progressPercentage)}%
+              </div>
+            </div>
+
+            {/* Stats Row */}
+            <div className="flex flex-wrap gap-3 justify-center">
+              <div className="px-6 py-3 bg-green-50 border-2 border-green-200 rounded-lg text-center">
+                <div className="text-2xl font-bold text-green-700" style={{ fontFamily: 'Poppins' }}>{completedTasks}</div>
+                <div className="text-xs text-green-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Completed</div>
+              </div>
+              <div className="px-6 py-3 bg-blue-50 border-2 border-blue-200 rounded-lg text-center">
+                <div className="text-2xl font-bold text-blue-700" style={{ fontFamily: 'Poppins' }}>{totalTasks - completedTasks}</div>
+                <div className="text-xs text-blue-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Remaining</div>
+              </div>
+              <div className="px-6 py-3 bg-purple-50 border-2 border-purple-200 rounded-lg text-center">
+                <div className="text-2xl font-bold text-purple-700" style={{ fontFamily: 'Poppins' }}>{earnedXP}</div>
+                <div className="text-xs text-purple-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>XP Earned</div>
+              </div>
+              <div className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-lg text-center">
+                <div className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins' }}>{totalXP}</div>
+                <div className="text-xs text-white font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Total XP</div>
+              </div>
+              <div className="px-6 py-3 bg-gray-100 border-2 border-gray-300 rounded-lg text-center">
+                <div className="text-2xl font-bold text-gray-700" style={{ fontFamily: 'Poppins' }}>{completedTasks}/{totalTasks}</div>
+                <div className="text-xs text-gray-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Tasks</div>
+              </div>
             </div>
           </div>
         )}
-      </div>
-
-
-      {/* Progress Dashboard - Moved to top */}
-      {(quest.user_enrollment || isQuestCompleted) && (
-        <div className="bg-white rounded-xl shadow-md p-6 mb-6">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold text-gray-900">Your Progress</h2>
-            <div className="flex items-center gap-4">
-              <div className="text-2xl font-bold text-gray-900">{Math.round(progressPercentage)}%</div>
-            </div>
-          </div>
-
-          <div className="w-full bg-gray-200 rounded-full h-4 mb-4 overflow-hidden relative">
-            <div
-              className="h-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full transition-all duration-1000 ease-out relative"
-              style={{ width: `${progressPercentage}%` }}
-            >
-              <div className="absolute inset-0 bg-white opacity-20 animate-pulse"></div>
-            </div>
-            <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-gray-700">
-              {earnedXP + earnedBonusXP} / {totalXP} XP
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-            <div>
-              <div className="text-2xl font-bold text-green-600">{completedTasks}</div>
-              <div className="text-sm text-gray-600">Completed</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-blue-600">{totalTasks - completedTasks}</div>
-              <div className="text-sm text-gray-600">Remaining</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-purple-600">{earnedXP}</div>
-              <div className="text-sm text-gray-600">XP Earned</div>
-            </div>
-            <div>
-              <div className="text-2xl font-bold text-orange-600">{earnedBonusXP}</div>
-              <div className="text-sm text-gray-600">Bonus XP</div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Collaboration status removed in Phase 3 refactoring (January 2025) */}
 
@@ -438,160 +447,90 @@ const QuestDetail = () => {
         </div>
       )}
 
-      {/* 5. Enhanced Tasks Interface */}
-      <div className="bg-white rounded-xl shadow-md overflow-hidden mb-8">
-        <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold">Quest Tasks</h2>
-              <p className="text-white/80 mt-2">Complete tasks to earn XP and progress</p>
-            </div>
-            {isRefreshing && (
-              <div className="flex items-center gap-2 text-white/90">
-                <div className="animate-spin w-5 h-5 border-2 border-white/30 border-t-white rounded-full"></div>
-                <span className="text-sm">Updating...</span>
-              </div>
-            )}
-          </div>
-        </div>
-        
-        <div className="p-6">
+        {/* Task Cards Grid */}
+        <div className="mb-8">
           {quest.quest_tasks && quest.quest_tasks.length > 0 ? (
-            <div className="space-y-4">
-              {quest.quest_tasks.map((task, index) => {
-                const pillarData = getPillarData(task.pillar);
-                const isExpanded = expandedTasks.has(task.id);
-                
-                return (
-                  <div 
-                    key={task.id}
-                    className={`border-2 rounded-xl transition-all duration-300 ${
-                      task.is_completed 
-                        ? 'bg-green-50 border-green-300 shadow-green-100' 
-                        : 'bg-white border-gray-200 hover:border-gray-300 hover:shadow-md'
-                    }`}
-                  >
-                    <div className="p-6">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center mb-3">
-                            {task.is_completed ? (
-                              <CheckCircle className="w-6 h-6 text-green-600 mr-3" />
-                            ) : (
-                              <Circle className="w-6 h-6 text-gray-400 mr-3" />
-                            )}
-                            <h3 className="text-lg font-bold text-gray-900">{task.title}</h3>
-                          </div>
-                          
-                          <div className="flex flex-col gap-2 mb-3">
-                            <div className={`px-2 py-1 rounded-full text-xs font-medium ${pillarData.bg} ${pillarData.text} self-start`}>
-                              {pillarData.icon} {pillarData.name}
-                            </div>
-                            <div className="font-bold text-base text-gray-900">
-                              {task.xp_amount} XP
-                            </div>
-                          </div>
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+                {quest.quest_tasks.map((task) => {
+                  const pillarData = getPillarData(task.pillar);
 
-                          {/* School Subjects Display */}
-                          {task.school_subjects && task.school_subjects.length > 0 && (
-                            <div className="mb-3">
-                              <div className="flex items-center gap-1 mb-2">
-                                <span className="text-sm text-gray-500 font-medium">Diploma Credit:</span>
-                              </div>
-                              <div className="flex flex-wrap gap-1.5">
-                                {task.school_subjects.map(subject => {
-                                  const subjectNames = {
-                                    'language_arts': 'Language Arts',
-                                    'math': 'Math',
-                                    'science': 'Science',
-                                    'social_studies': 'Social Studies',
-                                    'financial_literacy': 'Financial Literacy',
-                                    'health': 'Health',
-                                    'pe': 'PE',
-                                    'fine_arts': 'Fine Arts',
-                                    'cte': 'CTE',
-                                    'digital_literacy': 'Digital Literacy',
-                                    'electives': 'Electives'
-                                  };
-                                  
-                                  return (
-                                    <div
-                                      key={subject}
-                                      className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100"
-                                    >
-                                      <span>{subjectNames[subject] || subject}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* View Details Button */}
-                          <button
-                            onClick={() => {
-                              setTaskDetailToShow(task);
-                              setShowTaskDetailModal(true);
-                            }}
-                            className="text-[#ef597b] hover:text-[#6d469b] font-medium text-sm mb-3 flex items-center gap-1 transition-colors"
-                          >
-                            <BookOpen className="w-4 h-4" />
-                            View Task Details
-                          </button>
+                  return (
+                    <div
+                      key={task.id}
+                      onClick={() => {
+                        if (quest.user_enrollment) {
+                          setSelectedTask(task);
+                          setShowTaskModal(true);
+                        } else {
+                          setTaskDetailToShow(task);
+                          setShowTaskDetailModal(true);
+                        }
+                      }}
+                      className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group transition-all hover:shadow-2xl hover:scale-105"
+                      style={{ backgroundColor: pillarData.color }}
+                    >
+                      {/* Task Content */}
+                      <div className="absolute inset-0 p-6 flex flex-col justify-between text-white">
+                        {/* Top Section - Pillar Name */}
+                        <div>
+                          <div className="text-sm font-semibold uppercase tracking-wide opacity-90" style={{ fontFamily: 'Poppins' }}>
+                            {pillarData.name}
+                          </div>
                         </div>
 
-                        {/* Action buttons */}
-                        <div className="mt-4">
-                          {quest.user_enrollment && !task.is_completed && !isQuestCompleted && (
-                            <button
-                              onClick={() => {
-                                setSelectedTask(task);
-                                setShowTaskModal(true);
-                              }}
-                              className="w-full px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-[20px] hover:shadow-[0_4px_15px_rgba(239,89,123,0.3)] hover:-translate-y-0.5 transition-all duration-300 font-medium text-sm"
-                            >
-                              Update Progress
-                            </button>
-                          )}
+                        {/* Middle Section - Task Title */}
+                        <div className="flex-1 flex items-center justify-center">
+                          <h3 className="text-xl font-bold text-center leading-tight" style={{ fontFamily: 'Poppins' }}>
+                            {task.title}
+                          </h3>
+                        </div>
 
-                          {task.is_completed && (
-                            <div className="flex flex-col gap-2">
-                              <div className="w-full px-4 py-2 bg-green-100 text-green-800 rounded-[20px] font-medium text-sm text-center">
-                                Completed
-                              </div>
-                              <button
-                                onClick={() => {
-                                  setSelectedTask(task);
-                                  setShowTaskModal(true);
-                                }}
-                                className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-[20px] hover:bg-gray-200 transition-all duration-300 font-medium text-sm border border-gray-300"
-                              >
-                                Edit Evidence
-                              </button>
-                            </div>
-                          )}
+                        {/* Bottom Section - XP */}
+                        <div className="text-center">
+                          <div className="text-2xl font-bold" style={{ fontFamily: 'Poppins' }}>
+                            {task.xp_amount} XP
+                          </div>
                         </div>
                       </div>
+
+                      {/* Completed Overlay */}
+                      {task.is_completed && (
+                        <div className="absolute inset-0 bg-white/20 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
+                          <CheckCircle className="w-16 h-16 text-white drop-shadow-lg" />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTask(task);
+                              setShowTaskModal(true);
+                            }}
+                            className="px-4 py-2 bg-white text-gray-800 rounded-full font-semibold text-sm hover:bg-gray-100 transition-all shadow-lg"
+                            style={{ fontFamily: 'Poppins' }}
+                          >
+                            EDIT EVIDENCE
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* Add Task Card - only show if enrolled and not completed */}
+                {quest.user_enrollment && !isQuestCompleted && (
+                  <div
+                    onClick={() => setShowPersonalizationWizard(true)}
+                    className="aspect-square rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-2xl hover:scale-105 bg-green-500 flex flex-col items-center justify-center gap-4 text-white group"
+                  >
+                    <Plus className="w-16 h-16 transition-transform group-hover:scale-110" />
+                    <div className="text-xl font-bold uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>
+                      ADD TASK
                     </div>
                   </div>
-                );
-              })}
-
-              {/* Add More Tasks Button - only show if enrolled and has tasks */}
-              {quest.user_enrollment && !isQuestCompleted && (
-                <div className="mt-6 flex justify-center">
-                  <button
-                    onClick={() => setShowPersonalizationWizard(true)}
-                    className="px-6 py-3 bg-gradient-to-r from-[#6d469b] to-[#8b5cf6] text-white rounded-[25px] hover:shadow-[0_6px_20px_rgba(109,70,155,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold flex items-center gap-2"
-                  >
-                    <Target className="w-5 h-5" />
-                    Add More Tasks
-                  </button>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            </>
           ) : quest.user_enrollment && !showPersonalizationWizard ? (
-            <div className="text-center py-12">
+            <div className="text-center py-12 bg-white rounded-xl shadow-md">
               <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
               <p className="text-lg text-gray-600 mb-4">This quest needs to be personalized</p>
               <button
@@ -602,27 +541,28 @@ const QuestDetail = () => {
               </button>
             </div>
           ) : !quest.user_enrollment ? (
-            <div className="text-center py-12 text-gray-500">
+            <div className="text-center py-12 bg-white rounded-xl shadow-md text-gray-500">
               <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
               <p className="text-lg">Start this quest to see tasks</p>
             </div>
           ) : null}
         </div>
+
+
+        {/* Quest Management - Finish Quest */}
+        {quest.user_enrollment && !isQuestCompleted && (
+          <div className="bg-white rounded-xl shadow-md p-6 text-center">
+            <button
+              onClick={handleEndQuest}
+              disabled={endQuestMutation.isPending}
+              className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-[25px] hover:shadow-[0_6px_20px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {endQuestMutation.isPending ? 'Finishing...' : 'Finish Quest'}
+            </button>
+          </div>
+        )}
       </div>
-
-
-      {/* Quest Management - Finish Quest */}
-      {quest.user_enrollment && !isQuestCompleted && (
-        <div className="bg-white rounded-xl shadow-md p-6 text-center">
-          <button
-            onClick={handleEndQuest}
-            disabled={endQuestMutation.isPending}
-            className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-[25px] hover:shadow-[0_6px_20px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {endQuestMutation.isPending ? 'Finishing...' : 'Finish Quest'}
-          </button>
-        </div>
-      )}
+      {/* End Main Content Container */}
 
       {/* Modals */}
       {showTaskModal && selectedTask && (
