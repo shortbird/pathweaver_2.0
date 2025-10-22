@@ -194,35 +194,67 @@ export const useTaskStatus = (task) => {
  */
 export const getPillarColor = (pillar) => {
   const colors = {
-    'STEM & Logic': {
-      bg: 'bg-purple-100',
-      text: 'text-purple-800',
-      border: 'border-purple-300',
-      hex: '#9333EA'
-    },
-    'Life & Wellness': {
-      bg: 'bg-green-100',
-      text: 'text-green-800',
-      border: 'border-green-300',
-      hex: '#16A34A'
-    },
-    'Language & Communication': {
+    // New pillar keys (current)
+    stem: {
       bg: 'bg-blue-100',
       text: 'text-blue-800',
       border: 'border-blue-300',
-      hex: '#2563EB'
+      hex: '#2469D1'
+    },
+    wellness: {
+      bg: 'bg-red-100',
+      text: 'text-red-800',
+      border: 'border-red-300',
+      hex: '#E65C5C'
+    },
+    communication: {
+      bg: 'bg-green-100',
+      text: 'text-green-800',
+      border: 'border-green-300',
+      hex: '#3DA24A'
+    },
+    civics: {
+      bg: 'bg-orange-100',
+      text: 'text-orange-800',
+      border: 'border-orange-300',
+      hex: '#FF9028'
+    },
+    art: {
+      bg: 'bg-purple-100',
+      text: 'text-purple-800',
+      border: 'border-purple-300',
+      hex: '#AF56E5'
+    },
+    // Legacy mappings (old multi-word format)
+    'STEM & Logic': {
+      bg: 'bg-blue-100',
+      text: 'text-blue-800',
+      border: 'border-blue-300',
+      hex: '#2469D1'
+    },
+    'Life & Wellness': {
+      bg: 'bg-red-100',
+      text: 'text-red-800',
+      border: 'border-red-300',
+      hex: '#E65C5C'
+    },
+    'Language & Communication': {
+      bg: 'bg-green-100',
+      text: 'text-green-800',
+      border: 'border-green-300',
+      hex: '#3DA24A'
     },
     'Society & Culture': {
       bg: 'bg-orange-100',
       text: 'text-orange-800',
       border: 'border-orange-300',
-      hex: '#EA580C'
+      hex: '#FF9028'
     },
     'Arts & Creativity': {
-      bg: 'bg-pink-100',
-      text: 'text-pink-800',
-      border: 'border-pink-300',
-      hex: '#DB2777'
+      bg: 'bg-purple-100',
+      text: 'text-purple-800',
+      border: 'border-purple-300',
+      hex: '#AF56E5'
     }
   }
 
