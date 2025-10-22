@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { X, Award, BookOpen, Info, Type, Image, Video, Link2, FileText, AlertCircle } from 'lucide-react';
+import { X, Award, BookOpen, Type, Image, Video, Link2, FileText, AlertCircle } from 'lucide-react';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import ModalErrorBoundary from '../ModalErrorBoundary';
 import { getPillarData } from '../../utils/pillarMappings';
@@ -98,29 +98,32 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
             {/* Add Content Block Buttons - Right below header */}
             <div className="px-8 py-4 border-b border-gray-200 bg-gray-50">
               <div className="flex flex-wrap gap-2">
-                {Object.entries(blockTypes).map(([type, config]) => (
-                  <button
-                    key={type}
-                    onClick={() => handleAddBlock(type)}
-                    className="px-4 py-2 rounded-full border-2 transition-all duration-200 hover:shadow-md bg-white flex items-center gap-2 text-sm font-semibold"
-                    style={{
-                      borderColor: pillarData.color,
-                      color: pillarData.color,
-                      fontFamily: 'Poppins'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = pillarData.color;
-                      e.currentTarget.style.color = 'white';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'white';
-                      e.currentTarget.style.color = pillarData.color;
-                    }}
-                  >
-                    <span>{config.icon}</span>
-                    <span>+ {config.label}</span>
-                  </button>
-                ))}
+                {Object.entries(blockTypes).map(([type, config]) => {
+                  const IconComponent = config.icon;
+                  return (
+                    <button
+                      key={type}
+                      onClick={() => handleAddBlock(type)}
+                      className="px-4 py-2 rounded-full border-2 transition-all duration-200 hover:shadow-md bg-white flex items-center gap-2 text-sm font-semibold"
+                      style={{
+                        borderColor: pillarData.color,
+                        color: pillarData.color,
+                        fontFamily: 'Poppins'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = pillarData.color;
+                        e.currentTarget.style.color = 'white';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'white';
+                        e.currentTarget.style.color = pillarData.color;
+                      }}
+                    >
+                      <IconComponent className="w-4 h-4" />
+                      <span>{config.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -223,38 +226,35 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
                 }}
               >
                 <h4 className="font-bold text-lg mb-3 flex items-center gap-2" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>
-                  <Info className="w-5 h-5" />
-                  How to Use Multi-Format Evidence
+                  <AlertCircle className="w-5 h-5" />
+                  Your Evidence Is Public
                 </h4>
+                <p className="text-gray-700 text-base leading-relaxed mb-4" style={{ fontFamily: 'Poppins' }}>
+                  This evidence will appear on your <strong>public portfolio</strong> for others to see. Make sure your content reflects well on you and showcases your best efforts.
+                </p>
                 <ul className="space-y-2">
                   <li className="flex items-start">
                     <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
                     <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Add different types of content:</strong> Mix text, images, videos, links, and documents
+                      <strong>Mix different content types:</strong> Use text, images, videos, links, and documents to tell your story
                     </span>
                   </li>
                   <li className="flex items-start">
                     <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
                     <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Build your story:</strong> Document your learning process step by step
+                      <strong>Document your process:</strong> Show how you learned, not just what you completed
                     </span>
                   </li>
                   <li className="flex items-start">
                     <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
                     <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Auto-save:</strong> Your work is automatically saved as you type
+                      <strong>Auto-saved:</strong> Your work is saved automatically every few seconds
                     </span>
                   </li>
                   <li className="flex items-start">
                     <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
                     <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Drag to reorder:</strong> Arrange content blocks in any order
-                    </span>
-                  </li>
-                  <li className="flex items-start">
-                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
-                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Mark complete when ready:</strong> Submit your evidence to earn XP
+                      <strong>Reorder as needed:</strong> Drag blocks to arrange them in the best order
                     </span>
                   </li>
                 </ul>
