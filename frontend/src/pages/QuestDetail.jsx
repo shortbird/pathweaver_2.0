@@ -297,7 +297,7 @@ const QuestDetail = () => {
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
           {/* Back Button */}
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(-1)}
             className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-full hover:shadow-lg transition-all font-semibold mb-6"
           >
             <ArrowLeft className="w-4 h-4" />
