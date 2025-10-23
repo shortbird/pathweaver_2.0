@@ -1,11 +1,19 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { visualizer } from 'rollup-plugin-visualizer'
 import { copyFileSync, existsSync, mkdirSync } from 'fs'
 import { join } from 'path'
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [
     react(),
+    // Bundle analyzer - only in analyze mode
+    mode === 'analyze' && visualizer({
+      filename: './dist/stats.html',
+      open: true,
+      gzipSize: true,
+      brotliSize: true,
+    }),
     {
       name: 'copy-static-files',
       closeBundle() {
@@ -44,6 +52,17 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
-    sourcemap: true
+    sourcemap: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Vendor chunks for better caching
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'ui-vendor': ['@heroicons/react', 'lucide-react', 'framer-motion'],
+          'chart-vendor': ['chart.js', 'react-chartjs-2', 'recharts', 'd3'],
+          'utils-vendor': ['axios', 'date-fns', 'clsx'],
+        },
+      },
+    },
   }
-})
+}))

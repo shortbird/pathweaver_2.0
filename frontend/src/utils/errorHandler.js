@@ -1,6 +1,7 @@
 // Frontend error handling utilities for standardized backend errors
 
 import { useState, useCallback } from 'react';
+import { toast } from 'react-hot-toast';
 
 /**
  * Parse standardized error response from backend
@@ -75,12 +76,12 @@ export const displayError = (error, options = {}) => {
   const {
     fallbackMessage = 'Something went wrong. Please try again.',
     showDetails = false,
-    duration = 5000,
-    onClose = null
+    showToast = true,
+    duration = 4000
   } = options;
-  
+
   let message = error.message || fallbackMessage;
-  
+
   // Add retry hint for transient errors
   if (['NETWORK_ERROR', 'EXTERNAL_SERVICE_ERROR', 'RATE_LIMIT_EXCEEDED'].includes(error.code)) {
     if (error.details?.retry_after) {
@@ -89,13 +90,40 @@ export const displayError = (error, options = {}) => {
       message += ' Please try again in a moment.';
     }
   }
-  
+
   // Add request ID for support
   if (error.requestId && showDetails) {
     message += ` (Request ID: ${error.requestId})`;
   }
-  
+
+  // Show toast notification
+  if (showToast) {
+    toast.error(message, { duration });
+  }
+
   return message;
+};
+
+/**
+ * Show success toast notification
+ */
+export const showSuccess = (message, duration = 3000) => {
+  toast.success(message, { duration });
+};
+
+/**
+ * Show info toast notification
+ */
+export const showInfo = (message, duration = 3000) => {
+  toast(message, { duration, icon: 'ℹ️' });
+};
+
+/**
+ * Show loading toast and return dismiss function
+ */
+export const showLoading = (message) => {
+  const toastId = toast.loading(message);
+  return () => toast.dismiss(toastId);
 };
 
 /**
@@ -239,5 +267,8 @@ export default {
   displayError,
   withRetry,
   ErrorHandler,
-  useErrorHandler
+  useErrorHandler,
+  showSuccess,
+  showInfo,
+  showLoading
 };
