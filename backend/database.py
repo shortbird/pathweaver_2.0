@@ -1,5 +1,5 @@
 from supabase import create_client, Client
-from config import Config
+from app_config import Config
 from flask import request
 from typing import Optional
 

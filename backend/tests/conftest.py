@@ -12,7 +12,7 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 os.environ['FLASK_ENV'] = 'testing'
 
 from app import app as flask_app
-from config import TestingConfig
+from app_config import TestingConfig
 
 @pytest.fixture
 def app():

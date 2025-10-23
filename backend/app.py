@@ -278,7 +278,7 @@ def get_csrf():
 @app.route('/test-config')
 def test_config():
     """Test endpoint to verify configuration"""
-    from config import Config
+    from app_config import Config
     
     config_status = {
         'has_supabase_url': bool(Config.SUPABASE_URL),
