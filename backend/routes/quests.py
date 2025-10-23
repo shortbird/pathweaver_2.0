@@ -5,7 +5,7 @@ Handles quest listing, enrollment, and detail views.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_client, get_supabase_admin_client
-from utils.auth.decorators import require_auth, require_paid_tier
+from utils.auth.decorators import require_auth
 from utils.source_utils import get_quest_header_image
 from utils.user_sync import ensure_user_exists, get_user_name
 from services.quest_optimization import quest_optimization_service

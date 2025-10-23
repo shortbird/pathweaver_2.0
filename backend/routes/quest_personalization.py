@@ -8,7 +8,7 @@ to generate custom learning paths aligned with their interests.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from utils.auth.decorators import require_auth, require_paid_tier
+from utils.auth.decorators import require_auth
 from services.personalization_service import personalization_service
 from datetime import datetime
 
