@@ -35,6 +35,7 @@ const ParentDashboardPage = () => {
   const [sending, setSending] = useState(false);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [showAddChildModal, setShowAddChildModal] = useState(false);
+  const [showRhythmModal, setShowRhythmModal] = useState(false);
 
   // Pillar display names mapping
   const pillarDisplayNames = {
@@ -309,21 +310,26 @@ const ParentDashboardPage = () => {
         </div>
       )}
 
-      {/* Header with Child Selector and Learning Rhythm */}
+      {/* Header with Child Selector */}
       <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex items-center gap-4 flex-wrap">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Family Dashboard
-            </h1>
-            {selectedStudent && (
-              <p className="text-gray-600 mt-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Supporting {selectedStudent.first_name}'s learning journey
-              </p>
-            )}
-          </div>
-          {/* Compact Learning Rhythm Indicator */}
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${isFlowState ? 'bg-green-50' : 'bg-yellow-50'}`}>
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            Family Dashboard
+          </h1>
+          {selectedStudent && (
+            <p className="text-gray-600 mt-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Supporting {selectedStudent.first_name}'s learning journey
+            </p>
+          )}
+        </div>
+
+        {/* Multi-Child Selector + Learning Rhythm Indicator + Add Child Button */}
+        <div className="flex gap-3 items-center">
+          {/* Learning Rhythm Indicator - Clickable */}
+          <button
+            onClick={() => setShowRhythmModal(true)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full transition-all hover:shadow-md ${isFlowState ? 'bg-green-50 hover:bg-green-100' : 'bg-yellow-50 hover:bg-yellow-100'}`}
+          >
             {isFlowState ? (
               <CheckCircleIcon className="w-5 h-5 text-green-600" />
             ) : (
@@ -332,11 +338,8 @@ const ParentDashboardPage = () => {
             <span className={`text-sm font-semibold ${isFlowState ? 'text-green-800' : 'text-yellow-800'}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
               {isFlowState ? 'In Flow' : 'Check-In Suggested'}
             </span>
-          </div>
-        </div>
+          </button>
 
-        {/* Multi-Child Selector + Add Child Button */}
-        <div className="flex gap-3 items-center">
           {children.length > 1 && (
             <select
               value={selectedStudentId || ''}
@@ -415,6 +418,165 @@ const ParentDashboardPage = () => {
                 )}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Learning Rhythm Modal */}
+      {showRhythmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full p-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                {isFlowState ? (
+                  <CheckCircleIcon className="w-8 h-8 text-green-600" />
+                ) : (
+                  <ExclamationTriangleIcon className="w-8 h-8 text-yellow-600" />
+                )}
+                <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  {isFlowState ? 'Learning Rhythm: In Flow' : 'Learning Rhythm: Check-In Suggested'}
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowRhythmModal(false)}
+                className="text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <XMarkIcon className="w-6 h-6" />
+              </button>
+            </div>
+
+            {isFlowState ? (
+              /* Flow State - Recent Completions */
+              <div className="space-y-4">
+                <p className="text-gray-700 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  {selectedStudent?.first_name} is making steady progress and staying engaged with their learning. Here's what they've been working on recently:
+                </p>
+
+                {dashboardData?.recent_completions && dashboardData.recent_completions.length > 0 ? (
+                  <div className="space-y-3">
+                    <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      Recent Completions
+                    </h3>
+                    {dashboardData.recent_completions.slice(0, 10).map((completion, index) => (
+                      <div key={index} className="bg-green-50 border border-green-200 rounded-lg p-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              {completion.task_title}
+                            </h4>
+                            <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              {completion.quest_title} • {completion.pillar}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-sm font-semibold text-green-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              +{completion.xp_earned} XP
+                            </span>
+                            <p className="text-xs text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              {new Date(completion.completed_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-6 text-center">
+                    <p className="text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      Keep celebrating their momentum! They're exploring and learning at their own pace.
+                    </p>
+                  </div>
+                )}
+
+                <div className="bg-white border-2 border-green-300 rounded-lg p-4 mt-6">
+                  <h4 className="font-semibold text-green-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    💡 How to Support Flow State
+                  </h4>
+                  <ul className="space-y-2 text-sm font-medium text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <li>• Celebrate what they're learning, not just what they're completing</li>
+                    <li>• Ask them to teach you something new they discovered</li>
+                    <li>• Notice their growth: "I see how much you've developed in [pillar area]"</li>
+                    <li>• Keep the path clear - protect their learning time from interruptions</li>
+                  </ul>
+                </div>
+              </div>
+            ) : (
+              /* Needs Support - Check-In Suggestions */
+              <div className="space-y-4">
+                <p className="text-gray-700 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  {dashboardData?.learning_rhythm?.has_overdue_tasks
+                    ? `Some tasks are wandering past their deadlines. Here are some gentle ways to help ${selectedStudent?.first_name} reconnect with their learning:`
+                    : `${selectedStudent?.first_name} hasn't checked in recently. Here are some process-focused ways to explore together:`}
+                </p>
+
+                <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6">
+                  <h3 className="text-lg font-bold text-yellow-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Conversation Starters
+                  </h3>
+                  <ul className="space-y-3 text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <li className="flex items-start gap-3">
+                      <span className="text-2xl">💬</span>
+                      <div>
+                        <strong>"I'd love to see what you're working on!"</strong>
+                        <p className="text-sm text-gray-600 mt-1">Curiosity without pressure - let them share what excites them</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="text-2xl">🤔</span>
+                      <div>
+                        <strong>"What's the most interesting thing you learned today?"</strong>
+                        <p className="text-sm text-gray-600 mt-1">Focus on the discovery process, not completion</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="text-2xl">🗓️</span>
+                      <div>
+                        <strong>"Would you like help thinking through your schedule?"</strong>
+                        <p className="text-sm text-gray-600 mt-1">Offer support without taking over their agency</p>
+                      </div>
+                    </li>
+                    <li className="flex items-start gap-3">
+                      <span className="text-2xl">🎯</span>
+                      <div>
+                        <strong>"What feels most important to focus on right now?"</strong>
+                        <p className="text-sm text-gray-600 mt-1">Help them reconnect with their own priorities</p>
+                      </div>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="bg-white border-2 border-purple-300 rounded-lg p-4">
+                  <h4 className="font-semibold text-purple-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    🌱 Remember: The Process Is The Goal
+                  </h4>
+                  <p className="text-sm font-medium text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Learning isn't linear. Sometimes students need space to wander, struggle, and find their own way back.
+                    Your role is to be a supportive presence, not a manager. Trust the process - and trust them.
+                  </p>
+                </div>
+
+                {dashboardData?.learning_rhythm?.has_overdue_tasks && (
+                  <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                    <h4 className="font-semibold text-orange-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      ⚠️ Overdue Tasks: {dashboardData.learning_rhythm.overdue_task_count}
+                    </h4>
+                    <p className="text-sm font-medium text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      Deadlines are tools, not rules. Help them understand what got in the way and what they learned from the experience.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="mt-6 flex justify-end">
+              <button
+                onClick={() => setShowRhythmModal(false)}
+                className="px-6 py-2 bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white rounded-lg font-semibold hover:shadow-lg transition-shadow"
+                style={{ fontFamily: 'Poppins, sans-serif' }}
+              >
+                Got It
+              </button>
+            </div>
           </div>
         </div>
       )}
