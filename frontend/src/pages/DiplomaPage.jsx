@@ -543,6 +543,8 @@ const DiplomaPage = () => {
             <img
               src={imageUrl}
               alt="Task evidence"
+              loading="lazy"
+              decoding="async"
               className="max-w-full rounded-lg cursor-pointer hover:opacity-90"
               onClick={() => window.open(imageUrl, '_blank')}
               onError={(e) => {
@@ -1104,6 +1106,8 @@ const DiplomaPage = () => {
                         <img
                           src={achievement.quest.image_url || achievement.quest.header_image_url}
                           alt={achievement.quest.title}
+                          loading="lazy"
+                          decoding="async"
                           className="w-full h-full object-cover"
                         />
                         <div className={`absolute inset-0 bg-gradient-to-t from-black/30 to-transparent`} />

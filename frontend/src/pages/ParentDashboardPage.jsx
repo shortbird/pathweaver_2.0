@@ -219,7 +219,7 @@ const ParentDashboardPage = () => {
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
                         {request.student_avatar_url ? (
-                          <img src={request.student_avatar_url} alt="" className="w-full h-full object-cover" />
+                          <img src={request.student_avatar_url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
                         ) : (
                           <UserGroupIcon className="w-6 h-6 text-blue-600" />
                         )}

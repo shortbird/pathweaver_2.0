@@ -79,6 +79,8 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
           <img
             src={quest.image_url || quest.header_image_url}
             alt={quest.title}
+            loading="lazy"
+            decoding="async"
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
           {/* Gradient overlay for better text readability */}
