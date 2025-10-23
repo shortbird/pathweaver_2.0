@@ -117,6 +117,9 @@ def get_parent_dashboard(user_id, student_id):
 
         active_quest_ids = [uq['quest_id'] for uq in active_quests_response.data]
 
+        # DEBUG: Log quest counts
+        logger.info(f"DEBUG - Student {student_id} has {len(active_quest_ids)} active quests: {active_quest_ids}")
+
         # Batch fetch all tasks and completions for active quests
         tasks_map = {}
         completions_map = {}
@@ -133,6 +136,9 @@ def get_parent_dashboard(user_id, student_id):
                 if qid not in tasks_map:
                     tasks_map[qid] = []
                 tasks_map[qid].append(task['id'])
+
+            # DEBUG: Log task counts per quest
+            logger.info(f"DEBUG - Task counts by quest: {[(qid, len(tasks)) for qid, tasks in tasks_map.items()]}")
 
             # Get all completions for active quests in one query
             all_completions_response = supabase.table('quest_task_completions').select('task_id, quest_id, user_quest_task_id').eq(
@@ -168,6 +174,9 @@ def get_parent_dashboard(user_id, student_id):
                     'percentage': round((completed_tasks / total_tasks * 100)) if total_tasks > 0 else 0
                 }
             })
+
+        # DEBUG: Log final active quests
+        logger.info(f"DEBUG - Returning {len(active_quests)} active quests: {[(q['quest_id'], q['title'], q['progress']) for q in active_quests]}")
 
         # Get weekly wins (last 7 days)
         seven_days_ago = (date.today() - timedelta(days=7)).isoformat()
