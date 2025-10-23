@@ -56,7 +56,7 @@ const ParentDashboardPage = () => {
       }
     };
 
-    if (user?.role === 'parent') {
+    if (user?.role === 'parent' || user?.role === 'admin') {
       loadChildren();
     }
   }, [user]);
