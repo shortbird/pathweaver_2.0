@@ -4,13 +4,15 @@ Handles quest listing, enrollment, and detail views.
 """
 
 from flask import Blueprint, request, jsonify
-from database import get_supabase_client, get_supabase_admin_client
+from database import get_supabase_client, get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth
 from utils.source_utils import get_quest_header_image
 from utils.user_sync import ensure_user_exists, get_user_name
 from services.quest_optimization import quest_optimization_service
 from utils.pillar_utils import get_pillar_name
 from utils.pillar_mapping import normalize_pillar_name
+from repositories.quest_repository import QuestRepository, QuestTaskRepository
+from repositories.base_repository import NotFoundError, DatabaseError
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
@@ -390,29 +392,26 @@ def enroll_in_quest(user_id: str, quest_id: str):
     Creates a user_quests record to track progress.
     """
     try:
-        # Use user client - quest existence check works with RLS (quests table is public)
+        # Use repository pattern with user client (RLS enforced)
         supabase = get_user_client(user_id)
+        quest_repo = QuestRepository(client=supabase)
 
-        # Check if quest exists and is active
-        quest = supabase.table('quests')\
-            .select('id, title, is_active')\
-            .eq('id', quest_id)\
-            .single()\
-            .execute()
-        
-        if not quest.data:
+        # Check if quest exists and is active using repository
+        quest = quest_repo.find_by_id(quest_id)
+
+        if not quest:
             return jsonify({
                 'success': False,
                 'error': 'Quest not found'
             }), 404
-        
-        if not quest.data.get('is_active'):
+
+        if not quest.get('is_active'):
             return jsonify({
                 'success': False,
                 'error': 'Quest is not active'
             }), 400
-        
-        # Check if already enrolled (active enrollment only)
+
+        # Check if already enrolled using direct query (enrollment logic is complex)
         existing = supabase.table('user_quests')\
             .select('id, is_active, completed_at, personalization_completed')\
             .eq('user_id', user_id)\
@@ -426,7 +425,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 if enrollment.get('is_active') and not enrollment.get('completed_at'):
                     return jsonify({
                         'success': True,
-                        'message': f'Already enrolled in "{quest.data["title"]}"',
+                        'message': f'Already enrolled in "{quest.get("title")}"',
                         'enrollment': enrollment,
                         'already_enrolled': True
                     })
@@ -434,28 +433,26 @@ def enroll_in_quest(user_id: str, quest_id: str):
             # If there are only completed enrollments, allow creating a new enrollment
             # (We'll create a new record below rather than reactivating to preserve history)
 
-        # Create enrollment
-        enrollment = supabase.table('user_quests')\
-            .insert({
-                'user_id': user_id,
-                'quest_id': quest_id,
-                'started_at': datetime.utcnow().isoformat(),
-                'is_active': True
-            })\
-            .execute()
-        
-        if not enrollment.data:
-            return jsonify({
-                'success': False,
-                'error': 'Failed to enroll in quest'
-            }), 500
-        
+        # Create enrollment using repository
+        enrollment = quest_repo.enroll_user(user_id, quest_id)
+
         return jsonify({
             'success': True,
-            'message': f'Successfully enrolled in "{quest.data["title"]}"',
-            'enrollment': enrollment.data[0]
+            'message': f'Successfully enrolled in "{quest.get("title")}"',
+            'enrollment': enrollment
         })
-        
+
+    except NotFoundError as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 404
+    except DatabaseError as e:
+        print(f"Database error enrolling in quest: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to enroll in quest'
+        }), 500
     except Exception as e:
         print(f"Error enrolling in quest: {str(e)}")
         return jsonify({

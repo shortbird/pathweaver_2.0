@@ -6,6 +6,8 @@ API endpoints for badge management and progression tracking.
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth, require_admin
 from services.badge_service import BadgeService
+from repositories.badge_repository import BadgeRepository
+from repositories.base_repository import NotFoundError, DatabaseError
 
 bp = Blueprint('badges', __name__, url_prefix='/api/badges')
 
@@ -170,24 +172,13 @@ def get_user_badges_by_id(target_user_id):
     # ADMIN CLIENT JUSTIFIED: Public endpoint for viewing user portfolio/diploma data
     # This is public data intentionally displayed to anyone with the portfolio URL
     supabase = get_supabase_admin_client()
+    badge_repo = BadgeRepository(client=supabase)
     status = request.args.get('status')
 
     try:
-        # Get user badges with basic badge info (no progress calculation)
-        query = supabase.table('user_badges')\
-            .select('*, badges(id, name, description, pillar, tier, icon_url, min_quests, min_xp)')\
-            .eq('user_id', target_user_id)
-
+        # Get user badges using repository
         if status == 'active':
-            query = query.eq('is_active', True).is_('earned_at', 'null')
-        elif status == 'completed':
-            query = query.not_.is_('earned_at', 'null')
-
-        result = query.execute()
-        user_badges = result.data or []
-
-        # Format response based on status filter
-        if status == 'active':
+            user_badges = badge_repo.get_user_active_badges(target_user_id)
             return jsonify({
                 'success': True,
                 'user_badges': user_badges,
@@ -196,6 +187,7 @@ def get_user_badges_by_id(target_user_id):
             }), 200
 
         elif status == 'completed':
+            user_badges = badge_repo.get_user_earned_badges(target_user_id)
             return jsonify({
                 'success': True,
                 'user_badges': user_badges,
@@ -204,19 +196,26 @@ def get_user_badges_by_id(target_user_id):
             }), 200
 
         else:
-            # Separate active and completed
-            active = [b for b in user_badges if b.get('earned_at') is None and b.get('is_active')]
-            completed = [b for b in user_badges if b.get('earned_at') is not None]
+            # Get both active and completed
+            active = badge_repo.get_user_active_badges(target_user_id)
+            completed = badge_repo.get_user_earned_badges(target_user_id)
+            all_badges = active + completed
 
             return jsonify({
                 'success': True,
-                'user_badges': user_badges,
+                'user_badges': all_badges,
                 'active_badges': active,
                 'completed_badges': completed,
                 'active_count': len(active),
                 'completed_count': len(completed)
             }), 200
 
+    except DatabaseError as e:
+        print(f"Database error getting user badges: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to get user badges'
+        }), 500
     except Exception as e:
         print(f"Error getting user badges: {str(e)}")
         return jsonify({
@@ -353,17 +352,33 @@ def create_badge(user_id):
         'min_xp': data.get('min_xp', 1500),
         'portfolio_requirement': data.get('portfolio_requirement'),
         'ai_generated': data.get('ai_generated', False),
-        'status': data.get('status', 'active')
+        'is_active': data.get('status', 'active') == 'active'  # Convert status to is_active boolean
     }
 
-    supabase = get_supabase_admin_client()
-    result = supabase.table('badges').insert(badge_data).execute()
+    try:
+        # Use repository to create badge
+        supabase = get_supabase_admin_client()
+        badge_repo = BadgeRepository(client=supabase)
+        badge = badge_repo.create(badge_data)
 
-    return jsonify({
-        'success': True,
-        'message': 'Badge created successfully',
-        'badge': result.data[0]
-    }), 201
+        return jsonify({
+            'success': True,
+            'message': 'Badge created successfully',
+            'badge': badge
+        }), 201
+
+    except DatabaseError as e:
+        print(f"Database error creating badge: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to create badge'
+        }), 500
+    except Exception as e:
+        print(f"Error creating badge: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to create badge: {str(e)}'
+        }), 500
 
 
 @bp.route('/admin/<badge_id>', methods=['PUT'])
