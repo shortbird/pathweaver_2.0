@@ -62,7 +62,6 @@ const DiplomaPage = () => {
     creativity: 'from-[#AF56E5] to-[#9945D1]',
     critical_thinking: 'from-[#2469D1] to-[#1B4FA3]',
     practical_skills: 'from-[#E65C5C] to-[#D14545]',
-    communication: 'from-[#3DA24A] to-[#2E8838]',
     cultural_literacy: 'from-[#FF9028] to-[#E67A15]'
   };
 
