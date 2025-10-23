@@ -8,9 +8,9 @@ bp = Blueprint('community', __name__)
 @bp.route('/friends', methods=['GET'])
 @require_auth
 def get_friends(user_id):
-    supabase = get_supabase_client()
-    from database import get_supabase_admin_client
-    admin_supabase = get_supabase_admin_client()
+    from database import get_user_client
+    # Use user client - fetching user-specific friendship data
+    supabase = get_user_client(user_id)
 
     try:
         print(f"[GET_FRIENDS] Fetching friends for user: {user_id}")
@@ -60,7 +60,7 @@ def get_friends(user_id):
         user_lookup = {}
         if all_user_ids:
             try:
-                users_result = admin_supabase.table('users').select('*').in_('id', list(all_user_ids)).execute()
+                users_result = supabase.table('users').select('*').in_('id', list(all_user_ids)).execute()
                 user_lookup = {user['id']: user for user in (users_result.data or [])}
                 print(f"[GET_FRIENDS] Fetched {len(user_lookup)} user records in batch")
             except Exception as batch_error:
@@ -143,8 +143,9 @@ def send_friend_request(user_id):
         if addressee_email:
             # Get the user ID from auth.users table by email
             from database import get_supabase_admin_client
+            # LEGITIMATE ADMIN CLIENT USAGE: Querying auth.users table requires service role
             admin_supabase = get_supabase_admin_client()
-            
+
             print(f"[FRIEND_REQUEST] Looking for user with email: {addressee_email}")
             
             addressee_id = None
@@ -276,8 +277,10 @@ def send_friend_request(user_id):
 @bp.route('/friends/accept/<friendship_id>', methods=['POST'])
 @require_auth
 def accept_friend_request(user_id, friendship_id):
-    supabase = get_supabase_client()
-    from database import get_supabase_admin_client
+    from database import get_user_client, get_supabase_admin_client
+    # Use user client for user-specific friendship operations
+    supabase = get_user_client(user_id)
+    # Admin client only for RPC call to bypass triggers (database function requires service role)
     admin_supabase = get_supabase_admin_client()
 
     try:
@@ -511,9 +514,9 @@ def get_friends_activity(user_id):
     Get recent quest activity from user's connections.
     Returns task completions from friends for the activity feed.
     """
-    from database import get_supabase_admin_client
-    admin_supabase = get_supabase_admin_client()
-    supabase = get_supabase_client()
+    from database import get_user_client
+    # Use user client - fetching user-specific friendship activity
+    supabase = get_user_client(user_id)
 
     try:
         print(f"[FRIENDS_ACTIVITY] Fetching activity for user: {user_id}")
@@ -563,7 +566,7 @@ def get_friends_activity(user_id):
         try:
             # Get all recent task completions from all friends at once
             # Note: quest_task_completions -> user_quest_tasks (via user_quest_task_id) -> quests
-            completions = admin_supabase.table('quest_task_completions')\
+            completions = supabase.table('quest_task_completions')\
                 .select('*, user_quest_tasks(id, title, pillar, xp_value, quest_id, quests(id, title, image_url))')\
                 .in_('user_id', friend_ids)\
                 .gte('completed_at', thirty_days_ago)\
@@ -572,7 +575,7 @@ def get_friends_activity(user_id):
                 .execute()
 
             # Get all friends' user data in a single query
-            friends_data = admin_supabase.table('users')\
+            friends_data = supabase.table('users')\
                 .select('id, first_name, last_name, avatar_url')\
                 .in_('id', friend_ids)\
                 .execute()

@@ -390,8 +390,9 @@ def enroll_in_quest(user_id: str, quest_id: str):
     Creates a user_quests record to track progress.
     """
     try:
-        supabase = get_supabase_admin_client()
-        
+        # Use user client - quest existence check works with RLS (quests table is public)
+        supabase = get_user_client(user_id)
+
         # Check if quest exists and is active
         quest = supabase.table('quests')\
             .select('id, title, is_active')\
@@ -556,9 +557,8 @@ def get_user_completed_quests(user_id: str):
     Optimized to fetch all data in bulk to prevent N+1 queries.
     """
     try:
-        from database import get_supabase_admin_client
-
-        supabase = get_supabase_admin_client()
+        # Use user client - fetching user-specific quest data
+        supabase = get_user_client(user_id)
 
         # Fetch ALL user data in parallel using just 3 queries
         # Query 1: Get all user quests (completed + in-progress)
@@ -778,7 +778,8 @@ def end_quest(user_id: str, quest_id: str):
     (from auto-completion when all tasks are done). We handle both cases gracefully.
     """
     try:
-        supabase = get_supabase_admin_client()
+        # Use user client - user-specific quest enrollment operation
+        supabase = get_user_client(user_id)
 
         # Check if user is enrolled in this quest (allow both active and completed)
         # Quest might already be auto-completed when last task was submitted
