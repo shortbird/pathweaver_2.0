@@ -76,11 +76,11 @@ def rate_limit(max_requests: int = 60, window_seconds: int = 60):
             if 'auth' in request.endpoint and request.method == 'POST':
                 # More lenient in development mode
                 if os.getenv('FLASK_ENV') == 'development':
-                    max_req = 50  # Much higher limit for testing
-                    window = 60  # Per minute
+                    max_req = 10  # Reduced from 50
+                    window = 300  # 5 minutes
                 else:
-                    max_req = 5  # Only 5 auth attempts in production
-                    window = 60  # Per minute
+                    max_req = 3  # Reduced from 5
+                    window = 900  # 15 minutes (increased from 1 minute)
             else:
                 max_req = max_requests
                 window = window_seconds

@@ -10,8 +10,117 @@ from utils.retry_handler import retry_database_operation
 from legal_versions import CURRENT_TOS_VERSION, CURRENT_PRIVACY_POLICY_VERSION
 import re
 import os
+from datetime import datetime, timedelta
 
 bp = Blueprint('auth', __name__)
+
+# Account lockout constants
+MAX_LOGIN_ATTEMPTS = 5
+LOCKOUT_DURATION_MINUTES = 30
+
+def check_account_lockout(email):
+    """
+    Check if account is locked due to too many failed attempts.
+    Returns (is_locked, retry_after_seconds, attempt_count)
+    """
+    try:
+        from database import get_supabase_admin_client
+        admin_client = get_supabase_admin_client()
+
+        # Get login attempt record
+        result = admin_client.table('login_attempts')\
+            .select('*')\
+            .eq('email', email.lower())\
+            .execute()
+
+        if not result.data:
+            return False, 0, 0
+
+        record = result.data[0]
+        locked_until = record.get('locked_until')
+        attempt_count = record.get('attempt_count', 0)
+
+        # Check if account is currently locked
+        if locked_until:
+            locked_until_dt = datetime.fromisoformat(locked_until.replace('Z', '+00:00'))
+            now = datetime.now(locked_until_dt.tzinfo)
+
+            if now < locked_until_dt:
+                retry_after = int((locked_until_dt - now).total_seconds())
+                return True, retry_after, attempt_count
+
+        return False, 0, attempt_count
+
+    except Exception as e:
+        print(f"Error checking account lockout: {e}")
+        return False, 0, 0
+
+def record_failed_login(email):
+    """
+    Record a failed login attempt and lock account if threshold is reached.
+    Returns (is_now_locked, attempts_remaining, lockout_duration_minutes)
+    """
+    try:
+        from database import get_supabase_admin_client
+        admin_client = get_supabase_admin_client()
+
+        # Get current record
+        result = admin_client.table('login_attempts')\
+            .select('*')\
+            .eq('email', email.lower())\
+            .execute()
+
+        if not result.data:
+            # Create new record
+            admin_client.table('login_attempts').insert({
+                'email': email.lower(),
+                'attempt_count': 1,
+                'locked_until': None,
+                'created_at': datetime.utcnow().isoformat(),
+                'updated_at': datetime.utcnow().isoformat()
+            }).execute()
+            return False, MAX_LOGIN_ATTEMPTS - 1, 0
+
+        record = result.data[0]
+        attempt_count = record.get('attempt_count', 0) + 1
+
+        # Check if we should lock the account
+        if attempt_count >= MAX_LOGIN_ATTEMPTS:
+            locked_until = datetime.utcnow() + timedelta(minutes=LOCKOUT_DURATION_MINUTES)
+            admin_client.table('login_attempts').update({
+                'attempt_count': attempt_count,
+                'locked_until': locked_until.isoformat(),
+                'updated_at': datetime.utcnow().isoformat()
+            }).eq('email', email.lower()).execute()
+            return True, 0, LOCKOUT_DURATION_MINUTES
+        else:
+            # Increment attempt count
+            admin_client.table('login_attempts').update({
+                'attempt_count': attempt_count,
+                'updated_at': datetime.utcnow().isoformat()
+            }).eq('email', email.lower()).execute()
+            return False, MAX_LOGIN_ATTEMPTS - attempt_count, 0
+
+    except Exception as e:
+        print(f"Error recording failed login: {e}")
+        return False, 0, 0
+
+def reset_login_attempts(email):
+    """
+    Reset login attempts after successful login.
+    """
+    try:
+        from database import get_supabase_admin_client
+        admin_client = get_supabase_admin_client()
+
+        admin_client.table('login_attempts').update({
+            'attempt_count': 0,
+            'locked_until': None,
+            'updated_at': datetime.utcnow().isoformat()
+        }).eq('email', email.lower()).execute()
+
+    except Exception as e:
+        print(f"Error resetting login attempts: {e}")
 
 def generate_portfolio_slug(first_name, last_name):
     """Generate a unique portfolio slug from first and last name"""
@@ -370,14 +479,26 @@ def get_current_user():
 def login():
     data = request.json
     supabase = get_supabase_client()
-    
+
     # Validate input
     if not data or not data.get('email') or not data.get('password'):
         return jsonify({'error': 'Email and password are required'}), 400
-    
+
+    email = data['email'].strip().lower()
+
+    # Check if account is locked due to too many failed attempts
+    is_locked, retry_after, attempt_count = check_account_lockout(email)
+    if is_locked:
+        minutes_remaining = retry_after // 60
+        return jsonify({
+            'error': f'Account temporarily locked due to too many failed login attempts. Please try again in {minutes_remaining} minutes.',
+            'retry_after': retry_after,
+            'locked': True
+        }), 429
+
     try:
         auth_response = supabase.auth.sign_in_with_password({
-            'email': data['email'].strip().lower(),  # Normalize email
+            'email': email,
             'password': data['password']
         })
         
@@ -499,6 +620,9 @@ def login():
             except Exception as log_error:
                 print(f"Failed to log activity: {log_error}")
 
+            # Reset login attempts after successful login
+            reset_login_attempts(email)
+
             # Create response with user data
 
             # Extract session data
@@ -533,10 +657,25 @@ def login():
         error_lower = error_message.lower()
         
         if "invalid login credentials" in error_lower:
-            return jsonify({'error': 'Invalid email or password. Please check your credentials and try again.'}), 401
+            # Record failed login attempt
+            is_now_locked, attempts_remaining, lockout_minutes = record_failed_login(email)
+
+            if is_now_locked:
+                return jsonify({
+                    'error': f'Too many failed login attempts. Your account has been temporarily locked for {lockout_minutes} minutes.',
+                    'locked': True,
+                    'lockout_duration': lockout_minutes
+                }), 429
+            else:
+                return jsonify({
+                    'error': f'Invalid email or password. {attempts_remaining} attempts remaining before account lockout.',
+                    'attempts_remaining': attempts_remaining
+                }), 401
         elif "email not confirmed" in error_lower:
             return jsonify({'error': 'Please verify your email address before logging in. Check your inbox for a confirmation email.'}), 401
         elif "user not found" in error_lower:
+            # Record failed login attempt even for non-existent users (prevent username enumeration)
+            record_failed_login(email)
             return jsonify({'error': 'No account found with this email. Please register first or check your email address.'}), 401
         elif "rate limit" in error_lower or "too many requests" in error_lower:
             import re
