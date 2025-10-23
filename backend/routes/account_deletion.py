@@ -18,10 +18,11 @@ def request_account_deletion(current_user):
     GDPR/CCPA Right to Erasure
     """
     try:
-        data = request.json or {}
+        data = request.json or{}
         reason = data.get('reason', '')
         user_id = current_user['id']
 
+        # ADMIN CLIENT JUSTIFIED: Account deletion requires cross-table cleanup and audit logging
         supabase = get_supabase_admin_client()
 
         # Get user data for logging
@@ -97,7 +98,8 @@ def cancel_account_deletion(current_user):
     """
     try:
         user_id = current_user['id']
-        supabase = get_supabase_admin_client()
+        # Use user client for RLS enforcement
+        supabase = get_user_client(user_id)
 
         # Get user data
         user_response = supabase.table('users').select('deletion_status, deletion_scheduled_for').eq('id', user_id).execute()
@@ -146,7 +148,8 @@ def get_deletion_status(current_user):
     """
     try:
         user_id = current_user['id']
-        supabase = get_supabase_admin_client()
+        # Use user client for RLS enforcement
+        supabase = get_user_client(user_id)
 
         user_response = supabase.table('users').select(
             'deletion_status, deletion_requested_at, deletion_scheduled_for'
@@ -190,6 +193,7 @@ def export_user_data(current_user):
         print(f"[EXPORT] Starting data export for user: {current_user}")
         user_id = current_user['id']
         print(f"[EXPORT] User ID: {user_id}")
+        # ADMIN CLIENT JUSTIFIED: GDPR data export requires cross-table reads from all user data
         supabase = get_supabase_admin_client()
         print(f"[EXPORT] Got supabase client")
 

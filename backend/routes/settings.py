@@ -9,7 +9,7 @@ settings_bp = Blueprint('settings', __name__)
 @settings_bp.route('/settings', methods=['GET'])
 def get_settings():
     try:
-        # Get public settings (logo, site name, etc.)
+        # ADMIN CLIENT JUSTIFIED: Reading public site-wide settings (not user-specific data)
         supabase = get_supabase_admin_client()
         response = supabase.table('site_settings').select('*').single().execute()
         
@@ -36,6 +36,7 @@ def get_settings():
 def update_settings(current_user):
     try:
         data = request.get_json()
+        # ADMIN CLIENT JUSTIFIED: Admin-only endpoint for updating site-wide settings
         supabase = get_supabase_admin_client()
         
         # Check if settings exist
@@ -77,7 +78,7 @@ def upload_logo(current_user):
         file_ext = logo_file.filename.rsplit('.', 1)[1].lower() if '.' in logo_file.filename else 'png'
         filename = f"logo_{uuid.uuid4().hex}.{file_ext}"
         
-        # Upload to Supabase storage
+        # ADMIN CLIENT JUSTIFIED: Admin-only endpoint for uploading site-wide assets
         file_data = logo_file.read()
         supabase = get_supabase_admin_client()
         

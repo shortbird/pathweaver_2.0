@@ -1,6 +1,10 @@
 """
 Parent Dashboard API routes.
 Provides read-only access to student data for linked parents.
+
+NOTE: Admin client usage justified throughout this file for cross-user data access.
+Parents viewing linked student data requires elevated privileges beyond normal RLS.
+All endpoints verify parent-student link before allowing access.
 """
 from flask import Blueprint, request, jsonify
 from datetime import datetime, date, timedelta

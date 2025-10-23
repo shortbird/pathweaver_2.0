@@ -1,6 +1,9 @@
 """
 Parent-Student Linking API routes.
 Handles invitation, registration, and approval workflow for connecting parents to students.
+
+NOTE: Admin client usage justified throughout this file for parent-student linking operations.
+Managing parent-student relationships requires cross-user operations and elevated privileges.
 """
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta

@@ -2,6 +2,10 @@
 Parent Evidence Upload API routes.
 Allows parents to upload evidence on behalf of their students for tasks.
 Parents cannot start quests - only upload evidence for active tasks.
+
+NOTE: Admin client usage justified throughout this file for cross-user operations.
+Parents uploading evidence for students requires elevated privileges to write to student records.
+All endpoints verify parent-student link before allowing operations.
 """
 from flask import Blueprint, request, jsonify
 from datetime import datetime

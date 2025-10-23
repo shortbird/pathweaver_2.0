@@ -1,3 +1,10 @@
+"""
+Parental Consent API routes.
+Handles COPPA compliance for users under 13.
+
+NOTE: Admin client usage justified throughout this file for consent management.
+Managing parental consent requires cross-user operations and system-level privileges.
+"""
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from middleware.error_handler import ValidationError, NotFoundError

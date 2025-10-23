@@ -76,11 +76,11 @@ def select_badge(user_id, badge_id):
     Path params:
         badge_id: Badge UUID
     """
-    from database import get_supabase_admin_client
+    from database import get_user_client
 
     try:
-        # Check if user is on paid tier
-        supabase = get_supabase_admin_client()
+        # Check if user is on paid tier (using user client for RLS enforcement)
+        supabase = get_user_client(user_id)
         user = supabase.table('users').select('subscription_tier').eq('id', user_id).single().execute()
 
         if not user.data:
@@ -167,6 +167,8 @@ def get_user_badges_by_id(target_user_id):
     """
     from database import get_supabase_admin_client
 
+    # ADMIN CLIENT JUSTIFIED: Public endpoint for viewing user portfolio/diploma data
+    # This is public data intentionally displayed to anyone with the portfolio URL
     supabase = get_supabase_admin_client()
     status = request.args.get('status')
 
