@@ -246,6 +246,14 @@ try:
 except Exception as e:
     print(f"Warning: Parent Dashboard routes not available: {e}")
 
+# Register Pillars Configuration API blueprint (public endpoint)
+try:
+    from routes.pillars import pillars_bp
+    app.register_blueprint(pillars_bp, url_prefix='/api')  # /api/pillars
+    print("Pillars Configuration API routes registered successfully")
+except Exception as e:
+    print(f"Warning: Pillars Configuration API routes not available: {e}")
+
 
 @app.route('/', methods=['GET', 'HEAD'])
 def root():
