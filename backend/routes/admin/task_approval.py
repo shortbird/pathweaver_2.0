@@ -10,7 +10,7 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
 from datetime import datetime
 
-bp = Blueprint('admin_task_approval', __name__, url_prefix='/api/v3/admin')
+bp = Blueprint('admin_task_approval', __name__, url_prefix='/api/admin')
 
 @bp.route('/manual-tasks/pending', methods=['GET'])
 @require_admin

@@ -121,7 +121,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
 
   const fetchSources = async () => {
     try {
-      const response = await api.get('/api/v3/admin/quest-sources')
+      const response = await api.get('/api/admin/quest-sources')
       setSources(response.data.sources || [])
     } catch (error) {
       console.error('Error fetching sources:', error)
@@ -131,7 +131,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
 
   const fetchSchoolSubjects = async () => {
     try {
-      const response = await api.get('/api/v3/admin/school-subjects')
+      const response = await api.get('/api/admin/school-subjects')
       if (response.data.success) {
         setAvailableSubjects(response.data.school_subjects || [])
       } else {
@@ -228,7 +228,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
         metadata: formData.metadata.location_type !== 'anywhere' ? formData.metadata : undefined
       }
       
-      const response = await api.post('/api/v3/admin/quests/create-v3', submitData)
+      const response = await api.post('/api/admin/quests/create-v3', submitData)
       
       toast.success('Quest created successfully!')
       onSuccess && onSuccess(response.data.quest)
@@ -357,7 +357,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
       }
       
       try {
-        const response = await api.post('/api/v3/admin/quest-sources', {
+        const response = await api.post('/api/admin/quest-sources', {
           id: newSource.id.toLowerCase().replace(/\s+/g, '_'),
           name: newSource.name
         })

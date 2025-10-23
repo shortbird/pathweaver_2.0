@@ -16,7 +16,7 @@ const SourcesManager = ({ onClose }) => {
 
   const fetchSources = async () => {
     try {
-      const response = await api.get('/api/v3/admin/quest-sources');
+      const response = await api.get('/api/admin/quest-sources');
       // Convert array to object format for easier access
       const sourcesArray = response.data.sources || [];
       setSources(sourcesArray);
@@ -46,7 +46,7 @@ const SourcesManager = ({ onClose }) => {
       reader.readAsDataURL(file);
       const base64Data = await base64Promise;
 
-      const response = await api.put(`/api/v3/admin/quest-sources/${sourceId}`, {
+      const response = await api.put(`/api/admin/quest-sources/${sourceId}`, {
         header_image_base64: base64Data
       });
 
@@ -73,7 +73,7 @@ const SourcesManager = ({ onClose }) => {
     }
 
     try {
-      const response = await api.post('/api/v3/admin/quest-sources', {
+      const response = await api.post('/api/admin/quest-sources', {
         id: newSource.id.toLowerCase().replace(/\s+/g, '_'),
         name: newSource.name
       });

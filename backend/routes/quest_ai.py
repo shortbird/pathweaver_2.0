@@ -8,7 +8,7 @@ from utils.auth.decorators import require_auth, require_admin
 from utils.validation.sanitizers import sanitize_search_input, sanitize_integer
 import json
 
-bp = Blueprint('quest_ai', __name__, url_prefix='/api/v3/quest-ai')
+bp = Blueprint('quest_ai', __name__, url_prefix='/api/quest-ai')
 
 # Lazy loading for AI service to save memory
 _quest_ai_service = None

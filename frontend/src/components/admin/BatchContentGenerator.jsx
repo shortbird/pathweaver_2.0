@@ -13,7 +13,7 @@ const BatchContentGenerator = () => {
 
   const fetchApiUsage = async () => {
     try {
-      const response = await api.get('/api/v3/admin/pexels/usage')
+      const response = await api.get('/api/admin/pexels/usage')
       if (response.data.success) {
         setApiUsage({
           used: response.data.used,

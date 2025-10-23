@@ -38,7 +38,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
     setLoadingTemplates(true)
     try {
       // Pass target_user_id to filter out tasks already assigned to this student
-      const response = await api.get(`/api/v3/admin/quests/${questId}/task-templates?target_user_id=${student.id}`)
+      const response = await api.get(`/api/admin/quests/${questId}/task-templates?target_user_id=${student.id}`)
       setTemplates(response.data.templates || [])
     } catch (error) {
       console.error('Error fetching templates:', error)
@@ -50,7 +50,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
 
   const fetchSchoolSubjects = async () => {
     try {
-      const response = await api.get('/api/v3/admin/school-subjects')
+      const response = await api.get('/api/admin/school-subjects')
       if (response.data.success) {
         setAvailableSubjects(response.data.school_subjects || [])
       } else {
@@ -170,7 +170,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
 
     setLoading(true)
     try {
-      await api.post(`/api/v3/admin/users/${student.id}/quests/${questId}/tasks`, customTask)
+      await api.post(`/api/admin/users/${student.id}/quests/${questId}/tasks`, customTask)
       toast.success('Custom task added successfully!')
 
       // Reset form
@@ -201,7 +201,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
     setLoading(true)
     try {
       const templateIds = Array.from(selectedTemplates)
-      await api.post(`/api/v3/admin/users/${student.id}/quests/${questId}/tasks/batch`, {
+      await api.post(`/api/admin/users/${student.id}/quests/${questId}/tasks/batch`, {
         template_task_ids: templateIds
       })
 
@@ -234,7 +234,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
       // Add selected templates first
       if (hasSelectedTemplates) {
         const templateIds = Array.from(selectedTemplates)
-        await api.post(`/api/v3/admin/users/${student.id}/quests/${questId}/tasks/batch`, {
+        await api.post(`/api/admin/users/${student.id}/quests/${questId}/tasks/batch`, {
           template_task_ids: templateIds
         })
         tasksAdded += templateIds.length
@@ -242,7 +242,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
 
       // Add custom task if valid
       if (hasCustomTask && validateCustomTask()) {
-        await api.post(`/api/v3/admin/users/${student.id}/quests/${questId}/tasks`, customTask)
+        await api.post(`/api/admin/users/${student.id}/quests/${questId}/tasks`, customTask)
         tasksAdded += 1
       }
 

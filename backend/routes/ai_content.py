@@ -9,7 +9,7 @@ from services.ai_badge_generation_service import AIBadgeGenerationService
 from services.recommendation_service import RecommendationService
 from database import get_supabase_admin_client
 
-bp = Blueprint('ai_content', __name__, url_prefix='/api/v3/ai-generation')
+bp = Blueprint('ai_content', __name__, url_prefix='/api/ai-generation')
 
 
 # Badge Recommendations (User-facing)

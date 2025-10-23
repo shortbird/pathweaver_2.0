@@ -11,7 +11,7 @@ from utils.auth.decorators import require_admin
 from services.image_service import search_quest_image
 from datetime import datetime
 
-bp = Blueprint('admin_quest_ideas', __name__, url_prefix='/api/v3/admin')
+bp = Blueprint('admin_quest_ideas', __name__, url_prefix='/api/admin')
 
 # Lazy loading for AI service to save memory
 _quest_ai_service = None

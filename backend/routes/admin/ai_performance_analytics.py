@@ -8,7 +8,7 @@ from utils.auth.decorators import require_admin
 from services.ai_performance_analytics_service import AIPerformanceAnalyticsService
 from utils.validation.sanitizers import sanitize_integer
 
-bp = Blueprint('admin_ai_performance_analytics', __name__, url_prefix='/api/v3/admin/ai-analytics')
+bp = Blueprint('admin_ai_performance_analytics', __name__, url_prefix='/api/admin/ai-analytics')
 
 
 @bp.route('/quest-performance', methods=['GET'])

@@ -60,7 +60,7 @@ const AIPerformanceAnalytics = () => {
       ...filters
     })
 
-    const response = await api.get(`/api/v3/admin/ai-analytics/quest-performance?${params}`)
+    const response = await api.get(`/api/admin/ai-analytics/quest-performance?${params}`)
     if (response.data.success) {
       setQuestPerformanceData(response.data.data)
       setTotalCount(response.data.total_count)
@@ -70,7 +70,7 @@ const AIPerformanceAnalytics = () => {
   }
 
   const loadAIvsHumanComparison = async () => {
-    const response = await api.get(`/api/v3/admin/ai-analytics/ai-vs-human?days_back=${daysBack}`)
+    const response = await api.get(`/api/admin/ai-analytics/ai-vs-human?days_back=${daysBack}`)
     if (response.data.success) {
       setComparisonData(response.data)
     } else {
@@ -79,7 +79,7 @@ const AIPerformanceAnalytics = () => {
   }
 
   const loadPromptPerformance = async () => {
-    const response = await api.get('/api/v3/admin/ai-analytics/prompt-performance')
+    const response = await api.get('/api/admin/ai-analytics/prompt-performance')
     if (response.data.success) {
       setPromptPerformanceData(response.data.performance_data)
     } else {
@@ -93,7 +93,7 @@ const AIPerformanceAnalytics = () => {
       granularity: trendGranularity
     })
 
-    const response = await api.get(`/api/v3/admin/ai-analytics/quality-trends?${params}`)
+    const response = await api.get(`/api/admin/ai-analytics/quality-trends?${params}`)
     if (response.data.success) {
       setQualityTrends(response.data.trends)
     } else {
@@ -106,7 +106,7 @@ const AIPerformanceAnalytics = () => {
     setError(null)
 
     try {
-      const response = await api.post('/api/v3/admin/ai-analytics/refresh-metrics', {})
+      const response = await api.post('/api/admin/ai-analytics/refresh-metrics', {})
       if (response.data.success) {
         alert(`Successfully updated ${response.data.updated_count} quest metrics`)
         loadData()

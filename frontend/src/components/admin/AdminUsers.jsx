@@ -45,7 +45,7 @@ const AdminUsers = () => {
         sort_order: filters.sortOrder
       })
 
-      const response = await api.get(`/api/v3/admin/users?${queryParams}`)
+      const response = await api.get(`/api/admin/users?${queryParams}`)
       setUsers(response.data.users || [])
       setTotalPages(Math.ceil((response.data.total || 0) / usersPerPage))
     } catch (error) {
@@ -95,7 +95,7 @@ const AdminUsers = () => {
   const handleDeleteUser = async (userId) => {
     if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
       try {
-        await api.delete(`/api/v3/admin/users/${userId}`)
+        await api.delete(`/api/admin/users/${userId}`)
         toast.success('User deleted successfully')
         fetchUsers()
       } catch (error) {
@@ -108,7 +108,7 @@ const AdminUsers = () => {
     const action = currentStatus === 'active' ? 'disable' : 'enable'
     if (window.confirm(`Are you sure you want to ${action} this user account?`)) {
       try {
-        await api.post(`/api/v3/admin/users/${userId}/toggle-status`)
+        await api.post(`/api/admin/users/${userId}/toggle-status`)
         toast.success(`User account ${action}d successfully`)
         fetchUsers()
       } catch (error) {
@@ -130,7 +130,7 @@ const AdminUsers = () => {
   const handleResetPassword = async (userId, userEmail) => {
     if (window.confirm(`Send password reset email to ${userEmail}?`)) {
       try {
-        await api.post(`/api/v3/admin/users/${userId}/reset-password`)
+        await api.post(`/api/admin/users/${userId}/reset-password`)
         toast.success('Password reset email sent')
       } catch (error) {
         toast.error('Failed to send password reset email')

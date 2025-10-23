@@ -31,7 +31,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
   const fetchUserDetails = async () => {
     try {
-      const response = await api.get(`/api/v3/admin/users/${user.id}`)
+      const response = await api.get(`/api/admin/users/${user.id}`)
       setUserActivity(response.data)
     } catch (error) {
       toast.error('Failed to load user details')
@@ -40,7 +40,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
   const fetchQuestEnrollments = async () => {
     try {
-      const response = await api.get(`/api/v3/admin/users/${user.id}/quest-enrollments`)
+      const response = await api.get(`/api/admin/users/${user.id}/quest-enrollments`)
       setQuestEnrollments({
         enrolled: response.data.enrolled_quests || [],
         available: response.data.available_quests || []
@@ -68,7 +68,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const handleSaveProfile = async () => {
     setLoading(true)
     try {
-      await api.put(`/api/v3/admin/users/${user.id}`, {
+      await api.put(`/api/admin/users/${user.id}`, {
         first_name: formData.first_name,
         last_name: formData.last_name,
         email: formData.email
@@ -93,7 +93,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     if (window.confirm(`Change role to ${displayName}?`)) {
       setLoading(true)
       try {
-        await api.put(`/api/v3/admin/users/${user.id}/role`, {
+        await api.put(`/api/admin/users/${user.id}/role`, {
           role: formData.role,
           reason: roleChangeReason || 'Role change requested by admin'
         })

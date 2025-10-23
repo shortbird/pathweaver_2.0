@@ -69,7 +69,7 @@ The OptioQuest Team`
     if (window.confirm(`Send email to ${selectedUserIds.length} users?`)) {
       setSending(true)
       try {
-        await api.post('/api/v3/admin/users/bulk-email', {
+        await api.post('/api/admin/users/bulk-email', {
           user_ids: selectedUserIds,
           subject: emailData.subject,
           message: emailData.message

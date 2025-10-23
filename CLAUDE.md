@@ -371,6 +371,12 @@ frontend/src/
 
 ## Key API Endpoints
 
+**API Versioning Strategy** (Updated January 2025):
+- **No URL versioning**: All endpoints use clean `/api/*` paths without version numbers
+- **Branch-based deployment**: Version control through git branches (develop vs main)
+- **Rationale**: Simpler URLs, easier maintenance, version control via deployment environments
+- **Breaking changes**: Handled through careful migration and backward compatibility when possible
+
 ### Authentication (httpOnly cookies + CSRF)
 - POST /api/auth/login - Login with email/password
 - POST /api/auth/register - Create new account
@@ -415,9 +421,11 @@ frontend/src/
 - **Quest Management**: /api/admin/quests/* - Quest CRUD operations
 - **Quest Ideas**: /api/admin/quest-ideas/* - Quest suggestions workflow
 - **Quest Sources**: /api/admin/quest-sources - Source management
-- **Quest Images**: POST /api/v3/admin/quests/:id/refresh-image - Refresh quest image from Pexels
+- **Quest Images**: POST /api/admin/quests/:id/refresh-image - Refresh quest image from Pexels
 - **Badge Images**: POST /api/badges/admin/:badge_id/refresh-image - Refresh badge image from Pexels
 - **Badge Bulk Images**: POST /api/badges/admin/batch-generate-images - Generate images for multiple badges
+- **Analytics**: GET /api/admin/analytics/* - Admin dashboard analytics
+- **AI Tools**: /api/admin/ai-* - AI-powered admin features
 
 ### Badges & Achievements
 - GET /api/badges - List all active badges

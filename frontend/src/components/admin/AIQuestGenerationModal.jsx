@@ -30,7 +30,7 @@ const AIQuestGenerationModal = ({ isOpen, onClose, onQuestGenerated }) => {
     setStep('generating')
 
     try {
-      const response = await api.post('/api/v3/quest-ai/generate', {
+      const response = await api.post('/api/quest-ai/generate', {
         topic: formData.topic,
         learning_objectives: formData.learning_objectives || null
       })

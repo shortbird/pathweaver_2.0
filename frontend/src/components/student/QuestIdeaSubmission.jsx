@@ -46,7 +46,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
     setLoading(true)
 
     try {
-      const response = await api.post('/api/v3/quest-ai/enhance-student-idea', {
+      const response = await api.post('/api/quest-ai/enhance-student-idea', {
         title: formData.title,
         description: formData.description
       })

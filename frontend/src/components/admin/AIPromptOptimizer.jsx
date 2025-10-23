@@ -17,7 +17,7 @@ const AIPromptOptimizer = () => {
   const loadInsights = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/api/v3/admin/ai-optimizer/insights?days=${days}`);
+      const response = await api.get(`/api/admin/ai-optimizer/insights?days=${days}`);
       setInsights(response.data.data);
     } catch (error) {
       console.error('Error loading insights:', error);
@@ -29,7 +29,7 @@ const AIPromptOptimizer = () => {
   const loadPromptAnalysis = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/api/v3/admin/ai-optimizer/analyze?days=${days}`);
+      const response = await api.get(`/api/admin/ai-optimizer/analyze?days=${days}`);
       setPromptAnalysis(response.data.data);
     } catch (error) {
       console.error('Error loading prompt analysis:', error);
@@ -41,7 +41,7 @@ const AIPromptOptimizer = () => {
   const loadSuggestions = async (versionNumber) => {
     try {
       setLoading(true);
-      const response = await api.get(`/api/v3/admin/ai-optimizer/suggestions/${versionNumber}`);
+      const response = await api.get(`/api/admin/ai-optimizer/suggestions/${versionNumber}`);
       setSuggestions(response.data.data);
       setSelectedPrompt(versionNumber);
     } catch (error) {
@@ -54,7 +54,7 @@ const AIPromptOptimizer = () => {
   const createOptimizedVersion = async (baseVersion, modifications) => {
     try {
       setLoading(true);
-      const response = await api.post('/api/v3/admin/ai-optimizer/create-optimized', {
+      const response = await api.post('/api/admin/ai-optimizer/create-optimized', {
         base_version: baseVersion,
         modifications: modifications
       });

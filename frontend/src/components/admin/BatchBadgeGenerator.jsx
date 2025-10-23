@@ -31,7 +31,7 @@ const BatchBadgeGenerator = ({ apiUsage, fetchApiUsage }) => {
     setGenerationResult(null)
 
     try {
-      const response = await api.post('/api/v3/admin/batch-badge-generation/start', batchConfig)
+      const response = await api.post('/api/admin/batch-badge-generation/start', batchConfig)
 
       if (response.data.success) {
         setGenerationResult(response.data)
@@ -54,7 +54,7 @@ const BatchBadgeGenerator = ({ apiUsage, fetchApiUsage }) => {
     try {
       setProcessingIds(prev => new Set([...prev, badge.temp_id]))
 
-      const response = await api.post('/api/v3/admin/batch-badge-generation/approve', {
+      const response = await api.post('/api/admin/batch-badge-generation/approve', {
         badge_data: badge,
         generate_image: generateImage,
         generate_quests: generateQuests,
@@ -96,7 +96,7 @@ const BatchBadgeGenerator = ({ apiUsage, fetchApiUsage }) => {
     try {
       setProcessingIds(prev => new Set([...prev, badge.temp_id]))
 
-      await api.post('/api/v3/admin/batch-badge-generation/reject', {
+      await api.post('/api/admin/batch-badge-generation/reject', {
         temp_id: badge.temp_id,
         reason: reason || 'No reason provided'
       })

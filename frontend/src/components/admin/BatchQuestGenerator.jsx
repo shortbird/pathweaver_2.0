@@ -44,7 +44,7 @@ const BatchQuestGenerator = () => {
 
   const fetchApiUsage = async () => {
     try {
-      const response = await api.get('/api/v3/admin/pexels/usage')
+      const response = await api.get('/api/admin/pexels/usage')
       if (response.data.success) {
         setApiUsage({
           used: response.data.used,
@@ -61,7 +61,7 @@ const BatchQuestGenerator = () => {
   const fetchReviewItems = async () => {
     try {
       setLoadingReviews(true)
-      const response = await api.get('/api/v3/admin/ai-quest-review/items', {
+      const response = await api.get('/api/admin/ai-quest-review/items', {
         params: {
           status: 'pending_review',
           generation_source: 'batch',
@@ -89,7 +89,7 @@ const BatchQuestGenerator = () => {
     setGenerationResult(null)
 
     try {
-      const response = await api.post('/api/v3/admin/batch-generation/start', batchConfig)
+      const response = await api.post('/api/admin/batch-generation/start', batchConfig)
 
       if (response.data.success) {
         setGenerationResult(response.data)
@@ -112,7 +112,7 @@ const BatchQuestGenerator = () => {
     try {
       setProcessingIds(prev => new Set([...prev, reviewId]))
 
-      const response = await api.post(`/api/v3/admin/ai-quest-review/${reviewId}/approve`, {
+      const response = await api.post(`/api/admin/ai-quest-review/${reviewId}/approve`, {
         notes,
         create_quest: true
       })
@@ -139,7 +139,7 @@ const BatchQuestGenerator = () => {
     try {
       setProcessingIds(prev => new Set([...prev, reviewId]))
 
-      const response = await api.post(`/api/v3/admin/ai-quest-review/${reviewId}/reject`, {
+      const response = await api.post(`/api/admin/ai-quest-review/${reviewId}/reject`, {
         reason
       })
 
@@ -170,7 +170,7 @@ const BatchQuestGenerator = () => {
     try {
       setProcessingIds(prev => new Set([...prev, reviewId]))
 
-      const response = await api.put(`/api/v3/admin/ai-quest-review/${reviewId}/edit`, {
+      const response = await api.put(`/api/admin/ai-quest-review/${reviewId}/edit`, {
         quest_data: updatedQuestData
       })
 
@@ -205,7 +205,7 @@ const BatchQuestGenerator = () => {
     try {
       setProcessingIds(prev => new Set([...prev, reviewId]))
 
-      const response = await api.post(`/api/v3/admin/ai-quest-review/${reviewId}/refresh-image`, {})
+      const response = await api.post(`/api/admin/ai-quest-review/${reviewId}/refresh-image`, {})
 
       toast.dismiss(loadingToast)
 
@@ -255,7 +255,7 @@ const BatchQuestGenerator = () => {
         setProcessingIds(prev => new Set([...prev, reviewId]))
 
         const response = await api.post(
-          `/api/v3/admin/ai-quest-review/${reviewId}/upload-image`,
+          `/api/admin/ai-quest-review/${reviewId}/upload-image`,
           formData
         )
 

@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 import json
 import uuid
 
-bp = Blueprint('admin_quest_management', __name__, url_prefix='/api/v3/admin')
+bp = Blueprint('admin_quest_management', __name__, url_prefix='/api/admin')
 
 @bp.route('/quests/school-subjects', methods=['GET'])
 def get_school_subjects_v3():

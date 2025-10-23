@@ -7,7 +7,7 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_admin
 from services.ai_quest_review_service import AIQuestReviewService
 
-bp = Blueprint('admin_ai_quest_review', __name__, url_prefix='/api/v3/admin/ai-quest-review')
+bp = Blueprint('admin_ai_quest_review', __name__, url_prefix='/api/admin/ai-quest-review')
 
 
 @bp.route('/items', methods=['GET'])

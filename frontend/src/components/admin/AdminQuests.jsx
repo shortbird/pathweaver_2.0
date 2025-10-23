@@ -16,7 +16,7 @@ const AdminQuests = () => {
 
   const fetchQuests = async () => {
     try {
-      const response = await api.get('/api/v3/admin/quests')
+      const response = await api.get('/api/admin/quests')
       setQuests(response.data.quests)
     } catch (error) {
       toast.error('Failed to load quests')
@@ -39,7 +39,7 @@ const AdminQuests = () => {
   const handleDelete = async (questId) => {
     if (window.confirm('Are you sure you want to delete this quest?')) {
       try {
-        await api.delete(`/api/v3/admin/quests/${questId}`)
+        await api.delete(`/api/admin/quests/${questId}`)
         toast.success('Quest deleted successfully')
         fetchQuests()
       } catch (error) {
@@ -50,7 +50,7 @@ const AdminQuests = () => {
 
   const handleRefreshImage = async (questId) => {
     try {
-      await api.post(`/api/v3/admin/quests/${questId}/refresh-image`, {})
+      await api.post(`/api/admin/quests/${questId}/refresh-image`, {})
       toast.success('Quest image refreshed successfully')
       fetchQuests()
     } catch (error) {
@@ -85,7 +85,7 @@ const AdminQuests = () => {
         // Note: Don't set Content-Type header manually for FormData
         // Axios will automatically set it with the correct boundary
         const response = await api.post(
-          `/api/v3/admin/quests/${questId}/upload-image`,
+          `/api/admin/quests/${questId}/upload-image`,
           formData
         )
 

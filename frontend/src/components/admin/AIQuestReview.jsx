@@ -50,7 +50,7 @@ const AIQuestReview = () => {
 
       params.append('limit', '50')
 
-      const response = await api.get(`/api/v3/admin/ai-quest-review/items?${params.toString()}`)
+      const response = await api.get(`/api/admin/ai-quest-review/items?${params.toString()}`)
 
       if (response.data.success) {
         setReviewItems(response.data.items)
@@ -67,7 +67,7 @@ const AIQuestReview = () => {
 
   const fetchStats = async () => {
     try {
-      const response = await api.get('/api/v3/admin/ai-quest-review/stats')
+      const response = await api.get('/api/admin/ai-quest-review/stats')
       if (response.data.success) {
         setStats(response.data.stats)
       }
@@ -80,7 +80,7 @@ const AIQuestReview = () => {
     try {
       setProcessingIds(prev => new Set([...prev, reviewId]))
 
-      const response = await api.post(`/api/v3/admin/ai-quest-review/${reviewId}/approve`, {
+      const response = await api.post(`/api/admin/ai-quest-review/${reviewId}/approve`, {
         notes,
         create_quest: true
       })
@@ -108,7 +108,7 @@ const AIQuestReview = () => {
     try {
       setProcessingIds(prev => new Set([...prev, reviewId]))
 
-      const response = await api.post(`/api/v3/admin/ai-quest-review/${reviewId}/reject`, {
+      const response = await api.post(`/api/admin/ai-quest-review/${reviewId}/reject`, {
         reason
       })
 
@@ -140,7 +140,7 @@ const AIQuestReview = () => {
     try {
       setProcessingIds(prev => new Set([...prev, reviewId]))
 
-      const response = await api.put(`/api/v3/admin/ai-quest-review/${reviewId}/edit`, {
+      const response = await api.put(`/api/admin/ai-quest-review/${reviewId}/edit`, {
         quest_data: updatedQuestData
       })
 

@@ -55,8 +55,6 @@ memory_monitor.init_app(app)
 app.register_blueprint(auth.bp, url_prefix='/api/auth')
 # subscription_requests.bp removed in Phase 1 refactoring (January 2025)
 app.register_blueprint(users.bp, url_prefix='/api/users')
-# Also register users blueprint under v3 for compatibility with unique name
-app.register_blueprint(users.bp, url_prefix='/api/v3/users', name='users_v3')
 app.register_blueprint(community.bp, url_prefix='/api/community')
 app.register_blueprint(portfolio.bp, url_prefix='/api/portfolio')
 app.register_blueprint(quest_ideas_bp)  # Has url_prefix='/api/quest-ideas' in blueprint
@@ -69,16 +67,16 @@ app.register_blueprint(quests.bp)  # /api/quests (blueprint has url_prefix='/api
 app.register_blueprint(tasks.bp)      # /api/tasks (blueprint has url_prefix='/api/tasks')
 app.register_blueprint(evidence_documents.bp)  # /api/evidence (blueprint has url_prefix='/api/evidence')
 app.register_blueprint(admin_core.bp)   # /api/admin (blueprint has url_prefix='/api/admin')
-app.register_blueprint(user_management.bp)  # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
-app.register_blueprint(quest_management.bp)  # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
-app.register_blueprint(quest_ideas.bp)  # /api/v3/admin (blueprint has url_prefix='/api/v3/admin')
-app.register_blueprint(analytics.bp)  # /api/v3/admin/analytics (blueprint has url_prefix='/api/v3/admin/analytics')
-app.register_blueprint(student_task_management.bp)  # /api/v3/admin/users (blueprint has url_prefix='/api/v3/admin/users')
+app.register_blueprint(user_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
+app.register_blueprint(quest_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
+app.register_blueprint(quest_ideas.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
+app.register_blueprint(analytics.bp)  # /api/admin/analytics (blueprint has url_prefix='/api/admin/analytics')
+app.register_blueprint(student_task_management.bp)  # /api/admin/users (blueprint has url_prefix='/api/admin/users')
 # collaborations.bp removed in Phase 1 refactoring (January 2025)
 # Conditionally import and register Quest AI blueprint
 try:
     from routes import quest_ai
-    app.register_blueprint(quest_ai.bp)  # /api/v3/quest-ai
+    app.register_blueprint(quest_ai.bp)  # /api/quest-ai
     print("Quest AI routes registered successfully")
 except Exception as e:
     print(f"Warning: Quest AI routes not available: {e}")
@@ -104,7 +102,7 @@ try:
     from routes import badges, credits, ai_content, admin_badge_seed, quest_badge_hub
     app.register_blueprint(badges.bp)  # /api/badges
     app.register_blueprint(credits.bp)  # /api/credits
-    app.register_blueprint(ai_content.bp)  # /api/v3/ai-generation
+    app.register_blueprint(ai_content.bp)  # /api/ai-generation
     app.register_blueprint(admin_badge_seed.bp)  # /api/admin/seed
     app.register_blueprint(quest_badge_hub.bp)  # /api/hub
     print("Badge system routes registered successfully")
@@ -154,7 +152,7 @@ except Exception as e:
 # Register AI Quest Review blueprint (admin)
 try:
     from routes.admin import ai_quest_review
-    app.register_blueprint(ai_quest_review.bp)  # /api/v3/admin/ai-quest-review
+    app.register_blueprint(ai_quest_review.bp)  # /api/admin/ai-quest-review
     print("AI Quest Review routes registered successfully")
 except Exception as e:
     print(f"Warning: AI Quest Review routes not available: {e}")
@@ -169,7 +167,7 @@ try:
     from routes.admin import task_approval
     app.register_blueprint(quest_personalization.bp)  # /api/quests/*
     # task_collaboration.bp removed in Phase 1 refactoring (January 2025)
-    app.register_blueprint(task_approval.bp)  # /api/v3/admin/manual-tasks/*
+    app.register_blueprint(task_approval.bp)  # /api/admin/manual-tasks/*
     print("Personalized Quest System routes registered successfully")
 except Exception as e:
     print(f"Warning: Personalized Quest System routes not available: {e}")
@@ -177,7 +175,7 @@ except Exception as e:
 # Register AI Performance Analytics blueprint (admin)
 try:
     from routes.admin import ai_performance_analytics
-    app.register_blueprint(ai_performance_analytics.bp)  # /api/v3/admin/ai-analytics
+    app.register_blueprint(ai_performance_analytics.bp)  # /api/admin/ai-analytics
     print("AI Performance Analytics routes registered successfully")
 except Exception as e:
     print(f"Warning: AI Performance Analytics routes not available: {e}")
@@ -185,7 +183,7 @@ except Exception as e:
 # Register AI Prompt Optimizer blueprint (admin)
 try:
     from routes.admin import ai_prompt_optimizer
-    app.register_blueprint(ai_prompt_optimizer.ai_prompt_optimizer_bp, url_prefix='/api/v3/admin/ai-optimizer')
+    app.register_blueprint(ai_prompt_optimizer.ai_prompt_optimizer_bp, url_prefix='/api/admin/ai-optimizer')
     print("AI Prompt Optimizer routes registered successfully")
 except Exception as e:
     print(f"Warning: AI Prompt Optimizer routes not available: {e}")
@@ -201,7 +199,7 @@ except Exception as e:
 # Register Batch Quest Generation blueprint (admin)
 try:
     from routes.admin import batch_quest_generation
-    app.register_blueprint(batch_quest_generation.batch_generation_bp, url_prefix='/api/v3/admin/batch-generation')  # /api/v3/admin/batch-generation/*
+    app.register_blueprint(batch_quest_generation.batch_generation_bp, url_prefix='/api/admin/batch-generation')  # /api/admin/batch-generation/*
     print("Batch Quest Generation routes registered successfully")
 except Exception as e:
     print(f"Warning: Batch Quest Generation routes not available: {e}")
@@ -209,7 +207,7 @@ except Exception as e:
 # Register Batch Badge Generation blueprint (admin)
 try:
     from routes.admin import batch_badge_generation
-    app.register_blueprint(batch_badge_generation.batch_badge_generation_bp, url_prefix='/api/v3/admin/batch-badge-generation')  # /api/v3/admin/batch-badge-generation/*
+    app.register_blueprint(batch_badge_generation.batch_badge_generation_bp, url_prefix='/api/admin/batch-badge-generation')  # /api/admin/batch-badge-generation/*
     print("Batch Badge Generation routes registered successfully")
 except Exception as e:
     print(f"Warning: Batch Badge Generation routes not available: {e}")

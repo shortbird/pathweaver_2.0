@@ -50,10 +50,10 @@ const AdminDashboard = () => {
 
       // Fetch all analytics data in parallel
       const [overviewRes, activityRes, trendsRes, healthRes] = await Promise.all([
-        api.get('/api/v3/admin/analytics/overview'),
-        api.get('/api/v3/admin/analytics/activity'),
-        api.get('/api/v3/admin/analytics/trends'),
-        api.get('/api/v3/admin/analytics/health')
+        api.get('/api/admin/analytics/overview'),
+        api.get('/api/admin/analytics/activity'),
+        api.get('/api/admin/analytics/trends'),
+        api.get('/api/admin/analytics/health')
       ])
 
       setOverviewData(overviewRes.data.data)

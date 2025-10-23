@@ -20,7 +20,7 @@ const ChatLogsModal = ({ user, onClose }) => {
   const fetchUserConversations = async () => {
     try {
       setLoading(true)
-      const response = await api.get(`/api/v3/admin/users/${user.id}/conversations`)
+      const response = await api.get(`/api/admin/users/${user.id}/conversations`)
       setConversations(response.data.data.conversations || [])
     } catch (error) {
       console.error('Error fetching conversations:', error)
@@ -33,7 +33,7 @@ const ChatLogsModal = ({ user, onClose }) => {
   const fetchConversationMessages = async (conversationId) => {
     try {
       setLoadingConversation(true)
-      const response = await api.get(`/api/v3/admin/conversations/${conversationId}`)
+      const response = await api.get(`/api/admin/conversations/${conversationId}`)
       setSelectedConversation(response.data.data.conversation)
       setMessages(response.data.data.messages || [])
     } catch (error) {

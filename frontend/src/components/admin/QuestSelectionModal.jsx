@@ -19,7 +19,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
   const fetchQuests = async () => {
     setLoading(true)
     try {
-      const response = await api.get(`/api/v3/admin/users/${student.id}/quest-enrollments`)
+      const response = await api.get(`/api/admin/users/${student.id}/quest-enrollments`)
       setEnrolledQuests(response.data.enrolled_quests || [])
       setAvailableQuests(response.data.available_quests || [])
     } catch (error) {

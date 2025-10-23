@@ -20,7 +20,7 @@ export default function BadgeRecommendations({ userId }) {
   const fetchRecommendations = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/api/v3/ai-generation/recommendations/badges?limit=3');
+      const response = await api.get('/api/ai-generation/recommendations/badges?limit=3');
       setRecommendations(response.data.recommendations || []);
     } catch (error) {
       console.error('Error fetching badge recommendations:', error);

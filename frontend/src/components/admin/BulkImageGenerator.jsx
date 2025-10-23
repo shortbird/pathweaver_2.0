@@ -19,7 +19,7 @@ const BulkImageGenerator = () => {
   const fetchQuests = async () => {
     try {
       setLoading(true)
-      const response = await api.get('/api/v3/admin/quests', {
+      const response = await api.get('/api/admin/quests', {
         params: { per_page: 100 }
       })
 
@@ -40,7 +40,7 @@ const BulkImageGenerator = () => {
 
   const fetchApiUsage = async () => {
     try {
-      const response = await api.get('/api/v3/admin/pexels/usage')
+      const response = await api.get('/api/admin/pexels/usage')
       if (response.data.success) {
         setApiUsage({
           used: response.data.used,
@@ -95,7 +95,7 @@ const BulkImageGenerator = () => {
       setProcessing(true)
       setProcessResults(null)
 
-      const response = await api.post('/api/v3/admin/quests/bulk-generate-images', {
+      const response = await api.post('/api/admin/quests/bulk-generate-images', {
         quest_ids: Array.from(selectedQuests),
         skip_existing: !regenerate,
         max_count: count

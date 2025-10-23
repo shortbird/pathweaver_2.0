@@ -17,7 +17,7 @@ const AIPromptVersionManager = () => {
     setError(null)
 
     try {
-      const response = await api.get('/api/v3/admin/ai-analytics/prompt-performance')
+      const response = await api.get('/api/admin/ai-analytics/prompt-performance')
       if (response.data.success) {
         setPromptVersions(response.data.prompt_versions || [])
       } else {

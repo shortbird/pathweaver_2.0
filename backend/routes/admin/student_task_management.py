@@ -14,7 +14,7 @@ from utils.school_subjects import validate_school_subjects
 from datetime import datetime
 import json
 
-bp = Blueprint('admin_student_task_management', __name__, url_prefix='/api/v3/admin/users')
+bp = Blueprint('admin_student_task_management', __name__, url_prefix='/api/admin/users')
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks', methods=['POST'])
 @require_admin

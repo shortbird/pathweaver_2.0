@@ -23,7 +23,7 @@ const AdminQuestSuggestions = () => {
   const fetchQuestIdeas = async () => {
     try {
       setLoading(true);
-      const response = await api.get(`/api/v3/admin/quest-ideas?status=${statusFilter}&page=${currentPage}&per_page=10`);
+      const response = await api.get(`/api/admin/quest-ideas?status=${statusFilter}&page=${currentPage}&per_page=10`);
       setQuestIdeas(response.data.quest_ideas || []);
       setTotalPages(response.data.total_pages || 1);
     } catch (error) {
@@ -38,7 +38,7 @@ const AdminQuestSuggestions = () => {
   const handleApprove = async (ideaId) => {
     setProcessing(true);
     try {
-      await api.put(`/api/v3/admin/quest-ideas/${ideaId}/approve`, {
+      await api.put(`/api/admin/quest-ideas/${ideaId}/approve`, {
         feedback: feedback
       });
       toast.success('Quest suggestion approved!');
@@ -56,7 +56,7 @@ const AdminQuestSuggestions = () => {
   const handleReject = async (ideaId) => {
     setProcessing(true);
     try {
-      await api.put(`/api/v3/admin/quest-ideas/${ideaId}/reject`, {});
+      await api.put(`/api/admin/quest-ideas/${ideaId}/reject`, {});
       toast.success('Quest suggestion rejected');
       setFeedbackModal(null);
       setFeedback('');
@@ -82,7 +82,7 @@ const AdminQuestSuggestions = () => {
   const handleGenerateQuestAI = async (ideaId) => {
     setProcessing(true);
     try {
-      const response = await api.post(`/api/v3/admin/quest-ideas/${ideaId}/generate-quest`);
+      const response = await api.post(`/api/admin/quest-ideas/${ideaId}/generate-quest`);
       toast.success('Quest generated successfully using AI!');
       setQuestCreationModal(null);
       fetchQuestIdeas();
@@ -97,7 +97,7 @@ const AdminQuestSuggestions = () => {
   const handleCreateQuestManual = async (ideaId) => {
     setProcessing(true);
     try {
-      const response = await api.post(`/api/v3/admin/quest-ideas/${ideaId}/create-quest-manual`);
+      const response = await api.post(`/api/admin/quest-ideas/${ideaId}/create-quest-manual`);
       toast.success('Basic quest structure created! Please edit it to add proper tasks and details.');
       setQuestCreationModal(null);
       fetchQuestIdeas();
@@ -136,7 +136,7 @@ const AdminQuestSuggestions = () => {
   const handleQuestFormSuccess = async (newQuest) => {
     // Mark the quest idea as having an associated quest
     try {
-      await api.put(`/api/v3/admin/quest-ideas/${selectedIdeaForQuest.id}/approve`, {});
+      await api.put(`/api/admin/quest-ideas/${selectedIdeaForQuest.id}/approve`, {});
 
       // Update the quest idea to link it to the created quest
       // This could be done in the backend, but for now we'll just refresh the list

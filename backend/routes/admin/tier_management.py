@@ -11,7 +11,7 @@ from utils.auth.decorators import require_admin
 from utils.api_response import success_response, error_response
 import json
 
-bp = Blueprint('admin_tier_management', __name__, url_prefix='/api/v3/admin')
+bp = Blueprint('admin_tier_management', __name__, url_prefix='/api/admin')
 
 @bp.route('/tiers', methods=['GET'])
 @require_admin

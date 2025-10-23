@@ -49,7 +49,7 @@ export default function BadgeQuestLinker() {
 
   const loadAllQuests = async () => {
     try {
-      const response = await api.get('/api/v3/admin/quests?per_page=100');
+      const response = await api.get('/api/admin/quests?per_page=100');
       setQuests(response.data.quests || []);
     } catch (err) {
       console.error('Error loading quests:', err);

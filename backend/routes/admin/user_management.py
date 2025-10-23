@@ -12,7 +12,7 @@ from utils.api_response import success_response, error_response
 from datetime import datetime, timedelta
 import json
 
-bp = Blueprint('admin_user_management', __name__, url_prefix='/api/v3/admin')
+bp = Blueprint('admin_user_management', __name__, url_prefix='/api/admin')
 
 @bp.route('/users', methods=['GET'])
 @require_admin

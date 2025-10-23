@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 import json
 import sys
 
-bp = Blueprint('admin_analytics', __name__, url_prefix='/api/v3/admin/analytics')
+bp = Blueprint('admin_analytics', __name__, url_prefix='/api/admin/analytics')
 
 @bp.route('/overview', methods=['GET'])
 @require_admin
