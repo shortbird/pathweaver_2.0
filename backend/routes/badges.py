@@ -167,18 +167,15 @@ def get_user_badges_by_id(target_user_id):
     Query params:
         - status: 'active' or 'completed' (optional, returns both if not specified)
     """
-    from database import get_supabase_admin_client
+    from services.badge_service import BadgeService
 
-    # ADMIN CLIENT JUSTIFIED: Public endpoint for viewing user portfolio/diploma data
-    # This is public data intentionally displayed to anyone with the portfolio URL
-    supabase = get_supabase_admin_client()
-    badge_repo = BadgeRepository(user_id=None)  # Admin client access
+    # Use badge service for user badge queries
     status = request.args.get('status')
 
     try:
-        # Get user badges using repository
+        # Get user badges using service
         if status == 'active':
-            user_badges = badge_repo.get_user_active_badges(target_user_id)
+            user_badges = BadgeService.get_user_active_badges(target_user_id)
             return jsonify({
                 'success': True,
                 'user_badges': user_badges,
@@ -187,7 +184,7 @@ def get_user_badges_by_id(target_user_id):
             }), 200
 
         elif status == 'completed':
-            user_badges = badge_repo.get_user_earned_badges(target_user_id)
+            user_badges = BadgeService.get_user_earned_badges(target_user_id)
             return jsonify({
                 'success': True,
                 'user_badges': user_badges,
@@ -197,8 +194,8 @@ def get_user_badges_by_id(target_user_id):
 
         else:
             # Get both active and completed
-            active = badge_repo.get_user_active_badges(target_user_id)
-            completed = badge_repo.get_user_earned_badges(target_user_id)
+            active = BadgeService.get_user_active_badges(target_user_id)
+            completed = BadgeService.get_user_earned_badges(target_user_id)
             all_badges = active + completed
 
             return jsonify({
