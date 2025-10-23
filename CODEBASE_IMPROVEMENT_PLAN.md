@@ -25,11 +25,11 @@ Supabase project ID is: vvfgxcykxjybtvpfzwyx
 
 - [x] **WEEK 1**: Critical Security Fixes - ✅ COMPLETE (40/40 subtasks - All 8 sections done)
 - [x] **WEEK 2**: Configuration Consolidation - ✅ COMPLETE (20/25 tasks - Week 2.1-2.5 ✅, color migration deferred)
-- [ ] **WEEK 3**: Phase 2 Cleanup & Performance (0/12 tasks)
+- [ ] **WEEK 3**: Phase 2 Cleanup & Performance (7/12 tasks - Week 3.1 ✅ with deployment fixes)
 - [ ] **SPRINT 2**: Architectural Improvements (0/8 tasks)
 - [ ] **SPRINT 3**: Performance Optimization (0/10 tasks)
 
-**Total Progress**: 60/85+ tasks completed (71%)
+**Total Progress**: 67/85+ tasks completed (79%)
 
 ---
 
@@ -1428,6 +1428,47 @@ Committed: ✅ develop branch
 **Blockers/Issues**:
 ```
 None - Phase 2 refactoring complete
+```
+
+---
+
+### 3.1.7 Fix Deployment Issues (Additional) - ✅ COMPLETE
+
+**Issues Found During Deployment:**
+
+- [x] **Import Errors**
+  - Fixed `require_paid_tier` imports in 3 files:
+    - backend/routes/community.py
+    - backend/routes/quests.py
+    - backend/routes/quest_personalization.py
+  - Error: `ImportError: cannot import name 'require_paid_tier'`
+  - Resolution: Removed decorator imports
+
+- [x] **CORS Credentials Error**
+  - Fixed quest ideas endpoint CORS configuration
+  - Error: `Access-Control-Allow-Credentials must be 'true'`
+  - Added `supports_credentials=True` to @cross_origin() decorators
+  - Affected endpoints:
+    - POST /api/quest-ideas
+    - GET /api/quest-ideas
+    - GET /api/quest-ideas/<id>
+
+- [x] **Tier Restrictions in Quest Ideas**
+  - Removed subscription tier checking from quest_ideas.py
+  - Deleted 13 lines of tier validation code
+  - All authenticated users can now suggest quests
+
+**Implementation Notes**:
+```
+Date completed: 2025-01-22
+Additional commits: 2
+- fix: Remove require_paid_tier imports causing deployment failure
+- fix: Add CORS credentials support and remove tier restrictions
+
+Testing: ✅ Verified in dev environment
+- Quest suggestion modal works
+- No CORS errors
+- All authenticated users can suggest quests
 ```
 
 ---
