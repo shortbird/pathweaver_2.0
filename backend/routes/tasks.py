@@ -37,7 +37,9 @@ def complete_task(user_id: str, task_id: str):
     try:
         # Use user client for user operations (RLS enforcement)
         supabase = get_user_client()
-        # Admin client only for XP awards (requires elevated privileges)
+        # JUSTIFICATION: Admin client only for Supabase storage and XP operations
+        # Storage operations (line 165-172) and XP awards (line 257-288) require elevated privileges
+        # All user-scoped database operations use user client with proper RLS enforcement
         admin_supabase = get_supabase_admin_client()
         
         # Get user-specific task details (personalized task)
@@ -196,7 +198,8 @@ def complete_task(user_id: str, task_id: str):
         base_xp = task_data.get('xp_value', 100)
 
         # Check for active collaboration on this task
-        collaboration = admin_supabase.table('task_collaborations')\
+        # Use user client (RLS-enforced) to check user's own collaboration data
+        collaboration = supabase.table('task_collaborations')\
             .select('*')\
             .eq('task_id', task_id)\
             .eq('status', 'active')\

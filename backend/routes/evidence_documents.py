@@ -84,6 +84,8 @@ def save_evidence_document(user_id: str, task_id: str):
     """
     try:
         supabase = get_user_client()
+        # JUSTIFICATION: Admin client only for Supabase storage operations (line 361, 367)
+        # User client handles all database operations with proper RLS enforcement
         admin_supabase = get_supabase_admin_client()
 
         data = request.get_json()
@@ -280,6 +282,8 @@ def upload_block_file(user_id: str, block_id: str):
     """
     try:
         supabase = get_user_client()
+        # JUSTIFICATION: Admin client only for Supabase storage operations (line 361, 367)
+        # User client handles all database operations with proper RLS enforcement
         admin_supabase = get_supabase_admin_client()
 
         # Validate the block exists and belongs to the user
@@ -411,7 +415,6 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
     """
     try:
         supabase = get_user_client()
-        admin_supabase = get_supabase_admin_client()
 
         # Validate task exists and user is enrolled (V3 personalized task system)
         task_check = supabase.table('user_quest_tasks')\

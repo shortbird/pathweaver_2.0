@@ -294,8 +294,10 @@ def get_public_diploma_by_user_id(user_id):
     """
     try:
         print(f"=== DIPLOMA ENDPOINT CALLED FOR USER: {user_id} ===")
-        # Use admin client to bypass RLS for public diploma viewing
-        # We're only reading non-sensitive data (first_name, last_name) for display
+        # JUSTIFICATION: Admin client used for public diploma endpoint
+        # Public endpoint needs to bypass RLS to display non-sensitive user data
+        # (first_name, last_name) for portfolio viewing without authentication
+        # This is a legitimate system operation for public portfolio display
         supabase = get_supabase_admin_client()
 
         # Get user's basic info (not sensitive data)
