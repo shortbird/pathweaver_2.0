@@ -14,7 +14,8 @@ from .validators import (
     StringField,
     IntegerField,
     DateField,
-    ValidationSchema
+    ValidationSchema,
+    validate_uuid
 )
 
 __all__ = [
@@ -24,11 +25,12 @@ __all__ = [
     'validate_registration_data',
     'validate_quest_data',
     'validate_submission_data',
-    
+    'validate_uuid',
+
     # Sanitization
     'sanitize_input',
     'sanitize_html',
-    
+
     # Field validators
     'RequiredField',
     'EmailField',

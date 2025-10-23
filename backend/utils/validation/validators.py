@@ -4,6 +4,9 @@ from typing import Any, Dict, List, Optional, Callable, Tuple
 from datetime import datetime
 import re
 
+# UUID v4 validation pattern
+UUID_REGEX = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', re.IGNORECASE)
+
 class FieldValidator:
     """Base field validator class"""
     
@@ -205,6 +208,27 @@ def validate_string_length(value: str, field_name: str, min_length: int = 0, max
 
     if len(value) > max_length:
         raise ValueError(f"{field_name} must not exceed {max_length} characters")
+
+def validate_uuid(uuid_string: str) -> Tuple[bool, Optional[str]]:
+    """
+    Validate UUID v4 format to prevent SQL injection
+
+    Args:
+        uuid_string: String to validate as UUID
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    if not uuid_string:
+        return False, "UUID cannot be empty"
+
+    if not isinstance(uuid_string, str):
+        return False, "UUID must be a string"
+
+    if not UUID_REGEX.match(uuid_string):
+        return False, "Invalid UUID format"
+
+    return True, None
 
 # Example schemas
 USER_REGISTRATION_SCHEMA = ValidationSchema({
