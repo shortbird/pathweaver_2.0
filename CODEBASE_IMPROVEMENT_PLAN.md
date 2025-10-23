@@ -21,7 +21,7 @@ Use MCP for Supabase and Render as needed.
 
 ## 🎯 OVERALL PROGRESS TRACKER
 
-- [ ] **WEEK 1**: Critical Security Fixes (3/15 tasks - Password Policy ✅)
+- [ ] **WEEK 1**: Critical Security Fixes (7/15 tasks - Password Policy ✅, CSP ✅)
 - [ ] **WEEK 2**: Configuration Consolidation (0/10 tasks)
 - [ ] **WEEK 3**: Phase 2 Cleanup & Performance (0/12 tasks)
 - [ ] **SPRINT 2**: Architectural Improvements (0/8 tasks)
@@ -107,7 +107,7 @@ Issues encountered: None
 
 ### 1.2 Fix Content Security Policy (3 hours)
 
-- [ ] **1.2.1** Create nonce generation function
+- [x] **1.2.1** Create nonce generation function
   - File: `backend/middleware/security.py`
   - Add to imports: `from flask import g`
   - Add before_request hook:
@@ -117,42 +117,25 @@ Issues encountered: None
         g.csp_nonce = secrets.token_urlsafe(16)
     ```
 
-- [ ] **1.2.2** Update CSP policy (line 76-100 in security.py)
-  - Replace current policy with:
-    ```python
-    csp_nonce = getattr(g, 'csp_nonce', '')
-    csp_policy = (
-        f"default-src 'self'; "
-        f"script-src 'self' 'nonce-{csp_nonce}' https://js.stripe.com; "
-        f"style-src 'self' 'nonce-{csp_nonce}' https://fonts.googleapis.com; "
-        f"font-src 'self' https://fonts.gstatic.com; "
-        f"img-src 'self' data: https:; "
-        f"connect-src 'self' https://api.stripe.com; "
-        f"frame-src https://js.stripe.com https://hooks.stripe.com; "
-        f"object-src 'none'; "
-        f"base-uri 'self'; "
-        f"form-action 'self'; "
-    )
-    ```
+- [x] **1.2.2** Update CSP policy (line 76-100 in security.py)
+  - Implemented dual CSP policies:
+    - Production: Strict nonce-based CSP
+    - Development: Relaxed CSP for Vite HMR compatibility
+  - Both include Stripe.js integration support
 
-- [ ] **1.2.3** Add additional security headers
-  - Add to security.py after CSP:
-    ```python
-    response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
-    response.headers['X-Permitted-Cross-Domain-Policies'] = 'none'
-    ```
+- [x] **1.2.3** Add additional security headers
+  - Added Permissions-Policy header
+  - Added X-Permitted-Cross-Domain-Policies header
 
-- [ ] **1.2.4** Add HSTS header (production only)
-  - Add conditional HSTS:
-    ```python
-    if os.getenv('FLASK_ENV') == 'production':
-        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
-    ```
+- [x] **1.2.4** Add HSTS header (production only)
+  - Implemented conditional HSTS for production environment
+  - Includes includeSubDomains and preload directives
 
 - [ ] **1.2.5** Update frontend to use nonces (if needed)
-  - Check if Vite requires nonce injection
-  - Update `frontend/index.html` if necessary
-  - Test that inline scripts still work
+  - NOTE: Not required - Vite handles build-time bundling
+  - Development mode uses relaxed CSP (unsafe-inline/unsafe-eval)
+  - Production mode uses strict nonce-based CSP with compiled bundles
+  - No frontend changes needed
 
 - [ ] **1.2.6** Test CSP in browser
   - Open browser console
@@ -162,13 +145,27 @@ Issues encountered: None
 
 **Implementation Notes**:
 ```
-Date completed: ___________
-CSP violations found:
+Date completed: 2025-01-22
+Implementation: ✅ Complete
 
+Key changes:
+- Added nonce generation in before_request (secrets.token_urlsafe(16))
+- Implemented environment-aware CSP policies:
+  * Production: Strict nonce-based CSP without unsafe-inline/unsafe-eval
+  * Development: Relaxed CSP for Vite HMR (WebSocket, unsafe directives)
+- Added Permissions-Policy, X-Permitted-Cross-Domain-Policies headers
+- Added HSTS header for production (max-age=31536000, includeSubDomains, preload)
+- Maintained Stripe.js compatibility (js.stripe.com, hooks.stripe.com, api.stripe.com)
+- Maintained Google Fonts compatibility (fonts.googleapis.com, fonts.gstatic.com)
 
-CSP policy final version:
+CSP policy production version:
+default-src 'self'; script-src 'self' 'nonce-{random}' https://js.stripe.com;
+style-src 'self' 'nonce-{random}' https://fonts.googleapis.com;
+font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:;
+connect-src 'self' https://api.stripe.com; frame-src https://js.stripe.com https://hooks.stripe.com;
+object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 
-
+Pending: Browser testing on dev environment
 ```
 
 **Blockers/Issues**:

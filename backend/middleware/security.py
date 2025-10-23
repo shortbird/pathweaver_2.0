@@ -3,7 +3,9 @@ Security middleware for input validation and request sanitization
 """
 import re
 import json
-from flask import request, jsonify, abort
+import secrets
+import os
+from flask import request, jsonify, abort, g
 from functools import wraps
 from typing import Dict, List, Any
 from werkzeug.exceptions import BadRequest
@@ -48,6 +50,9 @@ class SecurityMiddleware:
     
     def before_request(self):
         """Process request before it reaches the route handler"""
+        # Generate CSP nonce for this request
+        g.csp_nonce = secrets.token_urlsafe(16)
+
         # Validate request size (11MB to account for image + form data overhead)
         if request.content_length and request.content_length > 11 * 1024 * 1024:  # 11MB max
             abort(413, description="Request payload too large")
@@ -75,30 +80,63 @@ class SecurityMiddleware:
     
     def after_request(self, response):
         """Add security headers to response"""
-        # Security headers
+        # Core security headers
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['X-XSS-Protection'] = '1; mode=block'
         response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
-        
+
+        # Additional security headers
+        response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
+        response.headers['X-Permitted-Cross-Domain-Policies'] = 'none'
+
+        # HSTS header (production only)
+        if os.getenv('FLASK_ENV') == 'production':
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload'
+
         # CSP header for additional XSS protection
         if not response.headers.get('Content-Security-Policy'):
-            # Comprehensive CSP for React/Vite application
-            csp_policy = (
-                "default-src 'self'; "
-                "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "  # React/Vite needs inline scripts
-                "style-src 'self' 'unsafe-inline' fonts.googleapis.com; "  # Allow inline styles and Google Fonts
-                "img-src 'self' data: blob: https:; "  # Allow images from various sources
-                "font-src 'self' fonts.gstatic.com; "  # Google Fonts
-                "connect-src 'self' https:; "  # API calls and WebSocket connections
-                "media-src 'self' blob:; "  # Media content
-                "object-src 'none'; "  # Disable plugins
-                "base-uri 'self'; "  # Prevent base tag injection
-                "form-action 'self'; "  # Forms can only submit to same origin
-                "frame-ancestors 'none'"  # Prevent framing (clickjacking)
-            )
+            # Get nonce from g object, with fallback
+            csp_nonce = getattr(g, 'csp_nonce', '')
+
+            # Enhanced CSP with nonce support for React/Vite application
+            # Note: 'unsafe-inline' and 'unsafe-eval' are needed for Vite dev mode
+            # In production builds, Vite doesn't require these
+            is_production = os.getenv('FLASK_ENV') == 'production'
+
+            if is_production:
+                # Strict CSP for production (nonce-based)
+                csp_policy = (
+                    f"default-src 'self'; "
+                    f"script-src 'self' 'nonce-{csp_nonce}' https://js.stripe.com; "
+                    f"style-src 'self' 'nonce-{csp_nonce}' https://fonts.googleapis.com; "
+                    f"font-src 'self' https://fonts.gstatic.com; "
+                    f"img-src 'self' data: https:; "
+                    f"connect-src 'self' https://api.stripe.com; "
+                    f"frame-src https://js.stripe.com https://hooks.stripe.com; "
+                    f"object-src 'none'; "
+                    f"base-uri 'self'; "
+                    f"form-action 'self'; "
+                    f"frame-ancestors 'none'"
+                )
+            else:
+                # Relaxed CSP for development (Vite requires unsafe-inline and unsafe-eval)
+                csp_policy = (
+                    "default-src 'self'; "
+                    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com; "
+                    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                    "font-src 'self' https://fonts.gstatic.com; "
+                    "img-src 'self' data: blob: https:; "
+                    "connect-src 'self' https: ws: wss:; "  # WebSocket for Vite HMR
+                    "frame-src https://js.stripe.com https://hooks.stripe.com; "
+                    "object-src 'none'; "
+                    "base-uri 'self'; "
+                    "form-action 'self'; "
+                    "frame-ancestors 'none'"
+                )
+
             response.headers['Content-Security-Policy'] = csp_policy
-        
+
         return response
     
     def sanitize_query_params(self):
