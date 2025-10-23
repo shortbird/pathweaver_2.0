@@ -66,7 +66,7 @@ export default function BadgeSeeder() {
             className={`w-full py-3 px-6 rounded-lg font-semibold text-white transition-all ${
               loading
                 ? 'bg-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] hover:shadow-lg'
+                : 'bg-gradient-to-r bg-gradient-primary-reverse hover:shadow-lg'
             }`}
           >
             {loading ? 'Creating Badges...' : 'Seed Initial Badges'}

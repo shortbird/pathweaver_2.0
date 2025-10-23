@@ -189,7 +189,7 @@ const ParentDashboardPage = () => {
               <button
                 type="submit"
                 disabled={sending}
-                className="px-6 py-2 bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-2 bg-gradient-to-r bg-gradient-primary text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 style={{ fontFamily: 'Poppins, sans-serif' }}
               >
                 {sending ? (
@@ -356,7 +356,7 @@ const ParentDashboardPage = () => {
           )}
           <button
             onClick={() => setShowAddChildModal(true)}
-            className="px-4 py-2 bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white rounded-lg font-semibold hover:shadow-lg transition-shadow flex items-center gap-2"
+            className="px-4 py-2 bg-gradient-to-r bg-gradient-primary text-white rounded-lg font-semibold hover:shadow-lg transition-shadow flex items-center gap-2"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             <UserGroupIcon className="w-5 h-5" />
@@ -402,7 +402,7 @@ const ParentDashboardPage = () => {
               <button
                 type="submit"
                 disabled={sending}
-                className="w-full px-6 py-2 bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full px-6 py-2 bg-gradient-to-r bg-gradient-primary text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 style={{ fontFamily: 'Poppins, sans-serif' }}
               >
                 {sending ? (
@@ -571,7 +571,7 @@ const ParentDashboardPage = () => {
             <div className="mt-6 flex justify-end">
               <button
                 onClick={() => setShowRhythmModal(false)}
-                className="px-6 py-2 bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white rounded-lg font-semibold hover:shadow-lg transition-shadow"
+                className="px-6 py-2 bg-gradient-to-r bg-gradient-primary text-white rounded-lg font-semibold hover:shadow-lg transition-shadow"
                 style={{ fontFamily: 'Poppins, sans-serif' }}
               >
                 Got It
@@ -652,7 +652,7 @@ const ParentDashboardPage = () => {
                           </div>
                           <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
                             <div
-                              className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] h-2 rounded-full transition-all"
+                              className="bg-gradient-to-r bg-gradient-primary h-2 rounded-full transition-all"
                               style={{ width: `${quest.progress.percentage}%` }}
                             />
                           </div>
@@ -720,7 +720,7 @@ const ParentDashboardPage = () => {
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-3">
                             <div
-                              className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] h-3 rounded-full transition-all"
+                              className="bg-gradient-to-r bg-gradient-primary h-3 rounded-full transition-all"
                               style={{ width: `${Math.min(progressPercent, 100)}%` }}
                             />
                           </div>
@@ -860,7 +860,7 @@ const ParentDashboardPage = () => {
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2">
                             <div
-                              className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] h-2 rounded-full"
+                              className="bg-gradient-to-r bg-gradient-primary h-2 rounded-full"
                               style={{ width: `${(item.completions / insightsData.pillar_preferences[0].completions) * 100}%` }}
                             />
                           </div>

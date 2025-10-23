@@ -7,7 +7,7 @@ const ConnectionSearch = ({ searchQuery, onSearchChange, onAddConnection }) => {
       {/* Search Input */}
       <div className="relative flex-1">
         <MagnifyingGlassIcon
-          className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-[#908B92]"
+          className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-neutral-400"
           aria-hidden="true"
         />
         <input
@@ -36,7 +36,7 @@ const ConnectionSearch = ({ searchQuery, onSearchChange, onAddConnection }) => {
       {/* Add Connection Button */}
       <button
         onClick={onAddConnection}
-        className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white px-6 py-3 rounded-full font-semibold shadow-[0_4px_20px_rgba(109,70,155,0.15)] hover:shadow-[0_6px_25px_rgba(109,70,155,0.25)] hover:-translate-y-0.5 transition-all duration-300 whitespace-nowrap"
+        className="bg-gradient-to-r bg-gradient-primary text-white px-6 py-3 rounded-full font-semibold shadow-[0_4px_20px_rgba(109,70,155,0.15)] hover:shadow-[0_6px_25px_rgba(109,70,155,0.25)] hover:-translate-y-0.5 transition-all duration-300 whitespace-nowrap"
         style={{ fontFamily: 'Poppins', fontWeight: 600 }}
       >
         + Add Connection

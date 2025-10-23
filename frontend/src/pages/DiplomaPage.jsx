@@ -95,7 +95,7 @@ const DiplomaPage = () => {
     'financial_literacy': 'from-emerald-500 to-teal-600',
     'health': 'from-rose-500 to-pink-600',
     'pe': 'from-cyan-500 to-blue-600',
-    'fine_arts': 'from-[#ef597b] to-[#6d469b]',
+    'fine_arts': 'bg-gradient-primary',
     'cte': 'from-slate-500 to-gray-600',
     'digital_literacy': 'from-indigo-500 to-blue-600',
     'electives': 'from-gray-500 to-slate-600'
@@ -447,9 +447,9 @@ const DiplomaPage = () => {
       const MultiFormatEvidenceDisplay = React.lazy(() => import('../components/diploma/MultiFormatEvidenceDisplay'));
       return (
         <React.Suspense fallback={
-          <div className="p-6 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 border border-[#6d469b]/15 rounded-lg">
+          <div className="p-6 bg-gradient-to-br from-optio-pink/5 to-optio-purple/5 border border-optio-purple/15 rounded-lg">
             <div className="flex items-center justify-center gap-3">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-[#6d469b]"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-optio-purple"></div>
               <p className="text-sm text-gray-600">Loading evidence...</p>
             </div>
           </div>
@@ -463,7 +463,7 @@ const DiplomaPage = () => {
     switch (evidence.evidence_type) {
       case 'text':
         return (
-          <div className="p-4 rounded-lg" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }}>
+          <div className="p-4 rounded-lg" className="bg-gradient-subtle">
             <p className="text-sm text-gray-700 whitespace-pre-wrap">
               {evidence.evidence_content}
             </p>
@@ -514,7 +514,7 @@ const DiplomaPage = () => {
         }
 
         return (
-          <div className="p-4 rounded-lg" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }}>
+          <div className="p-4 rounded-lg" className="bg-gradient-subtle">
             <img
               src={imageUrl}
               alt="Task evidence"
@@ -624,7 +624,7 @@ const DiplomaPage = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <h2 className="text-2xl font-bold mb-2" style={{ color: '#003f5c' }}>
+          <h2 className="text-2xl font-bold mb-2" className="text-primary }}>
             {error.message || 'Diploma Not Available'}
           </h2>
           <p className="text-gray-600 mb-6">
@@ -717,7 +717,7 @@ const DiplomaPage = () => {
                 </div>
               </div>
               
-              <div className="mt-8 p-4 bg-gradient-to-r from-[#ef597b]/5 to-[#6d469b]/5 rounded-lg border border-[#ef597b]/20">
+              <div className="mt-8 p-4 bg-gradient-to-r from-optio-pink/5 to-optio-purple/5 rounded-lg border border-optio-pink/20">
                 <p className="text-sm text-gray-700 text-center">
                   <strong>Self-Validated Learning:</strong> Take control of your education by documenting your learning process with real evidence, not test scores.
                 </p>
@@ -727,7 +727,7 @@ const DiplomaPage = () => {
             <div className="flex justify-center gap-4">
               <button
                 onClick={() => navigate('/subscription')}
-                className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-8 py-3 rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
+                className="bg-gradient-to-r bg-gradient-primary text-white px-8 py-3 rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
               >
                 Upgrade to Supported
               </button>
@@ -771,7 +771,7 @@ const DiplomaPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Hero Section with Professional Diploma Title */}
-      <div className="relative overflow-hidden bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white">
+      <div className="relative overflow-hidden bg-gradient-to-r bg-gradient-primary text-white">
         <div className="absolute inset-0 bg-black opacity-10"></div>
         <div className="relative max-w-7xl mx-auto px-4 py-12">
           <div className="text-center max-w-4xl mx-auto">
@@ -813,7 +813,7 @@ const DiplomaPage = () => {
           <div className="flex justify-end mb-8">
             <button
               onClick={copyShareLink}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg transition-shadow flex items-center gap-2"
+              className="px-4 py-2 rounded-lg bg-gradient-to-r bg-gradient-primary text-white hover:shadow-lg transition-shadow flex items-center gap-2"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92zM18 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM6 13c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm12 7.02c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/>
@@ -839,7 +839,7 @@ const DiplomaPage = () => {
           return (
             <div className="mb-12 pb-12 border-b border-gray-100">
               <div className="text-center mb-8">
-                <h2 className="text-3xl font-bold mb-3" style={{ color: '#003f5c' }}>Diploma Credits</h2>
+                <h2 className="text-3xl font-bold mb-3" className="text-primary }}>Diploma Credits</h2>
                 <p className="text-gray-600 max-w-2xl mx-auto mb-4">
                   Progress toward an accredited high school diploma through evidence-based learning
                 </p>
@@ -883,7 +883,7 @@ const DiplomaPage = () => {
                       className={`h-3 rounded-full transition-all duration-500 ${
                         meetsRequirements
                           ? 'bg-gradient-to-r from-green-400 to-green-600'
-                          : 'bg-gradient-to-r from-[#ef597b] to-[#6d469b]'
+                          : 'bg-gradient-to-r bg-gradient-primary'
                       }`}
                       style={{
                         width: `${Math.min((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
@@ -984,7 +984,7 @@ const DiplomaPage = () => {
         {earnedBadges.length > 0 && (
           <div className="mb-12 pb-12 border-b border-gray-100">
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-3" style={{ color: '#003f5c' }}>Earned Badges</h2>
+              <h2 className="text-3xl font-bold mb-3" className="text-primary }}>Earned Badges</h2>
               <p className="text-gray-600 max-w-2xl mx-auto">
                 Recognition of mastery and achievement across learning pillars
               </p>
@@ -1011,7 +1011,7 @@ const DiplomaPage = () => {
         {learningEvents.length > 0 && (
           <div className="mb-12 pb-12 border-b border-gray-100">
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-3" style={{ color: '#003f5c' }}>Learning Moments</h2>
+              <h2 className="text-3xl font-bold mb-3" className="text-primary }}>Learning Moments</h2>
               <p className="text-gray-600 max-w-2xl mx-auto">
                 Spontaneous discoveries and growth captured along the journey
               </p>
@@ -1031,7 +1031,7 @@ const DiplomaPage = () => {
         {/* Learning Journey Section */}
         <div className="mb-8 pt-8">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold" style={{ color: '#003f5c' }}>Learning Journey</h2>
+            <h2 className="text-2xl font-bold" className="text-primary }}>Learning Journey</h2>
             {achievements.length > 0 && (
               <span className="text-sm text-gray-600">
                 {(() => {
@@ -1088,7 +1088,7 @@ const DiplomaPage = () => {
                         <div className={`absolute inset-0 bg-gradient-to-t from-black/30 to-transparent`} />
                       </div>
                     ) : (
-                      <div className="h-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b]"></div>
+                      <div className="h-2 bg-gradient-to-r bg-gradient-primary"></div>
                     )}
 
                     <div className="p-4 sm:p-6 flex flex-col flex-grow">
@@ -1109,7 +1109,7 @@ const DiplomaPage = () => {
                       </div>
 
                       {/* Quest title and description */}
-                      <h3 className="font-bold text-base sm:text-lg mb-2 leading-tight" style={{ color: '#003f5c' }}>
+                      <h3 className="font-bold text-base sm:text-lg mb-2 leading-tight" className="text-primary }}>
                         {achievement.quest.title}
                       </h3>
                       <p className="text-sm text-gray-600 mb-4 line-clamp-2 flex-grow">
@@ -1127,7 +1127,7 @@ const DiplomaPage = () => {
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-1.5">
                             <div
-                              className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] h-1.5 rounded-full transition-all duration-300"
+                              className="bg-gradient-to-r bg-gradient-primary h-1.5 rounded-full transition-all duration-300"
                               style={{ width: `${achievement.progress.percentage}%` }}
                             ></div>
                           </div>
@@ -1149,7 +1149,7 @@ const DiplomaPage = () => {
                               +{achievement.total_xp_earned} Points{isInProgress ? ' so far' : ''}
                             </span>
                           </div>
-                          <span className="text-xs sm:text-sm text-[#6d469b] font-medium hover:underline self-start sm:self-auto">
+                          <span className="text-xs sm:text-sm text-optio-purple font-medium hover:underline self-start sm:self-auto">
                             {isInProgress ? 'View Progress →' : 'Explore Journey →'}
                           </span>
                         </div>
@@ -1166,7 +1166,7 @@ const DiplomaPage = () => {
             {selectedAchievement && (
               <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
                 <div className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
-                  <div className="sticky top-0 p-4 sm:p-8 z-10" style={{ background: 'linear-gradient(135deg, #ef597b 0%, #6d469b 100%)' }}>
+                  <div className="sticky top-0 p-4 sm:p-8 z-10" className="bg-gradient-primary">
                     <div className="flex justify-between items-start gap-4">
                       <div className="flex-1 min-w-0">
                         <h2 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white leading-tight" style={{ letterSpacing: '-0.5px' }}>
@@ -1197,13 +1197,13 @@ const DiplomaPage = () => {
                   </div>
 
                   <div className="p-4 sm:p-8">
-                    <div className="mb-6 sm:mb-8 p-4 sm:p-6 rounded-xl" style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.05) 0%, rgba(109,70,155,0.05) 100%)', border: '1px solid rgba(109,70,155,0.1)' }}>
-                      <h3 className="text-base sm:text-lg font-bold mb-3" style={{ color: '#6d469b' }}>Adventure Overview</h3>
-                      <p className="text-sm sm:text-base" style={{ color: '#003f5c', lineHeight: 1.7 }}>{selectedAchievement.quest.description || selectedAchievement.quest.big_idea || 'A journey of discovery and growth.'}</p>
+                    <div className="mb-6 sm:mb-8 p-4 sm:p-6 rounded-xl" className="bg-gradient-subtle-strong">
+                      <h3 className="text-base sm:text-lg font-bold mb-3" className="text-optio-purple }}>Adventure Overview</h3>
+                      <p className="text-sm sm:text-base" className="text-primary, lineHeight: 1.7 }}>{selectedAchievement.quest.description || selectedAchievement.quest.big_idea || 'A journey of discovery and growth.'}</p>
                     </div>
 
                     <div>
-                      <h3 className="text-base sm:text-lg font-bold mb-4" style={{ color: '#003f5c' }}>Learning Journey & Evidence</h3>
+                      <h3 className="text-base sm:text-lg font-bold mb-4" className="text-primary }}>Learning Journey & Evidence</h3>
                       <div className="space-y-4">
                         {Object.entries(selectedAchievement.task_evidence)
                           .sort(([, a], [, b]) => new Date(a.completed_at) - new Date(b.completed_at))
@@ -1216,13 +1216,13 @@ const DiplomaPage = () => {
                             <div key={taskTitle} className="rounded-xl p-4 sm:p-5" style={{ background: 'white', border: '1px solid rgba(109,70,155,0.15)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                               <div className="mb-3">
                                 <div className="flex items-start gap-3">
-                                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white flex items-center justify-center text-xs sm:text-sm font-bold flex-shrink-0">
+                                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-r bg-gradient-primary text-white flex items-center justify-center text-xs sm:text-sm font-bold flex-shrink-0">
                                     {index + 1}
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <h4 className="font-semibold text-sm sm:text-base leading-tight" style={{ color: '#003f5c' }}>{taskTitle}</h4>
+                                    <h4 className="font-semibold text-sm sm:text-base leading-tight" className="text-primary }}>{taskTitle}</h4>
                                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2">
-                                      <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass}`} style={{ boxShadow: '0 2px 8px rgba(109,70,155,0.25)' }}>
+                                      <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass}`} className="shadow-optio">
                                         {displayPillar}
                                       </span>
                                       <span className="text-xs sm:text-sm font-medium text-green-600">
@@ -1274,7 +1274,7 @@ const DiplomaPage = () => {
             <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" style={{ boxShadow: '0 20px 40px rgba(0,0,0,0.15)' }}>
               <div className="p-8">
                 <div className="flex justify-between items-start mb-6">
-                  <h2 className="text-3xl font-bold" style={{ color: '#003f5c' }}>
+                  <h2 className="text-3xl font-bold" className="text-primary }}>
                     What is a Self-Validated Diploma?
                   </h2>
                   <button
@@ -1288,8 +1288,8 @@ const DiplomaPage = () => {
                 </div>
 
                 <div className="space-y-6">
-                  <div className="p-6 rounded-xl bg-gradient-to-r from-[#ef597b]/5 to-[#6d469b]/5" style={{ border: '1px solid rgba(109,70,155,0.1)' }}>
-                    <h3 className="font-bold text-lg mb-3" style={{ color: '#6d469b' }}>A Revolutionary Approach to Education</h3>
+                  <div className="p-6 rounded-xl bg-gradient-to-r from-optio-pink/5 to-optio-purple/5" style={{ border: '1px solid rgba(109,70,155,0.1)' }}>
+                    <h3 className="font-bold text-lg mb-3" className="text-optio-purple }}>A Revolutionary Approach to Education</h3>
                     <p className="text-gray-700 leading-relaxed">
                       Unlike traditional diplomas that require external validation from institutions, a self-validated diploma 
                       puts YOU in charge of your education. You choose what to learn, document your journey with evidence, 
@@ -1300,10 +1300,10 @@ const DiplomaPage = () => {
                   <div className="grid md:grid-cols-2 gap-4">
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
-                        <svg className="w-5 h-5 text-[#ef597b]" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-5 h-5 text-optio-pink" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 0016 0zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                         </svg>
-                        <h4 className="font-semibold" style={{ color: '#003f5c' }}>Evidence-Based</h4>
+                        <h4 className="font-semibold" className="text-primary }}>Evidence-Based</h4>
                       </div>
                       <p className="text-sm text-gray-600">
                         Every achievement is backed by real evidence - projects, writings, videos, and creations that prove your learning.
@@ -1312,10 +1312,10 @@ const DiplomaPage = () => {
 
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
-                        <svg className="w-5 h-5 text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-5 h-5 text-optio-purple" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                         </svg>
-                        <h4 className="font-semibold" style={{ color: '#003f5c' }}>Self-Directed</h4>
+                        <h4 className="font-semibold" className="text-primary }}>Self-Directed</h4>
                       </div>
                       <p className="text-sm text-gray-600">
                         You choose what to learn based on your interests and curiosity, not a predetermined curriculum.
@@ -1324,10 +1324,10 @@ const DiplomaPage = () => {
 
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
-                        <svg className="w-5 h-5 text-[#ef597b]" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-5 h-5 text-optio-pink" fill="currentColor" viewBox="0 0 20 20">
                           <path fillRule="evenodd" d="M3.172 5.172a4 4 0 015.656 0L10 6.343l1.172-1.171a4 4 0 115.656 5.656L10 17.657l-6.828-6.829a4 4 0 010-5.656z" clipRule="evenodd" />
                         </svg>
-                        <h4 className="font-semibold" style={{ color: '#003f5c' }}>Process-Focused</h4>
+                        <h4 className="font-semibold" className="text-primary }}>Process-Focused</h4>
                       </div>
                       <p className="text-sm text-gray-600">
                         Celebrates the journey of learning and growth, not just final outcomes or test scores.
@@ -1336,10 +1336,10 @@ const DiplomaPage = () => {
 
                     <div className="p-4 bg-gray-50 rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
-                        <svg className="w-5 h-5 text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
+                        <svg className="w-5 h-5 text-optio-purple" fill="currentColor" viewBox="0 0 20 20">
                           <path d="M10.394 2.08a1 1 0 00-.788 0l-7 3a1 1 0 000 1.84L5.25 8.051a.999.999 0 01.356-.257l4-1.714a1 1 0 11.788 1.838L7.667 9.088l1.94.831a1 1 0 00.787 0l7-3a1 1 0 000-1.838l-7-3zM3.31 9.397L5 10.12v4.102a8.969 8.969 0 00-1.05-.174 1 1 0 01-.89-.89 11.115 11.115 0 01.25-3.762z" />
                         </svg>
-                        <h4 className="font-semibold" style={{ color: '#003f5c' }}>Publicly Shareable</h4>
+                        <h4 className="font-semibold" className="text-primary }}>Publicly Shareable</h4>
                       </div>
                       <p className="text-sm text-gray-600">
                         Create a professional portfolio that showcases your unique learning story to the world.
@@ -1347,7 +1347,7 @@ const DiplomaPage = () => {
                     </div>
                   </div>
 
-                  <div className="p-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg">
+                  <div className="p-4 bg-gradient-to-r bg-gradient-primary text-white rounded-lg">
                     <p className="text-center font-semibold">
                       "The Process Is The Goal" - Your learning journey is valuable for who you become, not what you prove.
                     </p>

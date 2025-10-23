@@ -29,7 +29,7 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
   const renderImageSection = (images) => (
     <div className="mb-6">
       <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-        <svg className="w-4 h-4 mr-2 text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
+        <svg className="w-4 h-4 mr-2 text-optio-purple" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
         </svg>
         Visual Evidence ({images.length})
@@ -66,7 +66,7 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
           return (
             <div
               key={block.id}
-              className="group relative overflow-hidden rounded-lg bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 border border-[#6d469b]/10 cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
+              className="group relative overflow-hidden rounded-lg bg-gradient-to-br from-optio-pink/5 to-optio-purple/5 border border-optio-purple/10 cursor-pointer transition-all duration-300 hover:shadow-lg hover:-translate-y-1"
               onClick={() => onImageClick && onImageClick(block, index, images)}
             >
               <div className="aspect-video relative overflow-hidden">
@@ -102,7 +102,7 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
   const renderTextSection = (textBlocks) => (
     <div className="mb-6">
       <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-        <svg className="w-4 h-4 mr-2 text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
+        <svg className="w-4 h-4 mr-2 text-optio-purple" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
         </svg>
         Written Reflections ({textBlocks.length})
@@ -116,7 +116,7 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
           return (
             <div
               key={block.id}
-              className="bg-gradient-to-br from-[#ef597b]/3 to-[#6d469b]/3 border border-[#6d469b]/15 rounded-lg p-4"
+              className="bg-gradient-to-br from-[#ef597b]/3 to-[#6d469b]/3 border border-optio-purple/15 rounded-lg p-4"
             >
               <div className={`text-sm text-gray-700 leading-relaxed ${shouldTruncate && !isExpanded ? 'line-clamp-4' : ''}`}>
                 <p className="whitespace-pre-wrap">{block.content.text}</p>
@@ -124,7 +124,7 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
               {shouldTruncate && (
                 <button
                   onClick={() => onExpandToggle && onExpandToggle(block.id)}
-                  className="mt-3 text-[#6d469b] hover:text-[#ef597b] font-medium text-sm transition-colors"
+                  className="mt-3 text-optio-purple hover:text-optio-pink font-medium text-sm transition-colors"
                 >
                   {isExpanded ? 'Show Less' : 'Read More'}
                 </button>
@@ -140,7 +140,7 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
   const renderResourceSection = (resources) => (
     <div className="mb-6">
       <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-        <svg className="w-4 h-4 mr-2 text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
+        <svg className="w-4 h-4 mr-2 text-optio-purple" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5z" clipRule="evenodd" />
         </svg>
         Resources & Links ({resources.length})
@@ -239,7 +239,7 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
   const renderDocumentSection = (documents) => (
     <div className="mb-6">
       <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-        <svg className="w-4 h-4 mr-2 text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
+        <svg className="w-4 h-4 mr-2 text-optio-purple" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
         </svg>
         Documents ({documents.length})
@@ -351,7 +351,7 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
   const renderVideoSection = (videos) => (
     <div className="mb-6">
       <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center">
-        <svg className="w-4 h-4 mr-2 text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
+        <svg className="w-4 h-4 mr-2 text-optio-purple" fill="currentColor" viewBox="0 0 20 20">
           <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
         </svg>
         Videos ({videos.length})

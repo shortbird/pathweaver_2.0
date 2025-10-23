@@ -153,12 +153,12 @@ const Sidebar = ({ isOpen, onClose }) => {
                     font-poppins transition-colors duration-200
                     min-h-[44px] touch-manipulation
                     ${isActive
-                      ? 'bg-gradient-to-r from-[#F3EFF4] to-[#E7D5F2] text-[#6D469B] font-semibold'
-                      : 'text-[#3B383C] font-medium hover:bg-[#EEEBEF]'
+                      ? 'bg-gradient-to-r from-[#F3EFF4] to-[#E7D5F2] text-optio-purple font-semibold'
+                      : 'text-neutral-700 font-medium hover:bg-neutral-100'
                     }
                   `}
                 >
-                  <span className={`mr-3 ${isActive ? 'text-[#6D469B]' : 'text-[#605C61]'}`}>
+                  <span className={`mr-3 ${isActive ? 'text-optio-purple' : 'text-neutral-500'}`}>
                     {item.icon}
                   </span>
                   <span>{item.name}</span>

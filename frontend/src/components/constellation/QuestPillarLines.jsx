@@ -22,7 +22,7 @@ const QuestPillarLines = ({ questOrbs, pillarPositions }) => {
           const pillarColors = {
             'stem_logic': '#3b82f6',
             'society_culture': '#a855f7',
-            'arts_creativity': '#ef597b',
+            'arts_creativity': '#EF597B',
             'language_communication': '#f59e0b',
             'life_wellness': '#10b981'
           };

@@ -36,7 +36,7 @@ const PillarStar = ({
   const pillarColors = {
     'stem_logic': { primary: '#3b82f6', glow: 'rgba(59, 130, 246, 0.6)' },
     'society_culture': { primary: '#a855f7', glow: 'rgba(168, 85, 247, 0.6)' },
-    'arts_creativity': { primary: '#ef597b', glow: 'rgba(239, 89, 123, 0.6)' },
+    'arts_creativity': { primary: '#EF597B', glow: 'rgba(239, 89, 123, 0.6)' },
     'language_communication': { primary: '#f59e0b', glow: 'rgba(245, 158, 11, 0.6)' },
     'life_wellness': { primary: '#10b981', glow: 'rgba(16, 185, 129, 0.6)' }
   };

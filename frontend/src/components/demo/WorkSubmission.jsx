@@ -95,7 +95,7 @@ const WorkSubmission = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="text-center space-y-2">
-        <h2 className="text-3xl font-bold text-[#003f5c]">
+        <h2 className="text-3xl font-bold text-text-primary">
           Submit Your Work
         </h2>
         <p className="text-gray-600">
@@ -106,7 +106,7 @@ const WorkSubmission = () => {
       {/* Quest/Task Selector */}
       <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-4">
         <div className="flex items-center justify-between mb-3">
-          <h3 className="font-bold text-lg text-[#003f5c]">{currentQuest.title}</h3>
+          <h3 className="font-bold text-lg text-text-primary">{currentQuest.title}</h3>
           <div className="text-sm text-gray-600">
             Quest {activeQuest + 1} of {selectedQuests.length}
           </div>
@@ -124,10 +124,10 @@ const WorkSubmission = () => {
                 onClick={() => setActiveTask(idx)}
                 className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
                   idx === activeTask 
-                    ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white shadow-lg' 
+                    ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white shadow-lg' 
                     : isSubmitted
                       ? 'bg-green-100 text-green-700 border border-green-300'
-                      : 'bg-white text-gray-600 border border-gray-200 hover:border-[#6d469b]'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:border-optio-purple'
                 }`}
               >
                 {isSubmitted && <CheckCircle className="w-4 h-4 inline mr-1" />}
@@ -143,7 +143,7 @@ const WorkSubmission = () => {
         <div className="space-y-6">
           {/* Task Info */}
           <div className="bg-white rounded-xl border-2 border-gray-200 p-6">
-            <h4 className="font-bold text-lg text-[#003f5c] mb-2">
+            <h4 className="font-bold text-lg text-text-primary mb-2">
               Task: {currentTask.title}
             </h4>
             <p className="text-gray-600 mb-4">
@@ -162,7 +162,7 @@ const WorkSubmission = () => {
                     <div className="text-gray-400">{type.icon}</div>
                     <span className="text-xs text-gray-500">{type.label}</span>
                     {idx === 0 && (
-                      <div className="absolute top-1 right-1 bg-[#6d469b] text-white text-[10px] px-2 py-0.5 rounded-full">
+                      <div className="absolute top-1 right-1 bg-optio-purple text-white text-[10px] px-2 py-0.5 rounded-full">
                         Demo
                       </div>
                     )}
@@ -183,7 +183,7 @@ const WorkSubmission = () => {
                 <textarea
                   value={workText}
                   onChange={(e) => setWorkText(e.target.value)}
-                  className="w-full p-4 border-2 border-gray-200 rounded-lg focus:border-[#6d469b] focus:outline-none transition-colors bg-blue-50"
+                  className="w-full p-4 border-2 border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors bg-blue-50"
                   rows="5"
                 />
                 <p className="text-xs text-gray-500 mt-1">
@@ -194,10 +194,10 @@ const WorkSubmission = () => {
               {/* Visibility Toggle */}
               <div className="bg-gray-50 rounded-xl p-6 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h5 className="font-semibold text-[#003f5c]">Visibility Settings</h5>
+                  <h5 className="font-semibold text-text-primary">Visibility Settings</h5>
                   <button
                     onClick={() => setShowAccountabilityModal(true)}
-                    className="text-sm text-[#6d469b] hover:underline flex items-center gap-1"
+                    className="text-sm text-optio-purple hover:underline flex items-center gap-1"
                   >
                     <Info className="w-4 h-4" />
                     Why this matters
@@ -221,7 +221,7 @@ const WorkSubmission = () => {
                         <Globe className="w-5 h-5" />
                       </div>
                       <div className="text-left">
-                        <h6 className="font-semibold text-[#003f5c]">Public (Recommended)</h6>
+                        <h6 className="font-semibold text-text-primary">Public (Recommended)</h6>
                         <p className="text-xs text-gray-600 mt-1">
                           Visible on your diploma. Quality speaks for itself.
                         </p>
@@ -245,7 +245,7 @@ const WorkSubmission = () => {
                         <Lock className="w-5 h-5" />
                       </div>
                       <div className="text-left">
-                        <h6 className="font-semibold text-[#003f5c]">Confidential</h6>
+                        <h6 className="font-semibold text-text-primary">Confidential</h6>
                         <p className="text-xs text-gray-600 mt-1">
                           Shows "Contact student for details" on diploma
                         </p>
@@ -288,7 +288,7 @@ const WorkSubmission = () => {
                 disabled={!workText.trim()}
                 className={`w-full py-4 rounded-lg font-semibold transition-all ${
                   workText.trim()
-                    ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg transform hover:scale-[1.02]'
+                    ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white hover:shadow-lg transform hover:scale-[1.02]'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }`}
               >
@@ -300,9 +300,9 @@ const WorkSubmission = () => {
           {/* Student Validation Note */}
           <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-6">
             <div className="flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-[#6d469b] mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-optio-purple mt-0.5" />
               <div>
-                <h5 className="font-semibold text-[#003f5c] mb-1">Student Validation</h5>
+                <h5 className="font-semibold text-text-primary mb-1">Student Validation</h5>
                 <p className="text-sm text-gray-700">
                   You validate your own learning through public accountability. 
                   There's no teacher grading - your work quality is self-evident.

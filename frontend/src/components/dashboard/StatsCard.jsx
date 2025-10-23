@@ -78,7 +78,7 @@ const StatsCard = ({ stats }) => {
   return (
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
       <div className="flex items-center gap-3 mb-6">
-        <div className="w-8 h-8 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-lg flex items-center justify-center">
+        <div className="w-8 h-8 bg-gradient-to-r bg-gradient-primary-reverse rounded-lg flex items-center justify-center">
           <ChartBarIcon className="w-5 h-5 text-white" />
         </div>
         <h2 className="text-xl font-bold text-gray-900">Your Stats</h2>

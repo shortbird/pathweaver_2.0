@@ -12,9 +12,9 @@ const PILLAR_ICONS = {
 
 // Pillar color mapping
 const PILLAR_COLORS = {
-  'STEM & Logic': '#2469D1',
+  'STEM & Logic': pillar-stem,
   'Life & Wellness': '#B3393F',
-  'Language & Communication': '#3DA24A',
+  'Language & Communication': pillar-communication,
   'Society & Culture': '#BE6B27',
   'Arts & Creativity': '#59189C',
 }
@@ -26,7 +26,7 @@ const ConnectionCard = ({ connection, onViewJourney, onTeamUp }) => {
   // Get current pillar info (mock for now, would come from recent activity)
   const currentPillar = connection.current_pillar || 'STEM & Logic'
   const pillarIcon = PILLAR_ICONS[currentPillar] || '🔬'
-  const pillarColor = PILLAR_COLORS[currentPillar] || '#2469D1'
+  const pillarColor = PILLAR_COLORS[currentPillar] || pillar-stem
 
   return (
     <div className="bg-white rounded-[20px] shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 p-6 flex flex-col items-center text-center min-h-[320px]">
@@ -44,7 +44,7 @@ const ConnectionCard = ({ connection, onViewJourney, onTeamUp }) => {
 
       {/* Name */}
       <h3
-        className="text-lg font-semibold text-[#3B383C] mb-2"
+        className="text-lg font-semibold text-neutral-700 mb-2"
         style={{ fontFamily: 'Poppins', fontWeight: 600 }}
       >
         {connection.first_name} {connection.last_name}
@@ -57,7 +57,7 @@ const ConnectionCard = ({ connection, onViewJourney, onTeamUp }) => {
         </span>
         <div className="text-left">
           <p
-            className="text-xs text-[#908B92]"
+            className="text-xs text-neutral-400"
             style={{ fontFamily: 'Poppins', fontWeight: 500 }}
           >
             Currently exploring
@@ -75,7 +75,7 @@ const ConnectionCard = ({ connection, onViewJourney, onTeamUp }) => {
       <div className="w-full space-y-2 mt-auto">
         <button
           onClick={() => onTeamUp(connection.id)}
-          className="w-full bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white py-2.5 rounded-full font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)] hover:shadow-[0_4px_15px_rgba(109,70,155,0.25)] transition-all duration-300 flex items-center justify-center gap-2"
+          className="w-full bg-gradient-to-r bg-gradient-primary text-white py-2.5 rounded-full font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)] hover:shadow-[0_4px_15px_rgba(109,70,155,0.25)] transition-all duration-300 flex items-center justify-center gap-2"
           style={{ fontFamily: 'Poppins', fontWeight: 600 }}
         >
           <UserGroupIcon className="w-5 h-5" />

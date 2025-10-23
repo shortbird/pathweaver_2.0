@@ -32,17 +32,17 @@ const InvitationsTab = ({
         {/* Connection Requests Section */}
         <div>
           <h2
-            className="text-2xl font-bold text-[#3B383C] mb-6 flex items-center gap-2"
+            className="text-2xl font-bold text-neutral-700 mb-6 flex items-center gap-2"
             style={{ fontFamily: 'Poppins', fontWeight: 700 }}
           >
-            <EnvelopeIcon className="w-6 h-6 text-[#6d469b]" />
+            <EnvelopeIcon className="w-6 h-6 text-optio-purple" />
             Connection Requests
           </h2>
 
           {/* Incoming Requests */}
           <div className="mb-6">
             <h3
-              className="text-lg font-semibold text-[#3B383C] mb-4"
+              className="text-lg font-semibold text-neutral-700 mb-4"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
               Incoming ({pendingRequests.length})
@@ -67,7 +67,7 @@ const InvitationsTab = ({
           {/* Sent Requests */}
           <div>
             <h3
-              className="text-lg font-semibold text-[#3B383C] mb-4"
+              className="text-lg font-semibold text-neutral-700 mb-4"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
               Sent ({sentRequests.length})
@@ -93,10 +93,10 @@ const InvitationsTab = ({
         {parentRequests.length > 0 && (
           <div>
             <h2
-              className="text-2xl font-bold text-[#3B383C] mb-6 flex items-center gap-2"
+              className="text-2xl font-bold text-neutral-700 mb-6 flex items-center gap-2"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
-              <UserGroupIcon className="w-6 h-6 text-[#6d469b]" />
+              <UserGroupIcon className="w-6 h-6 text-optio-purple" />
               Parent Access Requests
             </h2>
             <div className="space-y-3">

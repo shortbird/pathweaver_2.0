@@ -115,7 +115,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
         </div>
         {children}
       </div>
-      <div className="w-full h-px bg-gradient-to-r from-[#ef597b] to-[#6d469b] mb-6"></div>
+      <div className="w-full h-px bg-gradient-to-r bg-gradient-primary-reverse mb-6"></div>
     </div>
   )
 
@@ -415,7 +415,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
-          <h2 className="text-2xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+          <h2 className="text-2xl font-bold bg-gradient-to-r bg-gradient-primary-reverse bg-clip-text text-transparent">
             Create New Quest
           </h2>
           <button
@@ -437,7 +437,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
               <button
                 type="button"
                 onClick={() => setShowAIModal(true)}
-                className="flex items-center space-x-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+                className="flex items-center space-x-2 bg-gradient-to-r bg-gradient-primary-reverse text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
               >
                 <Sparkles className="h-4 w-4" />
                 <span>AI Assist</span>
@@ -823,7 +823,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
               <button
                 type="button"
                 onClick={addTask}
-                className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 transition-all shadow-md hover:shadow-lg"
+                className="px-6 py-3 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 transition-all shadow-md hover:shadow-lg"
               >
                 <Plus size={20} className="inline mr-2" />
                 Add Another Task
@@ -929,7 +929,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+              className="px-6 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 disabled:opacity-50"
               disabled={loading}
             >
               {loading ? 'Creating...' : 'Create Quest'}

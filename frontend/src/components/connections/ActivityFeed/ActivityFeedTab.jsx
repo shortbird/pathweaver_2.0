@@ -29,7 +29,7 @@ const ActivityFeedTab = ({ activities = [], onAddConnection }) => {
     >
       <div className="max-w-4xl mx-auto">
         <h2
-          className="text-2xl font-bold text-[#3B383C] mb-6 flex items-center gap-2"
+          className="text-2xl font-bold text-neutral-700 mb-6 flex items-center gap-2"
           style={{ fontFamily: 'Poppins', fontWeight: 700 }}
         >
           <span role="img" aria-label="Growing plant">

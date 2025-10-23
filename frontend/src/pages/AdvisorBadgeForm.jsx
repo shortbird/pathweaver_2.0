@@ -13,8 +13,8 @@ const PILLARS = [
 const PRESET_ICONS = ['🎯', '🏆', '⭐', '💎', '🔥', '🎨', '📚', '🔬', '🎭', '🌟', '💡', '🚀'];
 
 const PRESET_COLORS = [
-  { name: 'Purple', value: '#6d469b' },
-  { name: 'Pink', value: '#ef597b' },
+  { name: 'Purple', value: '#6D469B' },
+  { name: 'Pink', value: '#EF597B' },
   { name: 'Blue', value: '#3b82f6' },
   { name: 'Green', value: '#10b981' },
   { name: 'Indigo', value: '#6366f1' },
@@ -38,7 +38,7 @@ export default function AdvisorBadgeForm() {
     min_quests: 5,
     xp_requirement: 1000,
     icon: '🎯',
-    color: '#6d469b',
+    color: '#6D469B',
     is_public: false
   });
 
@@ -62,7 +62,7 @@ export default function AdvisorBadgeForm() {
         min_quests: badge.min_quests || 5,
         xp_requirement: badge.xp_requirement || 1000,
         icon: badge.icon || '🎯',
-        color: badge.color || '#6d469b',
+        color: badge.color || '#6D469B',
         is_public: badge.is_public || false
       });
     } catch (err) {
@@ -148,7 +148,7 @@ export default function AdvisorBadgeForm() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#ef597b] mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-pink mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading badge...</p>
         </div>
       </div>
@@ -303,7 +303,7 @@ export default function AdvisorBadgeForm() {
                   onClick={() => setFormData(prev => ({ ...prev, icon }))}
                   className={`text-3xl p-3 rounded-lg border-2 transition-all ${
                     formData.icon === icon
-                      ? 'border-[#ef597b] bg-pink-50'
+                      ? 'border-optio-pink bg-pink-50'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
@@ -358,7 +358,7 @@ export default function AdvisorBadgeForm() {
               name="is_public"
               checked={formData.is_public}
               onChange={handleChange}
-              className="h-4 w-4 text-[#ef597b] focus:ring-[#ef597b] border-gray-300 rounded"
+              className="h-4 w-4 text-optio-pink focus:ring-[#ef597b] border-gray-300 rounded"
             />
             <label className="ml-2 block text-sm text-gray-700">
               Make this badge public (visible to all students)
@@ -390,7 +390,7 @@ export default function AdvisorBadgeForm() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                className="px-6 py-3 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 disabled:opacity-50"
               >
                 {saving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create Badge'}
               </button>

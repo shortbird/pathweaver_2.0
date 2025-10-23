@@ -14,12 +14,12 @@ const Button = ({
   const baseClasses = 'inline-flex items-center justify-center font-semibold rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed touch-manipulation';
   
   const variants = {
-    primary: 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:from-[#d94768] hover:to-[#5c3a82] focus:ring-[#ef597b] shadow-md hover:shadow-lg',
+    primary: 'bg-gradient-to-r bg-gradient-primary-reverse text-white hover:from-[#d94768] hover:to-[#5c3a82] focus:ring-[#ef597b] shadow-md hover:shadow-lg',
     secondary: 'bg-gray-200 hover:bg-gray-300 text-gray-800 focus:ring-gray-400',
     danger: 'bg-red-600 hover:bg-red-700 text-white focus:ring-red-500 shadow-md hover:shadow-lg',
     success: 'bg-green-600 hover:bg-green-700 text-white focus:ring-green-500 shadow-md hover:shadow-lg',
     ghost: 'bg-transparent hover:bg-gray-100 text-gray-700 focus:ring-gray-400',
-    outline: 'border-2 border-[#ef597b] text-[#ef597b] hover:bg-gradient-to-r hover:from-[#ef597b] hover:to-[#6d469b] hover:text-white focus:ring-[#ef597b]'
+    outline: 'border-2 border-optio-pink text-optio-pink hover:bg-gradient-to-r hover:from-[#ef597b] hover:to-[#6d469b] hover:text-white focus:ring-[#ef597b]'
   };
 
   const sizes = {

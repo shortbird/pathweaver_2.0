@@ -29,8 +29,8 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
       px-6 py-2 rounded-lg font-poppins font-semibold text-sm
       transition-all duration-200
       ${isActive
-        ? 'bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white shadow-md'
-        : 'text-[#3B383C] hover:bg-[#EEEBEF]'
+        ? 'bg-gradient-to-r bg-gradient-primary text-white shadow-md'
+        : 'text-neutral-700 hover:bg-neutral-100'
       }
     `
   }
@@ -44,7 +44,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
             {/* Mobile Menu Button */}
             {isAuthenticated && (
               <button
-                className="lg:hidden p-2 rounded-md text-[#605C61] hover:text-[#3B383C] hover:bg-[#EEEBEF] min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation transition-colors"
+                className="lg:hidden p-2 rounded-md text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 min-h-[44px] min-w-[44px] flex items-center justify-center touch-manipulation transition-colors"
                 onClick={onMenuClick}
                 aria-label="Open navigation menu"
               >
@@ -63,7 +63,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                   className="h-8 w-auto"
                 />
               ) : (
-                <span className="text-2xl font-bold bg-gradient-to-r from-[#6D469B] to-[#EF597B] bg-clip-text text-transparent font-poppins">
+                <span className="text-2xl font-bold bg-gradient-to-r bg-gradient-primary bg-clip-text text-transparent font-poppins">
                   {siteSettings?.site_name || "Optio"}
                 </span>
               )}
@@ -71,7 +71,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
 
             {/* Dashboard/Explore Toggle (authenticated only) */}
             {isAuthenticated && (
-              <div className="hidden sm:flex items-center space-x-2 bg-[#F3EFF4] rounded-lg p-1">
+              <div className="hidden sm:flex items-center space-x-2 bg-neutral-50 rounded-lg p-1">
                 <button
                   onClick={() => navigate('/dashboard')}
                   className={getToggleButtonClasses('/dashboard')}
@@ -95,7 +95,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                 {/* User Name */}
                 <Link
                   to="/profile"
-                  className="hidden sm:block text-sm font-poppins font-medium text-[#3B383C] hover:text-[#6D469B] transition-colors"
+                  className="hidden sm:block text-sm font-poppins font-medium text-neutral-700 hover:text-optio-purple transition-colors"
                 >
                   {user?.first_name} {user?.last_name}
                 </Link>
@@ -105,7 +105,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                 {/* Logout */}
                 <button
                   onClick={handleLogout}
-                  className="hidden sm:block text-sm font-poppins font-medium text-[#605C61] hover:text-[#3B383C] transition-colors"
+                  className="hidden sm:block text-sm font-poppins font-medium text-neutral-500 hover:text-neutral-700 transition-colors"
                 >
                   Logout
                 </button>
@@ -115,13 +115,13 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                 {/* Login/Register for non-authenticated */}
                 <Link
                   to="/login"
-                  className="text-sm font-poppins font-medium text-[#3B383C] hover:text-[#6D469B] transition-colors"
+                  className="text-sm font-poppins font-medium text-neutral-700 hover:text-optio-purple transition-colors"
                 >
                   Login
                 </Link>
                 <Link
                   to="/register"
-                  className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white px-6 py-2 rounded-full text-sm font-poppins font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+                  className="bg-gradient-to-r bg-gradient-primary text-white px-6 py-2 rounded-full text-sm font-poppins font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
                 >
                   Sign Up
                 </Link>
@@ -133,7 +133,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
 
       {/* Mobile Toggle Buttons (below logo on mobile) */}
       {isAuthenticated && (
-        <div className="sm:hidden border-t border-gray-200 px-4 py-2 flex space-x-2 bg-[#F3EFF4]">
+        <div className="sm:hidden border-t border-gray-200 px-4 py-2 flex space-x-2 bg-neutral-50">
           <button
             onClick={() => navigate('/dashboard')}
             className={getToggleButtonClasses('/dashboard')}

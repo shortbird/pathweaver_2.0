@@ -268,10 +268,10 @@ const ChatInterface = ({
     <div className={`flex flex-col h-full bg-white ${hideHeader ? '' : 'rounded-lg shadow-lg'} ${className}`}>
       {/* Header - Only show if not hidden */}
       {!hideHeader && (
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-t-lg">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r bg-gradient-primary-reverse rounded-t-lg">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
-              <Bot className="w-6 h-6 text-[#6d469b]" />
+              <Bot className="w-6 h-6 text-optio-purple" />
             </div>
             <div>
               <h3 className="text-white font-semibold">OptioBot</h3>
@@ -360,7 +360,7 @@ const ChatInterface = ({
             </div>
             {usageStats.messages_remaining <= 5 && (
               <button
-                className="text-[#6d469b] hover:underline text-sm"
+                className="text-optio-purple hover:underline text-sm"
                 onClick={() => window.open('/subscription', '_blank')}
               >
                 Upgrade for more
@@ -389,13 +389,13 @@ const ChatInterface = ({
             <div
               className={`max-w-[80%] ${
                 message.role === 'user'
-                  ? 'bg-[#6d469b] text-white rounded-l-2xl rounded-tr-2xl'
+                  ? 'bg-optio-purple text-white rounded-l-2xl rounded-tr-2xl'
                   : 'bg-gray-100 text-gray-800 rounded-r-2xl rounded-tl-2xl'
               } p-3 shadow-sm`}
             >
               <div className="flex items-start space-x-2">
                 {message.role === 'assistant' && (
-                  <Bot className="w-5 h-5 text-[#6d469b] flex-shrink-0 mt-0.5" />
+                  <Bot className="w-5 h-5 text-optio-purple flex-shrink-0 mt-0.5" />
                 )}
                 <div className="flex-1">
                   <div className="prose prose-sm max-w-none">
@@ -428,11 +428,11 @@ const ChatInterface = ({
           <div className="flex justify-start">
             <div className="bg-gray-100 rounded-r-2xl rounded-tl-2xl p-3 shadow-sm max-w-[80%]">
               <div className="flex items-center space-x-2">
-                <Bot className="w-5 h-5 text-[#6d469b]" />
+                <Bot className="w-5 h-5 text-optio-purple" />
                 <div className="flex space-x-1">
-                  <div className="w-2 h-2 bg-[#6d469b] rounded-full animate-bounce"></div>
-                  <div className="w-2 h-2 bg-[#6d469b] rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                  <div className="w-2 h-2 bg-[#6d469b] rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                  <div className="w-2 h-2 bg-optio-purple rounded-full animate-bounce"></div>
+                  <div className="w-2 h-2 bg-optio-purple rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                  <div className="w-2 h-2 bg-optio-purple rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                 </div>
               </div>
             </div>
@@ -470,7 +470,7 @@ const ChatInterface = ({
           <button
             onClick={sendMessage}
             disabled={!inputMessage.trim() || isLoading || (usageStats && usageStats.messages_remaining <= 0)}
-            className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white p-2 rounded-full hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-gradient-to-r bg-gradient-primary-reverse text-white p-2 rounded-full hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send className="w-5 h-5" />
           </button>
@@ -481,7 +481,7 @@ const ChatInterface = ({
             Daily message limit reached.
             <button
               onClick={() => window.open('/subscription', '_blank')}
-              className="text-[#6d469b] hover:underline ml-1"
+              className="text-optio-purple hover:underline ml-1"
             >
               Upgrade for unlimited messages!
             </button>

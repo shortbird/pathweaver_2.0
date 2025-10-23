@@ -157,7 +157,7 @@ const AIQuestEditorModal = ({ reviewItem, isOpen, onClose, onSave, isProcessing 
                 <button
                   onClick={handleAddTask}
                   disabled={isProcessing}
-                  className="flex items-center space-x-1 px-3 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+                  className="flex items-center space-x-1 px-3 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
                 >
                   <Plus className="h-4 w-4" />
                   <span>Add Task</span>
@@ -296,7 +296,7 @@ const AIQuestEditorModal = ({ reviewItem, isOpen, onClose, onSave, isProcessing 
           <button
             onClick={handleSave}
             disabled={isProcessing}
-            className="flex items-center space-x-2 px-6 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
+            className="flex items-center space-x-2 px-6 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 disabled:opacity-50 transition-opacity"
           >
             <Save className="h-4 w-4" />
             <span>{isProcessing ? 'Saving...' : 'Save Changes'}</span>

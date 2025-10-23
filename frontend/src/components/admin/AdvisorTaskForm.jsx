@@ -261,7 +261,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg w-full max-w-7xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="border-b px-6 py-4 flex justify-between items-center bg-gradient-to-r from-[#ef597b] to-[#6d469b]">
+        <div className="border-b px-6 py-4 flex justify-between items-center bg-gradient-to-r bg-gradient-primary-reverse">
           <div className="text-white">
             <h2 className="text-2xl font-bold">Add Tasks to {student.first_name}'s Quest</h2>
             <p className="text-sm opacity-90">Select existing templates or create custom tasks</p>
@@ -482,7 +482,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
               <button
                 onClick={handleAddCustomTask}
                 disabled={loading || !customTask.title.trim()}
-                className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-2 rounded-lg hover:opacity-90 disabled:opacity-50"
+                className="w-full bg-gradient-to-r bg-gradient-primary-reverse text-white py-2 rounded-lg hover:opacity-90 disabled:opacity-50"
               >
                 <Plus size={18} className="inline mr-2" />
                 Add Custom Task
@@ -509,7 +509,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
             <button
               onClick={handleSubmitAll}
               disabled={loading || (selectedTemplates.size === 0 && !customTask.title.trim())}
-              className="px-6 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+              className="px-6 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 disabled:opacity-50"
             >
               {loading ? 'Adding Tasks...' : 'Add All Tasks'}
             </button>

@@ -201,7 +201,7 @@ const BadgeImageGenerator = () => {
           <button
             onClick={() => handleGenerate(false)}
             disabled={processing || selectedBadges.size === 0 || apiUsage.remaining < selectedBadges.size}
-            className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+            className="bg-gradient-to-r bg-gradient-primary-reverse text-white px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
             {processing ? 'Generating...' : 'Generate Selected'}
           </button>

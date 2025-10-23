@@ -101,12 +101,12 @@ const TutorWidget = ({
       <div className={`fixed ${getPositionClasses()} z-40 ${className}`}>
         <div className="bg-white rounded-lg shadow-lg p-3 max-w-xs mb-4">
           <div className="flex items-center space-x-2">
-            <Bot className="w-5 h-5 text-[#6d469b]" />
+            <Bot className="w-5 h-5 text-optio-purple" />
             <div className="flex-1">
               <p className="text-sm text-gray-600">Daily chat limit reached!</p>
               <button
                 onClick={() => window.open('/subscription', '_blank')}
-                className="text-xs text-[#6d469b] hover:underline"
+                className="text-xs text-optio-purple hover:underline"
               >
                 Upgrade for unlimited chats
               </button>
@@ -124,7 +124,7 @@ const TutorWidget = ({
         {/* Toggle Button */}
         <button
           onClick={toggleModal}
-          className="w-14 h-14 rounded-full shadow-lg transition-all duration-300 bg-gradient-to-r from-[#ef597b] to-[#6d469b] hover:shadow-xl hover:scale-105 flex items-center justify-center relative"
+          className="w-14 h-14 rounded-full shadow-lg transition-all duration-300 bg-gradient-to-r bg-gradient-primary-reverse hover:shadow-xl hover:scale-105 flex items-center justify-center relative"
           title="Chat with OptioBot"
         >
           <Bot className="w-6 h-6 text-white" />
@@ -203,7 +203,7 @@ export const QuestTutorHelper = ({ quest, currentTask }) => {
       <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-lg p-4 mb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center">
               <Bot className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -213,7 +213,7 @@ export const QuestTutorHelper = ({ quest, currentTask }) => {
           </div>
           <button
             onClick={() => setShowInlineHelp(true)}
-            className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-full text-sm hover:shadow-lg transition-shadow"
+            className="bg-gradient-to-r bg-gradient-primary-reverse text-white px-4 py-2 rounded-full text-sm hover:shadow-lg transition-shadow"
           >
             Get Help
           </button>
@@ -226,7 +226,7 @@ export const QuestTutorHelper = ({ quest, currentTask }) => {
     <div className="bg-white border border-gray-200 rounded-lg p-4 mb-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center space-x-2">
-          <Bot className="w-5 h-5 text-[#6d469b]" />
+          <Bot className="w-5 h-5 text-optio-purple" />
           <span className="font-medium text-gray-800">Quick Help</span>
         </div>
         <button
@@ -240,7 +240,7 @@ export const QuestTutorHelper = ({ quest, currentTask }) => {
       <div className="space-y-2 mb-4">
         {quickHelp.map((help, index) => (
           <div key={index} className="flex items-center space-x-2 text-sm text-gray-600">
-            <div className="w-1.5 h-1.5 bg-[#6d469b] rounded-full"></div>
+            <div className="w-1.5 h-1.5 bg-optio-purple rounded-full"></div>
             <span>{help}</span>
           </div>
         ))}

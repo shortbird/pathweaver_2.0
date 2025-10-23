@@ -44,7 +44,7 @@ const QuestTooltip = ({ quest, position, containerDimensions }) => {
   const pillarColors = {
     'stem_logic': { primary: '#3b82f6', accent: '#60a5fa' },
     'society_culture': { primary: '#a855f7', accent: '#c084fc' },
-    'arts_creativity': { primary: '#ef597b', accent: '#f8b3c5' },
+    'arts_creativity': { primary: '#EF597B', accent: '#f8b3c5' },
     'language_communication': { primary: '#f59e0b', accent: '#fbbf24' },
     'life_wellness': { primary: '#10b981', accent: '#34d399' }
   };

@@ -95,7 +95,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
       <div className="p-4 sm:p-6">
         {/* Title and Description - More prominent */}
         <div className="mb-4">
-          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 group-hover:text-[#6d469b] transition-colors line-clamp-2 leading-tight">
+          <h3 className="text-lg sm:text-xl font-bold text-gray-900 mb-2 group-hover:text-optio-purple transition-colors line-clamp-2 leading-tight">
             {quest.title}
           </h3>
           <p className="text-gray-600 text-sm leading-relaxed line-clamp-3">
@@ -214,7 +214,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
                     title="Team up for bonus XP!"
                     aria-label="Team up for bonus XP"
                   >
-                    <svg className="w-5 h-5 text-gray-600 group-hover/team:text-[#6d469b]" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="w-5 h-5 text-gray-600 group-hover/team:text-optio-purple" fill="currentColor" viewBox="0 0 20 20">
                       <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
                     </svg>
                   </button>

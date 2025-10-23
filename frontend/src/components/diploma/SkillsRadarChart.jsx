@@ -14,7 +14,7 @@ const SkillsRadarChart = ({ skillsXP }) => {
   const competencyInfo = {
     art: {
       label: 'Art',
-      color: '#AF56E5',
+      color: pillar-art,
       icon: (
         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
           <path d="M7 14c-1.66 0-3 1.34-3 3 0 1.31.84 2.41 2 2.83V22h2v-2.17c1.16-.41 2-1.51 2-2.83 0-1.66-1.34-3-3-3zM20.71 4.63l-1.34-1.34c-.39-.39-1.02-.39-1.41 0L9 12.25 11.75 15l8.96-8.96c.39-.39.39-1.02 0-1.41z"/>
@@ -24,7 +24,7 @@ const SkillsRadarChart = ({ skillsXP }) => {
     },
     stem: {
       label: 'STEM',
-      color: '#2469D1',
+      color: pillar-stem,
       icon: (
         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
           <path d="M9.8 2L8.4 3.4c-.3.3-.3.8 0 1.1L12 8.1l3.6-3.6c.3-.3.3-.8 0-1.1L14.2 2H9.8zM6 9v11c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V9H6zm2 2h8v7H8v-7z"/>
@@ -34,7 +34,7 @@ const SkillsRadarChart = ({ skillsXP }) => {
     },
     wellness: {
       label: 'Wellness',
-      color: '#E65C5C',
+      color: pillar-civics,
       icon: (
         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
           <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" />
@@ -44,7 +44,7 @@ const SkillsRadarChart = ({ skillsXP }) => {
     },
     communication: {
       label: 'Communication',
-      color: '#3DA24A',
+      color: pillar-communication,
       icon: (
         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
           <path d="M20 2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h4l4 4 4-4h4c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z" />
@@ -54,7 +54,7 @@ const SkillsRadarChart = ({ skillsXP }) => {
     },
     civics: {
       label: 'Civics',
-      color: '#FF9028',
+      color: pillar-wellness,
       icon: (
         <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
           <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.94-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z" />
@@ -102,7 +102,7 @@ const SkillsRadarChart = ({ skillsXP }) => {
   if (!skillsXP || Object.keys(skillsXP).length === 0) {
     return (
       <div className="bg-white rounded-xl p-8 mb-8" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}>
-        <h2 className="text-2xl font-bold mb-4" style={{ color: '#003f5c' }}>Growth Dimensions</h2>
+        <h2 className="text-2xl font-bold mb-4" style={{ color: text-primary }}>Growth Dimensions</h2>
         <div className="text-center py-12">
           <div className="w-64 h-64 mx-auto rounded-full bg-gradient-to-br from-[#ef597b]/10 to-[#6d469b]/10 flex items-center justify-center">
             <p className="text-gray-600">Complete quests to develop your growth dimensions</p>
@@ -116,12 +116,12 @@ const SkillsRadarChart = ({ skillsXP }) => {
     <div className="bg-white rounded-xl p-8 mb-8" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}>
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h2 className="text-2xl font-bold" style={{ color: '#003f5c' }}>Growth Dimensions</h2>
+          <h2 className="text-2xl font-bold" style={{ color: text-primary }}>Growth Dimensions</h2>
           <p className="text-sm text-gray-600 mt-1">Your learning validated across five key areas</p>
         </div>
         <div className="text-right">
           <p className="text-sm text-gray-600">Total Growth Points</p>
-          <p className="text-2xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+          <p className="text-2xl font-bold bg-gradient-to-r bg-gradient-primary-reverse bg-clip-text text-transparent">
             {totalXP.toLocaleString()}
           </p>
         </div>
@@ -182,7 +182,7 @@ const SkillsRadarChart = ({ skillsXP }) => {
             <div 
               key={key}
               className="text-center p-4 rounded-lg" 
-              style={{ background: 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)', border: '1px solid rgba(109,70,155,0.08)' }}
+              className="bg-gradient-subtle"
             >
               <h4 className="font-semibold text-gray-900 text-sm mb-1">{info.label}</h4>
               <div className="text-lg font-bold" style={{ color: info.color }}>

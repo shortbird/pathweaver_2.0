@@ -21,8 +21,8 @@ const SkillsChart = ({ skillData }) => {
   
   // Define colors for each skill
   const skillColors = {
-    'Creativity': '#ef597b',
-    'Critical Thinking': '#6d469b',
+    'Creativity': '#EF597B',
+    'Critical Thinking': '#6D469B',
     'Practical Skills': '#22c55e',
     'Communication': '#f97316',
     'Cultural Literacy': '#ec4899'
@@ -144,7 +144,7 @@ const SkillsChart = ({ skillData }) => {
             <Tooltip content={<CustomTooltip />} />
             <Bar dataKey="xp" radius={[8, 8, 0, 0]}>
               {skillData.map((entry, index) => (
-                <Cell key={`cell-${index}`} fill={skillColors[entry.category] || '#6d469b'} />
+                <Cell key={`cell-${index}`} fill={skillColors[entry.category] || '#6D469B'} />
               ))}
             </Bar>
           </BarChart>
@@ -160,7 +160,7 @@ const SkillsChart = ({ skillData }) => {
           >
             <div 
               className="w-10 h-10 rounded-full mx-auto mb-1 flex items-center justify-center text-white font-bold"
-              style={{ backgroundColor: skillColors[skill.category] || '#6d469b' }}
+              style={{ backgroundColor: skillColors[skill.category] || '#6D469B' }}
             >
               {skill.xp > 0 ? skill.xp : '-'}
             </div>

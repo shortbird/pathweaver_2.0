@@ -496,7 +496,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
             href={block.content.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-[#6d469b] hover:text-[#ef597b] font-medium break-all"
+            className="text-sm text-optio-purple hover:text-optio-pink font-medium break-all"
           >
             {block.content.title || block.content.url}
           </a>
@@ -536,7 +536,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
             href={block.content.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-[#6d469b] hover:text-[#ef597b] font-medium break-all"
+            className="text-sm text-optio-purple hover:text-optio-pink font-medium break-all"
           >
             {block.content.title || block.content.url}
           </a>
@@ -678,7 +678,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
     return (
       <div className="max-w-4xl mx-auto flex items-center justify-center py-12">
         <div className="flex items-center gap-3">
-          <div className="w-6 h-6 border-2 border-[#6d469b] border-t-transparent rounded-full animate-spin"></div>
+          <div className="w-6 h-6 border-2 border-optio-purple border-t-transparent rounded-full animate-spin"></div>
           <span className="text-gray-600">Loading evidence document...</span>
         </div>
       </div>
@@ -695,7 +695,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
             <div className="flex items-center gap-2 text-sm">
               {saveStatus === 'saving' && (
                 <>
-                  <div className="w-4 h-4 border-2 border-[#6d469b] border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-4 h-4 border-2 border-optio-purple border-t-transparent rounded-full animate-spin"></div>
                   <span className="text-gray-600">Saving...</span>
                 </>
               )}

@@ -89,7 +89,7 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-[#908B92] hover:text-[#605C61] transition-colors"
+          className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-500 transition-colors"
           aria-label="Close modal"
         >
           <XMarkIcon className="w-6 h-6" />
@@ -98,14 +98,14 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
         {/* Title */}
         <h2
           id="modal-title"
-          className="text-2xl font-bold text-[#3B383C] mb-2"
+          className="text-2xl font-bold text-neutral-700 mb-2"
           style={{ fontFamily: 'Poppins', fontWeight: 700 }}
         >
           Connect with a Learning Partner
         </h2>
 
         <p
-          className="text-[#605C61] mb-6"
+          className="text-neutral-500 mb-6"
           style={{ fontFamily: 'Poppins', fontWeight: 500 }}
         >
           Enter their email address to send a connection request
@@ -117,7 +117,7 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
           <div className="mb-6">
             <label
               htmlFor="email"
-              className="block text-sm font-semibold text-[#3B383C] mb-2"
+              className="block text-sm font-semibold text-neutral-700 mb-2"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
               Email Address
@@ -158,7 +158,7 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
           <div className="mb-6">
             <label
               htmlFor="message"
-              className="block text-sm font-semibold text-[#3B383C] mb-2"
+              className="block text-sm font-semibold text-neutral-700 mb-2"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
               Add a personal message (optional)
@@ -182,7 +182,7 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
             />
             <div className="flex justify-between items-center mt-1">
               <p
-                className="text-xs text-[#908B92]"
+                className="text-xs text-neutral-400"
                 style={{ fontFamily: 'Poppins', fontWeight: 500 }}
               >
                 {message.length}/{MAX_MESSAGE_LENGTH} characters
@@ -191,9 +191,9 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
           </div>
 
           {/* Tip */}
-          <div className="bg-[#F3EFF4] rounded-[12px] p-4 mb-6">
+          <div className="bg-neutral-50 rounded-[12px] p-4 mb-6">
             <p
-              className="text-sm text-[#605C61] flex items-start gap-2"
+              className="text-sm text-neutral-500 flex items-start gap-2"
               style={{ fontFamily: 'Poppins', fontWeight: 500 }}
             >
               <span className="text-xl flex-shrink-0">💡</span>
@@ -218,7 +218,7 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
             <button
               type="submit"
               disabled={isLoading || !email.trim()}
-              className="px-8 py-3 rounded-full font-semibold bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white shadow-[0_4px_20px_rgba(109,70,155,0.15)] hover:shadow-[0_6px_25px_rgba(109,70,155,0.25)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-8 py-3 rounded-full font-semibold bg-gradient-to-r bg-gradient-primary text-white shadow-[0_4px_20px_rgba(109,70,155,0.15)] hover:shadow-[0_6px_25px_rgba(109,70,155,0.25)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
               {isLoading ? 'Sending...' : 'Send Connection Request'}

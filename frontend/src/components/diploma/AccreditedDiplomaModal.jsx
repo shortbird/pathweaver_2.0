@@ -11,7 +11,7 @@ const AccreditedDiplomaModal = ({ isOpen, onClose }) => {
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-lg bg-gradient-to-r from-[#ef597b] to-[#6d469b] flex items-center justify-center">
+              <div className="w-12 h-12 rounded-lg bg-gradient-to-r bg-gradient-primary-reverse flex items-center justify-center">
                 <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M12 14l9-5-9-5-9 5 9 5z"/>
                   <path d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z"/>
@@ -49,7 +49,7 @@ const AccreditedDiplomaModal = ({ isOpen, onClose }) => {
               <h3 className="text-xl font-semibold text-gray-800 mb-4">How It Works</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 <div className="text-center">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] flex items-center justify-center">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r bg-gradient-primary-reverse flex items-center justify-center">
                     <span className="text-white font-bold text-xl">1</span>
                   </div>
                   <h4 className="font-semibold text-gray-800 mb-2">Document Learning</h4>
@@ -58,7 +58,7 @@ const AccreditedDiplomaModal = ({ isOpen, onClose }) => {
                   </p>
                 </div>
                 <div className="text-center">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] flex items-center justify-center">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r bg-gradient-primary-reverse flex items-center justify-center">
                     <span className="text-white font-bold text-xl">2</span>
                   </div>
                   <h4 className="font-semibold text-gray-800 mb-2">Teacher Verification</h4>
@@ -67,7 +67,7 @@ const AccreditedDiplomaModal = ({ isOpen, onClose }) => {
                   </p>
                 </div>
                 <div className="text-center">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] flex items-center justify-center">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gradient-to-r bg-gradient-primary-reverse flex items-center justify-center">
                     <span className="text-white font-bold text-xl">3</span>
                   </div>
                   <h4 className="font-semibold text-gray-800 mb-2">Official Credits</h4>
@@ -92,7 +92,7 @@ const AccreditedDiplomaModal = ({ isOpen, onClose }) => {
                 </div>
                 <div className="flex justify-between items-center pt-4 border-t border-gray-300">
                   <span className="text-lg font-semibold text-gray-800">Total Required:</span>
-                  <span className="text-xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+                  <span className="text-xl font-bold bg-gradient-to-r bg-gradient-primary-reverse bg-clip-text text-transparent">
                     {TOTAL_CREDITS_REQUIRED} credits
                   </span>
                 </div>
@@ -157,7 +157,7 @@ const AccreditedDiplomaModal = ({ isOpen, onClose }) => {
           <div className="flex justify-end mt-8 pt-6 border-t border-gray-200">
             <button
               onClick={onClose}
-              className="px-6 py-3 rounded-lg bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg transition-shadow font-medium"
+              className="px-6 py-3 rounded-lg bg-gradient-to-r bg-gradient-primary-reverse text-white hover:shadow-lg transition-shadow font-medium"
             >
               Got it!
             </button>

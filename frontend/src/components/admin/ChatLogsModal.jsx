@@ -78,7 +78,7 @@ const ChatLogsModal = ({ user, onClose }) => {
         {/* Header */}
         <div className="flex justify-between items-center p-6 border-b">
           <div className="flex items-center space-x-3">
-            <MessageSquare className="w-6 h-6 text-[#6d469b]" />
+            <MessageSquare className="w-6 h-6 text-optio-purple" />
             <div>
               <h2 className="text-2xl font-bold">Chat Logs</h2>
               <p className="text-gray-600">
@@ -107,7 +107,7 @@ const ChatLogsModal = ({ user, onClose }) => {
             <div className="flex-1 overflow-y-auto">
               {loading ? (
                 <div className="flex items-center justify-center p-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#6d469b]"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
                 </div>
               ) : conversations.length === 0 ? (
                 <div className="text-center p-8">
@@ -121,7 +121,7 @@ const ChatLogsModal = ({ user, onClose }) => {
                       key={conv.id}
                       onClick={() => fetchConversationMessages(conv.id)}
                       className={`w-full text-left p-3 rounded-lg hover:bg-white transition-colors ${
-                        selectedConversation?.id === conv.id ? 'bg-white shadow-sm border border-[#6d469b]' : ''
+                        selectedConversation?.id === conv.id ? 'bg-white shadow-sm border border-optio-purple' : ''
                       }`}
                     >
                       <div className="flex justify-between items-start mb-2">
@@ -176,7 +176,7 @@ const ChatLogsModal = ({ user, onClose }) => {
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   {loadingConversation ? (
                     <div className="flex items-center justify-center h-64">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#6d469b]"></div>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
                     </div>
                   ) : messages.length === 0 ? (
                     <div className="text-center py-12">
@@ -192,13 +192,13 @@ const ChatLogsModal = ({ user, onClose }) => {
                         <div
                           className={`max-w-[80%] ${
                             message.role === 'user'
-                              ? 'bg-[#6d469b] text-white rounded-l-2xl rounded-tr-2xl'
+                              ? 'bg-optio-purple text-white rounded-l-2xl rounded-tr-2xl'
                               : 'bg-gray-100 text-gray-800 rounded-r-2xl rounded-tl-2xl'
                           } p-3 shadow-sm`}
                         >
                           <div className="flex items-start space-x-2">
                             {message.role === 'assistant' && (
-                              <Bot className="w-4 h-4 text-[#6d469b] flex-shrink-0 mt-0.5" />
+                              <Bot className="w-4 h-4 text-optio-purple flex-shrink-0 mt-0.5" />
                             )}
                             {message.role === 'user' && (
                               <User className="w-4 h-4 text-white flex-shrink-0 mt-0.5" />

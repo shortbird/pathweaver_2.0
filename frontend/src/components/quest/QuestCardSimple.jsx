@@ -38,7 +38,7 @@ const QuestCardSimple = ({ quest }) => {
           />
         ) : (
           /* Fallback gradient if no image */
-          <div className="w-full h-full bg-gradient-to-br from-[#6d469b] to-[#ef597b]" />
+          <div className="w-full h-full bg-gradient-to-br bg-gradient-primary" />
         )}
 
         {/* Gradient Overlay for Text Readability */}
@@ -93,7 +93,7 @@ const QuestCardSimple = ({ quest }) => {
               {/* Progress Bar */}
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] h-2 rounded-full transition-all duration-300"
+                  className="bg-gradient-to-r bg-gradient-primary h-2 rounded-full transition-all duration-300"
                   style={{ width: `${progressPercentage}%` }}
                 />
               </div>

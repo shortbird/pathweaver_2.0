@@ -22,7 +22,7 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <h3
-            className="text-3xl font-bold bg-gradient-to-r from-[#6d469b] to-[#ef597b] bg-clip-text text-transparent"
+            className="text-3xl font-bold bg-gradient-to-r bg-gradient-primary bg-clip-text text-transparent"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             Understanding Badges & Quests
@@ -40,9 +40,9 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
         <div className="p-6 overflow-y-auto max-h-[60vh] space-y-6">
 
           {/* Badges Section */}
-          <div className="bg-gradient-to-r from-[#6d469b]/10 to-[#ef597b]/10 rounded-xl p-6 border border-[#6d469b]/20">
+          <div className="bg-gradient-to-r from-[#6d469b]/10 to-[#ef597b]/10 rounded-xl p-6 border border-optio-purple/20">
             <div className="flex items-start gap-4">
-              <div className="p-3 bg-gradient-to-r from-[#6d469b] to-[#ef597b] rounded-lg">
+              <div className="p-3 bg-gradient-to-r bg-gradient-primary rounded-lg">
                 <Trophy className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
@@ -55,19 +55,19 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
                 </p>
                 <div className="space-y-2">
                   <div className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-[#6d469b] mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-optio-purple mt-0.5 flex-shrink-0" />
                     <p className="text-gray-700">
                       <strong>Structured Growth:</strong> Follow a recommended sequence of quests designed to build skills progressively
                     </p>
                   </div>
                   <div className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-[#6d469b] mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-optio-purple mt-0.5 flex-shrink-0" />
                     <p className="text-gray-700">
                       <strong>Multiple Quests:</strong> Requires completing several related quests to earn the badge
                     </p>
                   </div>
                   <div className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-[#6d469b] mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="w-5 h-5 text-optio-purple mt-0.5 flex-shrink-0" />
                     <p className="text-gray-700">
                       <strong>Achievement Recognition:</strong> Displays on your diploma as a significant accomplishment
                     </p>
@@ -80,7 +80,7 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
           {/* Quests Section */}
           <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
             <div className="flex items-start gap-4">
-              <div className="p-3 bg-gradient-to-r from-[#6d469b] to-[#ef597b] rounded-lg">
+              <div className="p-3 bg-gradient-to-r bg-gradient-primary rounded-lg">
                 <Target className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
@@ -118,21 +118,21 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
           {/* Choosing Your Path Section */}
           <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
             <div className="flex items-start gap-3 mb-4">
-              <Sparkles className="w-6 h-6 text-[#6d469b] mt-1" />
+              <Sparkles className="w-6 h-6 text-optio-purple mt-1" />
               <h4 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 Choosing Your Path
               </h4>
             </div>
             <div className="space-y-3 text-gray-700">
               <p>
-                <strong className="text-[#6d469b]">Choose Badges when:</strong> You want structured guidance,
+                <strong className="text-optio-purple">Choose Badges when:</strong> You want structured guidance,
                 long-term skill development, or a clear path toward mastery in a subject area.
               </p>
               <p>
-                <strong className="text-[#ef597b]">Choose Quests when:</strong> You prefer flexibility,
+                <strong className="text-optio-pink">Choose Quests when:</strong> You prefer flexibility,
                 want to explore diverse topics, or need quick wins to build momentum.
               </p>
-              <p className="italic border-l-4 border-[#6d469b] pl-4 bg-white p-3 rounded">
+              <p className="italic border-l-4 border-optio-purple pl-4 bg-white p-3 rounded">
                 Remember: <strong>The Process Is The Goal.</strong> Whether you pursue badges or quests,
                 celebrate the journey of becoming who you are through learning.
               </p>
@@ -145,7 +145,7 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
         <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end">
           <button
             onClick={onClose}
-            className="px-8 py-3 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white font-semibold rounded-lg hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+            className="px-8 py-3 bg-gradient-to-r bg-gradient-primary text-white font-semibold rounded-lg hover:shadow-lg transform hover:scale-105 transition-all duration-200"
           >
             Got It!
           </button>

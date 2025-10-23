@@ -29,13 +29,13 @@ const ParentRequest = ({ request, onAccept, onDecline }) => {
         {/* Info */}
         <div className="flex-1 min-w-0">
           <p
-            className="font-bold text-[#3B383C] text-base mb-1 truncate"
+            className="font-bold text-neutral-700 text-base mb-1 truncate"
             style={{ fontFamily: 'Poppins', fontWeight: 700 }}
           >
             {request.parent_name}
           </p>
           <p
-            className="text-sm text-[#605C61] font-medium"
+            className="text-sm text-neutral-500 font-medium"
             style={{ fontFamily: 'Poppins', fontWeight: 500 }}
           >
             {request.parent_email}

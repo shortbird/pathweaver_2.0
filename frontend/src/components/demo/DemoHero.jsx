@@ -28,7 +28,7 @@ const DemoHero = ({ onStart }) => {
       title: "Real Work",
       subtitle: "Not grades",
       modalKey: 'realWork',
-      color: "from-[#ef597b] to-[#6d469b]"
+      color: "bg-gradient-primary-reverse"
     }
   ];
 
@@ -102,17 +102,17 @@ const DemoHero = ({ onStart }) => {
             <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
               <span className="text-2xl font-bold text-gray-400">B+</span>
               <span className="text-gray-600">vs</span>
-              <span className="text-lg font-medium text-[#6d469b]">25 Recipe Family Cookbook</span>
+              <span className="text-lg font-medium text-optio-purple">25 Recipe Family Cookbook</span>
             </div>
             <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
               <span className="text-2xl font-bold text-gray-400">A-</span>
               <span className="text-gray-600">vs</span>
-              <span className="text-lg font-medium text-[#ef597b]">Working Calculator App</span>
+              <span className="text-lg font-medium text-optio-pink">Working Calculator App</span>
             </div>
             <div className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
               <span className="text-2xl font-bold text-gray-400">B</span>
               <span className="text-gray-600">vs</span>
-              <span className="text-lg font-medium text-[#6d469b]">Community Documentary</span>
+              <span className="text-lg font-medium text-optio-purple">Community Documentary</span>
             </div>
           </div>
           <p className="text-sm text-gray-600 italic">
@@ -130,21 +130,21 @@ const DemoHero = ({ onStart }) => {
           </p>
           <div className="space-y-3">
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] flex items-center justify-center text-white font-bold">1</div>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r bg-gradient-primary-reverse flex items-center justify-center text-white font-bold">1</div>
               <div>
                 <h4 className="font-semibold">Choose from Hundreds of Quests</h4>
                 <p className="text-sm text-gray-600">Pick projects that match your interests</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] flex items-center justify-center text-white font-bold">2</div>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r bg-gradient-primary-reverse flex items-center justify-center text-white font-bold">2</div>
               <div>
                 <h4 className="font-semibold">Complete Tasks & Submit Work</h4>
                 <p className="text-sm text-gray-600">Create real things, document your process</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] flex items-center justify-center text-white font-bold">3</div>
+              <div className="w-8 h-8 rounded-full bg-gradient-to-r bg-gradient-primary-reverse flex items-center justify-center text-white font-bold">3</div>
               <div>
                 <h4 className="font-semibold">Build Your Public Portfolio</h4>
                 <p className="text-sm text-gray-600">Your diploma fills with actual achievements</p>
@@ -160,16 +160,16 @@ const DemoHero = ({ onStart }) => {
     <div className="relative overflow-hidden">
       {/* Animated Background */}
       <div className="absolute inset-0 -z-10">
-        <div className="absolute top-20 left-20 w-72 h-72 bg-[#6d469b]/10 rounded-full blur-3xl animate-pulse" />
-        <div className="absolute bottom-20 right-20 w-96 h-96 bg-[#ef597b]/10 rounded-full blur-3xl animate-pulse delay-1000" />
+        <div className="absolute top-20 left-20 w-72 h-72 bg-optio-purple/10 rounded-full blur-3xl animate-pulse" />
+        <div className="absolute bottom-20 right-20 w-96 h-96 bg-optio-pink/10 rounded-full blur-3xl animate-pulse delay-1000" />
       </div>
 
       <div className="text-center space-y-8">
         {/* Main Headline - Minimal */}
         <div className="space-y-3">
-          <h1 className="text-5xl md:text-6xl font-bold text-[#003f5c]">
+          <h1 className="text-5xl md:text-6xl font-bold text-text-primary">
             <span className="block mb-2">Get Your Diploma</span>
-            <span className="block bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+            <span className="block bg-gradient-to-r bg-gradient-primary-reverse bg-clip-text text-transparent">
               Day 1
             </span>
           </h1>
@@ -180,7 +180,7 @@ const DemoHero = ({ onStart }) => {
           
           <button
             onClick={() => setActiveModal('howItWorks')}
-            className="inline-flex items-center gap-1 text-sm text-[#6d469b] hover:underline"
+            className="inline-flex items-center gap-1 text-sm text-optio-purple hover:underline"
           >
             <Info className="w-4 h-4" />
             Learn how it works
@@ -202,9 +202,9 @@ const DemoHero = ({ onStart }) => {
                 <div className={`inline-flex p-3 rounded-lg bg-gradient-to-r ${feature.color} text-white mb-3`}>
                   {feature.icon}
                 </div>
-                <h3 className="font-bold text-[#003f5c] text-lg">{feature.title}</h3>
+                <h3 className="font-bold text-text-primary text-lg">{feature.title}</h3>
                 <p className="text-sm text-gray-600 mt-1">{feature.subtitle}</p>
-                <div className="mt-3 text-xs text-[#6d469b] font-medium flex items-center gap-1">
+                <div className="mt-3 text-xs text-optio-purple font-medium flex items-center gap-1">
                   Learn more
                   <Info className="w-3 h-3" />
                 </div>
@@ -217,7 +217,7 @@ const DemoHero = ({ onStart }) => {
         <div className="relative">
           <button
             onClick={onStart}
-            className="group relative px-12 py-6 bg-gradient-to-r from-[#ef597b] to-[#6d469b] 
+            className="group relative px-12 py-6 bg-gradient-to-r bg-gradient-primary-reverse 
                      text-white font-bold text-xl rounded-full shadow-xl 
                      hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
           >

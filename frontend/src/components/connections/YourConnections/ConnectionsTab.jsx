@@ -44,7 +44,7 @@ const ConnectionsTab = ({ connections = [], onAddConnection }) => {
         ) : filteredConnections.length === 0 ? (
           <div className="text-center py-16">
             <p
-              className="text-lg text-[#605C61]"
+              className="text-lg text-neutral-500"
               style={{ fontFamily: 'Poppins', fontWeight: 500 }}
             >
               No connections found matching "{searchQuery}"

@@ -72,7 +72,7 @@ const ConversationHistory = ({ onSelectConversation, onBack, onCreateNew }) => {
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r bg-gradient-primary-reverse text-white">
         <div className="flex items-center space-x-3">
           <button
             onClick={onBack}
@@ -99,7 +99,7 @@ const ConversationHistory = ({ onSelectConversation, onBack, onCreateNew }) => {
       <div className="flex-1 overflow-y-auto">
         {loading ? (
           <div className="flex items-center justify-center p-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#6d469b]"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
           </div>
         ) : conversations.length === 0 ? (
           <div className="text-center p-8">
@@ -110,7 +110,7 @@ const ConversationHistory = ({ onSelectConversation, onBack, onCreateNew }) => {
             </p>
             <button
               onClick={onCreateNew}
-              className="px-6 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:shadow-md transition-shadow"
+              className="px-6 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:shadow-md transition-shadow"
             >
               Start New Chat
             </button>
@@ -121,7 +121,7 @@ const ConversationHistory = ({ onSelectConversation, onBack, onCreateNew }) => {
               <button
                 key={conv.id}
                 onClick={() => onSelectConversation(conv.id)}
-                className="w-full text-left p-4 rounded-xl border border-gray-200 hover:border-[#6d469b] hover:shadow-md transition-all duration-200 bg-white"
+                className="w-full text-left p-4 rounded-xl border border-gray-200 hover:border-optio-purple hover:shadow-md transition-all duration-200 bg-white"
               >
                 <div className="flex justify-between items-start mb-3">
                   <div className="flex items-center space-x-2">

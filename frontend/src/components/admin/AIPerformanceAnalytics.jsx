@@ -155,7 +155,7 @@ const AIPerformanceAnalytics = () => {
         <button
           onClick={handleRefreshMetrics}
           disabled={loading}
-          className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+          className="px-4 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 disabled:opacity-50"
         >
           {loading ? 'Refreshing...' : 'Refresh Metrics'}
         </button>
@@ -173,7 +173,7 @@ const AIPerformanceAnalytics = () => {
           onClick={() => setActiveTab('quest-performance')}
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'quest-performance'
-              ? 'border-b-2 border-[#ef597b] text-[#ef597b]'
+              ? 'border-b-2 border-optio-pink text-optio-pink'
               : 'text-gray-600 hover:text-gray-800'
           }`}
         >
@@ -183,7 +183,7 @@ const AIPerformanceAnalytics = () => {
           onClick={() => setActiveTab('ai-vs-human')}
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'ai-vs-human'
-              ? 'border-b-2 border-[#ef597b] text-[#ef597b]'
+              ? 'border-b-2 border-optio-pink text-optio-pink'
               : 'text-gray-600 hover:text-gray-800'
           }`}
         >
@@ -193,7 +193,7 @@ const AIPerformanceAnalytics = () => {
           onClick={() => setActiveTab('prompt-performance')}
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'prompt-performance'
-              ? 'border-b-2 border-[#ef597b] text-[#ef597b]'
+              ? 'border-b-2 border-optio-pink text-optio-pink'
               : 'text-gray-600 hover:text-gray-800'
           }`}
         >
@@ -203,7 +203,7 @@ const AIPerformanceAnalytics = () => {
           onClick={() => setActiveTab('quality-trends')}
           className={`px-4 py-2 font-medium transition-colors ${
             activeTab === 'quality-trends'
-              ? 'border-b-2 border-[#ef597b] text-[#ef597b]'
+              ? 'border-b-2 border-optio-pink text-optio-pink'
               : 'text-gray-600 hover:text-gray-800'
           }`}
         >
@@ -341,7 +341,7 @@ const AIPerformanceAnalytics = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* AI Metrics */}
               <div className="bg-white rounded-lg border p-6">
-                <h3 className="text-lg font-semibold mb-4 text-[#ef597b]">AI-Generated Quests</h3>
+                <h3 className="text-lg font-semibold mb-4 text-optio-pink">AI-Generated Quests</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Quests:</span>
@@ -364,7 +364,7 @@ const AIPerformanceAnalytics = () => {
 
               {/* Human Metrics */}
               <div className="bg-white rounded-lg border p-6">
-                <h3 className="text-lg font-semibold mb-4 text-[#6d469b]">Human-Created Quests</h3>
+                <h3 className="text-lg font-semibold mb-4 text-optio-purple">Human-Created Quests</h3>
                 <div className="space-y-3">
                   <div className="flex justify-between">
                     <span className="text-gray-600">Total Quests:</span>

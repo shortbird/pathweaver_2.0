@@ -3,9 +3,9 @@ import { ClockIcon, HeartIcon, EyeIcon } from '@heroicons/react/24/outline'
 
 // Pillar color mapping
 const PILLAR_COLORS = {
-  'STEM & Logic': { border: '#2469D1', bg: '#DDF1FC', text: '#2469D1' },
+  'STEM & Logic': { border: pillar-stem, bg: '#DDF1FC', text: pillar-stem },
   'Life & Wellness': { border: '#B3393F', bg: '#FBE5E5', text: '#B3393F' },
-  'Language & Communication': { border: '#3DA24A', bg: '#E3F6E5', text: '#3DA24A' },
+  'Language & Communication': { border: pillar-communication, bg: '#E3F6E5', text: pillar-communication },
   'Society & Culture': { border: '#BE6B27', bg: '#FFF0E1', text: '#BE6B27' },
   'Arts & Creativity': { border: '#59189C', bg: '#F2E7F9', text: '#59189C' },
 }
@@ -66,18 +66,18 @@ const ActivityCard = ({ activity, onViewQuest, onEncourage }) => {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          <p className="text-[#3B383C] mb-1" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+          <p className="text-neutral-700 mb-1" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
             {getActivityText()}
           </p>
 
           <p
-            className="text-sm text-[#605C61] mb-2 truncate"
+            className="text-sm text-neutral-500 mb-2 truncate"
             style={{ fontFamily: 'Poppins', fontWeight: 500 }}
           >
             {activity.questTitle}
           </p>
 
-          <div className="flex items-center gap-1 text-xs text-[#908B92] mb-3">
+          <div className="flex items-center gap-1 text-xs text-neutral-400 mb-3">
             <ClockIcon className="w-3 h-3" aria-hidden="true" />
             <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>{activity.timeAgo}</span>
           </div>
@@ -100,7 +100,7 @@ const ActivityCard = ({ activity, onViewQuest, onEncourage }) => {
 
             <button
               onClick={() => onEncourage(activity.userId)}
-              className="flex items-center gap-1 px-3 py-1.5 text-sm text-[#6D469B] hover:bg-[#F3EFF4] rounded-full transition-colors"
+              className="flex items-center gap-1 px-3 py-1.5 text-sm text-optio-purple hover:bg-neutral-50 rounded-full transition-colors"
               style={{ fontFamily: 'Poppins', fontWeight: 500 }}
             >
               <HeartIcon className="w-4 h-4" />

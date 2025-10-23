@@ -23,7 +23,7 @@ const AchievementCard = ({ achievement, onClick }) => {
       cultural_literacy: 'from-[#ef597b] to-[#ec4899]'
     };
     
-    return pillars[0] ? pillarGradients[pillars[0]] : 'from-[#ef597b] to-[#6d469b]';
+    return pillars[0] ? pillarGradients[pillars[0]] : 'bg-gradient-primary-reverse';
   };
 
   const getPillarName = (pillar) => {
@@ -89,7 +89,7 @@ const AchievementCard = ({ achievement, onClick }) => {
 
       <div className="p-6">
         <div className="mb-3">
-          <h3 className="font-bold text-xl mb-2 text-gray-800 group-hover:text-[#6d469b] transition-colors leading-tight">
+          <h3 className="font-bold text-xl mb-2 text-gray-800 group-hover:text-optio-purple transition-colors leading-tight">
             {achievement.quest.title}
           </h3>
           
@@ -101,7 +101,7 @@ const AchievementCard = ({ achievement, onClick }) => {
         {/* Growth Indicators */}
         <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b]"></div>
+            <div className="w-2 h-2 rounded-full bg-gradient-to-r bg-gradient-primary-reverse"></div>
             <span className="text-sm font-medium text-gray-700">
               {Object.keys(achievement.task_evidence || {}).length} Skills Developed
             </span>
@@ -118,7 +118,7 @@ const AchievementCard = ({ achievement, onClick }) => {
               Completed {formatDate(achievement.completed_at)}
             </span>
           </div>
-          <div className="flex items-center gap-1 text-[#6d469b] font-semibold text-sm group-hover:gap-2 transition-all">
+          <div className="flex items-center gap-1 text-optio-purple font-semibold text-sm group-hover:gap-2 transition-all">
             <span>Explore Journey</span>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />

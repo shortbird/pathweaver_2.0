@@ -342,7 +342,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                           </div>
                           <button
                             onClick={() => handleAddTasksToQuest(quest)}
-                            className="ml-4 px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 text-sm"
+                            className="ml-4 px-4 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 text-sm"
                           >
                             Add Tasks
                           </button>

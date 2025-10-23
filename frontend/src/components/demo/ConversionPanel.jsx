@@ -102,7 +102,7 @@ const ConversionPanel = () => {
     <div className="space-y-8">
       {/* Header with Student Validation Focus */}
       <div className="text-center space-y-4">
-        <h2 className="text-4xl font-bold text-[#003f5c]">
+        <h2 className="text-4xl font-bold text-text-primary">
           Start Your Diploma Today
         </h2>
         <p className="text-xl text-gray-700 max-w-3xl mx-auto">
@@ -118,13 +118,13 @@ const ConversionPanel = () => {
             onClick={() => setSelectedTier(tier.id)}
             className={`relative cursor-pointer rounded-2xl p-6 transition-all duration-300
               ${selectedTier === tier.id 
-                ? 'bg-gradient-to-br from-[#6d469b]/10 to-[#ef597b]/10 border-2 border-[#6d469b] shadow-xl transform -translate-y-2' 
+                ? 'bg-gradient-to-br from-[#6d469b]/10 to-[#ef597b]/10 border-2 border-optio-purple shadow-xl transform -translate-y-2' 
                 : 'bg-white border-2 border-gray-200 hover:border-gray-300 hover:shadow-lg'}`}
           >
             {/* Badges */}
             {tier.recommended && (
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <span className="px-4 py-1 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white text-xs font-bold rounded-full">
+                <span className="px-4 py-1 bg-gradient-to-r bg-gradient-primary-reverse text-white text-xs font-bold rounded-full">
                   MOST POPULAR
                 </span>
               </div>
@@ -151,7 +151,7 @@ const ConversionPanel = () => {
             {/* Features */}
             <div className="mb-6">
               {tier.features[0]?.includes('Everything in') && (
-                <div className="text-sm font-semibold text-[#ef597b] mb-3">{tier.features[0]}</div>
+                <div className="text-sm font-semibold text-optio-pink mb-3">{tier.features[0]}</div>
               )}
               <ul className="space-y-3">
                 {tier.features.slice(tier.features[0]?.includes('Everything in') ? 1 : 0).map((feature, index) => (
@@ -179,7 +179,7 @@ const ConversionPanel = () => {
             <button
               className={`w-full py-3 rounded-lg font-semibold transition-all
                 ${selectedTier === tier.id
-                  ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white shadow-lg'
+                  ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white shadow-lg'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             >
               {tier.cta}
@@ -188,7 +188,7 @@ const ConversionPanel = () => {
             {/* Selection Indicator */}
             {selectedTier === tier.id && (
               <div className="absolute top-4 right-4">
-                <div className="w-8 h-8 bg-[#6d469b] rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-optio-purple rounded-full flex items-center justify-center">
                   <CheckCircle className="w-5 h-5 text-white" />
                 </div>
               </div>
@@ -199,15 +199,15 @@ const ConversionPanel = () => {
 
       {/* Key Value Props */}
       <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-2xl p-8">
-        <h3 className="text-2xl font-bold text-[#003f5c] text-center mb-6">
+        <h3 className="text-2xl font-bold text-text-primary text-center mb-6">
           Why Student Validation Works
         </h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <Globe className="w-8 h-8 text-[#6d469b]" />
+              <Globe className="w-8 h-8 text-optio-purple" />
             </div>
-            <h4 className="font-semibold text-[#003f5c] mb-2">Public Portfolio</h4>
+            <h4 className="font-semibold text-text-primary mb-2">Public Portfolio</h4>
             <p className="text-sm text-gray-600">
               Your work speaks for itself when it's visible to the world
             </p>
@@ -215,9 +215,9 @@ const ConversionPanel = () => {
           
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <GraduationCap className="w-8 h-8 text-[#ef597b]" />
+              <GraduationCap className="w-8 h-8 text-optio-pink" />
             </div>
-            <h4 className="font-semibold text-[#003f5c] mb-2">Diploma Day 1</h4>
+            <h4 className="font-semibold text-text-primary mb-2">Diploma Day 1</h4>
             <p className="text-sm text-gray-600">
               Start with your diploma, make it impressive through real work
             </p>
@@ -225,9 +225,9 @@ const ConversionPanel = () => {
           
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <Users className="w-8 h-8 text-[#6d469b]" />
+              <Users className="w-8 h-8 text-optio-purple" />
             </div>
-            <h4 className="font-semibold text-[#003f5c] mb-2">Self-Accountability</h4>
+            <h4 className="font-semibold text-text-primary mb-2">Self-Accountability</h4>
             <p className="text-sm text-gray-600">
               You own your education through genuine achievement
             </p>
@@ -237,7 +237,7 @@ const ConversionPanel = () => {
 
       {/* Email Capture */}
       <div className="max-w-2xl mx-auto bg-white rounded-xl p-8 shadow-lg">
-        <h3 className="text-2xl font-bold text-[#003f5c] mb-2 text-center">
+        <h3 className="text-2xl font-bold text-text-primary mb-2 text-center">
           Claim Your Diploma Now
         </h3>
         <p className="text-gray-600 text-center mb-6">
@@ -254,7 +254,7 @@ const ConversionPanel = () => {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@example.com"
-              className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-[#6d469b] focus:outline-none"
+              className="w-full p-3 border-2 border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none"
             />
           </div>
 
@@ -263,7 +263,7 @@ const ConversionPanel = () => {
             disabled={!email}
             className={`w-full py-4 font-bold text-lg rounded-lg transition-all duration-300 flex items-center justify-center gap-3
               ${email 
-                ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-xl transform hover:scale-[1.02]' 
+                ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white hover:shadow-xl transform hover:scale-[1.02]' 
                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
           >
             <Rocket className="w-6 h-6" />
@@ -280,7 +280,7 @@ const ConversionPanel = () => {
       {/* Trust Indicators */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
         <div className="text-center">
-          <Gift className="w-10 h-10 text-[#6d469b] mx-auto mb-2" />
+          <Gift className="w-10 h-10 text-optio-purple mx-auto mb-2" />
           <p className="font-semibold text-gray-700">30-Day Guarantee</p>
           <p className="text-sm text-gray-600">Full refund if not satisfied</p>
         </div>
@@ -290,7 +290,7 @@ const ConversionPanel = () => {
           <p className="text-sm text-gray-600">You control what's public</p>
         </div>
         <div className="text-center">
-          <Users className="w-10 h-10 text-[#ef597b] mx-auto mb-2" />
+          <Users className="w-10 h-10 text-optio-pink mx-auto mb-2" />
           <p className="font-semibold text-gray-700">5,000+ Students</p>
           <p className="text-sm text-gray-600">Building impressive portfolios</p>
         </div>

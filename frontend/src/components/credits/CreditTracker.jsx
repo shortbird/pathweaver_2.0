@@ -74,7 +74,7 @@ const CreditTracker = ({ userId }) => {
       <motion.div
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg p-6 mb-6 text-center"
+        className="bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg p-6 mb-6 text-center"
       >
         <div className="text-5xl font-bold mb-2">{total_credits || 0}</div>
         <div className="text-lg">Total Credits Earned</div>

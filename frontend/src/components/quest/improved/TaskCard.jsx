@@ -56,7 +56,7 @@ const TaskCard = ({ task, index, isCompleted, isEnrolled, onComplete, hasCollabo
                 {task.description.length > 100 && (
                   <button
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="text-sm text-[#6d469b] hover:text-[#5c3a82] font-medium mt-1 py-1 px-2 -mx-2 rounded touch-manipulation transition-colors hover:bg-purple-50"
+                    className="text-sm text-optio-purple hover:text-[#5c3a82] font-medium mt-1 py-1 px-2 -mx-2 rounded touch-manipulation transition-colors hover:bg-purple-50"
                   >
                     {isExpanded ? 'Show less' : 'Show more'}
                   </button>

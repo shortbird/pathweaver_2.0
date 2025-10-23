@@ -12,40 +12,40 @@ export const PILLARS = {
   stem: {
     display_name: 'STEM',
     description: 'Science, Technology, Engineering, and Mathematics',
-    color: '#2469D1',
-    gradient: 'from-[#2469D1] to-[#1B4FA3]',
+    color: pillar-stem,
+    gradient: 'from-pillar-stem to-pillar-stem-dark',  // Tailwind gradient utilities
     icon: 'BeakerIcon',
     subcategories: ['Science', 'Technology', 'Engineering', 'Mathematics'],
   },
   wellness: {
     display_name: 'Wellness',
     description: 'Physical and mental health, mindfulness, and self-care',
-    color: '#FF9028',
-    gradient: 'from-[#FF9028] to-[#E67A1A]',
+    color: pillar-wellness,
+    gradient: 'from-pillar-wellness to-pillar-wellness-dark',  // Tailwind gradient utilities
     icon: 'HeartIcon',
     subcategories: ['Physical Health', 'Mental Health', 'Mindfulness', 'Nutrition'],
   },
   communication: {
     display_name: 'Communication',
     description: 'Writing, speaking, listening, and interpersonal skills',
-    color: '#3DA24A',
-    gradient: 'from-[#3DA24A] to-[#2E8A3A]',
+    color: pillar-communication,
+    gradient: 'from-pillar-communication to-pillar-communication-dark',  // Tailwind gradient utilities
     icon: 'ChatBubbleLeftRightIcon',
     subcategories: ['Writing', 'Speaking', 'Listening', 'Collaboration'],
   },
   civics: {
     display_name: 'Civics',
     description: 'Community engagement, leadership, and civic responsibility',
-    color: '#E65C5C',
-    gradient: 'from-[#E65C5C] to-[#D43F3F]',
+    color: pillar-civics,
+    gradient: 'from-pillar-civics to-pillar-civics-dark',  // Tailwind gradient utilities
     icon: 'UserGroupIcon',
     subcategories: ['Community', 'Leadership', 'Civic Action', 'Democracy'],
   },
   art: {
     display_name: 'Art',
     description: 'Creative expression through visual arts, music, and performance',
-    color: '#AF56E5',
-    gradient: 'from-[#AF56E5] to-[#9945D1]',
+    color: pillar-art,
+    gradient: 'from-pillar-art to-pillar-art-dark',  // Tailwind gradient utilities
     icon: 'PaintBrushIcon',
     subcategories: ['Visual Arts', 'Music', 'Performance', 'Design'],
   },

@@ -287,7 +287,7 @@ const ConstellationPage = () => {
                   ease: 'easeInOut',
                 }}
               >
-                <div className="w-4 h-4 rounded-full bg-gradient-to-r from-[#ef597b] to-[#6d469b]" />
+                <div className="w-4 h-4 rounded-full bg-gradient-to-r bg-gradient-primary-reverse" />
               </motion.div>
             ))}
           </div>
@@ -315,7 +315,7 @@ const ConstellationPage = () => {
           <div className="flex gap-4 justify-center">
             <button
               onClick={handleRetry}
-              className="px-8 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b]
+              className="px-8 py-3 bg-gradient-to-r bg-gradient-primary-reverse
                          text-white font-medium rounded-lg
                          hover:shadow-xl transition-all transform hover:scale-105"
             >
@@ -358,7 +358,7 @@ const ConstellationPage = () => {
           </p>
           <button
             onClick={() => navigate('/quests')}
-            className="px-10 py-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b]
+            className="px-10 py-4 bg-gradient-to-r bg-gradient-primary-reverse
                        text-white font-semibold text-lg rounded-lg
                        hover:shadow-2xl transition-all transform hover:scale-105"
           >

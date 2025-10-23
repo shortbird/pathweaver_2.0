@@ -28,7 +28,7 @@ export default function HubFilters({ selectedPillar, onPillarChange }) {
             className={`
               px-4 py-2 rounded-full text-sm font-medium transition-all duration-200 flex items-center gap-2
               ${selectedPillar === pillar.key
-                ? 'bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white shadow-md'
+                ? 'bg-gradient-to-r bg-gradient-primary text-white shadow-md'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200 hover:shadow-sm'
               }
             `}

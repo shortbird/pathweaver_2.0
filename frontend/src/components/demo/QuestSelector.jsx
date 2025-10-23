@@ -49,13 +49,13 @@ const QuestSelector = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="text-center space-y-2">
-        <h2 className="text-3xl font-bold text-[#003f5c]">
+        <h2 className="text-3xl font-bold text-text-primary">
           Start Your Quest
         </h2>
         <p className="text-gray-600">
           Choose up to 4 quests to begin your learning journey
         </p>
-        <p className="text-sm text-[#6d469b]">
+        <p className="text-sm text-optio-purple">
           {selectedQuests.length}/4 quests selected
         </p>
       </div>
@@ -89,20 +89,20 @@ const QuestSelector = () => {
                 selected 
                   ? 'border-green-500 bg-green-50 shadow-lg transform scale-[1.02]' 
                   : hoveredQuest === quest.id
-                    ? 'border-[#6d469b] bg-[#6d469b]/5 shadow-md'
+                    ? 'border-optio-purple bg-optio-purple/5 shadow-md'
                     : 'border-gray-200 bg-white'
               }`}>
                 {/* Quest Header */}
                 <div className="flex items-start gap-4 mb-4">
                   <div className={`p-3 rounded-lg ${
                     selected 
-                      ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white' 
-                      : 'bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 text-[#6d469b]'
+                      ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white' 
+                      : 'bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 text-optio-purple'
                   }`}>
                     {questIcons[quest.id]}
                   </div>
                   <div className="flex-1">
-                    <h3 className="font-bold text-lg text-[#003f5c] mb-1">
+                    <h3 className="font-bold text-lg text-text-primary mb-1">
                       {quest.title}
                     </h3>
                     <p className="text-sm text-gray-600">
@@ -127,7 +127,7 @@ const QuestSelector = () => {
                 {/* Footer */}
                 <div className="flex items-center justify-between pt-3 border-t border-gray-100">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-[#6d469b]">
+                    <span className="text-sm font-semibold text-optio-purple">
                       {quest.totalXP} XP
                     </span>
                   </div>
@@ -147,7 +147,7 @@ const QuestSelector = () => {
       <div className="text-center pt-4">
         <button
           onClick={() => setShowLibraryModal(true)}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-white border-2 border-[#6d469b] text-[#6d469b] rounded-lg font-semibold hover:bg-[#6d469b]/10 transition-all"
+          className="inline-flex items-center gap-2 px-6 py-3 bg-white border-2 border-optio-purple text-optio-purple rounded-lg font-semibold hover:bg-optio-purple/10 transition-all"
         >
           <Search className="w-5 h-5" />
           Browse 100+ More Quests
@@ -157,9 +157,9 @@ const QuestSelector = () => {
       {/* Info Box */}
       <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-6">
         <div className="flex items-start gap-3">
-          <Info className="w-5 h-5 text-[#6d469b] mt-0.5" />
+          <Info className="w-5 h-5 text-optio-purple mt-0.5" />
           <div className="space-y-2">
-            <h4 className="font-semibold text-[#003f5c]">Open-Ended Learning</h4>
+            <h4 className="font-semibold text-text-primary">Open-Ended Learning</h4>
             <p className="text-sm text-gray-700">
               Start multiple quests simultaneously - just like real life! Complete tasks at your own pace, 
               switch between projects, and build a diverse portfolio that reflects your interests.

@@ -31,7 +31,7 @@ const Layout = () => {
   const shouldShowSidebar = isAuthenticated && !isHubPage
 
   return (
-    <div className="min-h-screen bg-[#F3EFF4]">
+    <div className="min-h-screen bg-neutral-50">
       {/* Top Navbar */}
       <TopNavbar
         onMenuClick={() => setSidebarOpen(true)}
@@ -61,7 +61,7 @@ const Layout = () => {
         ${shouldShowSidebar ? 'lg:ml-64' : ''}
       `}>
         <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
-          <p className="text-center text-sm text-[#605C61] font-poppins font-medium">
+          <p className="text-center text-sm text-neutral-500 font-poppins font-medium">
             © 2025 Optio. All rights reserved.
           </p>
         </div>

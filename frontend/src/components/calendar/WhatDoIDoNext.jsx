@@ -190,7 +190,7 @@ const TaskCard = ({ item }) => {
         </div>
       </div>
       <button
-        className="ml-4 px-3 py-1.5 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-lg text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
+        className="ml-4 px-3 py-1.5 bg-gradient-to-r bg-gradient-primary text-white rounded-lg text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0"
         style={{ fontFamily: 'Poppins, sans-serif' }}
         onClick={(e) => {
           e.preventDefault()

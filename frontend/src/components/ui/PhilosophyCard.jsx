@@ -11,7 +11,7 @@ const PhilosophyCard = ({
     <div className={`p-6 rounded-xl bg-gradient-to-br ${gradientClasses} border border-gray-100`}>
       <div className="flex items-start space-x-3">
         <div className="flex-shrink-0">
-          <Icon className="w-5 h-5 text-[#6d469b] mt-1" />
+          <Icon className="w-5 h-5 text-optio-purple mt-1" />
         </div>
         <div>
           <h3 className="text-lg font-semibold text-gray-800 mb-2">
@@ -32,8 +32,8 @@ export const PhilosophySection = ({ onPhilosophyModalOpen }) => {
     <div className="py-16 sm:py-20 bg-white relative overflow-hidden">
       {/* Background decorative elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-[#6d469b]/5 to-[#ef597b]/5 rounded-full blur-3xl" />
+        <div className="absolute -top-40 -right-40 w-80 h-80 bg-gradient-to-br from-optio-pink/5 to-optio-purple/5 rounded-full blur-3xl" />
+        <div className="absolute -bottom-40 -left-40 w-80 h-80 bg-gradient-to-br from-optio-purple/5 to-optio-pink/5 rounded-full blur-3xl" />
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative">
@@ -70,7 +70,7 @@ export const PhilosophySection = ({ onPhilosophyModalOpen }) => {
           </div>
           
           {/* Core message */}
-          <div className="mt-12 p-8 bg-gradient-to-r from-[#ef597b]/5 to-[#6d469b]/5 rounded-xl text-center relative overflow-hidden">
+          <div className="mt-12 p-8 bg-gradient-to-r from-optio-pink/5 to-optio-purple/5 rounded-xl text-center relative overflow-hidden">
             {/* Background pattern */}
             <div className="absolute inset-0 opacity-5">
               <div className="absolute inset-0" style={{
@@ -92,7 +92,7 @@ export const PhilosophySection = ({ onPhilosophyModalOpen }) => {
           <div className="text-center mt-8">
             <button
               onClick={onPhilosophyModalOpen}
-              className="inline-flex items-center text-[#ef597b] hover:text-[#e54469] font-medium transition-all duration-300 hover:scale-105 group"
+              className="inline-flex items-center text-optio-pink hover:text-[#e54469] font-medium transition-all duration-300 hover:scale-105 group"
             >
               <div className="mr-2 w-4 h-4 transition-transform duration-300 group-hover:rotate-12">
                 <svg viewBox="0 0 24 24" fill="currentColor">

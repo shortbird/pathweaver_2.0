@@ -15,7 +15,7 @@ const MetricCard = ({ title, value, subtitle, trend, icon, gradient = true }) =>
   return (
     <div className={`rounded-lg p-6 shadow-lg ${
       gradient
-        ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white'
+        ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white'
         : 'bg-white border border-gray-200'
     }`}>
       <div className="flex items-center justify-between">

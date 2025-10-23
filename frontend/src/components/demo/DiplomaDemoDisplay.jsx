@@ -114,7 +114,7 @@ const DiplomaDemoDisplay = () => {
   return (
     <div className="space-y-6">
       {/* Diploma Header */}
-      <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-xl p-4 sm:p-6 lg:p-8 text-white">
+      <div className="bg-gradient-to-r bg-gradient-primary-reverse rounded-xl p-4 sm:p-6 lg:p-8 text-white">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2 leading-tight">{demoUser.name}</h1>
@@ -150,7 +150,7 @@ const DiplomaDemoDisplay = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Skills Radar Chart */}
         <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
-          <h3 className="font-bold text-base sm:text-lg text-[#003f5c] mb-4">Skills Development</h3>
+          <h3 className="font-bold text-base sm:text-lg text-text-primary mb-4">Skills Development</h3>
           <div className="h-48 sm:h-56 lg:h-64">
             <Radar data={radarData} options={radarOptions} />
           </div>
@@ -158,7 +158,7 @@ const DiplomaDemoDisplay = () => {
 
         {/* XP Breakdown */}
         <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
-          <h3 className="font-bold text-base sm:text-lg text-[#003f5c] mb-4">XP by Pillar</h3>
+          <h3 className="font-bold text-base sm:text-lg text-text-primary mb-4">XP by Pillar</h3>
           <div className="space-y-3 sm:space-y-4">
             {Object.entries(xpData).map(([pillar, xp]) => (
               <div key={pillar} className="flex flex-col xs:flex-row xs:items-center gap-2">
@@ -168,11 +168,11 @@ const DiplomaDemoDisplay = () => {
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden min-w-0">
                     <div
-                      className="h-full bg-gradient-to-r from-[#ef597b] to-[#6d469b]"
+                      className="h-full bg-gradient-to-r bg-gradient-primary-reverse"
                       style={{ width: `${Math.min((xp / 200) * 100, 100)}%` }}
                     />
                   </div>
-                  <span className="text-sm font-semibold text-[#6d469b] w-8 sm:w-12 text-right flex-shrink-0">
+                  <span className="text-sm font-semibold text-optio-purple w-8 sm:w-12 text-right flex-shrink-0">
                     {xp}
                   </span>
                 </div>
@@ -184,7 +184,7 @@ const DiplomaDemoDisplay = () => {
 
       {/* Quest Achievements */}
       <div className="space-y-4">
-        <h3 className="font-bold text-lg sm:text-xl text-[#003f5c]">Quest Achievements</h3>
+        <h3 className="font-bold text-lg sm:text-xl text-text-primary">Quest Achievements</h3>
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {selectedQuests.map(quest => {
@@ -194,10 +194,10 @@ const DiplomaDemoDisplay = () => {
               <div key={quest.id} className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
                 <div className="flex items-start gap-3 mb-4">
                   <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-base sm:text-lg text-[#003f5c] leading-tight">{quest.title}</h4>
+                    <h4 className="font-bold text-base sm:text-lg text-text-primary leading-tight">{quest.title}</h4>
                     <p className="text-sm text-gray-600 mt-1 leading-relaxed">{quest.description}</p>
                   </div>
-                  <Award className="w-6 h-6 sm:w-8 sm:h-8 text-[#6d469b] flex-shrink-0" />
+                  <Award className="w-6 h-6 sm:w-8 sm:h-8 text-optio-purple flex-shrink-0" />
                 </div>
                 
                 {/* Tasks & Submitted Work */}
@@ -207,7 +207,7 @@ const DiplomaDemoDisplay = () => {
                     const visibility = workVisibility[quest.id]?.[task.id];
                     
                     return (
-                      <div key={task.id} className="border-l-4 border-[#ef597b]/30 pl-4">
+                      <div key={task.id} className="border-l-4 border-optio-pink/30 pl-4">
                         <h5 className="font-semibold text-sm text-gray-800">{task.title}</h5>
                         
                         {work ? (
@@ -250,7 +250,7 @@ const DiplomaDemoDisplay = () => {
                 <div className="mt-4 pt-4 border-t border-gray-100">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-gray-600">Progress</span>
-                    <span className="font-semibold text-[#6d469b]">
+                    <span className="font-semibold text-optio-purple">
                       {questWork.length}/{quest.tasks.length} tasks
                     </span>
                   </div>
@@ -264,9 +264,9 @@ const DiplomaDemoDisplay = () => {
       {/* Public Accountability Note */}
       <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-4 sm:p-6">
         <div className="flex items-start gap-3">
-          <Info className="w-5 h-5 text-[#6d469b] mt-0.5 flex-shrink-0" />
+          <Info className="w-5 h-5 text-optio-purple mt-0.5 flex-shrink-0" />
           <div className="min-w-0">
-            <h4 className="font-semibold text-[#003f5c] mb-1 text-sm sm:text-base">This is Your Living Diploma</h4>
+            <h4 className="font-semibold text-text-primary mb-1 text-sm sm:text-base">This is Your Living Diploma</h4>
             <p className="text-sm text-gray-700 leading-relaxed">
               Your diploma grows with every quest you complete. Public submissions are visible to everyone,
               creating natural accountability for quality work. Confidential submissions show completion

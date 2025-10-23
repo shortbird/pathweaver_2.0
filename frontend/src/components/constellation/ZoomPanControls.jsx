@@ -110,7 +110,7 @@ const ZoomPanControls = ({ zoom, onZoomChange, onResetView, showTimeTravel, onTo
                 onClick={onToggleTimeTravel}
                 className={`w-12 h-12 flex items-center justify-center rounded-lg transition-all group
                   ${showTimeTravel
-                    ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b]'
+                    ? 'bg-gradient-to-r bg-gradient-primary-reverse'
                     : 'bg-white/10 hover:bg-white/20'}`}
                 aria-label="Toggle time travel"
                 title="Time Travel Mode"

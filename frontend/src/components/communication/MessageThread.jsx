@@ -34,7 +34,7 @@ const MessageThread = ({ messages, otherUser, isLoading }) => {
   if (isLoading) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#6d469b]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
       </div>
     )
   }
@@ -64,7 +64,7 @@ const MessageThread = ({ messages, otherUser, isLoading }) => {
             <div
               className={`max-w-[70%] ${
                 isSender
-                  ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-l-2xl rounded-tr-2xl'
+                  ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-l-2xl rounded-tr-2xl'
                   : 'bg-white text-gray-800 rounded-r-2xl rounded-tl-2xl shadow-sm'
               } p-3`}
             >

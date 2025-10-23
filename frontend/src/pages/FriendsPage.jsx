@@ -233,7 +233,7 @@ const FriendsPage = () => {
           <div className="flex justify-center gap-4">
             <button
               onClick={() => navigate('/subscription')}
-              className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-8 py-3 rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
+              className="bg-gradient-to-r bg-gradient-primary-reverse text-white px-8 py-3 rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
             >
               Upgrade to Supported
             </button>
@@ -372,7 +372,7 @@ const FriendsPage = () => {
                             <div className="flex gap-2">
                               <button
                                 onClick={() => acceptRequest(request.friendship_id)}
-                                className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-full text-sm font-semibold hover:shadow-lg transition-all duration-300"
+                                className="bg-gradient-to-r bg-gradient-primary-reverse text-white px-4 py-2 rounded-full text-sm font-semibold hover:shadow-lg transition-all duration-300"
                               >
                                 Accept
                               </button>
@@ -546,7 +546,7 @@ const FriendsPage = () => {
                           <div className="flex flex-col sm:flex-row gap-2 ml-3">
                             <button
                               onClick={() => acceptTeamInvite(invite.id, invite.quest?.id)}
-                              className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all duration-300"
+                              className="bg-gradient-to-r bg-gradient-primary-reverse text-white px-4 py-2 rounded-lg text-sm font-semibold hover:shadow-lg transition-all duration-300"
                             >
                               Accept
                             </button>
@@ -676,7 +676,7 @@ const FriendsPage = () => {
                   <p className="text-gray-500 mb-4">Start collaborating with friends to earn 2x XP on quests!</p>
                   <button
                     onClick={() => navigate('/quests')}
-                    className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-6 py-3 rounded-lg font-medium hover:shadow-lg transition-all duration-300"
+                    className="bg-gradient-to-r bg-gradient-primary-reverse text-white px-6 py-3 rounded-lg font-medium hover:shadow-lg transition-all duration-300"
                   >
                     Browse Quests
                   </button>

@@ -133,7 +133,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#6d469b]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
       </div>
     );
   }
@@ -143,7 +143,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center space-x-3 mb-2">
-          <Shield className="w-8 h-8 text-[#6d469b]" />
+          <Shield className="w-8 h-8 text-optio-purple" />
           <h1 className="text-3xl font-bold text-gray-900">Parent Dashboard</h1>
         </div>
         <p className="text-gray-600">Monitor {childName}'s AI tutor interactions and learning progress</p>
@@ -160,7 +160,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`py-2 px-1 border-b-2 font-medium text-sm ${
                   activeTab === tab.id
-                    ? 'border-[#6d469b] text-[#6d469b]'
+                    ? 'border-optio-purple text-optio-purple'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -246,7 +246,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
                         setActiveTab('conversations');
                         loadConversationMessages(conversation.id);
                       }}
-                      className="text-[#6d469b] hover:text-[#5a3d85] text-sm font-medium"
+                      className="text-optio-purple hover:text-[#5a3d85] text-sm font-medium"
                     >
                       View Details
                     </button>
@@ -263,7 +263,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {analytics.learning_pillars_covered.map((pillar, index) => (
                   <div key={index} className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="w-8 h-8 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full mx-auto mb-2"></div>
+                    <div className="w-8 h-8 bg-gradient-to-r bg-gradient-primary-reverse rounded-full mx-auto mb-2"></div>
                     <p className="text-xs font-medium text-gray-700">{pillar}</p>
                   </div>
                 ))}
@@ -421,7 +421,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
                 <select
                   value={settings?.notification_frequency || 'daily'}
                   onChange={(e) => updateNotificationSettings({ notification_frequency: e.target.value })}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#6d469b] focus:border-[#6d469b]"
+                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-[#6d469b] focus:border-optio-purple"
                 >
                   <option value="real_time">Real-time (immediate notifications)</option>
                   <option value="daily">Daily summary</option>
@@ -443,7 +443,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
                       value="full"
                       checked={settings?.access_level === 'full'}
                       onChange={(e) => updateNotificationSettings({ access_level: e.target.value })}
-                      className="text-[#6d469b] focus:ring-[#6d469b]"
+                      className="text-optio-purple focus:ring-[#6d469b]"
                     />
                     <span className="ml-3 text-sm text-gray-700">
                       Full access (view all conversations and messages)
@@ -456,7 +456,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
                       value="summary"
                       checked={settings?.access_level === 'summary'}
                       onChange={(e) => updateNotificationSettings({ access_level: e.target.value })}
-                      className="text-[#6d469b] focus:ring-[#6d469b]"
+                      className="text-optio-purple focus:ring-[#6d469b]"
                     />
                     <span className="ml-3 text-sm text-gray-700">
                       Summary only (view topics and safety reports, not full messages)
@@ -469,7 +469,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
                       value="notification_only"
                       checked={settings?.access_level === 'notification_only'}
                       onChange={(e) => updateNotificationSettings({ access_level: e.target.value })}
-                      className="text-[#6d469b] focus:ring-[#6d469b]"
+                      className="text-optio-purple focus:ring-[#6d469b]"
                     />
                     <span className="ml-3 text-sm text-gray-700">
                       Notifications only (receive alerts for safety issues only)
@@ -485,7 +485,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
                     type="checkbox"
                     checked={settings?.safety_alerts_enabled !== false}
                     onChange={(e) => updateNotificationSettings({ safety_alerts_enabled: e.target.checked })}
-                    className="text-[#6d469b] focus:ring-[#6d469b]"
+                    className="text-optio-purple focus:ring-[#6d469b]"
                   />
                   <span className="ml-3 text-sm text-gray-700">
                     Enable immediate safety alerts
@@ -499,7 +499,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
               <div className="pt-4 border-t border-gray-200">
                 <button
                   onClick={() => updateNotificationSettings(settings)}
-                  className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-6 py-2 rounded-md hover:shadow-lg transition-shadow"
+                  className="bg-gradient-to-r bg-gradient-primary-reverse text-white px-6 py-2 rounded-md hover:shadow-lg transition-shadow"
                 >
                   Save Settings
                 </button>

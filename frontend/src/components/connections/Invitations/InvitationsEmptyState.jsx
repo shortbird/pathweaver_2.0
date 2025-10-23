@@ -6,7 +6,7 @@ const InvitationsEmptyState = ({ type = 'incoming' }) => {
   return (
     <div className="text-center py-8">
       <p
-        className="text-[#605C61]"
+        className="text-neutral-500"
         style={{ fontFamily: 'Poppins', fontWeight: 500 }}
       >
         {isIncoming

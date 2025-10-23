@@ -70,7 +70,7 @@ const DemoFeature = () => {
           <div className="mb-6 sm:mb-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <div className="flex-1 min-w-0">
-                <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent leading-tight">
+                <h2 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r bg-gradient-primary-reverse bg-clip-text text-transparent leading-tight">
                   {stepInfo.title}
                 </h2>
                 <p className="text-gray-600 mt-1 text-sm sm:text-base">{stepInfo.subtitle}</p>
@@ -79,7 +79,7 @@ const DemoFeature = () => {
                 <span className="text-sm text-gray-600">Step {currentStep} of 5</span>
                 <button
                   onClick={actions.resetDemo}
-                  className="flex items-center gap-1 text-sm text-[#6d469b] hover:underline py-1 px-2 -mx-2 rounded touch-manipulation"
+                  className="flex items-center gap-1 text-sm text-optio-purple hover:underline py-1 px-2 -mx-2 rounded touch-manipulation"
                 >
                   <RotateCcw className="w-4 h-4 flex-shrink-0" />
                   <span>Restart</span>
@@ -90,7 +90,7 @@ const DemoFeature = () => {
             {/* Progress Bar */}
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
               <div 
-                className="h-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] transition-all duration-500"
+                className="h-full bg-gradient-to-r bg-gradient-primary-reverse transition-all duration-500"
                 style={{ width: `${(currentStep / 5) * 100}%` }}
               />
             </div>
@@ -109,7 +109,7 @@ const DemoFeature = () => {
               {canGoBack && (
                 <button
                   onClick={actions.previousStep}
-                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all bg-white text-[#6d469b] border-2 border-[#6d469b] hover:bg-[#6d469b]/10 min-h-[48px] touch-manipulation order-2 sm:order-1"
+                  className="flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all bg-white text-optio-purple border-2 border-optio-purple hover:bg-optio-purple/10 min-h-[48px] touch-manipulation order-2 sm:order-1"
                 >
                   <ChevronLeft className="w-5 h-5 flex-shrink-0" />
                   <span>Back</span>
@@ -122,7 +122,7 @@ const DemoFeature = () => {
                   disabled={!canGoForward}
                   className={`flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all min-h-[48px] touch-manipulation order-1 sm:order-2 sm:ml-auto
                     ${canGoForward
-                      ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:shadow-lg transform hover:scale-105'
+                      ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white hover:shadow-lg transform hover:scale-105'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
                 >
                   <span>Continue</span>

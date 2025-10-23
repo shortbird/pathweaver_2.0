@@ -137,7 +137,7 @@ const LearningEventDetailModal = ({ event, isOpen, onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white p-6 rounded-t-xl sticky top-0 z-10">
+        <div className="bg-gradient-to-r bg-gradient-primary text-white p-6 rounded-t-xl sticky top-0 z-10">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-2xl font-bold mb-2">Learning Moment</h2>

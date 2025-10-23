@@ -112,7 +112,7 @@ const ProfilePage = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#6d469b]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
       </div>
     )
   }
@@ -124,7 +124,7 @@ const ProfilePage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Header with Brand Gradient */}
-      <header className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white py-12 px-6">
+      <header className="bg-gradient-to-r bg-gradient-primary text-white py-12 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center gap-6">
             {/* Avatar Circle with Initials */}
@@ -162,7 +162,7 @@ const ProfilePage = () => {
               {!editing && (
                 <button
                   onClick={() => setEditing(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r bg-gradient-primary text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
                   style={{ fontFamily: 'Poppins', fontWeight: 600 }}
                 >
                   <PencilIcon className="w-4 h-4" />
@@ -183,7 +183,7 @@ const ProfilePage = () => {
                         required: 'First name is required'
                       })}
                       type="text"
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-[#6d469b] focus:outline-none transition-colors"
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors"
                       style={{ fontFamily: 'Poppins', fontWeight: 500 }}
                     />
                     {errors.first_name && (
@@ -202,7 +202,7 @@ const ProfilePage = () => {
                         required: 'Last name is required'
                       })}
                       type="text"
-                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-[#6d469b] focus:outline-none transition-colors"
+                      className="w-full px-4 py-2 border-2 border-gray-200 rounded-lg focus:border-optio-purple focus:outline-none transition-colors"
                       style={{ fontFamily: 'Poppins', fontWeight: 500 }}
                     />
                     {errors.last_name && (
@@ -216,7 +216,7 @@ const ProfilePage = () => {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
+                    className="px-6 py-2.5 bg-gradient-to-r bg-gradient-primary text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
                     style={{ fontFamily: 'Poppins', fontWeight: 600 }}
                   >
                     Save Changes
@@ -273,7 +273,7 @@ const ProfilePage = () => {
           {/* Your Growth (Stats) Card */}
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center gap-2 mb-6">
-              <SparklesIcon className="w-7 h-7 text-[#6d469b]" />
+              <SparklesIcon className="w-7 h-7 text-optio-purple" />
               <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                 Your Growth
               </h2>
@@ -281,14 +281,14 @@ const ProfilePage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r from-[#6d469b] to-[#ef597b] flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-r bg-gradient-primary flex items-center justify-center">
                     <SparklesIcon className="w-5 h-5 text-white" />
                   </div>
                   <p className="text-sm font-semibold text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
                     Experience Earned
                   </p>
                 </div>
-                <p className="text-4xl font-bold bg-gradient-to-r from-[#6d469b] to-[#ef597b] bg-clip-text text-transparent" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                <p className="text-4xl font-bold bg-gradient-to-r bg-gradient-primary bg-clip-text text-transparent" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                   {profileData?.total_xp || 0} XP
                 </p>
               </div>
@@ -319,10 +319,10 @@ const ProfilePage = () => {
               {/* Portfolio/Diploma Link */}
               <Link
                 to="/diploma"
-                className="group flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-[#6d469b] hover:shadow-md transition-all"
+                className="group flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-optio-purple hover:shadow-md transition-all"
               >
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-[#6d469b] group-hover:to-[#ef597b] transition-all flex-shrink-0">
-                  <DocumentTextIcon className="w-6 h-6 text-[#6d469b] group-hover:text-white transition-colors" />
+                  <DocumentTextIcon className="w-6 h-6 text-optio-purple group-hover:text-white transition-colors" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-gray-900 text-base" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
@@ -337,10 +337,10 @@ const ProfilePage = () => {
               {/* Constellation Link */}
               <Link
                 to="/constellation"
-                className="group flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-[#6d469b] hover:shadow-md transition-all"
+                className="group flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-optio-purple hover:shadow-md transition-all"
               >
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-[#6d469b] group-hover:to-[#ef597b] transition-all flex-shrink-0">
-                  <StarIcon className="w-6 h-6 text-[#6d469b] group-hover:text-white transition-colors" />
+                  <StarIcon className="w-6 h-6 text-optio-purple group-hover:text-white transition-colors" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-gray-900 text-base" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
@@ -355,10 +355,10 @@ const ProfilePage = () => {
               {/* Credit Tracker Link */}
               <Link
                 to="/credits"
-                className="group flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-[#6d469b] hover:shadow-md transition-all"
+                className="group flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-optio-purple hover:shadow-md transition-all"
               >
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-[#6d469b] group-hover:to-[#ef597b] transition-all flex-shrink-0">
-                  <CreditCardIcon className="w-6 h-6 text-[#6d469b] group-hover:text-white transition-colors" />
+                  <CreditCardIcon className="w-6 h-6 text-optio-purple group-hover:text-white transition-colors" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-gray-900 text-base" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
@@ -373,10 +373,10 @@ const ProfilePage = () => {
               {/* Transcript Link */}
               <Link
                 to="/transcript"
-                className="group flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-[#6d469b] hover:shadow-md transition-all"
+                className="group flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-optio-purple hover:shadow-md transition-all"
               >
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-[#6d469b] group-hover:to-[#ef597b] transition-all flex-shrink-0">
-                  <AcademicCapIcon className="w-6 h-6 text-[#6d469b] group-hover:text-white transition-colors" />
+                  <AcademicCapIcon className="w-6 h-6 text-optio-purple group-hover:text-white transition-colors" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-gray-900 text-base" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
@@ -391,10 +391,10 @@ const ProfilePage = () => {
               {/* Download All Data */}
               <button
                 onClick={downloadAllData}
-                className="group flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-[#6d469b] hover:shadow-md transition-all text-left"
+                className="group flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-optio-purple hover:shadow-md transition-all text-left"
               >
                 <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-[#6d469b] group-hover:to-[#ef597b] transition-all flex-shrink-0">
-                  <ArrowDownTrayIcon className="w-6 h-6 text-[#6d469b] group-hover:text-white transition-colors" />
+                  <ArrowDownTrayIcon className="w-6 h-6 text-optio-purple group-hover:text-white transition-colors" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="font-bold text-gray-900 text-base" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>

@@ -92,24 +92,24 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
     const initial = displayName?.charAt(0)?.toUpperCase() || '?'
 
     let bgColor = 'bg-purple-100'
-    let iconColor = 'text-[#6d469b]'
+    let iconColor = 'text-optio-purple'
 
     if (conversation.type === 'bot') {
       bgColor = 'bg-purple-100'
-      iconColor = 'text-[#6d469b]'
+      iconColor = 'text-optio-purple'
     } else if (conversation.type === 'advisor') {
       bgColor = 'bg-purple-100'
-      iconColor = 'text-[#6d469b]'
+      iconColor = 'text-optio-purple'
     } else {
       bgColor = 'bg-purple-100'
-      iconColor = 'text-[#6d469b]'
+      iconColor = 'text-optio-purple'
     }
 
     return (
       <button
         onClick={() => onSelectConversation(conversation)}
         className={`w-full p-3 flex items-start space-x-3 hover:bg-gray-50 transition-colors ${
-          isSelected ? 'bg-purple-50 border-l-4 border-[#6d469b]' : ''
+          isSelected ? 'bg-purple-50 border-l-4 border-optio-purple' : ''
         }`}
       >
         {/* Avatar */}
@@ -166,7 +166,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
   if (isLoading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#6d469b]"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
       </div>
     )
   }

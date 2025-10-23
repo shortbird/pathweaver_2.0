@@ -130,7 +130,7 @@ const TierManagement = () => {
                     {displayData.badge_text && (
                       <span className={`px-3 py-1 rounded-full text-xs font-bold text-white ${
                         displayData.badge_color === 'gradient'
-                          ? 'bg-gradient-to-r from-[#ef597b] to-[#6d469b]'
+                          ? 'bg-gradient-to-r bg-gradient-primary-reverse'
                           : displayData.badge_color === 'green'
                           ? 'bg-green-500'
                           : 'bg-gray-500'

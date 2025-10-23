@@ -76,7 +76,7 @@ const ParentInvitationSection = () => {
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
       <div className="flex items-center gap-2 mb-6">
-        <UserGroupIcon className="w-7 h-7 text-[#6d469b]" />
+        <UserGroupIcon className="w-7 h-7 text-optio-purple" />
         <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
           Parent Access
         </h2>

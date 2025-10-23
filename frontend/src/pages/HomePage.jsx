@@ -15,7 +15,7 @@ const HomePage = () => {
       {/* Skip link for accessibility */}
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 bg-[#6d469b] text-white px-4 py-2 rounded z-50"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 bg-optio-purple text-white px-4 py-2 rounded z-50"
         style={{ fontFamily: 'Poppins', fontWeight: 600 }}
       >
         Skip to main content
@@ -23,7 +23,7 @@ const HomePage = () => {
 
       {/* Hero Section - Main Tagline Only */}
       <div
-        className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white relative overflow-hidden"
+        className="bg-gradient-to-r bg-gradient-primary text-white relative overflow-hidden"
         role="banner"
         aria-label="Hero section introducing Optio teacher-partnership model"
       >
@@ -60,7 +60,7 @@ const HomePage = () => {
             <div className="flex flex-col gap-4 justify-center items-center max-w-sm mx-auto sm:max-w-none sm:flex-row">
               <Link
                 to="/consultation"
-                className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white hover:from-[#5d3a85] hover:to-[#d94d6a] text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center min-h-[52px] touch-manipulation"
+                className="bg-gradient-to-r bg-gradient-primary text-white hover:from-[#5d3a85] hover:to-[#d94d6a] text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center min-h-[52px] touch-manipulation"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
                 aria-describedby="consultation-description"
               >
@@ -73,7 +73,7 @@ const HomePage = () => {
 
               <Link
                 to="/demo"
-                className="bg-white border-2 border-[#6d469b] text-[#6d469b] hover:bg-[#6d469b] hover:text-white px-8 py-4 rounded-lg font-semibold inline-flex items-center transition-all w-full sm:w-auto justify-center shadow-md min-h-[52px] touch-manipulation"
+                className="bg-white border-2 border-optio-purple text-optio-purple hover:bg-optio-purple hover:text-white px-8 py-4 rounded-lg font-semibold inline-flex items-center transition-all w-full sm:w-auto justify-center shadow-md min-h-[52px] touch-manipulation"
                 style={{ fontFamily: 'Poppins', fontWeight: 600 }}
               >
                 <Play className="mr-2 w-5 h-5" aria-hidden="true" />
@@ -104,7 +104,7 @@ const HomePage = () => {
               <div>
                 <div className="flex items-start mb-3">
                   <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-                    <Users className="w-6 h-6 text-[#6d469b]" />
+                    <Users className="w-6 h-6 text-optio-purple" />
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Your Own Licensed Teacher</h3>
@@ -119,7 +119,7 @@ const HomePage = () => {
               <div>
                 <div className="flex items-start mb-3">
                   <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-                    <BookOpen className="w-6 h-6 text-[#6d469b]" />
+                    <BookOpen className="w-6 h-6 text-optio-purple" />
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Student-Driven Learning Platform</h3>
@@ -134,7 +134,7 @@ const HomePage = () => {
               <div>
                 <div className="flex items-start mb-3">
                   <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-                    <Heart className="w-6 h-6 text-[#6d469b]" />
+                    <Heart className="w-6 h-6 text-optio-purple" />
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Parent Peace of Mind</h3>
@@ -178,7 +178,7 @@ const HomePage = () => {
             {/* Step 1 */}
             <div className="text-center">
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-[#6d469b]" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>1</span>
+                <span className="text-2xl font-bold text-optio-purple" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>1</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Meet Your Teacher</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
@@ -189,7 +189,7 @@ const HomePage = () => {
             {/* Step 2 */}
             <div className="text-center">
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-[#6d469b]" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>2</span>
+                <span className="text-2xl font-bold text-optio-purple" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>2</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Create Your Plan</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
@@ -200,7 +200,7 @@ const HomePage = () => {
             {/* Step 3 */}
             <div className="text-center">
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-[#6d469b]" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>3</span>
+                <span className="text-2xl font-bold text-optio-purple" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>3</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Learn & Document</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
@@ -211,7 +211,7 @@ const HomePage = () => {
             {/* Step 4 */}
             <div className="text-center">
               <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-[#6d469b]" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>4</span>
+                <span className="text-2xl font-bold text-optio-purple" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>4</span>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Review & Celebrate</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
@@ -223,7 +223,7 @@ const HomePage = () => {
           <div className="text-center mt-12">
             <Link
               to="/consultation"
-              className="inline-flex items-center bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+              className="inline-flex items-center bg-gradient-to-r bg-gradient-primary text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
               <Users className="mr-2 w-5 h-5" />
@@ -234,7 +234,7 @@ const HomePage = () => {
       </div>
 
       {/* Consultation CTA Section - Replaces Old Signup Form */}
-      <div className="py-16 bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white">
+      <div className="py-16 bg-gradient-to-r bg-gradient-primary text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
@@ -273,7 +273,7 @@ const HomePage = () => {
           <div className="text-center">
             <Link
               to="/consultation"
-              className="inline-flex items-center bg-white text-[#6d469b] hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all"
+              className="inline-flex items-center bg-white text-optio-purple hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
               <Users className="mr-2 w-5 h-5" />
@@ -359,7 +359,7 @@ const HomePage = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Link
                 to="/consultation"
-                className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white hover:shadow-lg text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center transform hover:scale-105"
+                className="bg-gradient-to-r bg-gradient-primary text-white hover:shadow-lg text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center transform hover:scale-105"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 <Users className="mr-2 w-5 h-5" aria-hidden="true" />
@@ -367,7 +367,7 @@ const HomePage = () => {
               </Link>
               <Link
                 to="/demo"
-                className="bg-white border-2 border-[#6d469b] text-[#6d469b] hover:bg-[#6d469b] hover:text-white text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center"
+                className="bg-white border-2 border-optio-purple text-optio-purple hover:bg-optio-purple hover:text-white text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 <Play className="mr-2 w-5 h-5" aria-hidden="true" />
@@ -394,7 +394,7 @@ const HomePage = () => {
             </div>
 
             <div className="space-y-6">
-              <div className="p-4 bg-gradient-to-r from-[#ef597b]/5 to-[#6d469b]/5 rounded-lg">
+              <div className="p-4 bg-gradient-to-r from-optio-pink/5 to-optio-purple/5 rounded-lg">
                 <p className="text-lg font-semibold text-gray-800 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Core Belief</p>
                 <p className="text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
                   Learning is not about reaching a destination or impressing others. It's about who you become through the journey of discovery, creation, and growth. Every quest, every piece of evidence is valuable because of what it teaches you RIGHT NOW, not what it might prove later.
@@ -402,7 +402,7 @@ const HomePage = () => {
               </div>
 
               <div>
-                <h4 className="text-xl font-semibold mb-3 text-[#ef597b]" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Present-Focused Value</h4>
+                <h4 className="text-xl font-semibold mb-3 text-optio-pink" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Present-Focused Value</h4>
                 <p className="text-gray-700 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
                   We don't say "This will help you in the future." We say "This is helping you grow right now."
                 </p>
@@ -412,7 +412,7 @@ const HomePage = () => {
               </div>
 
               <div>
-                <h4 className="text-xl font-semibold mb-3 text-[#6d469b]" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Internal Motivation Over External Validation</h4>
+                <h4 className="text-xl font-semibold mb-3 text-optio-purple" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Internal Motivation Over External Validation</h4>
                 <p className="text-gray-700 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
                   The platform celebrates personal growth, curiosity, and creation for its own sake. We focus on how learning FEELS, not how it LOOKS.
                 </p>
@@ -424,14 +424,14 @@ const HomePage = () => {
               </div>
 
               <div>
-                <h4 className="text-xl font-semibold mb-3 text-[#ef597b]" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Process Celebration</h4>
+                <h4 className="text-xl font-semibold mb-3 text-optio-pink" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Process Celebration</h4>
                 <p className="text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
                   Every step is valuable. We celebrate attempts, effort, and learning from mistakes as much as completion. Mistakes are expected and celebrated. Your consistency is beautiful. You're in a learning flow state.
                 </p>
               </div>
 
               <div>
-                <h4 className="text-xl font-semibold mb-3 text-[#6d469b]" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>What This Means For You</h4>
+                <h4 className="text-xl font-semibold mb-3 text-optio-purple" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>What This Means For You</h4>
                 <ul className="space-y-3 text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
                   <li className="flex items-start">
                     <span className="text-green-500 mr-2">✓</span>
@@ -466,7 +466,7 @@ const HomePage = () => {
             <div className="mt-6 flex justify-center">
               <Link
                 to="/demo"
-                className="bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all"
+                className="bg-gradient-to-r bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all"
                 style={{ fontFamily: 'Poppins', fontWeight: 600 }}
               >
                 Experience It Yourself

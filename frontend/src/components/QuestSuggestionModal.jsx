@@ -65,7 +65,7 @@ const QuestSuggestionModal = ({ onClose, onSuccess }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
         <div className="flex justify-between items-center mb-4">
-          <h3 className="text-xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+          <h3 className="text-xl font-bold bg-gradient-to-r bg-gradient-primary-reverse bg-clip-text text-transparent">
             Suggest a Quest
           </h3>
           <button
@@ -126,7 +126,7 @@ const QuestSuggestionModal = ({ onClose, onSuccess }) => {
             </button>
             <button
               type="submit"
-              className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
+              className="px-4 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 disabled:opacity-50 flex items-center gap-2"
               disabled={isSubmitting}
             >
               {isSubmitting && (

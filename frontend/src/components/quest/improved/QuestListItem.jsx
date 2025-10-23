@@ -80,7 +80,7 @@ const QuestListItem = ({ quest, onEnroll, onTeamUp }) => {
           <div className="flex items-start justify-between gap-4">
             {/* Title and Description */}
             <div className="flex-1 min-w-0">
-              <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-[#6d469b] transition-colors">
+              <h3 className="text-lg font-bold text-gray-900 mb-1 group-hover:text-optio-purple transition-colors">
                 {quest.title}
               </h3>
               <p className="text-gray-600 text-sm leading-relaxed line-clamp-2 mb-2">

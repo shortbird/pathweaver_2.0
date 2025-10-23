@@ -151,7 +151,7 @@ const BatchBadgeGenerator = ({ apiUsage, fetchApiUsage }) => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-lg p-6 text-white">
+      <div className="bg-gradient-to-r bg-gradient-primary-reverse rounded-lg p-6 text-white">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold mb-2">Batch Badge Generator</h2>
@@ -236,7 +236,7 @@ const BatchBadgeGenerator = ({ apiUsage, fetchApiUsage }) => {
         <button
           onClick={handleGenerate}
           disabled={generationInProgress}
-          className="w-full mt-6 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-3 px-6 rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+          className="w-full mt-6 bg-gradient-to-r bg-gradient-primary-reverse text-white py-3 px-6 rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
         >
           {generationInProgress ? (
             <>

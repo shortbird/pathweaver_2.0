@@ -134,7 +134,7 @@ const SourcesManager = ({ onClose }) => {
             {!showNewSourceForm && (
               <button
                 onClick={() => setShowNewSourceForm(true)}
-                className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90 flex items-center gap-2"
+                className="px-4 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 flex items-center gap-2"
               >
                 <Plus size={20} />
                 Add New Source
@@ -225,7 +225,7 @@ const SourcesManager = ({ onClose }) => {
                         className={`px-4 py-2 rounded-lg cursor-pointer transition-colors flex items-center gap-2 ${
                           uploadingSource === source.id
                             ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:opacity-90'
+                            : 'bg-gradient-to-r bg-gradient-primary-reverse text-white hover:opacity-90'
                         }`}
                       >
                         <Upload size={18} />
@@ -301,7 +301,7 @@ const SourcesManager = ({ onClose }) => {
                             className={`px-4 py-2 rounded-lg cursor-pointer transition-colors flex items-center gap-2 ${
                               uploadingSource === source.id
                                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white hover:opacity-90'
+                                : 'bg-gradient-to-r bg-gradient-primary-reverse text-white hover:opacity-90'
                             }`}
                           >
                             <Upload size={18} />

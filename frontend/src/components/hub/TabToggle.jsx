@@ -13,7 +13,7 @@ export default function TabToggle({ activeTab, onTabChange }) {
         className={`
           px-8 py-3 rounded-full font-semibold text-lg transition-all duration-300 transform
           ${activeTab === 'badges'
-            ? 'bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white shadow-lg scale-105'
+            ? 'bg-gradient-to-r bg-gradient-primary text-white shadow-lg scale-105'
             : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
           }
         `}
@@ -26,7 +26,7 @@ export default function TabToggle({ activeTab, onTabChange }) {
         className={`
           px-8 py-3 rounded-full font-semibold text-lg transition-all duration-300 transform
           ${activeTab === 'quests'
-            ? 'bg-gradient-to-r from-[#6d469b] to-[#ef597b] text-white shadow-lg scale-105'
+            ? 'bg-gradient-to-r bg-gradient-primary text-white shadow-lg scale-105'
             : 'bg-white text-gray-600 hover:bg-gray-50 border border-gray-200'
           }
         `}

@@ -42,7 +42,7 @@ export default function BadgeRecommendations({ userId }) {
     return (
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-8 h-8 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-gradient-to-r bg-gradient-primary-reverse rounded-lg flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <h2 className="text-xl font-bold text-gray-900">Recommended Learning Paths</h2>
@@ -58,7 +58,7 @@ export default function BadgeRecommendations({ userId }) {
     return (
       <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-8 h-8 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-gradient-to-r bg-gradient-primary-reverse rounded-lg flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <h2 className="text-xl font-bold text-gray-900">Recommended Learning Paths</h2>
@@ -82,7 +82,7 @@ export default function BadgeRecommendations({ userId }) {
     <div className="bg-white rounded-xl shadow-lg border border-gray-200 p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-lg flex items-center justify-center">
+          <div className="w-8 h-8 bg-gradient-to-r bg-gradient-primary-reverse rounded-lg flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <h2 className="text-xl font-bold text-gray-900">Recommended Learning Paths</h2>
@@ -152,7 +152,7 @@ function BadgeRecommendationCard({ badge, onClick }) {
           <h3 className="font-semibold text-gray-900 group-hover:text-purple-600 transition-colors truncate">
             {badge.name}
           </h3>
-          <span className="flex-shrink-0 inline-flex items-center gap-1 text-xs bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white px-2 py-1 rounded-full">
+          <span className="flex-shrink-0 inline-flex items-center gap-1 text-xs bg-gradient-to-r bg-gradient-primary-reverse text-white px-2 py-1 rounded-full">
             {matchIcon}
             {matchLevel}
           </span>

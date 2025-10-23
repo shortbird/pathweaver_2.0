@@ -291,7 +291,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
         <button
           type="button"
           onClick={() => setShowTemplates(!showTemplates)}
-          className="text-sm text-[#6d469b] hover:text-[#ef597b] font-medium transition-colors"
+          className="text-sm text-optio-purple hover:text-optio-pink font-medium transition-colors"
         >
           {showTemplates ? 'Hide Templates' : 'Use Template'}
         </button>
@@ -347,7 +347,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
         <button
           type="button"
           onClick={() => setShowTemplates(!showTemplates)}
-          className="text-sm text-[#6d469b] hover:text-[#ef597b] font-medium transition-colors"
+          className="text-sm text-optio-purple hover:text-optio-pink font-medium transition-colors"
         >
           {showTemplates ? 'Hide Examples' : 'See Examples'}
         </button>
@@ -404,7 +404,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
             href={linkUrl} 
             target="_blank" 
             rel="noopener noreferrer"
-            className="text-sm text-[#6d469b] hover:text-[#ef597b] font-medium break-all"
+            className="text-sm text-optio-purple hover:text-optio-pink font-medium break-all"
           >
             {linkTitle || linkUrl}
           </a>
@@ -427,7 +427,7 @@ const ImprovedEvidenceUploader = ({ evidenceType, onChange, error, taskDescripti
             <button
               type="button"
               onClick={() => setShowTemplates(!showTemplates)}
-              className="text-sm text-[#6d469b] hover:text-[#ef597b] font-medium transition-colors"
+              className="text-sm text-optio-purple hover:text-optio-pink font-medium transition-colors"
             >
               {showTemplates ? 'Hide Tips' : 'Show Tips'}
             </button>

@@ -11,7 +11,7 @@ const ConnectionRequest = ({ request, type = 'incoming', onAccept, onDecline, on
       className={`rounded-[16px] p-5 transition-all duration-300 ${
         isIncoming
           ? 'bg-gradient-to-r from-[#F3EFF4] to-[#E7D5F2] border-l-4'
-          : 'bg-[#F3EFF4]'
+          : 'bg-neutral-50'
       }`}
       style={isIncoming ? { borderLeftColor: '#6D469B' } : {}}
     >
@@ -32,7 +32,7 @@ const ConnectionRequest = ({ request, type = 'incoming', onAccept, onDecline, on
           {/* Content */}
           <div className="flex-1 min-w-0">
             <h4
-              className="font-semibold text-[#3B383C] mb-1"
+              className="font-semibold text-neutral-700 mb-1"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
               {person?.first_name} {person?.last_name}
@@ -40,7 +40,7 @@ const ConnectionRequest = ({ request, type = 'incoming', onAccept, onDecline, on
 
             {isIncoming ? (
               <p
-                className="text-sm text-[#605C61] mb-2"
+                className="text-sm text-neutral-500 mb-2"
                 style={{ fontFamily: 'Poppins', fontWeight: 500 }}
               >
                 wants to connect
@@ -56,7 +56,7 @@ const ConnectionRequest = ({ request, type = 'incoming', onAccept, onDecline, on
               </div>
             )}
 
-            <div className="flex items-center gap-1 text-xs text-[#908B92]">
+            <div className="flex items-center gap-1 text-xs text-neutral-400">
               <ClockIcon className="w-3 h-3" />
               <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
                 {isIncoming ? request.timeAgo : `Sent ${request.timeAgo}`}
@@ -71,7 +71,7 @@ const ConnectionRequest = ({ request, type = 'incoming', onAccept, onDecline, on
             <>
               <button
                 onClick={() => onAccept(request.friendship_id)}
-                className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white px-4 py-2 rounded-full text-sm font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)] hover:shadow-[0_4px_15px_rgba(109,70,155,0.25)] transition-all duration-300"
+                className="bg-gradient-to-r bg-gradient-primary text-white px-4 py-2 rounded-full text-sm font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)] hover:shadow-[0_4px_15px_rgba(109,70,155,0.25)] transition-all duration-300"
                 style={{ fontFamily: 'Poppins', fontWeight: 600 }}
               >
                 Accept Connection

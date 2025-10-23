@@ -193,7 +193,7 @@ const AIPromptOptimizer = () => {
                     loadSuggestions(insights.worst_prompt.version_number);
                     setActiveTab('suggestions');
                   }}
-                  className="mt-4 px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded hover:opacity-90"
+                  className="mt-4 px-4 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded hover:opacity-90"
                 >
                   View Suggestions
                 </button>
@@ -237,7 +237,7 @@ const AIPromptOptimizer = () => {
           <button
             onClick={loadPromptAnalysis}
             disabled={loading}
-            className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded hover:opacity-90 disabled:opacity-50"
+            className="px-4 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded hover:opacity-90 disabled:opacity-50"
           >
             {loading ? 'Loading...' : 'Refresh Analysis'}
           </button>
@@ -363,7 +363,7 @@ const AIPromptOptimizer = () => {
                     <div className="text-sm capitalize">{issue.replace(/_/g, ' ')}</div>
                     <div className="w-full bg-gray-200 rounded-full h-2">
                       <div
-                        className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] h-2 rounded-full"
+                        className="bg-gradient-to-r bg-gradient-primary-reverse h-2 rounded-full"
                         style={{ width: `${percentage * 100}%` }}
                       />
                     </div>
@@ -397,7 +397,7 @@ const AIPromptOptimizer = () => {
               suggestions.suggestions.map(s => s.description)
             )}
             disabled={loading}
-            className="px-6 py-3 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded hover:opacity-90 disabled:opacity-50"
+            className="px-6 py-3 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded hover:opacity-90 disabled:opacity-50"
           >
             {loading ? 'Creating...' : 'Create Optimized Version'}
           </button>

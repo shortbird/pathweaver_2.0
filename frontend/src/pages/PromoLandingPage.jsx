@@ -95,7 +95,7 @@ const PromoLandingPage = () => {
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
-      <div className="bg-gradient-to-br from-[#ef597b] to-[#6d469b] text-white relative overflow-hidden">
+      <div className="bg-gradient-to-br bg-gradient-primary-reverse text-white relative overflow-hidden">
         <div className="absolute inset-0 opacity-10">
           <div className="absolute top-20 left-10 w-32 h-32 border-2 border-white/20 rounded-full"></div>
           <div className="absolute bottom-20 right-10 w-24 h-24 border-2 border-white/20 rounded-full"></div>
@@ -134,7 +134,7 @@ const PromoLandingPage = () => {
 
             <button 
               onClick={ScrollToForm}
-              className="bg-white text-[#ef597b] hover:bg-gray-100 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center"
+              className="bg-white text-optio-pink hover:bg-gray-100 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center"
             >
               Get Your First Month Free
               <ArrowRight className="ml-2 w-5 h-5" />
@@ -173,7 +173,7 @@ const PromoLandingPage = () => {
                     value={formData.parentName}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ef597b] focus:border-[#ef597b] transition-colors"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ef597b] focus:border-optio-pink transition-colors"
                     placeholder="Your full name"
                   />
                 </div>
@@ -189,7 +189,7 @@ const PromoLandingPage = () => {
                     value={formData.email}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ef597b] focus:border-[#ef597b] transition-colors"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ef597b] focus:border-optio-pink transition-colors"
                     placeholder="your.email@example.com"
                   />
                 </div>
@@ -204,7 +204,7 @@ const PromoLandingPage = () => {
                     value={formData.teenAge}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ef597b] focus:border-[#ef597b] transition-colors"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ef597b] focus:border-optio-pink transition-colors"
                   >
                     <option value="">Select age</option>
                     <option value="13">13</option>
@@ -226,7 +226,7 @@ const PromoLandingPage = () => {
                     name="activity"
                     value={formData.activity}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ef597b] focus:border-[#ef597b] transition-colors"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#ef597b] focus:border-optio-pink transition-colors"
                     placeholder="e.g., Music, Sports, Art, Technology..."
                   />
                 </div>
@@ -234,7 +234,7 @@ const PromoLandingPage = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white py-4 px-6 rounded-lg font-bold text-lg hover:shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  className="w-full bg-gradient-to-r bg-gradient-primary-reverse text-white py-4 px-6 rounded-lg font-bold text-lg hover:shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   {isSubmitting ? (
                     <div className="flex items-center justify-center">
@@ -297,8 +297,8 @@ const PromoLandingPage = () => {
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            <div className="text-center p-6 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 rounded-xl">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="text-center p-6 bg-gradient-to-br from-optio-pink/5 to-optio-purple/5 rounded-xl">
+              <div className="w-16 h-16 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
                 <Award className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Accredited Diploma</h3>
@@ -307,8 +307,8 @@ const PromoLandingPage = () => {
               </p>
             </div>
 
-            <div className="text-center p-6 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 rounded-xl">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="text-center p-6 bg-gradient-to-br from-optio-pink/5 to-optio-purple/5 rounded-xl">
+              <div className="w-16 h-16 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
                 <BookOpen className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Portfolio Building</h3>
@@ -317,8 +317,8 @@ const PromoLandingPage = () => {
               </p>
             </div>
 
-            <div className="text-center p-6 bg-gradient-to-br from-[#ef597b]/5 to-[#6d469b]/5 rounded-xl">
-              <div className="w-16 h-16 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mx-auto mb-4">
+            <div className="text-center p-6 bg-gradient-to-br from-optio-pink/5 to-optio-purple/5 rounded-xl">
+              <div className="w-16 h-16 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Personalized Path</h3>
@@ -344,7 +344,7 @@ const PromoLandingPage = () => {
 
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center">
-              <div className="w-12 h-12 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-white font-bold text-lg">1</span>
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Sign Up for Free Trial</h3>
@@ -354,7 +354,7 @@ const PromoLandingPage = () => {
             </div>
 
             <div className="text-center">
-              <div className="w-12 h-12 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-white font-bold text-lg">2</span>
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Document Activities</h3>
@@ -364,7 +364,7 @@ const PromoLandingPage = () => {
             </div>
 
             <div className="text-center">
-              <div className="w-12 h-12 bg-gradient-to-r from-[#ef597b] to-[#6d469b] rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-white font-bold text-lg">3</span>
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Earn Your Diploma</h3>
@@ -426,7 +426,7 @@ const PromoLandingPage = () => {
       </div>
 
       {/* Final CTA */}
-      <div className="py-16 bg-gradient-to-br from-[#ef597b] to-[#6d469b] text-white">
+      <div className="py-16 bg-gradient-to-br bg-gradient-primary-reverse text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-3xl sm:text-4xl font-bold mb-4">
             Ready to Transform Your Teen's Education?
@@ -440,7 +440,7 @@ const PromoLandingPage = () => {
           
           <button 
             onClick={ScrollToForm}
-            className="bg-white text-[#ef597b] hover:bg-gray-100 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center"
+            className="bg-white text-optio-pink hover:bg-gray-100 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center"
           >
             Start Your Free Month Now
             <ChevronRight className="ml-2 w-5 h-5" />

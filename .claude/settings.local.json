@@ -349,7 +349,8 @@
       "Bash(git stash:*)",
       "Bash(mcp__render__list_logs:*)",
       "Bash(mcp__render__list_services:*)",
-      "Bash(mv config lms_config)"
+      "Bash(mv config lms_config)",
+      "Bash(bash scripts/migrate_colors.sh:*)"
     ],
     "deny": [],
     "ask": []

@@ -70,7 +70,7 @@ const ConsultationPage = () => {
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
         <Link
           to="/"
-          className="inline-flex items-center text-[#6D469B] hover:text-[#EF597B] font-semibold transition-colors"
+          className="inline-flex items-center text-optio-purple hover:text-optio-pink font-semibold transition-colors"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Home
@@ -134,7 +134,7 @@ const ConsultationPage = () => {
                     value={formData.parentName}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-[#6D469B] transition-colors"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-optio-purple transition-colors"
                     placeholder="Your full name"
                   />
                 </div>
@@ -150,7 +150,7 @@ const ConsultationPage = () => {
                     value={formData.email}
                     onChange={handleInputChange}
                     required
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-[#6D469B] transition-colors"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-optio-purple transition-colors"
                     placeholder="your.email@example.com"
                   />
                 </div>
@@ -165,7 +165,7 @@ const ConsultationPage = () => {
                     name="phone"
                     value={formData.phone}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-[#6D469B] transition-colors"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-optio-purple transition-colors"
                     placeholder="(555) 123-4567"
                   />
                 </div>
@@ -180,7 +180,7 @@ const ConsultationPage = () => {
                     value={formData.notes}
                     onChange={handleInputChange}
                     rows="4"
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-[#6D469B] transition-colors resize-none"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#6D469B] focus:border-optio-purple transition-colors resize-none"
                     placeholder="What are you hoping to learn more about? What ideas do you have? What interests does your child have?"
                   ></textarea>
                 </div>
@@ -188,7 +188,7 @@ const ConsultationPage = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white py-4 px-6 rounded-lg font-bold text-lg hover:shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  className="w-full bg-gradient-to-r bg-gradient-primary text-white py-4 px-6 rounded-lg font-bold text-lg hover:shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   {isSubmitting ? (
                     <div className="flex items-center justify-center">
@@ -227,13 +227,13 @@ const ConsultationPage = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Link
                 to="/"
-                className="inline-flex items-center justify-center bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all"
+                className="inline-flex items-center justify-center bg-gradient-to-r bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all"
               >
                 Return to Home
               </Link>
               <Link
                 to="/demo"
-                className="inline-flex items-center justify-center bg-white border-2 border-[#6D469B] text-[#6D469B] px-6 py-3 rounded-lg font-semibold hover:bg-[#6D469B] hover:text-white transition-all"
+                className="inline-flex items-center justify-center bg-white border-2 border-optio-purple text-optio-purple px-6 py-3 rounded-lg font-semibold hover:bg-optio-purple hover:text-white transition-all"
               >
                 Explore Demo
               </Link>

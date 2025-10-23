@@ -12,31 +12,48 @@ export default {
         'inter': ['Inter', 'sans-serif'],
       },
       colors: {
-        // Existing brand colors (keep for backward compatibility)
-        primary: '#6d469b',
-        'primary-dark': '#5a3a82',
-        'primary-light': '#8058ac',
-        coral: '#ef597b',
-        'coral-dark': '#e73862',
-        'text-primary': '#003f5c',
-        'text-secondary': '#4a5568',
-        'text-muted': '#718096',
-        secondary: '#FFCA3A',
-        background: '#F8F9FA',
-        text: '#212529',
-        border: '#DEE2E6',
-
-        // Design System: Brand colors
+        // Design System: Brand colors (PRIMARY)
         'optio-purple': '#6D469B',
+        'optio-purple-dark': '#5A3A82',
+        'optio-purple-light': '#8058AC',
         'optio-pink': '#EF597B',
+        'optio-pink-dark': '#E73862',
+
+        // Legacy aliases (backward compatibility - point to new design system)
+        primary: '#6D469B',           // → optio-purple
+        'primary-dark': '#5A3A82',    // → optio-purple-dark
+        'primary-light': '#8058AC',   // → optio-purple-light
+        coral: '#EF597B',             // → optio-pink
+        'coral-dark': '#E73862',      // → optio-pink-dark
 
         // Design System: Pillar colors
+        'pillar-stem': '#2469D1',
+        'pillar-stem-light': '#DDF1FC',
+        'pillar-stem-dark': '#1B4FA3',
+
+        'pillar-art': '#AF56E5',
+        'pillar-art-light': '#F2E7F9',
+        'pillar-art-dark': '#9945D1',
+
+        'pillar-communication': '#3DA24A',
+        'pillar-communication-light': '#E3F6E5',
+        'pillar-communication-dark': '#2E8A3A',
+
+        'pillar-wellness': '#FF9028',
+        'pillar-wellness-light': '#FFF0E1',
+        'pillar-wellness-dark': '#E67A1A',
+
+        'pillar-civics': '#E65C5C',
+        'pillar-civics-light': '#FBE5E5',
+        'pillar-civics-dark': '#D43F3F',
+
+        // Legacy nested pillar object (backward compatibility)
         'pillar': {
           'stem': '#2469D1',
           'art': '#AF56E5',
           'communication': '#3DA24A',
-          'wellness': '#E65C5C',
-          'civics': '#FF9028',
+          'wellness': '#FF9028',
+          'civics': '#E65C5C',
         },
 
         // Design System: Neutral palette
@@ -49,9 +66,29 @@ export default {
           700: '#3B383C',
           900: '#1B191B',
         },
+
+        // Design System: Text colors
+        'text-primary': '#003f5c',
+        'text-secondary': '#4a5568',
+        'text-muted': '#718096',
+
+        // Legacy colors (keep for backward compatibility)
+        secondary: '#FFCA3A',
+        background: '#F8F9FA',
+        text: '#212529',
+        border: '#DEE2E6',
       },
       backgroundImage: {
-        'gradient-primary': 'linear-gradient(135deg, #6d469b 0%, #ef597b 100%)',
+        // Brand gradients
+        'gradient-primary': 'linear-gradient(135deg, #6D469B 0%, #EF597B 100%)',
+        'gradient-primary-reverse': 'linear-gradient(135deg, #EF597B 0%, #6D469B 100%)',
+
+        // Pillar gradients
+        'gradient-pillar-stem': 'linear-gradient(135deg, #2469D1 0%, #1B4FA3 100%)',
+        'gradient-pillar-art': 'linear-gradient(135deg, #AF56E5 0%, #9945D1 100%)',
+        'gradient-pillar-communication': 'linear-gradient(135deg, #3DA24A 0%, #2E8A3A 100%)',
+        'gradient-pillar-wellness': 'linear-gradient(135deg, #FF9028 0%, #E67A1A 100%)',
+        'gradient-pillar-civics': 'linear-gradient(135deg, #E65C5C 0%, #D43F3F 100%)',
       },
       screens: {
         'xs': '475px',
@@ -91,6 +128,7 @@ export default {
   plugins: [
     function({ addUtilities }) {
       addUtilities({
+        // Touch and mobile utilities
         '.touch-manipulation': {
           'touch-action': 'manipulation',
         },
@@ -103,6 +141,8 @@ export default {
             'overflow': 'hidden',
           },
         },
+
+        // Line clamp utilities
         '.line-clamp-1': {
           'display': '-webkit-box',
           '-webkit-line-clamp': '1',
@@ -126,6 +166,26 @@ export default {
           '-webkit-line-clamp': '4',
           '-webkit-box-orient': 'vertical',
           'overflow': 'hidden',
+        },
+
+        // Brand gradient backgrounds with borders (centralized patterns)
+        '.bg-gradient-subtle': {
+          'background': 'linear-gradient(135deg, rgba(239,89,123,0.03) 0%, rgba(109,70,155,0.03) 100%)',
+          'border': '1px solid rgba(109,70,155,0.08)',
+        },
+        '.bg-gradient-subtle-strong': {
+          'background': 'linear-gradient(135deg, rgba(239,89,123,0.05) 0%, rgba(109,70,155,0.05) 100%)',
+          'border': '1px solid rgba(109,70,155,0.1)',
+        },
+
+        // Border utilities
+        '.border-optio-subtle': {
+          'border': '1px solid rgba(109,70,155,0.15)',
+        },
+
+        // Shadow utilities
+        '.shadow-optio': {
+          'box-shadow': '0 2px 8px rgba(109,70,155,0.25)',
         },
       });
     },

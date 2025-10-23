@@ -83,7 +83,7 @@ export default function BadgeDetail() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gradient-to-r from-[#ef597b] to-[#6d469b] mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gradient-to-r bg-gradient-primary-reverse mx-auto"></div>
           <p className="mt-4 text-gray-600">Loading badge...</p>
         </div>
       </div>
@@ -97,7 +97,7 @@ export default function BadgeDetail() {
           <p className="text-gray-600 mb-4">Badge not found</p>
           <button
             onClick={() => navigate('/badges')}
-            className="px-6 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90"
+            className="px-6 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90"
           >
             Back to Badges
           </button>
@@ -236,7 +236,7 @@ export default function BadgeDetail() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               <div className="text-center md:text-left">
-                <div className="text-4xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+                <div className="text-4xl font-bold bg-gradient-to-r bg-gradient-primary-reverse bg-clip-text text-transparent">
                   {userProgress.percentage || 0}%
                 </div>
                 <div className="text-gray-600 mt-1">Overall Progress</div>

@@ -10,7 +10,7 @@ const StripeProvider = ({ children }) => {
     appearance: {
       theme: 'stripe',
       variables: {
-        colorPrimary: '#ef597b',
+        colorPrimary: '#EF597B',
         colorBackground: '#ffffff',
         colorText: '#1f2937',
         colorDanger: '#ef4444',

@@ -51,7 +51,7 @@ const AIPromptVersionManager = () => {
         <h2 className="text-2xl font-bold">AI Prompt Version Manager</h2>
         <button
           onClick={() => setShowCreateModal(true)}
-          className="px-4 py-2 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg hover:opacity-90"
+          className="px-4 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90"
         >
           Create New Version
         </button>
@@ -120,7 +120,7 @@ const AIPromptVersionManager = () => {
                   <td className="px-4 py-3 text-sm">
                     <button
                       onClick={() => setEditingPrompt(prompt)}
-                      className="text-[#ef597b] hover:text-[#6d469b] font-medium"
+                      className="text-optio-pink hover:text-optio-purple font-medium"
                     >
                       View/Edit
                     </button>

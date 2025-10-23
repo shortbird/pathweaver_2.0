@@ -63,7 +63,7 @@ const TranscriptView = ({ userId }) => {
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8">
       {/* Header */}
       <div className="text-center mb-8 pb-6 border-b-2 border-gray-200 dark:border-gray-700">
-        <div className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-transparent bg-clip-text">
+        <div className="bg-gradient-to-r bg-gradient-primary-reverse text-transparent bg-clip-text">
           <h1 className="text-4xl font-bold mb-2">Academic Transcript</h1>
         </div>
         <div className="text-xl font-semibold text-gray-900 dark:text-white mt-4">
@@ -82,7 +82,7 @@ const TranscriptView = ({ userId }) => {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-white rounded-lg p-4 text-center"
+          className="bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg p-4 text-center"
         >
           <div className="text-3xl font-bold">{total_xp || 0}</div>
           <div className="text-sm">Total XP</div>

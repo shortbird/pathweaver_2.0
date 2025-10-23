@@ -28,7 +28,7 @@ const QuestFilters = ({
             placeholder="Search quests by title or description..."
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:border-[#6d469b] focus:ring-2 focus:ring-[#6d469b]/20 transition-all"
+            className="w-full pl-12 pr-4 py-3 rounded-xl border border-gray-200 focus:border-optio-purple focus:ring-2 focus:ring-[#6d469b]/20 transition-all"
           />
           <svg
             className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
@@ -45,7 +45,7 @@ const QuestFilters = ({
           <select
             value={sortBy || 'newest'}
             onChange={(e) => onSortChange && onSortChange(e.target.value)}
-            className="appearance-none bg-white border border-gray-200 rounded-xl px-4 py-3 pr-10 focus:border-[#6d469b] focus:ring-2 focus:ring-[#6d469b]/20 transition-all font-medium text-gray-700"
+            className="appearance-none bg-white border border-gray-200 rounded-xl px-4 py-3 pr-10 focus:border-optio-purple focus:ring-2 focus:ring-[#6d469b]/20 transition-all font-medium text-gray-700"
           >
             {sortOptions.map(option => (
               <option key={option.value} value={option.value}>
@@ -70,7 +70,7 @@ const QuestFilters = ({
               onClick={() => onViewModeChange('grid')}
               className={`px-3 py-3 transition-all ${
                 viewMode === 'grid'
-                  ? 'bg-[#6d469b] text-white'
+                  ? 'bg-optio-purple text-white'
                   : 'bg-white text-gray-600 hover:bg-gray-50'
               }`}
               title="Grid View"
@@ -83,7 +83,7 @@ const QuestFilters = ({
               onClick={() => onViewModeChange('list')}
               className={`px-3 py-3 transition-all ${
                 viewMode === 'list'
-                  ? 'bg-[#6d469b] text-white'
+                  ? 'bg-optio-purple text-white'
                   : 'bg-white text-gray-600 hover:bg-gray-50'
               }`}
               title="List View"

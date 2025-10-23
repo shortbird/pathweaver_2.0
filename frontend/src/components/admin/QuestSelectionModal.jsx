@@ -75,7 +75,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="border-b px-6 py-4 flex justify-between items-center bg-gradient-to-r from-[#ef597b] to-[#6d469b]">
+        <div className="border-b px-6 py-4 flex justify-between items-center bg-gradient-to-r bg-gradient-primary-reverse">
           <div className="text-white">
             <h2 className="text-2xl font-bold">Select Quest for {student.first_name} {student.last_name}</h2>
             <p className="text-sm opacity-90">Choose which quest to add tasks to</p>

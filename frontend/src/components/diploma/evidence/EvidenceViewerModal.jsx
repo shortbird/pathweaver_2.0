@@ -58,7 +58,7 @@ const EvidenceViewerModal = ({ isOpen, onClose, blockType, content }) => {
       <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full h-[90vh] flex flex-col relative">
         {/* Header */}
         <div className="p-4 sm:p-6 border-b border-gray-200 flex justify-between items-center">
-          <h3 className="text-xl font-bold text-[#003f5c] line-clamp-1">
+          <h3 className="text-xl font-bold text-text-primary line-clamp-1">
             {content.title || content.filename || `Evidence: ${blockType}`}
           </h3>
           <button

@@ -72,7 +72,7 @@ const ValidationComparison = () => {
     <div className="space-y-6">
       {/* Header */}
       <div className="text-center space-y-2">
-        <h2 className="text-3xl font-bold text-[#003f5c]">
+        <h2 className="text-3xl font-bold text-text-primary">
           Teacher Validation vs Student Validation
         </h2>
         <p className="text-gray-600">
@@ -80,7 +80,7 @@ const ValidationComparison = () => {
         </p>
         <button
           onClick={() => setShowPhilosophyModal(true)}
-          className="inline-flex items-center gap-1 text-sm text-[#6d469b] hover:underline"
+          className="inline-flex items-center gap-1 text-sm text-optio-purple hover:underline"
         >
           <Info className="w-4 h-4" />
           Learn about our philosophy
@@ -106,7 +106,7 @@ const ValidationComparison = () => {
                       <School className="w-5 h-5 text-red-500" />
                       <span className="text-xs font-semibold text-red-500 uppercase">Teacher Validation</span>
                     </div>
-                    <h3 className="font-bold text-xl text-[#003f5c]">{comp.traditional.title}</h3>
+                    <h3 className="font-bold text-xl text-text-primary">{comp.traditional.title}</h3>
                   </div>
                   <div className="text-3xl font-bold text-gray-400">{comp.traditional.grade}</div>
                 </div>
@@ -157,9 +157,9 @@ const ValidationComparison = () => {
                       <Users className="w-5 h-5 text-green-500" />
                       <span className="text-xs font-semibold text-green-500 uppercase">Student Validation</span>
                     </div>
-                    <h3 className="font-bold text-xl text-[#003f5c]">{comp.optio.title}</h3>
+                    <h3 className="font-bold text-xl text-text-primary">{comp.optio.title}</h3>
                   </div>
-                  <div className="text-2xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+                  <div className="text-2xl font-bold bg-gradient-to-r bg-gradient-primary-reverse bg-clip-text text-transparent">
                     {comp.optio.xp}
                   </div>
                 </div>
@@ -200,14 +200,14 @@ const ValidationComparison = () => {
 
       {/* Key Insights */}
       <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-8">
-        <h3 className="font-bold text-xl text-[#003f5c] mb-4">Why Student Validation Works</h3>
+        <h3 className="font-bold text-xl text-text-primary mb-4">Why Student Validation Works</h3>
         
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <Eye className="w-8 h-8 text-[#6d469b]" />
+              <Eye className="w-8 h-8 text-optio-purple" />
             </div>
-            <h4 className="font-semibold text-[#003f5c] mb-2">Public = Quality</h4>
+            <h4 className="font-semibold text-text-primary mb-2">Public = Quality</h4>
             <p className="text-sm text-gray-600">
               When work is visible, students naturally produce higher quality
             </p>
@@ -215,9 +215,9 @@ const ValidationComparison = () => {
           
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <Award className="w-8 h-8 text-[#ef597b]" />
+              <Award className="w-8 h-8 text-optio-pink" />
             </div>
-            <h4 className="font-semibold text-[#003f5c] mb-2">Real Evidence</h4>
+            <h4 className="font-semibold text-text-primary mb-2">Real Evidence</h4>
             <p className="text-sm text-gray-600">
               Actual work products instead of abstract grades
             </p>
@@ -225,9 +225,9 @@ const ValidationComparison = () => {
           
           <div className="text-center">
             <div className="w-16 h-16 mx-auto mb-3 bg-white rounded-full flex items-center justify-center shadow-lg">
-              <Users className="w-8 h-8 text-[#6d469b]" />
+              <Users className="w-8 h-8 text-optio-purple" />
             </div>
-            <h4 className="font-semibold text-[#003f5c] mb-2">Self-Accountability</h4>
+            <h4 className="font-semibold text-text-primary mb-2">Self-Accountability</h4>
             <p className="text-sm text-gray-600">
               Students own their reputation through their work
             </p>
@@ -243,7 +243,7 @@ const ValidationComparison = () => {
         <div className="flex items-center justify-center gap-4">
           <span className="text-3xl font-bold text-gray-400">B+</span>
           <span className="text-gray-500">or</span>
-          <span className="text-2xl font-bold bg-gradient-to-r from-[#ef597b] to-[#6d469b] bg-clip-text text-transparent">
+          <span className="text-2xl font-bold bg-gradient-to-r bg-gradient-primary-reverse bg-clip-text text-transparent">
             A Published Cookbook
           </span>
         </div>
@@ -261,15 +261,15 @@ const ValidationComparison = () => {
           </p>
           
           <div className="space-y-3">
-            <div className="p-4 bg-[#ef597b]/10 rounded-lg">
-              <h4 className="font-semibold text-[#003f5c] mb-2">Traditional Education</h4>
+            <div className="p-4 bg-optio-pink/10 rounded-lg">
+              <h4 className="font-semibold text-text-primary mb-2">Traditional Education</h4>
               <p className="text-sm text-gray-700">
                 Focus on grades → Students optimize for scores → Learning becomes secondary
               </p>
             </div>
             
-            <div className="p-4 bg-[#6d469b]/10 rounded-lg">
-              <h4 className="font-semibold text-[#003f5c] mb-2">Optio Education</h4>
+            <div className="p-4 bg-optio-purple/10 rounded-lg">
+              <h4 className="font-semibold text-text-primary mb-2">Optio Education</h4>
               <p className="text-sm text-gray-700">
                 Focus on creation → Students build real things → Learning happens naturally
               </p>

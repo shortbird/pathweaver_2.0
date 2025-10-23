@@ -10,7 +10,7 @@ const CreditTrackerPage = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-[#ef597b] to-[#6d469b] text-transparent bg-clip-text">
+          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r bg-gradient-primary-reverse text-transparent bg-clip-text">
             Academic Credits
           </h1>
           <p className="text-lg text-gray-600 max-w-3xl mx-auto">
