@@ -7,6 +7,10 @@ import time
 from typing import Any, Dict, Optional
 from functools import wraps
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 class InMemoryCache:
     def __init__(self):
         self._cache: Dict[str, Dict[str, Any]] = {}
@@ -67,11 +71,11 @@ def cached(ttl: int = 300):
             # Try to get from cache
             cached_result = cache.get(cache_key)
             if cached_result is not None:
-                print(f"Cache hit for {func.__name__}")
+                logger.info(f"Cache hit for {func.__name__}")
                 return cached_result
             
             # Call the function and cache the result
-            print(f"Cache miss for {func.__name__}")
+            logger.info(f"Cache miss for {func.__name__}")
             result = func(*args, **kwargs)
             cache.set(cache_key, result, ttl)
             return result

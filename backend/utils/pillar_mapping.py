@@ -3,6 +3,10 @@ Pillar name mapping utilities
 Handles conversion between different pillar name formats used throughout the system
 Updated January 2025: Simplified to single-word pillar names
 """
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 # Pillar names (lowercase keys for database storage)
 PILLAR_KEYS = ['art', 'stem', 'communication', 'civics', 'wellness']

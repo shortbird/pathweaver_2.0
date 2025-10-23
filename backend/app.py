@@ -3,6 +3,10 @@ from dotenv import load_dotenv
 import os
 import uuid
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Initialize logging FIRST before any other imports
 load_dotenv()
 from utils.logger import setup_logging, get_logger
@@ -30,7 +34,7 @@ try:
     CSRF_AVAILABLE = True
 except ImportError:
     CSRF_AVAILABLE = False
-    print("Warning: Flask-WTF not installed. CSRF protection unavailable.")
+    logger.warning("Warning: Flask-WTF not installed. CSRF protection unavailable.")
 
 load_dotenv()
 
@@ -80,7 +84,7 @@ security_middleware.init_app(app)
 # Configure CSRF protection for enhanced security
 if CSRF_AVAILABLE:
     init_csrf(app)
-    print("CSRF protection enabled")
+    logger.info("CSRF protection enabled")
 
 # Configure CORS with proper settings - MUST come before error handler
 configure_cors(app)
@@ -117,25 +121,25 @@ app.register_blueprint(student_task_management.bp)  # /api/admin/users (blueprin
 try:
     from routes import quest_ai
     app.register_blueprint(quest_ai.bp)  # /api/quest-ai
-    print("Quest AI routes registered successfully")
+    logger.info("Quest AI routes registered successfully")
 except Exception as e:
-    print(f"Warning: Quest AI routes not available: {e}")
+    logger.warning(f"Warning: Quest AI routes not available: {e}")
 
 # Register AI Tutor blueprint
 try:
     from routes import tutor
     app.register_blueprint(tutor.bp)  # /api/tutor
-    print("AI Tutor routes registered successfully")
+    logger.info("AI Tutor routes registered successfully")
 except Exception as e:
-    print(f"Warning: AI Tutor routes not available: {e}")
+    logger.warning(f"Warning: AI Tutor routes not available: {e}")
 
 # Register LMS Integration blueprint
 try:
     from routes import lms_integration
     app.register_blueprint(lms_integration.bp)  # /lti/* and /api/lms/*
-    print("LMS Integration routes registered successfully")
+    logger.info("LMS Integration routes registered successfully")
 except Exception as e:
-    print(f"Warning: LMS Integration routes not available: {e}")
+    logger.warning(f"Warning: LMS Integration routes not available: {e}")
 
 # Register Badge System blueprints
 try:
@@ -145,57 +149,57 @@ try:
     app.register_blueprint(ai_content.bp)  # /api/ai-generation
     app.register_blueprint(admin_badge_seed.bp)  # /api/admin/seed
     app.register_blueprint(quest_badge_hub.bp)  # /api/hub
-    print("Badge system routes registered successfully")
+    logger.info("Badge system routes registered successfully")
 except Exception as e:
-    print(f"Warning: Badge system routes not available: {e}")
+    logger.warning(f"Warning: Badge system routes not available: {e}")
 
 # Register AI Jobs blueprint (admin)
 try:
     from routes.admin import ai_jobs
     app.register_blueprint(ai_jobs.ai_jobs_bp, url_prefix='/api/admin')  # /api/admin/*
-    print("AI Jobs admin routes registered successfully")
+    logger.info("AI Jobs admin routes registered successfully")
 except Exception as e:
-    print(f"Warning: AI Jobs routes not available: {e}")
+    logger.warning(f"Warning: AI Jobs routes not available: {e}")
 
 # Register Parental Consent blueprint (COPPA compliance)
 try:
     from routes import parental_consent
     app.register_blueprint(parental_consent.bp, url_prefix='/api/auth')  # /api/auth/parental-consent
-    print("Parental Consent routes registered successfully")
+    logger.info("Parental Consent routes registered successfully")
 except Exception as e:
-    print(f"Warning: Parental Consent routes not available: {e}")
+    logger.warning(f"Warning: Parental Consent routes not available: {e}")
 
 # Register Account Deletion blueprint (GDPR/CCPA compliance)
 try:
     from routes import account_deletion
     app.register_blueprint(account_deletion.bp, url_prefix='/api')  # /api/users/delete-account
-    print("Account Deletion routes registered successfully")
+    logger.info("Account Deletion routes registered successfully")
 except Exception as e:
-    print(f"Warning: Account Deletion routes not available: {e}")
+    logger.warning(f"Warning: Account Deletion routes not available: {e}")
 
 # Register Advisor blueprint
 try:
     from routes import advisor
     app.register_blueprint(advisor.advisor_bp, url_prefix='/api/advisor')  # /api/advisor/*
-    print("Advisor routes registered successfully")
+    logger.info("Advisor routes registered successfully")
 except Exception as e:
-    print(f"Warning: Advisor routes not available: {e}")
+    logger.warning(f"Warning: Advisor routes not available: {e}")
 
 # Register Direct Messages blueprint
 try:
     from routes import direct_messages
     app.register_blueprint(direct_messages.bp)  # /api/messages
-    print("Direct Messages routes registered successfully")
+    logger.info("Direct Messages routes registered successfully")
 except Exception as e:
-    print(f"Warning: Direct Messages routes not available: {e}")
+    logger.warning(f"Warning: Direct Messages routes not available: {e}")
 
 # Register AI Quest Review blueprint (admin)
 try:
     from routes.admin import ai_quest_review
     app.register_blueprint(ai_quest_review.bp)  # /api/admin/ai-quest-review
-    print("AI Quest Review routes registered successfully")
+    logger.info("AI Quest Review routes registered successfully")
 except Exception as e:
-    print(f"Warning: AI Quest Review routes not available: {e}")
+    logger.warning(f"Warning: AI Quest Review routes not available: {e}")
 
 # Tier Management routes removed in Phase 2 refactoring (January 2025)
 # All subscription tier functionality has been removed from the platform
@@ -208,65 +212,65 @@ try:
     app.register_blueprint(quest_personalization.bp)  # /api/quests/*
     # task_collaboration.bp removed in Phase 1 refactoring (January 2025)
     app.register_blueprint(task_approval.bp)  # /api/admin/manual-tasks/*
-    print("Personalized Quest System routes registered successfully")
+    logger.info("Personalized Quest System routes registered successfully")
 except Exception as e:
-    print(f"Warning: Personalized Quest System routes not available: {e}")
+    logger.warning(f"Warning: Personalized Quest System routes not available: {e}")
 
 # Register AI Performance Analytics blueprint (admin)
 try:
     from routes.admin import ai_performance_analytics
     app.register_blueprint(ai_performance_analytics.bp)  # /api/admin/ai-analytics
-    print("AI Performance Analytics routes registered successfully")
+    logger.info("AI Performance Analytics routes registered successfully")
 except Exception as e:
-    print(f"Warning: AI Performance Analytics routes not available: {e}")
+    logger.warning(f"Warning: AI Performance Analytics routes not available: {e}")
 
 # Register AI Prompt Optimizer blueprint (admin)
 try:
     from routes.admin import ai_prompt_optimizer
     app.register_blueprint(ai_prompt_optimizer.ai_prompt_optimizer_bp, url_prefix='/api/admin/ai-optimizer')
-    print("AI Prompt Optimizer routes registered successfully")
+    logger.info("AI Prompt Optimizer routes registered successfully")
 except Exception as e:
-    print(f"Warning: AI Prompt Optimizer routes not available: {e}")
+    logger.warning(f"Warning: AI Prompt Optimizer routes not available: {e}")
 
 # Register Student AI Assistance blueprint
 try:
     from routes import student_ai_assistance
     app.register_blueprint(student_ai_assistance.student_ai_bp, url_prefix='/api/student-ai')  # /api/student-ai/*
-    print("Student AI Assistance routes registered successfully")
+    logger.info("Student AI Assistance routes registered successfully")
 except Exception as e:
-    print(f"Warning: Student AI Assistance routes not available: {e}")
+    logger.warning(f"Warning: Student AI Assistance routes not available: {e}")
 
 # Register Batch Quest Generation blueprint (admin)
 try:
     from routes.admin import batch_quest_generation
     app.register_blueprint(batch_quest_generation.batch_generation_bp, url_prefix='/api/admin/batch-generation')  # /api/admin/batch-generation/*
-    print("Batch Quest Generation routes registered successfully")
+    logger.info("Batch Quest Generation routes registered successfully")
 except Exception as e:
-    print(f"Warning: Batch Quest Generation routes not available: {e}")
+    logger.warning(f"Warning: Batch Quest Generation routes not available: {e}")
 
 # Register Batch Badge Generation blueprint (admin)
 try:
     from routes.admin import batch_badge_generation
     app.register_blueprint(batch_badge_generation.batch_badge_generation_bp, url_prefix='/api/admin/batch-badge-generation')  # /api/admin/batch-badge-generation/*
-    print("Batch Badge Generation routes registered successfully")
+    logger.info("Batch Badge Generation routes registered successfully")
 except Exception as e:
-    print(f"Warning: Batch Badge Generation routes not available: {e}")
+    logger.warning(f"Warning: Batch Badge Generation routes not available: {e}")
 
 # Register Calendar blueprint
 try:
     from routes.calendar import calendar_bp
     app.register_blueprint(calendar_bp)  # /api/calendar
-    print("Calendar routes registered successfully")
+    logger.info("Calendar routes registered successfully")
 except Exception as e:
-    print(f"Warning: Calendar routes not available: {e}")
+    logger.warning(f"Warning: Calendar routes not available: {e}")
 
 # Register Learning Events blueprint
 try:
     from routes.learning_events import learning_events_bp
     app.register_blueprint(learning_events_bp)  # /api/learning-events
-    print("Learning Events routes registered successfully")
+    logger.info("Learning Events routes registered successfully")
 except Exception as e:
-    print(f"Warning: Learning Events routes not available: {e}")
+    logger.warning(f"Warning: Learning Events routes not available: {e}")
 
 # Register Parent Dashboard blueprints
 try:
@@ -274,17 +278,17 @@ try:
     app.register_blueprint(parent_linking.bp)  # /api/parents
     app.register_blueprint(parent_dashboard.bp)  # /api/parent
     app.register_blueprint(parent_evidence.bp)  # /api/parent (evidence endpoints)
-    print("Parent Dashboard routes registered successfully")
+    logger.info("Parent Dashboard routes registered successfully")
 except Exception as e:
-    print(f"Warning: Parent Dashboard routes not available: {e}")
+    logger.warning(f"Warning: Parent Dashboard routes not available: {e}")
 
 # Register Pillars Configuration API blueprint (public endpoint)
 try:
     from routes.pillars import pillars_bp
     app.register_blueprint(pillars_bp, url_prefix='/api')  # /api/pillars
-    print("Pillars Configuration API routes registered successfully")
+    logger.info("Pillars Configuration API routes registered successfully")
 except Exception as e:
-    print(f"Warning: Pillars Configuration API routes not available: {e}")
+    logger.warning(f"Warning: Pillars Configuration API routes not available: {e}")
 
 
 @app.route('/', methods=['GET', 'HEAD'])

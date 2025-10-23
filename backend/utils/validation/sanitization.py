@@ -4,6 +4,10 @@ import re
 import html
 from typing import Optional
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 def sanitize_input(text: str) -> str:
     """
     Sanitize user input to prevent XSS and injection attacks

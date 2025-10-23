@@ -5,6 +5,10 @@ Tests database integrity and business logic validation
 
 import sys
 import os
+
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import get_supabase_admin_client
@@ -13,7 +17,7 @@ import re
 def test_database_integrity():
     """Test database integrity constraints"""
     print("\n" + "="*70)
-    print("TEST 1: Database Integrity Checks")
+    logger.info("TEST 1: Database Integrity Checks")
     print("="*70)
 
     supabase = get_supabase_admin_client()
@@ -21,7 +25,8 @@ def test_database_integrity():
 
     # 1. All users have valid emails
     try:
-        print("\n[1/7] Testing user email validity...")
+        logger.info("
+[1/7] Testing user email validity...")
         users = supabase.table('users').select('id, email').execute()
 
         email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
@@ -37,26 +42,27 @@ def test_database_integrity():
         total_users = len(users.data)
         valid_emails = total_users - len(invalid_emails) - null_emails
 
-        print(f"      Total users: {total_users}")
-        print(f"      Valid emails: {valid_emails}")
-        print(f"      Invalid emails: {len(invalid_emails)}")
-        print(f"      Null emails: {null_emails}")
+        logger.info(f"      Total users: {total_users}")
+        logger.info(f"      Valid emails: {valid_emails}")
+        logger.info(f"      Invalid emails: {len(invalid_emails)}")
+        logger.info(f"      Null emails: {null_emails}")
 
         if len(invalid_emails) > 0:
-            print(f"      [WARN] Invalid email examples: {invalid_emails[:3]}")
+            logger.warning(f"      [WARN] Invalid email examples: {invalid_emails[:3]}")
 
         results['valid_emails'] = (len(invalid_emails) == 0 and null_emails == 0)
         if results['valid_emails']:
-            print("      [OK] All users have valid emails")
+            logger.info("      [OK] All users have valid emails")
         else:
-            print("      [FAIL] Some users have invalid/null emails")
+            logger.info("      [FAIL] Some users have invalid/null emails")
     except Exception as e:
-        print(f"      [FAIL] Email validation error: {e}")
+        logger.error(f"      [FAIL] Email validation error: {e}")
         results['valid_emails'] = False
 
     # 2. All quests have at least one task
     try:
-        print("\n[2/7] Testing quest-task relationships...")
+        logger.info("
+[2/7] Testing quest-task relationships...")
         quests = supabase.table('quests').select('id, title').eq('is_active', True).execute()
 
         quests_without_tasks = []
@@ -65,25 +71,26 @@ def test_database_integrity():
             if len(tasks.data) == 0:
                 quests_without_tasks.append(quest['title'])
 
-        print(f"      Total active quests: {len(quests.data)}")
-        print(f"      Quests with tasks: {len(quests.data) - len(quests_without_tasks)}")
-        print(f"      Quests without tasks: {len(quests_without_tasks)}")
+        logger.info(f"      Total active quests: {len(quests.data)}")
+        logger.info(f"      Quests with tasks: {len(quests.data) - len(quests_without_tasks)}")
+        logger.info(f"      Quests without tasks: {len(quests_without_tasks)}")
 
         if len(quests_without_tasks) > 0:
-            print(f"      [WARN] Quests without tasks: {quests_without_tasks[:3]}")
+            logger.warning(f"      [WARN] Quests without tasks: {quests_without_tasks[:3]}")
 
         results['quests_have_tasks'] = (len(quests_without_tasks) == 0)
         if results['quests_have_tasks']:
-            print("      [OK] All active quests have at least one task")
+            logger.info("      [OK] All active quests have at least one task")
         else:
-            print("      [FAIL] Some quests have no tasks")
+            logger.info("      [FAIL] Some quests have no tasks")
     except Exception as e:
-        print(f"      [FAIL] Quest-task validation error: {e}")
+        logger.error(f"      [FAIL] Quest-task validation error: {e}")
         results['quests_have_tasks'] = False
 
     # 3. All tasks have valid XP and pillar values
     try:
-        print("\n[3/7] Testing task XP and pillar values...")
+        logger.info("
+[3/7] Testing task XP and pillar values...")
         tasks = supabase.table('quest_tasks').select('id, title, xp_amount, pillar').execute()
 
         valid_pillars = ['stem_logic', 'life_wellness', 'language_communication',
@@ -102,27 +109,28 @@ def test_database_integrity():
             if pillar not in valid_pillars:
                 invalid_pillars.append((task['title'], pillar))
 
-        print(f"      Total tasks: {len(tasks.data)}")
-        print(f"      Tasks with valid XP: {len(tasks.data) - len(invalid_xp)}")
-        print(f"      Tasks with valid pillar: {len(tasks.data) - len(invalid_pillars)}")
+        logger.info(f"      Total tasks: {len(tasks.data)}")
+        logger.info(f"      Tasks with valid XP: {len(tasks.data) - len(invalid_xp)}")
+        logger.info(f"      Tasks with valid pillar: {len(tasks.data) - len(invalid_pillars)}")
 
         if len(invalid_xp) > 0:
-            print(f"      [WARN] Tasks with invalid XP: {len(invalid_xp)}")
+            logger.warning(f"      [WARN] Tasks with invalid XP: {len(invalid_xp)}")
         if len(invalid_pillars) > 0:
-            print(f"      [WARN] Tasks with invalid pillar: {len(invalid_pillars)}")
+            logger.warning(f"      [WARN] Tasks with invalid pillar: {len(invalid_pillars)}")
 
         results['valid_task_values'] = (len(invalid_xp) == 0 and len(invalid_pillars) == 0)
         if results['valid_task_values']:
-            print("      [OK] All tasks have valid XP and pillar values")
+            logger.info("      [OK] All tasks have valid XP and pillar values")
         else:
-            print("      [FAIL] Some tasks have invalid XP or pillar values")
+            logger.info("      [FAIL] Some tasks have invalid XP or pillar values")
     except Exception as e:
-        print(f"      [FAIL] Task validation error: {e}")
+        logger.error(f"      [FAIL] Task validation error: {e}")
         results['valid_task_values'] = False
 
     # 4. No orphaned records (already tested in Phase 5, verify again)
     try:
-        print("\n[4/7] Testing for orphaned records...")
+        logger.info("
+[4/7] Testing for orphaned records...")
 
         # Check orphaned quest_tasks (tasks without valid quest)
         tasks = supabase.table('quest_tasks').select('quest_id').limit(50).execute()
@@ -140,21 +148,22 @@ def test_database_integrity():
             if len(task.data) == 0:
                 orphaned_completions += 1
 
-        print(f"      Orphaned tasks (checked 50): {orphaned_tasks}")
-        print(f"      Orphaned completions (checked 50): {orphaned_completions}")
+        logger.info(f"      Orphaned tasks (checked 50): {orphaned_tasks}")
+        logger.info(f"      Orphaned completions (checked 50): {orphaned_completions}")
 
         results['no_orphaned_records'] = (orphaned_tasks == 0 and orphaned_completions == 0)
         if results['no_orphaned_records']:
-            print("      [OK] No orphaned records found")
+            logger.info("      [OK] No orphaned records found")
         else:
-            print("      [FAIL] Orphaned records detected")
+            logger.info("      [FAIL] Orphaned records detected")
     except Exception as e:
-        print(f"      [FAIL] Orphaned records check error: {e}")
+        logger.error(f"      [FAIL] Orphaned records check error: {e}")
         results['no_orphaned_records'] = False
 
     # 5. Foreign key constraints enforced
     try:
-        print("\n[5/7] Testing foreign key relationships...")
+        logger.info("
+[5/7] Testing foreign key relationships...")
 
         # Test that quest_tasks reference valid quests
         tasks_sample = supabase.table('quest_tasks').select('quest_id').limit(10).execute()
@@ -164,20 +173,21 @@ def test_database_integrity():
             if len(quest.data) == 0:
                 invalid_fks += 1
 
-        print(f"      Foreign key violations (sampled 10 tasks): {invalid_fks}")
+        logger.info(f"      Foreign key violations (sampled 10 tasks): {invalid_fks}")
 
         results['foreign_keys_enforced'] = (invalid_fks == 0)
         if results['foreign_keys_enforced']:
-            print("      [OK] Foreign key constraints properly enforced")
+            logger.info("      [OK] Foreign key constraints properly enforced")
         else:
-            print("      [FAIL] Foreign key violations detected")
+            logger.info("      [FAIL] Foreign key violations detected")
     except Exception as e:
-        print(f"      [FAIL] Foreign key validation error: {e}")
+        logger.error(f"      [FAIL] Foreign key validation error: {e}")
         results['foreign_keys_enforced'] = False
 
     # 6. Unique constraints working
     try:
-        print("\n[6/7] Testing unique constraints...")
+        logger.info("
+[6/7] Testing unique constraints...")
 
         # Check email uniqueness
         users = supabase.table('users').select('email').execute()
@@ -189,21 +199,22 @@ def test_database_integrity():
         titles = [q['title'] for q in quests.data]
         duplicate_titles = len(titles) - len(set(titles))
 
-        print(f"      Duplicate user emails: {duplicate_emails}")
-        print(f"      Duplicate quest titles (active): {duplicate_titles}")
+        logger.info(f"      Duplicate user emails: {duplicate_emails}")
+        logger.info(f"      Duplicate quest titles (active): {duplicate_titles}")
 
         results['unique_constraints'] = (duplicate_emails == 0)
         if results['unique_constraints']:
-            print("      [OK] Unique constraints working properly")
+            logger.info("      [OK] Unique constraints working properly")
         else:
-            print("      [WARN] Some duplicate values found (may be intentional)")
+            logger.warning("      [WARN] Some duplicate values found (may be intentional)")
     except Exception as e:
-        print(f"      [FAIL] Unique constraint validation error: {e}")
+        logger.error(f"      [FAIL] Unique constraint validation error: {e}")
         results['unique_constraints'] = False
 
     # 7. Default values set correctly
     try:
-        print("\n[7/7] Testing default values...")
+        logger.info("
+[7/7] Testing default values...")
 
         # Check users have default subscription_tier
         users_no_tier = supabase.table('users').select('id').is_('subscription_tier', 'null').execute()
@@ -211,16 +222,16 @@ def test_database_integrity():
         # Check quests have is_active set
         quests_no_active = supabase.table('quests').select('id').is_('is_active', 'null').execute()
 
-        print(f"      Users without subscription_tier: {len(users_no_tier.data)}")
-        print(f"      Quests without is_active flag: {len(quests_no_active.data)}")
+        logger.info(f"      Users without subscription_tier: {len(users_no_tier.data)}")
+        logger.info(f"      Quests without is_active flag: {len(quests_no_active.data)}")
 
         results['default_values'] = (len(users_no_tier.data) == 0 and len(quests_no_active.data) == 0)
         if results['default_values']:
-            print("      [OK] Default values properly set")
+            logger.info("      [OK] Default values properly set")
         else:
-            print("      [WARN] Some records missing default values")
+            logger.warning("      [WARN] Some records missing default values")
     except Exception as e:
-        print(f"      [FAIL] Default values validation error: {e}")
+        logger.error(f"      [FAIL] Default values validation error: {e}")
         results['default_values'] = False
 
     return results
@@ -228,7 +239,7 @@ def test_database_integrity():
 def test_business_logic():
     """Test business logic validation"""
     print("\n" + "="*70)
-    print("TEST 2: Business Logic Validation")
+    logger.info("TEST 2: Business Logic Validation")
     print("="*70)
 
     supabase = get_supabase_admin_client()
@@ -236,7 +247,8 @@ def test_business_logic():
 
     # 1. XP calculations match formula
     try:
-        print("\n[1/5] Testing XP calculation formula...")
+        logger.info("
+[1/5] Testing XP calculation formula...")
 
         # Get a completed quest
         completions = supabase.table('quest_task_completions').select('quest_id, user_id, xp_awarded').limit(10).execute()
@@ -248,18 +260,19 @@ def test_business_logic():
 
             # This is a spot check - full validation would require recalculating all XP
             print(f"      Sample completion XP awarded: {sample_completion.get('xp_awarded', 'N/A')}")
-            print("      [OK] XP calculation structure in place")
+            logger.info("      [OK] XP calculation structure in place")
             results['xp_calculations'] = True
         else:
-            print("      [WARN] No completions to validate XP calculations")
+            logger.warning("      [WARN] No completions to validate XP calculations")
             results['xp_calculations'] = False
     except Exception as e:
-        print(f"      [FAIL] XP calculation validation error: {e}")
+        logger.error(f"      [FAIL] XP calculation validation error: {e}")
         results['xp_calculations'] = False
 
     # 2. Tier features properly restricted
     try:
-        print("\n[2/5] Testing tier-based feature restrictions...")
+        logger.info("
+[2/5] Testing tier-based feature restrictions...")
 
         # Check friendships (paid tier only)
         friendships = supabase.table('friendships').select('requester_id').execute()
@@ -270,21 +283,22 @@ def test_business_logic():
             user = supabase.table('users').select('subscription_tier').eq('id', sample_user_id).single().execute()
 
             tier = user.data.get('subscription_tier', 'explorer')
-            print(f"      Sample friendship user tier: {tier}")
+            logger.info(f"      Sample friendship user tier: {tier}")
 
             # Note: This is a spot check, not exhaustive
-            print("      [OK] Tier restriction system in place")
+            logger.info("      [OK] Tier restriction system in place")
             results['tier_restrictions'] = True
         else:
-            print("      [WARN] No friendships to validate tier restrictions")
+            logger.warning("      [WARN] No friendships to validate tier restrictions")
             results['tier_restrictions'] = True  # No violations if no data
     except Exception as e:
-        print(f"      [FAIL] Tier restriction validation error: {e}")
+        logger.error(f"      [FAIL] Tier restriction validation error: {e}")
         results['tier_restrictions'] = False
 
     # 3. Completion bonuses correct
     try:
-        print("\n[3/5] Testing completion bonus calculation...")
+        logger.info("
+[3/5] Testing completion bonus calculation...")
 
         # Check if users who completed all tasks got bonus XP
         # This requires finding completed quests and verifying bonus was applied
@@ -293,19 +307,20 @@ def test_business_logic():
         user_xp = supabase.table('user_skill_xp').select('xp_amount, pillar').limit(5).execute()
 
         if len(user_xp.data) > 0:
-            print(f"      XP records found: {len(user_xp.data)}")
-            print("      [OK] XP bonus structure in place")
+            logger.info(f"      XP records found: {len(user_xp.data)}")
+            logger.info("      [OK] XP bonus structure in place")
             results['completion_bonuses'] = True
         else:
-            print("      [WARN] No XP data to validate completion bonuses")
+            logger.warning("      [WARN] No XP data to validate completion bonuses")
             results['completion_bonuses'] = False
     except Exception as e:
-        print(f"      [FAIL] Completion bonus validation error: {e}")
+        logger.error(f"      [FAIL] Completion bonus validation error: {e}")
         results['completion_bonuses'] = False
 
     # 4. Achievement levels accurate
     try:
-        print("\n[4/5] Testing achievement level calculations...")
+        logger.info("
+[4/5] Testing achievement level calculations...")
 
         # Get users with XP and check levels
         users_with_xp = supabase.table('users').select('total_xp, level').not_.is_('total_xp', 'null').limit(10).execute()
@@ -330,16 +345,17 @@ def test_business_logic():
             # Level field might not exist or use different scale
             # This is informational only
 
-        print(f"      Users with XP checked: {len(users_with_xp.data)}")
-        print("      [OK] Achievement level structure in place")
+        logger.info(f"      Users with XP checked: {len(users_with_xp.data)}")
+        logger.info("      [OK] Achievement level structure in place")
         results['achievement_levels'] = True
     except Exception as e:
-        print(f"      [FAIL] Achievement level validation error: {e}")
+        logger.error(f"      [FAIL] Achievement level validation error: {e}")
         results['achievement_levels'] = False
 
     # 5. Subscription status synced with Stripe
     try:
-        print("\n[5/5] Testing Stripe subscription sync...")
+        logger.info("
+[5/5] Testing Stripe subscription sync...")
 
         # Check users with Stripe data
         users_with_stripe = supabase.table('users').select(
@@ -355,16 +371,16 @@ def test_business_logic():
             if tier == 'explorer' and status == 'active':
                 sync_issues += 1  # Explorer shouldn't have active subscription
 
-        print(f"      Users with Stripe data: {len(users_with_stripe.data)}")
-        print(f"      Potential sync issues: {sync_issues}")
+        logger.info(f"      Users with Stripe data: {len(users_with_stripe.data)}")
+        logger.info(f"      Potential sync issues: {sync_issues}")
 
         results['stripe_sync'] = (sync_issues == 0)
         if results['stripe_sync']:
-            print("      [OK] Stripe subscription sync appears correct")
+            logger.info("      [OK] Stripe subscription sync appears correct")
         else:
-            print("      [WARN] Some subscription sync issues detected")
+            logger.warning("      [WARN] Some subscription sync issues detected")
     except Exception as e:
-        print(f"      [FAIL] Stripe sync validation error: {e}")
+        logger.error(f"      [FAIL] Stripe sync validation error: {e}")
         results['stripe_sync'] = False
 
     return results
@@ -372,30 +388,32 @@ def test_business_logic():
 def print_summary(all_results):
     """Print test summary"""
     print("\n" + "="*70)
-    print("PHASE 6 TEST SUMMARY")
+    logger.info("PHASE 6 TEST SUMMARY")
     print("="*70)
 
     total_tests = 0
     passed_tests = 0
 
     for test_name, results in all_results.items():
-        print(f"\n{test_name}:")
+        logger.info(f"
+{test_name}:")
         for check, passed in results.items():
             status = "[OK] PASS" if passed else "[FAIL] FAIL"
-            print(f"  {status} - {check}")
+            logger.info(f"  {status} - {check}")
             total_tests += 1
             if passed:
                 passed_tests += 1
 
     print("\n" + "="*70)
     percentage = (passed_tests / total_tests * 100) if total_tests > 0 else 0
-    print(f"RESULTS: {passed_tests}/{total_tests} tests passed ({percentage:.1f}%)")
+    logger.info(f"RESULTS: {passed_tests}/{total_tests} tests passed ({percentage:.1f}%)")
     print("="*70)
 
     return passed_tests, total_tests
 
 if __name__ == "__main__":
-    print("\n")
+    logger.info("
+")
     print("=" * 70)
     print(" "*10 + "OPTIO PLATFORM - PHASE 6 DATA VALIDATION")
     print(" "*20 + "Testing on: optio-dev environment")

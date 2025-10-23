@@ -7,6 +7,10 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_admin
 from services.ai_quest_review_service import AIQuestReviewService
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('admin_ai_quest_review', __name__, url_prefix='/api/admin/ai-quest-review')
 
 

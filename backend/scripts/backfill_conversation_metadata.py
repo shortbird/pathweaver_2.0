@@ -16,6 +16,10 @@ import os
 import sys
 from datetime import datetime
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -25,7 +29,7 @@ from database import get_supabase_admin_client
 def backfill_conversation_metadata():
     """Update conversation metadata for all conversations with NULL last_message_at"""
 
-    print("Starting conversation metadata backfill...")
+    logger.info("Starting conversation metadata backfill...")
     supabase = get_supabase_admin_client()
 
     # Find all conversations with NULL last_message_at
@@ -34,10 +38,10 @@ def backfill_conversation_metadata():
     ).is_('last_message_at', 'null').execute()
 
     total = len(conversations.data)
-    print(f"Found {total} conversations needing metadata updates")
+    logger.info(f"Found {total} conversations needing metadata updates")
 
     if total == 0:
-        print("No conversations need updating. Exiting.")
+        logger.info("No conversations need updating. Exiting.")
         return
 
     updated_count = 0
@@ -71,23 +75,24 @@ def backfill_conversation_metadata():
             }).eq('id', conversation_id).execute()
 
             updated_count += 1
-            print(f"[{idx}/{total}] Updated conversation {conversation_id}: {message_count} messages")
+            logger.info(f"[{idx}/{total}] Updated conversation {conversation_id}: {message_count} messages")
 
         except Exception as e:
             error_count += 1
-            print(f"[{idx}/{total}] ERROR updating conversation {conversation_id}: {e}")
+            logger.error(f"[{idx}/{total}] ERROR updating conversation {conversation_id}: {e}")
 
-    print(f"\nBackfill complete!")
-    print(f"Successfully updated: {updated_count}")
-    print(f"Errors: {error_count}")
-    print(f"Total processed: {total}")
+    logger.info(f"
+Backfill complete!")
+    logger.info(f"Successfully updated: {updated_count}")
+    logger.error(f"Errors: {error_count}")
+    logger.info(f"Total processed: {total}")
 
 
 if __name__ == '__main__':
     try:
         backfill_conversation_metadata()
     except Exception as e:
-        print(f"FATAL ERROR: {e}")
+        logger.error(f"FATAL ERROR: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)

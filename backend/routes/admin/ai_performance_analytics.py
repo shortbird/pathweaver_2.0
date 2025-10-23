@@ -8,6 +8,10 @@ from utils.auth.decorators import require_admin
 from services.ai_performance_analytics_service import AIPerformanceAnalyticsService
 from utils.validation.sanitizers import sanitize_integer
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('admin_ai_performance_analytics', __name__, url_prefix='/api/admin/ai-analytics')
 
 

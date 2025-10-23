@@ -12,6 +12,10 @@ from datetime import datetime, timedelta
 import json
 import sys
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('admin_analytics', __name__, url_prefix='/api/admin/analytics')
 
 @bp.route('/overview', methods=['GET'])

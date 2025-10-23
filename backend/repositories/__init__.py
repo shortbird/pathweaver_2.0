@@ -24,6 +24,10 @@ Usage Example:
 """
 
 from backend.repositories.base_repository import (
+
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
     BaseRepository,
     DatabaseError,
     NotFoundError,

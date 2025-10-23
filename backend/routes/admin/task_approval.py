@@ -10,6 +10,10 @@ from database import get_supabase_admin_client
 from utils.auth.decorators import require_admin
 from datetime import datetime
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('admin_task_approval', __name__, url_prefix='/api/admin')
 
 @bp.route('/manual-tasks/pending', methods=['GET'])
@@ -45,7 +49,7 @@ def list_pending_tasks(user_id: str):
         })
 
     except Exception as e:
-        print(f"Error listing pending tasks: {str(e)}")
+        logger.error(f"Error listing pending tasks: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch pending tasks'
@@ -83,7 +87,7 @@ def approve_task(user_id: str, task_id: str):
         })
 
     except Exception as e:
-        print(f"Error approving task: {str(e)}")
+        logger.error(f"Error approving task: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to approve task'
@@ -143,7 +147,7 @@ def reject_task(user_id: str, task_id: str):
         })
 
     except Exception as e:
-        print(f"Error rejecting task: {str(e)}")
+        logger.error(f"Error rejecting task: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to reject task'
@@ -178,7 +182,7 @@ def delete_task(user_id: str, task_id: str):
         })
 
     except Exception as e:
-        print(f"Error deleting task: {str(e)}")
+        logger.error(f"Error deleting task: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to delete task'
@@ -223,7 +227,7 @@ def get_approval_stats(user_id: str):
         })
 
     except Exception as e:
-        print(f"Error getting stats: {str(e)}")
+        logger.error(f"Error getting stats: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to get stats'

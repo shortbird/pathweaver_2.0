@@ -17,6 +17,10 @@ from datetime import datetime, timedelta
 import json
 import uuid
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('admin_quest_management', __name__, url_prefix='/api/admin')
 
 @bp.route('/quests/school-subjects', methods=['GET'])
@@ -35,7 +39,7 @@ def get_school_subjects_v3():
         })
 
     except Exception as e:
-        print(f"Error getting school subjects: {str(e)}")
+        logger.error(f"Error getting school subjects: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch school subjects'
@@ -48,12 +52,12 @@ def create_quest_v3_clean(user_id):
     Create a new quest (title + idea only).
     Tasks are now created individually per student by advisors or AI.
     """
-    print(f"CREATE QUEST V3: admin_user_id={user_id}")
+    logger.info(f"CREATE QUEST V3: admin_user_id={user_id}")
     supabase = get_supabase_admin_client()
 
     try:
         data = request.json
-        print(f"Received quest data: {json.dumps(data, indent=2)}")
+        logger.info(f"Received quest data: {json.dumps(data, indent=2)}")
 
         # Validate required fields
         if not data.get('title'):
@@ -97,7 +101,7 @@ def create_quest_v3_clean(user_id):
         })
 
     except Exception as e:
-        print(f"Error creating quest: {str(e)}")
+        logger.error(f"Error creating quest: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to create quest: {str(e)}'
@@ -138,7 +142,7 @@ def update_quest(user_id, quest_id):
         })
 
     except Exception as e:
-        print(f"Error updating quest: {str(e)}")
+        logger.error(f"Error updating quest: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to update quest: {str(e)}'
@@ -230,7 +234,7 @@ def upload_quest_image(user_id, quest_id):
         })
 
     except Exception as e:
-        print(f"Error uploading quest image: {str(e)}")
+        logger.error(f"Error uploading quest image: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to upload quest image: {str(e)}'
@@ -273,7 +277,7 @@ def refresh_quest_image(user_id, quest_id):
         })
 
     except Exception as e:
-        print(f"Error refreshing quest image: {str(e)}")
+        logger.error(f"Error refreshing quest image: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to refresh quest image: {str(e)}'
@@ -337,7 +341,7 @@ def delete_quest(user_id, quest_id):
         })
 
     except Exception as e:
-        print(f"Error deleting quest: {str(e)}")
+        logger.error(f"Error deleting quest: {str(e)}")
         error_message = str(e)
 
         # Provide helpful error message for foreign key constraints
@@ -383,7 +387,7 @@ def get_admin_quests(user_id):
         })
 
     except Exception as e:
-        print(f"Error getting admin quests: {str(e)}")
+        logger.error(f"Error getting admin quests: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve quests'
@@ -470,7 +474,7 @@ def get_quest_task_templates(user_id, quest_id):
         })
 
     except Exception as e:
-        print(f"Error getting task templates: {str(e)}")
+        logger.error(f"Error getting task templates: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve task templates'
@@ -487,7 +491,7 @@ def get_pexels_usage(user_id):
             **usage
         })
     except Exception as e:
-        print(f"Error getting Pexels usage: {str(e)}")
+        logger.error(f"Error getting Pexels usage: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to get API usage'
@@ -622,7 +626,7 @@ def bulk_generate_images(user_id):
         })
 
     except Exception as e:
-        print(f"Error in bulk image generation: {str(e)}")
+        logger.error(f"Error in bulk image generation: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to generate images: {str(e)}'

@@ -10,6 +10,10 @@ from functools import wraps
 from typing import Dict, List, Any
 from werkzeug.exceptions import BadRequest
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Try to import bleach, but don't fail if it's not available
 try:
     import bleach

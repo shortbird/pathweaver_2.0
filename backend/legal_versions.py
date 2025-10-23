@@ -2,6 +2,10 @@
 Configuration for Terms of Service and Privacy Policy versions
 Update these when the legal documents change to force re-acceptance
 """
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 # Current version of Terms of Service
 CURRENT_TOS_VERSION = "1.0"

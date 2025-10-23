@@ -20,6 +20,10 @@ from services.quest_ai_service import QuestAIService
 from services.ai_quest_review_service import AIQuestReviewService
 from services.quest_concept_matcher import QuestConceptMatcher
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class BatchQuestGenerationService:
     """Service for batch quest generation with progress tracking."""
@@ -71,7 +75,7 @@ class BatchQuestGenerationService:
 
             return [q['title'] for q in response.data] if response.data else []
         except Exception as e:
-            print(f"Error fetching recent quest titles: {e}")
+            logger.error(f"Error fetching recent quest titles: {e}")
             return []
 
     def _get_all_active_quests(self) -> List[Dict]:
@@ -84,7 +88,7 @@ class BatchQuestGenerationService:
 
             return response.data if response.data else []
         except Exception as e:
-            print(f"Error fetching active quests: {e}")
+            logger.error(f"Error fetching active quests: {e}")
             return []
 
     def generate_batch(
@@ -208,7 +212,7 @@ class BatchQuestGenerationService:
 
             return response.data
         except Exception as e:
-            print(f"Error getting badge context: {e}")
+            logger.error(f"Error getting badge context: {e}")
             return None
 
     def _generate_single_quest(

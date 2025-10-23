@@ -3,6 +3,10 @@ XP Progression System - Single Source of Truth
 
 Defines mastery levels, XP thresholds, and progression logic.
 """
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 # Mastery levels by XP amount
 MASTERY_LEVELS = {

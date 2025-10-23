@@ -6,6 +6,10 @@ to the new V3 user_quest_tasks system.
 import os
 from database import get_supabase_admin_client
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 def run_migration():
     """Execute the migration SQL"""
     try:
@@ -18,17 +22,17 @@ def run_migration():
         supabase = get_supabase_admin_client()
 
         # Execute the migration
-        print("Starting migration...")
-        print("Dropping old constraint...")
+        logger.info("Starting migration...")
+        logger.info("Dropping old constraint...")
         supabase.rpc('exec_sql', {'sql': 'ALTER TABLE public.user_task_evidence_documents DROP CONSTRAINT IF EXISTS user_task_evidence_documents_task_id_fkey;'}).execute()
 
-        print("Adding new constraint...")
+        logger.info("Adding new constraint...")
         supabase.rpc('exec_sql', {'sql': 'ALTER TABLE public.user_task_evidence_documents ADD CONSTRAINT user_task_evidence_documents_task_id_fkey FOREIGN KEY (task_id) REFERENCES public.user_quest_tasks(id);'}).execute()
 
-        print("Migration completed successfully!")
+        logger.info("Migration completed successfully!")
 
     except Exception as e:
-        print(f"Migration failed: {str(e)}")
+        logger.error(f"Migration failed: {str(e)}")
         raise
 
 if __name__ == '__main__':

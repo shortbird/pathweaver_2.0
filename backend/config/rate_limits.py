@@ -4,6 +4,10 @@ Rate Limiting Configuration - Single Source of Truth
 Defines all rate limiting rules for API endpoints.
 Used by middleware/rate_limiter.py
 """
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 # Rate limit configurations
 # Format: {'requests': int, 'window': int (seconds)}

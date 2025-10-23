@@ -16,6 +16,10 @@ from repositories.base_repository import NotFoundError, DatabaseError
 from datetime import datetime
 from typing import Dict, Any, List, Optional
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('quests', __name__, url_prefix='/api/quests')
 
 @bp.route('', methods=['GET'])
@@ -35,7 +39,7 @@ def list_quests():
                 token = auth_header.split(' ')[1]
                 user_id = verify_token(token)
             except Exception as e:
-                print(f"Auth check failed: {e}")
+                logger.error(f"Auth check failed: {e}")
                 pass  # Continue without auth
         supabase = get_supabase_client()
         
@@ -147,7 +151,7 @@ def list_quests():
 
         # OPTIMIZATION: Add user enrollment data using batch queries instead of N+1
         if user_id and quests:
-            print(f"[OPTIMIZATION] Using batch queries for {len(quests)} quests instead of {len(quests) * 2} individual queries")
+            logger.info(f"[OPTIMIZATION] Using batch queries for {len(quests)} quests instead of {len(quests) * 2} individual queries")
             quests = quest_optimization_service.enrich_quests_with_user_data(quests, user_id)
 
         # DEBUG: Log all quests to verify pillar_breakdown is in response
@@ -170,7 +174,7 @@ def list_quests():
         })
         
     except Exception as e:
-        print(f"Error listing quests: {str(e)}")
+        logger.error(f"Error listing quests: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch quests'
@@ -194,7 +198,7 @@ def get_quest_detail(user_id: str, quest_id: str):
             .single()\
             .execute()
 
-        print(f"[QUEST DETAIL] Quest query response: {quest.data}")
+        logger.info(f"[QUEST DETAIL] Quest query response: {quest.data}")
 
         if not quest.data:
             return jsonify({
@@ -211,7 +215,7 @@ def get_quest_detail(user_id: str, quest_id: str):
                 quest_data['header_image_url'] = source_header
 
         # Check if user is enrolled and get their personalized tasks
-        print(f"[QUEST DETAIL] Checking enrollment for user {user_id[:8]} on quest {quest_id[:8]}")
+        logger.info(f"[QUEST DETAIL] Checking enrollment for user {user_id[:8]} on quest {quest_id[:8]}")
 
         # Get all enrollments for this user and quest
         all_enrollments = supabase.table('user_quests')\
@@ -221,7 +225,7 @@ def get_quest_detail(user_id: str, quest_id: str):
             .execute()
 
         enrollments_data = all_enrollments.data or []
-        print(f"[QUEST DETAIL] All enrollments found: {len(enrollments_data)}")
+        logger.info(f"[QUEST DETAIL] All enrollments found: {len(enrollments_data)}")
         for enrollment in enrollments_data:
             print(f"[QUEST DETAIL] Enrollment: id={enrollment.get('id')}, is_active={enrollment.get('is_active')}, completed_at={enrollment.get('completed_at')}, personalization_completed={enrollment.get('personalization_completed')}")
         
@@ -261,7 +265,7 @@ def get_quest_detail(user_id: str, quest_id: str):
             completed_task_ids = {t['user_quest_task_id'] for t in task_completions.data} if task_completions.data else set()
 
             # Debug: Check raw pillar values from database
-            print(f"[QUEST_DETAIL] Raw tasks from DB for quest {quest_id}:")
+            logger.info(f"[QUEST_DETAIL] Raw tasks from DB for quest {quest_id}:")
             for i, task in enumerate(user_tasks.data or []):
                 print(f"  Task {i}: '{task.get('title')}' - pillar='{task.get('pillar')}'")
 
@@ -294,7 +298,7 @@ def get_quest_detail(user_id: str, quest_id: str):
             completed_count = len(completed_task_ids)
 
             if completed_enrollment:
-                print(f"[QUEST DETAIL] Using completed enrollment")
+                logger.info(f"[QUEST DETAIL] Using completed enrollment")
                 quest_data['completed_enrollment'] = completed_enrollment
                 quest_data['user_enrollment'] = None
                 quest_data['progress'] = {
@@ -303,7 +307,7 @@ def get_quest_detail(user_id: str, quest_id: str):
                     'percentage': 100
                 }
             elif active_enrollment:
-                print(f"[QUEST DETAIL] Using active enrollment")
+                logger.info(f"[QUEST DETAIL] Using active enrollment")
                 quest_data['user_enrollment'] = active_enrollment
                 quest_data['progress'] = {
                     'completed_tasks': completed_count,
@@ -312,7 +316,7 @@ def get_quest_detail(user_id: str, quest_id: str):
                 }
         else:
             # Not enrolled - show empty quest (personalization required)
-            print(f"[QUEST DETAIL] User not enrolled or personalization not completed")
+            logger.info(f"[QUEST DETAIL] User not enrolled or personalization not completed")
             quest_data['quest_tasks'] = []
             quest_data['user_enrollment'] = None
             quest_data['completed_enrollment'] = None
@@ -327,7 +331,7 @@ def get_quest_detail(user_id: str, quest_id: str):
         })
         
     except Exception as e:
-        print(f"Error getting quest detail: {str(e)}")
+        logger.error(f"Error getting quest detail: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch quest details'
@@ -379,7 +383,7 @@ def check_enrollment_status(user_id: str, quest_id: str):
         })
         
     except Exception as e:
-        print(f"Error checking enrollment status: {str(e)}")
+        logger.error(f"Error checking enrollment status: {str(e)}")
         return jsonify({
             'error': 'Failed to check enrollment status'
         }), 500
@@ -448,13 +452,13 @@ def enroll_in_quest(user_id: str, quest_id: str):
             'error': str(e)
         }), 404
     except DatabaseError as e:
-        print(f"Database error enrolling in quest: {str(e)}")
+        logger.error(f"Database error enrolling in quest: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to enroll in quest'
         }), 500
     except Exception as e:
-        print(f"Error enrolling in quest: {str(e)}")
+        logger.error(f"Error enrolling in quest: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to enroll in quest'
@@ -539,7 +543,7 @@ def get_user_active_quests(user_id: str):
         })
         
     except Exception as e:
-        print(f"Error getting user active quests: {str(e)}")
+        logger.error(f"Error getting user active quests: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch active quests'
@@ -757,7 +761,7 @@ def get_user_completed_quests(user_id: str):
         })
 
     except Exception as e:
-        print(f"Error getting completed quests: {str(e)}")
+        logger.error(f"Error getting completed quests: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch completed quests'
@@ -851,7 +855,7 @@ def end_quest(user_id: str, quest_id: str):
         })
             
     except Exception as e:
-        print(f"Error ending quest: {str(e)}")
+        logger.error(f"Error ending quest: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -881,5 +885,5 @@ def get_quest_sources():
         }), 200
         
     except Exception as e:
-        print(f"Error fetching public quest sources: {str(e)}")
+        logger.error(f"Error fetching public quest sources: {str(e)}")
         return jsonify({'error': 'Failed to fetch quest sources'}), 500

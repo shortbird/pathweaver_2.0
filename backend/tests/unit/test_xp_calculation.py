@@ -2,6 +2,10 @@
 
 import pytest
 from backend.routes.users.helpers import (
+
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
     calculate_user_xp,
     get_skill_xp_breakdown,
     calculate_level_from_xp,

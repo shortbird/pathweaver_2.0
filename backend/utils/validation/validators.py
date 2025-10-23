@@ -4,6 +4,10 @@ from typing import Any, Dict, List, Optional, Callable, Tuple
 from datetime import datetime
 import re
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # UUID v4 validation pattern
 UUID_REGEX = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', re.IGNORECASE)
 

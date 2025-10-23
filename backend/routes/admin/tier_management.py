@@ -11,6 +11,10 @@ from utils.auth.decorators import require_admin
 from utils.api_response import success_response, error_response
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('admin_tier_management', __name__, url_prefix='/api/admin')
 
 @bp.route('/tiers', methods=['GET'])
@@ -28,7 +32,7 @@ def get_all_tiers(user_id):
         return success_response(response.data)
 
     except Exception as e:
-        print(f"Error fetching tiers: {str(e)}")
+        logger.error(f"Error fetching tiers: {str(e)}")
         return error_response('Failed to fetch subscription tiers', 500)
 
 
@@ -51,7 +55,7 @@ def get_tier(user_id, tier_id):
         return success_response(response.data)
 
     except Exception as e:
-        print(f"Error fetching tier: {str(e)}")
+        logger.error(f"Error fetching tier: {str(e)}")
         return error_response('Failed to fetch tier', 500)
 
 
@@ -114,7 +118,7 @@ def update_tier(user_id, tier_id):
     except ValueError as e:
         return error_response(f'Invalid data format: {str(e)}', 400)
     except Exception as e:
-        print(f"Error updating tier: {str(e)}")
+        logger.error(f"Error updating tier: {str(e)}")
         return error_response('Failed to update tier', 500)
 
 
@@ -172,5 +176,5 @@ def create_tier(user_id):
     except ValueError as e:
         return error_response(f'Invalid data format: {str(e)}', 400)
     except Exception as e:
-        print(f"Error creating tier: {str(e)}")
+        logger.error(f"Error creating tier: {str(e)}")
         return error_response('Failed to create tier', 500)

@@ -9,6 +9,10 @@ import ast
 import json
 from pathlib import Path
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Add parent directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -74,7 +78,7 @@ def analyze_route_file(file_path):
 def main():
     """Run comprehensive security audit"""
     print("=" * 80)
-    print("OPTIO PLATFORM - PHASE 7.1 SECURITY AUDIT")
+    logger.info("OPTIO PLATFORM - PHASE 7.1 SECURITY AUDIT")
     print("=" * 80)
     print()
 
@@ -93,7 +97,8 @@ def main():
     routes_dir = Path(__file__).parent.parent / 'routes'
     route_files = list(routes_dir.rglob('*.py'))
 
-    print(f"Scanning {len(route_files)} route files...\n")
+    logger.info(f"Scanning {len(route_files)} route files...
+")
 
     for route_file in route_files:
         if route_file.name == '__init__.py':
@@ -104,7 +109,7 @@ def main():
 
         if routes:
             print(f"\n{'=' * 80}")
-            print(f"File: {relative_path}")
+            logger.info(f"File: {relative_path}")
             print('=' * 80)
 
             for route in routes:
@@ -148,11 +153,11 @@ def main():
                 if route['decorators']:
                     print(f"    Decorators: {', '.join(route['decorators'])}")
                 if warning:
-                    print(f"    {warning}")
+                    logger.warning(f"    {warning}")
 
     # Print summary
     print("\n" + "=" * 80)
-    print("SECURITY AUDIT SUMMARY")
+    logger.info("SECURITY AUDIT SUMMARY")
     print("=" * 80)
     print(f"\nTotal Endpoints: {results['total_endpoints']}")
     print(f"  Protected (with auth): {results['authenticated_endpoints']}")
@@ -171,7 +176,7 @@ def main():
     ]
 
     print("\n" + "=" * 80)
-    print("PUBLIC ENDPOINTS (No Authentication Required)")
+    logger.info("PUBLIC ENDPOINTS (No Authentication Required)")
     print("=" * 80)
     for endpoint in results['public_endpoints']:
         is_expected = any(known in endpoint['function'].lower() for known in known_public)
@@ -182,7 +187,7 @@ def main():
 
     if results['missing_auth']:
         print("\n" + "=" * 80)
-        print("CRITICAL: STATE-CHANGING ENDPOINTS WITHOUT AUTH")
+        logger.info("CRITICAL: STATE-CHANGING ENDPOINTS WITHOUT AUTH")
         print("=" * 80)
         for endpoint in results['missing_auth']:
             is_expected = any(known in endpoint['function'].lower() for known in known_public)
@@ -190,7 +195,7 @@ def main():
                 print(f"\nFILE: {endpoint['file']}")
                 print(f"  Function: {endpoint['function']}")
                 print(f"  Methods: {', '.join(endpoint['methods'])}")
-                print(f"  ACTION REQUIRED: Add @require_auth or similar decorator")
+                logger.info(f"  ACTION REQUIRED: Add @require_auth or similar decorator")
 
     # Save results to file
     output_file = Path(__file__).parent.parent / 'docs' / 'security_audit_results.json'
@@ -199,7 +204,9 @@ def main():
     with open(output_file, 'w') as f:
         json.dump(results, f, indent=2)
 
-    print(f"\n\nDetailed results saved to: {output_file}")
+    logger.info(f"
+
+Detailed results saved to: {output_file}")
 
     # Calculate pass/fail
     critical_issues = len([e for e in results['missing_auth']
@@ -208,10 +215,10 @@ def main():
 
     print("\n" + "=" * 80)
     if critical_issues == 0:
-        print("RESULT: PASSED - All endpoints have appropriate authentication")
+        logger.info("RESULT: PASSED - All endpoints have appropriate authentication")
         return 0
     else:
-        print(f"RESULT: FAILED - {critical_issues} critical security issues found")
+        logger.error(f"RESULT: FAILED - {critical_issues} critical security issues found")
         return 1
 
 if __name__ == '__main__':

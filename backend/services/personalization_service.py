@@ -13,6 +13,10 @@ from datetime import datetime, timedelta
 from database import get_supabase_admin_client
 from utils.pillar_mapping import normalize_pillar_name
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 class TaskCacheService:
     """Caching service for AI-generated tasks"""
 
@@ -43,12 +47,12 @@ class TaskCacheService:
                     .eq('id', cache_entry['id'])\
                     .execute()
 
-                print(f"✓ Cache hit for quest {quest_id[:8]}... (key: {cache_key[:8]}...)")
+                logger.info(f"✓ Cache hit for quest {quest_id[:8]}... (key: {cache_key[:8]}...)")
                 return cache_entry['generated_tasks']
 
             return None
         except Exception as e:
-            print(f"Cache get error: {e}")
+            logger.error(f"Cache get error: {e}")
             return None
 
     def set(self, quest_id: str, cache_key: str, tasks: Dict) -> None:
@@ -69,9 +73,9 @@ class TaskCacheService:
                 .upsert(cache_entry, on_conflict='quest_id,cache_key')\
                 .execute()
 
-            print(f"✓ Cached tasks for quest {quest_id[:8]}... (key: {cache_key[:8]}...)")
+            logger.info(f"✓ Cached tasks for quest {quest_id[:8]}... (key: {cache_key[:8]}...)")
         except Exception as e:
-            print(f"Cache set error: {e}")
+            logger.error(f"Cache set error: {e}")
 
 class PersonalizationService:
     """Main service for quest personalization"""
@@ -136,7 +140,7 @@ class PersonalizationService:
             }
 
         except Exception as e:
-            print(f"Error starting personalization session: {e}")
+            logger.error(f"Error starting personalization session: {e}")
             return {
                 'success': False,
                 'error': str(e)
@@ -218,14 +222,14 @@ class PersonalizationService:
             tasks_data = self.ai_service._parse_tasks_response(result.text)
 
             # Debug: Log AI-generated pillar values BEFORE validation
-            print(f"[PERSONALIZATION] AI generated {len(tasks_data)} tasks for quest {quest_id}")
+            logger.info(f"[PERSONALIZATION] AI generated {len(tasks_data)} tasks for quest {quest_id}")
             for i, task in enumerate(tasks_data):
                 print(f"  Task {i}: '{task.get('title')}' - AI returned pillar: '{task.get('pillar')}'")
 
             tasks_data = self._validate_tasks(tasks_data, interests, cross_curricular_subjects)
 
             # Debug: Log pillar values AFTER validation
-            print(f"[PERSONALIZATION] After validation:")
+            logger.info(f"[PERSONALIZATION] After validation:")
             for i, task in enumerate(tasks_data):
                 print(f"  Task {i}: '{task.get('title')}' - Validated pillar: '{task.get('pillar')}'")
 
@@ -255,7 +259,7 @@ class PersonalizationService:
             }
 
         except Exception as e:
-            print(f"Error generating task suggestions: {e}")
+            logger.error(f"Error generating task suggestions: {e}")
             import traceback
             traceback.print_exc()
             return {
@@ -344,7 +348,7 @@ class PersonalizationService:
             }
 
         except Exception as e:
-            print(f"Error refining task: {e}")
+            logger.error(f"Error refining task: {e}")
             return {
                 'success': False,
                 'error': str(e)
@@ -435,7 +439,7 @@ class PersonalizationService:
                 user_tasks.append(user_task)
 
             # Debug: Log what we're about to insert
-            print(f"[FINALIZE] Inserting {len(user_tasks)} tasks to database:")
+            logger.info(f"[FINALIZE] Inserting {len(user_tasks)} tasks to database:")
             for i, ut in enumerate(user_tasks):
                 print(f"  Task {i}: '{ut['title']}' - pillar='{ut['pillar']}'")
 
@@ -445,7 +449,7 @@ class PersonalizationService:
                 .execute()
 
             # Debug: Log what was actually inserted
-            print(f"[FINALIZE] Database INSERT result - {len(result.data)} tasks created:")
+            logger.info(f"[FINALIZE] Database INSERT result - {len(result.data)} tasks created:")
             for i, task_result in enumerate(result.data):
                 print(f"  Task {i}: ID={task_result['id']}, title='{task_result['title']}', pillar='{task_result['pillar']}'")
 
@@ -458,7 +462,7 @@ class PersonalizationService:
                 .eq('id', session_id)\
                 .execute()
 
-            print(f"[FINALIZE] Tasks finalized for user_quest {user_quest_id}, session {session_id}")
+            logger.info(f"[FINALIZE] Tasks finalized for user_quest {user_quest_id}, session {session_id}")
 
             return {
                 'success': True,
@@ -467,7 +471,7 @@ class PersonalizationService:
             }
 
         except Exception as e:
-            print(f"Error finalizing personalization: {e}")
+            logger.error(f"Error finalizing personalization: {e}")
             import traceback
             traceback.print_exc()
             return {

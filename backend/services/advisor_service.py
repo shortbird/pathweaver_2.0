@@ -9,6 +9,10 @@ from typing import Dict, List, Optional, Any
 from database import get_authenticated_supabase_client
 from services.badge_service import BadgeService
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 class AdvisorService:
     """Service for advisor-specific operations"""
 

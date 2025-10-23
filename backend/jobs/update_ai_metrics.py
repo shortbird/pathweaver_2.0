@@ -8,6 +8,10 @@ import sys
 import os
 from datetime import datetime
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -24,7 +28,7 @@ def update_ai_metrics():
 
     Should be run periodically (e.g., daily or hourly) via cron job.
     """
-    print(f"[{datetime.utcnow().isoformat()}] Starting AI metrics update...")
+    logger.info(f"[{datetime.utcnow().isoformat()}] Starting AI metrics update...")
 
     try:
         result = AIPerformanceAnalyticsService.refresh_performance_metrics()
@@ -37,7 +41,7 @@ def update_ai_metrics():
             return 0
 
     except Exception as e:
-        print(f"[{datetime.utcnow().isoformat()}] FATAL ERROR: {str(e)}")
+        logger.error(f"[{datetime.utcnow().isoformat()}] FATAL ERROR: {str(e)}")
         import traceback
         traceback.print_exc()
         return 0

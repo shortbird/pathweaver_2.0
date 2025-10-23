@@ -13,6 +13,10 @@ from utils.auth.decorators import require_admin
 from services.batch_quest_generation_service import BatchQuestGenerationService
 import logging
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 batch_generation_bp = Blueprint('batch_generation', __name__)

@@ -7,6 +7,10 @@ from utils.auth.decorators import require_auth
 from services.learning_events_service import LearningEventsService
 import logging
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 learning_events_bp = Blueprint('learning_events', __name__)

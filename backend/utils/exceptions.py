@@ -2,6 +2,10 @@
 Custom exception classes for Optio Platform
 Provides standardized error handling across the application
 """
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 
 class OpError(Exception):

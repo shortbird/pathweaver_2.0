@@ -6,6 +6,10 @@ from .dashboard import dashboard_bp
 from .transcript import transcript_bp
 from .completed_quests import completed_quests_bp
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Create main users blueprint
 bp = Blueprint('users', __name__)
 

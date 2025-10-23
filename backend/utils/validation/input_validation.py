@@ -4,6 +4,10 @@ import re
 from typing import Dict, Any, Optional, Tuple
 from .password_validator import validate_password_strength
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 def validate_email(email: str) -> Tuple[bool, Optional[str]]:
     """
     Validate email format

@@ -9,6 +9,10 @@ import os
 from typing import Dict, List, Optional, Any, Tuple
 import google.generativeai as genai
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 class QuestAIService:
     """Service for AI-powered quest generation using Gemini API"""
     
@@ -661,7 +665,7 @@ class QuestAIService:
             return applicable_badges[:3]  # Return top 3 matches
 
         except Exception as e:
-            print(f"Error suggesting badges: {e}")
+            logger.error(f"Error suggesting badges: {e}")
             return []
 
     def _build_badge_quest_generation_prompt(self, badge_context: Dict) -> str:

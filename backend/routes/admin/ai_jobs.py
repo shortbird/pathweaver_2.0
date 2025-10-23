@@ -10,6 +10,10 @@ from jobs.quality_monitor import QualityMonitor
 from services.ai_quest_maintenance_service import AIQuestMaintenanceService
 from datetime import datetime
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 ai_jobs_bp = Blueprint('ai_jobs', __name__)
 
 

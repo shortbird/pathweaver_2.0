@@ -8,6 +8,10 @@ from typing import Dict, List, Optional
 from datetime import datetime
 from database import get_supabase_admin_client, get_user_client
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class CreditMappingService:
     """Service for tracking academic credits derived from XP."""

@@ -7,6 +7,10 @@ from .quest_ideas import bp as quest_ideas_bp
 from .analytics import bp as analytics_bp
 from .student_task_management import bp as student_task_management_bp
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 admin_bp = Blueprint('admin', __name__)
 
 # Register all admin sub-blueprints

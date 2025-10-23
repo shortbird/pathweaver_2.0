@@ -6,6 +6,10 @@ import re
 from typing import Optional, Any
 import html
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 def sanitize_search_input(search_term: Optional[str], max_length: int = 100) -> str:
     """
     Sanitize search input to prevent SQL injection.

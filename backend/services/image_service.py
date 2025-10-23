@@ -9,6 +9,10 @@ import re
 import google.generativeai as genai
 from services.api_usage_tracker import pexels_tracker
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 PEXELS_API_KEY = os.getenv('PEXELS_API_KEY')
 GEMINI_API_KEY = os.getenv('GEMINI_API_KEY')
 PEXELS_SEARCH_URL = 'https://api.pexels.com/v1/search'
@@ -92,7 +96,7 @@ Return ONLY the search term with concrete objects/actions, nothing else.
         return search_term
 
     except Exception as e:
-        print(f"AI search term generation failed: {str(e)}")
+        logger.error(f"AI search term generation failed: {str(e)}")
 
     return None
 
@@ -195,7 +199,7 @@ Return ONLY the search term starting with "teenage teen student", nothing else.
         return search_term
 
     except Exception as e:
-        print(f"Badge AI search term generation failed: {str(e)}")
+        logger.error(f"Badge AI search term generation failed: {str(e)}")
 
     return None
 
@@ -213,7 +217,7 @@ def search_badge_image(badge_name: str, identity_statement: str, pillar: Optiona
         Image URL if found, None otherwise
     """
     if not PEXELS_API_KEY:
-        print("Warning: PEXELS_API_KEY not configured")
+        logger.warning("Warning: PEXELS_API_KEY not configured")
         return None
 
     headers = {
@@ -251,7 +255,7 @@ def search_badge_image(badge_name: str, identity_statement: str, pillar: Optiona
 
         # Check API limit before making request
         if not pexels_tracker.can_make_request():
-            print(f"Pexels API rate limit reached. Skipping image fetch.")
+            logger.info(f"Pexels API rate limit reached. Skipping image fetch.")
             return None
 
         try:
@@ -298,7 +302,7 @@ def search_quest_image(quest_title: str, quest_description: Optional[str] = None
         Image URL if found, None otherwise
     """
     if not PEXELS_API_KEY:
-        print("Warning: PEXELS_API_KEY not configured")
+        logger.warning("Warning: PEXELS_API_KEY not configured")
         return None
 
     headers = {
@@ -328,7 +332,7 @@ def search_quest_image(quest_title: str, quest_description: Optional[str] = None
 
         # Check API limit before making request
         if not pexels_tracker.can_make_request():
-            print(f"Pexels API rate limit reached. Skipping image fetch.")
+            logger.info(f"Pexels API rate limit reached. Skipping image fetch.")
             return None
 
         try:
@@ -372,7 +376,7 @@ def get_pexels_image_info(quest_title: str, pillar: Optional[str] = None) -> Opt
         Dict with image_url and other metadata if found, None otherwise
     """
     if not PEXELS_API_KEY:
-        print("Warning: PEXELS_API_KEY not configured")
+        logger.warning("Warning: PEXELS_API_KEY not configured")
         return None
 
     headers = {

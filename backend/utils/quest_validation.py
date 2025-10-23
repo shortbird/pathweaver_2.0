@@ -7,6 +7,10 @@ import re
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 class QuestValidator:
     """Validates quests for quality, appropriateness, and educational value"""
     

@@ -7,6 +7,10 @@ import os
 import sys
 from pathlib import Path
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Add parent directory to path to import database module
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -20,14 +24,14 @@ def run_migration():
     migration_path = Path(__file__).parent.parent / 'migrations' / 'add_ai_jobs_tables.sql'
 
     if not migration_path.exists():
-        print(f"❌ Migration file not found: {migration_path}")
+        logger.info(f"❌ Migration file not found: {migration_path}")
         return False
 
     with open(migration_path, 'r') as f:
         sql = f.read()
 
-    print("🚀 Running AI Jobs Tables Migration...")
-    print(f"📄 Migration file: {migration_path}")
+    logger.info("🚀 Running AI Jobs Tables Migration...")
+    logger.info(f"📄 Migration file: {migration_path}")
 
     try:
         supabase = get_supabase_admin_client()
@@ -36,13 +40,17 @@ def run_migration():
         # Note: Supabase Python client doesn't have direct SQL execution
         # We need to use the REST API or pgAdmin/SQL Editor in Supabase Dashboard
 
-        print("\n⚠️  IMPORTANT:")
-        print("The migration SQL needs to be executed in the Supabase SQL Editor.")
-        print("\nSteps:")
-        print("1. Go to https://supabase.com/dashboard/project/YOUR_PROJECT/sql")
-        print("2. Copy the SQL from: backend/migrations/add_ai_jobs_tables.sql")
+        logger.info("
+⚠️  IMPORTANT:")
+        logger.info("The migration SQL needs to be executed in the Supabase SQL Editor.")
+        logger.info("
+Steps:")
+        logger.info("1. Go to https://supabase.com/dashboard/project/YOUR_PROJECT/sql")
+        logger.info("2. Copy the SQL from: backend/migrations/add_ai_jobs_tables.sql")
         print("3. Paste into SQL Editor and click 'Run'")
-        print("\nOr use this SQL directly:\n")
+        logger.info("
+Or use this SQL directly:
+")
         print("=" * 80)
         print(sql)
         print("=" * 80)
@@ -50,7 +58,7 @@ def run_migration():
         return True
 
     except Exception as e:
-        print(f"❌ Error: {e}")
+        logger.error(f"❌ Error: {e}")
         return False
 
 

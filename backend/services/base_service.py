@@ -12,6 +12,10 @@ from flask import current_app
 from database import get_supabase_admin_client, get_user_client
 from app_config import Config
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -230,7 +234,7 @@ class BaseService:
 
         # Also print to console for development
         if current_app and current_app.debug:
-            print(f"[SERVICE] {msg}")
+            logger.info(f"[SERVICE] {msg}")
 
     def validate_required(self, **kwargs):
         """

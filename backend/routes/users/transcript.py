@@ -7,6 +7,10 @@ from middleware.error_handler import NotFoundError
 from datetime import datetime
 from .helpers import calculate_user_xp, get_user_level, SKILL_CATEGORIES
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 transcript_bp = Blueprint('transcript', __name__)
 
 @transcript_bp.route('/transcript', methods=['GET'])
@@ -69,7 +73,7 @@ def get_transcript(user_id):
     except NotFoundError:
         raise
     except Exception as e:
-        print(f"Error generating transcript: {str(e)}")
+        logger.error(f"Error generating transcript: {str(e)}")
         return jsonify({'error': 'Failed to generate transcript'}), 500
 
 def get_all_completed_quests(supabase, user_id: str) -> list:
@@ -84,7 +88,7 @@ def get_all_completed_quests(supabase, user_id: str) -> list:
             .order('completed_at', desc=False)\
             .execute()
     except Exception as e:
-        print(f"Error fetching completed quests for transcript: {str(e)}")
+        logger.error(f"Error fetching completed quests for transcript: {str(e)}")
         return []
     
     if not completed.data:
@@ -285,6 +289,6 @@ def get_user_achievements(supabase, user_id: str) -> list:
                 'earned_at': datetime.utcnow().isoformat() + 'Z'
             })
     except Exception as e:
-        print(f"Error fetching achievements: {str(e)}")
+        logger.error(f"Error fetching achievements: {str(e)}")
     
     return achievements

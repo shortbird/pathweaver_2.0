@@ -15,6 +15,10 @@ from utils.pillar_utils import get_pillar_name
 from collections import defaultdict
 import logging
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('parent_dashboard', __name__, url_prefix='/api/parent')

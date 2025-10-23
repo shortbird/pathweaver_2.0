@@ -5,6 +5,10 @@ from database import get_supabase_client, get_supabase_admin_client
 from services.email_service import email_service
 from utils.auth.decorators import require_admin
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 promo_bp = Blueprint('promo', __name__)
 

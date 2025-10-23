@@ -9,6 +9,10 @@ from typing import Dict, Any, Optional, Tuple
 from werkzeug.utils import secure_filename
 from datetime import datetime
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Evidence validation rules
 EVIDENCE_RULES = {
     'text': {

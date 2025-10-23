@@ -8,6 +8,10 @@ from backend.services.ai_prompt_optimizer_service import AIPromptOptimizerServic
 from backend.utils.auth.decorators import require_auth, require_admin
 import logging
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 ai_prompt_optimizer_bp = Blueprint('ai_prompt_optimizer', __name__)

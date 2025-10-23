@@ -8,6 +8,10 @@ from datetime import datetime, timedelta
 from database import get_supabase_admin_client
 from decimal import Decimal
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class AIPerformanceAnalyticsService:
     """Service for analyzing AI-generated quest performance and A/B testing"""

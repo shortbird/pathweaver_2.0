@@ -9,6 +9,10 @@ Each platform supports different authentication methods:
 
 import os
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 LMS_PLATFORMS = {
     'canvas': {
         'name': 'Canvas LMS',

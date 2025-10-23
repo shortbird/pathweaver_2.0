@@ -6,6 +6,10 @@ import jwt
 import os
 from datetime import datetime, timedelta
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 def verify_token(token):
     """
     Verify a JWT token and return the user ID

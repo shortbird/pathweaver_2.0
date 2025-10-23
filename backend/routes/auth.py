@@ -12,6 +12,10 @@ import re
 import os
 from datetime import datetime, timedelta
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('auth', __name__)
 
 # Account lockout constants
@@ -52,7 +56,7 @@ def check_account_lockout(email):
         return False, 0, attempt_count
 
     except Exception as e:
-        print(f"Error checking account lockout: {e}")
+        logger.error(f"Error checking account lockout: {e}")
         return False, 0, 0
 
 def record_failed_login(email):
@@ -102,7 +106,7 @@ def record_failed_login(email):
             return False, MAX_LOGIN_ATTEMPTS - attempt_count, 0
 
     except Exception as e:
-        print(f"Error recording failed login: {e}")
+        logger.error(f"Error recording failed login: {e}")
         return False, 0, 0
 
 def reset_login_attempts(email):
@@ -120,7 +124,7 @@ def reset_login_attempts(email):
         }).eq('email', email.lower()).execute()
 
     except Exception as e:
-        print(f"Error resetting login attempts: {e}")
+        logger.error(f"Error resetting login attempts: {e}")
 
 def generate_portfolio_slug(first_name, last_name):
     """Generate a unique portfolio slug from first and last name"""
@@ -159,7 +163,7 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
                         continue
                     else:
                         # Some other error - log it but don't fail
-                        print(f"Error creating diploma: {str(insert_error)}")
+                        logger.error(f"Error creating diploma: {str(insert_error)}")
                         break
         
         # Batch insert all skill categories at once instead of checking each one
@@ -181,7 +185,7 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
             supabase.table('user_skill_xp').upsert(skill_records, on_conflict='user_id,pillar').execute()
         except Exception as skill_error:
             # If batch insert fails, fall back to individual inserts
-            print(f"Batch skill insert failed: {str(skill_error)}, trying individual inserts")
+            logger.error(f"Batch skill insert failed: {str(skill_error)}, trying individual inserts")
             for record in skill_records:
                 try:
                     supabase.table('user_skill_xp').insert(record).execute()
@@ -189,20 +193,20 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
                     pass  # Skill already exists
                 
     except Exception as e:
-        print(f"Error ensuring diploma and skills: {str(e)}")
+        logger.error(f"Error ensuring diploma and skills: {str(e)}")
         # Don't fail registration if this fails - the database trigger should handle it
 
 @bp.route('/register', methods=['POST'])
 @rate_limit(max_requests=5, window_seconds=300)  # 5 registrations per 5 minutes
 def register():
     try:
-        print(f"[REGISTRATION] Starting registration process")
+        logger.info(f"[REGISTRATION] Starting registration process")
         data = request.json
         
         # Validate input data
         is_valid, error_message = validate_registration_data(data)
         if not is_valid:
-            print(f"[REGISTRATION] Validation failed: {error_message}")
+            logger.error(f"[REGISTRATION] Validation failed: {error_message}")
             raise ValidationError(error_message)
         
         # Check for Terms of Service and Privacy Policy acceptance (combined)
@@ -216,12 +220,12 @@ def register():
         date_of_birth = data.get('date_of_birth')  # Optional date of birth for age verification
         parent_email = data.get('parent_email')  # Required if user is under 13
 
-        print(f"[REGISTRATION] Processing registration for email: {email[:3]}***")
+        logger.debug(f"[REGISTRATION] Processing registration for email: {email[:3]}***")
         
         # Log the registration attempt (without password or PII)
         # Only log in development mode
         if os.getenv('FLASK_ENV') == 'development':
-            print(f"Registration attempt for email: {email[:3]}***")
+            logger.info(f"Registration attempt for email: {email[:3]}***")
         
         # Use admin client for registration to bypass RLS
         from database import get_supabase_admin_client
@@ -336,7 +340,7 @@ def register():
                 error_str = str(profile_error).lower()
                 if 'foreign key' in error_str or 'constraint' in error_str:
                     # The auth user wasn't created properly, try to clean up
-                    print(f"Profile creation failed with constraint error: {profile_error}")
+                    logger.error(f"Profile creation failed with constraint error: {profile_error}")
                     # Don't fail the registration - the auth user was created
                     # Just log the error and continue
                 else:
@@ -404,9 +408,9 @@ def register():
     except Exception as e:
         # Log the full error for debugging (handle encoding issues)
         try:
-            print(f"Supabase registration error: {str(e)}")
+            logger.error(f"Supabase registration error: {str(e)}")
         except:
-            print("Supabase registration error occurred but could not be printed")
+            logger.error("Supabase registration error occurred but could not be printed")
         
         # Parse error message for specific cases
         error_str = str(e).lower()
@@ -438,7 +442,7 @@ def register():
         
         # Log unexpected errors in development only
         if os.getenv('FLASK_ENV') == 'development':
-            print(f"Registration error: {str(e)}")
+            logger.error(f"Registration error: {str(e)}")
         raise ExternalServiceError('Supabase', 'Registration service is currently unavailable. Please try again later.', e)
 
 @bp.route('/me', methods=['GET'])
@@ -466,7 +470,7 @@ def get_current_user():
 
                 user_id = user_response.user.id
             except Exception as e:
-                print(f"Token verification failed: {e}")
+                logger.error(f"Token verification failed: {e}")
                 return jsonify({'error': 'Invalid or expired token'}), 401
 
         if not user_id:
@@ -486,11 +490,11 @@ def get_current_user():
                 return jsonify({'error': 'User profile not found'}), 404
 
         except Exception as e:
-            print(f"Error fetching user data: {e}")
+            logger.error(f"Error fetching user data: {e}")
             return jsonify({'error': 'Failed to fetch user profile'}), 500
 
     except Exception as e:
-        print(f"Unexpected error in /me endpoint: {e}")
+        logger.error(f"Unexpected error in /me endpoint: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
 @bp.route('/login', methods=['POST'])
@@ -596,7 +600,7 @@ def login():
                         user_record.get('last_name', '')
                     )
             except Exception as diploma_error:
-                print(f"Non-critical: Failed to ensure diploma/skills during login: {diploma_error}")
+                logger.error(f"Non-critical: Failed to ensure diploma/skills during login: {diploma_error}")
             
             # Normalize user data before using it
             user_response_data = user_data.data
@@ -616,7 +620,7 @@ def login():
                         user_email=auth_response.user.email,
                         user_name=user_response_data.get('first_name', 'there')
                     )
-                    print(f"[LOGIN] Sent welcome email to {auth_response.user.email[:3]}*** on first login")
+                    logger.info(f"[LOGIN] Sent welcome email to {auth_response.user.email[:3]}*** on first login")
 
                     # Mark welcome email as sent
                     try:
@@ -624,10 +628,10 @@ def login():
                             'welcome_email_sent': True
                         }).eq('id', auth_response.user.id).execute()
                     except Exception as update_error:
-                        print(f"Warning: Failed to update welcome_email_sent flag: {update_error}")
+                        logger.error(f"Warning: Failed to update welcome_email_sent flag: {update_error}")
             except Exception as welcome_error:
                 # Don't fail login if welcome email fails
-                print(f"Warning: Failed to send welcome email on first login: {welcome_error}")
+                logger.error(f"Warning: Failed to send welcome email on first login: {welcome_error}")
 
             # Try to log activity, but don't fail login if it doesn't work
             try:
@@ -637,7 +641,7 @@ def login():
                     'event_details': {'ip': request.remote_addr}
                 }).execute()
             except Exception as log_error:
-                print(f"Failed to log activity: {log_error}")
+                logger.error(f"Failed to log activity: {log_error}")
 
             # Reset login attempts after successful login
             reset_login_attempts(email)
@@ -671,7 +675,7 @@ def login():
             
     except Exception as e:
         error_message = str(e)
-        print(f"Login error: {error_message}")
+        logger.error(f"Login error: {error_message}")
         
         # Parse error for specific cases
         error_lower = error_message.lower()
@@ -794,11 +798,11 @@ def resend_verification():
         # Resend verification email using Supabase Auth
         try:
             # Use Supabase's resend functionality
-            print(f"[RESEND_VERIFICATION] Attempting to resend for {email}")
+            logger.info(f"[RESEND_VERIFICATION] Attempting to resend for {email}")
             result = supabase.auth.resend(email=email, type='signup')
             
             # Log the result for debugging
-            print(f"[RESEND_VERIFICATION] Result: {result}")
+            logger.info(f"[RESEND_VERIFICATION] Result: {result}")
             
             return jsonify({
                 'message': 'Verification email request processed. Please check your inbox and spam folder.',
@@ -806,7 +810,7 @@ def resend_verification():
             }), 200
         except Exception as auth_error:
             error_str = str(auth_error).lower()
-            print(f"[RESEND_VERIFICATION] Supabase auth error: {str(auth_error)}")
+            logger.error(f"[RESEND_VERIFICATION] Supabase auth error: {str(auth_error)}")
             
             # Provide helpful error messages
             if 'rate limit' in error_str or 'too many' in error_str:
@@ -824,7 +828,7 @@ def resend_verification():
                 }), 200
             
     except Exception as e:
-        print(f"[RESEND_VERIFICATION] Error: {str(e)}")
+        logger.error(f"[RESEND_VERIFICATION] Error: {str(e)}")
         return jsonify({'error': 'Failed to resend verification email'}), 500
 
 @bp.route('/csrf-token', methods=['GET'])
@@ -856,7 +860,7 @@ def get_csrf_token_endpoint():
         return response
 
     except Exception as e:
-        print(f"Error generating CSRF token: {str(e)}")
+        logger.error(f"Error generating CSRF token: {str(e)}")
         return jsonify({'error': 'Failed to generate CSRF token'}), 500
 
 

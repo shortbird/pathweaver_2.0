@@ -11,6 +11,10 @@ from dataclasses import dataclass
 from enum import Enum
 import google.generativeai as genai
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 from services.safety_service import SafetyService, SafetyLevel
 from utils.pillar_utils import get_pillar_name
 

@@ -14,6 +14,10 @@ from utils.school_subjects import validate_school_subjects
 from datetime import datetime
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('admin_student_task_management', __name__, url_prefix='/api/admin/users')
 
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks', methods=['POST'])
@@ -178,7 +182,7 @@ def create_student_task(user_id, target_user_id, quest_id):
         })
 
     except Exception as e:
-        print(f"Error creating student task: {str(e)}")
+        logger.error(f"Error creating student task: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -304,7 +308,7 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
         })
 
     except Exception as e:
-        print(f"Error batch copying tasks: {str(e)}")
+        logger.error(f"Error batch copying tasks: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({

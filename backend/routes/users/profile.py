@@ -7,6 +7,10 @@ from middleware.error_handler import NotFoundError, ValidationError
 from repositories.user_repository import UserRepository
 from .helpers import calculate_user_xp, get_user_skills
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 profile_bp = Blueprint('profile', __name__)
 
 @profile_bp.route('/profile', methods=['GET'])
@@ -45,7 +49,7 @@ def get_profile(user_id):
     except NotFoundError:
         raise
     except Exception as e:
-        print(f"Error fetching profile: {str(e)}")
+        logger.error(f"Error fetching profile: {str(e)}")
         return jsonify({'error': 'Failed to fetch profile'}), 500
 
 @profile_bp.route('/profile', methods=['PUT'])
@@ -73,5 +77,5 @@ def update_profile(user_id):
     except NotFoundError:
         raise
     except Exception as e:
-        print(f"Error updating profile: {str(e)}")
+        logger.error(f"Error updating profile: {str(e)}")
         return jsonify({'error': 'Failed to update profile'}), 500

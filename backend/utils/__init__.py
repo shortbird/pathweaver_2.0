@@ -2,6 +2,10 @@
 
 # Authentication utilities
 from .auth.decorators import (
+
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
     require_auth,
     require_admin
 )

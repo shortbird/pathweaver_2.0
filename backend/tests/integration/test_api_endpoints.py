@@ -4,6 +4,10 @@ import pytest
 import json
 from unittest.mock import Mock, patch
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 def test_health_check(client):
     """Test health check endpoint"""
     response = client.get('/api/health')

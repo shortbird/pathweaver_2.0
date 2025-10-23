@@ -10,6 +10,10 @@ from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional
 from database import get_supabase_admin_client
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class AtomicQuestService:
     """Service to handle quest completion with race condition protection"""
@@ -134,7 +138,7 @@ class AtomicQuestService:
             }
 
         except Exception as e:
-            print(f"Error in atomic task completion: {e}")
+            logger.error(f"Error in atomic task completion: {e}")
             return {
                 'success': False,
                 'error': f'Completion failed: {str(e)}'
@@ -196,7 +200,7 @@ class AtomicQuestService:
 
             # If no rows were updated, quest was already completed by another request
             if not update_result.data:
-                print(f"Quest {quest_id} already completed for user {user_id}")
+                logger.info(f"Quest {quest_id} already completed for user {user_id}")
                 return {'quest_completed': False, 'already_completed': True}
 
             quest_completed = True
@@ -213,7 +217,7 @@ class AtomicQuestService:
             }
 
         except Exception as e:
-            print(f"Error checking quest completion: {e}")
+            logger.error(f"Error checking quest completion: {e}")
             return {'quest_completed': False, 'error': str(e)}
 
     def get_quest_completion_data(self, user_id: str, quest_id: str) -> Optional[Dict]:
@@ -256,7 +260,7 @@ class AtomicQuestService:
             }
 
         except Exception as e:
-            print(f"Error getting quest completion data: {e}")
+            logger.error(f"Error getting quest completion data: {e}")
             return None
 
     def award_task_xp(self, user_id: str, pillar: str, xp_amount: int) -> int:
@@ -282,14 +286,14 @@ class AtomicQuestService:
                 .execute()
 
             if result.data:
-                print(f"Awarded {xp_amount} XP in {pillar} to user {user_id}")
+                logger.info(f"Awarded {xp_amount} XP in {pillar} to user {user_id}")
                 return xp_amount
             else:
                 # If upsert failed, try to increment existing record
                 return self.increment_user_xp(user_id, pillar, xp_amount)
 
         except Exception as e:
-            print(f"Error awarding task XP: {e}")
+            logger.error(f"Error awarding task XP: {e}")
             # Fallback to increment method
             return self.increment_user_xp(user_id, pillar, xp_amount)
 
@@ -333,7 +337,7 @@ class AtomicQuestService:
             return xp_amount
 
         except Exception as e:
-            print(f"Error incrementing user XP: {e}")
+            logger.error(f"Error incrementing user XP: {e}")
             return 0
 
     def award_completion_bonus(self, user_id: str, quest_id: str, all_tasks: List[Dict]) -> Dict[str, Any]:
@@ -364,7 +368,7 @@ class AtomicQuestService:
             # Award the bonus XP (use same mechanism as task XP)
             self.award_task_xp(user_id, primary_pillar, bonus_xp)
 
-            print(f"Awarded {bonus_xp} completion bonus XP in {primary_pillar} to user {user_id}")
+            logger.info(f"Awarded {bonus_xp} completion bonus XP in {primary_pillar} to user {user_id}")
 
             return {
                 'bonus_xp': bonus_xp,
@@ -372,7 +376,7 @@ class AtomicQuestService:
             }
 
         except Exception as e:
-            print(f"Error awarding completion bonus: {e}")
+            logger.error(f"Error awarding completion bonus: {e}")
             return {'bonus_xp': 0, 'pillar': None}
 
 

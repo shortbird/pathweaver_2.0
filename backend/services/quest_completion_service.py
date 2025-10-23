@@ -3,6 +3,10 @@ import json
 import google.generativeai as genai
 from typing import Dict, Any, Optional
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 class QuestCompletionService:
     def __init__(self):
         api_key = os.getenv('GEMINI_API_KEY')
@@ -196,7 +200,7 @@ Return ONLY a valid JSON object with all quest fields completed. Ensure all arra
             return completed_quest
             
         except Exception as e:
-            print(f"Error in AI quest completion: {str(e)}")
+            logger.error(f"Error in AI quest completion: {str(e)}")
             # Return the original data with minimal required fields
             result = partial_quest.copy()
             if 'title' not in result:

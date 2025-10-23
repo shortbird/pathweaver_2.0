@@ -15,6 +15,10 @@ from middleware.error_handler import ValidationError, AuthorizationError, NotFou
 import uuid
 import logging
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('parent_evidence', __name__, url_prefix='/api/parent')

@@ -5,6 +5,10 @@ import traceback
 from datetime import datetime
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 class AppError(Exception):

@@ -15,6 +15,10 @@ from werkzeug.utils import secure_filename
 from typing import Dict, Any, Optional, List
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('evidence_documents', __name__, url_prefix='/api/evidence')
 
 # Initialize services
@@ -69,7 +73,7 @@ def get_evidence_document(user_id: str, task_id: str):
         })
 
     except Exception as e:
-        print(f"Error getting evidence document: {str(e)}")
+        logger.error(f"Error getting evidence document: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch evidence document'
@@ -100,7 +104,7 @@ def save_evidence_document(user_id: str, task_id: str):
 
         if not task_check.data:
             # Provide helpful debugging info
-            print(f"Task {task_id} not found in user_quest_tasks table for user {user_id}")
+            logger.info(f"Task {task_id} not found in user_quest_tasks table for user {user_id}")
             return jsonify({
                 'success': False,
                 'error': f'Task not found. This task may not have been created yet. Please complete the personalization wizard first, or the task ID may be invalid. (Task ID: {task_id[:8]}...)'
@@ -184,7 +188,7 @@ def save_evidence_document(user_id: str, task_id: str):
                     document_id = document_insert.data[0]['id']
             except Exception as insert_error:
                 # Handle 409 conflict - document was created by another request
-                print(f"Insert conflict (likely race condition): {str(insert_error)}")
+                logger.error(f"Insert conflict (likely race condition): {str(insert_error)}")
                 document_response = supabase.table('user_task_evidence_documents')\
                     .select('*')\
                     .eq('user_id', user_id)\
@@ -268,7 +272,7 @@ def save_evidence_document(user_id: str, task_id: str):
         })
 
     except Exception as e:
-        print(f"Error saving evidence document: {str(e)}")
+        logger.error(f"Error saving evidence document: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to save evidence document'
@@ -396,14 +400,14 @@ def upload_block_file(user_id: str, block_id: str):
             })
 
         except Exception as upload_error:
-            print(f"Error uploading file: {str(upload_error)}")
+            logger.error(f"Error uploading file: {str(upload_error)}")
             return jsonify({
                 'success': False,
                 'error': 'Failed to upload file'
             }), 500
 
     except Exception as e:
-        print(f"Error in upload_block_file: {str(e)}")
+        logger.error(f"Error in upload_block_file: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to process file upload'
@@ -551,7 +555,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
         }
 
     except Exception as e:
-        print(f"Error processing evidence completion: {str(e)}")
+        logger.error(f"Error processing evidence completion: {str(e)}")
         return {
             'success': False,
             'error': 'Failed to complete task'
@@ -617,7 +621,7 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
                 .execute()
 
     except Exception as e:
-        print(f"Error updating document blocks: {str(e)}")
+        logger.error(f"Error updating document blocks: {str(e)}")
         raise
 
 def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
@@ -681,7 +685,7 @@ def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
         return False
 
     except Exception as e:
-        print(f"Error checking quest completion: {str(e)}")
+        logger.error(f"Error checking quest completion: {str(e)}")
         return False
 
 @bp.route('/documents/<task_id>/complete', methods=['POST'])
@@ -749,7 +753,7 @@ def complete_task_with_evidence(user_id: str, task_id: str):
         return jsonify(response)
 
     except Exception as e:
-        print(f"Error completing task with evidence: {str(e)}")
+        logger.error(f"Error completing task with evidence: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to complete task'

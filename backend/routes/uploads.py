@@ -10,6 +10,10 @@ import magic  # python-magic is now required
 import os
 from datetime import datetime
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('uploads', __name__)
 
 # Allowed MIME types (checked via magic bytes)

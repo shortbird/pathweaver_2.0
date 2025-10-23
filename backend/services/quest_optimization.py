@@ -9,6 +9,10 @@ from typing import Dict, List, Optional, Set, Any
 from database import get_supabase_client
 from utils.pillar_mapping import normalize_pillar_name
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class QuestOptimizationService:
     """Service to optimize quest queries and eliminate N+1 problems"""
@@ -66,7 +70,7 @@ class QuestOptimizationService:
             return result
 
         except Exception as e:
-            print(f"Error getting user enrollments batch: {e}")
+            logger.error(f"Error getting user enrollments batch: {e}")
             return {}
 
     def get_user_task_completions_batch(self, user_id: str, enrollment_ids: List[str]) -> Dict[str, Set[str]]:
@@ -112,7 +116,7 @@ class QuestOptimizationService:
             return completion_map
 
         except Exception as e:
-            print(f"Error getting task completions batch: {e}")
+            logger.error(f"Error getting task completions batch: {e}")
             return {}
 
     def get_user_quest_tasks_batch(self, enrollment_ids: List[str]) -> Dict[str, List[Dict]]:
@@ -147,7 +151,7 @@ class QuestOptimizationService:
             return task_map
 
         except Exception as e:
-            print(f"Error getting user quest tasks batch: {e}")
+            logger.error(f"Error getting user quest tasks batch: {e}")
             return {}
 
     def enrich_quests_with_user_data(self, quests: List[Dict], user_id: str) -> List[Dict]:
@@ -173,7 +177,7 @@ class QuestOptimizationService:
         quest_ids = [quest['id'] for quest in quests]
 
         # Batch query 1: Get all enrollments for user
-        print(f"[OPTIMIZATION] Getting enrollments for {len(quest_ids)} quests in 1 query")
+        logger.info(f"[OPTIMIZATION] Getting enrollments for {len(quest_ids)} quests in 1 query")
         enrollments_map = self.get_user_enrollments_batch(user_id, quest_ids)
 
         # Collect enrollment IDs for batch query 2
@@ -186,14 +190,14 @@ class QuestOptimizationService:
 
         # Batch query 2: Get all user tasks (personalized)
         if enrollment_ids:
-            print(f"[OPTIMIZATION] Getting user tasks for {len(enrollment_ids)} enrollments in 1 query")
+            logger.info(f"[OPTIMIZATION] Getting user tasks for {len(enrollment_ids)} enrollments in 1 query")
             user_tasks_map = self.get_user_quest_tasks_batch(enrollment_ids)
         else:
             user_tasks_map = {}
 
         # Batch query 3: Get all task completions
         if enrollment_ids:
-            print(f"[OPTIMIZATION] Getting task completions for {len(enrollment_ids)} enrollments in 1 query")
+            logger.info(f"[OPTIMIZATION] Getting task completions for {len(enrollment_ids)} enrollments in 1 query")
             completions_map = self.get_user_task_completions_batch(user_id, enrollment_ids)
         else:
             completions_map = {}
@@ -228,7 +232,7 @@ class QuestOptimizationService:
 
                 # Calculate pillar breakdown from user's tasks
                 pillar_breakdown = {}
-                print(f"[PILLAR DEBUG] Processing completed quest {quest_id[:8]}, {len(user_tasks)} tasks")
+                logger.debug(f"[PILLAR DEBUG] Processing completed quest {quest_id[:8]}, {len(user_tasks)} tasks")
                 for task in user_tasks:
                     db_pillar = task.get('pillar', 'art')
                     # Normalize pillar name (handles legacy values, new values already normalized)
@@ -237,10 +241,10 @@ class QuestOptimizationService:
                     except ValueError:
                         pillar = 'art'  # Default fallback
                     xp = task.get('xp_value', 0)
-                    print(f"[PILLAR DEBUG]   Task: db_pillar={db_pillar}, normalized={pillar}, xp={xp}")
+                    logger.debug(f"[PILLAR DEBUG]   Task: db_pillar={db_pillar}, normalized={pillar}, xp={xp}")
                     pillar_breakdown[pillar] = pillar_breakdown.get(pillar, 0) + xp
                 quest['pillar_breakdown'] = pillar_breakdown
-                print(f"[PILLAR DEBUG] Final breakdown for quest {quest_id[:8]}: {pillar_breakdown}")
+                logger.debug(f"[PILLAR DEBUG] Final breakdown for quest {quest_id[:8]}: {pillar_breakdown}")
 
             # Handle active quest (only if no completed enrollment)
             elif active_enrollment:
@@ -263,7 +267,7 @@ class QuestOptimizationService:
 
                 # Calculate pillar breakdown from user's tasks
                 pillar_breakdown = {}
-                print(f"[PILLAR DEBUG] Processing active quest {quest_id[:8]}, {len(user_tasks)} tasks")
+                logger.debug(f"[PILLAR DEBUG] Processing active quest {quest_id[:8]}, {len(user_tasks)} tasks")
                 for task in user_tasks:
                     db_pillar = task.get('pillar', 'art')
                     # Normalize pillar name (handles legacy values, new values already normalized)
@@ -272,12 +276,12 @@ class QuestOptimizationService:
                     except ValueError:
                         pillar = 'art'  # Default fallback
                     xp = task.get('xp_value', 0)
-                    print(f"[PILLAR DEBUG]   Task: db_pillar={db_pillar}, normalized={pillar}, xp={xp}")
+                    logger.debug(f"[PILLAR DEBUG]   Task: db_pillar={db_pillar}, normalized={pillar}, xp={xp}")
                     pillar_breakdown[pillar] = pillar_breakdown.get(pillar, 0) + xp
                 quest['pillar_breakdown'] = pillar_breakdown
-                print(f"[PILLAR DEBUG] Final breakdown for quest {quest_id[:8]}: {pillar_breakdown}")
+                logger.debug(f"[PILLAR DEBUG] Final breakdown for quest {quest_id[:8]}: {pillar_breakdown}")
 
-        print(f"[OPTIMIZATION] Enriched {len(quests)} quests with {len(enrollment_ids)} enrollments using 4 total queries instead of {len(quests) * 2}")
+        logger.info(f"[OPTIMIZATION] Enriched {len(quests)} quests with {len(enrollment_ids)} enrollments using 4 total queries instead of {len(quests) * 2}")
         return quests
 
     def get_quest_filtering_optimization(self, pillar_filter: str = None, subject_filter: str = None) -> Optional[Set[str]]:

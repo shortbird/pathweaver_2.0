@@ -14,6 +14,10 @@ from middleware.error_handler import AuthenticationError, AuthorizationError, Va
 from utils.session_manager import session_manager
 from utils.validation import validate_uuid
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 def require_auth(f):
     """
     Decorator to require authentication for routes.

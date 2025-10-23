@@ -8,6 +8,10 @@ import json
 import os
 from database import get_supabase_admin_client
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Import Gemini
 try:
     import google.generativeai as genai
@@ -148,7 +152,7 @@ Output Format (JSON):
                 return AIBadgeGenerationService._simple_validation(badge_data)
 
         except Exception as e:
-            print(f"Quality validation error: {e}")
+            logger.error(f"Quality validation error: {e}")
             return AIBadgeGenerationService._simple_validation(badge_data)
 
     @staticmethod

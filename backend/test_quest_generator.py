@@ -5,15 +5,20 @@ import os
 import sys
 from services.quest_ai_service import QuestAIService
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Test the new lightweight quest concept generation
 def test_quest_concept_generation():
-    print("Testing Quest Concept Generation...")
+    logger.info("Testing Quest Concept Generation...")
     print("-" * 50)
 
     service = QuestAIService()
 
     # Test 1: Generate without avoid list
-    print("\nTest 1: Basic generation")
+    logger.info("
+Test 1: Basic generation")
     result1 = service.generate_quest_concept()
 
     if result1.get('success'):
@@ -24,7 +29,8 @@ def test_quest_concept_generation():
         print(f"✗ Failed: {result1.get('error')}")
 
     # Test 2: Generate with avoid list
-    print("\nTest 2: Generation with avoid list")
+    logger.info("
+Test 2: Generation with avoid list")
     avoid_titles = [
         "Build a Treehouse",
         "Learn to Surf",
@@ -41,14 +47,15 @@ def test_quest_concept_generation():
 
         # Check if it avoided the titles
         if quest2['title'] in avoid_titles:
-            print(f"  ⚠ WARNING: Generated quest was in avoid list!")
+            logger.warning(f"  ⚠ WARNING: Generated quest was in avoid list!")
         else:
-            print(f"  ✓ Successfully avoided duplicate titles")
+            logger.info(f"  ✓ Successfully avoided duplicate titles")
     else:
         print(f"✗ Failed: {result2.get('error')}")
 
     # Test 3: Generate 5 concepts
-    print("\nTest 3: Generate 5 unique concepts")
+    logger.info("
+Test 3: Generate 5 unique concepts")
     generated_titles = []
 
     for i in range(5):
@@ -61,7 +68,7 @@ def test_quest_concept_generation():
             print(f"  {i+1}. Failed: {result.get('error')}")
 
     print("\n" + "-" * 50)
-    print("Test completed!")
+    logger.info("Test completed!")
 
 if __name__ == "__main__":
     test_quest_concept_generation()

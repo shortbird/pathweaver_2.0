@@ -16,6 +16,10 @@ import mimetypes
 from werkzeug.utils import secure_filename
 from typing import Dict, Any, Optional
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('tasks', __name__, url_prefix='/api/tasks')
 
 # Initialize services
@@ -180,7 +184,7 @@ def complete_task(user_id: str, task_id: str):
                 evidence_content = public_url
 
             except Exception as upload_error:
-                print(f"Error uploading to Supabase storage: {str(upload_error)}")
+                logger.error(f"Error uploading to Supabase storage: {str(upload_error)}")
                 return jsonify({
                     'success': False,
                     'error': 'Failed to upload image. Please try again.'
@@ -230,11 +234,11 @@ def complete_task(user_id: str, task_id: str):
             }), 500
 
         # Award XP to user
-        print(f"=== TASK COMPLETION XP DEBUG ===")
-        print(f"Task ID: {task_id}, User ID: {user_id}")
+        logger.debug(f"=== TASK COMPLETION XP DEBUG ===")
+        logger.info(f"Task ID: {task_id}, User ID: {user_id}")
         print(f"Task pillar: {task_data.get('pillar')}")
-        print(f"Base XP: {base_xp}, Final XP: {final_xp}, Has Collaboration: {has_collaboration}")
-        print("================================")
+        logger.info(f"Base XP: {base_xp}, Final XP: {final_xp}, Has Collaboration: {has_collaboration}")
+        logger.info("================================")
 
         # Award XP using XP service
         xp_awarded = xp_service.award_xp(
@@ -245,14 +249,14 @@ def complete_task(user_id: str, task_id: str):
         )
 
         if not xp_awarded:
-            print(f"Warning: Failed to award XP for task {task_id} to user {user_id}")
+            logger.error(f"Warning: Failed to award XP for task {task_id} to user {user_id}")
 
         # Award subject-specific XP for diploma credits
         subject_xp_distribution = task_data.get('subject_xp_distribution', {})
         if subject_xp_distribution:
-            print(f"=== SUBJECT XP TRACKING ===")
-            print(f"Task ID: {task_id}, User ID: {user_id}")
-            print(f"Subject XP Distribution: {subject_xp_distribution}")
+            logger.info(f"=== SUBJECT XP TRACKING ===")
+            logger.info(f"Task ID: {task_id}, User ID: {user_id}")
+            logger.info(f"Subject XP Distribution: {subject_xp_distribution}")
 
             for subject, subject_xp in subject_xp_distribution.items():
                 try:
@@ -277,7 +281,7 @@ def complete_task(user_id: str, task_id: str):
                             .eq('school_subject', subject)\
                             .execute()
 
-                        print(f"Updated {subject}: {current_xp} + {subject_xp} = {new_total} XP")
+                        logger.info(f"Updated {subject}: {current_xp} + {subject_xp} = {new_total} XP")
                     else:
                         # Create new record
                         admin_supabase.table('user_subject_xp')\
@@ -289,14 +293,14 @@ def complete_task(user_id: str, task_id: str):
                             })\
                             .execute()
 
-                        print(f"Created {subject}: {subject_xp} XP")
+                        logger.info(f"Created {subject}: {subject_xp} XP")
 
                 except Exception as e:
-                    print(f"Warning: Failed to award subject XP for {subject}: {e}")
+                    logger.error(f"Warning: Failed to award subject XP for {subject}: {e}")
 
-            print("==========================")
+            logger.info("==========================")
         else:
-            print(f"No subject XP distribution found for task {task_id}")
+            logger.info(f"No subject XP distribution found for task {task_id}")
         
         # Check if all required tasks are completed (personalized quest system)
         # Get user's personalized tasks for this quest
@@ -360,7 +364,7 @@ def complete_task(user_id: str, task_id: str):
         })
         
     except Exception as e:
-        print(f"Error completing task: {str(e)}")
+        logger.error(f"Error completing task: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to complete task'

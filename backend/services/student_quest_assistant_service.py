@@ -9,6 +9,10 @@ from services.quest_ai_service import QuestAIService
 from services.ai_quest_maintenance_service import AIQuestMaintenanceService
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class StudentQuestAssistantService:
     """Service for helping students create custom quests aligned with their goals"""
@@ -220,7 +224,7 @@ class StudentQuestAssistantService:
                 })
 
             except Exception as e:
-                print(f"Error generating suggestion {i}: {e}")
+                logger.error(f"Error generating suggestion {i}: {e}")
                 continue
 
         return {
@@ -300,7 +304,7 @@ Format as JSON:
             }
 
         except Exception as e:
-            print(f"Error refining quest idea: {e}")
+            logger.error(f"Error refining quest idea: {e}")
             return {
                 'user_id': user_id,
                 'original': {

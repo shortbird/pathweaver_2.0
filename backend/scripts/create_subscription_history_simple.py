@@ -5,6 +5,10 @@ Simple script to create subscription_history table using direct SQL execution.
 
 import os
 import sys
+
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import get_supabase_admin_client
@@ -14,12 +18,12 @@ def create_subscription_history_table():
     supabase = get_supabase_admin_client()
 
     try:
-        print("Creating subscription_history table...")
+        logger.info("Creating subscription_history table...")
 
         # Test if table already exists
         try:
             result = supabase.table('subscription_history').select('*').limit(1).execute()
-            print("Table already exists - no action needed")
+            logger.info("Table already exists - no action needed")
             return True
         except:
             print("Table doesn't exist, creating it...")
@@ -28,8 +32,8 @@ def create_subscription_history_table():
         # We'll create the table structure by inserting a test record and then deleting it
         # This will auto-create the table with inferred types
 
-        print("Alternative approach: The table needs to be created manually in the Supabase dashboard")
-        print("Please create the table with this SQL in Supabase SQL Editor:")
+        logger.info("Alternative approach: The table needs to be created manually in the Supabase dashboard")
+        logger.info("Please create the table with this SQL in Supabase SQL Editor:")
         print("""
 CREATE TABLE IF NOT EXISTS public.subscription_history (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -67,7 +71,7 @@ USING (auth.role() = 'service_role');
         return False  # Manual action required
 
     except Exception as e:
-        print(f"Error: {str(e)}")
+        logger.error(f"Error: {str(e)}")
         return False
 
 if __name__ == "__main__":

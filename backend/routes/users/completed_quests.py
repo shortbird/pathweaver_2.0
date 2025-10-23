@@ -5,6 +5,10 @@ from database import get_user_client
 from utils.auth.decorators import require_auth
 from middleware.error_handler import ValidationError
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 completed_quests_bp = Blueprint('completed_quests', __name__)
 
 @completed_quests_bp.route('/completed-quests', methods=['GET'])
@@ -96,7 +100,7 @@ def get_completed_quests(user_id):
     except ValidationError:
         raise
     except Exception as e:
-        print(f"Error fetching completed quests: {str(e)}")
+        logger.error(f"Error fetching completed quests: {str(e)}")
         return jsonify({'error': 'Failed to fetch completed quests'}), 500
 
 def calculate_quest_xp(quest: dict) -> dict:

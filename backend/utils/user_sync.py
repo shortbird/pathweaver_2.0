@@ -5,6 +5,10 @@ Utility functions for syncing user data between auth and users table.
 from database import get_supabase_admin_client
 from typing import Optional, Dict
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 def ensure_user_exists(user_id: str) -> Optional[Dict]:
     """
@@ -26,18 +30,18 @@ def ensure_user_exists(user_id: str) -> Optional[Dict]:
             .execute()
         
         if user_result.data and len(user_result.data) > 0:
-            print(f"[USER_SYNC] User {user_id[:8]} already exists in users table")
+            logger.info(f"[USER_SYNC] User {user_id[:8]} already exists in users table")
             return user_result.data[0]
         
         # User doesn't exist in users table, try to get from auth
-        print(f"[USER_SYNC] User {user_id[:8]} not in users table, checking auth")
+        logger.info(f"[USER_SYNC] User {user_id[:8]} not in users table, checking auth")
         
         try:
             # Get user from auth system
             auth_user = admin_client.auth.admin.get_user_by_id(user_id)
             
             if auth_user:
-                print(f"[USER_SYNC] Found user {user_id[:8]} in auth: {auth_user.user.email}")
+                logger.info(f"[USER_SYNC] Found user {user_id[:8]} in auth: {auth_user.user.email}")
                 
                 # Extract name from email or metadata
                 email = auth_user.user.email or ""
@@ -73,14 +77,14 @@ def ensure_user_exists(user_id: str) -> Optional[Dict]:
                     .execute()
                 
                 if create_result.data:
-                    print(f"[USER_SYNC] Created user {user_id[:8]} in users table: {first_name} {last_name}")
+                    logger.info(f"[USER_SYNC] Created user {user_id[:8]} in users table: {first_name} {last_name}")
                     return create_result.data[0]
                 else:
-                    print(f"[USER_SYNC] Failed to create user {user_id[:8]} in users table")
+                    logger.error(f"[USER_SYNC] Failed to create user {user_id[:8]} in users table")
                     return None
                     
         except Exception as auth_error:
-            print(f"[USER_SYNC] Error getting user from auth: {str(auth_error)}")
+            logger.error(f"[USER_SYNC] Error getting user from auth: {str(auth_error)}")
             # Return a fallback user data
             return {
                 'id': user_id,
@@ -89,7 +93,7 @@ def ensure_user_exists(user_id: str) -> Optional[Dict]:
             }
             
     except Exception as e:
-        print(f"[USER_SYNC] Error in ensure_user_exists: {str(e)}")
+        logger.error(f"[USER_SYNC] Error in ensure_user_exists: {str(e)}")
         return None
 
 

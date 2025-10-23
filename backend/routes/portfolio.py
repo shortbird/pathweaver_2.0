@@ -4,6 +4,10 @@ from database import get_supabase_client, get_supabase_admin_client
 from datetime import datetime
 from utils.auth.decorators import require_auth
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('portfolio', __name__)
 
 @bp.route('/public/<portfolio_slug>', methods=['GET'])
@@ -61,7 +65,7 @@ def get_public_portfolio(portfolio_slug):
         # Try to get from user_skill_xp table first
         try:
             skill_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()
-            print(f"Skill XP data from table: {skill_xp.data}")
+            logger.info(f"Skill XP data from table: {skill_xp.data}")
             
             if skill_xp.data:
                 for record in skill_xp.data:
@@ -76,17 +80,17 @@ def get_public_portfolio(portfolio_slug):
                             'total_xp': xp
                         })
         except Exception as e:
-            print(f"Error fetching skill XP: {str(e)}")
+            logger.error(f"Error fetching skill XP: {str(e)}")
         
         # XP is now tracked in user_skill_xp table (populated when tasks complete)
         # If no XP exists yet, user hasn't completed any tasks
         if total_xp == 0:
-            print(f"No XP found for user {user_id} - user may not have completed any tasks yet")
+            logger.info(f"No XP found for user {user_id} - user may not have completed any tasks yet")
         
         # Get skill details (times practiced)
-        print(f"Fetching skill details for user_id: {user_id}")
+        logger.info(f"Fetching skill details for user_id: {user_id}")
         skill_details = supabase.table('user_skill_details').select('*').eq('user_id', user_id).execute()
-        print(f"Skill details data: {skill_details.data}")
+        logger.info(f"Skill details data: {skill_details.data}")
         
         # If no skill details exist, create them from completed quests
         if not skill_details.data and completed_quests.data:
@@ -108,9 +112,9 @@ def get_public_portfolio(portfolio_slug):
         
         # Calculate total quests completed
         total_quests = len(completed_quests.data) if completed_quests.data else 0
-        print(f"Total quests completed: {total_quests}")
-        print(f"Total XP calculated: {total_xp}")
-        print(f"XP by category: {xp_by_category}")
+        logger.info(f"Total quests completed: {total_quests}")
+        logger.info(f"Total XP calculated: {total_xp}")
+        logger.info(f"XP by category: {xp_by_category}")
         
         return jsonify({
             'student': user.data[0],
@@ -125,8 +129,8 @@ def get_public_portfolio(portfolio_slug):
         
     except Exception as e:
         import traceback
-        print(f"Error fetching portfolio: {str(e)}")
-        print(f"Full traceback: {traceback.format_exc()}")
+        logger.error(f"Error fetching portfolio: {str(e)}")
+        logger.info(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to fetch portfolio'}), 500
 
 @bp.route('/user/<user_id>', methods=['GET'])
@@ -137,21 +141,21 @@ def get_user_portfolio(auth_user_id: str, user_id: str):
     Get portfolio data for a specific user
     """
     try:
-        print(f"Getting portfolio for user_id: {user_id}")
+        logger.info(f"Getting portfolio for user_id: {user_id}")
         supabase = get_supabase_client()
         
         # Try to get diploma info
         try:
             diploma_result = supabase.table('diplomas').select('*').eq('user_id', user_id).execute()
             diploma = diploma_result.data if diploma_result.data else None
-            print(f"Existing diploma data: {diploma}")
+            logger.info(f"Existing diploma data: {diploma}")
         except Exception as e:
-            print(f"Error fetching diploma: {str(e)}")
+            logger.error(f"Error fetching diploma: {str(e)}")
             diploma = None
         
         # If no diploma exists, try to create one
         if not diploma:
-            print(f"No diploma found, creating one for user {user_id}")
+            logger.info(f"No diploma found, creating one for user {user_id}")
             try:
                 # Get user data to generate slug
                 user_data = supabase.table('users').select('first_name, last_name').eq('id', user_id).execute()
@@ -192,9 +196,9 @@ def get_user_portfolio(auth_user_id: str, user_id: str):
                             'portfolio_slug': slug
                         }).execute()
                         diploma = diploma_create.data
-                        print(f"Diploma created successfully: {diploma}")
+                        logger.info(f"Diploma created successfully: {diploma}")
                     except Exception as insert_error:
-                        print(f"Error creating diploma: {str(insert_error)}")
+                        logger.error(f"Error creating diploma: {str(insert_error)}")
                         # Create a dummy diploma object for response
                         diploma = [{
                             'portfolio_slug': f"{base_slug or 'user'}{user_id[:8]}",
@@ -202,7 +206,7 @@ def get_user_portfolio(auth_user_id: str, user_id: str):
                             'is_public': True
                         }]
                 else:
-                    print(f"User {user_id} not found")
+                    logger.info(f"User {user_id} not found")
                     # Create a dummy diploma object
                     diploma = [{
                         'portfolio_slug': f"user{user_id[:8]}",
@@ -210,7 +214,7 @@ def get_user_portfolio(auth_user_id: str, user_id: str):
                         'is_public': True
                     }]
             except Exception as create_error:
-                print(f"Error in diploma creation process: {str(create_error)}")
+                logger.error(f"Error in diploma creation process: {str(create_error)}")
                 # Create a dummy diploma object
                 diploma = [{
                     'portfolio_slug': f"user{user_id[:8]}",
@@ -236,7 +240,7 @@ def get_user_portfolio(auth_user_id: str, user_id: str):
             skill_xp = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()
             skill_xp_data = skill_xp.data if skill_xp.data else []
         except Exception as e:
-            print(f"Error fetching skill XP: {str(e)}")
+            logger.error(f"Error fetching skill XP: {str(e)}")
         
         # Get completed quests count
         total_quests = 0
@@ -269,8 +273,8 @@ def get_user_portfolio(auth_user_id: str, user_id: str):
         
     except Exception as e:
         import traceback
-        print(f"Error fetching user portfolio: {str(e)}")
-        print(f"Full traceback: {traceback.format_exc()}")
+        logger.error(f"Error fetching user portfolio: {str(e)}")
+        logger.info(f"Full traceback: {traceback.format_exc()}")
         # Return a minimal response even on error
         return jsonify({
             'diploma': {
@@ -293,7 +297,7 @@ def get_public_diploma_by_user_id(user_id):
     This is the route called by the diploma page when viewing /diploma/:userId
     """
     try:
-        print(f"=== DIPLOMA ENDPOINT CALLED FOR USER: {user_id} ===")
+        logger.info(f"=== DIPLOMA ENDPOINT CALLED FOR USER: {user_id} ===")
         # JUSTIFICATION: Admin client used for public diploma endpoint
         # Public endpoint needs to bypass RLS to display non-sensitive user data
         # (first_name, last_name) for portfolio viewing without authentication
@@ -302,10 +306,10 @@ def get_public_diploma_by_user_id(user_id):
 
         # Get user's basic info (not sensitive data)
         user = supabase.table('users').select('id, first_name, last_name').eq('id', user_id).execute()
-        print(f"User query result - data: {user.data}")
+        logger.info(f"User query result - data: {user.data}")
 
         if not user.data or len(user.data) == 0:
-            print(f"ERROR: User not found for ID: {user_id}")
+            logger.error(f"ERROR: User not found for ID: {user_id}")
             return jsonify({'error': 'User not found'}), 404
         
         # Get user's completed quests with V3 data structure - optimized query
@@ -326,11 +330,11 @@ def get_public_diploma_by_user_id(user_id):
             '''
         ).eq('user_id', user_id).execute()
 
-        print(f"=== TASK COMPLETIONS DEBUG ===")
-        print(f"Found {len(task_completions.data) if task_completions.data else 0} task completions")
+        logger.debug(f"=== TASK COMPLETIONS DEBUG ===")
+        logger.info(f"Found {len(task_completions.data) if task_completions.data else 0} task completions")
         if task_completions.data and len(task_completions.data) > 0:
-            print(f"Sample task completion structure: {task_completions.data[0]}")
-        print(f"================================")
+            logger.info(f"Sample task completion structure: {task_completions.data[0]}")
+        logger.info(f"================================")
 
         # Get multi-format evidence documents with their content blocks
         # This query fetches both the document metadata AND all associated blocks
@@ -350,12 +354,12 @@ def get_public_diploma_by_user_id(user_id):
             '''
         ).eq('user_id', user_id).eq('status', 'completed').execute()
 
-        print(f"=== EVIDENCE DOCUMENTS DEBUG ===")
-        print(f"Found {len(evidence_documents_response.data) if evidence_documents_response.data else 0} evidence documents")
+        logger.debug(f"=== EVIDENCE DOCUMENTS DEBUG ===")
+        logger.info(f"Found {len(evidence_documents_response.data) if evidence_documents_response.data else 0} evidence documents")
         if evidence_documents_response.data:
             for doc in evidence_documents_response.data:
                 print(f"Doc {doc.get('id')}: task_id={doc.get('task_id')}, blocks={len(doc.get('evidence_document_blocks', []))}")
-        print(f"================================")
+        logger.info(f"================================")
 
         # Create a lookup map for quick evidence document access by task_id
         evidence_docs_map = {}
@@ -612,10 +616,10 @@ def get_public_diploma_by_user_id(user_id):
         # Sort achievements by date (completed_at for completed, started_at for in-progress)
         achievements.sort(key=lambda x: x.get('completed_at') or x.get('started_at'), reverse=True)
 
-        print(f"=== RETURNING DIPLOMA DATA ===")
-        print(f"Student: {user.data[0]}")
-        print(f"Achievements: {len(achievements)}")
-        print(f"Total XP: {total_xp}")
+        logger.info(f"=== RETURNING DIPLOMA DATA ===")
+        logger.info(f"Student: {user.data[0]}")
+        logger.info(f"Achievements: {len(achievements)}")
+        logger.info(f"Total XP: {total_xp}")
 
         return jsonify({
             'student': user.data[0],
@@ -627,9 +631,9 @@ def get_public_diploma_by_user_id(user_id):
 
     except Exception as e:
         import traceback
-        print(f"=== ERROR IN DIPLOMA ENDPOINT ===")
-        print(f"Error fetching diploma: {str(e)}")
-        print(f"Full traceback: {traceback.format_exc()}")
+        logger.error(f"=== ERROR IN DIPLOMA ENDPOINT ===")
+        logger.error(f"Error fetching diploma: {str(e)}")
+        logger.info(f"Full traceback: {traceback.format_exc()}")
         return jsonify({'error': 'Failed to fetch diploma'}), 500
 
 @bp.route('/user/<user_id>/privacy', methods=['PUT'])
@@ -664,5 +668,5 @@ def update_portfolio_privacy(authenticated_user_id, user_id):
             return jsonify({'error': 'Failed to update privacy setting'}), 400
             
     except Exception as e:
-        print(f"Error updating privacy: {str(e)}")
+        logger.error(f"Error updating privacy: {str(e)}")
         return jsonify({'error': 'Failed to update privacy setting'}), 500

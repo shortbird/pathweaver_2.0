@@ -8,6 +8,10 @@ from flask import make_response, request
 from functools import wraps
 from typing import Optional, Dict, Any
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 class SessionManager:
     """Manages secure session tokens using httpOnly cookies"""
     

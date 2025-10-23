@@ -3,6 +3,10 @@
 from typing import Tuple, Dict, List
 from cache import cached as cache_decorator
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 SKILL_CATEGORIES = [
     'art',
     'stem',
@@ -42,11 +46,11 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
             .eq('user_id', user_id)\
             .execute()
 
-        print(f"=== XP CALCULATION DEBUG for user {user_id} ===")
-        print(f"Found {len(skill_xp.data) if skill_xp.data else 0} skill XP records")
+        logger.debug(f"=== XP CALCULATION DEBUG for user {user_id} ===")
+        logger.info(f"Found {len(skill_xp.data) if skill_xp.data else 0} skill XP records")
 
         if skill_xp.data:
-            print(f"Processing {len(skill_xp.data)} skill XP records...")
+            logger.debug(f"Processing {len(skill_xp.data)} skill XP records...")
             for i, record in enumerate(skill_xp.data):
                 pillar = record.get('pillar')
                 xp_amount = record.get('xp_amount', 0)
@@ -56,7 +60,7 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                 if pillar in skill_breakdown:
                     total_xp += xp_amount
                     skill_breakdown[pillar] += xp_amount
-                    print(f"  ✓ Added {xp_amount} XP to {pillar} (total now: {skill_breakdown[pillar]})")
+                    logger.info(f"  ✓ Added {xp_amount} XP to {pillar} (total now: {skill_breakdown[pillar]})")
                 else:
                     # Handle old pillar keys - map them to new single-word format
                     from utils.pillar_mapping import normalize_pillar_name
@@ -71,16 +75,16 @@ def calculate_user_xp(supabase, user_id: str) -> Tuple[int, Dict[str, int]]:
                     except ValueError:
                         print(f"  ❌ WARNING: Unknown pillar '{pillar}' could not be normalized")
 
-            print(f"After processing all records - skill breakdown: {skill_breakdown}")
+            logger.debug(f"After processing all records - skill breakdown: {skill_breakdown}")
         else:
-            print("No skill XP records found")
+            logger.info("No skill XP records found")
 
-        print(f"Final total XP: {total_xp}")
-        print(f"Final skill_breakdown: {skill_breakdown}")
-        print("=======================================")
+        logger.info(f"Final total XP: {total_xp}")
+        logger.info(f"Final skill_breakdown: {skill_breakdown}")
+        logger.info("=======================================")
 
     except Exception as e:
-        print(f"Error calculating XP from V3 tasks: {str(e)}")
+        logger.error(f"Error calculating XP from V3 tasks: {str(e)}")
         # Fallback to old method if V3 fails
         return calculate_xp_from_legacy_tables(supabase, user_id)
 
@@ -100,8 +104,8 @@ def calculate_xp_from_legacy_tables(supabase, user_id: str) -> Tuple[int, Dict[s
             .eq('user_id', user_id)\
             .execute()
 
-        print(f"=== LEGACY XP CALCULATION for user {user_id} ===")
-        print(f"Raw skill_xp query response count: {len(skill_xp.data) if skill_xp.data else 0}")
+        logger.info(f"=== LEGACY XP CALCULATION for user {user_id} ===")
+        logger.info(f"Raw skill_xp query response count: {len(skill_xp.data) if skill_xp.data else 0}")
 
         if skill_xp.data:
             from utils.pillar_mapping import normalize_pillar_name
@@ -120,10 +124,10 @@ def calculate_xp_from_legacy_tables(supabase, user_id: str) -> Tuple[int, Dict[s
                     total_xp += xp_amount
                     skill_breakdown[normalized_pillar] += xp_amount
 
-        print(f"Legacy total XP: {total_xp}")
-        print("======================================")
+        logger.info(f"Legacy total XP: {total_xp}")
+        logger.info("======================================")
     except Exception as e:
-        print(f"Error getting legacy skill XP: {str(e)}")
+        logger.error(f"Error getting legacy skill XP: {str(e)}")
 
     return total_xp, skill_breakdown
 
@@ -144,7 +148,7 @@ def calculate_xp_from_quests(supabase, user_id: str) -> Tuple[int, Dict[str, int
         if not completed_quests.data:
             return total_xp, skill_breakdown
         
-        print(f"User {user_id} has {len(completed_quests.data)} completed quests")
+        logger.info(f"User {user_id} has {len(completed_quests.data)} completed quests")
         
         # Extract quest IDs for batch querying
         quest_ids = [q['quests']['id'] for q in completed_quests.data if q.get('quests', {}).get('id')]
@@ -160,7 +164,7 @@ def calculate_xp_from_quests(supabase, user_id: str) -> Tuple[int, Dict[str, int
                 .execute()
             
             if skill_awards.data:
-                print(f"Found {len(skill_awards.data)} skill XP awards")
+                logger.info(f"Found {len(skill_awards.data)} skill XP awards")
                 quest_xp_map = {}
                 for award in skill_awards.data:
                     quest_id = award['quest_id']
@@ -182,7 +186,7 @@ def calculate_xp_from_quests(supabase, user_id: str) -> Tuple[int, Dict[str, int
                             total_xp += amount
                             print(f"Quest '{quest_title}': {category} +{amount} XP")
                         
-                print(f"Total XP from skill awards: {total_xp}")
+                logger.info(f"Total XP from skill awards: {total_xp}")
         except:
             pass
         
@@ -204,7 +208,7 @@ def calculate_xp_from_quests(supabase, user_id: str) -> Tuple[int, Dict[str, int
             except:
                 pass
     except Exception as e:
-        print(f"Error calculating XP from quests: {str(e)}")
+        logger.error(f"Error calculating XP from quests: {str(e)}")
     
     return total_xp, skill_breakdown
 
@@ -218,7 +222,7 @@ def get_user_skills(supabase, user_id: str) -> List[Dict]:
         
         return skills.data if skills.data else []
     except Exception as e:
-        print(f"Error fetching user skills: {str(e)}")
+        logger.error(f"Error fetching user skills: {str(e)}")
         return []
 
 @cache_decorator(ttl=300)  # Cache for 5 minutes

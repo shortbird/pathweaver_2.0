@@ -9,6 +9,10 @@ from typing import Dict, List, Optional, Any
 import uuid
 import logging
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 from database import get_user_client, get_supabase_admin_client
 from utils.auth.decorators import require_auth
 from services.ai_tutor_service import AITutorService, TutorContext, ConversationMode
@@ -34,21 +38,21 @@ def get_tutor_service():
         try:
             import os
             logger.info("Initializing AITutorService...")
-            print("TUTOR SERVICE: Initializing AITutorService...")
+            logger.info("TUTOR SERVICE: Initializing AITutorService...")
             logger.info(f"GEMINI_API_KEY present: {'GEMINI_API_KEY' in os.environ}")
             print(f"TUTOR SERVICE: GEMINI_API_KEY present: {'GEMINI_API_KEY' in os.environ}")
             logger.info(f"GOOGLE_API_KEY present: {'GOOGLE_API_KEY' in os.environ}")
             print(f"TUTOR SERVICE: GOOGLE_API_KEY present: {'GOOGLE_API_KEY' in os.environ}")
             tutor_service = AITutorService()
             logger.info("AITutorService initialized successfully")
-            print("TUTOR SERVICE: AITutorService initialized successfully")
+            logger.info("TUTOR SERVICE: AITutorService initialized successfully")
         except Exception as e:
             logger.error(f"CRITICAL: Failed to initialize AITutorService: {e}")
-            print(f"TUTOR SERVICE CRITICAL: Failed to initialize AITutorService: {e}")
+            logger.error(f"TUTOR SERVICE CRITICAL: Failed to initialize AITutorService: {e}")
             logger.error(f"Exception type: {type(e).__name__}")
-            print(f"TUTOR SERVICE: Exception type: {type(e).__name__}")
+            logger.error(f"TUTOR SERVICE: Exception type: {type(e).__name__}")
             logger.error(f"Exception args: {e.args}")
-            print(f"TUTOR SERVICE: Exception args: {e.args}")
+            logger.error(f"TUTOR SERVICE: Exception args: {e.args}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             traceback.print_exc()
@@ -122,17 +126,17 @@ def send_message(user_id: str):
 
         # Process message with AI tutor
         logger.info("About to call get_tutor_service()")
-        print("TUTOR DEBUG: About to call get_tutor_service()")
+        logger.debug("TUTOR DEBUG: About to call get_tutor_service()")
         try:
             tutor_service = get_tutor_service()
             logger.info("Got tutor service, processing message...")
-            print("TUTOR DEBUG: Got tutor service, processing message...")
+            logger.debug("TUTOR DEBUG: Got tutor service, processing message...")
             tutor_response = tutor_service.process_message(message, context)
             logger.info("AI tutor processing completed")
-            print("TUTOR DEBUG: AI tutor processing completed")
+            logger.debug("TUTOR DEBUG: AI tutor processing completed")
         except Exception as e:
             logger.error(f"Exception during tutor service call: {e}")
-            print(f"TUTOR DEBUG: Exception during tutor service call: {e}")
+            logger.error(f"TUTOR DEBUG: Exception during tutor service call: {e}")
             import traceback
             logger.error(f"Traceback: {traceback.format_exc()}")
             traceback.print_exc()
@@ -220,9 +224,9 @@ def send_message(user_id: str):
         logger.error(f"Exception type: {type(e).__name__}")
         logger.error(f"TRACEBACK: {traceback.format_exc()}")
         # Also print to ensure it shows up somewhere
-        print(f"CRITICAL ERROR in send_message: {str(e)}")
-        print(f"Exception type: {type(e).__name__}")
-        print(f"TRACEBACK: {traceback.format_exc()}")
+        logger.error(f"CRITICAL ERROR in send_message: {str(e)}")
+        logger.error(f"Exception type: {type(e).__name__}")
+        logger.info(f"TRACEBACK: {traceback.format_exc()}")
         return error_response(f"Failed to process message: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/conversations', methods=['GET'])
@@ -477,8 +481,8 @@ def get_conversation_starters(user_id: str):
 
     except Exception as e:
         import traceback
-        print(f"ERROR in get_conversation_starters: {str(e)}")
-        print(f"TRACEBACK: {traceback.format_exc()}")
+        logger.error(f"ERROR in get_conversation_starters: {str(e)}")
+        logger.info(f"TRACEBACK: {traceback.format_exc()}")
         return error_response(f"Failed to get conversation starters: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/usage', methods=['GET'])
@@ -553,8 +557,8 @@ def get_usage_stats(user_id: str):
         logger.error(f"ERROR in get_usage_stats: {str(e)}")
         logger.error(f"Exception type: {type(e).__name__}")
         logger.error(f"TRACEBACK: {traceback.format_exc()}")
-        print(f"ERROR in get_usage_stats: {str(e)}")
-        print(f"TRACEBACK: {traceback.format_exc()}")
+        logger.error(f"ERROR in get_usage_stats: {str(e)}")
+        logger.info(f"TRACEBACK: {traceback.format_exc()}")
         return error_response(f"Failed to get usage stats: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/debug', methods=['GET'])
@@ -563,23 +567,23 @@ def debug_tutor_service(user_id: str):
     """Debug endpoint to test tutor service initialization"""
     try:
         # Test 1: Basic response
-        print(f"DEBUG: Testing endpoint for user {user_id}")
+        logger.debug(f"DEBUG: Testing endpoint for user {user_id}")
 
         # Test 2: Test tutor_tier_service
-        print("DEBUG: Testing tutor_tier_service...")
+        logger.debug("DEBUG: Testing tutor_tier_service...")
         message_status = tutor_tier_service.can_send_message(user_id)
-        print(f"DEBUG: Tier service works: {message_status}")
+        logger.debug(f"DEBUG: Tier service works: {message_status}")
 
         # Test 3: Test AITutorService initialization
-        print("DEBUG: Testing AITutorService initialization...")
+        logger.debug("DEBUG: Testing AITutorService initialization...")
         test_service = get_tutor_service()
-        print("DEBUG: AITutorService initialized successfully")
+        logger.debug("DEBUG: AITutorService initialized successfully")
 
         # Test 4: Test context building
-        print("DEBUG: Testing context building...")
+        logger.debug("DEBUG: Testing context building...")
         supabase = get_supabase_admin_client()
         context = _build_tutor_context(supabase, user_id)
-        print(f"DEBUG: Context built: {context}")
+        logger.debug(f"DEBUG: Context built: {context}")
 
         return success_response({
             'debug': 'All tests passed',
@@ -590,8 +594,8 @@ def debug_tutor_service(user_id: str):
 
     except Exception as e:
         import traceback
-        print(f"DEBUG ERROR: {str(e)}")
-        print(f"DEBUG TRACEBACK: {traceback.format_exc()}")
+        logger.error(f"DEBUG ERROR: {str(e)}")
+        logger.debug(f"DEBUG TRACEBACK: {traceback.format_exc()}")
         return error_response(f"Debug failed: {str(e)}", status_code=500, error_code="debug_error")
 
 @bp.route('/tier-info', methods=['GET'])
@@ -727,7 +731,7 @@ def _build_tutor_context(supabase, user_id: str, conversation: Optional[Dict] = 
 
     except Exception as e:
         # If context building fails, use defaults
-        print(f"Warning: Failed to build full context for user {user_id}: {e}")
+        logger.error(f"Warning: Failed to build full context for user {user_id}: {e}")
 
     return context
 
@@ -764,14 +768,14 @@ def _award_tutor_xp_bonus(supabase, user_id: str, message_id: str):
         # award_bonus_xp(user_id, bonus_xp, 'tutor_engagement')
 
     except Exception as e:
-        print(f"Failed to award tutor XP bonus: {e}")
+        logger.error(f"Failed to award tutor XP bonus: {e}")
 
 def _schedule_parent_notification(user_id: str, conversation_id: str, message_content: str):
     """Schedule notification to parents about concerning content"""
     try:
         # This would integrate with the notification system
         # For now, just log the event
-        print(f"Parent notification scheduled for user {user_id}, conversation {conversation_id}")
+        logger.info(f"Parent notification scheduled for user {user_id}, conversation {conversation_id}")
 
         # TODO: Implement actual parent notification system
         # - Check if parent monitoring is enabled
@@ -779,7 +783,7 @@ def _schedule_parent_notification(user_id: str, conversation_id: str, message_co
         # - Send appropriate notification
 
     except Exception as e:
-        print(f"Failed to schedule parent notification: {e}")
+        logger.error(f"Failed to schedule parent notification: {e}")
 
 @bp.route('/test-service', methods=['GET'])
 @require_auth
@@ -792,23 +796,23 @@ def test_tutor_service(user_id: str):
         if not user.data or user.data[0].get('role') not in ['admin', 'educator']:
             return jsonify({'error': 'Admin access required'}), 403
         import os
-        print("=== TUTOR SERVICE TEST STARTED ===")
+        logger.info("=== TUTOR SERVICE TEST STARTED ===")
 
         # Test environment variables
         gemini_present = 'GEMINI_API_KEY' in os.environ
         google_present = 'GOOGLE_API_KEY' in os.environ
-        print(f"GEMINI_API_KEY present: {gemini_present}")
-        print(f"GOOGLE_API_KEY present: {google_present}")
+        logger.info(f"GEMINI_API_KEY present: {gemini_present}")
+        logger.info(f"GOOGLE_API_KEY present: {google_present}")
 
         # Test import
-        print("Testing AITutorService import...")
+        logger.info("Testing AITutorService import...")
         from services.ai_tutor_service import AITutorService
-        print("Import successful")
+        logger.info("Import successful")
 
         # Test initialization
-        print("Testing AITutorService initialization...")
+        logger.info("Testing AITutorService initialization...")
         service = AITutorService()
-        print("Initialization successful")
+        logger.info("Initialization successful")
 
         return {
             'status': 'success',
@@ -825,10 +829,10 @@ def test_tutor_service(user_id: str):
             'type': type(e).__name__,
             'traceback': traceback.format_exc()
         }
-        print(f"=== TUTOR SERVICE TEST ERROR ===")
-        print(f"Error: {str(e)}")
-        print(f"Type: {type(e).__name__}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"=== TUTOR SERVICE TEST ERROR ===")
+        logger.error(f"Error: {str(e)}")
+        logger.info(f"Type: {type(e).__name__}")
+        logger.info(f"Traceback: {traceback.format_exc()}")
         return error_details, 500
 
 # Error handlers

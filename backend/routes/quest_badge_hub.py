@@ -10,6 +10,10 @@ from utils.validation.sanitizers import sanitize_search_input
 from services.badge_service import BadgeService
 from typing import Optional
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('quest_badge_hub', __name__, url_prefix='/api/hub')
 
 
@@ -128,7 +132,7 @@ def get_badges_for_hub():
         })
 
     except Exception as e:
-        print(f"Error fetching hub badges: {str(e)}")
+        logger.error(f"Error fetching hub badges: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch badges'
@@ -157,7 +161,7 @@ def get_quests_for_hub():
         return list_quests()
 
     except Exception as e:
-        print(f"Error fetching hub quests: {str(e)}")
+        logger.error(f"Error fetching hub quests: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch quests'
@@ -224,7 +228,7 @@ def get_hub_stats(user_id: str):
         })
 
     except Exception as e:
-        print(f"Error fetching hub stats: {str(e)}")
+        logger.error(f"Error fetching hub stats: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch stats'

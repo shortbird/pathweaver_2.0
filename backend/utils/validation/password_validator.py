@@ -18,6 +18,10 @@ Created: January 2025 (Phase 1 Security Improvements)
 import re
 from typing import Tuple, List
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Top 100 most common passwords (security risk)
 # Source: NIST, Have I Been Pwned, OWASP
 COMMON_PASSWORDS = [

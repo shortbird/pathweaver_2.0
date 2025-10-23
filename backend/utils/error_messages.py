@@ -1,4 +1,8 @@
 """User-friendly error message mapping"""
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 ERROR_MESSAGES = {
     # Authentication & Authorization

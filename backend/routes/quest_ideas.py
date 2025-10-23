@@ -5,6 +5,10 @@ from utils.auth.decorators import require_auth
 from database import get_supabase_admin_client
 import os
 import sys
+
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 quest_ideas_bp = Blueprint('quest_ideas', __name__, url_prefix='/api/quest-ideas')

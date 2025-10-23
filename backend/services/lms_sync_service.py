@@ -10,6 +10,10 @@ from io import StringIO
 from database import get_supabase_admin_client
 from flask import current_app
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class LMSSyncService:
     """Service for syncing rosters and grades with LMS"""

@@ -4,6 +4,10 @@ Update site logo to new SVG version
 from database import get_supabase_admin_client
 from datetime import datetime
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 def update_logo():
     supabase = get_supabase_admin_client()
 
@@ -19,7 +23,7 @@ def update_logo():
                 'logo_url': new_logo_url,
                 'updated_at': datetime.utcnow().isoformat()
             }).eq('id', existing.data[0]['id']).execute()
-            print(f"✓ Updated logo URL for existing settings: {result.data}")
+            logger.info(f"✓ Updated logo URL for existing settings: {result.data}")
         else:
             # Create new settings with logo
             import uuid
@@ -30,12 +34,13 @@ def update_logo():
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             }).execute()
-            print(f"✓ Created new settings with logo: {result.data}")
+            logger.info(f"✓ Created new settings with logo: {result.data}")
 
-        print(f"\nLogo updated successfully to: {new_logo_url}")
+        logger.info(f"
+Logo updated successfully to: {new_logo_url}")
 
     except Exception as e:
-        print(f"Error updating logo: {e}")
+        logger.error(f"Error updating logo: {e}")
 
 if __name__ == '__main__':
     update_logo()

@@ -5,6 +5,10 @@
 import multiprocessing
 import os
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Basic settings
 bind = f"0.0.0.0:{os.getenv('PORT', '5001')}"
 backlog = int(os.getenv('GUNICORN_BACKLOG', '128'))
@@ -48,7 +52,7 @@ limit_request_field_size = int(os.getenv('GUNICORN_LIMIT_REQUEST_FIELD_SIZE', '8
 # Auto-scaling helper (optional)
 if os.getenv('GUNICORN_AUTO_SCALE', 'false').lower() == 'true':
     workers = (multiprocessing.cpu_count() * 2) + 1
-    print(f"Auto-scaling enabled: {workers} workers based on {multiprocessing.cpu_count()} CPUs")
+    logger.debug(f"Auto-scaling enabled: {workers} workers based on {multiprocessing.cpu_count()} CPUs")
 
 # Preload modules to share memory
 def when_ready(server):

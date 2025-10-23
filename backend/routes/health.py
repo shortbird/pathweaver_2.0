@@ -4,6 +4,10 @@ from datetime import datetime
 import time
 import os
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('health', __name__)
 
 @bp.route('/health', methods=['GET'])

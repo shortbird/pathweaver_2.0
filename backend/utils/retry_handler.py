@@ -6,6 +6,10 @@ import logging
 from typing import Tuple, Type, Union, Callable
 import random
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 class RetryConfig:

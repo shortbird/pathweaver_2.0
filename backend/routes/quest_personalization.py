@@ -12,6 +12,10 @@ from utils.auth.decorators import require_auth
 from services.personalization_service import personalization_service
 from datetime import datetime
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('quest_personalization', __name__, url_prefix='/api/quests')
 
 @bp.route('/<quest_id>/start-personalization', methods=['POST'])
@@ -39,7 +43,7 @@ def start_personalization(user_id: str, quest_id: str):
         })
 
     except Exception as e:
-        print(f"Error starting personalization: {str(e)}")
+        logger.error(f"Error starting personalization: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to start personalization'
@@ -113,7 +117,7 @@ def generate_tasks(user_id: str, quest_id: str):
         })
 
     except Exception as e:
-        print(f"Error generating tasks: {str(e)}")
+        logger.error(f"Error generating tasks: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -160,7 +164,7 @@ def refine_tasks(user_id: str, quest_id: str):
         })
 
     except Exception as e:
-        print(f"Error refining tasks: {str(e)}")
+        logger.error(f"Error refining tasks: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to refine tasks'
@@ -208,7 +212,7 @@ def edit_task(user_id: str, quest_id: str):
         })
 
     except Exception as e:
-        print(f"Error editing task: {str(e)}")
+        logger.error(f"Error editing task: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to edit task'
@@ -295,7 +299,7 @@ def add_manual_task(user_id: str, quest_id: str):
         })
 
     except Exception as e:
-        print(f"Error adding manual task: {str(e)}")
+        logger.error(f"Error adding manual task: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to add manual task'
@@ -384,7 +388,7 @@ def finalize_tasks(user_id: str, quest_id: str):
         })
 
     except Exception as e:
-        print(f"Error finalizing tasks: {str(e)}")
+        logger.error(f"Error finalizing tasks: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -423,7 +427,7 @@ def get_personalization_status(user_id: str, quest_id: str):
         })
 
     except Exception as e:
-        print(f"Error checking personalization status: {str(e)}")
+        logger.error(f"Error checking personalization status: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to check status'

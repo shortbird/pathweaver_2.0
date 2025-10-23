@@ -2,6 +2,10 @@
 School subjects utilities for the quest system.
 Handles validation and mapping of school subjects separate from XP pillars.
 """
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 # School subjects enum matching database type
 SCHOOL_SUBJECTS = [

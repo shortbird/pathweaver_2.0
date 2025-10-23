@@ -7,6 +7,10 @@ the need for duplicate pillar mapping files across the codebase.
 
 from flask import Blueprint, jsonify
 from config.pillars import (
+
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
     PILLARS,
     get_all_pillar_keys,
     is_valid_pillar,

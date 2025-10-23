@@ -12,6 +12,10 @@ from flask import current_app
 from lms_config.lms_platforms import get_platform_config
 from database import get_supabase_admin_client
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class LTI13Service:
     """LTI 1.3 integration service for LMS platforms"""

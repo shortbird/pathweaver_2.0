@@ -5,6 +5,10 @@ import os
 import sys
 from unittest.mock import Mock, patch
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Add backend directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 

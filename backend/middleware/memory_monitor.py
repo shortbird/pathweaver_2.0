@@ -10,6 +10,10 @@ from flask import request, g
 from datetime import datetime
 import logging
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 class MemoryMonitor:

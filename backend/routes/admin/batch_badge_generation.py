@@ -12,6 +12,10 @@ from utils.auth.decorators import require_admin
 from services.batch_badge_generation_service import BatchBadgeGenerationService
 import logging
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 batch_badge_generation_bp = Blueprint('batch_badge_generation', __name__)

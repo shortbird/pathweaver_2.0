@@ -8,6 +8,10 @@ from dataclasses import dataclass
 from enum import Enum
 import logging
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 from database import get_supabase_admin_client
 
 logger = logging.getLogger(__name__)

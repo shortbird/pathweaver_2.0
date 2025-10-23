@@ -4,6 +4,10 @@ Utility functions for managing quest sources and their header images
 
 from database import get_supabase_admin_client
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 def get_source_header_image(source_id):
     """
     Get the default header image URL for a source from the quest_sources table.
@@ -24,7 +28,7 @@ def get_source_header_image(source_id):
         if response.data and response.data[0].get('header_image_url'):
             return response.data[0]['header_image_url']
     except Exception as e:
-        print(f"Error fetching source header image for {source_id}: {e}")
+        logger.error(f"Error fetching source header image for {source_id}: {e}")
     
     return None
 

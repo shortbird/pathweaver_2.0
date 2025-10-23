@@ -8,6 +8,10 @@ from datetime import datetime
 from database import get_supabase_admin_client
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class AIQuestReviewService:
     """Service for managing AI-generated quest review workflow"""
@@ -50,12 +54,12 @@ class AIQuestReviewService:
                 # submitted_at has default value in DB, don't need to set it
             }
 
-            print(f"DEBUG: Attempting to insert review queue data: {review_queue_data}")
+            logger.debug(f"DEBUG: Attempting to insert review queue data: {review_queue_data}")
 
             review_result = supabase.table('ai_quest_review_queue').insert(review_queue_data).execute()
 
             if not review_result.data:
-                print(f"DEBUG: Insert failed. Review result: {review_result}")
+                logger.error(f"DEBUG: Insert failed. Review result: {review_result}")
                 raise ValueError(f"Failed to insert into review queue. Result: {review_result}")
 
             review_item = review_result.data[0]
@@ -85,8 +89,8 @@ class AIQuestReviewService:
             }
 
         except Exception as e:
-            print(f"DEBUG: Exception in submit_for_review: {str(e)}")
-            print(f"DEBUG: Exception type: {type(e).__name__}")
+            logger.error(f"DEBUG: Exception in submit_for_review: {str(e)}")
+            logger.error(f"DEBUG: Exception type: {type(e).__name__}")
             import traceback
             traceback.print_exc()
             return {

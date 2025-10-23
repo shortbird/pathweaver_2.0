@@ -4,6 +4,10 @@ from utils.auth.decorators import require_auth, require_admin
 import uuid
 from datetime import datetime
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 settings_bp = Blueprint('settings', __name__)
 
 @settings_bp.route('/settings', methods=['GET'])

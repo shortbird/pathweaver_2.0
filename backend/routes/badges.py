@@ -9,6 +9,10 @@ from services.badge_service import BadgeService
 from repositories.badge_repository import BadgeRepository
 from repositories.base_repository import NotFoundError, DatabaseError
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('badges', __name__, url_prefix='/api/badges')
 
 
@@ -112,7 +116,7 @@ def select_badge(user_id, badge_id):
             'error': str(e)
         }), 400
     except Exception as e:
-        print(f"Error selecting badge: {str(e)}")
+        logger.error(f"Error selecting badge: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to select badge: {str(e)}'
@@ -208,13 +212,13 @@ def get_user_badges_by_id(target_user_id):
             }), 200
 
     except DatabaseError as e:
-        print(f"Database error getting user badges: {str(e)}")
+        logger.error(f"Database error getting user badges: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to get user badges'
         }), 500
     except Exception as e:
-        print(f"Error getting user badges: {str(e)}")
+        logger.error(f"Error getting user badges: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to get user badges: {str(e)}'
@@ -365,13 +369,13 @@ def create_badge(user_id):
         }), 201
 
     except DatabaseError as e:
-        print(f"Database error creating badge: {str(e)}")
+        logger.error(f"Database error creating badge: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to create badge'
         }), 500
     except Exception as e:
-        print(f"Error creating badge: {str(e)}")
+        logger.error(f"Error creating badge: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to create badge: {str(e)}'
@@ -530,7 +534,7 @@ def refresh_badge_image(user_id, badge_id):
         }), 200
 
     except Exception as e:
-        print(f"Error refreshing badge image: {str(e)}")
+        logger.error(f"Error refreshing badge image: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to refresh badge image: {str(e)}'
@@ -675,7 +679,7 @@ def batch_generate_badge_images(user_id):
         }), 200
 
     except Exception as e:
-        print(f"Error in bulk badge image generation: {str(e)}")
+        logger.error(f"Error in bulk badge image generation: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to generate images: {str(e)}'

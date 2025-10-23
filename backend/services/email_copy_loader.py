@@ -7,6 +7,10 @@ import yaml
 import logging
 from typing import Dict, Any
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 class EmailCopyLoader:

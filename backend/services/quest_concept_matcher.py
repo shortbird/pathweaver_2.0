@@ -9,6 +9,10 @@ from collections import defaultdict
 import hashlib
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 class QuestConceptMatcher:
     """Handles concept extraction and similarity matching for quests"""
     

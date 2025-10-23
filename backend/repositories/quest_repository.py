@@ -9,6 +9,10 @@ from typing import Optional, Dict, List, Any
 from backend.repositories.base_repository import BaseRepository, DatabaseError, NotFoundError
 from postgrest.exceptions import APIError
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 

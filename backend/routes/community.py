@@ -3,6 +3,10 @@ from database import get_supabase_client
 from utils.auth.decorators import require_auth
 import sys
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('community', __name__)
 
 @bp.route('/friends', methods=['GET'])
@@ -13,7 +17,7 @@ def get_friends(user_id):
     supabase = get_user_client(user_id)
 
     try:
-        print(f"[GET_FRIENDS] Fetching friends for user: {user_id}")
+        logger.info(f"[GET_FRIENDS] Fetching friends for user: {user_id}")
 
         # Use a single query with OR condition to reduce database connections
         try:
@@ -23,11 +27,11 @@ def get_friends(user_id):
                 .execute()
 
             all_friendships = friendships.data or []
-            print(f"[GET_FRIENDS] Total friendships found: {len(all_friendships)}")
+            logger.info(f"[GET_FRIENDS] Total friendships found: {len(all_friendships)}")
 
         except Exception as db_error:
-            print(f"[GET_FRIENDS] Database error: {str(db_error)}")
-            print(f"[GET_FRIENDS] Falling back to separate queries")
+            logger.error(f"[GET_FRIENDS] Database error: {str(db_error)}")
+            logger.info(f"[GET_FRIENDS] Falling back to separate queries")
 
             # Fallback to separate queries if OR fails
             friendships_as_requester = supabase.table('friendships')\
@@ -35,14 +39,14 @@ def get_friends(user_id):
                 .eq('requester_id', user_id)\
                 .execute()
 
-            print(f"[GET_FRIENDS] Friendships as requester: {len(friendships_as_requester.data or [])} found")
+            logger.info(f"[GET_FRIENDS] Friendships as requester: {len(friendships_as_requester.data or [])} found")
 
             friendships_as_addressee = supabase.table('friendships')\
                 .select('*')\
                 .eq('addressee_id', user_id)\
                 .execute()
 
-            print(f"[GET_FRIENDS] Friendships as addressee: {len(friendships_as_addressee.data or [])} found")
+            logger.info(f"[GET_FRIENDS] Friendships as addressee: {len(friendships_as_addressee.data or [])} found")
 
             # Combine both results
             all_friendships = (friendships_as_requester.data or []) + (friendships_as_addressee.data or [])
@@ -62,9 +66,9 @@ def get_friends(user_id):
             try:
                 users_result = supabase.table('users').select('*').in_('id', list(all_user_ids)).execute()
                 user_lookup = {user['id']: user for user in (users_result.data or [])}
-                print(f"[GET_FRIENDS] Fetched {len(user_lookup)} user records in batch")
+                logger.info(f"[GET_FRIENDS] Fetched {len(user_lookup)} user records in batch")
             except Exception as batch_error:
-                print(f"[GET_FRIENDS] Error fetching users in batch: {str(batch_error)}")
+                logger.error(f"[GET_FRIENDS] Error fetching users in batch: {str(batch_error)}")
 
         # Now process friendships using the lookup dictionary
         friends = []
@@ -72,7 +76,7 @@ def get_friends(user_id):
         sent_requests = []
 
         for friendship in all_friendships:
-            print(f"[GET_FRIENDS] Processing friendship: {friendship}")
+            logger.debug(f"[GET_FRIENDS] Processing friendship: {friendship}")
             if friendship['status'] == 'accepted':
                 # Determine which user is the friend
                 friend_id = friendship['addressee_id'] if friendship['requester_id'] == user_id else friendship['requester_id']
@@ -102,7 +106,7 @@ def get_friends(user_id):
                             'updated_at': friendship.get('updated_at')
                         })
 
-        print(f"[GET_FRIENDS] Returning {len(friends)} friends, {len(pending_requests)} pending requests, and {len(sent_requests)} sent requests")
+        logger.info(f"[GET_FRIENDS] Returning {len(friends)} friends, {len(pending_requests)} pending requests, and {len(sent_requests)} sent requests")
 
         return jsonify({
             'friends': friends,
@@ -146,37 +150,37 @@ def send_friend_request(user_id):
             # LEGITIMATE ADMIN CLIENT USAGE: Querying auth.users table requires service role
             admin_supabase = get_supabase_admin_client()
 
-            print(f"[FRIEND_REQUEST] Looking for user with email: {addressee_email}")
+            logger.info(f"[FRIEND_REQUEST] Looking for user with email: {addressee_email}")
             
             addressee_id = None
             try:
                 # list_users() returns a list of user objects
                 auth_users = admin_supabase.auth.admin.list_users()
-                print(f"[FRIEND_REQUEST] Found {len(auth_users) if auth_users else 0} total users")
+                logger.info(f"[FRIEND_REQUEST] Found {len(auth_users) if auth_users else 0} total users")
                 
                 # Search through the users for matching email
                 for auth_user in auth_users:
                     user_email = getattr(auth_user, 'email', None)
                     if user_email and user_email.lower() == addressee_email.lower():  # Case-insensitive comparison
                         addressee_id = auth_user.id
-                        print(f"[FRIEND_REQUEST] Found user ID: {addressee_id} for email: {addressee_email}")
+                        logger.info(f"[FRIEND_REQUEST] Found user ID: {addressee_id} for email: {addressee_email}")
                         break
                 
             except Exception as e:
-                print(f"[FRIEND_REQUEST] Error listing auth users: {e}")
+                logger.error(f"[FRIEND_REQUEST] Error listing auth users: {e}")
                 return jsonify({'error': 'Failed to search users'}), 500
             
             if not addressee_id:
-                print(f"[FRIEND_REQUEST] No user found with email: {addressee_email}")
+                logger.info(f"[FRIEND_REQUEST] No user found with email: {addressee_email}")
                 return jsonify({'error': 'User not found'}), 404
                 
             # Now get the user data from the users table (use admin client to bypass RLS)
             addressee_result = admin_supabase.table('users').select('*').eq('id', addressee_id).execute()
-            print(f"[FRIEND_REQUEST] User query result: {addressee_result.data}")
+            logger.info(f"[FRIEND_REQUEST] User query result: {addressee_result.data}")
             
             # If user doesn't exist in users table, create a basic entry
             if not addressee_result.data:
-                print(f"[FRIEND_REQUEST] User not in users table, creating entry")
+                logger.info(f"[FRIEND_REQUEST] User not in users table, creating entry")
                 
                 # Get the auth user details to create the users table entry
                 try:
@@ -195,29 +199,29 @@ def send_friend_request(user_id):
                             'role': 'student'
                         }
                         
-                        print(f"[FRIEND_REQUEST] Creating user entry: {new_user}")
+                        logger.info(f"[FRIEND_REQUEST] Creating user entry: {new_user}")
                         # Use admin client to create user entry (bypasses RLS)
                         create_result = admin_supabase.table('users').insert(new_user).execute()
                         
                         if create_result.data:
                             addressee = {'data': create_result.data[0]}
                         else:
-                            print(f"[FRIEND_REQUEST] Failed to create user entry")
+                            logger.error(f"[FRIEND_REQUEST] Failed to create user entry")
                             addressee = {'data': None}
                     else:
                         addressee = {'data': None}
                         
                 except Exception as e:
-                    print(f"[FRIEND_REQUEST] Error creating user entry: {e}")
+                    logger.error(f"[FRIEND_REQUEST] Error creating user entry: {e}")
                     addressee = {'data': None}
             else:
                 addressee = {'data': addressee_result.data[0]}
                 
         
-        print(f"[FRIEND_REQUEST] Addressee data: {addressee}")
+        logger.info(f"[FRIEND_REQUEST] Addressee data: {addressee}")
         
         if not addressee['data']:
-            print(f"[FRIEND_REQUEST] User not found and could not be created")
+            logger.info(f"[FRIEND_REQUEST] User not found and could not be created")
             return jsonify({'error': 'User not found. The user may need to complete their profile first.'}), 404
         
         if addressee['data']['id'] == user_id:
@@ -240,7 +244,7 @@ def send_friend_request(user_id):
         existing = existing_query1.data or existing_query2.data
         
         if existing:
-            print(f"[FRIEND_REQUEST] Existing friendship found: {existing}")
+            logger.info(f"[FRIEND_REQUEST] Existing friendship found: {existing}")
             return jsonify({'error': 'Friend request already exists'}), 400
         
         friendship = {
@@ -249,15 +253,15 @@ def send_friend_request(user_id):
             'status': 'pending'
         }
         
-        print(f"[FRIEND_REQUEST] Creating friendship: {friendship}")
+        logger.info(f"[FRIEND_REQUEST] Creating friendship: {friendship}")
         
         response = supabase.table('friendships').insert(friendship).execute()
         
         if not response.data:
-            print(f"[FRIEND_REQUEST] Failed to create friendship")
+            logger.error(f"[FRIEND_REQUEST] Failed to create friendship")
             return jsonify({'error': 'Failed to create friend request'}), 500
         
-        print(f"[FRIEND_REQUEST] Friendship created: {response.data[0]}")
+        logger.info(f"[FRIEND_REQUEST] Friendship created: {response.data[0]}")
         
         # Try to log activity but don't fail if it doesn't work
         try:
@@ -267,7 +271,7 @@ def send_friend_request(user_id):
                 'event_details': {'addressee_id': addressee['data']['id']}
             }).execute()
         except Exception as log_error:
-            print(f"[FRIEND_REQUEST] Failed to log activity: {log_error}")
+            logger.error(f"[FRIEND_REQUEST] Failed to log activity: {log_error}")
         
         return jsonify(response.data[0]), 201
         
@@ -284,7 +288,7 @@ def accept_friend_request(user_id, friendship_id):
     admin_supabase = get_supabase_admin_client()
 
     try:
-        print(f"[ACCEPT_FRIEND] User {user_id} attempting to accept friendship {friendship_id}")
+        logger.info(f"[ACCEPT_FRIEND] User {user_id} attempting to accept friendship {friendship_id}")
 
         friendship_result = supabase.table('friendships').select('*').eq('id', friendship_id).execute()
         friendship = {'data': friendship_result.data[0] if friendship_result.data else None}
@@ -292,7 +296,7 @@ def accept_friend_request(user_id, friendship_id):
         print(f"[ACCEPT_FRIEND] Friendship data: {friendship['data']}")
 
         if not friendship['data']:
-            print(f"[ACCEPT_FRIEND] Friend request not found for ID: {friendship_id}")
+            logger.info(f"[ACCEPT_FRIEND] Friend request not found for ID: {friendship_id}")
             return jsonify({'error': 'Friend request not found'}), 404
 
         if friendship['data']['addressee_id'] != user_id:
@@ -304,13 +308,13 @@ def accept_friend_request(user_id, friendship_id):
             return jsonify({'error': 'Friend request already processed'}), 400
 
         # Update friendship status using admin client to bypass RLS
-        print(f"[ACCEPT_FRIEND] Updating friendship {friendship_id} to accepted status")
+        logger.info(f"[ACCEPT_FRIEND] Updating friendship {friendship_id} to accepted status")
 
         # Ensure friendship_id is an integer (Supabase expects correct type)
         try:
             friendship_id_int = int(friendship_id)
         except ValueError:
-            print(f"[ACCEPT_FRIEND] Invalid friendship ID: {friendship_id}")
+            logger.info(f"[ACCEPT_FRIEND] Invalid friendship ID: {friendship_id}")
             return jsonify({'error': 'Invalid friendship ID'}), 400
 
         # Use a database function to bypass any triggers that might be causing issues
@@ -321,10 +325,10 @@ def accept_friend_request(user_id, friendship_id):
                 'new_status': 'accepted'
             }).execute()
 
-            print(f"[ACCEPT_FRIEND] RPC Update response: {response}")
+            logger.info(f"[ACCEPT_FRIEND] RPC Update response: {response}")
 
         except Exception as rpc_error:
-            print(f"[ACCEPT_FRIEND] RPC failed: {str(rpc_error)}, trying direct SQL")
+            logger.error(f"[ACCEPT_FRIEND] RPC failed: {str(rpc_error)}, trying direct SQL")
 
             # Fallback: Use raw SQL via PostgREST
             try:
@@ -355,19 +359,19 @@ def accept_friend_request(user_id, friendship_id):
                         'data': response_data if response_data else [{'id': friendship_id_int, 'status': 'accepted'}],
                         'error': None
                     })()
-                    print(f"[ACCEPT_FRIEND] Direct SQL Update successful: {response.data}")
+                    logger.info(f"[ACCEPT_FRIEND] Direct SQL Update successful: {response.data}")
                 else:
-                    print(f"[ACCEPT_FRIEND] Direct SQL failed: {response_raw.status_code} - {response_raw.text}")
+                    logger.error(f"[ACCEPT_FRIEND] Direct SQL failed: {response_raw.status_code} - {response_raw.text}")
                     raise Exception(f"HTTP {response_raw.status_code}: {response_raw.text}")
 
             except Exception as sql_error:
-                print(f"[ACCEPT_FRIEND] All update methods failed: {str(sql_error)}")
+                logger.error(f"[ACCEPT_FRIEND] All update methods failed: {str(sql_error)}")
                 raise sql_error
 
-        print(f"[ACCEPT_FRIEND] Update response: {response}")
+        logger.info(f"[ACCEPT_FRIEND] Update response: {response}")
 
         if not response.data:
-            print(f"[ACCEPT_FRIEND] No data returned from update operation")
+            logger.info(f"[ACCEPT_FRIEND] No data returned from update operation")
             return jsonify({'error': 'Failed to update friendship status'}), 500
 
         # Log activity (non-critical - don't fail if this fails)
@@ -378,21 +382,21 @@ def accept_friend_request(user_id, friendship_id):
                 'event_details': {'requester_id': friendship['data']['requester_id']}
             }).execute()
         except Exception as log_error:
-            print(f"Warning: Failed to log activity: {log_error}")
+            logger.error(f"Warning: Failed to log activity: {log_error}")
 
         return jsonify(response.data[0]), 200
 
     except Exception as e:
-        print(f"[ACCEPT_FRIEND] Error: {str(e)}")
-        print(f"[ACCEPT_FRIEND] Error type: {type(e).__name__}")
+        logger.error(f"[ACCEPT_FRIEND] Error: {str(e)}")
+        logger.error(f"[ACCEPT_FRIEND] Error type: {type(e).__name__}")
 
         # Check if it's a Supabase error with more details
         if hasattr(e, 'details'):
-            print(f"[ACCEPT_FRIEND] Error details: {e.details}")
+            logger.error(f"[ACCEPT_FRIEND] Error details: {e.details}")
         if hasattr(e, 'code'):
-            print(f"[ACCEPT_FRIEND] Error code: {e.code}")
+            logger.error(f"[ACCEPT_FRIEND] Error code: {e.code}")
         if hasattr(e, 'message'):
-            print(f"[ACCEPT_FRIEND] Error message: {e.message}")
+            logger.error(f"[ACCEPT_FRIEND] Error message: {e.message}")
 
         return jsonify({'error': f'Failed to accept friend request: {str(e)}'}), 500
 
@@ -424,13 +428,13 @@ def cancel_friend_request(user_id, friendship_id):
     supabase = get_supabase_client()
 
     try:
-        print(f"[CANCEL_FRIEND] User {user_id} attempting to cancel friendship {friendship_id}")
+        logger.info(f"[CANCEL_FRIEND] User {user_id} attempting to cancel friendship {friendship_id}")
 
         friendship_result = supabase.table('friendships').select('*').eq('id', friendship_id).execute()
         friendship = {'data': friendship_result.data[0] if friendship_result.data else None}
 
         if not friendship['data']:
-            print(f"[CANCEL_FRIEND] Friend request not found for ID: {friendship_id}")
+            logger.info(f"[CANCEL_FRIEND] Friend request not found for ID: {friendship_id}")
             return jsonify({'error': 'Friend request not found'}), 404
 
         # Only the requester can cancel their own request
@@ -446,7 +450,7 @@ def cancel_friend_request(user_id, friendship_id):
         # Delete the friendship record
         delete_result = supabase.table('friendships').delete().eq('id', friendship_id).execute()
 
-        print(f"[CANCEL_FRIEND] Delete result: {delete_result}")
+        logger.info(f"[CANCEL_FRIEND] Delete result: {delete_result}")
 
         # Try to log activity but don't fail if it doesn't work
         try:
@@ -456,12 +460,12 @@ def cancel_friend_request(user_id, friendship_id):
                 'event_details': {'addressee_id': friendship['data']['addressee_id']}
             }).execute()
         except Exception as log_error:
-            print(f"[CANCEL_FRIEND] Failed to log activity: {log_error}")
+            logger.error(f"[CANCEL_FRIEND] Failed to log activity: {log_error}")
 
         return jsonify({'message': 'Friend request cancelled successfully'}), 200
 
     except Exception as e:
-        print(f"[CANCEL_FRIEND] Error: {str(e)}")
+        logger.error(f"[CANCEL_FRIEND] Error: {str(e)}")
         return jsonify({'error': str(e)}), 400
 
 @bp.route('/quests/<quest_id>/invite', methods=['POST'])
@@ -519,7 +523,7 @@ def get_friends_activity(user_id):
     supabase = get_user_client(user_id)
 
     try:
-        print(f"[FRIENDS_ACTIVITY] Fetching activity for user: {user_id}")
+        logger.info(f"[FRIENDS_ACTIVITY] Fetching activity for user: {user_id}")
 
         # First, get list of accepted friends
         try:
@@ -531,7 +535,7 @@ def get_friends_activity(user_id):
 
             all_friendships = friendships.data or []
         except Exception as db_error:
-            print(f"[FRIENDS_ACTIVITY] Database error: {str(db_error)}")
+            logger.error(f"[FRIENDS_ACTIVITY] Database error: {str(db_error)}")
             # Fallback to separate queries
             friendships_as_requester = supabase.table('friendships')\
                 .select('*')\
@@ -553,7 +557,7 @@ def get_friends_activity(user_id):
             friend_id = friendship['addressee_id'] if friendship['requester_id'] == user_id else friendship['requester_id']
             friend_ids.append(friend_id)
 
-        print(f"[FRIENDS_ACTIVITY] Found {len(friend_ids)} friends")
+        logger.info(f"[FRIENDS_ACTIVITY] Found {len(friend_ids)} friends")
 
         if not friend_ids:
             return jsonify({'activities': []}), 200
@@ -613,10 +617,10 @@ def get_friends_activity(user_id):
                             })
 
         except Exception as query_error:
-            print(f"[FRIENDS_ACTIVITY] Error fetching activities: {str(query_error)}")
+            logger.error(f"[FRIENDS_ACTIVITY] Error fetching activities: {str(query_error)}")
             activities = []
 
-        print(f"[FRIENDS_ACTIVITY] Returning {len(activities)} activities")
+        logger.info(f"[FRIENDS_ACTIVITY] Returning {len(activities)} activities")
 
         return jsonify({'activities': activities}), 200
 

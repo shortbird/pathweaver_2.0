@@ -9,6 +9,10 @@ import os
 from datetime import datetime
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -194,9 +198,10 @@ if __name__ == '__main__':
         # Uncomment to run this part:
         # generate_prompt_modification_suggestions()
 
-        print("\nJob completed successfully!")
-        print(f"Results saved. Check logs for details.")
+        logger.info("
+Job completed successfully!")
+        logger.info(f"Results saved. Check logs for details.")
 
     except Exception as e:
-        print(f"Job failed: {str(e)}")
+        logger.error(f"Job failed: {str(e)}")
         sys.exit(1)

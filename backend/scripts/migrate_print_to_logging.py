@@ -129,18 +129,18 @@ def main():
         if changes > 0:
             files_modified += 1
             total_changes += changes
-            print(f"✅ {py_file.relative_to(backend_dir)} ({changes} changes)")
+            print(f"[OK] {py_file.relative_to(backend_dir)} ({changes} changes)")
 
         if warnings:
             total_warnings.extend([f"{py_file.relative_to(backend_dir)}: {w}" for w in warnings])
 
     print("=" * 80)
-    print(f"\n✅ Migration complete!")
+    print(f"\n[SUCCESS] Migration complete!")
     print(f"   Files modified: {files_modified}/{len(python_files)}")
     print(f"   Total changes: {total_changes}")
 
     if total_warnings:
-        print(f"\n⚠️  {len(total_warnings)} warnings (manual review needed):")
+        print(f"\n[WARN] {len(total_warnings)} warnings (manual review needed):")
         for warning in total_warnings[:20]:  # Show first 20
             print(f"   - {warning}")
         if len(total_warnings) > 20:

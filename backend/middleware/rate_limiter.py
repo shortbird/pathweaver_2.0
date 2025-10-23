@@ -9,6 +9,10 @@ from collections import defaultdict
 from typing import Dict, Tuple
 from config.rate_limits import get_rate_limit
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 class RateLimiter:
     """Simple in-memory rate limiter"""
     

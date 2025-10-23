@@ -9,6 +9,10 @@ from database import get_supabase_admin_client
 import json
 import traceback
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class JobScheduler:
     """Manages scheduled jobs for AI content pipeline"""

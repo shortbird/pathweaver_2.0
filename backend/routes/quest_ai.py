@@ -8,6 +8,10 @@ from utils.auth.decorators import require_auth, require_admin
 from utils.validation.sanitizers import sanitize_search_input, sanitize_integer
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('quest_ai', __name__, url_prefix='/api/quest-ai')
 
 # Lazy loading for AI service to save memory
@@ -107,7 +111,7 @@ def generate_quest_from_topic(user_id: str):
             }), 500
 
     except Exception as e:
-        print(f"Error generating quest: {str(e)}")
+        logger.error(f"Error generating quest: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -165,7 +169,7 @@ def enhance_quest_description(user_id: str):
             }), 500
             
     except Exception as e:
-        print(f"Error enhancing description: {str(e)}")
+        logger.error(f"Error enhancing description: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to enhance description'
@@ -224,7 +228,7 @@ def suggest_tasks_for_quest(user_id: str):
             }), 500
             
     except Exception as e:
-        print(f"Error generating tasks: {str(e)}")
+        logger.error(f"Error generating tasks: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to generate tasks'
@@ -272,7 +276,7 @@ def validate_quest_quality(user_id: str):
             }), 500
             
     except Exception as e:
-        print(f"Error validating quest: {str(e)}")
+        logger.error(f"Error validating quest: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to validate quest'
@@ -333,7 +337,7 @@ def enhance_student_quest_idea(user_id: str):
         }), 200
             
     except Exception as e:
-        print(f"Error enhancing student idea: {str(e)}")
+        logger.error(f"Error enhancing student idea: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to enhance quest idea'

@@ -10,6 +10,10 @@ from services.ai_quest_maintenance_service import AIQuestMaintenanceService
 from services.quest_ai_service import QuestAIService
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class QualityMonitor:
     """Automated quality monitoring for AI-generated content"""

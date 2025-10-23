@@ -17,6 +17,10 @@ being called for every row in the query.
 
 import os
 import sys
+
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import get_supabase_admin_client
@@ -26,7 +30,7 @@ import json
 def main():
     """Fix RLS performance issues identified in supabase_warnings.json"""
 
-    print("Starting RLS Performance Optimization...")
+    logger.info("Starting RLS Performance Optimization...")
 
     # Connect to Supabase with admin privileges
     supabase = get_supabase_admin_client()
@@ -152,16 +156,19 @@ def main():
             error_count += 1
             continue
 
-    print(f"\nRLS Optimization Results:")
-    print(f"   Successful optimizations: {success_count}")
-    print(f"   Failed optimizations: {error_count}")
+    logger.info(f"
+RLS Optimization Results:")
+    logger.info(f"   Successful optimizations: {success_count}")
+    logger.error(f"   Failed optimizations: {error_count}")
 
     if error_count == 0:
-        print(f"\nAll RLS policies have been optimized for performance!")
-        print(f"   Auth function calls are now cached instead of re-evaluated per row.")
-        print(f"   This should significantly improve query performance at scale.")
+        logger.info(f"
+All RLS policies have been optimized for performance!")
+        logger.info(f"   Auth function calls are now cached instead of re-evaluated per row.")
+        logger.info(f"   This should significantly improve query performance at scale.")
     else:
-        print(f"\nSome optimizations failed. Please review the errors above.")
+        logger.error(f"
+Some optimizations failed. Please review the errors above.")
 
     return success_count > 0
 
@@ -170,5 +177,5 @@ if __name__ == "__main__":
         success = main()
         sys.exit(0 if success else 1)
     except Exception as e:
-        print(f"Fatal error: {str(e)}")
+        logger.error(f"Fatal error: {str(e)}")
         sys.exit(1)

@@ -7,6 +7,10 @@ from datetime import datetime, timedelta
 import json
 import os
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('account_deletion', __name__)
 
 @bp.route('/users/delete-account', methods=['POST'])
@@ -87,7 +91,7 @@ def request_account_deletion(current_user):
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
     except Exception as e:
-        print(f"Error requesting account deletion: {str(e)}")
+        logger.error(f"Error requesting account deletion: {str(e)}")
         return jsonify({'error': 'Failed to request account deletion'}), 500
 
 @bp.route('/users/cancel-deletion', methods=['POST'])
@@ -137,7 +141,7 @@ def cancel_account_deletion(current_user):
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
     except Exception as e:
-        print(f"Error cancelling account deletion: {str(e)}")
+        logger.error(f"Error cancelling account deletion: {str(e)}")
         return jsonify({'error': 'Failed to cancel account deletion'}), 500
 
 @bp.route('/users/deletion-status', methods=['GET'])
@@ -178,7 +182,7 @@ def get_deletion_status(current_user):
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
     except Exception as e:
-        print(f"Error getting deletion status: {str(e)}")
+        logger.error(f"Error getting deletion status: {str(e)}")
         return jsonify({'error': 'Failed to get deletion status'}), 500
 
 @bp.route('/users/export-data', methods=['GET'])
@@ -190,12 +194,12 @@ def export_user_data(current_user):
     Returns comprehensive JSON export of all user data
     """
     try:
-        print(f"[EXPORT] Starting data export for user: {current_user}")
+        logger.info(f"[EXPORT] Starting data export for user: {current_user}")
         user_id = current_user['id']
-        print(f"[EXPORT] User ID: {user_id}")
+        logger.info(f"[EXPORT] User ID: {user_id}")
         # ADMIN CLIENT JUSTIFIED: GDPR data export requires cross-table reads from all user data
         supabase = get_supabase_admin_client()
-        print(f"[EXPORT] Got supabase client")
+        logger.info(f"[EXPORT] Got supabase client")
 
         export_data = {
             'export_date': datetime.utcnow().isoformat(),
@@ -208,7 +212,7 @@ def export_user_data(current_user):
             if user_response.data:
                 export_data['profile'] = user_response.data[0]
         except Exception as e:
-            print(f"Error fetching user profile: {str(e)}")
+            logger.error(f"Error fetching user profile: {str(e)}")
             export_data['profile'] = None
 
         # Get diploma/portfolio
@@ -217,7 +221,7 @@ def export_user_data(current_user):
             if diploma_response.data:
                 export_data['diploma'] = diploma_response.data[0]
         except Exception as e:
-            print(f"Error fetching diploma: {str(e)}")
+            logger.error(f"Error fetching diploma: {str(e)}")
             export_data['diploma'] = None
 
         # Get skill XP
@@ -225,7 +229,7 @@ def export_user_data(current_user):
             skills_response = supabase.table('user_skill_xp').select('*').eq('user_id', user_id).execute()
             export_data['skills'] = skills_response.data if skills_response.data else []
         except Exception as e:
-            print(f"Error fetching skills: {str(e)}")
+            logger.error(f"Error fetching skills: {str(e)}")
             export_data['skills'] = []
 
         # Get quest enrollments
@@ -233,7 +237,7 @@ def export_user_data(current_user):
             quests_response = supabase.table('user_quests').select('*').eq('user_id', user_id).execute()
             export_data['enrolled_quests'] = quests_response.data if quests_response.data else []
         except Exception as e:
-            print(f"Error fetching quest enrollments: {str(e)}")
+            logger.error(f"Error fetching quest enrollments: {str(e)}")
             export_data['enrolled_quests'] = []
 
         # Get completed tasks
@@ -241,7 +245,7 @@ def export_user_data(current_user):
             tasks_response = supabase.table('quest_task_completions').select('*').eq('user_id', user_id).execute()
             export_data['completed_tasks'] = tasks_response.data if tasks_response.data else []
         except Exception as e:
-            print(f"Error fetching completed tasks: {str(e)}")
+            logger.error(f"Error fetching completed tasks: {str(e)}")
             export_data['completed_tasks'] = []
 
         # Get evidence documents
@@ -249,7 +253,7 @@ def export_user_data(current_user):
             evidence_response = supabase.table('evidence_document_blocks').select('*').eq('user_id', user_id).execute()
             export_data['evidence_documents'] = evidence_response.data if evidence_response.data else []
         except Exception as e:
-            print(f"Error fetching evidence documents: {str(e)}")
+            logger.error(f"Error fetching evidence documents: {str(e)}")
             export_data['evidence_documents'] = []
 
         # Get friendships
@@ -259,7 +263,7 @@ def export_user_data(current_user):
             ).execute()
             export_data['friendships'] = friendships_response.data if friendships_response.data else []
         except Exception as e:
-            print(f"Error fetching friendships: {str(e)}")
+            logger.error(f"Error fetching friendships: {str(e)}")
             export_data['friendships'] = []
 
         # Get quest collaborations
@@ -269,7 +273,7 @@ def export_user_data(current_user):
             ).execute()
             export_data['collaborations'] = collabs_response.data if collabs_response.data else []
         except Exception as e:
-            print(f"Error fetching collaborations: {str(e)}")
+            logger.error(f"Error fetching collaborations: {str(e)}")
             export_data['collaborations'] = []
 
         # Get tutor conversations (if exists)
@@ -303,8 +307,8 @@ def export_user_data(current_user):
 
     except Exception as e:
         import traceback
-        print(f"Error exporting user data: {str(e)}")
-        print(f"Traceback: {traceback.format_exc()}")
+        logger.error(f"Error exporting user data: {str(e)}")
+        logger.info(f"Traceback: {traceback.format_exc()}")
         return jsonify({
             'error': 'Failed to export user data',
             'details': str(e) if os.getenv('FLASK_ENV') == 'development' else None

@@ -8,6 +8,10 @@ and provides audit trail for subscription events.
 
 import os
 import sys
+
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database import get_supabase_admin_client
@@ -86,52 +90,55 @@ def create_subscription_history_table():
     """
 
     try:
-        print("Creating subscription_history table...")
+        logger.info("Creating subscription_history table...")
 
         # Execute table creation
-        print("1. Creating table structure...")
+        logger.info("1. Creating table structure...")
         supabase.postgrest.rpc('exec_sql', {'sql': create_table_sql}).execute()
 
         # Execute indexes
-        print("2. Creating indexes...")
+        logger.info("2. Creating indexes...")
         supabase.postgrest.rpc('exec_sql', {'sql': create_indexes_sql}).execute()
 
         # Execute RLS policies
-        print("3. Setting up Row Level Security policies...")
+        logger.info("3. Setting up Row Level Security policies...")
         supabase.postgrest.rpc('exec_sql', {'sql': rls_policies_sql}).execute()
 
         # Execute trigger
-        print("4. Creating updated_at trigger...")
+        logger.info("4. Creating updated_at trigger...")
         supabase.postgrest.rpc('exec_sql', {'sql': trigger_sql}).execute()
 
-        print("Successfully created subscription_history table with:")
-        print("   - UUID primary key")
-        print("   - Foreign key to users table")
-        print("   - Stripe subscription and event tracking")
-        print("   - Performance indexes")
-        print("   - Row Level Security policies")
-        print("   - Auto-updating timestamps")
+        logger.info("Successfully created subscription_history table with:")
+        logger.info("   - UUID primary key")
+        logger.info("   - Foreign key to users table")
+        logger.info("   - Stripe subscription and event tracking")
+        logger.info("   - Performance indexes")
+        logger.info("   - Row Level Security policies")
+        logger.info("   - Auto-updating timestamps")
 
         # Verify table exists
-        print("\n5. Verifying table creation...")
+        logger.info("
+5. Verifying table creation...")
         result = supabase.table('subscription_history').select('*').limit(1).execute()
-        print("Table verification successful - ready to accept webhook data")
+        logger.info("Table verification successful - ready to accept webhook data")
 
         return True
 
     except Exception as e:
-        print(f"Error creating subscription_history table: {str(e)}")
+        logger.error(f"Error creating subscription_history table: {str(e)}")
         import traceback
-        print(f"Full traceback: {traceback.format_exc()}")
+        logger.info(f"Full traceback: {traceback.format_exc()}")
         return False
 
 if __name__ == "__main__":
-    print("Creating subscription_history table for Stripe webhook logging...")
+    logger.info("Creating subscription_history table for Stripe webhook logging...")
     success = create_subscription_history_table()
 
     if success:
-        print("\nMigration completed successfully!")
-        print("The subscription_history table is now ready to handle Stripe webhook events.")
+        logger.info("
+Migration completed successfully!")
+        logger.info("The subscription_history table is now ready to handle Stripe webhook events.")
     else:
-        print("\nMigration failed. Please check the error messages above.")
+        logger.error("
+Migration failed. Please check the error messages above.")
         sys.exit(1)

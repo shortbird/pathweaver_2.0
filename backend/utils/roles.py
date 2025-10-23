@@ -5,6 +5,10 @@ Role management utilities and constants for RBAC system
 from enum import Enum
 from typing import List, Dict, Optional, Set
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 class UserRole(Enum):
     """Enumeration of available user roles"""
     STUDENT = 'student'

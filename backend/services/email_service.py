@@ -10,6 +10,10 @@ import logging
 from jinja2 import Environment, FileSystemLoader, select_autoescape, TemplateNotFound
 from services.email_copy_loader import email_copy_loader
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 class EmailService:

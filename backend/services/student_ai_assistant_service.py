@@ -16,6 +16,10 @@ import json
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class StudentAIAssistantService:
     """Service for AI-powered student assistance with quest ideas."""

@@ -12,6 +12,10 @@ from utils.session_manager import session_manager
 from middleware.error_handler import ValidationError, AuthenticationError
 from lms_config.lms_platforms import get_supported_platforms, get_platform_config, validate_platform_config
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('lms', __name__)
 
 lti_service = LTI13Service()

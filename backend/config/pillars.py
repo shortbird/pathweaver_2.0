@@ -4,6 +4,10 @@ Pillar Definitions - Single Source of Truth
 All pillar names, colors, icons, and metadata defined here.
 Import this module instead of hardcoding pillar data.
 """
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 PILLARS = {
     'stem': {

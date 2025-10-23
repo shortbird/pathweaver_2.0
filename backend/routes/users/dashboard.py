@@ -7,6 +7,10 @@ from utils.auth.decorators import require_auth
 from middleware.error_handler import NotFoundError
 from .helpers import calculate_user_xp, get_user_level, format_skill_data, SKILL_CATEGORIES
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 dashboard_bp = Blueprint('dashboard', __name__)
 
 @dashboard_bp.route('/subject-xp', methods=['GET'])
@@ -30,7 +34,7 @@ def get_user_subject_xp(user_id):
         })
 
     except Exception as e:
-        print(f"Error fetching subject XP: {str(e)}")
+        logger.error(f"Error fetching subject XP: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch subject XP',
@@ -58,10 +62,10 @@ def get_dashboard(user_id):
         # Calculate XP stats (needed for ConstellationPage and other features)
         total_xp, skill_breakdown = calculate_user_xp(supabase, user_id)
 
-        print(f"=== DASHBOARD XP DEBUG for user {user_id} ===")
-        print(f"Total XP: {total_xp}")
-        print(f"Skill breakdown: {skill_breakdown}")
-        print("=======================================")
+        logger.debug(f"=== DASHBOARD XP DEBUG for user {user_id} ===")
+        logger.info(f"Total XP: {total_xp}")
+        logger.info(f"Skill breakdown: {skill_breakdown}")
+        logger.info("=======================================")
 
         # Get user level info
         level_info = get_user_level(total_xp)
@@ -81,24 +85,24 @@ def get_dashboard(user_id):
             'active_quests': active_quests
         }
 
-        print(f"=== DASHBOARD RESPONSE DEBUG ===")
-        print(f"Total XP being sent: {total_xp}")
-        print(f"XP by category: {skill_breakdown}")
-        print(f"Active quests: {len(active_quests)}")
-        print(f"================================")
+        logger.debug(f"=== DASHBOARD RESPONSE DEBUG ===")
+        logger.info(f"Total XP being sent: {total_xp}")
+        logger.info(f"XP by category: {skill_breakdown}")
+        logger.info(f"Active quests: {len(active_quests)}")
+        logger.info(f"================================")
 
         return jsonify(dashboard_data), 200
 
     except NotFoundError:
         raise
     except Exception as e:
-        print(f"Dashboard error: {str(e)}")
+        logger.error(f"Dashboard error: {str(e)}")
         return jsonify({'error': 'Failed to load dashboard'}), 500
 
 
 def get_active_quests(supabase, user_id: str) -> list:
     """Get user's active quests with details"""
-    print(f"Fetching active quests for user {user_id}")
+    logger.info(f"Fetching active quests for user {user_id}")
 
     try:
         # Get active enrollments with quest details
@@ -110,7 +114,7 @@ def get_active_quests(supabase, user_id: str) -> list:
             .is_('completed_at', 'null')\
             .execute()
 
-        print(f"Active quests query result: {len(active_quests.data) if active_quests.data else 0} quests found")
+        logger.info(f"Active quests query result: {len(active_quests.data) if active_quests.data else 0} quests found")
 
         if active_quests.data:
             # Additional safety check - should not be needed but keeps code defensive
@@ -119,7 +123,7 @@ def get_active_quests(supabase, user_id: str) -> list:
             # Debug: Log any quests that slip through
             filtered_count = len(active_quests.data) - len(active_only)
             if filtered_count > 0:
-                print(f"WARNING: {filtered_count} completed quests had is_active=True but completed_at set!")
+                logger.warning(f"WARNING: {filtered_count} completed quests had is_active=True but completed_at set!")
                 for q in active_quests.data:
                     if q.get('completed_at') is not None:
                         print(f"  - Quest ID: {q.get('quest_id')}, Enrollment ID: {q.get('id')}, completed_at: {q.get('completed_at')}, is_active: {q.get('is_active')}")
@@ -180,7 +184,7 @@ def get_active_quests(supabase, user_id: str) -> list:
                     # Add enriched tasks to quest data for frontend
                     quest_info['quest_tasks'] = tasks
                 except Exception as e:
-                    print(f"Error getting completed tasks: {str(e)}")
+                    logger.error(f"Error getting completed tasks: {str(e)}")
                     enrollment['completed_tasks'] = 0
                     quest_info['quest_tasks'] = []
 
@@ -189,8 +193,8 @@ def get_active_quests(supabase, user_id: str) -> list:
             return active_only
         
     except Exception as e:
-        print(f"Error fetching active quests: {str(e)}")
-        print(f"Error type: {type(e).__name__}")
+        logger.error(f"Error fetching active quests: {str(e)}")
+        logger.error(f"Error type: {type(e).__name__}")
         
         # Try simpler query without nested relations
         try:
@@ -208,7 +212,7 @@ def get_active_quests(supabase, user_id: str) -> list:
                 # Debug: Log any data inconsistencies
                 filtered_count = len(active_quests.data) - len(active_only)
                 if filtered_count > 0:
-                    print(f"WARNING (fallback): {filtered_count} completed quests had is_active=True!")
+                    logger.warning(f"WARNING (fallback): {filtered_count} completed quests had is_active=True!")
                     for q in active_quests.data:
                         if q.get('completed_at') is not None:
                             print(f"  - Quest ID: {q.get('quest_id')}, Enrollment ID: {q.get('id')}")
@@ -274,7 +278,7 @@ def get_active_quests(supabase, user_id: str) -> list:
                             # Add enriched tasks to quest data for frontend
                             quest_info['quest_tasks'] = tasks
                         except Exception as e:
-                            print(f"Error getting completed tasks fallback: {str(e)}")
+                            logger.error(f"Error getting completed tasks fallback: {str(e)}")
                             enrollment['completed_tasks'] = 0
                             quest_info['quest_tasks'] = []
                     except:
@@ -283,7 +287,7 @@ def get_active_quests(supabase, user_id: str) -> list:
                 return active_only
                 
         except Exception as fallback_error:
-            print(f"Fallback query also failed: {str(fallback_error)}")
+            logger.error(f"Fallback query also failed: {str(fallback_error)}")
     
     return []
 

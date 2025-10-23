@@ -12,6 +12,10 @@ from utils.api_response import success_response, error_response
 from datetime import datetime, timedelta
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('admin_user_management', __name__, url_prefix='/api/admin')
 
 @bp.route('/users', methods=['GET'])
@@ -80,7 +84,7 @@ def get_users(user_id):
         })
 
     except Exception as e:
-        print(f"Error getting users: {str(e)}")
+        logger.error(f"Error getting users: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve users'
@@ -134,7 +138,7 @@ def get_user_details(user_id, target_user_id):
         })
 
     except Exception as e:
-        print(f"Error getting user details: {str(e)}")
+        logger.error(f"Error getting user details: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve user details'
@@ -175,7 +179,7 @@ def update_user(user_id, target_user_id):
         })
 
     except Exception as e:
-        print(f"Error updating user: {str(e)}")
+        logger.error(f"Error updating user: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to update user: {str(e)}'
@@ -199,7 +203,7 @@ def update_user_subscription(user_id, target_user_id):
         valid_tiers = [tier['tier_key'] for tier in tiers_result.data] if tiers_result.data else []
 
         if not valid_tiers:
-            print("Warning: No active subscription tiers found in database")
+            logger.warning("Warning: No active subscription tiers found in database")
             valid_tiers = ['Explore', 'Accelerate', 'Achieve', 'Excel']  # Fallback
 
         if subscription_tier not in valid_tiers:
@@ -223,7 +227,7 @@ def update_user_subscription(user_id, target_user_id):
         })
 
     except Exception as e:
-        print(f"Error updating subscription: {str(e)}")
+        logger.error(f"Error updating subscription: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to update subscription: {str(e)}'
@@ -255,23 +259,23 @@ def update_user_role(user_id, target_user_id):
             'role': new_role
         }
 
-        print(f"Attempting to update role for user {target_user_id} to {new_role}")
+        logger.info(f"Attempting to update role for user {target_user_id} to {new_role}")
         result = supabase.table('users').update(update_data).eq('id', target_user_id).execute()
 
         # Check for errors in the response
         if hasattr(result, 'error') and result.error:
             error_msg = str(result.error)
-            print(f"Supabase error updating role: {error_msg}")
+            logger.error(f"Supabase error updating role: {error_msg}")
             return jsonify({
                 'success': False,
                 'error': f'Database error: {error_msg}'
             }), 500
 
         if not result.data or len(result.data) == 0:
-            print(f"No data returned after role update for user {target_user_id}")
+            logger.info(f"No data returned after role update for user {target_user_id}")
             return jsonify({'success': False, 'error': 'User not found or update failed'}), 404
 
-        print(f"Successfully updated role for user {target_user_id}")
+        logger.info(f"Successfully updated role for user {target_user_id}")
         return jsonify({
             'success': True,
             'message': f'User role updated to {new_role}',
@@ -281,8 +285,8 @@ def update_user_role(user_id, target_user_id):
     except Exception as e:
         import traceback
         error_trace = traceback.format_exc()
-        print(f"Error updating role: {str(e)}")
-        print(f"Full traceback: {error_trace}")
+        logger.error(f"Error updating role: {str(e)}")
+        logger.error(f"Full traceback: {error_trace}")
         return jsonify({
             'success': False,
             'error': f'Failed to update role: {str(e)}'
@@ -322,7 +326,7 @@ def toggle_user_status(user_id, target_user_id):
         })
 
     except Exception as e:
-        print(f"Error toggling user status: {str(e)}")
+        logger.error(f"Error toggling user status: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to update user status: {str(e)}'
@@ -354,7 +358,7 @@ def delete_user(user_id, target_user_id):
         })
 
     except Exception as e:
-        print(f"Error deleting user: {str(e)}")
+        logger.error(f"Error deleting user: {str(e)}")
         return jsonify({
             'success': False,
             'error': f'Failed to delete user: {str(e)}'
@@ -394,7 +398,7 @@ def get_user_conversations(admin_user_id, user_id):
         })
 
     except Exception as e:
-        print(f"Error fetching user conversations: {str(e)}")
+        logger.error(f"Error fetching user conversations: {str(e)}")
         return error_response(f"Failed to fetch conversations: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/conversations/<conversation_id>', methods=['GET'])
@@ -437,7 +441,7 @@ def get_conversation_details(admin_user_id, conversation_id):
         })
 
     except Exception as e:
-        print(f"Error fetching conversation details: {str(e)}")
+        logger.error(f"Error fetching conversation details: {str(e)}")
         return error_response(f"Failed to fetch conversation details: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/users/<target_user_id>/quest-enrollments', methods=['GET'])
@@ -515,7 +519,7 @@ def get_user_quest_enrollments(user_id, target_user_id):
         })
 
     except Exception as e:
-        print(f"Error getting quest enrollments: {str(e)}")
+        logger.error(f"Error getting quest enrollments: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to retrieve quest enrollments'

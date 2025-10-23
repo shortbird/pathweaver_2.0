@@ -15,6 +15,10 @@ import hashlib
 from datetime import datetime, timedelta
 import logging
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('parental_consent', __name__)
@@ -106,7 +110,7 @@ def send_parental_consent():
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
     except Exception as e:
-        print(f"Error sending parental consent: {str(e)}")
+        logger.error(f"Error sending parental consent: {str(e)}")
         return jsonify({'error': 'Failed to send parental consent verification'}), 500
 
 @bp.route('/parental-consent/verify', methods=['POST'])
@@ -163,7 +167,7 @@ def verify_parental_consent():
     except ValidationError as e:
         return jsonify({'error': str(e)}), 400
     except Exception as e:
-        print(f"Error verifying parental consent: {str(e)}")
+        logger.error(f"Error verifying parental consent: {str(e)}")
         return jsonify({'error': 'Failed to verify parental consent'}), 500
 
 @bp.route('/parental-consent/status/<user_id>', methods=['GET'])
@@ -193,7 +197,7 @@ def check_consent_status(user_id):
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
     except Exception as e:
-        print(f"Error checking consent status: {str(e)}")
+        logger.error(f"Error checking consent status: {str(e)}")
         return jsonify({'error': 'Failed to check consent status'}), 500
 
 @bp.route('/parental-consent/resend', methods=['POST'])
@@ -275,5 +279,5 @@ def resend_parental_consent():
     except NotFoundError as e:
         return jsonify({'error': str(e)}), 404
     except Exception as e:
-        print(f"Error resending parental consent: {str(e)}")
+        logger.error(f"Error resending parental consent: {str(e)}")
         return jsonify({'error': 'Failed to resend parental consent'}), 500

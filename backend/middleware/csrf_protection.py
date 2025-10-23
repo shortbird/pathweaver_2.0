@@ -10,6 +10,10 @@ The application will fail to start if Flask-WTF is not installed.
 
 import os
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 try:
     from flask_wtf.csrf import CSRFProtect, generate_csrf, validate_csrf
     csrf = CSRFProtect()

@@ -13,6 +13,10 @@ from utils.pillar_utils import is_valid_pillar
 from utils.pillar_mapping import normalize_pillar_name
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 class XPService(BaseService):
     """Service for handling XP calculations and awards."""
     
@@ -70,8 +74,8 @@ class XPService(BaseService):
         if not isinstance(xp_amount, int) or xp_amount <= 0:
             raise ValidationError(f"xp_amount must be positive integer, got: {xp_amount}")
 
-        print(f"=== XP SERVICE AWARD DEBUG ===")
-        print(f"User: {user_id}, Pillar: {pillar}, Amount: {xp_amount}, Source: {source}")
+        logger.debug(f"=== XP SERVICE AWARD DEBUG ===")
+        logger.info(f"User: {user_id}, Pillar: {pillar}, Amount: {xp_amount}, Source: {source}")
 
         # Normalize pillar input (handles display names, old keys, etc.)
         # Updated January 2025: New single-word pillar names
@@ -95,9 +99,9 @@ class XPService(BaseService):
                 .eq('pillar', db_pillar)\
                 .execute()
             
-            print(f"Current XP records found: {len(current_xp.data) if current_xp.data else 0}")
+            logger.info(f"Current XP records found: {len(current_xp.data) if current_xp.data else 0}")
             if current_xp.data:
-                print(f"Existing record: {current_xp.data[0]}")
+                logger.info(f"Existing record: {current_xp.data[0]}")
             
             if current_xp.data:
                 # Update existing XP record - use 'xp_amount' column
@@ -105,7 +109,7 @@ class XPService(BaseService):
                 existing_xp = existing_record.get('xp_amount', 0)
                 new_total = existing_xp + xp_amount
                 
-                print(f"Updating XP: {existing_xp} + {xp_amount} = {new_total}")
+                logger.info(f"Updating XP: {existing_xp} + {xp_amount} = {new_total}")
                 
                 # Use the record ID for a more reliable update
                 record_id = existing_record.get('id')
@@ -128,10 +132,10 @@ class XPService(BaseService):
                         .eq('pillar', db_pillar)\
                         .execute()
                 
-                print(f"Update result: {result.data}")
+                logger.info(f"Update result: {result.data}")
             else:
                 # Create new XP record - use 'pillar' and 'xp_amount' columns
-                print(f"Creating new XP record for {db_pillar} with {xp_amount} XP")
+                logger.info(f"Creating new XP record for {db_pillar} with {xp_amount} XP")
                 result = self.supabase.table('user_skill_xp')\
                     .insert({
                         'user_id': user_id,
@@ -140,7 +144,7 @@ class XPService(BaseService):
                         'updated_at': datetime.utcnow().isoformat()
                     })\
                     .execute()
-                print(f"Insert result: {result.data}")
+                logger.info(f"Insert result: {result.data}")
             
             # Create audit log entry
             self._create_xp_audit_log(user_id, pillar, xp_amount, source)
@@ -148,16 +152,16 @@ class XPService(BaseService):
             # Update user mastery level
             self.update_user_mastery(user_id)
             
-            print(f"XP award success: {bool(result.data)}")
-            print("===============================")
+            logger.info(f"XP award success: {bool(result.data)}")
+            logger.info("===============================")
             
             return bool(result.data)
             
         except Exception as e:
-            print(f"Error awarding XP: {str(e)}")
-            print(f"Error type: {type(e).__name__}")
+            logger.error(f"Error awarding XP: {str(e)}")
+            logger.error(f"Error type: {type(e).__name__}")
             import traceback
-            print(f"Traceback: {traceback.format_exc()}")
+            logger.info(f"Traceback: {traceback.format_exc()}")
             return False
     
     def get_user_total_xp(self, user_id: str) -> Dict[str, int]:
@@ -204,7 +208,7 @@ class XPService(BaseService):
             }
             
         except Exception as e:
-            print(f"Error getting user XP: {str(e)}")
+            logger.error(f"Error getting user XP: {str(e)}")
             return {}
     
     def get_leaderboard(self, pillar: Optional[str] = None, limit: int = 10) -> List[Dict]:
@@ -267,7 +271,7 @@ class XPService(BaseService):
             return leaderboard.data if leaderboard.data else []
             
         except Exception as e:
-            print(f"Error getting leaderboard: {str(e)}")
+            logger.error(f"Error getting leaderboard: {str(e)}")
             return []
     
     def _check_active_collaboration(self, user_id: str, quest_id: str) -> bool:
@@ -295,7 +299,7 @@ class XPService(BaseService):
             return bool(collab_as_partner.data)
             
         except Exception as e:
-            print(f"Error checking collaboration: {str(e)}")
+            logger.error(f"Error checking collaboration: {str(e)}")
             return False
     
     def _log_xp_calculation(self, 
@@ -316,7 +320,7 @@ class XPService(BaseService):
         
         # In production, this would write to an audit log table
         # For now, just log to console
-        print(f"XP Calculation: {json.dumps(log_data)}")
+        logger.info(f"XP Calculation: {json.dumps(log_data)}")
     
     def update_user_mastery(self, user_id: str) -> Optional[int]:
         """
@@ -366,11 +370,11 @@ class XPService(BaseService):
                     })\
                     .execute()
             
-            print(f"Updated mastery for user {user_id}: Level {mastery_level} (Total XP: {total_xp})")
+            logger.info(f"Updated mastery for user {user_id}: Level {mastery_level} (Total XP: {total_xp})")
             return mastery_level
             
         except Exception as e:
-            print(f"Error updating user mastery: {str(e)}")
+            logger.error(f"Error updating user mastery: {str(e)}")
             return None
     
     def _create_xp_audit_log(self, 
@@ -389,7 +393,7 @@ class XPService(BaseService):
         
         # In production, this would write to an audit log table
         # For now, just log to console
-        print(f"XP Award Audit: {json.dumps(audit_data)}")
+        logger.info(f"XP Award Audit: {json.dumps(audit_data)}")
     
     def validate_xp_integrity(self, user_id: str) -> bool:
         """
@@ -444,11 +448,11 @@ class XPService(BaseService):
             for pillar, expected in expected_xp.items():
                 actual = actual_xp.get(pillar, 0)
                 if actual != expected:
-                    print(f"XP discrepancy for user {user_id}, pillar {pillar}: expected {expected}, actual {actual}")
+                    logger.info(f"XP discrepancy for user {user_id}, pillar {pillar}: expected {expected}, actual {actual}")
                     return False
             
             return True
             
         except Exception as e:
-            print(f"Error validating XP integrity: {str(e)}")
+            logger.error(f"Error validating XP integrity: {str(e)}")
             return False

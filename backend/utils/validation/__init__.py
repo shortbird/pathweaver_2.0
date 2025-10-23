@@ -1,6 +1,10 @@
 """Validation utilities module"""
 
 from .input_validation import (
+
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
     validate_email,
     validate_password,
     validate_registration_data,

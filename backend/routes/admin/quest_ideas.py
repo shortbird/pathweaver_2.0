@@ -11,6 +11,10 @@ from utils.auth.decorators import require_admin
 from services.image_service import search_quest_image
 from datetime import datetime
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('admin_quest_ideas', __name__, url_prefix='/api/admin')
 
 # Lazy loading for AI service to save memory
@@ -95,7 +99,7 @@ def list_quest_ideas(user_id):
         })
 
     except Exception as e:
-        print(f"Error listing quest ideas: {str(e)}")
+        logger.error(f"Error listing quest ideas: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch quest ideas'
@@ -130,7 +134,7 @@ def approve_quest_idea(user_id, idea_id):
         })
 
     except Exception as e:
-        print(f"Error approving quest idea: {str(e)}")
+        logger.error(f"Error approving quest idea: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to approve quest idea'
@@ -149,13 +153,13 @@ def reject_quest_idea(user_id, idea_id):
             'status': 'rejected'
         }
 
-        print(f"Attempting to reject quest idea {idea_id} with data: {update_data}")
+        logger.info(f"Attempting to reject quest idea {idea_id} with data: {update_data}")
         result = supabase.table('quest_ideas').update(update_data).eq('id', idea_id).execute()
 
-        print(f"Supabase response for reject: {result}")
+        logger.info(f"Supabase response for reject: {result}")
 
         if not result.data:
-            print(f"No data returned from reject update. Full result: {result}")
+            logger.info(f"No data returned from reject update. Full result: {result}")
             return jsonify({'error': 'Quest idea not found or update failed'}), 404
 
         return jsonify({
@@ -165,8 +169,8 @@ def reject_quest_idea(user_id, idea_id):
         })
 
     except Exception as e:
-        print(f"Error rejecting quest idea: {str(e)}")
-        print(f"Error type: {type(e)}")
+        logger.error(f"Error rejecting quest idea: {str(e)}")
+        logger.error(f"Error type: {type(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -274,7 +278,7 @@ def generate_quest_from_idea(user_id, idea_id):
         }), 201
 
     except Exception as e:
-        print(f"Error generating quest from idea: {str(e)}")
+        logger.error(f"Error generating quest from idea: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({
@@ -361,7 +365,7 @@ def create_quest_from_idea_manual(user_id, idea_id):
         }), 201
 
     except Exception as e:
-        print(f"Error creating manual quest from idea: {str(e)}")
+        logger.error(f"Error creating manual quest from idea: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({

@@ -9,6 +9,10 @@ import json
 import base64
 import uuid
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('admin', __name__, url_prefix='/api/admin')
 
 @bp.route('/school-subjects', methods=['GET'])
@@ -27,7 +31,7 @@ def get_school_subjects():
         })
         
     except Exception as e:
-        print(f"Error getting school subjects: {str(e)}")
+        logger.error(f"Error getting school subjects: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch school subjects'
@@ -139,7 +143,7 @@ def get_users_list(user_id):
                 for auth_user in auth_users:
                     email_map[auth_user.id] = getattr(auth_user, 'email', None)
         except Exception as e:
-            print(f"Warning: Could not fetch auth users: {e}")
+            logger.warning(f"Warning: Could not fetch auth users: {e}")
             email_map = {}
         
         for user in users:
@@ -174,7 +178,7 @@ def get_users_list(user_id):
         }), 200
         
     except Exception as e:
-        print(f"Error fetching users: {str(e)}")
+        logger.error(f"Error fetching users: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/users/<user_id>', methods=['GET'])
@@ -249,7 +253,7 @@ def get_user_details(admin_id, user_id):
         }), 200
         
     except Exception as e:
-        print(f"Error fetching user details: {str(e)}")
+        logger.error(f"Error fetching user details: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/users/<user_id>', methods=['PUT'])
@@ -282,7 +286,7 @@ def update_user_profile(admin_id, user_id):
         return jsonify({'message': 'User updated successfully'}), 200
         
     except Exception as e:
-        print(f"Error updating user: {str(e)}")
+        logger.error(f"Error updating user: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/users/<user_id>/subscription', methods=['POST'])
@@ -317,30 +321,30 @@ def update_user_subscription(admin_id, user_id):
         
         # Note: subscription_expires field is not used in database schema
         
-        print(f"TIER UPDATE: User {user_id}, Frontend tier: {requested_tier} -> DB tier: {db_tier}")
-        print(f"Update data being sent to Supabase: {update_data}")
+        logger.info(f"TIER UPDATE: User {user_id}, Frontend tier: {requested_tier} -> DB tier: {db_tier}")
+        logger.info(f"Update data being sent to Supabase: {update_data}")
         
         # Try primary tier mapping first
         def try_tier_update(tier_value):
             try:
                 update_data = {'subscription_tier': tier_value}
-                print(f"ATTEMPTING TIER UPDATE: User {user_id}, Trying tier value: {tier_value}")
+                logger.info(f"ATTEMPTING TIER UPDATE: User {user_id}, Trying tier value: {tier_value}")
                 
                 response = supabase.table('users')\
                     .update(update_data)\
                     .eq('id', user_id)\
                     .execute()
                 
-                print(f"Supabase update response: {response}")
-                print(f"Supabase response data: {response.data}")
+                logger.info(f"Supabase update response: {response}")
+                logger.info(f"Supabase response data: {response.data}")
                 
                 if response.data:
                     updated_user = response.data[0]
                     actual_db_tier = updated_user.get('subscription_tier')
-                    print(f"SUCCESS: User {user_id} tier updated to: {actual_db_tier}")
+                    logger.info(f"SUCCESS: User {user_id} tier updated to: {actual_db_tier}")
                     return response.data[0]
                 else:
-                    print(f"ERROR: No data returned from Supabase")
+                    logger.error(f"ERROR: No data returned from Supabase")
                     return None
                     
             except Exception as e:
@@ -381,12 +385,12 @@ def update_user_subscription(admin_id, user_id):
             }), 500
         
         # Success case - the tier update worked with one of our attempted values
-        print(f"FINAL SUCCESS: User {user_id} subscription tier updated successfully")
+        logger.info(f"FINAL SUCCESS: User {user_id} subscription tier updated successfully")
         
         return jsonify({'message': 'Subscription updated successfully'}), 200
         
     except Exception as e:
-        print(f"Error updating subscription: {str(e)}")
+        logger.error(f"Error updating subscription: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/users/<user_id>/role', methods=['PUT'])
@@ -428,7 +432,7 @@ def update_user_role(admin_id, user_id):
         }), 200
         
     except Exception as e:
-        print(f"Error updating role: {str(e)}")
+        logger.error(f"Error updating role: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/users/<user_id>/reset-password', methods=['POST'])
@@ -465,11 +469,11 @@ def reset_user_password(admin_id, user_id):
             return jsonify({'message': 'Password reset email sent'}), 200
             
         except Exception as e:
-            print(f"Error sending reset email: {str(e)}")
+            logger.error(f"Error sending reset email: {str(e)}")
             return jsonify({'error': 'Failed to send reset email'}), 500
         
     except Exception as e:
-        print(f"Error in password reset: {str(e)}")
+        logger.error(f"Error in password reset: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/users/<user_id>/toggle-status', methods=['POST'])
@@ -505,7 +509,7 @@ def toggle_user_status(admin_id, user_id):
         }), 200
         
     except Exception as e:
-        print(f"Error toggling user status: {str(e)}")
+        logger.error(f"Error toggling user status: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/users/<user_id>', methods=['DELETE'])
@@ -534,12 +538,12 @@ def delete_user_account(admin_id, user_id):
         try:
             supabase.auth.admin.delete_user(user_id)
         except Exception as e:
-            print(f"Warning: Could not delete from auth.users: {e}")
+            logger.warning(f"Warning: Could not delete from auth.users: {e}")
         
         return jsonify({'message': 'User account deleted successfully'}), 200
         
     except Exception as e:
-        print(f"Error deleting user: {str(e)}")
+        logger.error(f"Error deleting user: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/users/bulk-email', methods=['POST'])
@@ -575,7 +579,7 @@ def send_bulk_email(admin_id):
                     if auth_user.id in user_ids:
                         email_map[auth_user.id] = getattr(auth_user, 'email', None)
         except Exception as e:
-            print(f"Error fetching emails: {e}")
+            logger.error(f"Error fetching emails: {e}")
             return jsonify({'error': 'Could not fetch user emails'}), 500
         
         # For now, we'll just return success
@@ -593,7 +597,7 @@ def send_bulk_email(admin_id):
         }), 200
         
     except Exception as e:
-        print(f"Error sending bulk email: {str(e)}")
+        logger.error(f"Error sending bulk email: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 @bp.route('/quests', methods=['GET'])
@@ -659,7 +663,7 @@ def list_admin_quests(user_id):
         })
         
     except Exception as e:
-        print(f"Error listing admin quests: {str(e)}")
+        logger.error(f"Error listing admin quests: {str(e)}")
         return jsonify({
             'success': False,
             'error': 'Failed to fetch quests'

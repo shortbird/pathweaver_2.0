@@ -14,6 +14,10 @@ from typing import Optional, Dict, List, Any
 from postgrest.exceptions import APIError
 from backend.database import get_user_client, get_supabase_admin_client
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 

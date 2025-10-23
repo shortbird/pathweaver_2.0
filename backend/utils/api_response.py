@@ -3,6 +3,10 @@
 from flask import jsonify
 from typing import Any, Dict, List, Optional, Union
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 def success_response(
     data: Optional[Union[Dict, List]] = None,
     message: Optional[str] = None,

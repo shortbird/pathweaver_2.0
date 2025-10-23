@@ -5,6 +5,10 @@ from unittest.mock import Mock, patch
 from utils.auth.decorators import require_auth, require_admin, require_role
 from utils.api_response import unauthorized_response, forbidden_response
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 def test_require_auth_with_valid_token(client, mock_verify_token):
     """Test require_auth decorator with valid token"""
     

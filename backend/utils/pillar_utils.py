@@ -2,6 +2,10 @@
 Utility functions for handling the pillar system.
 Updated January 2025: Simplified to single-word pillar names
 """
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 # New single-word pillar definitions
 PILLARS = {

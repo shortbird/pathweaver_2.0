@@ -4,6 +4,10 @@ Reads from single source of truth in app_config.py
 """
 from app_config import Config
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 def configure_cors(app):
     """Configure CORS from centralized configuration"""
     from flask_cors import CORS
@@ -13,7 +17,7 @@ def configure_cors(app):
     cors_config = Config.CORS_CONFIG
 
     print(f"CORS Configuration - Environment: {'Development' if Config.DEBUG else 'Production'}")
-    print(f"Allowed origins: {allowed_origins}")
+    logger.info(f"Allowed origins: {allowed_origins}")
 
     CORS(app,
          resources={

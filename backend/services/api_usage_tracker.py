@@ -8,6 +8,10 @@ Tracks API calls to ensure we stay within rate limits:
 from datetime import datetime, timedelta
 from typing import Dict
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 class APIUsageTracker:
     def __init__(self):
         self.hourly_limit = 200

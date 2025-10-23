@@ -7,6 +7,10 @@ from database import get_supabase_admin_client, get_user_client
 from utils.auth.decorators import require_auth
 from collections import defaultdict
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 calendar_bp = Blueprint('calendar', __name__, url_prefix='/api/calendar')
 
 # Add OPTIONS handler for CORS preflight
@@ -132,7 +136,7 @@ def get_calendar_items(user_id):
         }), 200
 
     except Exception as e:
-        print(f"Error fetching calendar items: {str(e)}")
+        logger.error(f"Error fetching calendar items: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': 'Failed to fetch calendar items'}), 500
@@ -187,7 +191,7 @@ def update_deadline(user_id=None):
         return jsonify({'success': True, 'scheduled_date': scheduled_date}), 200
 
     except Exception as e:
-        print(f"Error updating deadline: {str(e)}")
+        logger.error(f"Error updating deadline: {str(e)}")
         return jsonify({'error': 'Failed to update deadline'}), 500
 
 
@@ -226,7 +230,7 @@ def bulk_update_deadlines(user_id=None):
         return jsonify({'success': True, 'updated_count': len(deadline_records)}), 200
 
     except Exception as e:
-        print(f"Error bulk updating deadlines: {str(e)}")
+        logger.error(f"Error bulk updating deadlines: {str(e)}")
         return jsonify({'error': 'Failed to bulk update deadlines'}), 500
 
 
@@ -389,7 +393,7 @@ def get_next_up(user_id):
         }), 200
 
     except Exception as e:
-        print(f"Error fetching next-up items: {str(e)}")
+        logger.error(f"Error fetching next-up items: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': 'Failed to fetch next-up items'}), 500
@@ -420,7 +424,7 @@ def get_preferences(user_id):
             }), 200
 
     except Exception as e:
-        print(f"Error fetching preferences: {str(e)}")
+        logger.error(f"Error fetching preferences: {str(e)}")
         return jsonify({'error': 'Failed to fetch preferences'}), 500
 
 
@@ -448,5 +452,5 @@ def update_preferences(user_id):
         return jsonify({'success': True, 'preferences': preference_data}), 200
 
     except Exception as e:
-        print(f"Error updating preferences: {str(e)}")
+        logger.error(f"Error updating preferences: {str(e)}")
         return jsonify({'error': 'Failed to update preferences'}), 500

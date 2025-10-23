@@ -7,6 +7,10 @@ from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from services.credit_mapping_service import CreditMappingService
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 bp = Blueprint('credits', __name__, url_prefix='/api/credits')
 
 

@@ -9,6 +9,10 @@ from utils.auth.decorators import require_role
 from middleware.error_handler import ValidationError, NotFoundError
 from services.advisor_service import AdvisorService
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 advisor_bp = Blueprint('advisor', __name__)
 advisor_service = AdvisorService()
 

@@ -8,6 +8,10 @@ from datetime import datetime, timedelta
 from database import get_supabase_admin_client
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 
 class AIQuestMaintenanceService:
     """Service for automated quest maintenance and quality monitoring"""
@@ -285,7 +289,7 @@ class AIQuestMaintenanceService:
                 updated_count += 1
 
             except Exception as e:
-                print(f"Error updating metrics for quest {quest_id}: {e}")
+                logger.error(f"Error updating metrics for quest {quest_id}: {e}")
                 continue
 
         return updated_count

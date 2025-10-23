@@ -7,6 +7,10 @@ from flask import Blueprint, request, jsonify
 from typing import Dict, List, Optional, Any
 import logging
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 from utils.auth.decorators import require_auth
 from services.direct_message_service import DirectMessageService
 from middleware.error_handler import ValidationError

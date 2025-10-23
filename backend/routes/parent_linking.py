@@ -16,6 +16,10 @@ import hashlib
 import uuid
 import logging
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('parent_linking', __name__, url_prefix='/api/parents')

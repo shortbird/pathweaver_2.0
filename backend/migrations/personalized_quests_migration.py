@@ -21,52 +21,61 @@ from datetime import datetime
 from database import get_supabase_admin_client
 import json
 
+from utils.logger import get_logger
+
+logger = get_logger(__name__)
+
 def run_migration():
     """Execute the personalized quest system migration"""
     supabase = get_supabase_admin_client()
 
     print("=" * 80)
-    print("PERSONALIZED QUEST SYSTEM MIGRATION")
+    logger.info("PERSONALIZED QUEST SYSTEM MIGRATION")
     print("=" * 80)
-    print(f"Started at: {datetime.utcnow().isoformat()}")
+    logger.info(f"Started at: {datetime.utcnow().isoformat()}")
     print()
 
     # Step 1: Create new tables
-    print("Step 1: Creating new tables...")
+    logger.info("Step 1: Creating new tables...")
     create_new_tables(supabase)
 
     # Step 2: Migrate quest_tasks to user_quest_tasks
-    print("\nStep 2: Migrating quest_tasks to user_quest_tasks...")
+    logger.info("
+Step 2: Migrating quest_tasks to user_quest_tasks...")
     migrate_quest_tasks(supabase)
 
     # Step 3: Migrate quest_collaborations to task_collaborations
-    print("\nStep 3: Migrating quest_collaborations to task_collaborations...")
+    logger.info("
+Step 3: Migrating quest_collaborations to task_collaborations...")
     migrate_collaborations(supabase)
 
     # Step 4: Update quest_task_completions
-    print("\nStep 4: Updating quest_task_completions FK references...")
+    logger.info("
+Step 4: Updating quest_task_completions FK references...")
     update_task_completions(supabase)
 
     # Step 5: Update user_quests table
-    print("\nStep 5: Updating user_quests table...")
+    logger.info("
+Step 5: Updating user_quests table...")
     update_user_quests(supabase)
 
     # Step 6: Archive old tables
-    print("\nStep 6: Archiving old tables...")
+    logger.info("
+Step 6: Archiving old tables...")
     archive_old_tables(supabase)
 
     print("\n" + "=" * 80)
-    print("MIGRATION COMPLETE")
+    logger.info("MIGRATION COMPLETE")
     print("=" * 80)
-    print(f"Completed at: {datetime.utcnow().isoformat()}")
+    logger.info(f"Completed at: {datetime.utcnow().isoformat()}")
     print("\nOld tables have been renamed with '_archived' suffix.")
-    print("Monitor the system for 1 week before dropping archived tables.")
+    logger.info("Monitor the system for 1 week before dropping archived tables.")
 
 def create_new_tables(supabase):
     """Create new tables for personalized quest system"""
 
     # user_quest_tasks table
-    print("  Creating user_quest_tasks table...")
+    logger.info("  Creating user_quest_tasks table...")
     try:
         supabase.rpc('execute_sql', {
             'sql': """
@@ -95,12 +104,12 @@ def create_new_tables(supabase):
                 ON user_quest_tasks(approval_status) WHERE approval_status = 'pending';
             """
         }).execute()
-        print("    ✓ user_quest_tasks table created")
+        logger.info("    ✓ user_quest_tasks table created")
     except Exception as e:
-        print(f"    ⚠ user_quest_tasks may already exist: {e}")
+        logger.info(f"    ⚠ user_quest_tasks may already exist: {e}")
 
     # task_collaborations table
-    print("  Creating task_collaborations table...")
+    logger.info("  Creating task_collaborations table...")
     try:
         supabase.rpc('execute_sql', {
             'sql': """
@@ -121,12 +130,12 @@ def create_new_tables(supabase):
                 ON task_collaborations(task_id);
             """
         }).execute()
-        print("    ✓ task_collaborations table created")
+        logger.info("    ✓ task_collaborations table created")
     except Exception as e:
-        print(f"    ⚠ task_collaborations may already exist: {e}")
+        logger.info(f"    ⚠ task_collaborations may already exist: {e}")
 
     # quest_personalization_sessions table
-    print("  Creating quest_personalization_sessions table...")
+    logger.info("  Creating quest_personalization_sessions table...")
     try:
         supabase.rpc('execute_sql', {
             'sql': """
@@ -148,12 +157,12 @@ def create_new_tables(supabase):
                 ON quest_personalization_sessions(user_id, quest_id);
             """
         }).execute()
-        print("    ✓ quest_personalization_sessions table created")
+        logger.info("    ✓ quest_personalization_sessions table created")
     except Exception as e:
-        print(f"    ⚠ quest_personalization_sessions may already exist: {e}")
+        logger.info(f"    ⚠ quest_personalization_sessions may already exist: {e}")
 
     # ai_task_cache table
-    print("  Creating ai_task_cache table...")
+    logger.info("  Creating ai_task_cache table...")
     try:
         supabase.rpc('execute_sql', {
             'sql': """
@@ -174,9 +183,9 @@ def create_new_tables(supabase):
                 ON ai_task_cache(expires_at);
             """
         }).execute()
-        print("    ✓ ai_task_cache table created")
+        logger.info("    ✓ ai_task_cache table created")
     except Exception as e:
-        print(f"    ⚠ ai_task_cache may already exist: {e}")
+        logger.info(f"    ⚠ ai_task_cache may already exist: {e}")
 
 def migrate_quest_tasks(supabase):
     """Migrate quest_tasks to user_quest_tasks for all active enrollments"""
@@ -188,10 +197,10 @@ def migrate_quest_tasks(supabase):
         .execute()
 
     if not user_quests.data:
-        print("    No active user quests to migrate")
+        logger.info("    No active user quests to migrate")
         return
 
-    print(f"    Found {len(user_quests.data)} active user quests to process")
+    logger.info(f"    Found {len(user_quests.data)} active user quests to process")
 
     migrated_count = 0
     for user_quest in user_quests.data:
@@ -231,7 +240,7 @@ def migrate_quest_tasks(supabase):
             except Exception as e:
                 print(f"    ⚠ Error migrating tasks for user_quest {user_quest['id']}: {e}")
 
-    print(f"    ✓ Migrated {migrated_count} tasks to user-specific format")
+    logger.info(f"    ✓ Migrated {migrated_count} tasks to user-specific format")
 
 def migrate_collaborations(supabase):
     """Migrate quest_collaborations to task_collaborations"""
@@ -243,10 +252,10 @@ def migrate_collaborations(supabase):
         .execute()
 
     if not collabs.data:
-        print("    No collaborations to migrate")
+        logger.info("    No collaborations to migrate")
         return
 
-    print(f"    Found {len(collabs.data)} collaborations to migrate")
+    logger.info(f"    Found {len(collabs.data)} collaborations to migrate")
 
     migrated_count = 0
     for collab in collabs.data:
@@ -294,9 +303,9 @@ def migrate_collaborations(supabase):
                     supabase.table('task_collaborations').insert(task_collab).execute()
                     migrated_count += 1
                 except Exception as e:
-                    print(f"    ⚠ Error creating task collaboration: {e}")
+                    logger.error(f"    ⚠ Error creating task collaboration: {e}")
 
-    print(f"    ✓ Migrated {migrated_count} task collaborations")
+    logger.info(f"    ✓ Migrated {migrated_count} task collaborations")
 
 def update_task_completions(supabase):
     """Update quest_task_completions to reference user_quest_tasks"""
@@ -304,7 +313,7 @@ def update_task_completions(supabase):
     # Note: This requires adding a mapping table or updating the FK
     # For now, we'll create a new column to map old task_id to new user_quest_task_id
 
-    print("    Adding user_quest_task_id column to quest_task_completions...")
+    logger.info("    Adding user_quest_task_id column to quest_task_completions...")
     try:
         supabase.rpc('execute_sql', {
             'sql': """
@@ -315,22 +324,22 @@ def update_task_completions(supabase):
                 ON quest_task_completions(user_quest_task_id);
             """
         }).execute()
-        print("    ✓ Column added")
+        logger.info("    ✓ Column added")
     except Exception as e:
-        print(f"    ⚠ Column may already exist: {e}")
+        logger.info(f"    ⚠ Column may already exist: {e}")
 
     # Update completions to reference new user-specific tasks
-    print("    Mapping completions to user-specific tasks...")
+    logger.info("    Mapping completions to user-specific tasks...")
 
     completions = supabase.table('quest_task_completions')\
         .select('id, user_id, quest_id, task_id')\
         .execute()
 
     if not completions.data:
-        print("    No completions to update")
+        logger.info("    No completions to update")
         return
 
-    print(f"    Processing {len(completions.data)} completions...")
+    logger.debug(f"    Processing {len(completions.data)} completions...")
     updated_count = 0
 
     for completion in completions.data:
@@ -370,12 +379,12 @@ def update_task_completions(supabase):
                     except Exception as e:
                         print(f"    ⚠ Error updating completion {completion['id']}: {e}")
 
-    print(f"    ✓ Updated {updated_count} completions")
+    logger.info(f"    ✓ Updated {updated_count} completions")
 
 def update_user_quests(supabase):
     """Add personalization tracking columns to user_quests"""
 
-    print("    Adding personalization columns to user_quests...")
+    logger.info("    Adding personalization columns to user_quests...")
     try:
         supabase.rpc('execute_sql', {
             'sql': """
@@ -384,21 +393,21 @@ def update_user_quests(supabase):
             ADD COLUMN IF NOT EXISTS personalization_session_id UUID REFERENCES quest_personalization_sessions(id);
             """
         }).execute()
-        print("    ✓ Columns added to user_quests")
+        logger.info("    ✓ Columns added to user_quests")
     except Exception as e:
-        print(f"    ⚠ Columns may already exist: {e}")
+        logger.info(f"    ⚠ Columns may already exist: {e}")
 
     # Mark all existing enrollments as personalization_completed=true
     # (they were created with the old system, so no personalization was needed)
-    print("    Marking existing enrollments as personalization_completed...")
+    logger.info("    Marking existing enrollments as personalization_completed...")
     try:
         supabase.table('user_quests')\
             .update({'personalization_completed': True})\
             .is_('personalization_completed', 'null')\
             .execute()
-        print("    ✓ Existing enrollments marked as completed")
+        logger.info("    ✓ Existing enrollments marked as completed")
     except Exception as e:
-        print(f"    ⚠ Error updating user_quests: {e}")
+        logger.error(f"    ⚠ Error updating user_quests: {e}")
 
 def archive_old_tables(supabase):
     """Rename old tables with _archived suffix for safety"""
@@ -406,28 +415,30 @@ def archive_old_tables(supabase):
     tables_to_archive = ['quest_tasks', 'quest_collaborations', 'quest_ratings']
 
     for table in tables_to_archive:
-        print(f"    Archiving {table}...")
+        logger.info(f"    Archiving {table}...")
         try:
             supabase.rpc('execute_sql', {
                 'sql': f"""
                 ALTER TABLE {table} RENAME TO {table}_archived;
                 """
             }).execute()
-            print(f"    ✓ {table} renamed to {table}_archived")
+            logger.info(f"    ✓ {table} renamed to {table}_archived")
         except Exception as e:
-            print(f"    ⚠ Error archiving {table}: {e}")
+            logger.error(f"    ⚠ Error archiving {table}: {e}")
 
-    print("\n    IMPORTANT: Monitor the system for 1 week.")
-    print("    If everything works correctly, you can drop the archived tables:")
-    print("      DROP TABLE quest_tasks_archived;")
-    print("      DROP TABLE quest_collaborations_archived;")
-    print("      DROP TABLE quest_ratings_archived;")
+    logger.info("
+    IMPORTANT: Monitor the system for 1 week.")
+    logger.info("    If everything works correctly, you can drop the archived tables:")
+    logger.info("      DROP TABLE quest_tasks_archived;")
+    logger.info("      DROP TABLE quest_collaborations_archived;")
+    logger.info("      DROP TABLE quest_ratings_archived;")
 
 if __name__ == "__main__":
     try:
         run_migration()
     except Exception as e:
-        print(f"\n❌ MIGRATION FAILED: {e}")
+        logger.error(f"
+❌ MIGRATION FAILED: {e}")
         import traceback
         traceback.print_exc()
         sys.exit(1)
