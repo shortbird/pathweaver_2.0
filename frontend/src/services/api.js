@@ -60,6 +60,9 @@ function getCsrfToken() {
   return null
 }
 
+// Token refresh mutex - prevents concurrent refresh attempts
+let refreshPromise = null
+
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -72,22 +75,44 @@ api.interceptors.response.use(
       originalRequest._retry = true
 
       try {
-        // Try to refresh using localStorage refresh token
-        const refreshToken = localStorage.getItem('refresh_token')
-        const payload = refreshToken ? { refresh_token: refreshToken } : {}
+        // Only one refresh at a time - all concurrent requests wait for same promise
+        if (!refreshPromise) {
+          refreshPromise = (async () => {
+            try {
+              // Try to refresh using localStorage refresh token
+              const refreshToken = localStorage.getItem('refresh_token')
+              const payload = refreshToken ? { refresh_token: refreshToken } : {}
 
-        const response = await api.post('/api/auth/refresh', payload)
+              const response = await api.post('/api/auth/refresh', payload)
 
-        // Update localStorage with new tokens
-        if (response.status === 200 && response.data.session) {
-          if (response.data.session.access_token) {
-            localStorage.setItem('access_token', response.data.session.access_token)
-          }
-          if (response.data.session.refresh_token) {
-            localStorage.setItem('refresh_token', response.data.session.refresh_token)
-          }
-          return api(originalRequest)
+              // Update localStorage with new tokens
+              if (response.status === 200 && response.data.session) {
+                if (response.data.session.access_token) {
+                  localStorage.setItem('access_token', response.data.session.access_token)
+                }
+                if (response.data.session.refresh_token) {
+                  localStorage.setItem('refresh_token', response.data.session.refresh_token)
+                }
+                return response.data.session.access_token
+              }
+              throw new Error('Token refresh failed - no access token in response')
+            } finally {
+              // Clear promise after refresh completes (success or failure)
+              refreshPromise = null
+            }
+          })()
         }
+
+        // Wait for the single refresh to complete
+        const newAccessToken = await refreshPromise
+
+        // Update the original request with new token
+        if (newAccessToken) {
+          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
+        }
+
+        // Retry the original request
+        return api(originalRequest)
       } catch (refreshError) {
         // Clear localStorage on refresh failure
         localStorage.removeItem('access_token')
