@@ -161,7 +161,7 @@ class BadgeService:
         Returns:
             Created user_badge record
         """
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()  # JWT extracted from request headers
 
         # Check if badge exists
         badge_check = supabase.table('badges').select('id, name').eq('id', badge_id).single().execute()
@@ -333,7 +333,7 @@ class BadgeService:
         Returns:
             List of active badges with progress
         """
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()  # JWT extracted from request headers
 
         # Get active user badges
         result = supabase.table('user_badges')\
@@ -371,7 +371,7 @@ class BadgeService:
         Returns:
             List of completed badges
         """
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()  # JWT extracted from request headers
 
         result = supabase.table('user_badges')\
             .select('*, badges(*)')\
@@ -405,7 +405,7 @@ class BadgeService:
         Returns:
             Updated user_badge record
         """
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()  # JWT extracted from request headers
 
         # Verify badge is actually complete
         progress = BadgeService.calculate_badge_progress(user_id, badge_id)
@@ -449,7 +449,7 @@ class BadgeService:
         Returns:
             Updated user_badge record
         """
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()  # JWT extracted from request headers
 
         updated = supabase.table('user_badges')\
             .update({'is_active': False})\
@@ -520,7 +520,7 @@ class BadgeService:
         Returns:
             Dictionary mapping badge_id to progress data
         """
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()  # JWT extracted from request headers
 
         result = supabase.table('user_badges')\
             .select('badge_id, progress_percentage, quests_completed, xp_earned, is_active, completed_at')\
@@ -555,7 +555,7 @@ class BadgeService:
         progress = BadgeService.calculate_badge_progress(user_id, badge_id)
 
         # Update user_badges table
-        supabase = get_user_client(user_id)
+        supabase = get_user_client()  # JWT extracted from request headers
         supabase.table('user_badges')\
             .update({
                 'progress_percentage': int(progress['percentage']),

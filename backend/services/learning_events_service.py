@@ -33,7 +33,7 @@ class LearningEventsService:
             Dictionary with success status and event data
         """
         try:
-            supabase = get_user_client(user_id)
+            supabase = get_user_client()  # JWT extracted from request headers
 
             event_data = {
                 'user_id': user_id,
@@ -80,7 +80,7 @@ class LearningEventsService:
             Dictionary with success status and events list
         """
         try:
-            supabase = get_user_client(user_id)
+            supabase = get_user_client()  # JWT extracted from request headers
 
             # Fetch events
             response = supabase.table('learning_events') \
@@ -132,7 +132,7 @@ class LearningEventsService:
             Dictionary with success status and event data with evidence
         """
         try:
-            supabase = get_user_client(user_id)
+            supabase = get_user_client()  # JWT extracted from request headers
 
             # Fetch event
             event_response = supabase.table('learning_events') \
@@ -192,7 +192,7 @@ class LearningEventsService:
             Dictionary with success status and updated event data
         """
         try:
-            supabase = get_user_client(user_id)
+            supabase = get_user_client()  # JWT extracted from request headers
 
             update_data = {}
             if description is not None:
@@ -248,7 +248,7 @@ class LearningEventsService:
             Dictionary with success status
         """
         try:
-            supabase = get_user_client(user_id)
+            supabase = get_user_client()  # JWT extracted from request headers
 
             # Delete event (cascade will handle evidence blocks)
             response = supabase.table('learning_events') \
@@ -287,7 +287,7 @@ class LearningEventsService:
             Dictionary with success status and saved blocks
         """
         try:
-            supabase = get_user_client(user_id)
+            supabase = get_user_client()  # JWT extracted from request headers
 
             # Verify event ownership
             event_response = supabase.table('learning_events') \
