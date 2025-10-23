@@ -1,6 +1,6 @@
 from supabase import create_client, Client
 from app_config import Config
-from flask import request
+from flask import request, g
 from typing import Optional
 
 # Create singleton clients - connection pooling is handled internally by supabase-py
@@ -46,29 +46,41 @@ def get_user_client(token: Optional[str] = None) -> Client:
     """
     Get a Supabase client with user's JWT token for RLS enforcement.
     This is the preferred method for user operations.
-    
+
+    Uses Flask's g context to cache the client per request, preventing
+    resource exhaustion from creating too many clients.
+
     Args:
         token: JWT token. If not provided, will extract from request headers
-        
+
     Returns:
         Supabase client with user authentication
     """
     if not Config.SUPABASE_URL or not Config.SUPABASE_ANON_KEY:
         raise ValueError("Missing Supabase configuration. Check SUPABASE_URL and SUPABASE_ANON_KEY environment variables.")
-    
+
     # Get token from parameter or request headers
     if not token:
         auth_header = request.headers.get('Authorization', '')
         if auth_header.startswith('Bearer '):
             token = auth_header.replace('Bearer ', '')
-    
+
+    # Create a cache key based on the token
+    cache_key = f'_user_client_{token[:20] if token else "anon"}'
+
+    # Return cached client if available for this request
+    if hasattr(g, cache_key):
+        return getattr(g, cache_key)
+
     if token:
         # Validate JWT token format before using
         token_parts = token.split('.')
         if len(token_parts) != 3:
             print(f"WARNING: Invalid JWT token format - expected 3 parts, got {len(token_parts)}")
             # Return anonymous client for invalid tokens
-            return get_supabase_client()
+            client = get_supabase_client()
+            setattr(g, cache_key, client)
+            return client
 
         try:
             # Create client with user's JWT token in Authorization header
@@ -82,14 +94,20 @@ def get_user_client(token: Optional[str] = None) -> Client:
                     }
                 }
             )
+            # Cache in Flask g context for this request
+            setattr(g, cache_key, client)
             return client
         except Exception as e:
             print(f"ERROR: Failed to create client with auth token: {e}")
             # Return anonymous client if token setup fails
-            return get_supabase_client()
+            client = get_supabase_client()
+            setattr(g, cache_key, client)
+            return client
     else:
         # No token, return anonymous client
-        return get_supabase_client()
+        client = get_supabase_client()
+        setattr(g, cache_key, client)
+        return client
 
 def get_authenticated_supabase_client() -> Client:
     """
