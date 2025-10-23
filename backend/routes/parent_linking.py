@@ -676,8 +676,13 @@ def get_pending_requests(user_id):
         # Get user role - single optimized query
         user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
 
-        if not user_response.data or user_response.data.get('role') != 'parent':
+        user_role = user_response.data.get('role') if user_response.data else None
+        if not user_response.data or user_role not in ['parent', 'admin']:
             raise AuthorizationError("Only parent accounts can access this endpoint")
+
+        # Admin users have no pending requests (they're set up as their own parent for testing)
+        if user_role == 'admin':
+            return jsonify({'pending_requests': []}), 200
 
         # Single optimized query with JOIN to get links AND student details
         links_response = supabase.table('parent_student_links').select('''
