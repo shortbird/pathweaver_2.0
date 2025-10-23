@@ -12,9 +12,23 @@ const RegisterPage = () => {
   const [isUnder13, setIsUnder13] = useState(false)
   const password = watch('password')
   const dateOfBirth = watch('date_of_birth')
-  
-  // Password validation - simplified to only check length
-  const isPasswordValid = password?.length >= 6
+
+  // Enhanced password validation matching backend requirements
+  const validatePasswordStrength = (pwd) => {
+    if (!pwd) return { isValid: false, errors: [] }
+
+    const errors = []
+    if (pwd.length < 12) errors.push('At least 12 characters')
+    if (!/[A-Z]/.test(pwd)) errors.push('One uppercase letter')
+    if (!/[a-z]/.test(pwd)) errors.push('One lowercase letter')
+    if (!/[0-9]/.test(pwd)) errors.push('One number')
+    if (!/[!@#$%^&*()_+\-=[\]{}|;:,.<>?]/.test(pwd)) errors.push('One special character')
+
+    return { isValid: errors.length === 0, errors }
+  }
+
+  const passwordStrength = validatePasswordStrength(password)
+  const isPasswordValid = passwordStrength.isValid
 
   // Check age when date of birth changes
   React.useEffect(() => {
@@ -291,8 +305,12 @@ const RegisterPage = () => {
                   {...registerField('password', {
                     required: 'Password is required',
                     minLength: {
-                      value: 6,
-                      message: 'Password must be at least 6 characters'
+                      value: 12,
+                      message: 'Password must be at least 12 characters'
+                    },
+                    validate: (value) => {
+                      const { isValid, errors } = validatePasswordStrength(value)
+                      return isValid || `Password must contain: ${errors.join(', ')}`
                     }
                   })}
                   type={showPassword ? "text" : "password"}
@@ -316,8 +334,39 @@ const RegisterPage = () => {
                   )}
                 </button>
               </div>
+
+              {/* Password strength indicator */}
+              {password && (
+                <div className="mt-2 space-y-1">
+                  <div className="flex gap-1">
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <div
+                        key={level}
+                        className={`h-1 flex-1 rounded ${
+                          passwordStrength.errors.length >= (6 - level)
+                            ? 'bg-gray-300'
+                            : passwordStrength.errors.length === 0
+                            ? 'bg-green-500'
+                            : passwordStrength.errors.length <= 2
+                            ? 'bg-yellow-500'
+                            : 'bg-red-500'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  {passwordStrength.errors.length > 0 && (
+                    <p className="text-xs text-gray-600">
+                      Still needed: {passwordStrength.errors.join(', ')}
+                    </p>
+                  )}
+                  {passwordStrength.isValid && (
+                    <p className="text-xs text-green-600">Strong password</p>
+                  )}
+                </div>
+              )}
+
               <p className="mt-1 text-xs text-gray-500">
-                Password must be at least 6 characters long
+                Password must be at least 12 characters with uppercase, lowercase, number, and special character
               </p>
               {errors.password && (
                 <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>

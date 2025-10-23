@@ -166,13 +166,13 @@ class Config:
     DEFAULT_QUEST_XP = 100
     MAX_QUEST_XP = 1000
     
-    # User Settings - Match Supabase requirements
-    MIN_PASSWORD_LENGTH = 6  # Supabase requirement
+    # User Settings - Strong password policy
+    MIN_PASSWORD_LENGTH = 12  # Enforces strong passwords (3.2×10²¹ combinations vs 2 trillion)
     MAX_PASSWORD_LENGTH = 128
     PASSWORD_REQUIRE_UPPERCASE = True
     PASSWORD_REQUIRE_LOWERCASE = True
     PASSWORD_REQUIRE_NUMBER = True
-    PASSWORD_REQUIRE_SPECIAL = False
+    PASSWORD_REQUIRE_SPECIAL = True  # Now required for enhanced security
     
     # Pagination
     DEFAULT_PAGE_SIZE = 20
