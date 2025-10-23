@@ -10,28 +10,16 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 quest_ideas_bp = Blueprint('quest_ideas', __name__, url_prefix='/api/quest-ideas')
 
 @quest_ideas_bp.route('', methods=['POST'])
-@cross_origin()
+@cross_origin(supports_credentials=True)
 @require_auth
 def submit_quest_idea(current_user_id):
-    """Submit a new quest idea for review"""
+    """Submit a new quest idea for review - Phase 2: All users can suggest quests"""
     try:
         supabase = get_supabase_admin_client()
-        
-        # Get user subscription tier to validate access
-        user_response = supabase.table('users').select('subscription_tier').eq('id', current_user_id).single().execute()
-        
-        if not user_response.data:
-            return jsonify({'error': 'User not found'}), 404
-        
-        subscription_tier = user_response.data.get('subscription_tier', 'free')
-        
-        # Check if user can suggest quests (non-free tiers)
-        allowed_tiers = ['creator', 'premium', 'enterprise', 'supported']
-        if subscription_tier not in allowed_tiers and subscription_tier != 'explorer':
-            # Allow explorer for backwards compatibility, but block 'free' explicitly  
-            if subscription_tier in ['free']:
-                return jsonify({'error': 'Quest suggestions are available for Supported and Academy tier members. Please upgrade your subscription to suggest custom quests.'}), 403
-        
+
+        # Phase 2 refactoring: Subscription tier checking removed
+        # All authenticated users can now suggest quests
+
         data = request.get_json()
         title = data.get('title')
         description = data.get('description')
@@ -70,7 +58,7 @@ def submit_quest_idea(current_user_id):
         return jsonify({'error': str(e)}), 500
 
 @quest_ideas_bp.route('', methods=['GET'])
-@cross_origin()
+@cross_origin(supports_credentials=True)
 @require_auth
 def get_user_quest_ideas(current_user_id):
     """Get all quest ideas submitted by the current user"""
@@ -87,7 +75,7 @@ def get_user_quest_ideas(current_user_id):
         return jsonify({'error': str(e)}), 500
 
 @quest_ideas_bp.route('/<idea_id>', methods=['GET'])
-@cross_origin()
+@cross_origin(supports_credentials=True)
 @require_auth
 def get_quest_idea_status(current_user_id, idea_id):
     """Get the status of a specific quest idea"""
