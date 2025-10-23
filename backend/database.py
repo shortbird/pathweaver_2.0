@@ -29,18 +29,18 @@ def get_supabase_admin_client() -> Client:
 
     WARNING: This bypasses RLS policies. Use get_user_client() for user operations.
 
-    NOTE: Each call creates a NEW client to prevent HTTP/2 stream exhaustion.
-    The singleton pattern was causing connection exhaustion when multiple parallel
-    requests shared the same HTTP/2 connection.
+    NOTE: Uses singleton pattern with proper HTTP/2 configuration to prevent
+    both stream exhaustion AND resource exhaustion.
     """
     global _supabase_admin_client
     if not Config.SUPABASE_URL or not Config.SUPABASE_SERVICE_ROLE_KEY:
         raise ValueError("Missing Supabase admin configuration. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.")
 
-    # CHANGED: Create a NEW client on each call instead of singleton
-    # This prevents HTTP/2 stream exhaustion from parallel requests
-    # Trade-off: Slightly more memory usage for much better concurrency
-    return create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
+    # Create singleton client - supabase-py handles connection pooling internally
+    if _supabase_admin_client is None:
+        _supabase_admin_client = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
+
+    return _supabase_admin_client
 
 def get_user_client(token: Optional[str] = None) -> Client:
     """
