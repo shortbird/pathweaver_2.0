@@ -1378,59 +1378,56 @@ What to improve:
 
 ## Task List
 
-### 3.1 Complete Phase 2 Refactoring (3 hours)
+### 3.1 Complete Phase 2 Refactoring (3 hours) - ✅ COMPLETE
 
-- [ ] **3.1.1** Delete deprecated backend routes
-  - Delete file: `backend/routes/collaborations.py`
-  - Delete file: `backend/routes/ratings.py`
-  - Check if `backend/routes/tiers.py` is still used (if not, delete)
+- [x] **3.1.1** Delete deprecated backend routes
+  - ✅ collaborations.py - Already deleted in Phase 1
+  - ✅ ratings.py - Already deleted in Phase 1
+  - ✅ tiers.py - Deleted (2025-01-22)
 
-- [ ] **3.1.2** Remove collaboration references from app.py
-  - File: `backend/app.py`
-  - Remove blueprint registration for collaborations
-  - Remove blueprint registration for ratings
-  - Remove blueprint registration for tiers (if deleted)
+- [x] **3.1.2** Remove tier references from app.py
+  - ✅ Removed tier blueprint registration
+  - ✅ Deleted /debug-user-tier endpoint
+  - ✅ Added refactoring comments
 
-- [ ] **3.1.3** Delete @require_paid_tier decorator
-  - File: `backend/utils/auth/decorators.py`
-  - Delete the entire `@require_paid_tier` function
-  - Search for usages: `grep -r "@require_paid_tier" backend/`
-  - Remove decorator from all routes
+- [x] **3.1.3** Delete @require_paid_tier decorator
+  - ✅ Removed from auth/decorators.py
+  - ✅ No usages found (already neutered)
 
-- [ ] **3.1.4** Remove tier configuration
-  - File: `backend/config.py`
-  - Delete TIER_FEATURES dictionary (lines 105-145)
-  - Keep subscription tier table if it's database-driven
+- [x] **3.1.4** Remove tier configuration
+  - ✅ Already removed in Phase 1
 
-- [ ] **3.1.5** Delete frontend tier utilities
-  - Delete file: `frontend/src/utils/tierMapping.js`
-  - Search for imports: `grep -r "tierMapping" frontend/src/`
-  - Remove all imports and usages
+- [x] **3.1.5** Delete frontend tier utilities
+  - ✅ Deleted tierMapping.js (153 lines)
+  - ✅ Removed imports from 9 files
+  - ✅ Replaced hasFeatureAccess() with true/!!user
 
-- [ ] **3.1.6** Remove "Team-up invitations" UI
-  - File: `frontend/src/pages/ConnectionsPage.jsx`
-  - Remove team-up invitations tab if it exists
-  - Update InvitationsTab to only show connection requests
-  - Update CLAUDE.md documentation
+- [x] **3.1.6** Remove team-up invitations UI
+  - ✅ Already removed in Phase 1
 
 **Implementation Notes**:
 ```
-Date completed: ___________
-Files deleted: _____
-Lines of code removed: ~_____
+Date completed: 2025-01-22
+Files deleted: 2 (tiers.py, tierMapping.js)
+Lines removed: ~280 total
 
-Features deprecated:
-- Collaborations: ___________
-- Ratings: ___________
-- Team-up invitations: ___________
+Backend: ✅ Complete
+- Deleted tiers.py route
+- Removed tier blueprints from app.py
+- Removed @require_paid_tier decorator
+- All features now free for authenticated users
 
+Frontend: ✅ Complete
+- Deleted tierMapping.js (153 lines)
+- Updated 9 component files
+- All tier checks replaced with true/!!user
 
+Committed: ✅ develop branch
 ```
 
 **Blockers/Issues**:
 ```
-
-
+None - Phase 2 refactoring complete
 ```
 
 ---
