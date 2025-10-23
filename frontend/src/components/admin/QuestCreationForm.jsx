@@ -228,7 +228,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
         metadata: formData.metadata.location_type !== 'anywhere' ? formData.metadata : undefined
       }
       
-      const response = await api.post('/api/admin/quests/create-v3', submitData)
+      const response = await api.post('/api/admin/quests/create', submitData)
       
       toast.success('Quest created successfully!')
       onSuccess && onSuccess(response.data.quest)

@@ -56,7 +56,7 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
 
       const endpoint = mode === 'edit'
         ? `/api/admin/quests/${quest.id}`
-        : '/api/admin/quests/create-v3'
+        : '/api/admin/quests/create'
 
       const method = mode === 'edit' ? 'put' : 'post'
       const response = await api[method](endpoint, submitData)
