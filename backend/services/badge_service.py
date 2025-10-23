@@ -333,7 +333,7 @@ class BadgeService:
         Returns:
             List of active badges with progress
         """
-        supabase = get_user_client()  # JWT extracted from request headers
+        supabase = get_supabase_admin_client()  # Use admin client for querying by user_id
 
         # Get active user badges
         result = supabase.table('user_badges')\
@@ -371,7 +371,7 @@ class BadgeService:
         Returns:
             List of completed badges
         """
-        supabase = get_user_client()  # JWT extracted from request headers
+        supabase = get_supabase_admin_client()  # Use admin client for querying by user_id
 
         result = supabase.table('user_badges')\
             .select('*, badges(*)')\
@@ -520,7 +520,7 @@ class BadgeService:
         Returns:
             Dictionary mapping badge_id to progress data
         """
-        supabase = get_user_client()  # JWT extracted from request headers
+        supabase = get_supabase_admin_client()  # Use admin client for querying by user_id
 
         result = supabase.table('user_badges')\
             .select('badge_id, progress_percentage, quests_completed, xp_earned, is_active, completed_at')\
