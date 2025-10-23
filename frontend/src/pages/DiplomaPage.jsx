@@ -1199,7 +1199,7 @@ const DiplomaPage = () => {
                   <div className="p-4 sm:p-8">
                     <div className="mb-6 sm:mb-8 p-4 sm:p-6 rounded-xl bg-gradient-subtle-strong">
                       <h3 className="text-base sm:text-lg font-bold mb-3 text-optio-purple">Adventure Overview</h3>
-                      <p className="text-sm sm:text-base text-primary, lineHeight: 1.7>{selectedAchievement.quest.description || selectedAchievement.quest.big_idea || 'A journey of discovery and growth.'}</p>
+                      <p className="text-sm sm:text-base text-primary" style={{ lineHeight: 1.7 }}>{selectedAchievement.quest.description || selectedAchievement.quest.big_idea || 'A journey of discovery and growth.'}</p>
                     </div>
 
                     <div>
@@ -1222,7 +1222,7 @@ const DiplomaPage = () => {
                                   <div className="flex-1 min-w-0">
                                     <h4 className="font-semibold text-sm sm:text-base leading-tight text-primary">{taskTitle}</h4>
                                     <div className="flex flex-wrap items-center gap-2 sm:gap-3 mt-2">
-                                      <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass}`} className="shadow-optio">
+                                      <span className={`inline-block px-2 sm:px-3 py-1 rounded-full text-xs font-bold text-white bg-gradient-to-r ${gradientClass} shadow-optio`}>
                                         {displayPillar}
                                       </span>
                                       <span className="text-xs sm:text-sm font-medium text-green-600">
