@@ -116,7 +116,7 @@ const SkillsRadarChart = ({ skillsXP }) => {
     <div className="bg-white rounded-xl p-8 mb-8" style={{ boxShadow: '0 4px 6px rgba(0,0,0,0.07)' }}>
       <div className="flex justify-between items-center mb-8">
         <div>
-          <h2 className="text-2xl font-bold" style={{ color: text-primary }}>Growth Dimensions</h2>
+          <h2 className="text-2xl font-bold text-gray-900">Growth Dimensions</h2>
           <p className="text-sm text-gray-600 mt-1">Your learning validated across five key areas</p>
         </div>
         <div className="text-right">

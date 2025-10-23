@@ -73,7 +73,9 @@ class BaseRepository:
         """
         if self._client is None:
             if self.user_id:
-                self._client = get_user_client(self.user_id)
+                # Get user client with JWT token from request headers
+                # The token is automatically extracted from Authorization header
+                self._client = get_user_client()
             else:
                 logger.warning(
                     f"Using admin client for {self.table_name} repository. "
