@@ -1,47 +1,54 @@
 # Gunicorn configuration for memory-optimized deployment
 # Designed for 512MB memory limit on Render Starter plan
+# ALL settings configurable via environment variables
 
 import multiprocessing
 import os
 
 # Basic settings
-bind = f"0.0.0.0:{os.environ.get('PORT', 5001)}"
-backlog = 128
+bind = f"0.0.0.0:{os.getenv('PORT', '5001')}"
+backlog = int(os.getenv('GUNICORN_BACKLOG', '128'))
 
-# Worker configuration optimized for memory efficiency
-workers = 1  # Single worker to minimize memory usage
-worker_class = "sync"  # Sync worker uses less memory than async
-worker_connections = 100
-max_requests = 1000  # Restart workers after 1000 requests to prevent memory leaks
-max_requests_jitter = 50
-preload_app = True  # Share memory between workers
+# Worker configuration - CONFIGURABLE
+workers = int(os.getenv('GUNICORN_WORKERS', '1'))
+worker_class = os.getenv('GUNICORN_WORKER_CLASS', 'sync')
+worker_connections = int(os.getenv('GUNICORN_WORKER_CONNECTIONS', '100'))
+threads = int(os.getenv('GUNICORN_THREADS', '2'))
+max_requests = int(os.getenv('GUNICORN_MAX_REQUESTS', '1000'))
+max_requests_jitter = int(os.getenv('GUNICORN_MAX_REQUESTS_JITTER', '50'))
 
-# Timeout settings
-timeout = 120  # 2 minutes for API requests
-keepalive = 2
-graceful_timeout = 30
+# Timeout settings - CONFIGURABLE
+timeout = int(os.getenv('GUNICORN_TIMEOUT', '120'))
+keepalive = int(os.getenv('GUNICORN_KEEPALIVE', '2'))
+graceful_timeout = int(os.getenv('GUNICORN_GRACEFUL_TIMEOUT', '30'))
 
-# Memory management
-worker_tmp_dir = "/dev/shm"  # Use shared memory for temporary files
-worker_rlimit_as = 400 * 1024 * 1024  # Limit worker memory to 400MB
+# Memory management - CONFIGURABLE
+worker_tmp_dir = os.getenv('GUNICORN_WORKER_TMP_DIR', '/dev/shm')
+worker_rlimit_as = int(os.getenv('GUNICORN_WORKER_MEMORY_LIMIT', str(400 * 1024 * 1024)))
 
-# Logging
-loglevel = "info"
+# Logging - CONFIGURABLE
+loglevel = os.getenv('GUNICORN_LOG_LEVEL', 'info')
+accesslog = os.getenv('GUNICORN_ACCESS_LOG', '-')  # '-' = stdout
+errorlog = os.getenv('GUNICORN_ERROR_LOG', '-')
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
-accesslog = "-"
-errorlog = "-"
+
+# Server mechanics
+preload_app = os.getenv('GUNICORN_PRELOAD_APP', 'true').lower() == 'true'
+daemon = False  # Don't daemonize (Render needs foreground process)
 
 # Process naming
-proc_name = "optio-backend"
+proc_name = os.getenv('GUNICORN_PROC_NAME', 'optio-backend')
+worker_process_name = os.getenv('GUNICORN_WORKER_PROCESS_NAME', 'optio-worker')
 
-# Security
-limit_request_line = 4094
-limit_request_fields = 100
-limit_request_field_size = 8190
+# Security - CONFIGURABLE
+limit_request_line = int(os.getenv('GUNICORN_LIMIT_REQUEST_LINE', '4094'))
+limit_request_fields = int(os.getenv('GUNICORN_LIMIT_REQUEST_FIELDS', '100'))
+limit_request_field_size = int(os.getenv('GUNICORN_LIMIT_REQUEST_FIELD_SIZE', '8190'))
 
-# Performance tuning for low memory
-worker_process_name = "optio-worker"
-threads = 2  # Small number of threads per worker
+# Auto-scaling helper (optional)
+if os.getenv('GUNICORN_AUTO_SCALE', 'false').lower() == 'true':
+    workers = (multiprocessing.cpu_count() * 2) + 1
+    print(f"Auto-scaling enabled: {workers} workers based on {multiprocessing.cpu_count()} CPUs")
 
 # Preload modules to share memory
 def when_ready(server):

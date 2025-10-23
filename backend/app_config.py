@@ -92,21 +92,32 @@ class Config:
     
     # Supabase Configuration - check multiple possible env var names
     SUPABASE_URL = (
-        os.getenv('SUPABASE_URL') or 
+        os.getenv('SUPABASE_URL') or
         os.getenv('VITE_SUPABASE_URL') or
         os.getenv('supabase_url')
     )
     SUPABASE_ANON_KEY = (
         os.getenv('SUPABASE_KEY') or  # Your Railway uses SUPABASE_KEY
-        os.getenv('SUPABASE_ANON_KEY') or 
+        os.getenv('SUPABASE_ANON_KEY') or
         os.getenv('VITE_SUPABASE_ANON_KEY') or
         os.getenv('supabase_anon_key')
     )
     SUPABASE_SERVICE_ROLE_KEY = (
         os.getenv('SUPABASE_SERVICE_KEY') or  # Your Railway uses SUPABASE_SERVICE_KEY
-        os.getenv('SUPABASE_SERVICE_ROLE_KEY') or 
+        os.getenv('SUPABASE_SERVICE_ROLE_KEY') or
         os.getenv('supabase_service_role_key')
     )
+
+    # Database Configuration - CONFIGURABLE
+    SUPABASE_POOL_SIZE = int(os.getenv('DB_POOL_SIZE', '10'))
+    SUPABASE_POOL_TIMEOUT = int(os.getenv('DB_POOL_TIMEOUT', '30'))
+    SUPABASE_MAX_OVERFLOW = int(os.getenv('DB_POOL_OVERFLOW', '5'))
+    SUPABASE_CONN_LIFETIME = int(os.getenv('DB_CONN_LIFETIME', '3600'))
+
+    # Service Layer Configuration - CONFIGURABLE
+    SERVICE_RETRY_ATTEMPTS = int(os.getenv('SERVICE_RETRY_ATTEMPTS', '3'))
+    SERVICE_RETRY_DELAY = float(os.getenv('SERVICE_RETRY_DELAY', '0.5'))
+    SERVICE_MAX_RETRY_DELAY = float(os.getenv('SERVICE_MAX_RETRY_DELAY', '5.0'))
     
     # Validate Supabase configuration (only in production)
     if FLASK_ENV == 'production':
@@ -177,19 +188,24 @@ class Config:
         }
     }
     
-    # Rate Limiting
+    # Rate Limiting - CONFIGURABLE
     RATE_LIMIT_ENABLED = os.getenv('RATE_LIMIT_ENABLED', 'true').lower() == 'true'
     RATE_LIMIT_DEFAULT = os.getenv('RATE_LIMIT_DEFAULT', '100 per hour')
     RATE_LIMIT_STORAGE_URL = os.getenv('REDIS_URL')  # Optional Redis for rate limiting
+    RATE_LIMIT_LOGIN_ATTEMPTS = int(os.getenv('RATE_LIMIT_LOGIN_ATTEMPTS', '5'))
+    RATE_LIMIT_LOGIN_WINDOW = int(os.getenv('RATE_LIMIT_LOGIN_WINDOW', '900'))  # 15 minutes
+    RATE_LIMIT_LOCKOUT_DURATION = int(os.getenv('RATE_LIMIT_LOCKOUT_DURATION', '3600'))  # 1 hour
     
     # Caching
     CACHE_TYPE = os.getenv('CACHE_TYPE', 'simple')
     CACHE_DEFAULT_TIMEOUT = int(os.getenv('CACHE_DEFAULT_TIMEOUT', '300'))
     
-    # File Upload Settings - imported from centralized constants
+    # File Upload Settings - CONFIGURABLE
     UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'mp4', 'mov'}
     MAX_FILE_SIZE = MAX_FILE_SIZE  # From backend.config.constants (10MB)
+    MAX_UPLOAD_SIZE = int(os.getenv('MAX_UPLOAD_SIZE', str(10 * 1024 * 1024)))  # 10MB default
+    ALLOWED_UPLOAD_EXTENSIONS = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.mp4', '.mov']
     
     # Quest Settings
     MIN_QUEST_TITLE_LENGTH = 3
@@ -210,27 +226,45 @@ class Config:
     # Pagination - imported from centralized constants
     DEFAULT_PAGE_SIZE = DEFAULT_PAGE_SIZE  # From backend.config.constants
     MAX_PAGE_SIZE = MAX_PAGE_SIZE  # From backend.config.constants
-    
-    # Logging
+
+    # API Configuration - CONFIGURABLE
+    API_TIMEOUT = int(os.getenv('API_TIMEOUT', '30'))
+    PEXELS_API_TIMEOUT = int(os.getenv('PEXELS_API_TIMEOUT', '5'))
+    LTI_JWKS_TIMEOUT = int(os.getenv('LTI_JWKS_TIMEOUT', '5'))
+
+    # Logging - CONFIGURABLE
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO' if DEBUG else 'WARNING')
-    LOG_FORMAT = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    LOG_FORMAT = os.getenv('LOG_FORMAT', 'json')  # 'json' or 'text'
     
     @classmethod
-    def validate_config(cls) -> None:
-        """Validate required configuration values"""
-        required_fields = [
-            'SECRET_KEY',
-            'SUPABASE_URL',
-            'SUPABASE_ANON_KEY'
+    def validate(cls) -> None:
+        """Validate required configuration on startup"""
+        required_vars = [
+            ('SUPABASE_URL', cls.SUPABASE_URL),
+            ('SUPABASE_ANON_KEY', cls.SUPABASE_ANON_KEY),
+            ('SUPABASE_SERVICE_KEY', cls.SUPABASE_SERVICE_ROLE_KEY),
         ]
-        
-        missing = []
-        for field in required_fields:
-            if not getattr(cls, field, None):
-                missing.append(field)
-        
-        if missing:
-            raise ValueError(f"Missing required configuration: {', '.join(missing)}")
+
+        missing_vars = [name for name, value in required_vars if not value]
+
+        if missing_vars:
+            raise RuntimeError(
+                f"Missing required environment variables: {', '.join(missing_vars)}\n"
+                f"Set these in your .env file or environment"
+            )
+
+        # Production-specific validations
+        if cls.FLASK_ENV == 'production':
+            if cls.SECRET_KEY == 'dev-secret-key-CHANGE-IN-PRODUCTION':
+                raise RuntimeError("FLASK_SECRET_KEY must be set in production")
+
+            if len(cls.SECRET_KEY) < 32:
+                raise RuntimeError("FLASK_SECRET_KEY must be at least 32 characters")
+
+    @classmethod
+    def validate_config(cls) -> None:
+        """Alias for validate() - backward compatibility"""
+        return cls.validate()
     
     @classmethod
     def get_database_url(cls) -> Optional[str]:

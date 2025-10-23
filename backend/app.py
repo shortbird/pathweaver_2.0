@@ -1,6 +1,14 @@
 from flask import Flask, jsonify, request, make_response
 from dotenv import load_dotenv
 import os
+import uuid
+
+# Initialize logging FIRST before any other imports
+load_dotenv()
+from utils.logger import setup_logging, get_logger
+setup_logging()
+logger = get_logger(__name__)
+logger.info("Starting Optio Backend API")
 
 from routes import auth, users, community, portfolio
 from routes.quest_ideas import quest_ideas_bp
@@ -33,6 +41,38 @@ if not os.getenv('FLASK_ENV'):
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key')
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB max request size (matches upload limit)
+
+# Validate configuration on startup
+try:
+    from app_config import Config
+    Config.validate()
+    logger.info("Configuration validation passed")
+    logger.info(f"Environment: {Config.FLASK_ENV}")
+    logger.info(f"Debug mode: {Config.DEBUG}")
+    logger.info(f"Log level: {Config.LOG_LEVEL}")
+    logger.info(f"Service retry attempts: {Config.SERVICE_RETRY_ATTEMPTS}")
+    logger.info(f"Database pool size: {Config.SUPABASE_POOL_SIZE}")
+except RuntimeError as e:
+    logger.error(f"Configuration validation failed: {e}")
+    raise
+
+# Add correlation ID middleware
+@app.before_request
+def add_correlation_id():
+    request.correlation_id = request.headers.get('X-Correlation-ID', str(uuid.uuid4()))
+    logger.info_extra("Request started",
+                     method=request.method,
+                     path=request.path,
+                     correlation_id=request.correlation_id)
+
+@app.after_request
+def log_response(response):
+    logger.info_extra("Request completed",
+                     method=request.method,
+                     path=request.path,
+                     status=response.status_code,
+                     correlation_id=getattr(request, 'correlation_id', None))
+    return response
 
 # Configure security middleware
 security_middleware.init_app(app)

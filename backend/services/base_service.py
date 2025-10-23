@@ -10,6 +10,7 @@ import time
 import logging
 from flask import current_app
 from database import get_supabase_admin_client, get_user_client
+from app_config import Config
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -102,8 +103,8 @@ class BaseService:
         self,
         operation: Callable,
         operation_name: str,
-        retries: int = 3,
-        retry_delay: float = 0.5,
+        retries: int = None,
+        retry_delay: float = None,
         log_errors: bool = True,
         **context
     ) -> Any:
@@ -113,8 +114,8 @@ class BaseService:
         Args:
             operation: Function to execute
             operation_name: Name for logging
-            retries: Number of retry attempts (default: 3)
-            retry_delay: Delay between retries in seconds (default: 0.5)
+            retries: Number of retry attempts (default: from Config.SERVICE_RETRY_ATTEMPTS)
+            retry_delay: Delay between retries in seconds (default: from Config.SERVICE_RETRY_DELAY)
             log_errors: Whether to log errors (default: True)
             **context: Additional context for logging (e.g., user_id, quest_id)
 
@@ -124,6 +125,11 @@ class BaseService:
         Raises:
             ServiceError: If operation fails after all retries
         """
+        # Use config defaults if not specified
+        retries = retries or Config.SERVICE_RETRY_ATTEMPTS
+        retry_delay = retry_delay or Config.SERVICE_RETRY_DELAY
+        max_delay = Config.SERVICE_MAX_RETRY_DELAY
+
         start_time = time.time()
         last_error = None
 
@@ -168,7 +174,9 @@ class BaseService:
                             error=str(e),
                             **context
                         )
-                    time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                    # Exponential backoff with max delay cap
+                    delay = min(retry_delay * (attempt + 1), max_delay)
+                    time.sleep(delay)
                 else:
                     # Final attempt failed
                     if log_errors:
