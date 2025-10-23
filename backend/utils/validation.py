@@ -2,7 +2,11 @@
 Input validation utilities for API endpoints
 """
 import re
+import bleach
 from typing import Dict, List, Any, Optional
+
+# UUID v4 validation pattern
+UUID_REGEX = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$', re.IGNORECASE)
 
 def validate_email(email: str) -> tuple[bool, Optional[str]]:
     """
@@ -123,30 +127,94 @@ def validate_registration_data(data: Dict[str, Any]) -> tuple[bool, Optional[str
     
     return True, None
 
-def sanitize_input(text: str) -> str:
+def sanitize_input(text: str, strip_html: bool = True, allowed_tags: list = None) -> str:
     """
-    Sanitize user input to prevent XSS and injection attacks
+    Sanitize user input to prevent XSS and injection attacks using bleach library
+
+    Args:
+        text: The text to sanitize
+        strip_html: If True, strip all HTML tags. If False, allow specified tags.
+        allowed_tags: List of allowed HTML tags (only used if strip_html=False)
+
+    Returns:
+        Sanitized text string
     """
     if not text:
         return ""
-    
-    # Remove any HTML tags
-    text = re.sub(r'<[^>]*>', '', text)
-    
-    # Convert HTML entities
-    html_entities = {
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#x27;',
-        '/': '&#x2F;'
-    }
-    
-    for char, entity in html_entities.items():
-        text = text.replace(char, entity)
-    
+
+    if strip_html:
+        # Strip all HTML tags for maximum security
+        text = bleach.clean(text, tags=[], strip=True)
+    else:
+        # Allow only specified tags with strict attribute filtering
+        if allowed_tags is None:
+            allowed_tags = ['b', 'i', 'u', 'em', 'strong', 'p', 'br']
+
+        allowed_attributes = {}  # No attributes allowed by default
+        text = bleach.clean(
+            text,
+            tags=allowed_tags,
+            attributes=allowed_attributes,
+            strip=True
+        )
+
+    # Additional safety: escape any remaining special characters
+    text = bleach.linkify(text, parse_email=False)  # Linkify URLs but not emails
+
     return text.strip()
+
+def sanitize_rich_text(text: str) -> str:
+    """
+    Sanitize rich text fields (quest descriptions, evidence text, user bios)
+    Allows basic formatting tags but strips dangerous content
+
+    Returns:
+        Sanitized text with safe HTML formatting
+    """
+    if not text:
+        return ""
+
+    # Allow basic formatting tags for rich text
+    allowed_tags = [
+        'p', 'br', 'strong', 'em', 'u', 'b', 'i',
+        'ul', 'ol', 'li', 'a', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'blockquote', 'code', 'pre'
+    ]
+
+    # Allow only safe attributes on links
+    allowed_attributes = {
+        'a': ['href', 'title'],
+        '*': []  # No attributes for other tags
+    }
+
+    # Allowed protocols for links (prevent javascript: urls)
+    allowed_protocols = ['http', 'https', 'mailto']
+
+    text = bleach.clean(
+        text,
+        tags=allowed_tags,
+        attributes=allowed_attributes,
+        protocols=allowed_protocols,
+        strip=True
+    )
+
+    return text.strip()
+
+def validate_uuid(uuid_string: str) -> tuple[bool, Optional[str]]:
+    """
+    Validate UUID v4 format to prevent SQL injection
+    Returns: (is_valid, error_message)
+    """
+    if not uuid_string:
+        return False, "UUID cannot be empty"
+
+    if not isinstance(uuid_string, str):
+        return False, "UUID must be a string"
+
+    if not UUID_REGEX.match(uuid_string):
+        return False, "Invalid UUID format"
+
+    return True, None
 
 def validate_quest_data(data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
     """

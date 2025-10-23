@@ -4,9 +4,10 @@ import sys
 from functools import wraps
 from flask import request, jsonify
 from database import get_authenticated_supabase_client
-from middleware.error_handler import AuthenticationError, AuthorizationError
+from middleware.error_handler import AuthenticationError, AuthorizationError, ValidationError
 from .token_utils import verify_token
 from utils.session_manager import session_manager
+from utils.validation import validate_uuid
 
 def require_auth(f):
     """Decorator to require authentication for routes - prioritizes secure cookies"""
@@ -154,3 +155,24 @@ def require_paid_tier(f):
         return f(user_id, *args, **kwargs)
 
     return decorated_function
+
+def validate_uuid_param(*param_names):
+    """
+    Decorator to validate UUID route parameters to prevent SQL injection
+    Usage: @validate_uuid_param('user_id', 'quest_id')
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Validate each specified parameter
+            for param_name in param_names:
+                param_value = kwargs.get(param_name)
+                if param_value:
+                    is_valid, error = validate_uuid(param_value)
+                    if not is_valid:
+                        raise ValidationError(f"Invalid {param_name}: {error}")
+
+            return f(*args, **kwargs)
+
+        return decorated_function
+    return decorator
