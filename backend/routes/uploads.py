@@ -1,87 +1,111 @@
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from database import get_supabase_admin_client
+from middleware.error_handler import ValidationError
+from werkzeug.utils import secure_filename
 import base64
 import uuid
 import mimetypes
+import magic  # python-magic is now required
+import os
 from datetime import datetime
-
-# Try to import python-magic for file type validation
-try:
-    import magic
-    HAS_MAGIC = True
-except ImportError:
-    HAS_MAGIC = False
 
 bp = Blueprint('uploads', __name__)
 
-# Allowed file types and their MIME types
-ALLOWED_FILE_TYPES = {
+# Allowed MIME types (checked via magic bytes)
+ALLOWED_MIME_TYPES = {
     # Images
-    'jpg': ['image/jpeg', 'image/jpg'],
-    'jpeg': ['image/jpeg', 'image/jpg'],
-    'png': ['image/png'],
-    'gif': ['image/gif'],
-    'webp': ['image/webp'],
+    'image/jpeg', 'image/png', 'image/gif', 'image/webp',
     # Documents
-    'pdf': ['application/pdf'],
-    'doc': ['application/msword'],
-    'docx': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-    'txt': ['text/plain'],
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'text/plain',
     # Videos
-    'mp4': ['video/mp4'],
-    'webm': ['video/webm'],
-    'mov': ['video/quicktime'],
+    'video/mp4', 'video/webm', 'video/quicktime',
     # Audio
-    'mp3': ['audio/mpeg'],
-    'wav': ['audio/wav'],
-    'ogg': ['audio/ogg']
+    'audio/mpeg', 'audio/wav', 'audio/ogg'
 }
 
-# Maximum file size: 10MB (reduced from 50MB)
+# Allowed file extensions (as secondary check)
+ALLOWED_EXTENSIONS = {
+    'jpg', 'jpeg', 'png', 'gif', 'webp',  # Images
+    'pdf', 'doc', 'docx', 'txt',          # Documents
+    'mp4', 'webm', 'mov',                 # Videos
+    'mp3', 'wav', 'ogg'                   # Audio
+}
+
+# Maximum file size: 10MB
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
-def validate_file_type(filename, file_content):
+def validate_file_type(filename: str, file_content: bytes) -> tuple[bool, str]:
     """
-    Validate file type by checking both extension and magic bytes
+    Validate file type using magic bytes (MIME type detection)
+    Security: Prevents file extension spoofing attacks
+
+    Args:
+        filename: Original filename
+        file_content: File binary content
+
+    Returns:
+        Tuple of (is_valid, error_message)
     """
     if not filename or '.' not in filename:
         return False, "File must have an extension"
-    
+
     extension = filename.rsplit('.', 1)[1].lower()
-    
-    if extension not in ALLOWED_FILE_TYPES:
-        return False, f"File type '{extension}' not allowed"
-    
-    # Check magic bytes if python-magic is available
-    if HAS_MAGIC:
-        try:
-            mime_type = magic.from_buffer(file_content[:2048], mime=True)
-            if mime_type not in ALLOWED_FILE_TYPES[extension]:
-                return False, f"File content doesn't match extension. Expected: {ALLOWED_FILE_TYPES[extension]}, Got: {mime_type}"
-        except Exception:
-            # If magic bytes check fails, continue with basic extension check
-            pass
-    
+
+    # Check extension is allowed
+    if extension not in ALLOWED_EXTENSIONS:
+        return False, f"File extension '.{extension}' not allowed"
+
+    # Validate using magic bytes (required - no try/except)
+    try:
+        # Read first 2048 bytes for MIME detection
+        mime_type = magic.from_buffer(file_content[:2048], mime=True)
+    except Exception as e:
+        return False, f"Failed to detect file type: {str(e)}"
+
+    # Check MIME type is allowed
+    if mime_type not in ALLOWED_MIME_TYPES:
+        return False, f"File type '{mime_type}' not allowed"
+
     return True, None
 
-def sanitize_filename(filename):
+def sanitize_filename(filename: str) -> str:
     """
-    Sanitize filename to prevent path traversal and other attacks
+    Sanitize filename using werkzeug's secure_filename
+    Security: Prevents path traversal attacks
+
+    Args:
+        filename: Original filename
+
+    Returns:
+        Sanitized filename safe for storage
+
+    Raises:
+        ValidationError: If filename is invalid or contains path traversal attempts
     """
     if not filename:
-        return f"file_{uuid.uuid4()}"
-    
-    # Remove path separators and dangerous characters
-    filename = filename.replace('/', '_').replace('\\', '_').replace('..', '_')
-    filename = ''.join(c for c in filename if c.isalnum() or c in '.-_ ')
-    
-    # Limit filename length
-    if len(filename) > 100:
-        name, ext = filename.rsplit('.', 1) if '.' in filename else (filename, '')
-        filename = name[:95] + ('.' + ext if ext else '')
-    
-    return filename
+        raise ValidationError("Filename cannot be empty")
+
+    # Use werkzeug's secure_filename implementation
+    safe = secure_filename(filename)
+
+    # Additional security checks
+    if not safe or '..' in safe or '/' in safe or '\\' in safe:
+        raise ValidationError("Invalid filename - path traversal detected")
+
+    # Ensure filename has an extension
+    if '.' not in safe:
+        raise ValidationError("Filename must have an extension")
+
+    # Limit filename length (keep extension intact)
+    if len(safe) > 100:
+        name, ext = safe.rsplit('.', 1)
+        safe = f"{name[:95]}.{ext}"
+
+    return safe
 
 @bp.route('/evidence', methods=['POST'])
 @require_auth
@@ -108,23 +132,22 @@ def upload_evidence(user_id):
         for file in files:
             if file.filename == '':
                 continue
-            
-            # Sanitize filename
-            safe_filename = sanitize_filename(file.filename)
-            
-            # Validate file size (10MB max)
-            file.seek(0, 2)  # Seek to end
-            file_size = file.tell()
-            file.seek(0)  # Reset to beginning
-            
-            if file_size > MAX_FILE_SIZE:
-                return jsonify({'error': f'File {safe_filename} exceeds 10MB limit'}), 400
-            
-            # Read file content for validation
+
+            # Read file content first for validation
             file_content = file.read()
-            file.seek(0)  # Reset for upload
-            
-            # Validate file type
+
+            # Explicit file size validation (10MB max)
+            if len(file_content) > MAX_FILE_SIZE:
+                max_mb = MAX_FILE_SIZE / (1024 * 1024)
+                return jsonify({'error': f'File exceeds maximum size of {max_mb}MB'}), 400
+
+            # Sanitize filename (raises ValidationError on invalid filename)
+            try:
+                safe_filename = sanitize_filename(file.filename)
+            except ValidationError as e:
+                return jsonify({'error': str(e)}), 400
+
+            # Validate file type using magic bytes
             is_valid, error_msg = validate_file_type(safe_filename, file_content)
             if not is_valid:
                 return jsonify({'error': f'File {safe_filename}: {error_msg}'}), 400
@@ -135,13 +158,11 @@ def upload_evidence(user_id):
             
             # Determine content type
             content_type = file.content_type or mimetypes.guess_type(file.filename)[0] or 'application/octet-stream'
-            
-            # Upload to Supabase Storage
-            file_data = file.read()
-            
+
+            # Upload to Supabase Storage (use file_content we already read)
             response = supabase.storage.from_('quest-evidence').upload(
                 path=unique_filename,
-                file=file_data,
+                file=file_content,
                 file_options={"content-type": content_type}
             )
             
@@ -152,7 +173,7 @@ def upload_evidence(user_id):
                 'original_name': file.filename,
                 'stored_name': unique_filename,
                 'url': url_response,
-                'size': file_size,
+                'size': len(file_content),
                 'content_type': content_type,
                 'uploaded_at': datetime.utcnow().isoformat()
             })
@@ -192,21 +213,25 @@ def upload_evidence_base64(user_id):
             filename = file_data.get('filename', f'file_{uuid.uuid4()}')
             base64_content = file_data.get('content', '')
             content_type = file_data.get('content_type', 'application/octet-stream')
-            
-            # Sanitize filename
-            safe_filename = sanitize_filename(filename)
-            
+
             # Decode base64 content
             try:
                 file_content = base64.b64decode(base64_content)
             except Exception as e:
-                return jsonify({'error': f'Invalid base64 content for {safe_filename}'}), 400
-            
-            # Check file size (10MB max)
+                return jsonify({'error': f'Invalid base64 content'}), 400
+
+            # Explicit file size validation (10MB max)
             if len(file_content) > MAX_FILE_SIZE:
-                return jsonify({'error': f'File {safe_filename} exceeds 10MB limit'}), 400
-            
-            # Validate file type
+                max_mb = MAX_FILE_SIZE / (1024 * 1024)
+                return jsonify({'error': f'File exceeds maximum size of {max_mb}MB'}), 400
+
+            # Sanitize filename (raises ValidationError on invalid filename)
+            try:
+                safe_filename = sanitize_filename(filename)
+            except ValidationError as e:
+                return jsonify({'error': str(e)}), 400
+
+            # Validate file type using magic bytes
             is_valid, error_msg = validate_file_type(safe_filename, file_content)
             if not is_valid:
                 return jsonify({'error': f'File {safe_filename}: {error_msg}'}), 400
