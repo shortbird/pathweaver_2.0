@@ -1,20 +1,20 @@
 """
 XP calculation and award service for Quest V3 system.
 Handles XP calculations with collaboration bonuses and audit trails.
+
+Updated January 2025: Migrated to use BaseService for consistent error handling,
+retry logic, and logging patterns.
 """
 
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
-from database import get_supabase_admin_client
+from services.base_service import BaseService, ValidationError, DatabaseError
 from utils.pillar_utils import is_valid_pillar
 from utils.pillar_mapping import normalize_pillar_name
 import json
 
-class XPService:
+class XPService(BaseService):
     """Service for handling XP calculations and awards."""
-    
-    def __init__(self):
-        self.supabase = get_supabase_admin_client()
     
     def calculate_task_xp(self, 
                          user_id: str, 
@@ -43,26 +43,36 @@ class XPService:
 
         return final_xp, has_collaboration
     
-    def award_xp(self, 
-                 user_id: str, 
-                 pillar: str, 
-                 xp_amount: int, 
+    def award_xp(self,
+                 user_id: str,
+                 pillar: str,
+                 xp_amount: int,
                  source: str = 'task_completion') -> bool:
         """
         Award XP to a user for a specific pillar.
-        
+
         Args:
             user_id: User receiving XP
             pillar: Skill pillar for XP
             xp_amount: Amount of XP to award
             source: Source of XP (for tracking)
-            
+
         Returns:
             True if successful, False otherwise
+
+        Raises:
+            ValidationError: If inputs are invalid
+            DatabaseError: If database operation fails
         """
+        # Validate required fields
+        self.validate_required(user_id=user_id, pillar=pillar)
+
+        if not isinstance(xp_amount, int) or xp_amount <= 0:
+            raise ValidationError(f"xp_amount must be positive integer, got: {xp_amount}")
+
         print(f"=== XP SERVICE AWARD DEBUG ===")
         print(f"User: {user_id}, Pillar: {pillar}, Amount: {xp_amount}, Source: {source}")
-        
+
         # Normalize pillar input (handles display names, old keys, etc.)
         # Updated January 2025: New single-word pillar names
         original_pillar = pillar
@@ -72,14 +82,10 @@ class XPService:
             db_pillar = normalize_pillar_name(pillar)
             print(f"Mapped pillar from '{original_pillar}' to database key '{db_pillar}' for storage")
         except ValueError as e:
-            print(f"[ERROR] Invalid pillar name: {pillar} - {str(e)}")
-            return False
+            raise ValidationError(f"Invalid pillar name: {pillar} - {str(e)}")
 
         # Validate that we have a valid pillar for storage
-        valid_storage_pillars = ['art', 'stem', 'wellness', 'communication', 'civics']
-        if db_pillar not in valid_storage_pillars:
-            print(f"[ERROR] Invalid pillar for database storage: {db_pillar}")
-            return False
+        self.validate_one_of('pillar', db_pillar, ['art', 'stem', 'wellness', 'communication', 'civics'])
         
         try:
             # Check current XP for this pillar
