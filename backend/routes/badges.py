@@ -184,7 +184,7 @@ def get_user_badges_by_id(target_user_id):
             }), 200
 
         elif status == 'completed':
-            user_badges = BadgeService.get_user_earned_badges(target_user_id)
+            user_badges = BadgeService.get_user_completed_badges(target_user_id)
             return jsonify({
                 'success': True,
                 'user_badges': user_badges,
@@ -195,7 +195,7 @@ def get_user_badges_by_id(target_user_id):
         else:
             # Get both active and completed
             active = BadgeService.get_user_active_badges(target_user_id)
-            completed = BadgeService.get_user_earned_badges(target_user_id)
+            completed = BadgeService.get_user_completed_badges(target_user_id)
             all_badges = active + completed
 
             return jsonify({
