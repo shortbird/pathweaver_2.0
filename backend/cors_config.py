@@ -1,8 +1,8 @@
 """
 CORS configuration for production and development
-Reads from single source of truth in config.py
+Reads from single source of truth in app_config.py
 """
-from backend.config import Config
+from app_config import Config
 
 def configure_cors(app):
     """Configure CORS from centralized configuration"""

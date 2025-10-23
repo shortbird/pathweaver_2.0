@@ -228,7 +228,7 @@ def register():
         supabase = get_supabase_admin_client()
         
         # Sign up with Supabase Auth (use original names without HTML encoding)
-        from config import Config
+        from app_config import Config
         try:
             # Supabase Python client v2.x API
             auth_response = supabase.auth.sign_up({
