@@ -1,4 +1,4 @@
-import React, { useState, useEffect, memo } from 'react';
+import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -37,6 +37,11 @@ const DiplomaPage = () => {
 
   // All features are now free for all users (Phase 2 refactoring - January 2025)
   const hasAccess = true;
+
+  // Memoize expensive credit calculations to prevent unnecessary re-computation
+  const creditProgress = useMemo(() => getAllCreditProgress(subjectXP), [subjectXP]);
+  const totalCreditsEarned = useMemo(() => calculateTotalCredits(subjectXP), [subjectXP]);
+  const meetsRequirements = useMemo(() => meetsGraduationRequirements(subjectXP), [subjectXP]);
 
   const pillarColors = {
     // New pillar keys (current)
@@ -156,36 +161,35 @@ const DiplomaPage = () => {
     }
   }, [user, slug, userId, loginTimestamp, hasAccess]);
 
+  // Memoize event handlers to prevent memory leaks
+  const handleVisibilityChange = useCallback(() => {
+    if (document.visibilityState === 'visible' && user && !slug && !userId && hasAccess) {
+      fetchAchievements();
+      fetchSubjectXP();
+      fetchEarnedBadges();
+      fetchLearningEvents();
+    }
+  }, [user, slug, userId, hasAccess, fetchAchievements, fetchSubjectXP, fetchEarnedBadges, fetchLearningEvents]);
+
+  const handleFocus = useCallback(() => {
+    if (user && !slug && !userId && hasAccess) {
+      fetchAchievements();
+      fetchSubjectXP();
+      fetchEarnedBadges();
+      fetchLearningEvents();
+    }
+  }, [user, slug, userId, hasAccess, fetchAchievements, fetchSubjectXP, fetchEarnedBadges, fetchLearningEvents]);
+
   // Refresh data when page becomes visible
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && user && !slug && !userId && hasAccess) {
-        fetchAchievements();
-        fetchSubjectXP();
-        fetchEarnedBadges();
-        fetchLearningEvents();
-      }
-    };
-
     document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    // Also refresh on focus
-    const handleFocus = () => {
-      if (user && !slug && !userId && hasAccess) {
-        fetchAchievements();
-        fetchSubjectXP();
-        fetchEarnedBadges();
-        fetchLearningEvents();
-      }
-    };
-    
     window.addEventListener('focus', handleFocus);
 
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [user, slug, userId, hasAccess]);
+  }, [handleVisibilityChange, handleFocus]);
 
   const fetchPublicDiploma = async () => {
     try {
@@ -252,7 +256,7 @@ const DiplomaPage = () => {
     }
   };
 
-  const fetchAchievements = async () => {
+  const fetchAchievements = useCallback(async () => {
     try {
       // Fetch both completed quests and user XP data using api service with cookies
       const [questsResponse, dashboardResponse] = await Promise.all([
@@ -323,9 +327,9 @@ const DiplomaPage = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
-  const fetchSubjectXP = async () => {
+  const fetchSubjectXP = useCallback(async () => {
     try {
       const response = await api.get('/api/users/subject-xp', {
         headers: {
@@ -351,9 +355,9 @@ const DiplomaPage = () => {
       // Silently handle error for now
       setSubjectXP({});
     }
-  };
+  }, []);
 
-  const fetchEarnedBadges = async (targetUserId = null) => {
+  const fetchEarnedBadges = useCallback(async (targetUserId = null) => {
     try {
       const userIdToFetch = targetUserId || user?.id;
       if (!userIdToFetch) return;
@@ -375,9 +379,9 @@ const DiplomaPage = () => {
       // Silently handle error - badges are optional
       setEarnedBadges([]);
     }
-  };
+  }, [user?.id]);
 
-  const fetchLearningEvents = async (targetUserId = null) => {
+  const fetchLearningEvents = useCallback(async (targetUserId = null) => {
     try {
       const userIdToFetch = targetUserId || user?.id;
       if (!userIdToFetch) return;
@@ -402,7 +406,7 @@ const DiplomaPage = () => {
       // Silently handle error - learning events are optional
       setLearningEvents([]);
     }
-  };
+  }, [user?.id, slug, userId]);
 
   const generateShareableLink = () => {
     const baseUrl = window.location.origin;
@@ -853,10 +857,7 @@ const DiplomaPage = () => {
 
         {/* School Subject Credits Section */}
         {(() => {
-          const creditProgress = getAllCreditProgress(subjectXP);
-          const totalCreditsEarned = calculateTotalCredits(subjectXP);
-          const meetsRequirements = meetsGraduationRequirements(subjectXP);
-
+          // Use memoized values instead of recalculating on every render
           return (
             <div className="mb-12 pb-12 border-b border-gray-100">
               <div className="text-center mb-8">
