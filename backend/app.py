@@ -319,28 +319,7 @@ def debug_user_tier(user_id):
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.after_request
-def after_request(response):
-    """Ensure CORS headers are set correctly for withCredentials"""
-    origin = request.headers.get('Origin')
-
-    # List of allowed origins
-    allowed_origins = [
-        'https://optio-dev-frontend.onrender.com',
-        'https://optio-prod-frontend.onrender.com',
-        'https://www.optioeducation.com',
-        'https://optioeducation.com',
-        'http://localhost:3000',
-        'http://localhost:5173'
-    ]
-
-    if origin in allowed_origins:
-        response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With, X-CSRF-Token, Cache-Control'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS, PATCH, HEAD'
-
-    return response
+# CORS headers are now managed by Flask-CORS in cors_config.py (single source of truth)
 
 # Error handlers are now managed by error_handler middleware
 

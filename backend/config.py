@@ -44,18 +44,36 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
     
-    # CORS Settings
+    # CORS Configuration - SINGLE SOURCE OF TRUTH
+    CORS_CONFIG = {
+        'origins': [
+            origin.strip()
+            for origin in os.getenv('ALLOWED_ORIGINS', '').split(',')
+            if origin.strip()
+        ] or [
+            'https://optio-dev-frontend.onrender.com',
+            'https://optio-prod-frontend.onrender.com',
+            'https://www.optioeducation.com',
+            'https://optioeducation.com',
+        ],
+        'dev_origins': [
+            'http://localhost:5173',
+            'http://localhost:3000',
+            'http://localhost:5000',
+        ],
+        'methods': ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH', 'HEAD'],
+        'allow_headers': ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-Requested-With', 'Cache-Control'],
+        'supports_credentials': True,
+        'max_age': 3600,
+    }
+
+    # Build final ALLOWED_ORIGINS list
+    ALLOWED_ORIGINS = CORS_CONFIG['origins'].copy()
+    if DEBUG:
+        ALLOWED_ORIGINS.extend(CORS_CONFIG['dev_origins'])
+
+    # Legacy FRONTEND_URL (for backward compatibility)
     FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
-    ALLOWED_ORIGINS = [
-        'http://localhost:5173',
-        'http://localhost:3000',
-        'https://optioed.org',
-        'https://www.optioed.org',
-        'https://optio-frontend.onrender.com',
-        'https://optio-fe.onrender.com',
-        'https://optioeducation.com',
-        'https://www.optioeducation.com'
-    ]
     
     # Supabase Configuration - check multiple possible env var names
     SUPABASE_URL = (
