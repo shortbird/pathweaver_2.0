@@ -6,18 +6,7 @@ import { CheckCircle, Circle, ArrowLeft, Trophy, Target, Zap, Info, Lock, Crown 
 import { BadgePillarIcon } from '../components/badges/BadgePillarIcon';
 import BadgeInfoModal from '../components/badges/BadgeInfoModal';
 import { useAuth } from '../contexts/AuthContext';
-
-/**
- * Updated pillar color gradients - matching BadgeCard design
- * Removing yellow/orange per design guidelines
- */
-const pillarColors = {
-  'STEM & Logic': 'from-[#6d469b] to-[#ef597b]',
-  'Life & Wellness': 'from-green-500 to-emerald-600',
-  'Language & Communication': 'from-[#ef597b] to-[#6d469b]',
-  'Society & Culture': 'from-[#f8b3c5] to-[#ef597b]',
-  'Arts & Creativity': 'from-[#ef597b] to-[#b794d6]'
-};
+import { getPillarGradient } from '../config/pillars';
 
 export default function BadgeDetail() {
   const { badgeId } = useParams();
@@ -117,7 +106,19 @@ export default function BadgeDetail() {
     );
   }
 
-  const gradientClass = pillarColors[badge.pillar_primary] || 'from-gray-400 to-gray-600';
+  // Legacy pillar name mappings for backward compatibility
+  const legacyPillarMapping = {
+    'Arts & Creativity': 'art',
+    'STEM & Logic': 'stem',
+    'Life & Wellness': 'wellness',
+    'Language & Communication': 'communication',
+    'Society & Culture': 'civics'
+  };
+
+  // Normalize pillar key and get gradient from centralized config
+  const normalizedPillar = legacyPillarMapping[badge.pillar_primary] || badge.pillar_primary?.toLowerCase() || 'art';
+  const gradientClass = getPillarGradient(normalizedPillar);
+
   const userProgress = badge.user_progress;
   const isActive = userProgress?.is_active && !userProgress?.completed_at;
   const isCompleted = userProgress?.completed_at;

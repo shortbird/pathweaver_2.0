@@ -1,6 +1,7 @@
 import React, { useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import BadgeCarouselCard from './BadgeCarouselCard';
+import { getPillarDisplayName } from '../../config/pillars';
 
 /**
  * BadgeCarousel Component
@@ -29,25 +30,16 @@ export default function BadgeCarousel({ pillar, badges }) {
     }
   };
 
-  // Pillar display names (updated to new single-word format - January 2025)
-  const pillarDisplayNames = {
-    'stem': 'STEM',
-    'wellness': 'Wellness',
-    'communication': 'Communication',
-    'civics': 'Civics',
-    'art': 'Art'
-  };
-
-  // Pillar color mapping (updated to new single-word keys)
+  // Pillar color mapping for text colors (Tailwind classes)
   const pillarColors = {
     'stem': 'text-blue-600',
-    'wellness': 'text-red-600',
+    'wellness': 'text-orange-600',  // Updated to match centralized config (wellness = orange)
     'communication': 'text-green-600',
-    'civics': 'text-orange-600',
+    'civics': 'text-red-600',  // Updated to match centralized config (civics = red)
     'art': 'text-purple-600'
   };
 
-  const pillarDisplayName = pillarDisplayNames[pillar] || pillar;
+  const pillarDisplayName = getPillarDisplayName(pillar);
   const pillarColor = pillarColors[pillar] || 'text-gray-800';
 
   if (!badges || badges.length === 0) {

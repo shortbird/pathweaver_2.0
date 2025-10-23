@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api from '../../services/api';
 import toast from 'react-hot-toast';
 import { Sparkles, TrendingUp, Target } from 'lucide-react';
+import { getPillarGradient } from '../../config/pillars';
 
 export default function BadgeRecommendations({ userId }) {
   const navigate = useNavigate();
@@ -108,15 +109,18 @@ export default function BadgeRecommendations({ userId }) {
 }
 
 function BadgeRecommendationCard({ badge, onClick }) {
-  const pillarColors = {
-    'STEM & Logic': 'from-blue-400 to-purple-500',
-    'Life & Wellness': 'from-green-400 to-teal-500',
-    'Language & Communication': 'from-yellow-400 to-orange-500',
-    'Society & Culture': 'from-red-400 to-pink-500',
-    'Arts & Creativity': 'from-purple-400 to-pink-500'
+  // Legacy pillar name mappings for backward compatibility
+  const legacyPillarMapping = {
+    'Arts & Creativity': 'art',
+    'STEM & Logic': 'stem',
+    'Life & Wellness': 'wellness',
+    'Language & Communication': 'communication',
+    'Society & Culture': 'civics'
   };
 
-  const gradientClass = pillarColors[badge.pillar_primary] || 'from-gray-400 to-gray-600';
+  // Normalize pillar key and get gradient from centralized config
+  const normalizedPillar = legacyPillarMapping[badge.pillar_primary] || badge.pillar_primary?.toLowerCase() || 'art';
+  const gradientClass = getPillarGradient(normalizedPillar);
   const score = badge.recommendation_score || 0;
   const scorePercentage = Math.round(score * 100);
 

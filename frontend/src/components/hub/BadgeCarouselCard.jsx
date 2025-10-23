@@ -3,6 +3,7 @@ import { BadgePillarIcon } from '../badges/BadgePillarIcon';
 import { useNavigate } from 'react-router-dom';
 import { Crown } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
+import { getPillarGradient } from '../../config/pillars';
 
 /**
  * BadgeCarouselCard Component
@@ -33,16 +34,18 @@ export default function BadgeCarouselCard({ badge }) {
   const xpEarned = hasProgress && badge.progress.xp_earned ? badge.progress.xp_earned : 0;
   const xpRequired = badge.min_xp || 0;
 
-  // Pillar gradient colors (fallback if no image)
-  const pillarGradients = {
-    'STEM & Logic': 'from-blue-500 to-blue-600',
-    'Life & Wellness': 'from-red-500 to-red-600',
-    'Language & Communication': 'from-green-500 to-green-600',
-    'Society & Culture': 'from-orange-500 to-orange-600',
-    'Arts & Creativity': 'from-purple-500 to-purple-600'
+  // Legacy pillar name mappings for backward compatibility
+  const legacyPillarMapping = {
+    'Arts & Creativity': 'art',
+    'STEM & Logic': 'stem',
+    'Life & Wellness': 'wellness',
+    'Language & Communication': 'communication',
+    'Society & Culture': 'civics'
   };
 
-  const gradientClass = pillarGradients[badge.pillar_primary] || 'from-gray-500 to-gray-600';
+  // Normalize pillar key and get gradient from centralized config
+  const normalizedPillar = legacyPillarMapping[badge.pillar_primary] || badge.pillar_primary?.toLowerCase() || 'art';
+  const gradientClass = getPillarGradient(normalizedPillar);
 
   return (
     <div

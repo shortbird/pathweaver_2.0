@@ -15,6 +15,7 @@ import {
   TOTAL_CREDITS_REQUIRED,
   meetsGraduationRequirements
 } from '../utils/creditRequirements';
+import { getPillarGradient, getPillarDisplayName } from '../config/pillars';
 
 const DiplomaPage = () => {
   const { user, loginTimestamp } = useAuth();
@@ -43,57 +44,31 @@ const DiplomaPage = () => {
   const totalCreditsEarned = useMemo(() => calculateTotalCredits(subjectXP), [subjectXP]);
   const meetsRequirements = useMemo(() => meetsGraduationRequirements(subjectXP), [subjectXP]);
 
-  const pillarColors = {
-    // New pillar keys (current)
-    art: 'from-[#AF56E5] to-[#9945D1]',
-    stem: 'from-[#2469D1] to-[#1B4FA3]',
-    wellness: 'from-[#E65C5C] to-[#D14545]',
-    communication: 'from-[#3DA24A] to-[#2E8838]',
-    civics: 'from-[#FF9028] to-[#E67A15]',
-    // Legacy mappings (old multi-word format)
-    'Arts & Creativity': 'from-[#AF56E5] to-[#9945D1]',
-    'STEM & Logic': 'from-[#2469D1] to-[#1B4FA3]',
-    'Life & Wellness': 'from-[#E65C5C] to-[#D14545]',
-    'Language & Communication': 'from-[#3DA24A] to-[#2E8838]',
-    'Society & Culture': 'from-[#FF9028] to-[#E67A15]',
-    // Legacy underscore format mappings
-    'arts_creativity': 'from-[#AF56E5] to-[#9945D1]',
-    'stem_logic': 'from-[#2469D1] to-[#1B4FA3]',
-    'life_wellness': 'from-[#E65C5C] to-[#D14545]',
-    'language_communication': 'from-[#3DA24A] to-[#2E8838]',
-    'society_culture': 'from-[#FF9028] to-[#E67A15]',
-    // Very old legacy mappings
-    creativity: 'from-[#AF56E5] to-[#9945D1]',
-    critical_thinking: 'from-[#2469D1] to-[#1B4FA3]',
-    practical_skills: 'from-[#E65C5C] to-[#D14545]',
-    cultural_literacy: 'from-[#FF9028] to-[#E67A15]'
+  // Legacy pillar name mappings for backward compatibility
+  // These map old pillar names to new canonical keys
+  const legacyPillarMapping = {
+    'Arts & Creativity': 'art',
+    'STEM & Logic': 'stem',
+    'Life & Wellness': 'wellness',
+    'Language & Communication': 'communication',
+    'Society & Culture': 'civics',
+    'arts_creativity': 'art',
+    'stem_logic': 'stem',
+    'life_wellness': 'wellness',
+    'language_communication': 'communication',
+    'society_culture': 'civics',
+    'creativity': 'art',
+    'critical_thinking': 'stem',
+    'practical_skills': 'wellness',
+    'cultural_literacy': 'civics'
   };
 
-  // Pillar display names for UI
-  const pillarDisplayNames = {
-    // New pillar keys (current) - proper capitalization
-    art: 'Art',
-    stem: 'STEM',
-    wellness: 'Wellness',
-    communication: 'Communication',
-    civics: 'Civics',
-    // Legacy mappings (old multi-word format)
-    'Arts & Creativity': 'Art',
-    'STEM & Logic': 'STEM',
-    'Life & Wellness': 'Wellness',
-    'Language & Communication': 'Communication',
-    'Society & Culture': 'Civics',
-    // Legacy underscore format mappings
-    'arts_creativity': 'Art',
-    'stem_logic': 'STEM',
-    'life_wellness': 'Wellness',
-    'language_communication': 'Communication',
-    'society_culture': 'Civics',
-    // Very old legacy mappings
-    creativity: 'Art',
-    critical_thinking: 'STEM',
-    practical_skills: 'Wellness',
-    cultural_literacy: 'Civics'
+  // Helper function to normalize pillar keys
+  const normalizePillarKey = (key) => {
+    if (!key) return 'art'; // fallback
+    const lowerKey = key.toLowerCase();
+    // Check if it's a legacy key that needs mapping
+    return legacyPillarMapping[key] || legacyPillarMapping[lowerKey] || lowerKey;
   };
 
   // School subject display names for diploma credits
@@ -1233,8 +1208,9 @@ const DiplomaPage = () => {
                         {Object.entries(selectedAchievement.task_evidence)
                           .sort(([, a], [, b]) => new Date(a.completed_at) - new Date(b.completed_at))
                           .map(([taskTitle, evidence], index) => {
-                          const displayPillar = pillarDisplayNames[evidence.pillar] || evidence.pillar;
-                          const gradientClass = pillarColors[evidence.pillar] || pillarColors['Arts & Creativity'];
+                          const normalizedPillar = normalizePillarKey(evidence.pillar);
+                          const displayPillar = getPillarDisplayName(normalizedPillar);
+                          const gradientClass = getPillarGradient(normalizedPillar);
 
                           return (
                             <div key={taskTitle} className="rounded-xl p-4 sm:p-5" style={{ background: 'white', border: '1px solid rgba(109,70,155,0.15)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
