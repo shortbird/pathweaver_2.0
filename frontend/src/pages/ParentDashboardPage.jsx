@@ -513,11 +513,16 @@ const ParentDashboardPage = () => {
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {Object.entries(progressData.xp_by_pillar)
-                      .filter(([pillar]) => pillarDisplayNames[pillar])
+                      .filter(([pillar]) => {
+                        // Backend returns display names like "Art", "STEM", etc.
+                        // Only show the new pillar names (not old legacy names)
+                        const validPillarNames = Object.values(pillarDisplayNames);
+                        return validPillarNames.includes(pillar);
+                      })
                       .map(([pillar, xp]) => (
                         <div key={pillar} className="bg-gray-50 rounded-lg p-4">
                           <h4 className="font-semibold text-gray-900 text-sm mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {pillarDisplayNames[pillar]}
+                            {pillar}
                           </h4>
                           <p className="text-2xl font-bold text-purple-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
                             {xp} XP
