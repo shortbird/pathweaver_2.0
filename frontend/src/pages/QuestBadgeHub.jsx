@@ -50,6 +50,7 @@ const QuestBadgeHub = () => {
   // Filter state
   const [selectedPillar, setSelectedPillar] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
   // Badge state
   const [badgesByPillar, setBadgesByPillar] = useState({});
@@ -86,12 +87,21 @@ const QuestBadgeHub = () => {
     localStorage.setItem('hub_active_tab', activeTab);
   }, [activeTab]);
 
+  // Debounce search term to prevent API calls on every keystroke (500ms delay)
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+    }, 500);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
   // Fetch badges when in badges tab
   useEffect(() => {
     if (activeTab === 'badges' && user !== undefined) {
       fetchBadges();
     }
-  }, [activeTab, selectedPillar, searchTerm, user, loginTimestamp]);
+  }, [activeTab, selectedPillar, debouncedSearchTerm, user, loginTimestamp]);
 
   // Reset quest pagination when filters change (must run before fetch)
   useEffect(() => {
@@ -101,7 +111,7 @@ const QuestBadgeHub = () => {
       setHasMoreQuests(true);
       isLoadingRef.current = false; // Reset loading ref
     }
-  }, [selectedPillar, searchTerm]);
+  }, [selectedPillar, debouncedSearchTerm]);
 
   // Fetch quests when in quests tab
   useEffect(() => {
@@ -114,8 +124,8 @@ const QuestBadgeHub = () => {
     }
   }, [activeTab, questPage, user, loginTimestamp]);
 
-  // Fetch badges from API
-  const fetchBadges = async () => {
+  // Fetch badges from API - memoized to prevent recreation
+  const fetchBadges = useCallback(async () => {
     if (badgesLoading) return;
 
     setBadgesLoading(true);
@@ -126,8 +136,8 @@ const QuestBadgeHub = () => {
       if (selectedPillar !== 'ALL') {
         params.append('pillar', selectedPillar);
       }
-      if (searchTerm.trim()) {
-        params.append('search', searchTerm.trim());
+      if (debouncedSearchTerm.trim()) {
+        params.append('search', debouncedSearchTerm.trim());
       }
 
       const response = await api.get(`/api/hub/badges?${params}`, {
@@ -147,10 +157,10 @@ const QuestBadgeHub = () => {
     if (isMounted()) {
       setBadgesLoading(false);
     }
-  };
+  }, [badgesLoading, selectedPillar, debouncedSearchTerm, safeAsync, isMounted]);
 
-  // Fetch quests from API
-  const fetchQuests = async (isInitial = true) => {
+  // Fetch quests from API - memoized to prevent recreation
+  const fetchQuests = useCallback(async (isInitial = true) => {
     if (isLoadingRef.current) {
       console.log('[HUB] Fetch blocked - already loading');
       return;
@@ -175,8 +185,8 @@ const QuestBadgeHub = () => {
         t: Date.now()
       });
 
-      if (searchTerm.trim()) {
-        params.append('search', searchTerm.trim());
+      if (debouncedSearchTerm.trim()) {
+        params.append('search', debouncedSearchTerm.trim());
       }
       if (selectedPillar !== 'ALL') {
         params.append('pillar', selectedPillar);
@@ -215,7 +225,7 @@ const QuestBadgeHub = () => {
       setQuestsLoading(false);
       setIsLoadingMoreQuests(false);
     }
-  };
+  }, [questPage, selectedPillar, debouncedSearchTerm, safeAsync, isMounted]);
 
   // Debounced page increment for infinite scroll
   const { debouncedFn: debouncedPageIncrement } = useDebounceWithCleanup(() => {
