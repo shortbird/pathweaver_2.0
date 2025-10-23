@@ -1,7 +1,8 @@
 # Pillar Mapping Refactoring TODO
 
 **Created**: 2025-01-22
-**Status**: Infrastructure Complete - Gradual Migration Needed
+**Last Updated**: 2025-01-22
+**Status**: High-Priority Migration COMPLETE (5/24 files)
 **Priority**: Medium (technical debt)
 
 ## What Was Completed (Week 2.2)
@@ -16,45 +17,54 @@
 - Created `frontend/src/config/pillars.js` for synchronous access
 - Both files have fallback data if API is unavailable
 
-## Files with Hardcoded Pillar Mappings (24 files)
+## Migration Status
 
-These files need gradual migration to use the centralized pillar config:
+### ✅ COMPLETED (5/24 files - 2025-01-22)
 
-### High Priority (User-Facing):
-1. `frontend/src/pages/DiplomaPage.jsx` - Public portfolio
-2. `frontend/src/pages/BadgeDetail.jsx` - Badge detail page
-3. `frontend/src/components/diploma/AchievementCard.jsx` - Diploma achievements
-4. `frontend/src/components/hub/BadgeCarouselCard.jsx` - Badge hub
-5. `frontend/src/components/hub/BadgeCarousel.jsx` - Badge carousel
+**High Priority (User-Facing):**
+1. ✅ `frontend/src/pages/DiplomaPage.jsx` - Public portfolio
+2. ✅ `frontend/src/pages/BadgeDetail.jsx` - Badge detail page
+3. ✅ `frontend/src/components/hub/BadgeCarouselCard.jsx` - Badge hub
+4. ✅ `frontend/src/components/hub/BadgeCarousel.jsx` - Badge carousel
 
-### Medium Priority (Dashboard):
-6. `frontend/src/components/dashboard/BadgeRecommendations.jsx`
-7. `frontend/src/components/credits/CreditTracker.jsx`
-8. `frontend/src/components/credits/TranscriptView.jsx`
+**Medium Priority (Dashboard):**
+5. ✅ `frontend/src/components/dashboard/BadgeRecommendations.jsx`
 
-### Low Priority (Connections):
-9. `frontend/src/components/connections/YourConnections/ConnectionCard.jsx`
-10. `frontend/src/components/connections/ActivityFeed/ActivityCard.jsx`
+**Bug Fix Applied:**
+- Fixed wellness/civics color swap (wellness=orange, civics=red per centralized config)
 
-### Calendar Components:
-11. `frontend/src/components/calendar/CalendarView.jsx`
-12. `frontend/src/components/calendar/WhatDoIDoNext.jsx`
-13. `frontend/src/components/calendar/ScheduleSidebar.jsx`
-14. `frontend/src/components/calendar/ListView.jsx`
-15. `frontend/src/components/calendar/EventDetailModal.jsx`
+### ⏳ REMAINING (19/24 files)
 
-### Constellation Components (Visual):
-16. `frontend/src/components/constellation/QuestTooltip.jsx`
-17. `frontend/src/components/constellation/QuestPillarLines.jsx`
-18. `frontend/src/components/constellation/PillarStar.jsx`
-19. `frontend/src/components/constellation/QuestOrb.jsx`
-20. `frontend/src/components/constellation/PillarInfoCard.jsx`
-21. `frontend/src/components/constellation/PillarOrb.jsx`
-22. `frontend/src/components/constellation/ParticleTrail.jsx`
+**High Priority (User-Facing):**
+1. `frontend/src/components/diploma/AchievementCard.jsx` - Diploma achievements
 
-### Other Components:
-23. `frontend/src/components/badge/BadgeProgress.jsx`
-24. `frontend/src/components/quest/QuestCardV3.jsx`
+**Medium Priority (Dashboard):**
+2. `frontend/src/components/credits/CreditTracker.jsx`
+3. `frontend/src/components/credits/TranscriptView.jsx`
+
+**Low Priority (Connections):**
+4. `frontend/src/components/connections/YourConnections/ConnectionCard.jsx`
+5. `frontend/src/components/connections/ActivityFeed/ActivityCard.jsx`
+
+**Calendar Components:**
+6. `frontend/src/components/calendar/CalendarView.jsx`
+7. `frontend/src/components/calendar/WhatDoIDoNext.jsx`
+8. `frontend/src/components/calendar/ScheduleSidebar.jsx`
+9. `frontend/src/components/calendar/ListView.jsx`
+10. `frontend/src/components/calendar/EventDetailModal.jsx`
+
+**Constellation Components (Visual):**
+11. `frontend/src/components/constellation/QuestTooltip.jsx`
+12. `frontend/src/components/constellation/QuestPillarLines.jsx`
+13. `frontend/src/components/constellation/PillarStar.jsx`
+14. `frontend/src/components/constellation/QuestOrb.jsx`
+15. `frontend/src/components/constellation/PillarInfoCard.jsx`
+16. `frontend/src/components/constellation/PillarOrb.jsx`
+17. `frontend/src/components/constellation/ParticleTrail.jsx`
+
+**Other Components:**
+18. `frontend/src/components/badge/BadgeProgress.jsx`
+19. `frontend/src/components/quest/QuestCardV3.jsx`
 
 ## Migration Pattern
 
@@ -89,10 +99,16 @@ useEffect(() => {
 
 ## Migration Strategy
 
-1. **Immediate** (Week 2.2): Infrastructure in place, no file changes yet
-2. **Week 3**: Migrate high-priority user-facing components (5 files)
-3. **Week 4**: Migrate dashboard and connections (5 files)
-4. **Future Sprint**: Migrate calendar and constellation components (14 files)
+1. ✅ **Week 2.2** (2025-01-22): Infrastructure in place + HIGH-PRIORITY MIGRATION COMPLETE
+   - ✅ Backend API endpoints created and tested
+   - ✅ Frontend config files created (pillars.js, pillarService.js)
+   - ✅ Migrated 5 high-priority user-facing components
+   - ✅ Fixed wellness/civics color swap bug
+
+2. ⏳ **Future Sprint**: Migrate remaining components (19 files)
+   - AchievementCard (high priority - 1 file)
+   - Dashboard and connections (medium/low - 4 files)
+   - Calendar and constellation components (14 files)
 
 ## Benefits After Full Migration
 

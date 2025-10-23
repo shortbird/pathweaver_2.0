@@ -991,10 +991,12 @@ Remaining work (searching/replacing hardcoded values) can be done incrementally
   - ✅ 10-minute cache duration to reduce API calls
   - ✅ Fallback static definitions if API unavailable
 
-- [ ] **2.2.4** Update frontend components to use pillar API
-  - ⏳ DEFERRED to Week 3 - Infrastructure complete, gradual migration planned
-  - 📝 Documented 24 files needing migration in `PILLAR_MAPPING_REFACTOR_TODO.md`
-  - Migration strategy: High priority (5 files) → Dashboard (5 files) → Calendar/Constellation (14 files)
+- [x] **2.2.4** Update frontend components to use pillar API
+  - ✅ HIGH-PRIORITY MIGRATION COMPLETE (2025-01-22)
+  - ✅ Migrated 5 high-priority files: DiplomaPage, BadgeDetail, BadgeCarouselCard, BadgeCarousel, BadgeRecommendations
+  - ✅ Fixed wellness/civics color swap bug (wellness=orange, civics=red per centralized config)
+  - ⏳ Medium/Low priority migration deferred: 19 remaining files (calendar, constellation, connections components)
+  - 📝 Documented in `PILLAR_MAPPING_REFACTOR_TODO.md`
 
 - [ ] **2.2.5** Delete duplicate pillar files
   - ⏳ DEFERRED to Week 3 - Will delete after components migrated
@@ -1033,11 +1035,24 @@ Testing Complete:
 ✅ No console errors
 ✅ All pillar data displaying correctly
 
-Component migration deferred:
-- 24 files with hardcoded pillar mappings identified
-- Infrastructure in place for gradual migration
-- No breaking changes - existing code still works
-- Future sprints will migrate components incrementally
+Component migration progress (2025-01-22):
+✅ HIGH-PRIORITY COMPLETE (5 files migrated):
+- DiplomaPage.jsx - Core portfolio feature
+- BadgeDetail.jsx - Badge detail page
+- BadgeCarouselCard.jsx - Badge hub cards
+- BadgeCarousel.jsx - Badge carousel display
+- BadgeRecommendations.jsx - Dashboard recommendations
+
+⏳ REMAINING (19 files deferred to future sprints):
+- Medium priority: CreditTracker, TranscriptView (2 files)
+- Low priority: ConnectionCard, ActivityCard (2 files)
+- Calendar components (5 files)
+- Constellation components (7 files)
+- Other components: BadgeProgress, QuestCardV3 (3 files)
+
+🐛 BUG FIXED:
+- Wellness/Civics color swap corrected (wellness=orange, civics=red)
+- All migrated components now use centralized config as source of truth
 ```
 
 **Blockers/Issues**:
