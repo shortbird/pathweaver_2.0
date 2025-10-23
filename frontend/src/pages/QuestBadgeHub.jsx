@@ -17,7 +17,6 @@ import QuestCardSimple from '../components/quest/QuestCardSimple';
 // import TeamUpModal from '../components/quest/TeamUpModal'; // REMOVED - Phase 3 refactoring (January 2025)
 import QuestSuggestionModal from '../components/QuestSuggestionModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
-import { hasFeatureAccess } from '../utils/tierMapping';
 
 /**
  * QuestBadgeHub - Unified Hub for Badges and Quests
@@ -276,7 +275,8 @@ const QuestBadgeHub = () => {
     setShowQuestSuggestionModal(true);
   }, [user]);
 
-  const canSuggestQuests = user && hasFeatureAccess(user.subscription_tier, 'supported');
+  // All features are now free for all users (Phase 2 refactoring - January 2025)
+  const canSuggestQuests = !!user;
 
   // Render helpers
   const renderBadgesView = () => {

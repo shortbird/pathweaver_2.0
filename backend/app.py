@@ -159,15 +159,9 @@ try:
 except Exception as e:
     print(f"Warning: AI Quest Review routes not available: {e}")
 
-# Register Tier Management blueprints
-try:
-    from routes.admin import tier_management
-    from routes import tiers
-    app.register_blueprint(tier_management.bp)  # /api/v3/admin/tiers (admin)
-    app.register_blueprint(tiers.bp)  # /api/tiers (public)
-    print("Tier Management routes registered successfully")
-except Exception as e:
-    print(f"Warning: Tier Management routes not available: {e}")
+# Tier Management routes removed in Phase 2 refactoring (January 2025)
+# All subscription tier functionality has been removed from the platform
+# Legacy code: tier_management.bp and tiers.bp blueprints deleted
 
 # Register Personalized Quest System blueprints
 try:
@@ -299,33 +293,8 @@ def test_config():
     
     return jsonify(config_status), 200
 
-@app.route('/debug-user-tier/<user_id>')
-def debug_user_tier(user_id):
-    """Debug endpoint to check user's subscription tier"""
-    try:
-        from database import get_supabase_client
-        supabase = get_supabase_client()
-        
-        user = supabase.table('users').select('subscription_tier, first_name, last_name').eq('id', user_id).execute()
-        
-        if not user.data:
-            return jsonify({'error': 'User not found'}), 404
-        
-        user_data = user.data[0]
-        tier = user_data.get('subscription_tier', 'free')
-        allowed_tiers = ['supported', 'academy', 'creator', 'visionary', 'enterprise']
-        
-        return jsonify({
-            'user_id': user_id,
-            'name': f"{user_data.get('first_name')} {user_data.get('last_name')}",
-            'subscription_tier': tier,
-            'allowed_tiers': allowed_tiers,
-            'tier_allowed': tier in allowed_tiers,
-            'is_enterprise': tier == 'enterprise'
-        }), 200
-        
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+# Debug endpoint removed in Phase 2 refactoring (January 2025)
+# /debug-user-tier endpoint deleted - subscription tiers no longer exist
 
 # CORS headers are now managed by Flask-CORS in cors_config.py (single source of truth)
 

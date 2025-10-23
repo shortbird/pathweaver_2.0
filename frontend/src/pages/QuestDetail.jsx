@@ -5,7 +5,6 @@ import { useAuth } from '../contexts/AuthContext';
 import { useQuestDetail, useEnrollQuest, useCompleteTask, useEndQuest } from '../hooks/api/useQuests';
 import { handleApiResponse } from '../utils/errorHandling';
 import { getPillarData, normalizePillarKey } from '../utils/pillarMappings';
-import { hasFeatureAccess } from '../utils/tierMapping';
 import { queryKeys } from '../utils/queryKeys';
 import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import TaskDetailModal from '../components/quest/TaskDetailModal';
@@ -41,8 +40,8 @@ const QuestDetail = () => {
   const isEnrolling = enrollMutation.isPending;
   const isRefreshing = completeTaskMutation.isPending;
 
-  // Check if user can start quests (requires paid tier)
-  const canStartQuests = hasFeatureAccess(user?.subscription_tier, 'supported');
+  // All features are now free for all users (Phase 2 refactoring - January 2025)
+  const canStartQuests = true;
   const [selectedTask, setSelectedTask] = useState(null);
   const [showTaskModal, setShowTaskModal] = useState(false);
   const [showTaskDetailModal, setShowTaskDetailModal] = useState(false);

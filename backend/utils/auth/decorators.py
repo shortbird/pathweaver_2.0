@@ -122,39 +122,9 @@ def require_role(*allowed_roles):
         return decorated_function
     return decorator
 
-def require_paid_tier(f):
-    """
-    Decorator to require a paid subscription tier - NEUTERED in Phase 3 refactoring (January 2025)
-    All features now free for all users - this decorator now acts like require_auth
-    """
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        # Skip authentication for OPTIONS requests (CORS preflight)
-        if request.method == 'OPTIONS':
-            return ('', 200)
-
-        # First try to get user ID from secure httpOnly cookies
-        user_id = session_manager.get_current_user_id()
-
-        # Fallback to Authorization header for backward compatibility
-        if not user_id:
-            token = request.headers.get('Authorization', '').replace('Bearer ', '')
-            if token:
-                user_id = verify_token(token)
-
-        if not user_id:
-            raise AuthenticationError('Authentication required')
-
-        # Store user_id in request context
-        request.user_id = user_id
-
-        # NEUTERED - Phase 3 refactoring (January 2025)
-        # All features now free for all users - no tier checking
-        print(f"[REQUIRE_PAID_TIER] NEUTERED - All features free for user {user_id[:8]}", file=sys.stderr, flush=True)
-
-        return f(user_id, *args, **kwargs)
-
-    return decorated_function
+# require_paid_tier decorator removed in Phase 2 refactoring (January 2025)
+# All subscription tier functionality has been removed from the platform
+# Use @require_auth instead for authentication
 
 def validate_uuid_param(*param_names):
     """

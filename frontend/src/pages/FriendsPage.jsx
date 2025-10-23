@@ -7,7 +7,7 @@ import { useFriends, useSendFriendRequest, useAcceptFriendRequest, useDeclineFri
 import { friendsAPI } from '../services/api'
 // import { collaborationAPI } from '../services/api' // REMOVED - Phase 3 refactoring (January 2025)
 import api from '../services/api'
-import { hasFeatureAccess } from '../utils/tierMapping'
+// tierMapping import removed - Phase 2 refactoring (January 2025)
 import StatusBadge from '../components/ui/StatusBadge'
 // import CollaborationBadge from '../components/ui/CollaborationBadge' // REMOVED - Phase 3 refactoring (January 2025)
 import { UserPlusIcon, ClockIcon, CheckCircleIcon, UsersIcon, PaperAirplaneIcon } from '@heroicons/react/24/outline'
@@ -21,7 +21,7 @@ const FriendsPage = () => {
     data: friendsData,
     isLoading: loadingFriends,
   } = useFriends(user?.id, {
-    enabled: !!user?.id && hasFeatureAccess(user?.subscription_tier, 'supported'),
+    enabled: !!user?.id, // All features free (Phase 2)
   });
 
   const {
@@ -29,7 +29,7 @@ const FriendsPage = () => {
     isLoading: loadingCollaborations,
     refetch: refetchCollaborations,
   } = useCollaborations(user?.id, {
-    enabled: !!user?.id && hasFeatureAccess(user?.subscription_tier, 'supported'),
+    enabled: !!user?.id, // All features free (Phase 2)
   });
 
   // Mutations
@@ -44,7 +44,7 @@ const FriendsPage = () => {
   const [activeTab, setActiveTab] = useState('incoming')
 
   // Check if user has access to friends feature
-  const hasAccess = hasFeatureAccess(user?.subscription_tier, 'supported');
+  const hasAccess = true; // All features free (Phase 2)
 
   // Use React Query data directly (no manual state)
   const friends = friendsData?.friends || [];

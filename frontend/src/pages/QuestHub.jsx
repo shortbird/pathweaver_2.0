@@ -11,7 +11,6 @@ import QuestFilters from '../components/quest/improved/QuestFilters';
 import QuestSuggestionModal from '../components/QuestSuggestionModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
-import { hasFeatureAccess } from '../utils/tierMapping';
 
 // Debounce utility with cancel method
 const debounce = (func, wait) => {
@@ -249,11 +248,9 @@ const QuestHub = () => {
     // Optionally refresh quests or show additional feedback
   }, []);
 
-  // Check if user can suggest quests (supported tier and above)
+  // All features are now free for all users (Phase 2 refactoring - January 2025)
   const canSuggestQuests = useMemo(() => {
-    if (!user) return false;
-    // Use hasFeatureAccess to check if user has at least supported tier access
-    return hasFeatureAccess(user.subscription_tier, 'supported');
+    return !!user;
   }, [user]);
 
   // Filter handlers

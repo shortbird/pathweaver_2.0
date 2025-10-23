@@ -9,7 +9,6 @@ import LearningEventCard from '../components/learning-events/LearningEventCard';
 import { SkeletonDiplomaHeader, SkeletonStats, SkeletonAchievementGrid } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 import { formatErrorMessage } from '../utils/errorMessages';
-import { hasFeatureAccess } from '../utils/tierMapping';
 import {
   getAllCreditProgress,
   calculateTotalCredits,
@@ -36,8 +35,8 @@ const DiplomaPage = () => {
   const [showDiplomaExplanation, setShowDiplomaExplanation] = useState(false);
   const [showAccreditedDiplomaModal, setShowAccreditedDiplomaModal] = useState(false);
 
-  // Check if user has access to diploma feature
-  const hasAccess = hasFeatureAccess(user?.subscription_tier, 'supported');
+  // All features are now free for all users (Phase 2 refactoring - January 2025)
+  const hasAccess = true;
 
   const pillarColors = {
     // New pillar keys (current)

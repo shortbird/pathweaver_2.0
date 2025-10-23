@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../../contexts/AuthContext';
 import Button from '../../ui/Button';
 import { getPillarData, getPillarGradient } from '../../../utils/pillarMappings';
-import { hasFeatureAccess } from '../../../utils/tierMapping';
+// tierMapping import removed - Phase 2 refactoring (January 2025)
 import { CheckCircle, Lock } from 'lucide-react';
 
 const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
@@ -12,7 +12,7 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   const [isEnrolling, setIsEnrolling] = useState(false);
   
   // Check if user can start quests (requires paid tier)
-  const canStartQuests = hasFeatureAccess(user?.subscription_tier, 'supported');
+  const canStartQuests = true; // All features free (Phase 2)
 
   // Simplified data extraction
   // Note: In personalized quest system, XP and task count are user-specific
