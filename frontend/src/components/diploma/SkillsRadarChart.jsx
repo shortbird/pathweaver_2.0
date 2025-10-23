@@ -179,10 +179,9 @@ const SkillsRadarChart = ({ skillsXP }) => {
           const xp = skillsXP[key] || 0;
           
           return (
-            <div 
+            <div
               key={key}
-              className="text-center p-4 rounded-lg" 
-              className="bg-gradient-subtle"
+              className="text-center p-4 rounded-lg bg-gradient-subtle"
             >
               <h4 className="font-semibold text-gray-900 text-sm mb-1">{info.label}</h4>
               <div className="text-lg font-bold" style={{ color: info.color }}>
