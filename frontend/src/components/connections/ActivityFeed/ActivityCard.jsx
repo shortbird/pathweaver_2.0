@@ -3,9 +3,9 @@ import { ClockIcon, HeartIcon, EyeIcon } from '@heroicons/react/24/outline'
 
 // Pillar color mapping
 const PILLAR_COLORS = {
-  'STEM & Logic': { border: pillar-stem, bg: '#DDF1FC', text: pillar-stem },
+  'STEM & Logic': { border: '#4BA3C3', bg: '#DDF1FC', text: '#4BA3C3' },
   'Life & Wellness': { border: '#B3393F', bg: '#FBE5E5', text: '#B3393F' },
-  'Language & Communication': { border: pillar-communication, bg: '#E3F6E5', text: pillar-communication },
+  'Language & Communication': { border: '#58A55C', bg: '#E3F6E5', text: '#58A55C' },
   'Society & Culture': { border: '#BE6B27', bg: '#FFF0E1', text: '#BE6B27' },
   'Arts & Creativity': { border: '#59189C', bg: '#F2E7F9', text: '#59189C' },
 }

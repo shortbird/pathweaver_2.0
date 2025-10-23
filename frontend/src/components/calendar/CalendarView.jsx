@@ -181,23 +181,23 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
       {/* Legend - Pillar Colors */}
       <div className="mt-4 flex flex-wrap gap-4 text-sm">
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: pillar-stem }}></div>
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#4BA3C3' }}></div>
           <span className="text-gray-600">STEM</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: pillar-civics }}></div>
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#B3393F' }}></div>
           <span className="text-gray-600">Wellness</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: pillar-communication }}></div>
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#58A55C' }}></div>
           <span className="text-gray-600">Communication</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: pillar-wellness }}></div>
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#BE6B27' }}></div>
           <span className="text-gray-600">Civics</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: pillar-art }}></div>
+          <div className="w-3 h-3 rounded-full" style={{ backgroundColor: '#59189C' }}></div>
           <span className="text-gray-600">Art</span>
         </div>
       </div>

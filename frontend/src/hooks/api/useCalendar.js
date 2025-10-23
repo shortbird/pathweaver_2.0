@@ -199,62 +199,62 @@ export const getPillarColor = (pillar) => {
       bg: 'bg-blue-100',
       text: 'text-blue-800',
       border: 'border-blue-300',
-      hex: pillar-stem
+      hex: '#4BA3C3'
     },
     wellness: {
       bg: 'bg-red-100',
       text: 'text-red-800',
       border: 'border-red-300',
-      hex: pillar-civics
+      hex: '#B3393F'
     },
     communication: {
       bg: 'bg-green-100',
       text: 'text-green-800',
       border: 'border-green-300',
-      hex: pillar-communication
+      hex: '#58A55C'
     },
     civics: {
       bg: 'bg-orange-100',
       text: 'text-orange-800',
       border: 'border-orange-300',
-      hex: pillar-wellness
+      hex: '#BE6B27'
     },
     art: {
       bg: 'bg-purple-100',
       text: 'text-purple-800',
       border: 'border-purple-300',
-      hex: pillar-art
+      hex: '#59189C'
     },
     // Legacy mappings (old multi-word format)
     'STEM & Logic': {
       bg: 'bg-blue-100',
       text: 'text-blue-800',
       border: 'border-blue-300',
-      hex: pillar-stem
+      hex: '#4BA3C3'
     },
     'Life & Wellness': {
       bg: 'bg-red-100',
       text: 'text-red-800',
       border: 'border-red-300',
-      hex: pillar-civics
+      hex: '#B3393F'
     },
     'Language & Communication': {
       bg: 'bg-green-100',
       text: 'text-green-800',
       border: 'border-green-300',
-      hex: pillar-communication
+      hex: '#58A55C'
     },
     'Society & Culture': {
       bg: 'bg-orange-100',
       text: 'text-orange-800',
       border: 'border-orange-300',
-      hex: pillar-wellness
+      hex: '#BE6B27'
     },
     'Arts & Creativity': {
       bg: 'bg-purple-100',
       text: 'text-purple-800',
       border: 'border-purple-300',
-      hex: pillar-art
+      hex: '#59189C'
     }
   }
 

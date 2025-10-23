@@ -12,9 +12,9 @@ const PILLAR_ICONS = {
 
 // Pillar color mapping
 const PILLAR_COLORS = {
-  'STEM & Logic': pillar-stem,
+  'STEM & Logic': '#4BA3C3',
   'Life & Wellness': '#B3393F',
-  'Language & Communication': pillar-communication,
+  'Language & Communication': '#58A55C',
   'Society & Culture': '#BE6B27',
   'Arts & Creativity': '#59189C',
 }
@@ -26,7 +26,7 @@ const ConnectionCard = ({ connection, onViewJourney, onTeamUp }) => {
   // Get current pillar info (mock for now, would come from recent activity)
   const currentPillar = connection.current_pillar || 'STEM & Logic'
   const pillarIcon = PILLAR_ICONS[currentPillar] || '🔬'
-  const pillarColor = PILLAR_COLORS[currentPillar] || pillar-stem
+  const pillarColor = PILLAR_COLORS[currentPillar] || '#4BA3C3'
 
   return (
     <div className="bg-white rounded-[20px] shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300 p-6 flex flex-col items-center text-center min-h-[320px]">
