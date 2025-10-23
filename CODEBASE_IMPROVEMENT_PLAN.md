@@ -221,7 +221,10 @@ Tested in dev: ✅ 2025-10-22
   - Can be enhanced later if needed
 
 - [x] **1.3.6** Test rate limiting
-  - Testing pending on dev environment deployment
+  - ✅ Tested on dev environment (2025-01-22)
+  - ✅ Account lockout triggers after 5 failed attempts
+  - ✅ Lockout message displays to user
+  - ✅ Login attempts tracked in database correctly
 
 **Implementation Notes**:
 ```
@@ -243,13 +246,23 @@ Security improvements:
 - Automatic attempt counter reset on successful login
 - User-friendly messaging throughout
 
-Committed to develop: ✅ 2025-01-22
-Ready for testing: ✅
+Testing results (2025-01-22):
+✅ Backend logs show login attempts being tracked
+✅ Database PATCH operations updating attempt_count
+✅ Account lockout message displayed after 5 attempts
+✅ All functionality working as expected
+
+Deployed to dev: ✅ 2025-01-22
+Tested in dev: ✅ 2025-01-22
+
+Known minor issue:
+- "Invalid or expired refresh token" message appears after failed login (token refresh interceptor)
+- Does not impact lockout functionality, can be improved in future iteration
 ```
 
 **Blockers/Issues**:
 ```
-None - Implementation complete and committed
+None - Implementation complete, tested, and working
 ```
 
 ---
