@@ -394,7 +394,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
     try:
         # Use repository pattern with user client (RLS enforced)
         supabase = get_user_client(user_id)
-        quest_repo = QuestRepository(client=supabase)
+        quest_repo = QuestRepository(user_id=user_id)
 
         # Check if quest exists and is active using repository
         quest = quest_repo.find_by_id(quest_id)

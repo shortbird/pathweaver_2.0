@@ -172,7 +172,7 @@ def get_user_badges_by_id(target_user_id):
     # ADMIN CLIENT JUSTIFIED: Public endpoint for viewing user portfolio/diploma data
     # This is public data intentionally displayed to anyone with the portfolio URL
     supabase = get_supabase_admin_client()
-    badge_repo = BadgeRepository(client=supabase)
+    badge_repo = BadgeRepository(user_id=None)  # Admin client access
     status = request.args.get('status')
 
     try:
@@ -358,7 +358,7 @@ def create_badge(user_id):
     try:
         # Use repository to create badge
         supabase = get_supabase_admin_client()
-        badge_repo = BadgeRepository(client=supabase)
+        badge_repo = BadgeRepository(user_id=None)  # Admin client access
         badge = badge_repo.create(badge_data)
 
         return jsonify({

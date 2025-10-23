@@ -15,7 +15,7 @@ def get_profile(user_id):
     """Get user profile with XP breakdown"""
     # Use repository pattern with RLS enforcement
     supabase = get_user_client()
-    user_repo = UserRepository(client=supabase)
+    user_repo = UserRepository(user_id=user_id)
 
     try:
         # Get user profile using repository
@@ -63,7 +63,7 @@ def update_profile(user_id):
 
     # Use repository pattern with RLS enforcement
     supabase = get_user_client()
-    user_repo = UserRepository(client=supabase)
+    user_repo = UserRepository(user_id=user_id)
 
     try:
         # Update profile using repository
