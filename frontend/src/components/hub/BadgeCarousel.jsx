@@ -29,15 +29,25 @@ export default function BadgeCarousel({ pillar, badges }) {
     }
   };
 
-  // Pillar color mapping
-  const pillarColors = {
-    'STEM & Logic': 'text-blue-600',
-    'Life & Wellness': 'text-red-600',
-    'Language & Communication': 'text-green-600',
-    'Society & Culture': 'text-orange-600',
-    'Arts & Creativity': 'text-purple-600'
+  // Pillar display names (updated to new single-word format - January 2025)
+  const pillarDisplayNames = {
+    'stem': 'STEM',
+    'wellness': 'Wellness',
+    'communication': 'Communication',
+    'civics': 'Civics',
+    'art': 'Art'
   };
 
+  // Pillar color mapping (updated to new single-word keys)
+  const pillarColors = {
+    'stem': 'text-blue-600',
+    'wellness': 'text-red-600',
+    'communication': 'text-green-600',
+    'civics': 'text-orange-600',
+    'art': 'text-purple-600'
+  };
+
+  const pillarDisplayName = pillarDisplayNames[pillar] || pillar;
   const pillarColor = pillarColors[pillar] || 'text-gray-800';
 
   if (!badges || badges.length === 0) {
@@ -49,7 +59,7 @@ export default function BadgeCarousel({ pillar, badges }) {
       {/* Pillar header */}
       <div className="flex items-center justify-between mb-4">
         <h2 className={`text-2xl font-bold ${pillarColor}`}>
-          {pillar}
+          {pillarDisplayName}
         </h2>
 
         {/* Navigation arrows - only show if there are enough badges to scroll */}

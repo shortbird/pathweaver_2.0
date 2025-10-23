@@ -57,13 +57,13 @@ def get_badges_for_hub():
                 or search_lower in b.get('description', '').lower()
             ]
 
-        # Group badges by pillar for carousel display
+        # Group badges by pillar for carousel display (using new single-word pillar names)
         pillar_groups = {
-            'STEM & Logic': [],
-            'Life & Wellness': [],
-            'Language & Communication': [],
-            'Society & Culture': [],
-            'Arts & Creativity': []
+            'stem': [],
+            'wellness': [],
+            'communication': [],
+            'civics': [],
+            'art': []
         }
 
         # Optimization: Fetch all quest counts in bulk to avoid N+1 queries
@@ -87,8 +87,19 @@ def get_badges_for_hub():
                 if bq['is_required']:
                     quest_counts[badge_id]['required'] += 1
 
+        # Import pillar mapping utilities to handle any legacy pillar formats
+        from utils.pillar_mapping import normalize_pillar_name, PILLAR_KEYS
+
         for badge in badges:
-            pillar = badge.get('pillar_primary', 'STEM & Logic')
+            pillar_raw = badge.get('pillar_primary', 'stem')
+
+            # Normalize pillar to new format (handles legacy formats)
+            try:
+                pillar = normalize_pillar_name(pillar_raw)
+            except ValueError:
+                # If pillar normalization fails, default to stem
+                pillar = 'stem'
+
             if pillar in pillar_groups:
                 # Add quest count info from bulk query
                 counts = quest_counts.get(badge['id'], {'total': 0, 'required': 0})
