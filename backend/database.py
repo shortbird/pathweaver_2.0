@@ -73,11 +73,12 @@ def get_user_client(token: Optional[str] = None) -> Client:
         try:
             # Create client with user's token for proper RLS enforcement
             client = create_client(Config.SUPABASE_URL, Config.SUPABASE_ANON_KEY)
-            # Set the auth header with the user's token
-            client.auth.set_session(access_token=token, refresh_token="")
+            # Set the Authorization header directly on the PostgREST client
+            # This is required for RLS to work properly with auth.uid()
+            client.postgrest.auth(token)
             return client
         except Exception as e:
-            print(f"ERROR: Failed to set auth session with token: {e}")
+            print(f"ERROR: Failed to set auth header with token: {e}")
             # Return anonymous client if token setup fails
             return get_supabase_client()
     else:
