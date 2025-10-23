@@ -1,30 +1,36 @@
-"""Authentication decorators"""
+"""
+Authentication Decorators
+
+Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
+All decorators now use httpOnly cookies exclusively for enhanced security.
+Authorization header fallback removed to prevent XSS token theft via localStorage.
+"""
 
 import sys
 from functools import wraps
 from flask import request, jsonify
 from database import get_authenticated_supabase_client
 from middleware.error_handler import AuthenticationError, AuthorizationError, ValidationError
-from .token_utils import verify_token
 from utils.session_manager import session_manager
 from utils.validation import validate_uuid
 
 def require_auth(f):
-    """Decorator to require authentication for routes - prioritizes secure cookies"""
+    """
+    Decorator to require authentication for routes.
+
+    Uses httpOnly cookies exclusively for enhanced security.
+    Tokens stored in localStorage are vulnerable to XSS attacks.
+
+    Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
+    """
     @wraps(f)
     def decorated_function(*args, **kwargs):
         # Skip authentication for OPTIONS requests (CORS preflight)
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # First try to get user ID from secure httpOnly cookies
+        # Get user ID from secure httpOnly cookies only
         user_id = session_manager.get_current_user_id()
-
-        # Fallback to Authorization header for backward compatibility
-        if not user_id:
-            token = request.headers.get('Authorization', '').replace('Bearer ', '')
-            if token:
-                user_id = verify_token(token)
 
         if not user_id:
             raise AuthenticationError('Authentication required')
@@ -37,21 +43,22 @@ def require_auth(f):
     return decorated_function
 
 def require_admin(f):
-    """Decorator to require admin access for routes - prioritizes secure cookies"""
+    """
+    Decorator to require admin access for routes.
+
+    Uses httpOnly cookies exclusively for enhanced security.
+    Verifies user has 'admin' or 'educator' role.
+
+    Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
+    """
     @wraps(f)
     def decorated_function(*args, **kwargs):
         # Skip authentication for OPTIONS requests (CORS preflight)
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # First try to get user ID from secure httpOnly cookies
+        # Get user ID from secure httpOnly cookies only
         user_id = session_manager.get_current_user_id()
-
-        # Fallback to Authorization header for backward compatibility
-        if not user_id:
-            token = request.headers.get('Authorization', '').replace('Bearer ', '')
-            if token:
-                user_id = verify_token(token)
 
         if not user_id:
             raise AuthenticationError('Authentication required')
@@ -79,7 +86,17 @@ def require_admin(f):
     return decorated_function
 
 def require_role(*allowed_roles):
-    """Decorator to require specific roles for routes - prioritizes secure cookies"""
+    """
+    Decorator to require specific roles for routes.
+
+    Uses httpOnly cookies exclusively for enhanced security.
+    Verifies user has one of the specified roles.
+
+    Args:
+        *allowed_roles: One or more role names (e.g., 'student', 'parent', 'admin')
+
+    Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
+    """
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
@@ -87,14 +104,8 @@ def require_role(*allowed_roles):
             if request.method == 'OPTIONS':
                 return ('', 200)
 
-            # First try to get user ID from secure httpOnly cookies
+            # Get user ID from secure httpOnly cookies only
             user_id = session_manager.get_current_user_id()
-
-            # Fallback to Authorization header for backward compatibility
-            if not user_id:
-                token = request.headers.get('Authorization', '').replace('Bearer ', '')
-                if token:
-                    user_id = verify_token(token)
 
             if not user_id:
                 raise AuthenticationError('Authentication required')

@@ -16,7 +16,14 @@ export const getAuthHeaders = () => {
   return headers
 }
 
-// Add Authorization header with JWT token from localStorage
+/**
+ * Request Interceptor
+ *
+ * Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
+ * Only adds CSRF token for state-changing requests.
+ * Authentication handled exclusively via httpOnly cookies (automatic, XSS-protected).
+ * Removed localStorage token management to prevent XSS attacks.
+ */
 api.interceptors.request.use(
   (config) => {
     // Add CSRF token for state-changing requests
@@ -25,12 +32,6 @@ api.interceptors.request.use(
       if (csrfToken) {
         config.headers['X-CSRF-Token'] = csrfToken
       }
-    }
-
-    // Add JWT token to Authorization header (works in all browsers including incognito)
-    const accessToken = localStorage.getItem('access_token')
-    if (accessToken) {
-      config.headers.Authorization = `Bearer ${accessToken}`
     }
 
     return config
@@ -60,7 +61,14 @@ function getCsrfToken() {
   return null
 }
 
-// Token refresh mutex - prevents concurrent refresh attempts
+/**
+ * Response Interceptor - Token Refresh
+ *
+ * Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
+ * Simplified token refresh using httpOnly cookies only.
+ * Server handles token refresh automatically via cookies.
+ * Removed localStorage token management to prevent XSS attacks.
+ */
 let refreshPromise = null
 
 api.interceptors.response.use(
@@ -79,23 +87,13 @@ api.interceptors.response.use(
         if (!refreshPromise) {
           refreshPromise = (async () => {
             try {
-              // Try to refresh using localStorage refresh token
-              const refreshToken = localStorage.getItem('refresh_token')
-              const payload = refreshToken ? { refresh_token: refreshToken } : {}
+              // Server handles refresh via httpOnly cookies automatically
+              const response = await api.post('/api/auth/refresh', {})
 
-              const response = await api.post('/api/auth/refresh', payload)
-
-              // Update localStorage with new tokens
-              if (response.status === 200 && response.data.session) {
-                if (response.data.session.access_token) {
-                  localStorage.setItem('access_token', response.data.session.access_token)
-                }
-                if (response.data.session.refresh_token) {
-                  localStorage.setItem('refresh_token', response.data.session.refresh_token)
-                }
-                return response.data.session.access_token
+              if (response.status === 200) {
+                return true // Refresh successful
               }
-              throw new Error('Token refresh failed - no access token in response')
+              throw new Error('Token refresh failed')
             } finally {
               // Clear promise after refresh completes (success or failure)
               refreshPromise = null
@@ -104,22 +102,15 @@ api.interceptors.response.use(
         }
 
         // Wait for the single refresh to complete
-        const newAccessToken = await refreshPromise
+        await refreshPromise
 
-        // Update the original request with new token
-        if (newAccessToken) {
-          originalRequest.headers.Authorization = `Bearer ${newAccessToken}`
-        }
-
-        // Retry the original request
+        // Retry the original request (cookies automatically included)
         return api(originalRequest)
       } catch (refreshError) {
-        // Clear localStorage on refresh failure
-        localStorage.removeItem('access_token')
-        localStorage.removeItem('refresh_token')
+        // Clear any user data on refresh failure
         localStorage.removeItem('user')
 
-        // Only redirect to login if we're not already on auth pages, subscription success, or public pages
+        // Only redirect to login if we're not already on auth pages or public pages
         const authPaths = ['/login', '/register', '/email-verification', '/', '/subscription/success']
         const currentPath = window.location.pathname
         const isPublicDiploma = currentPath.startsWith('/diploma/') || currentPath.startsWith('/portfolio/')
