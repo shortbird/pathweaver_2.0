@@ -7,7 +7,7 @@ from flask import request, jsonify
 from functools import wraps
 from collections import defaultdict
 from typing import Dict, Tuple
-from backend.config.rate_limits import get_rate_limit
+from config.rate_limits import get_rate_limit
 
 class RateLimiter:
     """Simple in-memory rate limiter"""

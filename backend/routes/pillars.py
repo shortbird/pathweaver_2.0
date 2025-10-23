@@ -6,7 +6,7 @@ the need for duplicate pillar mapping files across the codebase.
 """
 
 from flask import Blueprint, jsonify
-from backend.config.pillars import (
+from config.pillars import (
     PILLARS,
     get_all_pillar_keys,
     is_valid_pillar,

@@ -4,8 +4,8 @@ import os
 from dotenv import load_dotenv
 from typing import Optional
 
-# Import centralized constants
-from backend.config.constants import (
+# Import centralized constants (relative imports for production compatibility)
+from config.constants import (
     MAX_FILE_SIZE,
     MAX_CONTENT_LENGTH,
     MIN_PASSWORD_LENGTH,
