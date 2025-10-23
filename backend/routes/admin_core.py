@@ -617,40 +617,36 @@ def list_admin_quests(user_id):
         offset = (page - 1) * per_page
         
         # Build query
+        # NOTE: quest_tasks table was renamed to user_quest_tasks (personalized per student)
+        # For admin quest list, we just show basic quest info without per-user tasks
         query = supabase.table('quests')\
-            .select('*, quest_tasks(*)', count='exact')\
+            .select('*', count='exact')\
             .order('created_at', desc=True)
-        
+
         # Apply filters
         if search:
             query = query.ilike('title', f'%{search}%')
-        
+
         if is_active is not None:
             is_active_bool = is_active.lower() == 'true'
             query = query.eq('is_active', is_active_bool)
-        
+
         if source:
             query = query.eq('source', source)
-        
+
         # Apply pagination
         query = query.range(offset, offset + per_page - 1)
-        
+
         result = query.execute()
-        
+
         # Process quest data to include task counts and total XP
+        # NOTE: Since tasks are now per-user (user_quest_tasks), we don't fetch them here
         quests = []
         for quest in result.data:
-            # Calculate total XP and task breakdown
-            total_xp = 0
-            task_count = len(quest.get('quest_tasks', []))
-            
-            for task in quest.get('quest_tasks', []):
-                total_xp += task.get('xp_amount', 0)
-            
-            # Add calculated fields
-            quest['total_xp'] = total_xp
-            quest['task_count'] = task_count
-            
+            # Add placeholder fields for backward compatibility
+            quest['total_xp'] = 0  # Per-user tasks, can't calculate without user context
+            quest['task_count'] = 0  # Per-user tasks, can't calculate without user context
+
             quests.append(quest)
         
         return jsonify({

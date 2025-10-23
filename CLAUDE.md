@@ -192,7 +192,14 @@ frontend/src/
 
 ## Database Schema (Current State)
 
-**⚠️ UPDATED January 2025 - Phase 1 Refactoring Complete**
+**⚠️ CRITICAL - UPDATED January 2025 - Phase 1 Refactoring Complete**
+
+**🚨 IMPORTANT TABLE NAME CHANGES:**
+- ~~`quest_tasks`~~ table DOES NOT EXIST - it was renamed to `user_quest_tasks`
+- Tasks are now **PERSONALIZED PER STUDENT** stored in `user_quest_tasks` table
+- **ALWAYS use `user_quest_tasks`, NEVER `quest_tasks`** when querying task data
+- **DO NOT** use Supabase relationship syntax like `.select('*, quest_tasks(*)')` - the relationship doesn't exist
+- This is a **COMMON ERROR** - always verify table names with Supabase MCP before writing queries
 
 ### Core Tables
 
@@ -220,14 +227,21 @@ frontend/src/
 - is_active
 - created_at, updated_at
 - Note: pillar and xp_value are legacy fields (now task-level)
+- **NOTE**: Quests no longer have a direct relationship to tasks - tasks are per-user in `user_quest_tasks`
 
-**quest_tasks** (stores task details)
+**user_quest_tasks** (🚨 RENAMED FROM quest_tasks - PERSONALIZED PER STUDENT)
 - id (UUID, PK)
-- quest_id (FK to quests)
+- user_id (UUID, FK to users) ← **CRITICAL: Tasks are now per-user**
+- quest_id (UUID, FK to quests)
+- user_quest_id (UUID, FK to user_quests)
 - title, description
 - pillar (stem, wellness, communication, civics, art) ← **UPDATED January 2025: Simplified to single-word names**
 - xp_value (XP for completing this task)
 - order_index, is_required
+- is_manual (boolean - whether task was manually added by student/advisor)
+- approval_status (text - for advisor approval workflow)
+- diploma_subjects (JSONB - school subject mappings)
+- subject_xp_distribution (JSONB - XP distribution across subjects)
 - created_at, updated_at
 
 **quest_task_completions** (tracks completion)
