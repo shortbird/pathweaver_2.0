@@ -166,7 +166,7 @@ const BadgeEditorModal = ({ badge, isOpen, onClose, onSave, isProcessing }) => {
             <button
               type="submit"
               disabled={isProcessing}
-              className="flex-1 px-4 py-2 bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity font-medium"
+              className="flex-1 px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition-opacity font-medium"
             >
               {isProcessing ? 'Saving...' : 'Save Changes'}
             </button>

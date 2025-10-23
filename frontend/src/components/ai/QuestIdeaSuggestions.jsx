@@ -138,7 +138,7 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
         <button
           onClick={getSuggestions}
           disabled={loading}
-          className="w-full bg-gradient-primary-reverse text-white py-3 px-4 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center space-x-2"
+          className="w-full bg-gradient-primary text-white py-3 px-4 rounded-lg font-medium hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center justify-center space-x-2"
         >
           {loading ? (
             <>

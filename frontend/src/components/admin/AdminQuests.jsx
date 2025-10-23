@@ -107,7 +107,7 @@ const AdminQuests = () => {
         <h2 className="text-2xl font-bold">Manage Quests</h2>
         <button
           onClick={() => setShowCreationForm(true)}
-          className="bg-gradient-primary-reverse text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
+          className="bg-gradient-primary text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
         >
           Create New Quest
         </button>
@@ -137,7 +137,7 @@ const AdminQuests = () => {
 
       {loading ? (
         <div className="flex justify-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gradient-to-r bg-gradient-primary-reverse"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gradient-to-r bg-gradient-primary"></div>
         </div>
       ) : (
         <div>
@@ -166,7 +166,7 @@ const AdminQuests = () => {
                         className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                       />
                     ) : (
-                      <div className="w-full h-full bg-gradient-to-br bg-gradient-primary-reverse" />
+                      <div className="w-full h-full bg-gradient-to-br bg-gradient-primary" />
                     )}
 
                     {/* Gradient Overlay for Text Readability */}

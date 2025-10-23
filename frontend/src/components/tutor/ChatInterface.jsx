@@ -268,7 +268,7 @@ const ChatInterface = ({
     <div className={`flex flex-col h-full bg-white ${hideHeader ? '' : 'rounded-lg shadow-lg'} ${className}`}>
       {/* Header - Only show if not hidden */}
       {!hideHeader && (
-        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-primary-reverse rounded-t-lg">
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-primary rounded-t-lg">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center">
               <Bot className="w-6 h-6 text-optio-purple" />
@@ -470,7 +470,7 @@ const ChatInterface = ({
           <button
             onClick={sendMessage}
             disabled={!inputMessage.trim() || isLoading || (usageStats && usageStats.messages_remaining <= 0)}
-            className="bg-gradient-primary-reverse text-white p-2 rounded-full hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
+            className="bg-gradient-primary text-white p-2 rounded-full hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Send className="w-5 h-5" />
           </button>

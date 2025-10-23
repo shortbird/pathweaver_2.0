@@ -10,7 +10,7 @@ const TranscriptPage = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-4 bg-gradient-primary-reverse text-transparent bg-clip-text">
+          <h1 className="text-4xl font-bold mb-4 bg-gradient-primary text-transparent bg-clip-text">
             Academic Transcript
           </h1>
           <p className="text-lg text-gray-600 max-w-3xl mx-auto mb-6">
@@ -22,7 +22,7 @@ const TranscriptPage = () => {
           <div className="flex justify-center gap-4">
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-2 px-6 py-2 bg-gradient-primary-reverse text-white rounded-lg hover:shadow-lg transition-shadow"
+              className="inline-flex items-center gap-2 px-6 py-2 bg-gradient-primary text-white rounded-lg hover:shadow-lg transition-shadow"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />

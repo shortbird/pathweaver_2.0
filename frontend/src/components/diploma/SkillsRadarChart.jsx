@@ -121,7 +121,7 @@ const SkillsRadarChart = ({ skillsXP }) => {
         </div>
         <div className="text-right">
           <p className="text-sm text-gray-600">Total Growth Points</p>
-          <p className="text-2xl font-bold bg-gradient-primary-reverse bg-clip-text text-transparent">
+          <p className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             {totalXP.toLocaleString()}
           </p>
         </div>

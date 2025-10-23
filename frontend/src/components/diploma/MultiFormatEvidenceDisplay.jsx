@@ -110,13 +110,13 @@ const MultiFormatEvidenceDisplay = ({ blocks = [] }) => {
       <div className="mb-6 p-6 bg-gradient-to-br from-[#ef597b]/8 to-[#6d469b]/8 border-2 border-optio-purple/20 rounded-xl shadow-sm">
         <div className="flex items-start justify-between gap-4 mb-4">
           <div className="flex items-start gap-4 flex-1">
-            <div className="w-14 h-14 bg-gradient-to-br bg-gradient-primary-reverse rounded-xl flex items-center justify-center shadow-lg">
+            <div className="w-14 h-14 bg-gradient-to-br bg-gradient-primary rounded-xl flex items-center justify-center shadow-lg">
               <svg className="w-7 h-7 text-white" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
               </svg>
             </div>
             <div className="flex-1">
-              <h4 className="text-lg font-bold bg-gradient-primary-reverse bg-clip-text text-transparent mb-1">
+              <h4 className="text-lg font-bold bg-gradient-primary bg-clip-text text-transparent mb-1">
                 Learning Evidence Portfolio
               </h4>
               <p className="text-sm text-gray-700">
@@ -125,7 +125,7 @@ const MultiFormatEvidenceDisplay = ({ blocks = [] }) => {
             </div>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold bg-gradient-primary-reverse bg-clip-text text-transparent">
+            <div className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
               {sortedBlocks.length}
             </div>
             <div className="text-xs font-medium text-gray-600">

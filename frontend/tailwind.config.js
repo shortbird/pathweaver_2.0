@@ -81,7 +81,6 @@ export default {
       backgroundImage: {
         // Brand gradients
         'gradient-primary': 'linear-gradient(135deg, #6D469B 0%, #EF597B 100%)',
-        'gradient-primary-reverse': 'linear-gradient(135deg, #EF597B 0%, #6D469B 100%)',
 
         // Pillar gradients
         'gradient-pillar-stem': 'linear-gradient(135deg, #2469D1 0%, #1B4FA3 100%)',

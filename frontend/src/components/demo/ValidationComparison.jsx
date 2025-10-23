@@ -159,7 +159,7 @@ const ValidationComparison = () => {
                     </div>
                     <h3 className="font-bold text-xl text-text-primary">{comp.optio.title}</h3>
                   </div>
-                  <div className="text-2xl font-bold bg-gradient-primary-reverse bg-clip-text text-transparent">
+                  <div className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
                     {comp.optio.xp}
                   </div>
                 </div>
@@ -243,7 +243,7 @@ const ValidationComparison = () => {
         <div className="flex items-center justify-center gap-4">
           <span className="text-3xl font-bold text-gray-400">B+</span>
           <span className="text-gray-500">or</span>
-          <span className="text-2xl font-bold bg-gradient-primary-reverse bg-clip-text text-transparent">
+          <span className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             A Published Cookbook
           </span>
         </div>

@@ -114,7 +114,7 @@ const DiplomaDemoDisplay = () => {
   return (
     <div className="space-y-6">
       {/* Diploma Header */}
-      <div className="bg-gradient-primary-reverse rounded-xl p-4 sm:p-6 lg:p-8 text-white">
+      <div className="bg-gradient-primary rounded-xl p-4 sm:p-6 lg:p-8 text-white">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold mb-2 leading-tight">{demoUser.name}</h1>
@@ -168,7 +168,7 @@ const DiplomaDemoDisplay = () => {
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden min-w-0">
                     <div
-                      className="h-full bg-gradient-primary-reverse"
+                      className="h-full bg-gradient-primary"
                       style={{ width: `${Math.min((xp / 200) * 100, 100)}%` }}
                     />
                   </div>

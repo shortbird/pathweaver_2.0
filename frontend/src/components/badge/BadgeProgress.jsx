@@ -56,7 +56,7 @@ const BadgeProgress = ({ userBadges, allBadges }) => {
             initial={{ width: 0 }}
             animate={{ width: `${totalBadges > 0 ? (earnedCount / totalBadges) * 100 : 0}%` }}
             transition={{ duration: 1, ease: 'easeOut' }}
-            className="bg-gradient-primary-reverse h-4 rounded-full"
+            className="bg-gradient-primary h-4 rounded-full"
           ></motion.div>
         </div>
       </div>

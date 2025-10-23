@@ -23,7 +23,7 @@ const AchievementCard = ({ achievement, onClick }) => {
       cultural_literacy: 'from-[#ef597b] to-[#ec4899]'
     };
     
-    return pillars[0] ? pillarGradients[pillars[0]] : 'bg-gradient-primary-reverse';
+    return pillars[0] ? pillarGradients[pillars[0]] : 'bg-gradient-primary';
   };
 
   const getPillarName = (pillar) => {
@@ -101,7 +101,7 @@ const AchievementCard = ({ achievement, onClick }) => {
         {/* Growth Indicators */}
         <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-gradient-primary-reverse"></div>
+            <div className="w-2 h-2 rounded-full bg-gradient-primary"></div>
             <span className="text-sm font-medium text-gray-700">
               {Object.keys(achievement.task_evidence || {}).length} Skills Developed
             </span>

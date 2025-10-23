@@ -82,7 +82,7 @@ const AIQuestGenerationModal = ({ isOpen, onClose, onQuestGenerated }) => {
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-xl">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-primary-reverse rounded-lg">
+            <div className="p-2 bg-gradient-primary rounded-lg">
               <Sparkles className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -140,7 +140,7 @@ const AIQuestGenerationModal = ({ isOpen, onClose, onQuestGenerated }) => {
               <button
                 onClick={handleGenerate}
                 disabled={loading || !formData.topic.trim()}
-                className="w-full bg-gradient-primary-reverse text-white py-3 px-6 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex items-center justify-center space-x-2"
+                className="w-full bg-gradient-primary text-white py-3 px-6 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex items-center justify-center space-x-2"
               >
                 <Sparkles className="h-5 w-5" />
                 <span>Generate Quest with AI</span>
@@ -256,7 +256,7 @@ const AIQuestGenerationModal = ({ isOpen, onClose, onQuestGenerated }) => {
               <div className="flex items-center space-x-3">
                 <button
                   onClick={handleUseQuest}
-                  className="flex-1 bg-gradient-primary-reverse text-white py-3 px-6 rounded-lg font-semibold hover:opacity-90 transition-opacity"
+                  className="flex-1 bg-gradient-primary text-white py-3 px-6 rounded-lg font-semibold hover:opacity-90 transition-opacity"
                 >
                   Use This Quest
                 </button>

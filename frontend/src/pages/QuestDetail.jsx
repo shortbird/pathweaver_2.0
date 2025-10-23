@@ -261,7 +261,7 @@ const QuestDetail = () => {
           <div className="text-red-500 text-xl mb-4">{error || 'Quest not found'}</div>
           <button 
             onClick={() => navigate('/quests')}
-            className="bg-gradient-primary-reverse text-white px-6 py-3 rounded-[30px] hover:shadow-lg transition-all"
+            className="bg-gradient-primary text-white px-6 py-3 rounded-[30px] hover:shadow-lg transition-all"
           >
             Back to Quests
           </button>
@@ -358,7 +358,7 @@ const QuestDetail = () => {
               {/* Progress Bar */}
               <div className="w-full bg-gray-200 rounded-full h-6 mb-4 overflow-hidden relative">
                 <div
-                  className="h-full bg-gradient-primary-reverse rounded-full transition-all duration-1000 ease-out"
+                  className="h-full bg-gradient-primary rounded-full transition-all duration-1000 ease-out"
                   style={{ width: `${progressPercentage}%` }}
                 />
                 <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-gray-700" style={{ fontFamily: 'Poppins' }}>
@@ -390,7 +390,7 @@ const QuestDetail = () => {
                   <button
                     onClick={handleEndQuest}
                     disabled={endQuestMutation.isPending}
-                    className="px-6 py-2 bg-gradient-primary-reverse text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50 ml-auto"
+                    className="px-6 py-2 bg-gradient-primary text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50 ml-auto"
                     style={{ fontFamily: 'Poppins' }}
                   >
                     {endQuestMutation.isPending ? 'Finishing...' : 'FINISH QUEST'}
@@ -434,7 +434,7 @@ const QuestDetail = () => {
                   <button
                     onClick={handleEnroll}
                     disabled={isEnrolling}
-                    className="flex-1 bg-gradient-primary-reverse text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Target className="w-5 h-5 inline mr-2" />
                     {isEnrolling ? 'Enrolling...' : 'Start Quest'}
@@ -589,7 +589,7 @@ const QuestDetail = () => {
               <p className="text-lg text-gray-600 mb-4">This quest needs to be personalized</p>
               <button
                 onClick={() => setShowPersonalizationWizard(true)}
-                className="px-6 py-3 bg-gradient-primary-reverse text-white rounded-lg font-semibold hover:opacity-90"
+                className="px-6 py-3 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90"
               >
                 Personalize Quest
               </button>

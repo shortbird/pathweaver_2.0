@@ -316,7 +316,7 @@ export default function BadgeQuestLinker() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold bg-gradient-primary-reverse bg-clip-text text-transparent mb-4">
+        <h2 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-4">
           AI-Powered Badge-Quest Linking
         </h2>
         <p className="text-gray-600 mb-6">
@@ -331,7 +331,7 @@ export default function BadgeQuestLinker() {
             onClick={() => setMode('manual')}
             className={`px-6 py-2 rounded-lg font-medium transition-colors ${
               mode === 'manual'
-                ? 'bg-gradient-primary-reverse text-white'
+                ? 'bg-gradient-primary text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
@@ -341,7 +341,7 @@ export default function BadgeQuestLinker() {
             onClick={() => setMode('ai')}
             className={`px-6 py-2 rounded-lg font-medium transition-colors ${
               mode === 'ai'
-                ? 'bg-gradient-primary-reverse text-white'
+                ? 'bg-gradient-primary text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
@@ -431,7 +431,7 @@ export default function BadgeQuestLinker() {
                 <button
                   onClick={runAIAnalysis}
                   disabled={!selectedBadge || aiAnalyzing}
-                  className="flex-1 px-6 py-3 bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 font-medium"
+                  className="flex-1 px-6 py-3 bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 font-medium"
                 >
                   {aiAnalyzing ? 'Analyzing...' : 'Analyze Selected Badge'}
                 </button>
@@ -475,7 +475,7 @@ export default function BadgeQuestLinker() {
                   <button
                     onClick={applySelectedSuggestions}
                     disabled={selectedSuggestions.size === 0 || loading}
-                    className="px-4 py-2 bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 text-sm font-medium"
+                    className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 text-sm font-medium"
                   >
                     Link Selected ({selectedSuggestions.size})
                   </button>
@@ -702,7 +702,7 @@ export default function BadgeQuestLinker() {
                       <button
                         onClick={() => linkQuest(quest.id, false)}
                         disabled={loading}
-                        className="ml-3 px-3 py-1 bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium disabled:opacity-50"
+                        className="ml-3 px-3 py-1 bg-gradient-primary text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium disabled:opacity-50"
                       >
                         Add
                       </button>

@@ -125,7 +125,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-xl">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-primary-reverse rounded-lg">
+            <div className="p-2 bg-gradient-primary rounded-lg">
               <Lightbulb className="h-5 w-5 text-white" />
             </div>
             <div>
@@ -258,7 +258,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
               <button
                 onClick={handlePreviewWithAI}
                 disabled={loading || !formData.title.trim() || !formData.description.trim()}
-                className="w-full bg-gradient-primary-reverse text-white py-3 px-6 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex items-center justify-center space-x-2"
+                className="w-full bg-gradient-primary text-white py-3 px-6 rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed hover:opacity-90 transition-opacity flex items-center justify-center space-x-2"
               >
                 {loading ? (
                   <>
@@ -353,7 +353,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
                 <button
                   onClick={() => handleSubmit(true)}
                   disabled={loading}
-                  className="flex-1 bg-gradient-primary-reverse text-white py-3 px-6 rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
+                  className="flex-1 bg-gradient-primary text-white py-3 px-6 rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
                 >
                   Submit Enhanced Quest Idea
                 </button>
@@ -418,7 +418,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
 
               <button
                 onClick={handleClose}
-                className="bg-gradient-primary-reverse text-white py-3 px-8 rounded-lg font-semibold hover:opacity-90 transition-opacity"
+                className="bg-gradient-primary text-white py-3 px-8 rounded-lg font-semibold hover:opacity-90 transition-opacity"
               >
                 Done
               </button>

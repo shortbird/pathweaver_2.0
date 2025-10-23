@@ -77,7 +77,7 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
-          <h2 className="text-2xl font-bold bg-gradient-primary-reverse bg-clip-text text-transparent">
+          <h2 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             {mode === 'edit' ? 'Edit Quest' : 'Create New Quest'}
           </h2>
           <button
@@ -174,7 +174,7 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
             </button>
             <button
               type="submit"
-              className="px-6 py-2 bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+              className="px-6 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50"
               disabled={loading}
             >
               {loading ? (mode === 'edit' ? 'Updating...' : 'Creating...') : (mode === 'edit' ? 'Update Quest' : 'Create Quest')}

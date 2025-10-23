@@ -192,7 +192,7 @@ const AdminQuestSuggestions = () => {
               }}
               className={`px-3 py-2 rounded-lg font-medium capitalize ${
                 statusFilter === status
-                  ? 'bg-gradient-primary-reverse text-white'
+                  ? 'bg-gradient-primary text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
@@ -252,7 +252,7 @@ const AdminQuestSuggestions = () => {
                     <div className="flex gap-2 ml-4">
                       <button
                         onClick={() => handleCreateQuestFromIdea(idea)}
-                        className="px-4 py-2 bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 font-medium"
+                        className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 font-medium"
                       >
                         Create This Quest
                       </button>
@@ -413,7 +413,7 @@ const AdminQuestSuggestions = () => {
                 <button
                   onClick={() => handleGenerateQuestAI(questCreationModal.id)}
                   disabled={processing}
-                  className="w-full px-4 py-3 bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 font-medium flex flex-col items-center gap-1"
+                  className="w-full px-4 py-3 bg-gradient-primary text-white rounded-lg hover:opacity-90 font-medium flex flex-col items-center gap-1"
                 >
                   <div className="flex items-center gap-2">
                     {processing && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />}
