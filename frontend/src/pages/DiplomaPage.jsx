@@ -161,24 +161,24 @@ const DiplomaPage = () => {
     }
   }, [user, slug, userId, loginTimestamp, hasAccess]);
 
-  // Memoize event handlers to prevent memory leaks
-  const handleVisibilityChange = useCallback(() => {
+  // Event handlers for refreshing data - defined as regular functions to avoid circular dependencies
+  const handleVisibilityChange = () => {
     if (document.visibilityState === 'visible' && user && !slug && !userId && hasAccess) {
       fetchAchievements();
       fetchSubjectXP();
       fetchEarnedBadges();
       fetchLearningEvents();
     }
-  }, [user, slug, userId, hasAccess, fetchAchievements, fetchSubjectXP, fetchEarnedBadges, fetchLearningEvents]);
+  };
 
-  const handleFocus = useCallback(() => {
+  const handleFocus = () => {
     if (user && !slug && !userId && hasAccess) {
       fetchAchievements();
       fetchSubjectXP();
       fetchEarnedBadges();
       fetchLearningEvents();
     }
-  }, [user, slug, userId, hasAccess, fetchAchievements, fetchSubjectXP, fetchEarnedBadges, fetchLearningEvents]);
+  };
 
   // Refresh data when page becomes visible
   useEffect(() => {
@@ -189,7 +189,8 @@ const DiplomaPage = () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [handleVisibilityChange, handleFocus]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, slug, userId, hasAccess]);
 
   const fetchPublicDiploma = async () => {
     try {
