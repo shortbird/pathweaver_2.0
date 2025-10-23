@@ -1618,30 +1618,40 @@ Changes made:
    - fetchEarnedBadges(targetUserId) - depends on user?.id
    - fetchLearningEvents(targetUserId) - depends on user?.id, slug, userId
 
-3. Memoized event handlers:
-   - handleVisibilityChange - depends on [user, slug, userId, hasAccess, fetch functions]
-   - handleFocus - depends on [user, slug, userId, hasAccess, fetch functions]
+3. Event handlers (UPDATED - circular dependency fix):
+   - handleVisibilityChange - defined as regular function (not useCallback)
+   - handleFocus - defined as regular function (not useCallback)
+   - useEffect depends on [user, slug, userId, hasAccess] instead of handlers
 
 4. Memoized expensive computations (lines 42-44):
    - creditProgress = useMemo(() => getAllCreditProgress(subjectXP), [subjectXP])
    - totalCreditsEarned = useMemo(() => calculateTotalCredits(subjectXP), [subjectXP])
    - meetsRequirements = useMemo(() => meetsGraduationRequirements(subjectXP), [subjectXP])
 
-5. Optimized event listener useEffect (lines 179-187):
-   - Now only depends on [handleVisibilityChange, handleFocus]
+5. Optimized event listener useEffect (lines 184-193):
+   - Depends on [user, slug, userId, hasAccess] (state, not handlers)
    - Proper cleanup in return function
+   - ESLint disable comment added for exhaustive-deps (safe in this case)
 
 Benefits:
 - Event listeners properly cleaned up on unmount
-- Prevents function recreation on every render
-- Reduces unnecessary re-renders from changing handler references
+- Fetch functions memoized to prevent recreation on every render
 - Credit calculations only run when subjectXP changes
 - Improved performance and memory management
+- No circular dependencies (handlers don't need to be memoized)
+
+Bug Fix Applied (2025-01-22):
+- Initial implementation caused "Cannot access before initialization" error
+- Event handlers were using useCallback with fetch functions in dependencies
+- Fetch functions were defined AFTER handlers, causing circular dependency
+- Solution: Removed useCallback from handlers, made them regular functions
+- useEffect now recreates handlers on state changes (acceptable trade-off)
+- Diploma page now loads successfully ✅
 ```
 
 **Blockers/Issues**:
 ```
-None - Implementation complete, ready for testing in dev environment
+RESOLVED - Circular dependency fixed, tested and working in dev environment
 ```
 
 ---
