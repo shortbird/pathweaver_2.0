@@ -2076,20 +2076,23 @@ Technical debt resolved:
   - ✅ Migration guide for existing routes
   - ✅ Best practices and troubleshooting
 
-- [ ] **4.1.6** Update routes to use repositories
-  - ⏳ PENDING - Will migrate routes incrementally in Sprint 2.2
-  - Example routes to migrate: users/profile.py, quests.py, badges.py
+- [x] **4.1.6** Update routes to use repositories
+  - ✅ Migrated users/profile.py to use UserRepository (GET/PUT profile endpoints)
+  - ✅ Migrated quests.py to use QuestRepository (enrollment endpoint)
+  - ✅ Migrated badges.py to use BadgeRepository (user badges, create badge endpoints)
+  - ✅ Committed to develop branch (commit: 1f8488f)
 
 - [ ] **4.1.7** Test repository layer
   - ⏳ PENDING - Write unit tests for repositories
   - ⏳ PENDING - Test RLS enforcement
   - ⏳ PENDING - Test error handling
+  - ⏳ PENDING - Deploy to develop environment for live testing
 
 **Implementation Notes**:
 ```
-Date completed: 2025-01-22 (Task 4.1.1-4.1.5 ✅)
+Date completed: 2025-01-22 (Task 4.1.1-4.1.6 ✅)
 Repositories created: 4 (BaseRepository, UserRepository, QuestRepository, BadgeRepository)
-Routes refactored: 0 (pending Sprint 2.2)
+Routes refactored: 3 (users/profile.py, quests.py, badges.py)
 
 Files created:
 - backend/repositories/__init__.py
@@ -2115,10 +2118,18 @@ Benefits achieved:
 - Built-in RLS enforcement
 - Reusable database operations
 
-Next steps (Sprint 2.2):
-- Begin migrating route handlers to use repositories
-- Start with high-priority routes: users/profile.py, quests.py, badges.py
-- Estimated effort: 4-6 hours for initial migration
+Route Migration Details (Task 4.1.6 - 2025-01-22):
+- users/profile.py: Migrated GET/PUT profile to use UserRepository.get_profile() and .update()
+- quests.py: Migrated enrollment to use QuestRepository.find_by_id() and .enroll_user()
+- badges.py: Migrated user badge queries to use BadgeRepository methods, admin create to use .create()
+- All migrations include proper error handling with NotFoundError and DatabaseError exceptions
+- Changes committed to develop branch (commit: 1f8488f)
+
+Next steps (Task 4.1.7):
+- Deploy to develop environment for live testing
+- Write unit tests for repository methods
+- Verify RLS enforcement works correctly
+- Test error handling in real scenarios
 ```
 
 ---
