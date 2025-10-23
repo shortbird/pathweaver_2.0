@@ -4,6 +4,21 @@ import os
 from dotenv import load_dotenv
 from typing import Optional
 
+# Import centralized constants
+from backend.config.constants import (
+    MAX_FILE_SIZE,
+    MAX_CONTENT_LENGTH,
+    MIN_PASSWORD_LENGTH,
+    PASSWORD_REQUIREMENTS,
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE_SIZE,
+    DEFAULT_QUEST_XP,
+    MAX_QUEST_XP,
+    SESSION_TIMEOUT,
+    ACCESS_TOKEN_EXPIRY,
+    REFRESH_TOKEN_EXPIRY,
+)
+
 # Load from current directory's .env file (backend/.env)
 load_dotenv(dotenv_path=os.path.join(os.path.dirname(__file__), '.env'))
 
@@ -38,8 +53,8 @@ class Config:
     API_VERSION = 'v1'
     API_PREFIX = '/api'
     
-    # Security Settings
-    MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max request size
+    # Security Settings - imported from centralized constants
+    MAX_CONTENT_LENGTH = MAX_CONTENT_LENGTH  # From backend.config.constants
     SESSION_COOKIE_SECURE = FLASK_ENV == 'production'
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = 'Lax'
@@ -171,30 +186,30 @@ class Config:
     CACHE_TYPE = os.getenv('CACHE_TYPE', 'simple')
     CACHE_DEFAULT_TIMEOUT = int(os.getenv('CACHE_DEFAULT_TIMEOUT', '300'))
     
-    # File Upload Settings
+    # File Upload Settings - imported from centralized constants
     UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads')
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'pdf', 'doc', 'docx', 'mp4', 'mov'}
-    MAX_FILE_SIZE = 10 * 1024 * 1024  # 10MB per file
+    MAX_FILE_SIZE = MAX_FILE_SIZE  # From backend.config.constants (10MB)
     
     # Quest Settings
     MIN_QUEST_TITLE_LENGTH = 3
     MAX_QUEST_TITLE_LENGTH = 200
     MIN_QUEST_DESCRIPTION_LENGTH = 10
     MAX_QUEST_DESCRIPTION_LENGTH = 5000
-    DEFAULT_QUEST_XP = 100
-    MAX_QUEST_XP = 1000
+    DEFAULT_QUEST_XP = DEFAULT_QUEST_XP  # From backend.config.constants
+    MAX_QUEST_XP = MAX_QUEST_XP  # From backend.config.constants
     
-    # User Settings - Strong password policy
-    MIN_PASSWORD_LENGTH = 12  # Enforces strong passwords (3.2×10²¹ combinations vs 2 trillion)
+    # User Settings - Strong password policy - imported from centralized constants
+    MIN_PASSWORD_LENGTH = MIN_PASSWORD_LENGTH  # From backend.config.constants (12 chars)
     MAX_PASSWORD_LENGTH = 128
-    PASSWORD_REQUIRE_UPPERCASE = True
-    PASSWORD_REQUIRE_LOWERCASE = True
-    PASSWORD_REQUIRE_NUMBER = True
-    PASSWORD_REQUIRE_SPECIAL = True  # Now required for enhanced security
-    
-    # Pagination
-    DEFAULT_PAGE_SIZE = 20
-    MAX_PAGE_SIZE = 100
+    PASSWORD_REQUIRE_UPPERCASE = PASSWORD_REQUIREMENTS['require_uppercase']
+    PASSWORD_REQUIRE_LOWERCASE = PASSWORD_REQUIREMENTS['require_lowercase']
+    PASSWORD_REQUIRE_NUMBER = PASSWORD_REQUIREMENTS['require_digit']
+    PASSWORD_REQUIRE_SPECIAL = PASSWORD_REQUIREMENTS['require_special']
+
+    # Pagination - imported from centralized constants
+    DEFAULT_PAGE_SIZE = DEFAULT_PAGE_SIZE  # From backend.config.constants
+    MAX_PAGE_SIZE = MAX_PAGE_SIZE  # From backend.config.constants
     
     # Logging
     LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO' if DEBUG else 'WARNING')

@@ -2,10 +2,12 @@
 Rate limiting middleware to prevent abuse
 """
 import time
+import os
 from flask import request, jsonify
 from functools import wraps
 from collections import defaultdict
 from typing import Dict, Tuple
+from backend.config.rate_limits import get_rate_limit
 
 class RateLimiter:
     """Simple in-memory rate limiter"""
@@ -67,24 +69,31 @@ def rate_limit(max_requests: int = 60, window_seconds: int = 60):
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            import os
-            
             # Use IP address as identifier
             identifier = request.remote_addr or 'unknown'
-            
-            # Special handling for auth endpoints (stricter limits)
+
+            # Get environment
+            environment = 'development' if os.getenv('FLASK_ENV') == 'development' else 'production'
+
+            # Determine rate limit based on endpoint type
             if 'auth' in request.endpoint and request.method == 'POST':
-                # More lenient in development mode
-                if os.getenv('FLASK_ENV') == 'development':
-                    max_req = 10  # Reduced from 50
-                    window = 300  # 5 minutes
+                # Authentication endpoints use centralized config
+                if 'login' in request.endpoint:
+                    limit_config = get_rate_limit('auth_login', environment)
+                elif 'register' in request.endpoint:
+                    limit_config = get_rate_limit('auth_register', environment)
+                elif 'refresh' in request.endpoint:
+                    limit_config = get_rate_limit('auth_refresh', environment)
                 else:
-                    max_req = 3  # Reduced from 5
-                    window = 900  # 15 minutes (increased from 1 minute)
+                    limit_config = get_rate_limit('api_default', environment)
+
+                max_req = limit_config['requests']
+                window = limit_config['window']
             else:
+                # Use decorator parameters or default
                 max_req = max_requests
                 window = window_seconds
-            
+
             is_allowed, retry_after = rate_limiter.is_allowed(identifier, max_req, window)
             
             if not is_allowed:
