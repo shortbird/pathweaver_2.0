@@ -120,18 +120,33 @@ def get_parent_dashboard(user_id, student_id):
         # Batch fetch all tasks and completions for active quests
         tasks_map = {}
         completions_map = {}
+        personalized_quests = set()  # Track which quests have personalized tasks
 
         if active_quest_ids:
-            # Get all tasks for active quests in one query
-            all_tasks_response = supabase.table('user_quest_tasks').select('id, quest_id').eq(
+            # Get all personalized tasks for active quests (user_quest_tasks)
+            personalized_tasks_response = supabase.table('user_quest_tasks').select('id, quest_id').eq(
                 'user_id', student_id
             ).in_('quest_id', active_quest_ids).execute()
 
-            for task in all_tasks_response.data:
+            for task in personalized_tasks_response.data:
                 qid = task['quest_id']
+                personalized_quests.add(qid)
                 if qid not in tasks_map:
                     tasks_map[qid] = []
                 tasks_map[qid].append(task['id'])
+
+            # For quests without personalized tasks, fall back to quest_tasks template
+            non_personalized_quest_ids = [qid for qid in active_quest_ids if qid not in personalized_quests]
+            if non_personalized_quest_ids:
+                template_tasks_response = supabase.table('quest_tasks').select('id, quest_id').in_(
+                    'quest_id', non_personalized_quest_ids
+                ).execute()
+
+                for task in template_tasks_response.data:
+                    qid = task['quest_id']
+                    if qid not in tasks_map:
+                        tasks_map[qid] = []
+                    tasks_map[qid].append(task['id'])
 
             # Get all completions for active quests in one query
             all_completions_response = supabase.table('quest_task_completions').select('task_id, quest_id').eq(
@@ -202,28 +217,60 @@ def get_parent_dashboard(user_id, student_id):
         weekly_wins.sort(key=lambda x: x['date'], reverse=True)
 
         # Get recent task completions (last 10)
+        # Get completions with both user_quest_task_id and task_id for fallback
         recent_completions_response = supabase.table('quest_task_completions').select('''
             completed_at,
             user_quest_task_id,
-            user_quest_tasks!inner(
-                title,
-                pillar,
-                xp_value,
-                quest_id,
-                quests!inner(title)
-            )
+            task_id,
+            quest_id
         ''').eq('user_id', student_id).order('completed_at', desc=True).limit(10).execute()
 
         recent_completions = []
-        for comp in recent_completions_response.data:
-            task = comp['user_quest_tasks']
-            recent_completions.append({
-                'task_title': task['title'],
-                'quest_title': task['quests']['title'],
-                'pillar': get_pillar_name(task.get('pillar', 0)),
-                'xp_earned': task.get('xp_value', 0),
-                'completed_at': comp['completed_at']
-            })
+        if recent_completions_response.data:
+            # Collect all task IDs (both personalized and template)
+            personalized_ids = [c['user_quest_task_id'] for c in recent_completions_response.data if c.get('user_quest_task_id')]
+            template_ids = [c['task_id'] for c in recent_completions_response.data if c.get('task_id')]
+            quest_ids_for_lookup = list(set(c['quest_id'] for c in recent_completions_response.data if c.get('quest_id')))
+
+            # Build task maps
+            task_details = {}
+
+            # Get personalized task details
+            if personalized_ids:
+                pers_response = supabase.table('user_quest_tasks').select('''
+                    id, title, pillar, xp_value, quest_id
+                ''').in_('id', personalized_ids).execute()
+                for task in pers_response.data:
+                    task_details[task['id']] = task
+
+            # Get template task details for fallback
+            if template_ids:
+                temp_response = supabase.table('quest_tasks').select('''
+                    id, title, pillar, xp_value, quest_id
+                ''').in_('id', template_ids).execute()
+                for task in temp_response.data:
+                    if task['id'] not in task_details:  # Don't override personalized
+                        task_details[task['id']] = task
+
+            # Get quest titles
+            quest_titles = {}
+            if quest_ids_for_lookup:
+                quests_response = supabase.table('quests').select('id, title').in_('id', quest_ids_for_lookup).execute()
+                quest_titles = {q['id']: q['title'] for q in quests_response.data}
+
+            # Build recent completions with task and quest details
+            for comp in recent_completions_response.data:
+                task_id = comp.get('user_quest_task_id') or comp.get('task_id')
+                if task_id and task_id in task_details:
+                    task = task_details[task_id]
+                    quest_title = quest_titles.get(comp.get('quest_id'), 'Unknown Quest')
+                    recent_completions.append({
+                        'task_title': task['title'],
+                        'quest_title': quest_title,
+                        'pillar': get_pillar_name(task.get('pillar', 0)),
+                        'xp_earned': task.get('xp_value', 0),
+                        'completed_at': comp['completed_at']
+                    })
 
         return jsonify({
             'student': {
@@ -293,10 +340,26 @@ def get_student_calendar(user_id, student_id):
         if not task_ids:
             return jsonify({'items': []}), 200
 
-        # Get task details
-        tasks_response = supabase.table('user_quest_tasks').select('''
+        # Get task details - try personalized tasks first, fall back to quest_tasks
+        personalized_tasks_response = supabase.table('user_quest_tasks').select('''
             id, quest_id, title, description, pillar, xp_value
         ''').eq('user_id', student_id).in_('id', task_ids).execute()
+
+        # Build map of found personalized task IDs
+        found_task_ids = {task['id'] for task in personalized_tasks_response.data}
+        missing_task_ids = [tid for tid in task_ids if tid not in found_task_ids]
+
+        # For missing tasks, try quest_tasks template
+        template_tasks = []
+        if missing_task_ids:
+            template_tasks_response = supabase.table('quest_tasks').select('''
+                id, quest_id, title, description, pillar, xp_value
+            ''').in_('id', missing_task_ids).execute()
+            template_tasks = template_tasks_response.data
+
+        # Combine personalized and template tasks
+        all_tasks = personalized_tasks_response.data + template_tasks
+        tasks_response = type('obj', (object,), {'data': all_tasks})()
 
         # Get quest info
         quest_ids = list(set(task['quest_id'] for task in tasks_response.data))
@@ -386,25 +449,42 @@ def get_student_progress(user_id, student_id):
         # Get task details if we have completions
         recent_completions = []
         if completions_response.data:
-            task_ids = [comp['user_quest_task_id'] for comp in completions_response.data if comp.get('user_quest_task_id')]
+            # Try user_quest_task_id first (personalized tasks)
+            personalized_task_ids = [comp['user_quest_task_id'] for comp in completions_response.data if comp.get('user_quest_task_id')]
+            # Also get task_id (direct FK to quest_tasks)
+            template_task_ids = [comp['task_id'] for comp in completions_response.data if comp.get('task_id')]
 
-            if task_ids:
-                tasks_response = supabase.table('user_quest_tasks').select('''
+            tasks_map = {}
+
+            # Get personalized tasks
+            if personalized_task_ids:
+                personalized_response = supabase.table('user_quest_tasks').select('''
                     id, title, pillar, xp_value
-                ''').in_('id', task_ids).execute()
+                ''').in_('id', personalized_task_ids).execute()
+                for task in personalized_response.data:
+                    tasks_map[task['id']] = task
 
-                tasks_map = {task['id']: task for task in tasks_response.data}
+            # Get template tasks for any missing
+            if template_task_ids:
+                template_response = supabase.table('quest_tasks').select('''
+                    id, title, pillar, xp_value
+                ''').in_('id', template_task_ids).execute()
+                for task in template_response.data:
+                    if task['id'] not in tasks_map:  # Don't override personalized tasks
+                        tasks_map[task['id']] = task
 
-                for comp in completions_response.data:
-                    task_id = comp.get('user_quest_task_id')
-                    if task_id and task_id in tasks_map:
-                        task = tasks_map[task_id]
-                        recent_completions.append({
-                            'task_title': task['title'],
-                            'pillar': get_pillar_name(task['pillar']),
-                            'xp_awarded': task.get('xp_value', 0),  # XP comes from task definition
-                            'completed_at': comp['completed_at']
-                        })
+            # Build recent completions list
+            for comp in completions_response.data:
+                # Try personalized task first, then template task
+                task_id = comp.get('user_quest_task_id') or comp.get('task_id')
+                if task_id and task_id in tasks_map:
+                    task = tasks_map[task_id]
+                    recent_completions.append({
+                        'task_title': task['title'],
+                        'pillar': get_pillar_name(task['pillar']),
+                        'xp_awarded': task.get('xp_value', 0),
+                        'completed_at': comp['completed_at']
+                    })
 
         # Sort by date
         recent_completions.sort(key=lambda x: x['completed_at'], reverse=True)
@@ -455,10 +535,22 @@ def get_learning_insights(user_id, student_id):
         # Get task details for pillar analysis
         task_pillars = {}
         if completions_response.data:
-            task_ids = [comp['user_quest_task_id'] for comp in completions_response.data if comp.get('user_quest_task_id')]
-            if task_ids:
-                tasks_response = supabase.table('user_quest_tasks').select('id, pillar').in_('id', task_ids).execute()
-                task_pillars = {task['id']: task['pillar'] for task in tasks_response.data}
+            # Get both personalized and template task IDs
+            personalized_ids = [comp['user_quest_task_id'] for comp in completions_response.data if comp.get('user_quest_task_id')]
+            template_ids = [comp['task_id'] for comp in completions_response.data if comp.get('task_id')]
+
+            # Get personalized task pillars
+            if personalized_ids:
+                pers_response = supabase.table('user_quest_tasks').select('id, pillar').in_('id', personalized_ids).execute()
+                for task in pers_response.data:
+                    task_pillars[task['id']] = task['pillar']
+
+            # Get template task pillars for fallback
+            if template_ids:
+                temp_response = supabase.table('quest_tasks').select('id, pillar').in_('id', template_ids).execute()
+                for task in temp_response.data:
+                    if task['id'] not in task_pillars:  # Don't override personalized
+                        task_pillars[task['id']] = task['pillar']
 
         # Analyze time patterns
         hour_activity = defaultdict(int)
@@ -489,7 +581,8 @@ def get_learning_insights(user_id, student_id):
         # Analyze pillar preferences
         pillar_completions = defaultdict(int)
         for comp in completions_response.data:
-            task_id = comp.get('user_quest_task_id')
+            # Try personalized task first, then template task
+            task_id = comp.get('user_quest_task_id') or comp.get('task_id')
             if task_id and task_id in task_pillars:
                 pillar_name = get_pillar_name(task_pillars[task_id])
                 pillar_completions[pillar_name] += 1
