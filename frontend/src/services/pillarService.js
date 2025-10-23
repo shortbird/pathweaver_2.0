@@ -12,7 +12,7 @@ const FALLBACK_PILLARS = {
   stem: {
     display_name: 'STEM',
     description: 'Science, Technology, Engineering, and Mathematics',
-    color: pillar-stem,
+    color: 'var(--color-pillar-stem)',
     gradient: 'bg-gradient-pillar-stem',
     icon: 'BeakerIcon',
     subcategories: ['Science', 'Technology', 'Engineering', 'Mathematics'],
@@ -20,7 +20,7 @@ const FALLBACK_PILLARS = {
   wellness: {
     display_name: 'Wellness',
     description: 'Physical and mental health, mindfulness, and self-care',
-    color: pillar-wellness,
+    color: 'var(--color-pillar-wellness)',
     gradient: 'bg-gradient-pillar-wellness',
     icon: 'HeartIcon',
     subcategories: ['Physical Health', 'Mental Health', 'Mindfulness', 'Nutrition'],
@@ -28,7 +28,7 @@ const FALLBACK_PILLARS = {
   communication: {
     display_name: 'Communication',
     description: 'Writing, speaking, listening, and interpersonal skills',
-    color: pillar-communication,
+    color: 'var(--color-pillar-communication)',
     gradient: 'bg-gradient-pillar-communication',
     icon: 'ChatBubbleLeftRightIcon',
     subcategories: ['Writing', 'Speaking', 'Listening', 'Collaboration'],
@@ -36,7 +36,7 @@ const FALLBACK_PILLARS = {
   civics: {
     display_name: 'Civics',
     description: 'Community engagement, leadership, and civic responsibility',
-    color: pillar-civics,
+    color: 'var(--color-pillar-civics)',
     gradient: 'bg-gradient-pillar-civics',
     icon: 'UserGroupIcon',
     subcategories: ['Community', 'Leadership', 'Civic Action', 'Democracy'],
@@ -44,7 +44,7 @@ const FALLBACK_PILLARS = {
   art: {
     display_name: 'Art',
     description: 'Creative expression through visual arts, music, and performance',
-    color: pillar-art,
+    color: 'var(--color-pillar-art)',
     gradient: 'bg-gradient-pillar-art',
     icon: 'PaintBrushIcon',
     subcategories: ['Visual Arts', 'Music', 'Performance', 'Design'],

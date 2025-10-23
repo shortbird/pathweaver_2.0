@@ -12,7 +12,7 @@ export const PILLARS = {
   stem: {
     display_name: 'STEM',
     description: 'Science, Technology, Engineering, and Mathematics',
-    color: pillar-stem,
+    color: 'var(--color-pillar-stem)',
     gradient: 'from-pillar-stem to-pillar-stem-dark',  // Tailwind gradient utilities
     icon: 'BeakerIcon',
     subcategories: ['Science', 'Technology', 'Engineering', 'Mathematics'],
@@ -20,7 +20,7 @@ export const PILLARS = {
   wellness: {
     display_name: 'Wellness',
     description: 'Physical and mental health, mindfulness, and self-care',
-    color: pillar-wellness,
+    color: 'var(--color-pillar-wellness)',
     gradient: 'from-pillar-wellness to-pillar-wellness-dark',  // Tailwind gradient utilities
     icon: 'HeartIcon',
     subcategories: ['Physical Health', 'Mental Health', 'Mindfulness', 'Nutrition'],
@@ -28,7 +28,7 @@ export const PILLARS = {
   communication: {
     display_name: 'Communication',
     description: 'Writing, speaking, listening, and interpersonal skills',
-    color: pillar-communication,
+    color: 'var(--color-pillar-communication)',
     gradient: 'from-pillar-communication to-pillar-communication-dark',  // Tailwind gradient utilities
     icon: 'ChatBubbleLeftRightIcon',
     subcategories: ['Writing', 'Speaking', 'Listening', 'Collaboration'],
@@ -36,7 +36,7 @@ export const PILLARS = {
   civics: {
     display_name: 'Civics',
     description: 'Community engagement, leadership, and civic responsibility',
-    color: pillar-civics,
+    color: 'var(--color-pillar-civics)',
     gradient: 'from-pillar-civics to-pillar-civics-dark',  // Tailwind gradient utilities
     icon: 'UserGroupIcon',
     subcategories: ['Community', 'Leadership', 'Civic Action', 'Democracy'],
@@ -44,7 +44,7 @@ export const PILLARS = {
   art: {
     display_name: 'Art',
     description: 'Creative expression through visual arts, music, and performance',
-    color: pillar-art,
+    color: 'var(--color-pillar-art)',
     gradient: 'from-pillar-art to-pillar-art-dark',  // Tailwind gradient utilities
     icon: 'PaintBrushIcon',
     subcategories: ['Visual Arts', 'Music', 'Performance', 'Design'],
