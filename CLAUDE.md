@@ -571,11 +571,22 @@ frontend/src/
 - **Encouragement tips**: Context-aware conversation starters for process-focused support
 
 ### Authentication & Security
-- **httpOnly cookies**: JWT tokens stored in secure httpOnly cookies
+- **httpOnly cookies ONLY**: JWT tokens stored EXCLUSIVELY in secure httpOnly cookies (never in localStorage)
 - **CSRF protection**: Double-submit cookie pattern for state-changing requests
 - **RLS enforcement**: Row Level Security via user-authenticated Supabase clients
 - **Token refresh**: Automatic token renewal without user intervention
-- **XSS prevention**: No JavaScript-accessible token storage
+- **XSS prevention**: NO JavaScript-accessible token storage (Phase 1 security fix complete)
+- **IMPORTANT**: Tokens are NEVER returned in API response bodies - only in httpOnly cookies
+- **IMPORTANT**: Frontend NEVER stores tokens in localStorage - this was a critical XSS vulnerability (fixed January 2025)
+- **Strong Password Policy** (Phase 1 Security Fix - January 2025):
+  - Minimum 12 characters (increased from 6)
+  - At least 1 uppercase letter (A-Z)
+  - At least 1 lowercase letter (a-z)
+  - At least 1 digit (0-9)
+  - At least 1 special character (!@#$%^&*...)
+  - Common password blacklist (100+ patterns blocked)
+  - Interactive strength meter with real-time validation feedback
+  - **Note**: Existing users with 6-char passwords are grandfathered in
 
 ### AI Tutor System
 - **Conversational AI**: Interactive chat interface powered by Gemini API

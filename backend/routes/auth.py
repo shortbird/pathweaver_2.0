@@ -366,9 +366,22 @@ def register():
             # Fetch the complete user profile data to return to frontend
             user_profile = supabase.table('users').select('*').eq('id', auth_response.user.id).single().execute()
 
+            # Extract session data (but remove tokens for security)
+            session_data = auth_response.session.model_dump() if auth_response.session else None
+
+            # ✅ SECURITY FIX: Remove tokens from session data to prevent XSS attacks
+            # Tokens are now ONLY in secure httpOnly cookies, never in response body
+            if session_data:
+                if 'access_token' in session_data:
+                    del session_data['access_token']
+                if 'refresh_token' in session_data:
+                    del session_data['refresh_token']
+
             response_data = {
                 'user': user_profile.data if user_profile.data else auth_response.user.model_dump(),
-                'session': auth_response.session.model_dump() if auth_response.session else None
+                'session': session_data,
+                # ✅ SECURITY: Tokens removed from response body
+                # Authentication now relies exclusively on secure httpOnly cookies
             }
 
             # Add parental consent flag if user requires it
@@ -376,7 +389,13 @@ def register():
                 response_data['requires_parental_consent'] = True
                 response_data['parent_email'] = parent_email
 
-            return jsonify(response_data), 201
+            # Create response and set httpOnly cookies for authentication
+            response = make_response(jsonify(response_data), 201)
+
+            # Set httpOnly cookies for authentication (ONLY method now)
+            session_manager.set_auth_cookies(response, auth_response.user.id)
+
+            return response
         else:
             return jsonify({'error': 'Registration failed - no user created'}), 400
             
@@ -625,24 +644,25 @@ def login():
 
             # Create response with user data
 
-            # Extract session data
+            # Extract session data (but remove tokens for security)
             session_data = auth_response.session.model_dump() if auth_response.session else {}
 
-            # Generate custom JWT tokens for Authorization header authentication
-            custom_access_token = session_manager.generate_access_token(auth_response.user.id)
-            custom_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
+            # ✅ SECURITY FIX: Remove tokens from session data to prevent XSS attacks
+            # Tokens are now ONLY in secure httpOnly cookies, never in response body
+            if 'access_token' in session_data:
+                del session_data['access_token']
+            if 'refresh_token' in session_data:
+                del session_data['refresh_token']
 
             response_data = {
                 'user': user_response_data,
                 'session': session_data,
-                # Include JWT tokens for Authorization header authentication
-                # Works in all browsers including incognito mode
-                'access_token': custom_access_token,
-                'refresh_token': custom_refresh_token
+                # ✅ SECURITY: Tokens removed from response body
+                # Authentication now relies exclusively on secure httpOnly cookies
             }
             response = make_response(jsonify(response_data), 200)
 
-            # Also set httpOnly cookies for same-origin deployments
+            # Set httpOnly cookies for authentication (ONLY method now)
             session_manager.set_auth_cookies(response, auth_response.user.id)
 
             return response
@@ -730,18 +750,15 @@ def refresh_token():
 
     new_access_token, new_refresh_token, user_id = refresh_result
 
-    # Return tokens in response body for Authorization header authentication
+    # ✅ SECURITY FIX: Don't return tokens in response body
+    # Tokens are ONLY in secure httpOnly cookies, never in response body
     response = make_response(jsonify({
         'message': 'Tokens refreshed successfully',
-        'access_token': new_access_token,
-        'refresh_token': new_refresh_token,
-        'session': {
-            'access_token': new_access_token,
-            'refresh_token': new_refresh_token
-        }
+        # ✅ SECURITY: Tokens removed from response body
+        # Authentication now relies exclusively on secure httpOnly cookies
     }), 200)
 
-    # Also set httpOnly cookies for same-origin deployments
+    # Set httpOnly cookies for authentication (ONLY method now)
     session_manager.set_auth_cookies(response, user_id)
 
     return response

@@ -2,6 +2,7 @@
 
 import re
 from typing import Dict, Any, Optional, Tuple
+from .password_validator import validate_password_strength
 
 def validate_email(email: str) -> Tuple[bool, Optional[str]]:
     """
@@ -24,17 +25,36 @@ def validate_email(email: str) -> Tuple[bool, Optional[str]]:
 
 def validate_password(password: str) -> Tuple[bool, Optional[str]]:
     """
-    Validate password strength - simplified requirements
+    Validate password strength using comprehensive security requirements.
+
+    ✅ SECURITY FIX (Phase 1): Enhanced from 6-char minimum to 12-char with complexity.
+
+    Requirements:
+    - Minimum 12 characters (increased from 6)
+    - At least 1 uppercase letter
+    - At least 1 lowercase letter
+    - At least 1 digit
+    - At least 1 special character
+    - Not in common password blacklist
+
     Returns: (is_valid, error_message)
+
+    Note: Existing users with 6-char passwords are grandfathered in.
+    This validation only applies to NEW registrations and password changes.
     """
     if not password:
         return False, "Password is required"
 
-    if len(password) < 6:
-        return False, "Password must be at least 6 characters long"
-
     if len(password) > 128:
         return False, "Password is too long (max 128 characters)"
+
+    # Use new comprehensive password strength validator
+    is_valid, errors = validate_password_strength(password)
+
+    if not is_valid:
+        # Return the first error as the primary message
+        # Full error list will be available in frontend for detailed feedback
+        return False, errors[0]
 
     return True, None
 

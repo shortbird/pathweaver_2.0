@@ -88,17 +88,11 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // Store tokens in localStorage for Authorization header authentication
-      // Works in all browsers including incognito mode
-      const accessToken = response.data.access_token || response.data.session?.access_token
-      const refreshToken = response.data.refresh_token || response.data.session?.refresh_token
+      // ✅ SECURITY FIX: Tokens are now stored in secure httpOnly cookies only
+      // localStorage token storage removed to prevent XSS attacks
+      // The backend sets httpOnly cookies via session_manager.set_auth_cookies()
 
-      if (accessToken && refreshToken) {
-        localStorage.setItem('access_token', accessToken)
-        localStorage.setItem('refresh_token', refreshToken)
-      }
-
-      // Store user data for quick access (non-sensitive only)
+      // Store user data for quick access (non-sensitive only - no tokens!)
       if (this.user) {
         localStorage.setItem('user', JSON.stringify(this.user))
       }
@@ -134,16 +128,11 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // Store tokens for Authorization header authentication
-      const accessToken = response.data.access_token || response.data.session?.access_token
-      const refreshToken = response.data.refresh_token || response.data.session?.refresh_token
+      // ✅ SECURITY FIX: Tokens are now stored in secure httpOnly cookies only
+      // localStorage token storage removed to prevent XSS attacks
+      // The backend sets httpOnly cookies via session_manager.set_auth_cookies()
 
-      if (accessToken && refreshToken) {
-        localStorage.setItem('access_token', accessToken)
-        localStorage.setItem('refresh_token', refreshToken)
-      }
-
-      // Store user data for quick access
+      // Store user data for quick access (non-sensitive only - no tokens!)
       if (this.user) {
         localStorage.setItem('user', JSON.stringify(this.user))
       }

@@ -59,13 +59,11 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const response = await api.post('/api/auth/login', { email, password })
-      const { user: loginUser, session: loginSession, access_token, refresh_token } = response.data
+      const { user: loginUser, session: loginSession } = response.data
 
-      // Store tokens in localStorage for Authorization header authentication
-      if (access_token && refresh_token) {
-        localStorage.setItem('access_token', access_token)
-        localStorage.setItem('refresh_token', refresh_token)
-      }
+      // ✅ SECURITY FIX: Tokens are now stored in secure httpOnly cookies only
+      // localStorage token storage removed to prevent XSS attacks
+      // The backend sets httpOnly cookies via session_manager.set_auth_cookies()
 
       setSession({ authenticated: true })
       setLoginTimestamp(Date.now()) // Force refresh of data
@@ -128,7 +126,7 @@ export const AuthProvider = ({ children }) => {
         3000, // 3 second initial delay for cold starts
         true // show progress in console
       )
-      const { user, session, message, email_verification_required, access_token, refresh_token } = response.data
+      const { user, session, message, email_verification_required } = response.data
 
       // Handle email verification required case (rate limit or email confirmation)
       if (email_verification_required || message) {
@@ -138,11 +136,9 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (session) {
-        // Store tokens in localStorage for Authorization header authentication
-        if (access_token && refresh_token) {
-          localStorage.setItem('access_token', access_token)
-          localStorage.setItem('refresh_token', refresh_token)
-        }
+        // ✅ SECURITY FIX: Tokens are now stored in secure httpOnly cookies only
+        // localStorage token storage removed to prevent XSS attacks
+        // The backend sets httpOnly cookies via session_manager.set_auth_cookies()
 
         setSession({ authenticated: true })
         setLoginTimestamp(Date.now()) // Force refresh of data

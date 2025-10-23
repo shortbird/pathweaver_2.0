@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { useAuth } from '../contexts/AuthContext'
+import PasswordStrengthMeter from '../components/auth/PasswordStrengthMeter'
 
 const RegisterPage = () => {
   const { register: registerField, handleSubmit, formState: { errors }, watch } = useForm()
@@ -335,35 +336,8 @@ const RegisterPage = () => {
                 </button>
               </div>
 
-              {/* Password strength indicator */}
-              {password && (
-                <div className="mt-2 space-y-1">
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((level) => (
-                      <div
-                        key={level}
-                        className={`h-1 flex-1 rounded ${
-                          passwordStrength.errors.length >= (6 - level)
-                            ? 'bg-gray-300'
-                            : passwordStrength.errors.length === 0
-                            ? 'bg-green-500'
-                            : passwordStrength.errors.length <= 2
-                            ? 'bg-yellow-500'
-                            : 'bg-red-500'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  {passwordStrength.errors.length > 0 && (
-                    <p className="text-xs text-gray-600">
-                      Still needed: {passwordStrength.errors.join(', ')}
-                    </p>
-                  )}
-                  {passwordStrength.isValid && (
-                    <p className="text-xs text-green-600">Strong password</p>
-                  )}
-                </div>
-              )}
+              {/* Password strength meter - Enhanced Phase 1 Security Fix */}
+              <PasswordStrengthMeter password={password} />
 
               <p className="mt-1 text-xs text-gray-500">
                 Password must be at least 12 characters with uppercase, lowercase, number, and special character
