@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { parentAPI } from '../services/api';
 import api from '../services/api';
 import toast from 'react-hot-toast';
@@ -19,6 +19,7 @@ import {
 
 const ParentDashboardPage = () => {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { studentId } = useParams(); // Get student ID from URL if multi-child
   const [selectedStudentId, setSelectedStudentId] = useState(studentId || null);
   const [children, setChildren] = useState([]);
@@ -26,6 +27,7 @@ const ParentDashboardPage = () => {
   const [calendarData, setCalendarData] = useState(null);
   const [progressData, setProgressData] = useState(null);
   const [insightsData, setInsightsData] = useState(null);
+  const [creditData, setCreditData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [error, setError] = useState(null);
@@ -33,6 +35,15 @@ const ParentDashboardPage = () => {
   const [sending, setSending] = useState(false);
   const [pendingRequests, setPendingRequests] = useState([]);
   const [showAddChildModal, setShowAddChildModal] = useState(false);
+
+  // Pillar display names mapping
+  const pillarDisplayNames = {
+    art: 'Art',
+    stem: 'STEM',
+    wellness: 'Wellness',
+    communication: 'Communication',
+    civics: 'Civics'
+  };
 
   // Load children list and pending requests
   useEffect(() => {
@@ -102,17 +113,19 @@ const ParentDashboardPage = () => {
       setLoading(true);
       try {
         // Load all data in parallel
-        const [dashboard, calendar, progress, insights] = await Promise.all([
+        const [dashboard, calendar, progress, insights, credits] = await Promise.all([
           parentAPI.getDashboard(selectedStudentId),
           parentAPI.getCalendar(selectedStudentId),
           parentAPI.getProgress(selectedStudentId),
-          parentAPI.getInsights(selectedStudentId)
+          parentAPI.getInsights(selectedStudentId),
+          api.get(`/api/credits/transcript/${selectedStudentId}`)
         ]);
 
         setDashboardData(dashboard.data);
         setCalendarData(calendar.data);
         setProgressData(progress.data);
         setInsightsData(insights.data);
+        setCreditData(credits.data.transcript);
         setError(null);
       } catch (error) {
         console.error('Error loading dashboard:', error);
@@ -175,7 +188,7 @@ const ParentDashboardPage = () => {
               <button
                 type="submit"
                 disabled={sending}
-                className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-2 bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
                 style={{ fontFamily: 'Poppins, sans-serif' }}
               >
                 {sending ? (
@@ -296,17 +309,30 @@ const ParentDashboardPage = () => {
         </div>
       )}
 
-      {/* Header with Child Selector */}
+      {/* Header with Child Selector and Learning Rhythm */}
       <div className="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-            Family Dashboard
-          </h1>
-          {selectedStudent && (
-            <p className="text-gray-600 mt-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Supporting {selectedStudent.first_name}'s learning journey
-            </p>
-          )}
+        <div className="flex items-center gap-4 flex-wrap">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Family Dashboard
+            </h1>
+            {selectedStudent && (
+              <p className="text-gray-600 mt-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Supporting {selectedStudent.first_name}'s learning journey
+              </p>
+            )}
+          </div>
+          {/* Compact Learning Rhythm Indicator */}
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${isFlowState ? 'bg-green-50' : 'bg-yellow-50'}`}>
+            {isFlowState ? (
+              <CheckCircleIcon className="w-5 h-5 text-green-600" />
+            ) : (
+              <ExclamationTriangleIcon className="w-5 h-5 text-yellow-600" />
+            )}
+            <span className={`text-sm font-semibold ${isFlowState ? 'text-green-800' : 'text-yellow-800'}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
+              {isFlowState ? 'In Flow' : 'Check-In Suggested'}
+            </span>
+          </div>
         </div>
 
         {/* Multi-Child Selector + Add Child Button */}
@@ -327,7 +353,7 @@ const ParentDashboardPage = () => {
           )}
           <button
             onClick={() => setShowAddChildModal(true)}
-            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg font-semibold hover:shadow-lg transition-shadow flex items-center gap-2"
+            className="px-4 py-2 bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white rounded-lg font-semibold hover:shadow-lg transition-shadow flex items-center gap-2"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             <UserGroupIcon className="w-5 h-5" />
@@ -373,7 +399,7 @@ const ParentDashboardPage = () => {
               <button
                 type="submit"
                 disabled={sending}
-                className="w-full px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full px-6 py-2 bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 style={{ fontFamily: 'Poppins, sans-serif' }}
               >
                 {sending ? (
@@ -405,56 +431,6 @@ const ParentDashboardPage = () => {
         </div>
       ) : (
         <>
-          {/* Learning Rhythm Indicator */}
-          <div className={`mb-8 rounded-lg p-6 ${isFlowState ? 'bg-green-50 border-2 border-green-500' : 'bg-yellow-50 border-2 border-yellow-500'}`}>
-            <div className="flex items-start gap-4">
-              {isFlowState ? (
-                <CheckCircleIcon className="w-12 h-12 text-green-600 flex-shrink-0" />
-              ) : (
-                <ExclamationTriangleIcon className="w-12 h-12 text-yellow-600 flex-shrink-0" />
-              )}
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Poppins, sans-serif', color: isFlowState ? '#3DA24A' : '#FF9028' }}>
-                  {isFlowState ? 'Your learner is in their flow state' : 'Your learner might benefit from a check-in'}
-                </h2>
-                <p className="text-gray-700 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  {isFlowState
-                    ? 'They\'re making steady progress and staying engaged with their learning.'
-                    : dashboardData?.learning_rhythm?.has_overdue_tasks
-                      ? 'Some tasks are wandering past their deadlines. A gentle reminder might help.'
-                      : 'They haven\'t checked in recently. Maybe it\'s time to explore a quest together?'}
-                </p>
-
-                {/* Weekly Wins or Support Suggestions */}
-                {isFlowState && dashboardData?.weekly_wins?.length > 0 ? (
-                  <div className="bg-white rounded-lg p-4 border border-green-200">
-                    <h3 className="font-semibold text-green-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Weekly Wins
-                    </h3>
-                    <ul className="space-y-2">
-                      {dashboardData.weekly_wins.slice(0, 5).map((win, index) => (
-                        <li key={index} className="text-gray-700 text-sm font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          • {win.type === 'quest_completed' ? '🎉 Completed: ' : '🏆 Earned: '}{win.title}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ) : !isFlowState && (
-                  <div className="bg-white rounded-lg p-4 border border-yellow-200">
-                    <h3 className="font-semibold text-yellow-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Conversation Starters
-                    </h3>
-                    <ul className="space-y-2 text-sm font-medium text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      <li>• "I'd love to see what you're working on!"</li>
-                      <li>• "What's the most interesting thing you learned today?"</li>
-                      <li>• "Would you like help thinking through your schedule?"</li>
-                    </ul>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-
           {/* Tabs */}
           <div className="border-b border-gray-200 mb-6">
             <nav className="flex gap-8">
@@ -492,7 +468,11 @@ const ParentDashboardPage = () => {
                 {dashboardData?.active_quests?.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {dashboardData.active_quests.map((quest) => (
-                      <div key={quest.quest_id} className="border border-gray-200 rounded-lg overflow-hidden">
+                      <button
+                        key={quest.quest_id}
+                        onClick={() => navigate(`/quests/${quest.quest_id}`)}
+                        className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer text-left"
+                      >
                         {quest.image_url && (
                           <img src={quest.image_url} alt={quest.title} className="w-full h-32 object-cover" />
                         )}
@@ -510,12 +490,12 @@ const ParentDashboardPage = () => {
                           </div>
                           <div className="mt-2 w-full bg-gray-200 rounded-full h-2">
                             <div
-                              className="bg-gradient-to-r from-purple-600 to-pink-500 h-2 rounded-full transition-all"
+                              className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] h-2 rounded-full transition-all"
                               style={{ width: `${quest.progress.percentage}%` }}
                             />
                           </div>
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 ) : (
@@ -532,16 +512,54 @@ const ParentDashboardPage = () => {
                     Learning Progress
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {Object.entries(progressData.xp_by_pillar).map(([pillar, xp]) => (
-                      <div key={pillar} className="bg-gray-50 rounded-lg p-4">
-                        <h4 className="font-semibold text-gray-900 text-sm mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          {pillar}
-                        </h4>
-                        <p className="text-2xl font-bold text-purple-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          {xp} XP
-                        </p>
-                      </div>
-                    ))}
+                    {Object.entries(progressData.xp_by_pillar)
+                      .filter(([pillar]) => pillarDisplayNames[pillar])
+                      .map(([pillar, xp]) => (
+                        <div key={pillar} className="bg-gray-50 rounded-lg p-4">
+                          <h4 className="font-semibold text-gray-900 text-sm mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {pillarDisplayNames[pillar]}
+                          </h4>
+                          <p className="text-2xl font-bold text-purple-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {xp} XP
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Diploma Credit Progress */}
+              {creditData?.subjects && (
+                <div className="bg-white rounded-lg border border-gray-200 p-6">
+                  <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Diploma Progress
+                  </h3>
+                  <p className="text-gray-600 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    {creditData.total_credits} / 20 credits earned toward diploma
+                  </p>
+                  <div className="space-y-4">
+                    {creditData.subjects.map((subject) => {
+                      const creditsEarned = Math.floor(subject.xp / 1000);
+                      const progressPercent = (creditsEarned / 4) * 100;
+                      return (
+                        <div key={subject.subject}>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              {subject.subject}
+                            </span>
+                            <span className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              {creditsEarned} / 4 credits
+                            </span>
+                          </div>
+                          <div className="w-full bg-gray-200 rounded-full h-3">
+                            <div
+                              className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] h-3 rounded-full transition-all"
+                              style={{ width: `${Math.min(progressPercent, 100)}%` }}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -596,6 +614,25 @@ const ParentDashboardPage = () => {
 
           {activeTab === 'insights' && insightsData && (
             <div className="space-y-6">
+              {/* Conversation Starters */}
+              {!isFlowState && (
+                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-6">
+                  <h3 className="text-xl font-bold text-yellow-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Conversation Starters
+                  </h3>
+                  <p className="text-gray-700 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    {dashboardData?.learning_rhythm?.has_overdue_tasks
+                      ? 'Some tasks are wandering past their deadlines. Here are some gentle ways to start a conversation:'
+                      : 'They haven\'t checked in recently. Here are some ways to explore together:'}
+                  </p>
+                  <ul className="space-y-2 text-sm font-medium text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <li>• "I'd love to see what you're working on!"</li>
+                    <li>• "What's the most interesting thing you learned today?"</li>
+                    <li>• "Would you like help thinking through your schedule?"</li>
+                  </ul>
+                </div>
+              )}
+
               {/* Time Patterns */}
               {insightsData.time_patterns && (
                 <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -656,7 +693,7 @@ const ParentDashboardPage = () => {
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-2">
                             <div
-                              className="bg-gradient-to-r from-purple-600 to-pink-500 h-2 rounded-full"
+                              className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] h-2 rounded-full"
                               style={{ width: `${(item.completions / insightsData.pillar_preferences[0].completions) * 100}%` }}
                             />
                           </div>
