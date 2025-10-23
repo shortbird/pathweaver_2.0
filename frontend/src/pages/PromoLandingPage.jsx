@@ -234,7 +234,7 @@ const PromoLandingPage = () => {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full bg-gradient-to-r bg-gradient-primary-reverse text-white py-4 px-6 rounded-lg font-bold text-lg hover:shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
+                  className="w-full bg-gradient-primary-reverse text-white py-4 px-6 rounded-lg font-bold text-lg hover:shadow-lg transition-all transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                 >
                   {isSubmitting ? (
                     <div className="flex items-center justify-center">
@@ -298,7 +298,7 @@ const PromoLandingPage = () => {
 
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center p-6 bg-gradient-to-br from-optio-pink/5 to-optio-purple/5 rounded-xl">
-              <div className="w-16 h-16 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
                 <Award className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Accredited Diploma</h3>
@@ -308,7 +308,7 @@ const PromoLandingPage = () => {
             </div>
 
             <div className="text-center p-6 bg-gradient-to-br from-optio-pink/5 to-optio-purple/5 rounded-xl">
-              <div className="w-16 h-16 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
                 <BookOpen className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Portfolio Building</h3>
@@ -318,7 +318,7 @@ const PromoLandingPage = () => {
             </div>
 
             <div className="text-center p-6 bg-gradient-to-br from-optio-pink/5 to-optio-purple/5 rounded-xl">
-              <div className="w-16 h-16 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-16 h-16 bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users className="w-8 h-8 text-white" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Personalized Path</h3>
@@ -344,7 +344,7 @@ const PromoLandingPage = () => {
 
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center">
-              <div className="w-12 h-12 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-white font-bold text-lg">1</span>
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Sign Up for Free Trial</h3>
@@ -354,7 +354,7 @@ const PromoLandingPage = () => {
             </div>
 
             <div className="text-center">
-              <div className="w-12 h-12 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-white font-bold text-lg">2</span>
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Document Activities</h3>
@@ -364,7 +364,7 @@ const PromoLandingPage = () => {
             </div>
 
             <div className="text-center">
-              <div className="w-12 h-12 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
+              <div className="w-12 h-12 bg-gradient-primary-reverse rounded-full flex items-center justify-center mx-auto mb-4">
                 <span className="text-white font-bold text-lg">3</span>
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">Earn Your Diploma</h3>

@@ -177,7 +177,7 @@ const AIQuestReview = () => {
       <div className="bg-white border-b border-gray-200 px-6 py-6">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center space-x-3">
-            <div className="p-2 bg-gradient-to-r bg-gradient-primary-reverse rounded-lg">
+            <div className="p-2 bg-gradient-primary-reverse rounded-lg">
               <Sparkles className="h-6 w-6 text-white" />
             </div>
             <div>
@@ -244,7 +244,7 @@ const AIQuestReview = () => {
                 onClick={() => setActiveTab(tab.id)}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-lg whitespace-nowrap transition-colors ${
                   activeTab === tab.id
-                    ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white'
+                    ? 'bg-gradient-primary-reverse text-white'
                     : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
                 }`}
               >

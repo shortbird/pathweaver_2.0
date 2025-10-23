@@ -26,7 +26,7 @@ const QuestProgress = ({
         </div>
         
         <div className="text-right">
-          <div className="text-2xl font-bold bg-gradient-to-r bg-gradient-primary bg-clip-text text-transparent">
+          <div className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
             {Math.round(progressPercentage)}%
           </div>
           <p className="text-xs text-gray-500">Complete</p>

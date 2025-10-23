@@ -50,7 +50,7 @@ const BarChart = ({ data, title, xLabel, yLabel, loading = false }) => {
               <div className="flex-1 mx-4">
                 <div className="bg-gray-200 rounded-full h-4 relative overflow-hidden">
                   <div
-                    className="bg-gradient-to-r bg-gradient-primary-reverse h-full rounded-full transition-all duration-500 ease-out"
+                    className="bg-gradient-primary-reverse h-full rounded-full transition-all duration-500 ease-out"
                     style={{ width: `${percentage}%` }}
                   ></div>
                 </div>

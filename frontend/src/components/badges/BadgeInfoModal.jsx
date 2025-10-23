@@ -17,7 +17,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between rounded-t-2xl">
           <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-r bg-gradient-primary-reverse p-2 rounded-lg">
+            <div className="bg-gradient-primary-reverse p-2 rounded-lg">
               <Info className="w-5 h-5 text-white" />
             </div>
             <h2 className="text-2xl font-bold">How to Earn This Badge</h2>
@@ -106,7 +106,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
               {/* Badge Bonus */}
               <div className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg p-4">
                 <div className="flex items-start gap-3 mb-2">
-                  <div className="bg-gradient-to-r bg-gradient-primary-reverse text-white rounded px-2 py-1 text-sm font-bold">3</div>
+                  <div className="bg-gradient-primary-reverse text-white rounded px-2 py-1 text-sm font-bold">3</div>
                   <div className="flex-1">
                     <p className="font-semibold text-gray-900 mb-1 flex items-center gap-2">
                       Badge Completion Bonus
@@ -141,7 +141,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
           {/* Close Button */}
           <button
             onClick={onClose}
-            className="w-full px-6 py-3 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-xl font-semibold hover:opacity-90 transition-opacity"
+            className="w-full px-6 py-3 bg-gradient-primary-reverse text-white rounded-xl font-semibold hover:opacity-90 transition-opacity"
           >
             Got It!
           </button>

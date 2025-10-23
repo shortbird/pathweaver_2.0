@@ -64,7 +64,7 @@ const MessageThread = ({ messages, otherUser, isLoading }) => {
             <div
               className={`max-w-[70%] ${
                 isSender
-                  ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-l-2xl rounded-tr-2xl'
+                  ? 'bg-gradient-primary-reverse text-white rounded-l-2xl rounded-tr-2xl'
                   : 'bg-white text-gray-800 rounded-r-2xl rounded-tl-2xl shadow-sm'
               } p-3`}
             >

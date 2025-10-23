@@ -77,7 +77,7 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
                     {!successMessage && (
                       <button
                         onClick={handleSubmitForXP}
-                        className="px-6 py-2 bg-gradient-to-r bg-gradient-primary text-white rounded-full text-lg font-bold hover:shadow-lg transition-all flex items-center gap-2"
+                        className="px-6 py-2 bg-gradient-primary text-white rounded-full text-lg font-bold hover:shadow-lg transition-all flex items-center gap-2"
                         style={{ fontFamily: 'Poppins' }}
                       >
                         <Award className="w-5 h-5" />

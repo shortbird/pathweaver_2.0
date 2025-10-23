@@ -71,7 +71,7 @@ const ConnectionRequest = ({ request, type = 'incoming', onAccept, onDecline, on
             <>
               <button
                 onClick={() => onAccept(request.friendship_id)}
-                className="bg-gradient-to-r bg-gradient-primary text-white px-4 py-2 rounded-full text-sm font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)] hover:shadow-[0_4px_15px_rgba(109,70,155,0.25)] transition-all duration-300"
+                className="bg-gradient-primary text-white px-4 py-2 rounded-full text-sm font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)] hover:shadow-[0_4px_15px_rgba(109,70,155,0.25)] transition-all duration-300"
                 style={{ fontFamily: 'Poppins', fontWeight: 600 }}
               >
                 Accept Connection

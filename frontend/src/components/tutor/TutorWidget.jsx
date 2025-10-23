@@ -124,7 +124,7 @@ const TutorWidget = ({
         {/* Toggle Button */}
         <button
           onClick={toggleModal}
-          className="w-14 h-14 rounded-full shadow-lg transition-all duration-300 bg-gradient-to-r bg-gradient-primary-reverse hover:shadow-xl hover:scale-105 flex items-center justify-center relative"
+          className="w-14 h-14 rounded-full shadow-lg transition-all duration-300 bg-gradient-primary-reverse hover:shadow-xl hover:scale-105 flex items-center justify-center relative"
           title="Chat with OptioBot"
         >
           <Bot className="w-6 h-6 text-white" />
@@ -203,7 +203,7 @@ export const QuestTutorHelper = ({ quest, currentTask }) => {
       <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-lg p-4 mb-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-gradient-to-r bg-gradient-primary-reverse rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-gradient-primary-reverse rounded-full flex items-center justify-center">
               <Bot className="w-5 h-5 text-white" />
             </div>
             <div>
@@ -213,7 +213,7 @@ export const QuestTutorHelper = ({ quest, currentTask }) => {
           </div>
           <button
             onClick={() => setShowInlineHelp(true)}
-            className="bg-gradient-to-r bg-gradient-primary-reverse text-white px-4 py-2 rounded-full text-sm hover:shadow-lg transition-shadow"
+            className="bg-gradient-primary-reverse text-white px-4 py-2 rounded-full text-sm hover:shadow-lg transition-shadow"
           >
             Get Help
           </button>

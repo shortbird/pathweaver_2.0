@@ -22,7 +22,7 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <h3
-            className="text-3xl font-bold bg-gradient-to-r bg-gradient-primary bg-clip-text text-transparent"
+            className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             Understanding Badges & Quests
@@ -42,7 +42,7 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
           {/* Badges Section */}
           <div className="bg-gradient-to-r from-[#6d469b]/10 to-[#ef597b]/10 rounded-xl p-6 border border-optio-purple/20">
             <div className="flex items-start gap-4">
-              <div className="p-3 bg-gradient-to-r bg-gradient-primary rounded-lg">
+              <div className="p-3 bg-gradient-primary rounded-lg">
                 <Trophy className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
@@ -80,7 +80,7 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
           {/* Quests Section */}
           <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-200">
             <div className="flex items-start gap-4">
-              <div className="p-3 bg-gradient-to-r bg-gradient-primary rounded-lg">
+              <div className="p-3 bg-gradient-primary rounded-lg">
                 <Target className="w-6 h-6 text-white" />
               </div>
               <div className="flex-1">
@@ -145,7 +145,7 @@ const QuestBadgeInfoModal = ({ isOpen, onClose }) => {
         <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end">
           <button
             onClick={onClose}
-            className="px-8 py-3 bg-gradient-to-r bg-gradient-primary text-white font-semibold rounded-lg hover:shadow-lg transform hover:scale-105 transition-all duration-200"
+            className="px-8 py-3 bg-gradient-primary text-white font-semibold rounded-lg hover:shadow-lg transform hover:scale-105 transition-all duration-200"
           >
             Got It!
           </button>

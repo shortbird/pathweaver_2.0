@@ -96,7 +96,7 @@ const QuestSelector = () => {
                 <div className="flex items-start gap-4 mb-4">
                   <div className={`p-3 rounded-lg ${
                     selected 
-                      ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white' 
+                      ? 'bg-gradient-primary-reverse text-white' 
                       : 'bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 text-optio-purple'
                   }`}>
                     {questIcons[quest.id]}

@@ -23,7 +23,7 @@ const HomePage = () => {
 
       {/* Hero Section - Main Tagline Only */}
       <div
-        className="bg-gradient-to-r bg-gradient-primary text-white relative overflow-hidden"
+        className="bg-gradient-primary text-white relative overflow-hidden"
         role="banner"
         aria-label="Hero section introducing Optio teacher-partnership model"
       >
@@ -60,7 +60,7 @@ const HomePage = () => {
             <div className="flex flex-col gap-4 justify-center items-center max-w-sm mx-auto sm:max-w-none sm:flex-row">
               <Link
                 to="/consultation"
-                className="bg-gradient-to-r bg-gradient-primary text-white hover:from-[#5d3a85] hover:to-[#d94d6a] text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center min-h-[52px] touch-manipulation"
+                className="bg-gradient-primary text-white hover:opacity-90 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center min-h-[52px] touch-manipulation"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
                 aria-describedby="consultation-description"
               >
@@ -223,7 +223,7 @@ const HomePage = () => {
           <div className="text-center mt-12">
             <Link
               to="/consultation"
-              className="inline-flex items-center bg-gradient-to-r bg-gradient-primary text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+              className="inline-flex items-center bg-gradient-primary text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
               <Users className="mr-2 w-5 h-5" />
@@ -234,7 +234,7 @@ const HomePage = () => {
       </div>
 
       {/* Consultation CTA Section - Replaces Old Signup Form */}
-      <div className="py-16 bg-gradient-to-r bg-gradient-primary text-white">
+      <div className="py-16 bg-gradient-primary text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
@@ -359,7 +359,7 @@ const HomePage = () => {
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Link
                 to="/consultation"
-                className="bg-gradient-to-r bg-gradient-primary text-white hover:shadow-lg text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center transform hover:scale-105"
+                className="bg-gradient-primary text-white hover:shadow-lg text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center transform hover:scale-105"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
                 <Users className="mr-2 w-5 h-5" aria-hidden="true" />
@@ -466,7 +466,7 @@ const HomePage = () => {
             <div className="mt-6 flex justify-center">
               <Link
                 to="/demo"
-                className="bg-gradient-to-r bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all"
+                className="bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all"
                 style={{ fontFamily: 'Poppins', fontWeight: 600 }}
               >
                 Experience It Yourself

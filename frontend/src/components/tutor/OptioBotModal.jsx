@@ -62,7 +62,7 @@ const OptioBotModal = ({
       {/* Modal */}
       <div className="absolute inset-x-4 inset-y-8 max-w-4xl mx-auto bg-white rounded-2xl shadow-2xl flex flex-col">
         {/* Single Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-to-r bg-gradient-primary-reverse rounded-t-2xl">
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gradient-primary-reverse rounded-t-2xl">
           <div className="flex items-center space-x-4">
             <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-md">
               <Bot className="w-7 h-7 text-optio-purple" />

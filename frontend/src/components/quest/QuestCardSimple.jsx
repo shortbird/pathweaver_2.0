@@ -93,7 +93,7 @@ const QuestCardSimple = ({ quest }) => {
               {/* Progress Bar */}
               <div className="w-full bg-gray-200 rounded-full h-2">
                 <div
-                  className="bg-gradient-to-r bg-gradient-primary h-2 rounded-full transition-all duration-300"
+                  className="bg-gradient-primary h-2 rounded-full transition-all duration-300"
                   style={{ width: `${progressPercentage}%` }}
                 />
               </div>

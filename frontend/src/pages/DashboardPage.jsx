@@ -20,7 +20,7 @@ const ActiveQuests = memo(({ activeQuests }) => {
         <p className="text-gray-600 mb-4">No quests yet.</p>
         <Link
           to="/quests"
-          className="inline-flex items-center px-6 py-3 bg-gradient-to-r bg-gradient-primary text-white rounded-lg font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
+          className="inline-flex items-center px-6 py-3 bg-gradient-primary text-white rounded-lg font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
           style={{ fontFamily: 'Poppins, sans-serif' }}
         >
           <RocketLaunchIcon className="w-5 h-5 mr-2" />
@@ -95,7 +95,7 @@ const DashboardPage = () => {
           <p className="text-gray-600 mb-4">Please try refreshing the page</p>
           <button
             onClick={() => refetchDashboard()}
-            className="px-4 py-2 bg-gradient-to-r bg-gradient-primary text-white rounded-lg hover:shadow-lg transition-all"
+            className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:shadow-lg transition-all"
           >
             Retry
           </button>
@@ -133,7 +133,7 @@ const DashboardPage = () => {
         </div>
         <button
           onClick={() => setShowLearningEventModal(true)}
-          className="flex-shrink-0 bg-gradient-to-r bg-gradient-primary text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-300 flex items-center gap-2 font-medium text-sm"
+          className="flex-shrink-0 bg-gradient-primary text-white px-4 py-2 rounded-lg hover:shadow-lg transition-all duration-300 flex items-center gap-2 font-medium text-sm"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

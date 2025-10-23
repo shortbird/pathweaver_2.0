@@ -75,7 +75,7 @@ const ConnectionCard = ({ connection, onViewJourney, onTeamUp }) => {
       <div className="w-full space-y-2 mt-auto">
         <button
           onClick={() => onTeamUp(connection.id)}
-          className="w-full bg-gradient-to-r bg-gradient-primary text-white py-2.5 rounded-full font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)] hover:shadow-[0_4px_15px_rgba(109,70,155,0.25)] transition-all duration-300 flex items-center justify-center gap-2"
+          className="w-full bg-gradient-primary text-white py-2.5 rounded-full font-semibold shadow-[0_2px_10px_rgba(109,70,155,0.15)] hover:shadow-[0_4px_15px_rgba(109,70,155,0.25)] transition-all duration-300 flex items-center justify-center gap-2"
           style={{ fontFamily: 'Poppins', fontWeight: 600 }}
         >
           <UserGroupIcon className="w-5 h-5" />

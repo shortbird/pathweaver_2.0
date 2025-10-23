@@ -324,7 +324,7 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         {/* Header */}
-        <div className="bg-gradient-to-r bg-gradient-primary text-white p-6 rounded-t-xl sticky top-0 z-10">
+        <div className="bg-gradient-primary text-white p-6 rounded-t-xl sticky top-0 z-10">
           <div className="flex justify-between items-start">
             <div>
               <h2 className="text-2xl font-bold mb-2">Capture a Learning Moment</h2>
@@ -428,7 +428,7 @@ const LearningEventModal = ({ isOpen, onClose, onSuccess }) => {
             <button
               onClick={handleSubmit}
               disabled={isSubmitting || !description.trim()}
-              className="flex-1 px-6 py-3 bg-gradient-to-r bg-gradient-primary text-white rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold flex items-center justify-center gap-2"
+              className="flex-1 px-6 py-3 bg-gradient-primary text-white rounded-xl hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition-all font-semibold flex items-center justify-center gap-2"
             >
               {isSubmitting ? (
                 <>

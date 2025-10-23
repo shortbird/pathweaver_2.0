@@ -124,7 +124,7 @@ const ProfilePage = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Hero Header with Brand Gradient */}
-      <header className="bg-gradient-to-r bg-gradient-primary text-white py-12 px-6">
+      <header className="bg-gradient-primary text-white py-12 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="flex items-center gap-6">
             {/* Avatar Circle with Initials */}
@@ -162,7 +162,7 @@ const ProfilePage = () => {
               {!editing && (
                 <button
                   onClick={() => setEditing(true)}
-                  className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r bg-gradient-primary text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
+                  className="flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
                   style={{ fontFamily: 'Poppins', fontWeight: 600 }}
                 >
                   <PencilIcon className="w-4 h-4" />
@@ -216,7 +216,7 @@ const ProfilePage = () => {
                 <div className="flex gap-3 pt-2">
                   <button
                     type="submit"
-                    className="px-6 py-2.5 bg-gradient-to-r bg-gradient-primary text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
+                    className="px-6 py-2.5 bg-gradient-primary text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
                     style={{ fontFamily: 'Poppins', fontWeight: 600 }}
                   >
                     Save Changes
@@ -281,14 +281,14 @@ const ProfilePage = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border border-purple-100">
                 <div className="flex items-center gap-3 mb-2">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-r bg-gradient-primary flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-gradient-primary flex items-center justify-center">
                     <SparklesIcon className="w-5 h-5 text-white" />
                   </div>
                   <p className="text-sm font-semibold text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
                     Experience Earned
                   </p>
                 </div>
-                <p className="text-4xl font-bold bg-gradient-to-r bg-gradient-primary bg-clip-text text-transparent" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                <p className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
                   {profileData?.total_xp || 0} XP
                 </p>
               </div>

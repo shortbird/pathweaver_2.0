@@ -116,7 +116,7 @@ const MultiFormatEvidenceDisplay = ({ blocks = [] }) => {
               </svg>
             </div>
             <div className="flex-1">
-              <h4 className="text-lg font-bold bg-gradient-to-r bg-gradient-primary-reverse bg-clip-text text-transparent mb-1">
+              <h4 className="text-lg font-bold bg-gradient-primary-reverse bg-clip-text text-transparent mb-1">
                 Learning Evidence Portfolio
               </h4>
               <p className="text-sm text-gray-700">
@@ -125,7 +125,7 @@ const MultiFormatEvidenceDisplay = ({ blocks = [] }) => {
             </div>
           </div>
           <div className="text-right">
-            <div className="text-3xl font-bold bg-gradient-to-r bg-gradient-primary-reverse bg-clip-text text-transparent">
+            <div className="text-3xl font-bold bg-gradient-primary-reverse bg-clip-text text-transparent">
               {sortedBlocks.length}
             </div>
             <div className="text-xs font-medium text-gray-600">

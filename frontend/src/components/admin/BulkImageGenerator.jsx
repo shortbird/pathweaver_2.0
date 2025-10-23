@@ -200,7 +200,7 @@ const BulkImageGenerator = () => {
           <button
             onClick={() => handleGenerate(false)}
             disabled={processing || selectedQuests.size === 0 || apiUsage.remaining < selectedQuests.size}
-            className="bg-gradient-to-r bg-gradient-primary-reverse text-white px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+            className="bg-gradient-primary-reverse text-white px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
           >
             {processing ? 'Generating...' : 'Generate Selected'}
           </button>

@@ -29,7 +29,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
       px-6 py-2 rounded-lg font-poppins font-semibold text-sm
       transition-all duration-200
       ${isActive
-        ? 'bg-gradient-to-r bg-gradient-primary text-white shadow-md'
+        ? 'bg-gradient-primary text-white shadow-md'
         : 'text-neutral-700 hover:bg-neutral-100'
       }
     `
@@ -63,7 +63,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                   className="h-8 w-auto"
                 />
               ) : (
-                <span className="text-2xl font-bold bg-gradient-to-r bg-gradient-primary bg-clip-text text-transparent font-poppins">
+                <span className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent font-poppins">
                   {siteSettings?.site_name || "Optio"}
                 </span>
               )}
@@ -121,7 +121,7 @@ const TopNavbar = ({ onMenuClick, siteSettings }) => {
                 </Link>
                 <Link
                   to="/register"
-                  className="bg-gradient-to-r bg-gradient-primary text-white px-6 py-2 rounded-full text-sm font-poppins font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
+                  className="bg-gradient-primary text-white px-6 py-2 rounded-full text-sm font-poppins font-semibold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200"
                 >
                   Sign Up
                 </Link>

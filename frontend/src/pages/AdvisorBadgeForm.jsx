@@ -390,7 +390,7 @@ export default function AdvisorBadgeForm() {
               <button
                 type="submit"
                 disabled={saving}
-                className="px-6 py-3 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+                className="px-6 py-3 bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90 disabled:opacity-50"
               >
                 {saving ? 'Saving...' : isEditMode ? 'Save Changes' : 'Create Badge'}
               </button>

@@ -263,7 +263,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
               <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 {analytics.learning_pillars_covered.map((pillar, index) => (
                   <div key={index} className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="w-8 h-8 bg-gradient-to-r bg-gradient-primary-reverse rounded-full mx-auto mb-2"></div>
+                    <div className="w-8 h-8 bg-gradient-primary-reverse rounded-full mx-auto mb-2"></div>
                     <p className="text-xs font-medium text-gray-700">{pillar}</p>
                   </div>
                 ))}
@@ -499,7 +499,7 @@ const ParentDashboard = ({ childUserId, childName }) => {
               <div className="pt-4 border-t border-gray-200">
                 <button
                   onClick={() => updateNotificationSettings(settings)}
-                  className="bg-gradient-to-r bg-gradient-primary-reverse text-white px-6 py-2 rounded-md hover:shadow-lg transition-shadow"
+                  className="bg-gradient-primary-reverse text-white px-6 py-2 rounded-md hover:shadow-lg transition-shadow"
                 >
                   Save Settings
                 </button>

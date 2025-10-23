@@ -72,7 +72,7 @@ const ConversationHistory = ({ onSelectConversation, onBack, onCreateNew }) => {
   return (
     <div className="flex flex-col h-full bg-white">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-to-r bg-gradient-primary-reverse text-white">
+      <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-gradient-primary-reverse text-white">
         <div className="flex items-center space-x-3">
           <button
             onClick={onBack}
@@ -110,7 +110,7 @@ const ConversationHistory = ({ onSelectConversation, onBack, onCreateNew }) => {
             </p>
             <button
               onClick={onCreateNew}
-              className="px-6 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:shadow-md transition-shadow"
+              className="px-6 py-2 bg-gradient-primary-reverse text-white rounded-lg hover:shadow-md transition-shadow"
             >
               Start New Chat
             </button>

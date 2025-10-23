@@ -218,7 +218,7 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
             <button
               type="submit"
               disabled={isLoading || !email.trim()}
-              className="px-8 py-3 rounded-full font-semibold bg-gradient-to-r bg-gradient-primary text-white shadow-[0_4px_20px_rgba(109,70,155,0.15)] hover:shadow-[0_6px_25px_rgba(109,70,155,0.25)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-8 py-3 rounded-full font-semibold bg-gradient-primary text-white shadow-[0_4px_20px_rgba(109,70,155,0.15)] hover:shadow-[0_6px_25px_rgba(109,70,155,0.25)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
               {isLoading ? 'Sending...' : 'Send Connection Request'}

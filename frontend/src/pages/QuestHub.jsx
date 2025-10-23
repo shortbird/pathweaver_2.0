@@ -277,7 +277,7 @@ const QuestHub = () => {
         {/* Header - Compact */}
         <div className="mb-6 flex justify-between items-center">
           <div>
-            <h1 className="text-4xl font-bold bg-gradient-to-r bg-gradient-primary bg-clip-text text-transparent mb-2">
+            <h1 className="text-4xl font-bold bg-gradient-primary bg-clip-text text-transparent mb-2">
               Quest Hub
             </h1>
             <p className="text-gray-600">
@@ -290,7 +290,7 @@ const QuestHub = () => {
             <div className="flex-shrink-0">
               <button
                 onClick={handleQuestSuggestion}
-                className="bg-gradient-to-r bg-gradient-primary-reverse text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center gap-2 shadow-lg"
+                className="bg-gradient-primary-reverse text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center gap-2 shadow-lg"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />

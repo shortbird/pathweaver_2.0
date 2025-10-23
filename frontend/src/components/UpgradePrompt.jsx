@@ -73,7 +73,7 @@ const UpgradePrompt = ({
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full">
         {/* Header */}
-        <div className="bg-gradient-to-r bg-gradient-primary-reverse text-white p-6 rounded-t-xl">
+        <div className="bg-gradient-primary-reverse text-white p-6 rounded-t-xl">
           <div className="flex justify-between items-start">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-white bg-opacity-20 rounded-lg">

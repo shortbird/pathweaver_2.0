@@ -54,7 +54,7 @@ export default function AdvisorDashboard() {
           <p className="text-red-600">{error}</p>
           <button
             onClick={fetchDashboardData}
-            className="mt-4 px-4 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg"
+            className="mt-4 px-4 py-2 bg-gradient-primary-reverse text-white rounded-lg"
           >
             Retry
           </button>
@@ -66,7 +66,7 @@ export default function AdvisorDashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <div className="bg-gradient-to-r bg-gradient-primary-reverse text-white py-8">
+      <div className="bg-gradient-primary-reverse text-white py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-3xl font-bold">Advisor Dashboard</h1>
           <p className="mt-2 text-white/90">Manage students and create custom learning paths</p>
@@ -157,7 +157,7 @@ function OverviewTab({ dashboardData, students, badges }) {
           {students.slice(0, 5).map((student) => (
             <div key={student.id} className="p-6 flex items-center justify-between">
               <div className="flex items-center">
-                <div className="h-10 w-10 rounded-full bg-gradient-to-r bg-gradient-primary-reverse flex items-center justify-center text-white font-semibold">
+                <div className="h-10 w-10 rounded-full bg-gradient-primary-reverse flex items-center justify-center text-white font-semibold">
                   {student.display_name?.charAt(0) || 'S'}
                 </div>
                 <div className="ml-4">
@@ -219,7 +219,7 @@ function StudentsTab({ students, onRefresh }) {
         <h2 className="text-2xl font-bold text-gray-900">Your Students</h2>
         <button
           onClick={onRefresh}
-          className="px-4 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90"
+          className="px-4 py-2 bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90"
         >
           Refresh
         </button>
@@ -256,7 +256,7 @@ function StudentsTab({ students, onRefresh }) {
                 <tr key={student.id}>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="h-10 w-10 rounded-full bg-gradient-to-r bg-gradient-primary-reverse flex items-center justify-center text-white font-semibold">
+                      <div className="h-10 w-10 rounded-full bg-gradient-primary-reverse flex items-center justify-center text-white font-semibold">
                         {student.display_name?.charAt(0) || 'S'}
                       </div>
                       <div className="ml-4">
@@ -304,7 +304,7 @@ function BadgesTab({ badges, onRefresh }) {
         <h2 className="text-2xl font-bold text-gray-900">Custom Badges</h2>
         <Link
           to="/advisor/badges/create"
-          className="px-4 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90"
+          className="px-4 py-2 bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90"
         >
           Create New Badge
         </Link>
@@ -315,7 +315,7 @@ function BadgesTab({ badges, onRefresh }) {
           <p className="text-gray-600">No custom badges created yet</p>
           <Link
             to="/advisor/badges/create"
-            className="inline-block mt-4 px-6 py-3 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90"
+            className="inline-block mt-4 px-6 py-3 bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90"
           >
             Create Your First Badge
           </Link>
@@ -343,7 +343,7 @@ function BadgesTab({ badges, onRefresh }) {
                 </Link>
                 <Link
                   to={`/badges/${badge.id}`}
-                  className="flex-1 px-3 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded text-center text-sm hover:opacity-90"
+                  className="flex-1 px-3 py-2 bg-gradient-primary-reverse text-white rounded text-center text-sm hover:opacity-90"
                 >
                   View
                 </Link>

@@ -51,7 +51,7 @@ const ConnectionsTabs = ({ activeTab, onTabChange, counts = {} }) => {
                   border-b-3 transition-all duration-300 min-h-[48px]
                   ${
                     isActive
-                      ? 'border-transparent bg-gradient-to-r bg-gradient-primary text-white rounded-t-lg'
+                      ? 'border-transparent bg-gradient-primary text-white rounded-t-lg'
                       : 'border-transparent text-neutral-400 hover:text-neutral-500 hover:bg-neutral-50'
                   }
                 `}
@@ -64,7 +64,7 @@ const ConnectionsTabs = ({ activeTab, onTabChange, counts = {} }) => {
                     className={`
                       flex items-center justify-center min-w-[24px] h-6 px-2
                       rounded-full text-xs font-bold
-                      ${isActive ? 'bg-white text-optio-purple' : 'bg-gradient-to-r bg-gradient-primary text-white'}
+                      ${isActive ? 'bg-white text-optio-purple' : 'bg-gradient-primary text-white'}
                     `}
                     aria-label={`${tab.count} items`}
                   >

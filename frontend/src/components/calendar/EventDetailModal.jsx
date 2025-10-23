@@ -139,7 +139,7 @@ const EventDetailModal = ({ event, onClose }) => {
             <div className="flex gap-3">
               <Link
                 to={`/quests/${props.quest_id}`}
-                className="flex-1 px-4 py-2 bg-gradient-to-r bg-gradient-primary text-white rounded-lg text-center font-medium hover:opacity-90 transition-opacity"
+                className="flex-1 px-4 py-2 bg-gradient-primary text-white rounded-lg text-center font-medium hover:opacity-90 transition-opacity"
               >
                 View Quest Details
               </Link>

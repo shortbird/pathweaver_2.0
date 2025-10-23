@@ -124,7 +124,7 @@ const ConversionPanel = () => {
             {/* Badges */}
             {tier.recommended && (
               <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                <span className="px-4 py-1 bg-gradient-to-r bg-gradient-primary-reverse text-white text-xs font-bold rounded-full">
+                <span className="px-4 py-1 bg-gradient-primary-reverse text-white text-xs font-bold rounded-full">
                   MOST POPULAR
                 </span>
               </div>
@@ -179,7 +179,7 @@ const ConversionPanel = () => {
             <button
               className={`w-full py-3 rounded-lg font-semibold transition-all
                 ${selectedTier === tier.id
-                  ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white shadow-lg'
+                  ? 'bg-gradient-primary-reverse text-white shadow-lg'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
             >
               {tier.cta}
@@ -263,7 +263,7 @@ const ConversionPanel = () => {
             disabled={!email}
             className={`w-full py-4 font-bold text-lg rounded-lg transition-all duration-300 flex items-center justify-center gap-3
               ${email 
-                ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white hover:shadow-xl transform hover:scale-[1.02]' 
+                ? 'bg-gradient-primary-reverse text-white hover:shadow-xl transform hover:scale-[1.02]' 
                 : 'bg-gray-200 text-gray-400 cursor-not-allowed'}`}
           >
             <Rocket className="w-6 h-6" />

@@ -97,7 +97,7 @@ export default function BadgeDetail() {
           <p className="text-gray-600 mb-4">Badge not found</p>
           <button
             onClick={() => navigate('/badges')}
-            className="px-6 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90"
+            className="px-6 py-2 bg-gradient-primary-reverse text-white rounded-lg hover:opacity-90"
           >
             Back to Badges
           </button>
@@ -236,7 +236,7 @@ export default function BadgeDetail() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
               <div className="text-center md:text-left">
-                <div className="text-4xl font-bold bg-gradient-to-r bg-gradient-primary-reverse bg-clip-text text-transparent">
+                <div className="text-4xl font-bold bg-gradient-primary-reverse bg-clip-text text-transparent">
                   {userProgress.percentage || 0}%
                 </div>
                 <div className="text-gray-600 mt-1">Overall Progress</div>

@@ -727,7 +727,7 @@ const DiplomaPage = () => {
             <div className="flex justify-center gap-4">
               <button
                 onClick={() => navigate('/subscription')}
-                className="bg-gradient-to-r bg-gradient-primary text-white px-8 py-3 rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
+                className="bg-gradient-primary text-white px-8 py-3 rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
               >
                 Upgrade to Supported
               </button>
@@ -771,7 +771,7 @@ const DiplomaPage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
       {/* Hero Section with Professional Diploma Title */}
-      <div className="relative overflow-hidden bg-gradient-to-r bg-gradient-primary text-white">
+      <div className="relative overflow-hidden bg-gradient-primary text-white">
         <div className="absolute inset-0 bg-black opacity-10"></div>
         <div className="relative max-w-7xl mx-auto px-4 py-12">
           <div className="text-center max-w-4xl mx-auto">
@@ -813,7 +813,7 @@ const DiplomaPage = () => {
           <div className="flex justify-end mb-8">
             <button
               onClick={copyShareLink}
-              className="px-4 py-2 rounded-lg bg-gradient-to-r bg-gradient-primary text-white hover:shadow-lg transition-shadow flex items-center gap-2"
+              className="px-4 py-2 rounded-lg bg-gradient-primary text-white hover:shadow-lg transition-shadow flex items-center gap-2"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92zM18 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM6 13c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm12 7.02c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/>
@@ -883,7 +883,7 @@ const DiplomaPage = () => {
                       className={`h-3 rounded-full transition-all duration-500 ${
                         meetsRequirements
                           ? 'bg-gradient-to-r from-green-400 to-green-600'
-                          : 'bg-gradient-to-r bg-gradient-primary'
+                          : 'bg-gradient-primary'
                       }`}
                       style={{
                         width: `${Math.min((totalCreditsEarned / TOTAL_CREDITS_REQUIRED) * 100, 100)}%`
@@ -1088,7 +1088,7 @@ const DiplomaPage = () => {
                         <div className={`absolute inset-0 bg-gradient-to-t from-black/30 to-transparent`} />
                       </div>
                     ) : (
-                      <div className="h-2 bg-gradient-to-r bg-gradient-primary"></div>
+                      <div className="h-2 bg-gradient-primary"></div>
                     )}
 
                     <div className="p-4 sm:p-6 flex flex-col flex-grow">
@@ -1127,7 +1127,7 @@ const DiplomaPage = () => {
                           </div>
                           <div className="w-full bg-gray-200 rounded-full h-1.5">
                             <div
-                              className="bg-gradient-to-r bg-gradient-primary h-1.5 rounded-full transition-all duration-300"
+                              className="bg-gradient-primary h-1.5 rounded-full transition-all duration-300"
                               style={{ width: `${achievement.progress.percentage}%` }}
                             ></div>
                           </div>
@@ -1216,7 +1216,7 @@ const DiplomaPage = () => {
                             <div key={taskTitle} className="rounded-xl p-4 sm:p-5" style={{ background: 'white', border: '1px solid rgba(109,70,155,0.15)', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
                               <div className="mb-3">
                                 <div className="flex items-start gap-3">
-                                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-r bg-gradient-primary text-white flex items-center justify-center text-xs sm:text-sm font-bold flex-shrink-0">
+                                  <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-primary text-white flex items-center justify-center text-xs sm:text-sm font-bold flex-shrink-0">
                                     {index + 1}
                                   </div>
                                   <div className="flex-1 min-w-0">
@@ -1347,7 +1347,7 @@ const DiplomaPage = () => {
                     </div>
                   </div>
 
-                  <div className="p-4 bg-gradient-to-r bg-gradient-primary text-white rounded-lg">
+                  <div className="p-4 bg-gradient-primary text-white rounded-lg">
                     <p className="text-center font-semibold">
                       "The Process Is The Goal" - Your learning journey is valuable for who you become, not what you prove.
                     </p>

@@ -124,7 +124,7 @@ const WorkSubmission = () => {
                 onClick={() => setActiveTask(idx)}
                 className={`px-4 py-2 rounded-lg font-medium text-sm whitespace-nowrap transition-all ${
                   idx === activeTask 
-                    ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white shadow-lg' 
+                    ? 'bg-gradient-primary-reverse text-white shadow-lg' 
                     : isSubmitted
                       ? 'bg-green-100 text-green-700 border border-green-300'
                       : 'bg-white text-gray-600 border border-gray-200 hover:border-optio-purple'
@@ -288,7 +288,7 @@ const WorkSubmission = () => {
                 disabled={!workText.trim()}
                 className={`w-full py-4 rounded-lg font-semibold transition-all ${
                   workText.trim()
-                    ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white hover:shadow-lg transform hover:scale-[1.02]'
+                    ? 'bg-gradient-primary-reverse text-white hover:shadow-lg transform hover:scale-[1.02]'
                     : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                 }`}
               >

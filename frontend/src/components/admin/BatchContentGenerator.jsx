@@ -59,7 +59,7 @@ const BatchContentGenerator = () => {
             onClick={() => setActiveTab('quests')}
             className={`flex-1 px-6 py-4 text-center font-semibold transition-colors ${
               activeTab === 'quests'
-                ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white'
+                ? 'bg-gradient-primary-reverse text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             }`}
           >
@@ -69,7 +69,7 @@ const BatchContentGenerator = () => {
             onClick={() => setActiveTab('badges')}
             className={`flex-1 px-6 py-4 text-center font-semibold transition-colors ${
               activeTab === 'badges'
-                ? 'bg-gradient-to-r bg-gradient-primary-reverse text-white'
+                ? 'bg-gradient-primary-reverse text-white'
                 : 'text-gray-600 hover:bg-gray-50'
             }`}
           >

@@ -101,7 +101,7 @@ const AchievementCard = ({ achievement, onClick }) => {
         {/* Growth Indicators */}
         <div className="flex items-center gap-4 mb-4">
           <div className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-full bg-gradient-to-r bg-gradient-primary-reverse"></div>
+            <div className="w-2 h-2 rounded-full bg-gradient-primary-reverse"></div>
             <span className="text-sm font-medium text-gray-700">
               {Object.keys(achievement.task_evidence || {}).length} Skills Developed
             </span>

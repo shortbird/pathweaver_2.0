@@ -36,7 +36,7 @@ const ConnectionSearch = ({ searchQuery, onSearchChange, onAddConnection }) => {
       {/* Add Connection Button */}
       <button
         onClick={onAddConnection}
-        className="bg-gradient-to-r bg-gradient-primary text-white px-6 py-3 rounded-full font-semibold shadow-[0_4px_20px_rgba(109,70,155,0.15)] hover:shadow-[0_6px_25px_rgba(109,70,155,0.25)] hover:-translate-y-0.5 transition-all duration-300 whitespace-nowrap"
+        className="bg-gradient-primary text-white px-6 py-3 rounded-full font-semibold shadow-[0_4px_20px_rgba(109,70,155,0.15)] hover:shadow-[0_6px_25px_rgba(109,70,155,0.25)] hover:-translate-y-0.5 transition-all duration-300 whitespace-nowrap"
         style={{ fontFamily: 'Poppins', fontWeight: 600 }}
       >
         + Add Connection

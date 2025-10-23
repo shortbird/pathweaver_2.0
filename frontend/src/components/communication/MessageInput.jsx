@@ -60,7 +60,7 @@ const MessageInput = ({ onSendMessage, disabled = false, placeholder = "Type a m
         <button
           type="submit"
           disabled={!message.trim() || disabled}
-          className="bg-gradient-to-r bg-gradient-primary-reverse text-white p-3 rounded-lg hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+          className="bg-gradient-primary-reverse text-white p-3 rounded-lg hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
         >
           <Send className="w-5 h-5" />
         </button>

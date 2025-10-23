@@ -45,7 +45,7 @@ export default function HubSearch({ value, onChange, placeholder = "Search..." }
       </div>
 
       {/* Gradient accent line - purple to pink */}
-      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r bg-gradient-primary opacity-0 group-focus-within:opacity-100 transition-opacity duration-200" />
+      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-primary opacity-0 group-focus-within:opacity-100 transition-opacity duration-200" />
     </div>
   );
 }

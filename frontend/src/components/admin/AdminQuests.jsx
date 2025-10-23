@@ -107,7 +107,7 @@ const AdminQuests = () => {
         <h2 className="text-2xl font-bold">Manage Quests</h2>
         <button
           onClick={() => setShowCreationForm(true)}
-          className="bg-gradient-to-r bg-gradient-primary-reverse text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
+          className="bg-gradient-primary-reverse text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
         >
           Create New Quest
         </button>

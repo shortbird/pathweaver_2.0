@@ -9,7 +9,7 @@ const ViewToggle = ({ currentView, onChange }) => {
         className={`
           inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors
           ${currentView === 'calendar'
-            ? 'bg-gradient-to-r bg-gradient-primary text-white'
+            ? 'bg-gradient-primary text-white'
             : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
           }
         `}
@@ -25,7 +25,7 @@ const ViewToggle = ({ currentView, onChange }) => {
         className={`
           inline-flex items-center px-4 py-2 rounded-md text-sm font-medium transition-colors
           ${currentView === 'list'
-            ? 'bg-gradient-to-r bg-gradient-primary text-white'
+            ? 'bg-gradient-primary text-white'
             : 'text-gray-700 hover:text-gray-900 hover:bg-gray-50'
           }
         `}

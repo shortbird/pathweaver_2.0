@@ -130,21 +130,21 @@ const DemoHero = ({ onStart }) => {
           </p>
           <div className="space-y-3">
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r bg-gradient-primary-reverse flex items-center justify-center text-white font-bold">1</div>
+              <div className="w-8 h-8 rounded-full bg-gradient-primary-reverse flex items-center justify-center text-white font-bold">1</div>
               <div>
                 <h4 className="font-semibold">Choose from Hundreds of Quests</h4>
                 <p className="text-sm text-gray-600">Pick projects that match your interests</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r bg-gradient-primary-reverse flex items-center justify-center text-white font-bold">2</div>
+              <div className="w-8 h-8 rounded-full bg-gradient-primary-reverse flex items-center justify-center text-white font-bold">2</div>
               <div>
                 <h4 className="font-semibold">Complete Tasks & Submit Work</h4>
                 <p className="text-sm text-gray-600">Create real things, document your process</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
-              <div className="w-8 h-8 rounded-full bg-gradient-to-r bg-gradient-primary-reverse flex items-center justify-center text-white font-bold">3</div>
+              <div className="w-8 h-8 rounded-full bg-gradient-primary-reverse flex items-center justify-center text-white font-bold">3</div>
               <div>
                 <h4 className="font-semibold">Build Your Public Portfolio</h4>
                 <p className="text-sm text-gray-600">Your diploma fills with actual achievements</p>
@@ -169,7 +169,7 @@ const DemoHero = ({ onStart }) => {
         <div className="space-y-3">
           <h1 className="text-5xl md:text-6xl font-bold text-text-primary">
             <span className="block mb-2">Get Your Diploma</span>
-            <span className="block bg-gradient-to-r bg-gradient-primary-reverse bg-clip-text text-transparent">
+            <span className="block bg-gradient-primary-reverse bg-clip-text text-transparent">
               Day 1
             </span>
           </h1>
@@ -217,7 +217,7 @@ const DemoHero = ({ onStart }) => {
         <div className="relative">
           <button
             onClick={onStart}
-            className="group relative px-12 py-6 bg-gradient-to-r bg-gradient-primary-reverse 
+            className="group relative px-12 py-6 bg-gradient-primary-reverse 
                      text-white font-bold text-xl rounded-full shadow-xl 
                      hover:shadow-2xl transform hover:scale-105 transition-all duration-300"
           >

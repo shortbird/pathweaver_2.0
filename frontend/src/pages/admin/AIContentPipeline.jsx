@@ -230,7 +230,7 @@ export default function AIContentPipeline() {
               </div>
               <div className="w-full bg-gray-200 rounded-full h-4">
                 <div
-                  className="bg-gradient-to-r bg-gradient-primary-reverse h-4 rounded-full"
+                  className="bg-gradient-primary-reverse h-4 rounded-full"
                   style={{ width: `${analysisResult.summary.health_percentage}%` }}
                 ></div>
               </div>

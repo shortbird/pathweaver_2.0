@@ -4,7 +4,7 @@ import { ArrowLeftIcon } from '@heroicons/react/24/outline'
 const ConnectionsHeader = ({ returnToQuest, onBackToQuest }) => {
   return (
     <header
-      className="bg-gradient-to-r bg-gradient-primary py-8 px-6 sm:py-10 sm:px-8"
+      className="bg-gradient-primary py-8 px-6 sm:py-10 sm:px-8"
       role="banner"
     >
       <div className="max-w-6xl mx-auto">

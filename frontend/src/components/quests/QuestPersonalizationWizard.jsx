@@ -207,7 +207,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
         </div>
         <div className="w-full bg-gray-200 rounded-full h-3">
           <div
-            className="bg-gradient-to-r bg-gradient-primary-reverse h-3 rounded-full transition-all duration-300"
+            className="bg-gradient-primary-reverse h-3 rounded-full transition-all duration-300"
             style={{ width: `${(step / 4) * 100}%` }}
           />
         </div>
@@ -241,7 +241,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
           <button
             onClick={startSession}
             disabled={loading}
-            className="px-8 py-4 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all disabled:opacity-50"
+            className="px-8 py-4 bg-gradient-primary-reverse text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all disabled:opacity-50"
             style={{ fontFamily: 'Poppins' }}
           >
             {loading ? 'Starting...' : 'Begin Personalization'}
@@ -285,7 +285,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             <button
               onClick={() => setStep(3)}
               disabled={!selectedApproach}
-              className="px-6 py-3 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-xl disabled:opacity-50 font-bold hover:shadow-xl transition-all"
+              className="px-6 py-3 bg-gradient-primary-reverse text-white rounded-xl disabled:opacity-50 font-bold hover:shadow-xl transition-all"
               style={{ fontFamily: 'Poppins' }}
             >
               Continue
@@ -355,7 +355,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             <button
               onClick={generateTasks}
               disabled={loading || selectedInterests.length === 0}
-              className="px-6 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg disabled:opacity-50"
+              className="px-6 py-2 bg-gradient-primary-reverse text-white rounded-lg disabled:opacity-50"
             >
               {loading ? 'Generating Tasks...' : 'Generate Tasks'}
             </button>
@@ -450,7 +450,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             <button
               onClick={finalizeTasks}
               disabled={loading || selectedTasks.length === 0}
-              className="px-6 py-2 bg-gradient-to-r bg-gradient-primary-reverse text-white rounded-lg disabled:opacity-50"
+              className="px-6 py-2 bg-gradient-primary-reverse text-white rounded-lg disabled:opacity-50"
             >
               {loading ? 'Finalizing...' : `Finalize ${selectedTasks.length} Tasks`}
             </button>
