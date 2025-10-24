@@ -4,7 +4,7 @@
  * Handles authentication using secure httpOnly cookies instead of localStorage.
  * Provides methods for login, logout, registration, and session management.
  */
-import api from './api'
+import api, { tokenStore } from './api'
 
 class AuthService {
   constructor() {
@@ -12,11 +12,6 @@ class AuthService {
     this.isAuthenticated = false
     this.listeners = new Set()
     this.csrfToken = null
-
-    // ✅ INCOGNITO MODE FIX: Store tokens in memory (NOT localStorage for security)
-    // Tokens are cleared when tab/window closes (security feature)
-    this.accessToken = null
-    this.refreshToken = null
 
     // Initialize CSRF token on service creation
     this.initializeCSRF()
@@ -26,30 +21,28 @@ class AuthService {
    * Get current access token for Authorization header
    */
   getAccessToken() {
-    return this.accessToken
+    return tokenStore.getAccessToken()
   }
 
   /**
    * Get current refresh token
    */
   getRefreshToken() {
-    return this.refreshToken
+    return tokenStore.getRefreshToken()
   }
 
   /**
    * Store tokens in memory (cleared on tab close for security)
    */
   setTokens(accessToken, refreshToken) {
-    this.accessToken = accessToken
-    this.refreshToken = refreshToken
+    tokenStore.setTokens(accessToken, refreshToken)
   }
 
   /**
    * Clear tokens from memory
    */
   clearTokens() {
-    this.accessToken = null
-    this.refreshToken = null
+    tokenStore.clearTokens()
   }
 
   /**
@@ -123,13 +116,13 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // ✅ INCOGNITO MODE FIX: Store tokens in memory for Authorization headers
-      // Tokens are ALSO in httpOnly cookies as fallback (dual auth strategy)
+      // ✅ INCOGNITO MODE FIX: Store app tokens in memory for Authorization headers
+      // These are custom JWT tokens (NOT Supabase tokens)
       // Memory storage works in incognito mode where cookies may be blocked
-      if (response.data.session) {
+      if (response.data.app_access_token && response.data.app_refresh_token) {
         this.setTokens(
-          response.data.session.access_token,
-          response.data.session.refresh_token
+          response.data.app_access_token,
+          response.data.app_refresh_token
         )
       }
 
@@ -170,12 +163,12 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // ✅ INCOGNITO MODE FIX: Store tokens in memory for Authorization headers
-      // Tokens are ALSO in httpOnly cookies as fallback (dual auth strategy)
-      if (response.data.session) {
+      // ✅ INCOGNITO MODE FIX: Store app tokens in memory for Authorization headers
+      // These are custom JWT tokens (NOT Supabase tokens)
+      if (response.data.app_access_token && response.data.app_refresh_token) {
         this.setTokens(
-          response.data.session.access_token,
-          response.data.session.refresh_token
+          response.data.app_access_token,
+          response.data.app_refresh_token
         )
       }
 

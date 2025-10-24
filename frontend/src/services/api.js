@@ -8,6 +8,27 @@ const api = axios.create({
   withCredentials: true, // Enable sending cookies with requests
 })
 
+// ✅ INCOGNITO MODE FIX: Token storage in module scope (avoid circular dependency)
+// This is a simple closure that authService can access
+let tokenStorage = {
+  accessToken: null,
+  refreshToken: null
+}
+
+// Export token storage interface for authService
+export const tokenStore = {
+  setTokens: (access, refresh) => {
+    tokenStorage.accessToken = access
+    tokenStorage.refreshToken = refresh
+  },
+  getAccessToken: () => tokenStorage.accessToken,
+  getRefreshToken: () => tokenStorage.refreshToken,
+  clearTokens: () => {
+    tokenStorage.accessToken = null
+    tokenStorage.refreshToken = null
+  }
+}
+
 // Helper function to get auth headers for fetch requests (backward compatibility)
 export const getAuthHeaders = () => {
   const headers = {
@@ -27,11 +48,10 @@ export const getAuthHeaders = () => {
  * Adds CSRF token for state-changing requests.
  */
 api.interceptors.request.use(
-  async (config) => {
-    // ✅ INCOGNITO MODE FIX: Add Authorization header from memory tokens
-    // Import authService dynamically to avoid circular dependency
-    const { default: authService } = await import('./authService.js')
-    const accessToken = authService.getAccessToken()
+  (config) => {
+    // ✅ INCOGNITO MODE FIX: Add Authorization header from token storage
+    // No circular dependency since tokenStore is in same module
+    const accessToken = tokenStore.getAccessToken()
 
     if (accessToken) {
       config.headers['Authorization'] = `Bearer ${accessToken}`
@@ -100,9 +120,8 @@ api.interceptors.response.use(
         if (!refreshPromise) {
           refreshPromise = (async () => {
             try {
-              // ✅ INCOGNITO MODE FIX: Import authService and send refresh token in body
-              const { default: authService } = await import('./authService.js')
-              const refreshToken = authService.getRefreshToken()
+              // ✅ INCOGNITO MODE FIX: Get refresh token from storage and send in body
+              const refreshToken = tokenStore.getRefreshToken()
 
               // Send refresh token in body for incognito mode compatibility
               // Server will also check cookies as fallback
@@ -113,7 +132,7 @@ api.interceptors.response.use(
               if (response.status === 200) {
                 // Update in-memory tokens with new tokens from response
                 if (response.data.access_token && response.data.refresh_token) {
-                  authService.setTokens(
+                  tokenStore.setTokens(
                     response.data.access_token,
                     response.data.refresh_token
                   )
@@ -135,8 +154,7 @@ api.interceptors.response.use(
         return api(originalRequest)
       } catch (refreshError) {
         // Clear any user data on refresh failure
-        const { default: authService } = await import('./authService.js')
-        authService.clearTokens()
+        tokenStore.clearTokens()
         localStorage.removeItem('user')
 
         // Only redirect to login if we're not already on auth pages or public pages

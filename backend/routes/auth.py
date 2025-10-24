@@ -405,10 +405,19 @@ def register():
                 response_data['requires_parental_consent'] = True
                 response_data['parent_email'] = parent_email
 
+            # ✅ INCOGNITO MODE FIX: Generate custom JWT tokens for Authorization headers
+            # These are our application tokens (NOT Supabase tokens)
+            app_access_token = session_manager.generate_access_token(auth_response.user.id)
+            app_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
+
+            # Add app tokens to response
+            response_data['app_access_token'] = app_access_token
+            response_data['app_refresh_token'] = app_refresh_token
+
             # Create response and set httpOnly cookies for authentication
             response = make_response(jsonify(response_data), 201)
 
-            # Set httpOnly cookies for authentication (ONLY method now)
+            # Set httpOnly cookies for authentication (fallback method)
             session_manager.set_auth_cookies(response, auth_response.user.id)
 
             return response
@@ -667,16 +676,22 @@ def login():
             # Tokens are ALSO set in httpOnly cookies as a fallback
             # Keep access_token and refresh_token for Authorization header usage
 
+            # ✅ INCOGNITO MODE FIX: Generate custom JWT tokens for Authorization headers
+            app_access_token = session_manager.generate_access_token(auth_response.user.id)
+            app_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
+
             response_data = {
                 'user': user_response_data,
                 'session': session_data,
-                # ✅ DUAL AUTH STRATEGY: Tokens in response body for Authorization headers
+                'app_access_token': app_access_token,
+                'app_refresh_token': app_refresh_token,
+                # ✅ DUAL AUTH STRATEGY: App tokens in response body for Authorization headers
                 # AND in httpOnly cookies for fallback
                 # This ensures compatibility with incognito mode (where cookies may be blocked)
             }
             response = make_response(jsonify(response_data), 200)
 
-            # Set httpOnly cookies for authentication (ONLY method now)
+            # Set httpOnly cookies for authentication (fallback method)
             session_manager.set_auth_cookies(response, auth_response.user.id)
 
             # CRITICAL: Also set Supabase tokens for RLS enforcement
