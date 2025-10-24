@@ -337,9 +337,34 @@ def get_quest_detail(user_id: str, quest_id: str):
             quest_data['completed_enrollment'] = None
             quest_data['progress'] = None
 
+        # Add quest type-specific data for non-enrolled users
+        # Import helper functions here to avoid circular import
+        from routes.quest_types import get_sample_tasks_for_quest, get_course_tasks_for_quest
+
+        quest_type = quest_data.get('quest_type', 'optio')
+
+        if not (active_enrollment or completed_enrollment):
+            # User not enrolled - show sample/preset tasks based on quest type
+            if quest_type == 'optio':
+                # Optio quest - show sample tasks as inspiration
+                sample_tasks = get_sample_tasks_for_quest(quest_id, randomize=True)
+                quest_data['sample_tasks'] = sample_tasks
+                quest_data['preset_tasks'] = []
+                logger.info(f"[QUEST DETAIL] Added {len(sample_tasks)} sample tasks for Optio quest")
+            elif quest_type == 'course':
+                # Course quest - show preset tasks
+                preset_tasks = get_course_tasks_for_quest(quest_id)
+                quest_data['preset_tasks'] = preset_tasks
+                quest_data['sample_tasks'] = []
+                logger.info(f"[QUEST DETAIL] Added {len(preset_tasks)} preset tasks for Course quest")
+        else:
+            # User is enrolled - no need for sample/preset tasks
+            quest_data['sample_tasks'] = []
+            quest_data['preset_tasks'] = []
+
         # Note: Quest-level collaboration has been replaced by task-level collaboration
         # Task collaboration status is handled at the task level in the frontend
-        
+
         return jsonify({
             'success': True,
             'quest': quest_data
@@ -454,10 +479,58 @@ def enroll_in_quest(user_id: str, quest_id: str):
         # Create enrollment using repository
         enrollment = quest_repo.enroll_user(user_id, quest_id)
 
+        # Check quest type and handle accordingly
+        quest_type = quest.get('quest_type', 'optio')
+        skip_wizard = False
+
+        if quest_type == 'course':
+            # Course quest - auto-copy preset tasks to user_quest_tasks
+            logger.info(f"Course quest detected - auto-copying preset tasks for user {user_id[:8]}")
+
+            from routes.quest_types import get_course_tasks_for_quest
+
+            preset_tasks = get_course_tasks_for_quest(quest_id)
+
+            if preset_tasks:
+                # Copy all preset tasks to user_quest_tasks
+                user_tasks_data = []
+                for task in preset_tasks:
+                    user_tasks_data.append({
+                        'user_id': user_id,
+                        'quest_id': quest_id,
+                        'user_quest_id': enrollment['id'],
+                        'title': task['title'],
+                        'description': task.get('description', ''),
+                        'pillar': task['pillar'],
+                        'xp_value': task.get('xp_value', 100),
+                        'order_index': task.get('order_index', 0),
+                        'is_required': task.get('is_required', True),
+                        'is_manual': False,
+                        'approval_status': 'approved',
+                        'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                        'subject_xp_distribution': task.get('subject_xp_distribution', {}),
+                        'created_at': datetime.utcnow().isoformat()
+                    })
+
+                # Bulk insert tasks
+                if user_tasks_data:
+                    quest_repo.client.table('user_quest_tasks').insert(user_tasks_data).execute()
+                    logger.info(f"Auto-copied {len(user_tasks_data)} preset tasks for course quest")
+
+                # Mark personalization as completed (no wizard needed)
+                quest_repo.client.table('user_quests')\
+                    .update({'personalization_completed': True})\
+                    .eq('id', enrollment['id'])\
+                    .execute()
+
+            skip_wizard = True
+
         return jsonify({
             'success': True,
             'message': f'Successfully enrolled in "{quest.get("title")}"',
-            'enrollment': enrollment
+            'enrollment': enrollment,
+            'skip_wizard': skip_wizard,  # Tell frontend to skip personalization wizard
+            'quest_type': quest_type
         })
 
     except NotFoundError as e:

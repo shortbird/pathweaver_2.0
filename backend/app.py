@@ -110,6 +110,13 @@ app.register_blueprint(quest_management.bp)  # /api/admin (blueprint has url_pre
 app.register_blueprint(quest_ideas.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(analytics.bp)  # /api/admin/analytics (blueprint has url_prefix='/api/admin/analytics')
 app.register_blueprint(student_task_management.bp)  # /api/admin/users (blueprint has url_prefix='/api/admin/users')
+# Register quest types routes (sample tasks, course tasks)
+try:
+    from routes import quest_types
+    app.register_blueprint(quest_types.bp)  # /api/quests (has url_prefix='/api/quests')
+    logger.info("Quest types routes registered successfully")
+except Exception as e:
+    logger.warning(f"Warning: Quest types routes not available: {e}")
 # collaborations.bp removed in Phase 1 refactoring (January 2025)
 # Conditionally import and register Quest AI blueprint
 try:
