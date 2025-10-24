@@ -79,6 +79,17 @@ export const evidenceDocumentService = {
     }
   },
 
+  // Delete file from a content block
+  async deleteBlockFile(blockId) {
+    try {
+      const response = await api.delete(`/blocks/${blockId}/file`);
+      return response.data;
+    } catch (error) {
+      console.error('Error deleting file:', error);
+      throw error;
+    }
+  },
+
   // Auto-save with debouncing
   createAutoSaver(taskId, onSaveSuccess, onSaveError) {
     let saveTimeout = null;

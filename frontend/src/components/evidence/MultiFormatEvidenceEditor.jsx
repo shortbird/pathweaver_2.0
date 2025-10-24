@@ -17,6 +17,9 @@ const MultiFormatEvidenceEditor = forwardRef(({
   const [documentStatus, setDocumentStatus] = useState('draft');
   const [showCompleteConfirm, setShowCompleteConfirm] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const [uploadingBlocks, setUploadingBlocks] = useState(new Set()); // Block IDs currently uploading
+  const [uploadErrors, setUploadErrors] = useState({}); // Block ID → error message
+  const [collapsedBlocks, setCollapsedBlocks] = useState(new Set()); // Collapsed block IDs
   const fileInputRef = useRef(null);
   const autoSaverRef = useRef(null);
 
@@ -91,13 +94,17 @@ const MultiFormatEvidenceEditor = forwardRef(({
       const cleanedContent = { ...block.content };
 
       // Remove blob URLs - they're temporary and won't work after page reload
+      // Keep permanent Supabase URLs
       if (cleanedContent.url && cleanedContent.url.startsWith('blob:')) {
         delete cleanedContent.url;
       }
 
-      // Remove file object - it can't be serialized, but keep filename/title for metadata
-      if (cleanedContent._fileToUpload) {
-        delete cleanedContent._fileToUpload;
+      // Remove upload status flags and retry file references
+      if (cleanedContent._uploadComplete) {
+        delete cleanedContent._uploadComplete;
+      }
+      if (cleanedContent._retryFile) {
+        delete cleanedContent._retryFile;
       }
 
       return {
@@ -154,115 +161,39 @@ const MultiFormatEvidenceEditor = forwardRef(({
     }
   };
 
-  const handleManualSave = async () => {
-    try {
-      setSaveStatus('saving');
-
-      // Step 1: Clean and save blocks to get database IDs
-      const cleanedBlocks = cleanBlocksForSave(blocks);
-      const response = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, documentStatus);
-
-      if (response.success) {
-        // Step 2: Upload any pending files
-        await uploadPendingFiles(response.blocks || []);
-
-        setSaveStatus('saved');
-        setLastSaved(new Date());
-      } else {
-        setSaveStatus('unsaved');
-        if (onError) {
-          onError(response.error || 'Failed to save document.');
-        }
-      }
-    } catch (error) {
-      console.error('Error saving document:', error);
-      setSaveStatus('unsaved');
-      if (onError) {
-        onError('Failed to save document.');
-      }
-    }
-  };
-
-  const uploadPendingFiles = async (savedBlocks) => {
-    // Find blocks that have pending file uploads
-    const uploadTasks = blocks.map(async (block, index) => {
-      const file = block.content._fileToUpload;
-      const dbBlock = savedBlocks.find(sb => sb.order_index === index);
-
-      if (file && dbBlock?.id) {
-        try {
-          const uploadResponse = await evidenceDocumentService.uploadBlockFile(dbBlock.id, file);
-
-          if (uploadResponse.success && uploadResponse.file_url) {
-            // Update local block with permanent URL
-            const updatedBlocks = [...blocks];
-            const blockToUpdate = updatedBlocks[index];
-
-            // Revoke blob URL
-            if (blockToUpdate.content.url?.startsWith('blob:')) {
-              URL.revokeObjectURL(blockToUpdate.content.url);
-            }
-
-            // Update with permanent URL
-            blockToUpdate.content = {
-              ...blockToUpdate.content,
-              url: uploadResponse.file_url,
-              filename: uploadResponse.filename
-            };
-            delete blockToUpdate.content._fileToUpload;
-
-            setBlocks(updatedBlocks);
-          }
-        } catch (error) {
-          console.error(`Failed to upload ${file.name}:`, error);
-          if (onError) {
-            // Extract error message from response if available
-            const errorMessage = error.response?.data?.error || error.message || 'Upload failed';
-            onError(`Failed to upload ${file.name}: ${errorMessage}`);
-          }
-        }
-      }
-    });
-
-    await Promise.all(uploadTasks);
-  };
 
   const handleCompleteTask = async () => {
     try {
       setIsLoading(true);
 
-      // Step 1: Save blocks to get database IDs
+      // Check if any uploads are still in progress
+      if (uploadingBlocks.size > 0) {
+        if (onError) {
+          onError('Please wait for file uploads to complete before submitting.');
+        }
+        return;
+      }
+
+      // Save and complete the task (files are already uploaded)
       const cleanedBlocks = cleanBlocksForSave(blocks);
-      const saveResponse = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, 'draft');
+      const completeResponse = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, 'completed');
 
-      if (saveResponse.success) {
-        // Step 2: Upload any pending files
-        await uploadPendingFiles(saveResponse.blocks || []);
-
-        // Step 3: Complete the task (this will mark it as complete and award XP)
-        const completeResponse = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, 'completed');
-
-        if (completeResponse.success) {
-          setDocumentStatus('completed');
-          setSaveStatus('saved');
-          if (onComplete) {
-            onComplete({
-              xp_awarded: completeResponse.xp_awarded || 0,
-              has_collaboration_bonus: completeResponse.has_collaboration_bonus || false,
-              quest_completed: completeResponse.quest_completed || false,
-              message: completeResponse.xp_awarded
-                ? `Task completed! You earned ${completeResponse.xp_awarded} XP`
-                : 'Task completed successfully!'
-            });
-          }
-        } else {
-          if (onError) {
-            onError(completeResponse.error || 'Failed to complete task.');
-          }
+      if (completeResponse.success) {
+        setDocumentStatus('completed');
+        setSaveStatus('saved');
+        if (onComplete) {
+          onComplete({
+            xp_awarded: completeResponse.xp_awarded || 0,
+            has_collaboration_bonus: completeResponse.has_collaboration_bonus || false,
+            quest_completed: completeResponse.quest_completed || false,
+            message: completeResponse.xp_awarded
+              ? `Task completed! You earned ${completeResponse.xp_awarded} XP`
+              : 'Task completed successfully!'
+          });
         }
       } else {
         if (onError) {
-          onError(saveResponse.error || 'Failed to save document.');
+          onError(completeResponse.error || 'Failed to complete task.');
         }
       }
     } catch (error) {
@@ -292,6 +223,18 @@ const MultiFormatEvidenceEditor = forwardRef(({
     }
   };
 
+  const toggleBlockCollapse = (blockId) => {
+    setCollapsedBlocks(prev => {
+      const next = new Set(prev);
+      if (next.has(blockId)) {
+        next.delete(blockId);
+      } else {
+        next.add(blockId);
+      }
+      return next;
+    });
+  };
+
   const addBlock = (type, position = blocks.length) => {
     const newBlock = {
       id: `block_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -312,6 +255,13 @@ const MultiFormatEvidenceEditor = forwardRef(({
     setBlocks(reorderedBlocks);
     setShowAddMenu(false);
     setActiveBlock(newBlock.id);
+
+    // Auto-collapse all existing blocks except the new one
+    setCollapsedBlocks(prev => {
+      const next = new Set(blocks.map(b => b.id));
+      next.delete(newBlock.id); // Keep new block expanded
+      return next;
+    });
   };
 
   // Expose addBlock method to parent component via ref
@@ -355,7 +305,99 @@ const MultiFormatEvidenceEditor = forwardRef(({
     setBlocks(reorderedBlocks);
   };
 
-  const handleFileUpload = async (file, blockId) => {
+  const uploadFileImmediately = async (file, blockId, blockType) => {
+    try {
+      // Store file reference for retry
+      setBlocks(prevBlocks => prevBlocks.map(block =>
+        block.id === blockId
+          ? {
+              ...block,
+              content: {
+                ...block.content,
+                _retryFile: file
+              }
+            }
+          : block
+      ));
+
+      // Add to uploading set
+      setUploadingBlocks(prev => new Set(prev).add(blockId));
+      setUploadErrors(prev => {
+        const next = { ...prev };
+        delete next[blockId];
+        return next;
+      });
+
+      // First, save the document to ensure block has a database ID
+      const cleanedBlocks = cleanBlocksForSave(blocks);
+      const saveResponse = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, documentStatus);
+
+      if (saveResponse.success && saveResponse.blocks) {
+        // Find the saved block by matching order_index
+        const currentBlockIndex = blocks.findIndex(b => b.id === blockId);
+        const savedBlock = saveResponse.blocks.find(sb => sb.order_index === currentBlockIndex);
+
+        if (savedBlock?.id) {
+          // Upload file to Supabase storage
+          const uploadResponse = await evidenceDocumentService.uploadBlockFile(savedBlock.id, file);
+
+          if (uploadResponse.success && uploadResponse.file_url) {
+            // Update block with permanent URL and remove retry file
+            setBlocks(prevBlocks => prevBlocks.map(block =>
+              block.id === blockId
+                ? {
+                    ...block,
+                    content: {
+                      ...block.content,
+                      url: uploadResponse.file_url,
+                      filename: uploadResponse.filename,
+                      _uploadComplete: true,
+                      _retryFile: undefined
+                    }
+                  }
+                : block
+            ));
+
+            // Revoke blob URL to free memory
+            if (blocks.find(b => b.id === blockId)?.content.url?.startsWith('blob:')) {
+              URL.revokeObjectURL(blocks.find(b => b.id === blockId).content.url);
+            }
+          } else {
+            throw new Error(uploadResponse.error || 'Upload failed');
+          }
+        } else {
+          throw new Error('Failed to get block database ID');
+        }
+      } else {
+        throw new Error(saveResponse.error || 'Failed to save document');
+      }
+
+      // Remove from uploading set
+      setUploadingBlocks(prev => {
+        const next = new Set(prev);
+        next.delete(blockId);
+        return next;
+      });
+
+    } catch (error) {
+      console.error(`Failed to upload file for block ${blockId}:`, error);
+      setUploadErrors(prev => ({
+        ...prev,
+        [blockId]: error.message || 'Upload failed'
+      }));
+      setUploadingBlocks(prev => {
+        const next = new Set(prev);
+        next.delete(blockId);
+        return next;
+      });
+
+      if (onError) {
+        onError(`Failed to upload ${file.name}: ${error.message}`);
+      }
+    }
+  };
+
+  const handleFileUpload = async (file, blockId, blockType) => {
     try {
       // Validate file size (10MB limit)
       const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB in bytes
@@ -371,7 +413,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
       // Create a temporary blob URL for immediate preview
       const localUrl = URL.createObjectURL(file);
 
-      // Store file info for later upload during save
+      // Store file info for immediate preview
       const fileInfo = {
         file: file,
         localUrl: localUrl,
@@ -380,6 +422,9 @@ const MultiFormatEvidenceEditor = forwardRef(({
         type: file.type
       };
 
+      // Trigger immediate upload in background
+      uploadFileImmediately(file, blockId, blockType);
+
       return fileInfo;
     } catch (error) {
       console.error('File preparation error:', error);
@@ -387,6 +432,28 @@ const MultiFormatEvidenceEditor = forwardRef(({
         onError(`Failed to prepare file: ${error.message}`);
       }
       throw error;
+    }
+  };
+
+  const getBlockPreview = (block) => {
+    const config = blockTypes[block.type];
+
+    switch (block.type) {
+      case 'text':
+        const text = block.content.text || '';
+        return text.length > 50 ? `${text.substring(0, 50)}...` : text || 'Empty text block';
+      case 'image':
+        return block.content.url ? (
+          <img src={block.content.url} alt={block.content.alt} className="h-12 w-auto object-contain rounded" />
+        ) : 'No image uploaded';
+      case 'video':
+        return block.content.title || block.content.url || 'No video URL';
+      case 'link':
+        return block.content.title || block.content.url || 'No link URL';
+      case 'document':
+        return block.content.filename || block.content.title || 'No document uploaded';
+      default:
+        return 'Empty block';
     }
   };
 
@@ -435,11 +502,10 @@ const MultiFormatEvidenceEditor = forwardRef(({
             fileInputRef.current.onchange = async (e) => {
               const file = e.target.files[0];
               if (file) {
-                const fileInfo = await handleFileUpload(file, block.id);
+                const fileInfo = await handleFileUpload(file, block.id, 'image');
                 updateBlock(block.id, {
                   url: fileInfo.localUrl,
-                  alt: file.name,
-                  _fileToUpload: file // Store file for later upload
+                  alt: file.name
                 });
               }
             };
@@ -578,12 +644,11 @@ const MultiFormatEvidenceEditor = forwardRef(({
             fileInputRef.current.onchange = async (e) => {
               const file = e.target.files[0];
               if (file) {
-                const fileInfo = await handleFileUpload(file, block.id);
+                const fileInfo = await handleFileUpload(file, block.id, 'document');
                 updateBlock(block.id, {
                   url: fileInfo.localUrl,
                   filename: file.name,
-                  title: file.name,
-                  _fileToUpload: file // Store file for later upload
+                  title: file.name
                 });
               }
             };
@@ -610,6 +675,9 @@ const MultiFormatEvidenceEditor = forwardRef(({
 
   const renderBlock = (block, index) => {
     const config = blockTypes[block.type];
+    const isCollapsed = collapsedBlocks.has(block.id);
+    const isUploading = uploadingBlocks.has(block.id);
+    const hasUploadError = uploadErrors[block.id];
 
     return (
       <Draggable key={block.id} draggableId={block.id} index={index}>
@@ -621,11 +689,28 @@ const MultiFormatEvidenceEditor = forwardRef(({
               relative group bg-white border-2 rounded-xl p-4 transition-all
               ${activeBlock === block.id ? config.borderColor : 'border-gray-200'}
               ${snapshot.isDragging ? 'shadow-lg rotate-2' : 'hover:border-gray-300'}
+              ${isCollapsed ? 'bg-gray-50' : ''}
             `}
           >
+            {/* Upload Status Overlay */}
+            {isUploading && (
+              <div className="absolute top-2 right-2 z-10 px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-medium flex items-center gap-2">
+                <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                Uploading...
+              </div>
+            )}
+            {hasUploadError && (
+              <div className="absolute top-2 right-2 z-10 px-3 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium flex items-center gap-2">
+                <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+                Upload failed
+              </div>
+            )}
+
             {/* Block Header */}
             <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-1">
                 <div
                   {...provided.dragHandleProps}
                   className="cursor-grab active:cursor-grabbing p-1 rounded hover:bg-gray-100"
@@ -636,6 +721,21 @@ const MultiFormatEvidenceEditor = forwardRef(({
                 </div>
                 <span className="text-lg">{config.icon}</span>
                 <span className="text-sm font-medium text-gray-700">{config.label}</span>
+
+                {/* Collapse/Expand Button */}
+                <button
+                  onClick={() => toggleBlockCollapse(block.id)}
+                  className="ml-2 p-1 text-gray-400 hover:text-gray-600 rounded"
+                  title={isCollapsed ? 'Expand' : 'Collapse'}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    {isCollapsed ? (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    ) : (
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    )}
+                  </svg>
+                </button>
               </div>
 
               <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -660,14 +760,38 @@ const MultiFormatEvidenceEditor = forwardRef(({
               </div>
             </div>
 
-            {/* Block Content */}
-            <div>
-              {block.type === 'text' && renderTextBlock(block)}
-              {block.type === 'image' && renderImageBlock(block)}
-              {block.type === 'video' && renderVideoBlock(block)}
-              {block.type === 'link' && renderLinkBlock(block)}
-              {block.type === 'document' && renderDocumentBlock(block)}
-            </div>
+            {/* Block Content or Preview */}
+            {isCollapsed ? (
+              <div className="py-2 px-4 bg-white rounded-lg border border-gray-200 text-sm text-gray-600">
+                {getBlockPreview(block)}
+              </div>
+            ) : (
+              <div>
+                {block.type === 'text' && renderTextBlock(block)}
+                {block.type === 'image' && renderImageBlock(block)}
+                {block.type === 'video' && renderVideoBlock(block)}
+                {block.type === 'link' && renderLinkBlock(block)}
+                {block.type === 'document' && renderDocumentBlock(block)}
+              </div>
+            )}
+
+            {/* Retry Button for Failed Uploads */}
+            {hasUploadError && !isCollapsed && (
+              <div className="mt-3">
+                <button
+                  onClick={() => {
+                    const file = block.content._retryFile;
+                    if (file) {
+                      uploadFileImmediately(file, block.id, block.type);
+                    }
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                >
+                  Retry Upload
+                </button>
+                <p className="text-xs text-red-600 mt-1">{hasUploadError}</p>
+              </div>
+            )}
           </div>
         )}
       </Draggable>
