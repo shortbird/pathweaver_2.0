@@ -2,6 +2,7 @@ import React, { useState, useEffect, memo } from 'react'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import UnifiedQuestForm from './UnifiedQuestForm'
+import CourseQuestForm from './CourseQuestForm'
 
 const AdminQuests = () => {
   const [quests, setQuests] = useState([])
@@ -9,6 +10,7 @@ const AdminQuests = () => {
   const [showManager, setShowManager] = useState(false)
   const [editingQuest, setEditingQuest] = useState(null)
   const [showCreationForm, setShowCreationForm] = useState(false)
+  const [showCourseQuestForm, setShowCourseQuestForm] = useState(false)
 
   useEffect(() => {
     fetchQuests()
@@ -105,12 +107,20 @@ const AdminQuests = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Manage Quests</h2>
-        <button
-          onClick={() => setShowCreationForm(true)}
-          className="bg-gradient-primary text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
-        >
-          Create New Quest
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={() => setShowCourseQuestForm(true)}
+            className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
+          >
+            Create Course Quest
+          </button>
+          <button
+            onClick={() => setShowCreationForm(true)}
+            className="bg-gradient-primary text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
+          >
+            Create Optio Quest
+          </button>
+        </div>
       </div>
 
       {showManager && (
@@ -131,6 +141,17 @@ const AdminQuests = () => {
           onClose={() => setShowCreationForm(false)}
           onSuccess={(newQuest) => {
             fetchQuests()
+            setShowCreationForm(false)
+          }}
+        />
+      )}
+
+      {showCourseQuestForm && (
+        <CourseQuestForm
+          onClose={() => setShowCourseQuestForm(false)}
+          onSuccess={(newQuest) => {
+            fetchQuests()
+            setShowCourseQuestForm(false)
           }}
         />
       )}

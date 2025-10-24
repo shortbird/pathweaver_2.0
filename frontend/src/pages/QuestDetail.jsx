@@ -9,6 +9,7 @@ import { queryKeys } from '../utils/queryKeys';
 import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import TaskDetailModal from '../components/quest/TaskDetailModal';
 import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
+import SampleTaskCard from '../components/quest/SampleTaskCard';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
 import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus, ArrowLeft, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -92,11 +93,19 @@ const QuestDetail = () => {
         queryClient.invalidateQueries(queryKeys.quests.detail(id));
         await refetchQuest();
 
+        // Check if we should skip the personalization wizard (course quests)
+        const skipWizard = data?.enrollment?.skip_wizard || data?.skip_wizard || false;
+        const questType = data?.quest_type || 'optio';
 
-        // Show personalization wizard after successful enrollment
-        setTimeout(() => {
-          setShowPersonalizationWizard(true);
-        }, 100);
+        if (questType === 'course' || skipWizard) {
+          // Course quest - tasks are already added, just show success
+          toast.success('Enrolled! Your course tasks are ready.');
+        } else {
+          // Optio quest - show personalization wizard after successful enrollment
+          setTimeout(() => {
+            setShowPersonalizationWizard(true);
+          }, 100);
+        }
       },
       onError: (error) => {
         console.error('Enrollment failed:', error);
@@ -610,10 +619,107 @@ const QuestDetail = () => {
               </button>
             </div>
           ) : !quest.user_enrollment ? (
-            <div className="text-center py-12 bg-white rounded-xl shadow-md text-gray-500">
-              <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-              <p className="text-lg">Start this quest to see tasks</p>
-            </div>
+            <>
+              {/* Show sample tasks for Optio quests OR preset tasks for Course quests */}
+              {quest.quest_type === 'optio' && quest.sample_tasks && quest.sample_tasks.length > 0 ? (
+                <div className="mb-8">
+                  {/* Section Header */}
+                  <div className="text-center mb-6">
+                    <h2 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
+                      Sample Tasks for Inspiration
+                    </h2>
+                    <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins' }}>
+                      These spark ideas. Choose what resonates or create your own path!
+                    </p>
+                  </div>
+
+                  {/* Sample Tasks Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {quest.sample_tasks.map((task) => (
+                      <SampleTaskCard
+                        key={task.id}
+                        task={task}
+                        onAdd={async (sampleTask) => {
+                          // User must enroll first before adding sample tasks
+                          toast.error('Please pick up this quest first, then you can add sample tasks!');
+                        }}
+                        disabled={true}
+                      />
+                    ))}
+                  </div>
+                </div>
+              ) : quest.quest_type === 'course' && quest.preset_tasks && quest.preset_tasks.length > 0 ? (
+                <div className="mb-8">
+                  {/* Section Header */}
+                  <div className="text-center mb-6">
+                    <h2 className="text-3xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
+                      Required Tasks
+                    </h2>
+                    <p className="text-lg text-gray-600 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins' }}>
+                      This course has preset tasks aligned with the curriculum
+                    </p>
+                  </div>
+
+                  {/* Preset Tasks List */}
+                  <div className="space-y-3">
+                    {quest.preset_tasks.map((task, index) => {
+                      const pillarData = getPillarData(task.pillar);
+                      return (
+                        <div
+                          key={task.id}
+                          className="bg-white rounded-xl p-4 border-2 border-gray-100 hover:border-gray-200 transition-all"
+                        >
+                          <div className="flex items-start gap-4">
+                            {/* Order Number */}
+                            <div
+                              className="flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center font-bold text-white"
+                              style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
+                            >
+                              {index + 1}
+                            </div>
+
+                            {/* Task Content */}
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+                                  {task.title}
+                                </h3>
+                                <div
+                                  className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                                  style={{
+                                    backgroundColor: `${pillarData.color}20`,
+                                    color: pillarData.color,
+                                    fontFamily: 'Poppins'
+                                  }}
+                                >
+                                  {pillarData.name}
+                                </div>
+                                <div
+                                  className="px-2 py-0.5 rounded-full text-xs font-bold text-white"
+                                  style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
+                                >
+                                  {task.xp_value} XP
+                                </div>
+                              </div>
+                              {task.description && (
+                                <p className="text-sm text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                                  {task.description}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12 bg-white rounded-xl shadow-md text-gray-500">
+                  <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p className="text-lg">Start this quest to see tasks</p>
+                </div>
+              )}
+            </>
           ) : null}
         </div>
 
