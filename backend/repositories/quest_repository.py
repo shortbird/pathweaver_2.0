@@ -217,10 +217,14 @@ class QuestRepository(BaseRepository):
                         .eq('quest_id', quest_id)
                         .execute()
                     )
+                    if not response.data:
+                        logger.error(f"Failed to reactivate enrollment for user {user_id}, quest {quest_id}")
+                        raise DatabaseError("Failed to reactivate enrollment - no data returned")
                     return response.data[0]
                 return existing.data[0]
 
             # Create new enrollment
+            logger.info(f"Creating new enrollment for user {user_id} in quest {quest_id}")
             response = (
                 self.client.table('user_quests')
                 .insert({
@@ -231,12 +235,23 @@ class QuestRepository(BaseRepository):
                 .execute()
             )
 
-            logger.info(f"Enrolled user {user_id} in quest {quest_id}")
+            if not response.data:
+                logger.error(f"Insert returned no data for user {user_id}, quest {quest_id}. Response: {response}")
+                raise DatabaseError("Failed to create enrollment - no data returned. Check RLS policies.")
+
+            logger.info(f"Successfully enrolled user {user_id} in quest {quest_id}")
             return response.data[0]
 
         except APIError as e:
-            logger.error(f"Error enrolling user in quest: {e}")
-            raise DatabaseError("Failed to enroll in quest") from e
+            logger.error(f"APIError enrolling user {user_id} in quest {quest_id}: {e}", exc_info=True)
+            # Check if it's an RLS policy violation
+            error_msg = str(e)
+            if "policy" in error_msg.lower() or "permission" in error_msg.lower():
+                raise DatabaseError(f"Permission denied: RLS policy blocked enrollment. Error: {error_msg}") from e
+            raise DatabaseError(f"Failed to enroll in quest: {error_msg}") from e
+        except Exception as e:
+            logger.error(f"Unexpected error enrolling user {user_id} in quest {quest_id}: {e}", exc_info=True)
+            raise DatabaseError(f"Failed to enroll in quest: {str(e)}") from e
 
     def abandon_quest(self, user_id: str, quest_id: str) -> bool:
         """

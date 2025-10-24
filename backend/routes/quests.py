@@ -408,8 +408,7 @@ def enroll_in_quest(user_id: str, quest_id: str):
     Creates a user_quests record to track progress.
     """
     try:
-        # Use repository pattern with user client (RLS enforced)
-        supabase = get_user_client(user_id)
+        # Use repository pattern with user context for RLS
         quest_repo = QuestRepository(user_id=user_id)
 
         # Check if quest exists and is active using repository
@@ -427,8 +426,8 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 'error': 'Quest is not active'
             }), 400
 
-        # Check if already enrolled using direct query (enrollment logic is complex)
-        existing = supabase.table('user_quests')\
+        # Check if already enrolled using repository client
+        existing = quest_repo.client.table('user_quests')\
             .select('id, is_active, completed_at, personalization_completed')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
@@ -459,18 +458,21 @@ def enroll_in_quest(user_id: str, quest_id: str):
         })
 
     except NotFoundError as e:
+        logger.error(f"Quest not found: {str(e)}")
         return jsonify({
             'success': False,
             'error': str(e)
         }), 404
     except DatabaseError as e:
-        logger.error(f"Database error enrolling in quest: {str(e)}")
+        logger.error(f"Database error enrolling in quest {quest_id} for user {user_id}: {str(e)}", exc_info=True)
         return jsonify({
             'success': False,
             'error': 'Failed to enroll in quest'
         }), 500
     except Exception as e:
-        logger.error(f"Error enrolling in quest: {str(e)}")
+        logger.error(f"Unexpected error enrolling in quest {quest_id} for user {user_id}: {str(e)}", exc_info=True)
+        import traceback
+        traceback.print_exc()
         return jsonify({
             'success': False,
             'error': 'Failed to enroll in quest'
