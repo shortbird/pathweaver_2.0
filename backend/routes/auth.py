@@ -470,29 +470,9 @@ def register():
 def get_current_user():
     """Get current user profile with fresh data"""
     try:
-        # First try to get user ID from secure httpOnly cookies
+        # ✅ INCOGNITO MODE FIX: Prioritize Authorization header (works in incognito)
+        # session_manager.get_current_user_id() already checks Authorization header first
         user_id = session_manager.get_current_user_id()
-
-        # Fallback to Authorization header for backward compatibility
-        if not user_id:
-            auth_header = request.headers.get('Authorization')
-            if not auth_header or not auth_header.startswith('Bearer '):
-                return jsonify({'error': 'Authentication required'}), 401
-
-            token = auth_header.split(' ')[1]
-
-            # Verify token with Supabase
-            supabase = get_supabase_client()
-            try:
-                # Get user from token
-                user_response = supabase.auth.get_user(token)
-                if not user_response.user:
-                    return jsonify({'error': 'Invalid token'}), 401
-
-                user_id = user_response.user.id
-            except Exception as e:
-                logger.error(f"Token verification failed: {e}")
-                return jsonify({'error': 'Invalid or expired token'}), 401
 
         if not user_id:
             return jsonify({'error': 'Authentication required'}), 401
