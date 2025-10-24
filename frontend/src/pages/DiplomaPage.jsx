@@ -438,7 +438,8 @@ const DiplomaPage = () => {
 
   // Determine if current user is the owner
   // Owner when: viewing /diploma (no params) OR viewing their own userId
-  const isOwner = user && (!slug && (!userId || user.id === userId));
+  // Explicitly convert to boolean to avoid undefined/null
+  const isOwner = Boolean(user && (!slug && (!userId || user.id === userId)));
 
   // Debug logging for public viewer issue
   console.log('DiplomaPage render - isOwner:', isOwner, 'user:', !!user, 'slug:', slug, 'userId:', userId);
@@ -802,9 +803,14 @@ const DiplomaPage = () => {
 
   // Get first name for possessive pronoun
   const getStudentFirstName = () => {
+    // For public diploma routes, use diploma data if available
+    if (diploma?.student) {
+      return diploma.student.first_name || diploma.student.username || 'This student';
+    }
+
     const student = displayData.student || user;
-    if (!student) return 'Student';
-    return student.first_name || student.username || 'Student';
+    if (!student) return 'This student';
+    return student.first_name || student.username || 'This student';
   };
 
   // Helper function to get possessive text (e.g., "your" vs "Emma's")
