@@ -26,6 +26,12 @@ python-magic==0.4.27
 psutil==6.1.0
 PyYAML==6.0.1  # Email copy configuration
 
+# Testing
+pytest==8.3.4
+pytest-cov==6.0.0
+pytest-flask==1.3.0
+pytest-mock==3.14.0
+
 # Dependencies (auto-installed)
 annotated-types==0.7.0
 anyio==4.10.0

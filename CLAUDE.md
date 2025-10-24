@@ -27,9 +27,34 @@
   - `main` → https://www.optioeducation.com & https://optio-prod-backend.onrender.com
 - **Testing Process**:
   1. Make changes in `develop` branch
-  2. Push to `develop` for live testing at dev URLs
-  3. When stable, merge `develop` → `main` for production
-  4. Never commit directly to `main` - always go through `develop` first
+  2. Push to `develop` for live testing at dev URLs (auto-deploys immediately)
+  3. Optionally run manual tests via GitHub Actions (see Testing Infrastructure below)
+  4. When stable, merge `develop` → `main` for production
+  5. Never commit directly to `main` - always go through `develop` first
+
+**Testing Infrastructure (Optional - Manual Trigger Only):**
+- **Strategy**: GitHub Actions with manual trigger + dedicated test_schema in Supabase
+- **Cost**: $0 (uses separate schema in existing database, not a new project)
+- **Coverage**: 40% minimum (current), targeting 60% over time
+- **Critical Paths Covered**: Auth, Quest Completion, XP, Parent Dashboard, Badges
+- **Key Point**: Tests are OPTIONAL - develop auto-deploys regardless of test status
+- **How to Run**:
+  1. Go to GitHub Actions → "Run Backend Tests (Manual)"
+  2. Click "Run workflow" button
+  3. Set coverage threshold (default 40%)
+  4. Wait ~2 minutes for results
+  5. Download coverage report from artifacts
+- **Test Database**: Uses `test_schema` in existing Supabase database (complete isolation)
+- **Documentation**: See `backend/docs/TESTING.md` for comprehensive guide
+- **Workflow File**: `.github/workflows/run-tests.yml`
+- **Test Structure**:
+  ```
+  backend/tests/
+  ├── unit/              # Fast, mocked tests
+  ├── integration/       # Real database tests (test_schema)
+  ├── services/          # Service layer tests
+  └── repositories/      # Repository pattern tests
+  ```
 
 **CORE PHILOSOPHY:**
 - **Foundation**: "The Process Is The Goal" - learning is about who you become through the journey
