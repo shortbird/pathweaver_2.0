@@ -10,6 +10,13 @@ import uuid
 import logging
 
 from utils.logger import get_logger
+from backend.repositories import (
+    QuestRepository,
+    TaskCompletionRepository,
+    TaskRepository,
+    TutorRepository,
+    UserRepository
+)
 
 logger = get_logger(__name__)
 

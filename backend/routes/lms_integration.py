@@ -13,6 +13,13 @@ from middleware.error_handler import ValidationError, AuthenticationError
 from lms_config.lms_platforms import get_supported_platforms, get_platform_config, validate_platform_config
 
 from utils.logger import get_logger
+from backend.repositories import (
+    LMSRepository,
+    QuestRepository,
+    TaskCompletionRepository,
+    TaskRepository,
+    UserRepository
+)
 
 logger = get_logger(__name__)
 

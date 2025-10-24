@@ -40,6 +40,7 @@ from backend.repositories.tutor_repository import TutorRepository
 from backend.repositories.lms_repository import LMSRepository
 from backend.repositories.analytics_repository import AnalyticsRepository
 from backend.repositories.task_repository import TaskRepository, TaskCompletionRepository
+from backend.repositories.evidence_document_repository import EvidenceDocumentRepository
 
 __all__ = [
     # Base classes
@@ -64,4 +65,5 @@ __all__ = [
     'AnalyticsRepository',
     'TaskRepository',
     'TaskCompletionRepository',
+    'EvidenceDocumentRepository',
 ]
