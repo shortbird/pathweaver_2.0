@@ -91,17 +91,6 @@ def select_badge(user_id, badge_id):
         badge_id: Badge UUID
     """
     from database import get_user_client
-from backend.repositories import (
-    UserRepository,
-    QuestRepository,
-    BadgeRepository,
-    EvidenceRepository,
-    FriendshipRepository,
-    ParentRepository,
-    TutorRepository,
-    LMSRepository,
-    AnalyticsRepository
-)
 
     try:
         # Check if user is on paid tier (using user client for RLS enforcement)
