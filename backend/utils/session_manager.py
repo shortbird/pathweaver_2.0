@@ -76,7 +76,12 @@ class SessionManager:
             return None
     
     def set_auth_cookies(self, response, user_id: str):
-        """Set secure httpOnly cookies for authentication"""
+        """Set secure httpOnly cookies for authentication (same-origin only)"""
+        # ✅ INCOGNITO FIX: Skip cookies in cross-origin mode (they'll be blocked anyway)
+        if self.is_cross_origin:
+            logger.info("[SessionManager] Skipping cookie set (cross-origin mode)")
+            return response
+
         access_token = self.generate_access_token(user_id)
         refresh_token = self.generate_refresh_token(user_id)
 
@@ -102,12 +107,19 @@ class SessionManager:
             path='/'  # Available to all paths
         )
 
+        logger.info("[SessionManager] Auth cookies set (same-origin mode)")
         return response
     
     def clear_auth_cookies(self, response):
-        """Clear authentication cookies"""
+        """Clear authentication cookies (same-origin only)"""
+        # ✅ INCOGNITO FIX: Skip cookie clearing in cross-origin mode
+        if self.is_cross_origin:
+            logger.info("[SessionManager] Skipping cookie clear (cross-origin mode)")
+            return response
+
         response.set_cookie('access_token', '', expires=0, httponly=True, secure=self.cookie_secure, samesite=self.cookie_samesite)
         response.set_cookie('refresh_token', '', expires=0, httponly=True, secure=self.cookie_secure, samesite=self.cookie_samesite)
+        logger.info("[SessionManager] Auth cookies cleared (same-origin mode)")
         return response
     
     def get_current_user_id(self) -> Optional[str]:
@@ -120,7 +132,12 @@ class SessionManager:
             if payload:
                 return payload.get('user_id')
 
-        # Fallback to cookie for same-origin deployments
+        # ✅ INCOGNITO FIX: In cross-origin mode, only use Authorization header
+        if self.is_cross_origin:
+            logger.debug("[SessionManager] No Authorization header in cross-origin mode")
+            return None
+
+        # Fallback to cookie for same-origin deployments only
         access_token = request.cookies.get('access_token')
         if not access_token:
             return None

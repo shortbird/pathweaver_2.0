@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import toast from 'react-hot-toast'
-import api from '../services/api'
+import api, { tokenStore } from '../services/api'
 import { retryWithBackoff } from '../utils/retryHelper'
 import { queryKeys } from '../utils/queryKeys'
 
@@ -37,13 +37,31 @@ export const AuthProvider = ({ children }) => {
   })
 
   useEffect(() => {
-    // For httpOnly cookie authentication, we need to check with the server
+    // ✅ INCOGNITO FIX: Check for tokens before making /me request
     const checkSession = async () => {
       try {
-        const response = await api.get('/api/auth/me')
-        if (response.data) {
-          setSession({ authenticated: true })
-          setLoginTimestamp(Date.now())
+        // Check if we have tokens in memory (cross-origin/incognito mode)
+        const hasTokens = !!tokenStore.getAccessToken()
+
+        if (hasTokens) {
+          // We have tokens, try to fetch user profile
+          const response = await api.get('/api/auth/me')
+          if (response.data) {
+            setSession({ authenticated: true })
+            setLoginTimestamp(Date.now())
+          }
+        } else {
+          // No tokens in memory, try cookie-based auth (same-origin mode)
+          try {
+            const response = await api.get('/api/auth/me')
+            if (response.data) {
+              setSession({ authenticated: true })
+              setLoginTimestamp(Date.now())
+            }
+          } catch {
+            // No valid session
+            setSession(null)
+          }
         }
       } catch (error) {
         // No valid session
@@ -59,11 +77,16 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       const response = await api.post('/api/auth/login', { email, password })
-      const { user: loginUser, session: loginSession } = response.data
+      const { user: loginUser, session: loginSession, app_access_token, app_refresh_token } = response.data
 
-      // ✅ SECURITY FIX: Tokens are now stored in secure httpOnly cookies only
-      // localStorage token storage removed to prevent XSS attacks
-      // The backend sets httpOnly cookies via session_manager.set_auth_cookies()
+      // ✅ INCOGNITO FIX: Store app tokens in memory for Authorization headers
+      // This is the CRITICAL piece that was missing!
+      if (app_access_token && app_refresh_token) {
+        console.log('[AuthContext] Storing tokens in memory:', !!app_access_token, !!app_refresh_token)
+        tokenStore.setTokens(app_access_token, app_refresh_token)
+      } else {
+        console.error('[AuthContext] No app tokens in login response!')
+      }
 
       setSession({ authenticated: true })
       setLoginTimestamp(Date.now()) // Force refresh of data
@@ -215,7 +238,10 @@ export const AuthProvider = ({ children }) => {
       setSession(null)
       setLoginTimestamp(null) // Clear timestamp on logout
 
-      // Clear localStorage tokens
+      // ✅ INCOGNITO FIX: Clear tokens from memory
+      tokenStore.clearTokens()
+
+      // Clear localStorage tokens (legacy)
       localStorage.removeItem('access_token')
       localStorage.removeItem('refresh_token')
       localStorage.removeItem('user')

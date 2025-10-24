@@ -677,12 +677,13 @@ def login():
             logger.info(f"[LOGIN] Response data keys: {list(response_data.keys())}")
             response = make_response(jsonify(response_data), 200)
 
-            # Set httpOnly cookies for authentication (fallback method)
+            # Set httpOnly cookies for authentication (same-origin only)
+            # In cross-origin mode, session_manager skips cookie operations
             session_manager.set_auth_cookies(response, auth_response.user.id)
 
-            # CRITICAL: Also set Supabase tokens for RLS enforcement
-            # These tokens are used by BaseRepository to authenticate with Supabase
-            if auth_response.session:
+            # ✅ INCOGNITO FIX: Skip Supabase cookies in cross-origin mode (blocked anyway)
+            # Supabase tokens are in response body for frontend to use if needed
+            if not session_manager.is_cross_origin and auth_response.session:
                 if auth_response.session.access_token:
                     response.set_cookie(
                         'supabase_access_token',
@@ -761,20 +762,24 @@ def logout():
     token = request.cookies.get('access_token')
     if not token:
         token = request.headers.get('Authorization', '').replace('Bearer ', '')
-    
+
     if not token:
         return jsonify({'error': 'No token provided'}), 401
-    
+
     supabase = get_supabase_client()
-    
+
     try:
         supabase.auth.sign_out()
         response = make_response(jsonify({'message': 'Logged out successfully'}), 200)
-        # Clear authentication cookies
+
+        # Clear authentication cookies (same-origin only, skipped in cross-origin)
         session_manager.clear_auth_cookies(response)
-        # Also clear Supabase token cookies
-        response.set_cookie('supabase_access_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite)
-        response.set_cookie('supabase_refresh_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite)
+
+        # ✅ INCOGNITO FIX: Clear Supabase cookies only in same-origin mode
+        if not session_manager.is_cross_origin:
+            response.set_cookie('supabase_access_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite)
+            response.set_cookie('supabase_refresh_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite)
+
         return response
     except Exception as e:
         return jsonify({'error': str(e)}), 400

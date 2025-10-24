@@ -1,11 +1,20 @@
 import axios from 'axios'
 
+// ✅ INCOGNITO FIX: Detect if deployment is cross-origin
+const isCrossOrigin = () => {
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+  const isRender = apiUrl.includes('onrender.com')
+  return isRender
+}
+
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000',
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true, // Enable sending cookies with requests
+  // ✅ INCOGNITO FIX: Only send cookies in same-origin mode (localhost)
+  // In cross-origin mode (Render), cookies are blocked in incognito anyway
+  withCredentials: !isCrossOrigin(), // Only true for localhost
 })
 
 // ✅ INCOGNITO MODE FIX: Token storage in module scope (avoid circular dependency)
