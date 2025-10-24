@@ -543,25 +543,20 @@ const QuestDetail = () => {
                         </button>
                       )}
 
-                      {/* Completed Indicator and Edit Evidence Button */}
+                      {/* Edit Evidence Button for Completed Tasks */}
                       {task.is_completed && (
-                        <>
-                          <div className="absolute bottom-14 left-0 right-0 flex items-center justify-center gap-1">
-                            <CheckCircle className="w-4 h-4 text-white drop-shadow-lg" />
-                            <span className="text-white text-xs font-bold uppercase drop-shadow-lg" style={{ fontFamily: 'Poppins' }}>Complete!</span>
-                          </div>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedTask(task);
-                              setShowTaskModal(true);
-                            }}
-                            className="absolute bottom-2 left-2 right-2 py-1.5 bg-white/90 text-gray-800 rounded-full font-bold text-xs uppercase tracking-wide transition-all hover:bg-white"
-                            style={{ fontFamily: 'Poppins' }}
-                          >
-                            Edit Evidence
-                          </button>
-                        </>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedTask(task);
+                            setShowTaskModal(true);
+                          }}
+                          className="absolute bottom-2 left-2 right-2 py-1.5 bg-white/90 text-gray-800 rounded-full font-bold text-xs uppercase tracking-wide transition-all hover:bg-white flex items-center justify-center gap-1"
+                          style={{ fontFamily: 'Poppins' }}
+                        >
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          Complete! Edit Evidence
+                        </button>
                       )}
                     </div>
                   );
