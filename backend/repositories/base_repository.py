@@ -93,12 +93,19 @@ class BaseRepository:
                 # Debug logging to help diagnose RLS issues
                 if not token:
                     logger.error(
-                        f"CRITICAL: No Supabase token found for user {self.user_id}. "
-                        f"User must logout and login again to get new token. "
-                        f"Available cookies: {list(request.cookies.keys())}"
+                        f"CRITICAL RLS FAILURE: No Supabase token found for user {self.user_id[:8]}. "
+                        f"User must logout and login again to get new Supabase access token. "
+                        f"Available cookies: {list(request.cookies.keys())}, "
+                        f"Has Authorization header: {bool(auth_header)}, "
+                        f"Table: {self.table_name}"
                     )
                 else:
-                    logger.debug(f"Using Supabase token for user {self.user_id} (token length: {len(token)})")
+                    # Validate token format before using
+                    token_parts = token.split('.')
+                    if len(token_parts) == 3:
+                        logger.info(f"✓ Found valid Supabase token for user {self.user_id[:8]} (token length: {len(token)}, table: {self.table_name})")
+                    else:
+                        logger.error(f"✗ Invalid Supabase token format for user {self.user_id[:8]}: expected 3 parts, got {len(token_parts)}")
 
                 self._client = get_user_client(token=token)
             else:
