@@ -786,15 +786,29 @@ const DiplomaPage = () => {
   const getStudentName = () => {
     const student = displayData.student || user;
     if (!student) return 'Student';
-    
+
     const firstName = student.first_name || '';
     const lastName = student.last_name || '';
-    
+
     if (firstName || lastName) {
       return `${firstName} ${lastName}`.trim();
     }
-    
+
     return student.username || 'Student';
+  };
+
+  // Get first name for possessive pronoun
+  const getStudentFirstName = () => {
+    const student = displayData.student || user;
+    if (!student) return 'Student';
+    return student.first_name || student.username || 'Student';
+  };
+
+  // Helper function to get possessive text (e.g., "your" vs "Emma's")
+  const getPossessive = () => {
+    if (isOwner) return 'your';
+    const firstName = getStudentFirstName();
+    return `${firstName}'s`;
   };
 
   return (
@@ -895,7 +909,9 @@ const DiplomaPage = () => {
                       <h3 className="text-lg font-semibold text-gray-800">Total Credits Progress</h3>
                       <p className="text-gray-600 text-sm">
                         {meetsRequirements
-                          ? 'Congratulations! You meet graduation requirements!'
+                          ? isOwner
+                            ? 'Congratulations! You meet graduation requirements!'
+                            : `${getStudentFirstName()} meets graduation requirements!`
                           : `${(TOTAL_CREDITS_REQUIRED - totalCreditsEarned).toFixed(1)} credits remaining for graduation`
                         }
                       </p>
@@ -1029,7 +1045,12 @@ const DiplomaPage = () => {
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className="text-gray-500">No badges earned yet - complete quests to earn your first badge!</p>
+              <p className="text-gray-500">
+                {isOwner
+                  ? 'No badges earned yet - complete quests to earn your first badge!'
+                  : `${getStudentFirstName()} hasn't earned any badges yet.`
+                }
+              </p>
             </div>
           )}
         </div>
@@ -1080,7 +1101,12 @@ const DiplomaPage = () => {
           {achievements.length === 0 ? (
             <div className="bg-white rounded-xl p-12 text-center">
               <h3 className="text-xl font-bold mb-3">No achievements yet</h3>
-              <p className="text-gray-600 mb-6">Start your learning journey!</p>
+              <p className="text-gray-600 mb-6">
+                {isOwner
+                  ? 'Start your learning journey!'
+                  : `${getStudentFirstName()} hasn't started any quests yet.`
+                }
+              </p>
               {isOwner && (
                 <button
                   onClick={() => navigate('/quests')}
