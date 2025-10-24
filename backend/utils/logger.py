@@ -11,10 +11,6 @@ from typing import Any, Dict
 from flask import has_request_context, request
 from app_config import Config
 
-from utils.logger import get_logger
-
-logger = get_logger(__name__)
-
 
 class JSONFormatter(logging.Formatter):
     """Format logs as JSON for structured logging"""
