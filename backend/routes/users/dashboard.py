@@ -71,15 +71,18 @@ def get_dashboard(user_id):
         # Get active quests
         active_quests = get_active_quests(supabase, user_id)
 
-        # Get completed quests count
+        # Get completed quests count and recent completions
         completed_quests_response = supabase.table('user_quests')\
-            .select('id', count='exact')\
+            .select('id, quest_id, completed_at, quests(id, title, description, image_url, header_image_url)', count='exact')\
             .eq('user_id', user_id)\
             .eq('is_active', False)\
             .not_.is_('completed_at', 'null')\
+            .order('completed_at', desc=True)\
+            .limit(5)\
             .execute()
 
         completed_quests_count = completed_quests_response.count or 0
+        recent_completed_quests = completed_quests_response.data or []
 
         # Calculate XP stats (needed for ConstellationPage and other features)
         total_xp, skill_breakdown = calculate_user_xp(supabase, user_id)
@@ -105,7 +108,8 @@ def get_dashboard(user_id):
             },
             'xp_by_category': skill_breakdown,
             'skill_xp_data': skill_data,
-            'active_quests': active_quests
+            'active_quests': active_quests,
+            'recent_completed_quests': recent_completed_quests
         }
 
         logger.debug(f"=== DASHBOARD RESPONSE DEBUG ===")
