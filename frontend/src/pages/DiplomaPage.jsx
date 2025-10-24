@@ -440,6 +440,9 @@ const DiplomaPage = () => {
   // Owner when: viewing /diploma (no params) OR viewing their own userId
   const isOwner = user && (!slug && (!userId || user.id === userId));
 
+  // Debug logging for public viewer issue
+  console.log('DiplomaPage render - isOwner:', isOwner, 'user:', !!user, 'slug:', slug, 'userId:', userId);
+
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {
       year: 'numeric',
