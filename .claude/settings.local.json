@@ -355,7 +355,11 @@
       "Bash(echo:*)",
       "Bash(if ! grep -q \"BaseService\" \"$file\")",
       "Bash(then)",
-      "Bash(xargs:*)"
+      "Bash(xargs:*)",
+      "Bash(while read file)",
+      "Bash(do if grep -A 3 \"def __init__\" \"$file\")",
+      "Bash(then echo \"$file - PROBLEM: sets self.supabase\" elif ! grep -A 2 \"def __init__\" \"$file\")",
+      "Bash(then echo \"$file - WARNING: no super().__init__()\" fi done)"
     ],
     "deny": [],
     "ask": []

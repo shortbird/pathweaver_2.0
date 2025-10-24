@@ -7,7 +7,6 @@ import sys
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 from services.base_service import BaseService
-from database import get_authenticated_supabase_client
 from services.badge_service import BadgeService
 
 from utils.logger import get_logger
@@ -17,9 +16,9 @@ logger = get_logger(__name__)
 class AdvisorService(BaseService):
     """Service for advisor-specific operations"""
 
-    def __init__(self):
-        self.supabase = get_authenticated_supabase_client()
-        self.badge_service = BadgeService()
+    def __init__(self, user_id: Optional[str] = None):
+        super().__init__(user_id)
+        self.badge_service = BadgeService(user_id)
 
     # ==================== Advisor-Student Relationships ====================
 
