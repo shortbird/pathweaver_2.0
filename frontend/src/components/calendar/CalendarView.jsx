@@ -162,7 +162,13 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
         buttonText={{
           today: 'Today',
           month: 'Month',
-          week: 'Week'
+          week: 'Week',
+          prev: '‹',
+          next: '›'
+        }}
+        buttonIcons={{
+          prev: 'none',
+          next: 'none'
         }}
         eventClassNames={(arg) => {
           const status = arg.event.extendedProps.status

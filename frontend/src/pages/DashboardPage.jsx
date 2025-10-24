@@ -147,7 +147,7 @@ const DashboardPage = () => {
       </div>
 
       {/* Active Quests Panel */}
-      <div>
+      <div className="mb-12">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-xl font-bold text-gray-900 font-['Poppins']">Current Quests</h2>
           <Link
@@ -165,18 +165,11 @@ const DashboardPage = () => {
 
       {/* Completed Quests Section */}
       {dashboardData?.recent_completed_quests && dashboardData.recent_completed_quests.length > 0 && (
-        <div className="bg-white rounded-xl shadow-md p-6 mb-8">
-          <div className="flex items-center justify-between mb-6">
+        <div className="bg-white rounded-xl shadow-md p-6">
+          <div className="mb-6">
             <h2 className="text-2xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
               Recently Completed
             </h2>
-            <Link
-              to="/profile/completed-quests"
-              className="text-sm font-semibold text-purple-600 hover:text-pink-600 transition-colors"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              View All ({dashboardData.stats.completed_quests_count})
-            </Link>
           </div>
 
           <div className="space-y-3">

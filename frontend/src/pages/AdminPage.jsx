@@ -25,55 +25,55 @@ const AdminPage = () => {
       <div className="flex gap-4 mb-8 border-b overflow-x-auto">
         <Link
           to="/admin/quests"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' || currentPath === 'quests' ? 'border-b-2 border-gradient-to-r bg-gradient-primary text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' || currentPath === 'quests' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Quests
         </Link>
         <Link
           to="/admin/users"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'users' ? 'border-b-2 border-gradient-to-r bg-gradient-primary text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'users' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Users
         </Link>
         <Link
           to="/admin/quest-suggestions"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quest-suggestions' ? 'border-b-2 border-gradient-to-r bg-gradient-primary text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quest-suggestions' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Quest Suggestions
         </Link>
         <Link
           to="/admin/batch-generator"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'batch-generator' ? 'border-b-2 border-gradient-to-r bg-gradient-primary text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'batch-generator' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Batch Generator
         </Link>
         <Link
           to="/admin/quest-images"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quest-images' ? 'border-b-2 border-gradient-to-r bg-gradient-primary text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quest-images' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Quest Images
         </Link>
         <Link
           to="/admin/badge-images"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'badge-images' ? 'border-b-2 border-gradient-to-r bg-gradient-primary text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'badge-images' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Badge Images
         </Link>
         <Link
           to="/admin/subscription-tiers"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'subscription-tiers' ? 'border-b-2 border-gradient-to-r bg-gradient-primary text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'subscription-tiers' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Subscription Tiers
         </Link>
         <Link
           to="/admin/site-settings"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'site-settings' ? 'border-b-2 border-gradient-to-r bg-gradient-primary text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'site-settings' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Site Settings
         </Link>
         <Link
           to="/admin/lms-integration"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'lms-integration' ? 'border-b-2 border-gradient-to-r bg-gradient-primary text-purple-600' : 'text-gray-600 hover:text-gray-900'}`}
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'lms-integration' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
         >
           LMS Integration
         </Link>
