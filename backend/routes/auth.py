@@ -681,18 +681,30 @@ def login():
             # Set httpOnly cookies for authentication (ONLY method now)
             session_manager.set_auth_cookies(response, auth_response.user.id)
 
-            # CRITICAL: Also set Supabase access token for RLS enforcement
-            # This token is used by BaseRepository to authenticate with Supabase
-            if auth_response.session and auth_response.session.access_token:
-                response.set_cookie(
-                    'supabase_access_token',
-                    auth_response.session.access_token,
-                    max_age=3600,  # 1 hour (matches Supabase default)
-                    httponly=True,
-                    secure=session_manager.cookie_secure,
-                    samesite=session_manager.cookie_samesite,
-                    path='/'
-                )
+            # CRITICAL: Also set Supabase tokens for RLS enforcement
+            # These tokens are used by BaseRepository to authenticate with Supabase
+            if auth_response.session:
+                if auth_response.session.access_token:
+                    response.set_cookie(
+                        'supabase_access_token',
+                        auth_response.session.access_token,
+                        max_age=3600,  # 1 hour (matches Supabase default)
+                        httponly=True,
+                        secure=session_manager.cookie_secure,
+                        samesite=session_manager.cookie_samesite,
+                        path='/'
+                    )
+
+                if auth_response.session.refresh_token:
+                    response.set_cookie(
+                        'supabase_refresh_token',
+                        auth_response.session.refresh_token,
+                        max_age=2592000,  # 30 days (matches Supabase default)
+                        httponly=True,
+                        secure=session_manager.cookie_secure,
+                        samesite=session_manager.cookie_samesite,
+                        path='/'
+                    )
 
             return response
         else:
@@ -761,8 +773,9 @@ def logout():
         response = make_response(jsonify({'message': 'Logged out successfully'}), 200)
         # Clear authentication cookies
         session_manager.clear_auth_cookies(response)
-        # Also clear Supabase access token cookie
+        # Also clear Supabase token cookies
         response.set_cookie('supabase_access_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite)
+        response.set_cookie('supabase_refresh_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite)
         return response
     except Exception as e:
         return jsonify({'error': str(e)}), 400
@@ -781,6 +794,21 @@ def refresh_token():
 
     new_access_token, new_refresh_token, user_id = refresh_result
 
+    # CRITICAL: Also refresh Supabase session to get new Supabase access token
+    # Get Supabase refresh token from cookie
+    supabase_refresh_token = request.cookies.get('supabase_refresh_token')
+    supabase_access_token = None
+
+    if supabase_refresh_token:
+        try:
+            supabase = get_supabase_client()
+            # Refresh the Supabase session
+            auth_response = supabase.auth.refresh_session(supabase_refresh_token)
+            if auth_response.session and auth_response.session.access_token:
+                supabase_access_token = auth_response.session.access_token
+        except Exception as e:
+            logger.error(f"Failed to refresh Supabase session: {str(e)}")
+
     # ✅ SECURITY FIX: Don't return tokens in response body
     # Tokens are ONLY in secure httpOnly cookies, never in response body
     response = make_response(jsonify({
@@ -791,6 +819,18 @@ def refresh_token():
 
     # Set httpOnly cookies for authentication (ONLY method now)
     session_manager.set_auth_cookies(response, user_id)
+
+    # Also refresh Supabase access token cookie if we got one
+    if supabase_access_token:
+        response.set_cookie(
+            'supabase_access_token',
+            supabase_access_token,
+            max_age=3600,  # 1 hour
+            httponly=True,
+            secure=session_manager.cookie_secure,
+            samesite=session_manager.cookie_samesite,
+            path='/'
+        )
 
     return response
 
