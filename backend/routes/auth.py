@@ -660,6 +660,10 @@ def login():
             app_access_token = session_manager.generate_access_token(auth_response.user.id)
             app_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
 
+            logger.info(f"[LOGIN] Generated app tokens for user {auth_response.user.id[:8]}...")
+            logger.info(f"[LOGIN] App access token length: {len(app_access_token) if app_access_token else 0}")
+            logger.info(f"[LOGIN] App refresh token length: {len(app_refresh_token) if app_refresh_token else 0}")
+
             response_data = {
                 'user': user_response_data,
                 'session': session_data,
@@ -669,6 +673,8 @@ def login():
                 # AND in httpOnly cookies for fallback
                 # This ensures compatibility with incognito mode (where cookies may be blocked)
             }
+
+            logger.info(f"[LOGIN] Response data keys: {list(response_data.keys())}")
             response = make_response(jsonify(response_data), 200)
 
             # Set httpOnly cookies for authentication (fallback method)

@@ -53,8 +53,14 @@ api.interceptors.request.use(
     // No circular dependency since tokenStore is in same module
     const accessToken = tokenStore.getAccessToken()
 
+    console.log(`[API] Request to ${config.url}`)
+    console.log(`[API] Has access token in storage?`, !!accessToken)
+
     if (accessToken) {
       config.headers['Authorization'] = `Bearer ${accessToken}`
+      console.log(`[API] Added Authorization header`)
+    } else {
+      console.warn(`[API] No access token available for ${config.url}`)
     }
 
     // Add CSRF token for state-changing requests
