@@ -59,7 +59,7 @@ jobs:
     - name: Test Results Summary
       if: always()
       run: |
-        echo "## 🧪 Test Results" >> $GITHUB_STEP_SUMMARY
+        echo "## Test Results" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Status:** ${{ job.status }}" >> $GITHUB_STEP_SUMMARY
         echo "**Coverage Threshold:** ${{ inputs.coverage_threshold }}%" >> $GITHUB_STEP_SUMMARY
@@ -67,6 +67,6 @@ jobs:
         echo "**Commit:** ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
         echo "**Test Schema:** test_schema (isolated from dev/prod)" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "⬇️ Download coverage report from artifacts below" >> $GITHUB_STEP_SUMMARY
+        echo "Download coverage report from artifacts below" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Note:** This workflow is independent of deployment. The develop branch auto-deploys to Render regardless of test status." >> $GITHUB_STEP_SUMMARY
