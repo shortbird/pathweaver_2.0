@@ -3,6 +3,7 @@ Learning Events Routes
 API endpoints for spontaneous learning moment capture
 """
 from flask import Blueprint, request, jsonify
+from flask_cors import cross_origin
 from utils.auth.decorators import require_auth
 from services.learning_events_service import LearningEventsService
 import logging
@@ -77,6 +78,7 @@ def create_learning_event(user_id):
 
 
 @learning_events_bp.route('/api/learning-events', methods=['GET'])
+@cross_origin()
 @require_auth
 def get_learning_events(user_id):
     """Get all learning events for the authenticated user"""
@@ -442,6 +444,7 @@ from backend.repositories import (
 
 
 @learning_events_bp.route('/api/users/<target_user_id>/learning-events/public', methods=['GET'])
+@cross_origin()
 def get_public_learning_events(target_user_id):
     """Get learning events for public diploma view (no auth required)"""
     try:

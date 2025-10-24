@@ -104,14 +104,14 @@ const DiplomaPage = () => {
   useEffect(() => {
     // Scroll to top when component mounts
     window.scrollTo(0, 0);
-    
+
     // Clear previous data when component mounts or dependencies change
     setAchievements([]);
     setTotalXP({});
     setSubjectXP({});
     setTotalXPCount(0);
     setIsLoading(true);
-    
+
     if (slug) {
       // Portfolio route - public access via slug
       fetchPublicDiploma();
@@ -121,10 +121,17 @@ const DiplomaPage = () => {
     } else if (user) {
       // Authenticated user viewing their own diploma (no params)
       if (hasAccess) {
-        fetchAchievements();
-        fetchSubjectXP();  // NEW: Fetch subject-specific XP
-        fetchEarnedBadges();  // Fetch earned badges
-        fetchLearningEvents();  // Fetch learning events
+        // Fetch all data independently with error handling
+        // Each fetch has its own try-catch to prevent one failure from affecting others
+        Promise.allSettled([
+          fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
+          fetchSubjectXP().catch(err => console.error('Failed to fetch subject XP:', err)),
+          fetchEarnedBadges().catch(err => console.error('Failed to fetch badges:', err)),
+          fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err))
+        ]).finally(() => {
+          // Ensure loading state is cleared even if some fetches fail
+          setIsLoading(false);
+        });
         generateShareableLink();
       } else {
         // User doesn't have access, just stop loading
@@ -139,19 +146,25 @@ const DiplomaPage = () => {
   // Event handlers for refreshing data - defined as regular functions to avoid circular dependencies
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'visible' && user && !slug && !userId && hasAccess) {
-      fetchAchievements();
-      fetchSubjectXP();
-      fetchEarnedBadges();
-      fetchLearningEvents();
+      // Refresh all data independently with error handling
+      Promise.allSettled([
+        fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
+        fetchSubjectXP().catch(err => console.error('Failed to fetch subject XP:', err)),
+        fetchEarnedBadges().catch(err => console.error('Failed to fetch badges:', err)),
+        fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err))
+      ]);
     }
   };
 
   const handleFocus = () => {
     if (user && !slug && !userId && hasAccess) {
-      fetchAchievements();
-      fetchSubjectXP();
-      fetchEarnedBadges();
-      fetchLearningEvents();
+      // Refresh all data independently with error handling
+      Promise.allSettled([
+        fetchAchievements().catch(err => console.error('Failed to fetch achievements:', err)),
+        fetchSubjectXP().catch(err => console.error('Failed to fetch subject XP:', err)),
+        fetchEarnedBadges().catch(err => console.error('Failed to fetch badges:', err)),
+        fetchLearningEvents().catch(err => console.error('Failed to fetch learning events:', err))
+      ]);
     }
   };
 
