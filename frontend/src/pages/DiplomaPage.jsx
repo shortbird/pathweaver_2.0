@@ -21,6 +21,9 @@ const DiplomaPage = () => {
   const { user, loginTimestamp } = useAuth();
   const { slug, userId } = useParams();
   const navigate = useNavigate();
+
+  // Check if this is explicitly a public route
+  const isPublicRoute = window.location.pathname.startsWith('/public/');
   const [achievements, setAchievements] = useState([]);
   const [totalXP, setTotalXP] = useState({});
   const [subjectXP, setSubjectXP] = useState({});  // NEW: Subject-specific XP
@@ -409,7 +412,7 @@ const DiplomaPage = () => {
 
   const generateShareableLink = () => {
     const baseUrl = window.location.origin;
-    const link = `${baseUrl}/diploma/${user?.id}`;
+    const link = `${baseUrl}/public/diploma/${user?.id}`;
     setShareableLink(link);
   };
 
@@ -438,11 +441,12 @@ const DiplomaPage = () => {
 
   // Determine if current user is the owner
   // Owner when: viewing /diploma (no params) OR viewing their own userId
+  // Public routes (/public/*) are NEVER owner view, even if logged in as that user
   // Explicitly convert to boolean to avoid undefined/null
-  const isOwner = Boolean(user && (!slug && (!userId || user.id === userId)));
+  const isOwner = !isPublicRoute && Boolean(user && (!slug && (!userId || user.id === userId)));
 
   // Debug logging for public viewer issue
-  console.log('DiplomaPage render - isOwner:', isOwner, 'user:', !!user, 'slug:', slug, 'userId:', userId);
+  console.log('DiplomaPage render - isOwner:', isOwner, 'isPublicRoute:', isPublicRoute, 'user:', !!user, 'slug:', slug, 'userId:', userId);
 
   const formatDate = (dateString) => {
     return new Date(dateString).toLocaleDateString('en-US', {

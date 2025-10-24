@@ -109,7 +109,7 @@ function App() {
                 <Route path="terms" element={<TermsOfService />} />
                 <Route path="privacy" element={<PrivacyPolicy />} />
                 <Route path="portfolio/:slug" element={<DiplomaPage />} />
-                <Route path="diploma/:userId" element={<DiplomaPage />} />
+                <Route path="public/diploma/:userId" element={<DiplomaPage />} />
 
               <Route element={<PrivateRoute />}>
                 <Route path="dashboard" element={<DashboardPage />} />
