@@ -5,6 +5,7 @@ Automated quest lifecycle management including quality monitoring, content refre
 
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
+from services.base_service import BaseService
 from database import get_supabase_admin_client
 import json
 
@@ -13,7 +14,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class AIQuestMaintenanceService:
+class AIQuestMaintenanceService(BaseService):
     """Service for automated quest maintenance and quality monitoring"""
 
     # Performance thresholds

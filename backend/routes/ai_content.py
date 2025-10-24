@@ -8,6 +8,17 @@ from utils.auth.decorators import require_auth, require_admin
 from services.ai_badge_generation_service import AIBadgeGenerationService
 from services.recommendation_service import RecommendationService
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 
 from utils.logger import get_logger
 
@@ -18,6 +29,7 @@ bp = Blueprint('ai_content', __name__, url_prefix='/api/ai-generation')
 
 # Badge Recommendations (User-facing)
 
+# Using repository pattern for database access
 @bp.route('/recommendations/badges', methods=['GET'])
 @require_auth
 def get_recommended_badges(user_id):

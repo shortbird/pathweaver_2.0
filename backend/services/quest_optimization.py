@@ -6,6 +6,7 @@ to eliminate the N+1 problem identified in quest_v3.py.
 """
 
 from typing import Dict, List, Optional, Set, Any
+from services.base_service import BaseService
 from database import get_supabase_client
 from utils.pillar_mapping import normalize_pillar_name
 
@@ -14,7 +15,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class QuestOptimizationService:
+class QuestOptimizationService(BaseService):
     """Service to optimize quest queries and eliminate N+1 problems"""
 
     def __init__(self):

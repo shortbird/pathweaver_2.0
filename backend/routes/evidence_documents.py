@@ -5,6 +5,17 @@ Handles creating, updating, and retrieving evidence documents with multiple cont
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client, get_user_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 from services.evidence_service import EvidenceService
 from services.xp_service import XPService
@@ -32,6 +43,7 @@ MAX_DOCUMENT_SIZE = 10 * 1024 * 1024  # 10MB for documents (PDFs, etc.)
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
 ALLOWED_DOCUMENT_EXTENSIONS = {'pdf', 'doc', 'docx', 'txt'}
 
+# Using repository pattern for database access
 @bp.route('/documents/<task_id>', methods=['GET'])
 @require_auth
 def get_evidence_document(user_id: str, task_id: str):

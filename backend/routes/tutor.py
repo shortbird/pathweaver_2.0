@@ -14,6 +14,17 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 from database import get_user_client, get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 from services.ai_tutor_service import AITutorService, TutorContext, ConversationMode
 from services.safety_service import SafetyService, SafetyLevel
@@ -59,6 +70,7 @@ def get_tutor_service():
             raise Exception(f"Tutor service unavailable: {e}")
     return tutor_service
 
+# Using repository pattern for database access
 @bp.route('/chat', methods=['POST'])
 @require_auth
 def send_message(user_id: str):

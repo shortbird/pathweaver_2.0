@@ -7,6 +7,17 @@ Handles admin review and approval of student-created manual tasks.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_admin
 from datetime import datetime
 
@@ -16,6 +27,7 @@ logger = get_logger(__name__)
 
 bp = Blueprint('admin_task_approval', __name__, url_prefix='/api/admin')
 
+# Using repository pattern for database access
 @bp.route('/manual-tasks/pending', methods=['GET'])
 @require_admin
 def list_pending_tasks(user_id: str):

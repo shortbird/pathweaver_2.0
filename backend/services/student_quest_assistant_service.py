@@ -4,6 +4,7 @@ Personalized AI-powered quest creation wizard for students.
 """
 
 from typing import Dict, List, Optional, Any
+from services.base_service import BaseService
 from database import get_supabase_admin_client
 from services.quest_ai_service import QuestAIService
 from services.ai_quest_maintenance_service import AIQuestMaintenanceService
@@ -14,7 +15,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class StudentQuestAssistantService:
+class StudentQuestAssistantService(BaseService):
     """Service for helping students create custom quests aligned with their goals"""
 
     @staticmethod

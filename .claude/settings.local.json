@@ -352,7 +352,10 @@
       "Bash(mv config lms_config)",
       "Bash(bash scripts/migrate_colors.sh:*)",
       "Bash(do)",
-      "Bash(echo:*)"
+      "Bash(echo:*)",
+      "Bash(if ! grep -q \"BaseService\" \"$file\")",
+      "Bash(then)",
+      "Bash(xargs:*)"
     ],
     "deny": [],
     "ask": []

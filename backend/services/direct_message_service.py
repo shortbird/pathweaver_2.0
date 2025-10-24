@@ -7,6 +7,7 @@ import sys
 from datetime import datetime
 from typing import Dict, List, Optional, Any
 import uuid
+from services.base_service import BaseService
 from database import get_supabase_admin_client
 
 from utils.logger import get_logger
@@ -14,7 +15,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class DirectMessageService:
+class DirectMessageService(BaseService):
     """Service for direct messaging operations"""
 
     def __init__(self):

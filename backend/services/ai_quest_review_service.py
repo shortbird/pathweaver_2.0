@@ -5,6 +5,7 @@ Manages the workflow for reviewing, approving, and rejecting AI-generated quests
 
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+from services.base_service import BaseService
 from database import get_supabase_admin_client
 import json
 
@@ -13,7 +14,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class AIQuestReviewService:
+class AIQuestReviewService(BaseService):
     """Service for managing AI-generated quest review workflow"""
 
     @staticmethod

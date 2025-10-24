@@ -7,6 +7,17 @@ Allows admins to edit tier pricing, features, and display settings.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client, get_supabase_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_admin
 from utils.api_response import success_response, error_response
 import json
@@ -17,6 +28,7 @@ logger = get_logger(__name__)
 
 bp = Blueprint('admin_tier_management', __name__, url_prefix='/api/admin')
 
+# Using repository pattern for database access
 @bp.route('/tiers', methods=['GET'])
 @require_admin
 def get_all_tiers(user_id):

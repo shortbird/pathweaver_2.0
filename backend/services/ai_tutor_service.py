@@ -7,6 +7,7 @@ import json
 import re
 import os
 from typing import Dict, List, Optional, Any, Tuple
+from services.base_service import BaseService
 from dataclasses import dataclass
 from enum import Enum
 import google.generativeai as genai
@@ -47,12 +48,13 @@ class TutorResponse:
     xp_bonus_eligible: bool = False
     requires_parent_notification: bool = False
 
-class AITutorService:
+class AITutorService(BaseService):
     """AI-powered educational tutor service"""
 
-    def __init__(self):
+    def __init__(self, user_id: Optional[str] = None):
         """Initialize AI tutor service"""
-        self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+        super().__init__(user_id)
+self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
         self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
 
         if not self.api_key:

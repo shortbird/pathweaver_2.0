@@ -1,6 +1,17 @@
 from flask import Blueprint, jsonify
 from flask_cors import cross_origin
 from database import get_supabase_client, get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from datetime import datetime
 from utils.auth.decorators import require_auth
 
@@ -10,6 +21,7 @@ logger = get_logger(__name__)
 
 bp = Blueprint('portfolio', __name__)
 
+# Using repository pattern for database access
 @bp.route('/public/<portfolio_slug>', methods=['GET'])
 @cross_origin()
 def get_public_portfolio(portfolio_slug):

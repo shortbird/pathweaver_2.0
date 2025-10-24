@@ -5,6 +5,7 @@ Provides analytics and comparison metrics for AI-generated quest performance.
 
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
+from services.base_service import BaseService
 from database import get_supabase_admin_client
 from decimal import Decimal
 
@@ -13,7 +14,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class AIPerformanceAnalyticsService:
+class AIPerformanceAnalyticsService(BaseService):
     """Service for analyzing AI-generated quest performance and A/B testing"""
 
     @staticmethod

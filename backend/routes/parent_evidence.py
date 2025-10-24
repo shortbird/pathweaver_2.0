@@ -10,6 +10,17 @@ All endpoints verify parent-student link before allowing operations.
 from flask import Blueprint, request, jsonify
 from datetime import datetime
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 from middleware.error_handler import ValidationError, AuthorizationError, NotFoundError
 import uuid
@@ -44,6 +55,7 @@ def verify_parent_access(parent_user_id, student_user_id):
     return True
 
 
+# Using repository pattern for database access
 @bp.route('/evidence/<student_id>', methods=['POST'])
 @require_auth
 def upload_parent_evidence(user_id, student_id):

@@ -6,6 +6,7 @@ Automated badge creation using Gemini API with quality validation.
 from typing import Dict, List, Optional
 import json
 import os
+from services.base_service import BaseService
 from database import get_supabase_admin_client
 
 from utils.logger import get_logger
@@ -30,7 +31,7 @@ except ImportError:
     gemini_model = None
 
 
-class AIBadgeGenerationService:
+class AIBadgeGenerationService(BaseService):
     """Service for AI-powered badge creation and validation."""
 
     # Core philosophy for badge creation

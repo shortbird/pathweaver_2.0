@@ -6,6 +6,7 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional, List, Dict, Any
+from services.base_service import BaseService
 import logging
 from jinja2 import Environment, FileSystemLoader, select_autoescape, TemplateNotFound
 from services.email_copy_loader import email_copy_loader
@@ -16,7 +17,7 @@ logger = get_logger(__name__)
 
 logger = logging.getLogger(__name__)
 
-class EmailService:
+class EmailService(BaseService):
     def __init__(self):
         # SMTP Configuration from environment variables
         self.smtp_host = os.getenv('SMTP_HOST', 'smtp.sendgrid.net')

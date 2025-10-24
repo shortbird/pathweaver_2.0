@@ -5,6 +5,17 @@ Handles task completion with evidence upload and XP awards.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client, get_user_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 from services.evidence_service import EvidenceService
 from services.xp_service import XPService
@@ -31,6 +42,7 @@ UPLOAD_FOLDER = os.getenv('UPLOAD_FOLDER', 'uploads/evidence')
 MAX_FILE_SIZE = int(os.getenv('MAX_IMAGE_UPLOAD_SIZE', 10485760))  # 10MB default for images
 ALLOWED_IMAGE_EXTENSIONS = {'jpg', 'jpeg', 'png', 'gif', 'webp'}
 
+# Using repository pattern for database access
 @bp.route('/<task_id>/complete', methods=['POST'])
 @require_auth
 def complete_task(user_id: str, task_id: str):

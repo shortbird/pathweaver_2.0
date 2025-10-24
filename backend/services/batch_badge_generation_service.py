@@ -6,6 +6,7 @@ Handles bulk badge generation with AI for efficient content creation.
 from typing import Dict, List, Optional
 import uuid
 from datetime import datetime
+from services.base_service import BaseService
 from database import get_supabase_admin_client
 from services.ai_badge_generation_service import AIBadgeGenerationService
 import logging
@@ -17,7 +18,7 @@ logger = get_logger(__name__)
 logger = logging.getLogger(__name__)
 
 
-class BatchBadgeGenerationService:
+class BatchBadgeGenerationService(BaseService):
     """Service for batch badge generation and management."""
 
     @staticmethod

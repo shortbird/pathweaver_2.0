@@ -5,6 +5,7 @@ Enhanced with AI-powered educational search term generation.
 import os
 import requests
 from typing import Optional, Dict
+from services.base_service import BaseService
 import re
 import google.generativeai as genai
 from services.api_usage_tracker import pexels_tracker

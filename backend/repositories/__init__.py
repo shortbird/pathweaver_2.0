@@ -33,6 +33,12 @@ from backend.repositories.base_repository import (
 from backend.repositories.user_repository import UserRepository
 from backend.repositories.quest_repository import QuestRepository, QuestTaskRepository
 from backend.repositories.badge_repository import BadgeRepository
+from backend.repositories.evidence_repository import EvidenceRepository
+from backend.repositories.friendship_repository import FriendshipRepository
+from backend.repositories.parent_repository import ParentRepository
+from backend.repositories.tutor_repository import TutorRepository
+from backend.repositories.lms_repository import LMSRepository
+from backend.repositories.analytics_repository import AnalyticsRepository
 
 __all__ = [
     # Base classes
@@ -49,4 +55,10 @@ __all__ = [
     'QuestRepository',
     'QuestTaskRepository',
     'BadgeRepository',
+    'EvidenceRepository',
+    'FriendshipRepository',
+    'ParentRepository',
+    'TutorRepository',
+    'LMSRepository',
+    'AnalyticsRepository',
 ]

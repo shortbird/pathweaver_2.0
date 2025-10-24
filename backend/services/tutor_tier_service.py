@@ -12,6 +12,7 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+from services.base_service import BaseService
 from database import get_supabase_admin_client
 
 logger = logging.getLogger(__name__)
@@ -34,12 +35,13 @@ class TierLimits:
     parent_monitoring: bool
     custom_modes: bool
 
-class TutorTierService:
+class TutorTierService(BaseService):
     """Service for managing tutor subscription tier access and limits"""
 
-    def __init__(self):
+    def __init__(self, user_id: Optional[str] = None):
         """Initialize tier service with predefined limits"""
-        self.tier_limits = self._define_tier_limits()
+        super().__init__(user_id)
+self.tier_limits = self._define_tier_limits()
         self.tier_mappings = self._define_tier_mappings()
 
     def _define_tier_limits(self) -> Dict[TutorTier, TierLimits]:

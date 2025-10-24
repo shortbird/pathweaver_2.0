@@ -10,6 +10,7 @@ import hashlib
 import json
 from typing import Dict, List, Optional, Any
 from datetime import datetime, timedelta
+from services.base_service import BaseService
 from database import get_supabase_admin_client
 from utils.pillar_mapping import normalize_pillar_name
 
@@ -17,13 +18,10 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-class TaskCacheService:
+class TaskCacheService(BaseService):
     """Caching service for AI-generated tasks"""
 
-    def __init__(self):
-        self.supabase = get_supabase_admin_client()
-
-    def build_cache_key(self, interests: List[str], cross_curricular: List[str]) -> str:
+    def __init__(self):    def build_cache_key(self, interests: List[str], cross_curricular: List[str]) -> str:
         """Build a cache key from interests and cross-curricular subjects"""
         combined = sorted(interests) + sorted(cross_curricular)
         key_str = '|'.join(combined)
@@ -77,12 +75,10 @@ class TaskCacheService:
         except Exception as e:
             logger.error(f"Cache set error: {e}")
 
-class PersonalizationService:
+class PersonalizationService(BaseService):
     """Main service for quest personalization"""
 
-    def __init__(self):
-        self.supabase = get_supabase_admin_client()
-        self.cache = TaskCacheService()
+    def __init__(self):        self.cache = TaskCacheService()
 
         # Import AI service lazily to avoid circular imports
         from services.quest_ai_service import QuestAIService

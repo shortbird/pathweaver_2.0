@@ -2,12 +2,13 @@ import os
 import json
 import google.generativeai as genai
 from typing import Dict, Any, Optional
+from services.base_service import BaseService
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-class QuestCompletionService:
+class QuestCompletionService(BaseService):
     def __init__(self):
         api_key = os.getenv('GEMINI_API_KEY')
         if not api_key:

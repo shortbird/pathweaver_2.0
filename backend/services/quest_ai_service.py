@@ -13,12 +13,13 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-class QuestAIService:
+class QuestAIService(BaseService):
     """Service for AI-powered quest generation using Gemini API"""
     
-    def __init__(self, prompt_version: Optional[str] = None):
+    def __init__(self, prompt_version: Optional[str] = None, user_id: Optional[str] = None):
         """Initialize the AI service with Gemini configuration"""
-        self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+        super().__init__(user_id)
+self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
         self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
 
         if not self.api_key:
@@ -270,7 +271,8 @@ class QuestAIService:
     def _get_active_prompt_version(self) -> str:
         """Get the currently active prompt version for quest generation"""
         try:
-            from database import get_supabase_admin_client
+            from services.base_service import BaseService
+from database import get_supabase_admin_client
             supabase = get_supabase_admin_client()
 
             # Get active quest_generation prompt
@@ -570,7 +572,8 @@ class QuestAIService:
         try:
             # Get badge details if not provided
             if not badge_context:
-                from database import get_supabase_admin_client
+                from services.base_service import BaseService
+from database import get_supabase_admin_client
                 supabase = get_supabase_admin_client()
                 badge = supabase.table('badges').select('*').eq('id', badge_id).single().execute()
 
@@ -623,7 +626,8 @@ class QuestAIService:
             List of badge IDs that this quest aligns with
         """
         try:
-            from database import get_supabase_admin_client
+            from services.base_service import BaseService
+from database import get_supabase_admin_client
             supabase = get_supabase_admin_client()
 
             # Get all active badges

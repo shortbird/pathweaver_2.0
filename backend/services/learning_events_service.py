@@ -5,6 +5,7 @@ Handles business logic for spontaneous learning moment capture
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 import logging
+from services.base_service import BaseService
 from database import get_supabase_admin_client, get_user_client
 
 from utils.logger import get_logger
@@ -14,7 +15,7 @@ logger = get_logger(__name__)
 logger = logging.getLogger(__name__)
 
 
-class LearningEventsService:
+class LearningEventsService(BaseService):
     """Service for managing learning events and their evidence"""
 
     @staticmethod

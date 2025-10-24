@@ -1,5 +1,16 @@
 from flask import Blueprint, jsonify, request
 from database import get_supabase_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from datetime import datetime
 import time
 import os

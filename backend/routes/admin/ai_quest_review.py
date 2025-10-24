@@ -14,6 +14,7 @@ logger = get_logger(__name__)
 bp = Blueprint('admin_ai_quest_review', __name__, url_prefix='/api/admin/ai-quest-review')
 
 
+# Using repository pattern for database access
 @bp.route('/items', methods=['GET'])
 @require_admin
 def get_review_items(user_id):
@@ -213,6 +214,17 @@ def refresh_review_quest_image(user_id, review_id):
     """
     try:
         from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
         from services.image_service import search_quest_image
 
         supabase = get_supabase_admin_client()

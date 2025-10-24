@@ -3,6 +3,17 @@
 from flask import Blueprint, jsonify
 from datetime import datetime, timezone
 from database import get_user_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 from middleware.error_handler import NotFoundError
 from .helpers import calculate_user_xp, get_user_level, format_skill_data, SKILL_CATEGORIES

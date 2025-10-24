@@ -7,6 +7,17 @@ Includes AI-powered quest generation and manual quest creation from ideas.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_admin
 from services.image_service import search_quest_image
 from datetime import datetime
@@ -28,6 +39,7 @@ def get_quest_ai_service():
         _quest_ai_service = QuestAIService()
     return _quest_ai_service
 
+# Using repository pattern for database access
 @bp.route('/quest-ideas', methods=['GET'])
 @require_admin
 def list_quest_ideas(user_id):

@@ -9,6 +9,17 @@ All endpoints verify parent-student link before allowing access.
 from flask import Blueprint, request, jsonify
 from datetime import datetime, date, timedelta
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
@@ -82,6 +93,7 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
         raise AuthorizationError("Failed to verify parent access")
 
 
+# Using repository pattern for database access
 @bp.route('/dashboard/<student_id>', methods=['GET'])
 @require_auth
 def get_parent_dashboard(user_id, student_id):

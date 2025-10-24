@@ -8,6 +8,17 @@ Managing parent-student relationships requires cross-user operations and elevate
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta
 from database import get_supabase_admin_client, get_user_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 from middleware.error_handler import ValidationError, NotFoundError, AuthorizationError
 from services.email_service import email_service
@@ -33,6 +44,7 @@ def hash_token(token):
     return hashlib.sha256(token.encode()).hexdigest()
 
 
+# Using repository pattern for database access
 @bp.route('/invite', methods=['POST'])
 @require_auth
 def send_parent_invitation(user_id):

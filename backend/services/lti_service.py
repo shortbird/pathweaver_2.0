@@ -10,6 +10,7 @@ import requests
 from datetime import datetime, timedelta, timezone
 from flask import current_app
 from lms_config.lms_platforms import get_platform_config
+from services.base_service import BaseService
 from database import get_supabase_admin_client
 
 from utils.logger import get_logger
@@ -17,7 +18,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class LTI13Service:
+class LTI13Service(BaseService):
     """LTI 1.3 integration service for LMS platforms"""
 
     def __init__(self):

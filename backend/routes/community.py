@@ -1,5 +1,16 @@
 from flask import Blueprint, request, jsonify
 from database import get_supabase_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 import sys
 
@@ -9,6 +20,7 @@ logger = get_logger(__name__)
 
 bp = Blueprint('community', __name__)
 
+# Using repository pattern for database access
 @bp.route('/friends', methods=['GET'])
 @require_auth
 def get_friends(user_id):

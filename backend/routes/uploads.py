@@ -1,6 +1,17 @@
 from flask import Blueprint, request, jsonify
 from utils.auth.decorators import require_auth
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from middleware.error_handler import ValidationError
 from werkzeug.utils import secure_filename
 import base64
@@ -111,6 +122,7 @@ def sanitize_filename(filename: str) -> str:
 
     return safe
 
+# Using repository pattern for database access
 @bp.route('/evidence', methods=['POST'])
 @require_auth
 def upload_evidence(user_id):

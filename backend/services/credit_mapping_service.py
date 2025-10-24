@@ -6,6 +6,7 @@ Handles conversion of XP to academic credits and transcript generation.
 
 from typing import Dict, List, Optional
 from datetime import datetime
+from services.base_service import BaseService
 from database import get_supabase_admin_client, get_user_client
 
 from utils.logger import get_logger
@@ -13,7 +14,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class CreditMappingService:
+class CreditMappingService(BaseService):
     """Service for tracking academic credits derived from XP."""
 
     # Standard diploma requirements (20 credits total)

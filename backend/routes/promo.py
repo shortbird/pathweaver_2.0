@@ -2,6 +2,17 @@ from flask import Blueprint, request, jsonify
 from datetime import datetime
 import logging
 from database import get_supabase_client, get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from services.email_service import email_service
 from utils.auth.decorators import require_admin
 

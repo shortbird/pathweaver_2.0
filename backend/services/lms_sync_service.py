@@ -7,6 +7,7 @@ Supports OneRoster CSV format for bulk user imports.
 
 import csv
 from io import StringIO
+from services.base_service import BaseService
 from database import get_supabase_admin_client
 from flask import current_app
 
@@ -15,7 +16,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class LMSSyncService:
+class LMSSyncService(BaseService):
     """Service for syncing rosters and grades with LMS"""
 
     def sync_roster_from_oneroster(self, csv_content, lms_platform):

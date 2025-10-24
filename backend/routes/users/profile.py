@@ -2,6 +2,17 @@
 
 from flask import Blueprint, request, jsonify
 from database import get_user_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 from middleware.error_handler import NotFoundError, ValidationError
 from repositories.user_repository import UserRepository

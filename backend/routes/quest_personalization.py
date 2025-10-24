@@ -8,6 +8,17 @@ to generate custom learning paths aligned with their interests.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 from services.personalization_service import personalization_service
 from datetime import datetime
@@ -18,6 +29,7 @@ logger = get_logger(__name__)
 
 bp = Blueprint('quest_personalization', __name__, url_prefix='/api/quests')
 
+# Using repository pattern for database access
 @bp.route('/<quest_id>/start-personalization', methods=['POST'])
 @require_auth
 def start_personalization(user_id: str, quest_id: str):

@@ -14,6 +14,7 @@ import google.generativeai as genai
 import os
 import json
 from typing import Dict, List, Optional, Tuple
+from services.base_service import BaseService
 from datetime import datetime
 
 from utils.logger import get_logger
@@ -21,12 +22,13 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class StudentAIAssistantService:
+class StudentAIAssistantService(BaseService):
     """Service for AI-powered student assistance with quest ideas."""
 
-    def __init__(self):
+    def __init__(self, user_id: Optional[str] = None):
         """Initialize the service with Gemini API."""
-        api_key = os.getenv('GEMINI_API_KEY')
+        super().__init__(user_id)
+api_key = os.getenv('GEMINI_API_KEY')
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
 

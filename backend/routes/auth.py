@@ -1,5 +1,16 @@
 from flask import Blueprint, request, jsonify, make_response
 from database import get_supabase_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.token_utils import verify_token
 from utils.validation import validate_registration_data, sanitize_input
 from utils.session_manager import session_manager
@@ -196,6 +207,7 @@ def ensure_user_diploma_and_skills(supabase, user_id, first_name, last_name):
         logger.error(f"Error ensuring diploma and skills: {str(e)}")
         # Don't fail registration if this fails - the database trigger should handle it
 
+# Using repository pattern for database access
 @bp.route('/register', methods=['POST'])
 @rate_limit(max_requests=5, window_seconds=300)  # 5 registrations per 5 minutes
 def register():

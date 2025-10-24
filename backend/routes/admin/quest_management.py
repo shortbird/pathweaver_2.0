@@ -7,6 +7,17 @@ and quest validation functionality.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_admin
 from utils.pillar_utils import is_valid_pillar
 from utils.pillar_mapping import normalize_pillar_name
@@ -45,6 +56,7 @@ def get_school_subjects_v3():
             'error': 'Failed to fetch school subjects'
         }), 500
 
+# Using repository pattern for database access
 @bp.route('/quests/create-v3', methods=['POST'])
 @require_admin
 def create_quest_v3_clean(user_id):

@@ -6,6 +6,7 @@ Handles custom badge creation, student monitoring, and advisor-student relations
 import sys
 from datetime import datetime
 from typing import Dict, List, Optional, Any
+from services.base_service import BaseService
 from database import get_authenticated_supabase_client
 from services.badge_service import BadgeService
 
@@ -13,7 +14,7 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-class AdvisorService:
+class AdvisorService(BaseService):
     """Service for advisor-specific operations"""
 
     def __init__(self):

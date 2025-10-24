@@ -6,6 +6,7 @@ Handles validation, sanitization, and storage of task completion evidence.
 import re
 import os
 from typing import Dict, Any, Optional, Tuple
+from services.base_service import BaseService
 from werkzeug.utils import secure_filename
 from datetime import datetime
 
@@ -42,7 +43,7 @@ EVIDENCE_RULES = {
     }
 }
 
-class EvidenceService:
+class EvidenceService(BaseService):
     """Service for handling evidence validation and storage."""
     
     def __init__(self, upload_folder: str = 'uploads/evidence'):

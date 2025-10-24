@@ -7,6 +7,17 @@ Supports both creating custom tasks and copying from existing task templates.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_admin
 from utils.pillar_utils import is_valid_pillar
 from utils.pillar_mapping import normalize_pillar_name
@@ -20,6 +31,7 @@ logger = get_logger(__name__)
 
 bp = Blueprint('admin_student_task_management', __name__, url_prefix='/api/admin/users')
 
+# Using repository pattern for database access
 @bp.route('/<target_user_id>/quests/<quest_id>/tasks', methods=['POST'])
 @require_admin
 def create_student_task(user_id, target_user_id, quest_id):

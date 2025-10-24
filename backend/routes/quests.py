@@ -5,6 +5,17 @@ Handles quest listing, enrollment, and detail views.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_client, get_supabase_admin_client, get_user_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 from utils.source_utils import get_quest_header_image
 from utils.user_sync import ensure_user_exists, get_user_name
@@ -180,6 +191,7 @@ def list_quests():
             'error': 'Failed to fetch quests'
         }), 500
 
+# Using repository pattern for database access
 @bp.route('/<quest_id>', methods=['GET'])
 @require_auth
 def get_quest_detail(user_id: str, quest_id: str):

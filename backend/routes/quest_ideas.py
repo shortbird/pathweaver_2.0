@@ -3,6 +3,17 @@ from flask_cors import cross_origin
 from datetime import datetime
 from utils.auth.decorators import require_auth
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 import os
 import sys
 

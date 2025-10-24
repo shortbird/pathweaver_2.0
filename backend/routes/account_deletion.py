@@ -1,5 +1,16 @@
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client, get_user_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 from middleware.error_handler import ValidationError, NotFoundError
 from middleware.rate_limiter import rate_limit
@@ -94,6 +105,7 @@ def request_account_deletion(current_user):
         logger.error(f"Error requesting account deletion: {str(e)}")
         return jsonify({'error': 'Failed to request account deletion'}), 500
 
+# Using repository pattern for database access
 @bp.route('/users/cancel-deletion', methods=['POST'])
 @require_auth
 def cancel_account_deletion(current_user):

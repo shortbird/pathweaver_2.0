@@ -7,6 +7,17 @@ user status updates, and chat log viewing for admin interface.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_admin
 from utils.api_response import success_response, error_response
 from datetime import datetime, timedelta
@@ -18,6 +29,7 @@ logger = get_logger(__name__)
 
 bp = Blueprint('admin_user_management', __name__, url_prefix='/api/admin')
 
+# Using repository pattern for database access
 @bp.route('/users', methods=['GET'])
 @require_admin
 def get_users(user_id):

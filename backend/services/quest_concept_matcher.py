@@ -5,6 +5,7 @@ Detects similar quests through concept extraction and comparison
 
 import re
 from typing import Dict, List, Set, Tuple, Optional
+from services.base_service import BaseService
 from collections import defaultdict
 import hashlib
 import json
@@ -16,10 +17,10 @@ logger = get_logger(__name__)
 class QuestConceptMatcher:
     """Handles concept extraction and similarity matching for quests"""
     
-    def __init__(self):
+    def __init__(self, user_id: Optional[str] = None):
         """Initialize the concept matcher with common word lists"""
-        
-        # Common words to filter out
+        super().__init__(user_id)
+# Common words to filter out
         self.common_words = {
             'the', 'and', 'for', 'with', 'this', 'that', 'your', 'will', 
             'can', 'how', 'what', 'when', 'where', 'why', 'are', 'was',

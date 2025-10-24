@@ -6,6 +6,7 @@ import os
 import yaml
 import logging
 from typing import Dict, Any
+from services.base_service import BaseService
 
 from utils.logger import get_logger
 

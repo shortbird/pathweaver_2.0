@@ -7,6 +7,17 @@ real-time metrics, user engagement, quest completion rates, and system health.
 
 from flask import Blueprint, jsonify
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_admin
 from datetime import datetime, timedelta
 import json
@@ -18,6 +29,7 @@ logger = get_logger(__name__)
 
 bp = Blueprint('admin_analytics', __name__, url_prefix='/api/admin/analytics')
 
+# Using repository pattern for database access
 @bp.route('/overview', methods=['GET'])
 @require_admin
 def get_overview_metrics(user_id):

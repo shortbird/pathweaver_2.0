@@ -4,6 +4,7 @@ Smart content discovery for badges and quests using AI and user data.
 """
 
 from typing import List, Dict, Optional
+from services.base_service import BaseService
 from database import get_supabase_admin_client
 from collections import Counter
 
@@ -12,7 +13,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class RecommendationService:
+class RecommendationService(BaseService):
     """Service for recommending badges and quests to users."""
 
     @staticmethod

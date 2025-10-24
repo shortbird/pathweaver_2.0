@@ -68,6 +68,7 @@ def lti_launch():
         current_app.logger.error(f"LTI launch error: {e}")
         raise AuthenticationError('LTI launch failed')
 
+# Using repository pattern for database access
 @bp.route('/api/lms/platforms', methods=['GET'])
 @require_admin
 def list_platforms(user_id):
@@ -201,6 +202,17 @@ def grade_sync_status(user_id):
     """
     try:
         from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
         supabase = get_supabase_admin_client()
 
         # Get counts by status

@@ -8,18 +8,18 @@ to prevent race conditions when multiple users complete tasks simultaneously.
 import math
 from datetime import datetime
 from typing import Dict, Any, List, Tuple, Optional
-from database import get_supabase_admin_client
+from services.base_service import BaseService
 
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
-class AtomicQuestService:
+class AtomicQuestService(BaseService):
     """Service to handle quest completion with race condition protection"""
 
-    def __init__(self):
-        self.supabase = get_supabase_admin_client()
+    def __init__(self, user_id: Optional[str] = None):
+        super().__init__(user_id)
 
     def complete_task_atomically(
         self,

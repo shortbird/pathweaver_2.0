@@ -1,5 +1,16 @@
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_admin
 from utils.pillar_utils import is_valid_pillar
 from utils.pillar_mapping import normalize_pillar_name
@@ -62,6 +73,7 @@ def get_school_subjects():
 # USER MANAGEMENT ENDPOINTS - V3
 # =============================================================================
 
+# Using repository pattern for database access
 @bp.route('/users', methods=['GET'])
 @require_admin
 def get_users_list(user_id):

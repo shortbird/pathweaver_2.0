@@ -6,6 +6,7 @@ Implements continuous improvement loop for quest generation.
 
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Tuple
+from services.base_service import BaseService
 import logging
 
 from utils.logger import get_logger
@@ -17,13 +18,10 @@ from backend.database import get_supabase_admin_client
 logger = logging.getLogger(__name__)
 
 
-class AIPromptOptimizerService:
+class AIPromptOptimizerService(BaseService):
     """Service for optimizing AI prompts based on performance data."""
 
-    def __init__(self):
-        self.supabase = get_supabase_admin_client()
-
-    def analyze_prompt_performance(self, days: int = 30) -> List[Dict]:
+    def __init__(self):    def analyze_prompt_performance(self, days: int = 30) -> List[Dict]:
         """
         Analyze performance of all prompt versions over time period.
 

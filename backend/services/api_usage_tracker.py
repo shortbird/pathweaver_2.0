@@ -7,6 +7,7 @@ Tracks API calls to ensure we stay within rate limits:
 """
 from datetime import datetime, timedelta
 from typing import Dict
+from services.base_service import BaseService
 
 from utils.logger import get_logger
 

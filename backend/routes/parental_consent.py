@@ -7,6 +7,17 @@ Managing parental consent requires cross-user operations and system-level privil
 """
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from middleware.error_handler import ValidationError, NotFoundError
 from middleware.rate_limiter import rate_limit
 from services.email_service import email_service
@@ -31,6 +42,7 @@ def hash_token(token):
     """Hash the token for secure storage"""
     return hashlib.sha256(token.encode()).hexdigest()
 
+# Using repository pattern for database access
 @bp.route('/parental-consent/send', methods=['POST'])
 @rate_limit(max_requests=3, window_seconds=3600)  # 3 requests per hour
 def send_parental_consent():

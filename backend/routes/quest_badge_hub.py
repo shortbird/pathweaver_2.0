@@ -5,6 +5,17 @@ Unified endpoint for the combined quest and badge explorer interface.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_client, get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 from utils.validation.sanitizers import sanitize_search_input
 from services.badge_service import BadgeService
@@ -168,6 +179,7 @@ def get_quests_for_hub():
         }), 500
 
 
+# Using repository pattern for database access
 @bp.route('/stats', methods=['GET'])
 @require_auth
 def get_hub_stats(user_id: str):

@@ -4,6 +4,17 @@ Calendar routes for managing user quest/task scheduling and deadlines.
 from flask import Blueprint, request, jsonify
 from datetime import datetime, timedelta, date
 from database import get_supabase_admin_client, get_user_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 from utils.auth.decorators import require_auth
 from collections import defaultdict
 

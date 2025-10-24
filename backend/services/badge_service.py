@@ -5,6 +5,7 @@ Handles badge management, progression tracking, and badge-quest relationships.
 
 from typing import List, Dict, Optional
 from datetime import datetime
+from services.base_service import BaseService
 from database import get_supabase_admin_client, get_user_client
 from flask import current_app
 
@@ -13,7 +14,7 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class BadgeService:
+class BadgeService(BaseService):
     """Core service for badge management and progression tracking."""
 
     @staticmethod

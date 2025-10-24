@@ -15,6 +15,7 @@ import json
 import uuid
 from typing import Dict, List, Optional, Tuple
 from datetime import datetime
+from services.base_service import BaseService
 from database import get_supabase_admin_client
 from services.quest_ai_service import QuestAIService
 from services.ai_quest_review_service import AIQuestReviewService
@@ -25,12 +26,13 @@ from utils.logger import get_logger
 logger = get_logger(__name__)
 
 
-class BatchQuestGenerationService:
+class BatchQuestGenerationService(BaseService):
     """Service for batch quest generation with progress tracking."""
 
-    def __init__(self):
+    def __init__(self, user_id: Optional[str] = None):
         """Initialize the batch generation service."""
-        self.supabase = get_supabase_admin_client()
+        super().__init__(user_id)
+
         self.quest_ai_service = QuestAIService()
         self.review_service = AIQuestReviewService()
         self.concept_matcher = QuestConceptMatcher()

@@ -6,6 +6,17 @@ One-time endpoint to populate initial badges
 from flask import Blueprint, jsonify
 from utils.auth.decorators import require_admin
 from database import get_supabase_admin_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
 
 from utils.logger import get_logger
 
@@ -14,6 +25,7 @@ logger = get_logger(__name__)
 bp = Blueprint('admin_badge_seed', __name__, url_prefix='/api/admin/seed')
 
 
+# Using repository pattern for database access
 @bp.route('/initial-badges', methods=['POST'])
 @require_admin
 def seed_initial_badges(user_id):

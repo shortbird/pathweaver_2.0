@@ -281,6 +281,17 @@ def upload_event_file(user_id, event_id):
     """Upload a file for a learning event evidence block"""
     try:
         from database import get_supabase_admin_client, get_user_client
+from backend.repositories import (
+    UserRepository,
+    QuestRepository,
+    BadgeRepository,
+    EvidenceRepository,
+    FriendshipRepository,
+    ParentRepository,
+    TutorRepository,
+    LMSRepository,
+    AnalyticsRepository
+)
         from werkzeug.utils import secure_filename
         from datetime import datetime
         import os

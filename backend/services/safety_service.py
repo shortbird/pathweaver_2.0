@@ -7,6 +7,7 @@ import re
 import json
 import logging
 from typing import Dict, List, Optional, Tuple, Any
+from services.base_service import BaseService
 from dataclasses import dataclass
 from enum import Enum
 
@@ -32,12 +33,13 @@ class SafetyResult:
     filtered_content: Optional[str] = None
     flagged_terms: List[str] = None
 
-class SafetyService:
+class SafetyService(BaseService):
     """Service for content safety and moderation in AI tutor interactions"""
 
-    def __init__(self):
+    def __init__(self, user_id: Optional[str] = None):
         """Initialize safety service with filtering rules and patterns"""
-        self.blocked_patterns = self._load_blocked_patterns()
+        super().__init__(user_id)
+self.blocked_patterns = self._load_blocked_patterns()
         self.warning_patterns = self._load_warning_patterns()
         self.educational_topics = self._load_educational_topics()
         self.personal_info_patterns = self._load_personal_info_patterns()
