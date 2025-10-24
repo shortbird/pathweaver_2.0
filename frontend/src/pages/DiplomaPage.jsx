@@ -229,6 +229,16 @@ const DiplomaPage = () => {
         setTotalXPCount(data.total_xp);
       }
 
+      // Extract and set subject XP data for diploma credits
+      if (data.subject_xp) {
+        // Transform array to object with subject as key
+        const subjectXPMap = {};
+        data.subject_xp.forEach(item => {
+          subjectXPMap[item.school_subject] = item.xp_amount;
+        });
+        setSubjectXP(subjectXPMap);
+      }
+
       // Fetch badges and learning events for public diploma
       if (userId) {
         await fetchEarnedBadges(userId);
@@ -403,16 +413,22 @@ const DiplomaPage = () => {
     setShareableLink(link);
   };
 
-  const copyShareLink = () => {
-    navigator.clipboard.writeText(shareableLink);
-    // Better feedback than alert
-    const button = document.activeElement;
-    const originalText = button?.innerText;
-    if (button) {
-      button.innerText = 'Copied!';
-      setTimeout(() => {
-        button.innerText = originalText;
-      }, 2000);
+  const copyShareLink = async () => {
+    try {
+      await navigator.clipboard.writeText(shareableLink);
+      // Better feedback than alert
+      const button = document.activeElement;
+      const originalText = button?.textContent || button?.innerText;
+      if (button && originalText) {
+        button.textContent = 'Copied!';
+        setTimeout(() => {
+          button.textContent = originalText;
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Failed to copy link:', error);
+      // Fallback for older browsers or when clipboard access is denied
+      alert(`Copy this link: ${shareableLink}`);
     }
   };
 

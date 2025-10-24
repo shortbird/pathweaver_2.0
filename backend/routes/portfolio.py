@@ -413,6 +413,10 @@ def get_public_diploma_by_user_id(user_id):
                     xp_by_category[category] = xp
                     total_xp += xp
 
+        # Get subject XP for diploma credits section
+        subject_xp_response = supabase.table('user_subject_xp').select('school_subject, xp_amount').eq('user_id', user_id).execute()
+        subject_xp_data = subject_xp_response.data or []
+
         # Process completed and in-progress quests for achievements format
         achievements = []
 
@@ -634,11 +638,13 @@ def get_public_diploma_by_user_id(user_id):
         logger.info(f"Student: {user.data[0]}")
         logger.info(f"Achievements: {len(achievements)}")
         logger.info(f"Total XP: {total_xp}")
+        logger.info(f"Subject XP: {subject_xp_data}")
 
         return jsonify({
             'student': user.data[0],
             'achievements': achievements,
             'skill_xp': xp_by_category,
+            'subject_xp': subject_xp_data,
             'total_xp': total_xp,
             'total_quests_completed': len(achievements)
         }), 200
