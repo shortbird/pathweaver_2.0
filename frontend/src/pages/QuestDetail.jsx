@@ -283,7 +283,7 @@ const QuestDetail = () => {
   const questImage = quest.image_url || quest.header_image_url || getQuestHeaderImageSync(quest.source);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 pt-[50px] sm:pt-0">
       {/* Hero Section with Background Image */}
       <div className="relative min-h-[500px] w-full overflow-hidden pb-8">
         {/* Background Image */}
@@ -469,7 +469,7 @@ const QuestDetail = () => {
                       className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group transition-all hover:shadow-lg"
                       style={{
                         background: task.is_completed
-                          ? pillarData.color
+                          ? '#15803d'
                           : `linear-gradient(to right, #ffffff 0%, ${pillarData.color}15 100%)`
                       }}
                     >
@@ -573,7 +573,7 @@ const QuestDetail = () => {
                 {quest.user_enrollment && !isQuestCompleted && (
                   <div
                     onClick={() => setShowPersonalizationWizard(true)}
-                    className="aspect-square rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-lg bg-green-500 flex flex-col items-center justify-center gap-2 text-white group"
+                    className="aspect-square rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-lg border-4 border-green-700 bg-white flex flex-col items-center justify-center gap-2 text-green-700 group hover:bg-green-50"
                   >
                     <Plus className="w-10 h-10 transition-transform group-hover:scale-110" />
                     <div className="text-xs font-bold uppercase tracking-wide text-center px-2" style={{ fontFamily: 'Poppins' }}>
