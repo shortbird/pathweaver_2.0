@@ -4,10 +4,6 @@ Pillar Definitions - Single Source of Truth
 All pillar names, colors, icons, and metadata defined here.
 Import this module instead of hardcoding pillar data.
 """
-from utils.logger import get_logger
-
-logger = get_logger(__name__)
-
 
 PILLARS = {
     'stem': {
@@ -57,36 +53,29 @@ def get_pillar_color(pillar: str) -> str:
     """Get color for pillar, with fallback to art."""
     return PILLARS.get(pillar.lower(), PILLARS['art'])['color']
 
-
 def get_pillar_display_name(pillar: str) -> str:
     """Get display name for pillar, with fallback."""
     return PILLARS.get(pillar.lower(), PILLARS['art'])['display_name']
-
 
 def get_pillar_gradient(pillar: str) -> str:
     """Get gradient for pillar, with fallback."""
     return PILLARS.get(pillar.lower(), PILLARS['art'])['gradient']
 
-
 def get_pillar_icon(pillar: str) -> str:
     """Get icon for pillar, with fallback."""
     return PILLARS.get(pillar.lower(), PILLARS['art'])['icon']
-
 
 def get_pillar_description(pillar: str) -> str:
     """Get description for pillar, with fallback."""
     return PILLARS.get(pillar.lower(), PILLARS['art'])['description']
 
-
 def get_all_pillar_keys() -> list:
     """Get list of all pillar keys."""
     return list(PILLARS.keys())
 
-
 def is_valid_pillar(pillar: str) -> bool:
     """Check if pillar key is valid."""
     return pillar.lower() in PILLARS
-
 
 def get_pillar_data(pillar: str) -> dict:
     """Get complete pillar data dictionary, with fallback."""

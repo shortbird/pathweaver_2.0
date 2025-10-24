@@ -3,10 +3,6 @@ XP Progression System - Single Source of Truth
 
 Defines mastery levels, XP thresholds, and progression logic.
 """
-from utils.logger import get_logger
-
-logger = get_logger(__name__)
-
 
 # Mastery levels by XP amount
 MASTERY_LEVELS = {
@@ -42,7 +38,6 @@ COMPLETION_BONUS_MULTIPLIER = 0.5  # 50% bonus for completing all tasks
 COLLABORATION_BONUS_MULTIPLIER = 2.0  # 2x bonus (DEPRECATED - to be removed)
 BADGE_BONUS_XP = 500  # (DEPRECATED - to be removed)
 
-
 def get_mastery_level(xp: int) -> dict:
     """
     Get mastery level for XP amount.
@@ -58,7 +53,6 @@ def get_mastery_level(xp: int) -> dict:
             return MASTERY_LEVELS[threshold]
     return MASTERY_LEVELS[0]
 
-
 def get_achievement_tier(total_xp: int) -> str:
     """
     Get achievement tier based on total XP.
@@ -73,7 +67,6 @@ def get_achievement_tier(total_xp: int) -> str:
         if total_xp >= ACHIEVEMENT_TIERS[tier_key]['min_xp']:
             return tier_key
     return 'explorer'
-
 
 def get_next_tier_info(total_xp: int) -> dict:
     """
@@ -103,7 +96,6 @@ def get_next_tier_info(total_xp: int) -> dict:
         'xp_needed': next_tier['min_xp'] - total_xp,
     }
 
-
 def calculate_completion_bonus(base_xp: int) -> int:
     """
     Calculate completion bonus for finishing all tasks in a quest.
@@ -118,7 +110,6 @@ def calculate_completion_bonus(base_xp: int) -> int:
     bonus = int(base_xp * COMPLETION_BONUS_MULTIPLIER)
     # Round to nearest 50
     return round(bonus / 50) * 50
-
 
 def get_xp_progress_percentage(current_xp: int, target_tier: str = None) -> float:
     """

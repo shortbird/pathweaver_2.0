@@ -350,7 +350,9 @@
       "Bash(mcp__render__list_logs:*)",
       "Bash(mcp__render__list_services:*)",
       "Bash(mv config lms_config)",
-      "Bash(bash scripts/migrate_colors.sh:*)"
+      "Bash(bash scripts/migrate_colors.sh:*)",
+      "Bash(do)",
+      "Bash(echo:*)"
     ],
     "deny": [],
     "ask": []

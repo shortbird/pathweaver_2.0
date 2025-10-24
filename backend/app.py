@@ -3,10 +3,6 @@ from dotenv import load_dotenv
 import os
 import uuid
 
-from utils.logger import get_logger
-
-logger = get_logger(__name__)
-
 # Initialize logging FIRST before any other imports
 load_dotenv()
 from utils.logger import setup_logging, get_logger
@@ -35,8 +31,6 @@ try:
 except ImportError:
     CSRF_AVAILABLE = False
     logger.warning("Warning: Flask-WTF not installed. CSRF protection unavailable.")
-
-load_dotenv()
 
 # Set Flask environment (development or production)
 if not os.getenv('FLASK_ENV'):

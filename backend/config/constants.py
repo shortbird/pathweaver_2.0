@@ -4,10 +4,6 @@ Centralized Constants - Single Source of Truth
 All magic numbers, thresholds, and configuration values go here.
 This eliminates duplicate constants across the codebase.
 """
-from utils.logger import get_logger
-
-logger = get_logger(__name__)
-
 
 # XP Progression Thresholds
 XP_THRESHOLDS = {

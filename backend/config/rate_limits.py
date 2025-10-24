@@ -4,10 +4,6 @@ Rate Limiting Configuration - Single Source of Truth
 Defines all rate limiting rules for API endpoints.
 Used by middleware/rate_limiter.py
 """
-from utils.logger import get_logger
-
-logger = get_logger(__name__)
-
 
 # Rate limit configurations
 # Format: {'requests': int, 'window': int (seconds)}
@@ -101,7 +97,6 @@ ACCOUNT_LOCKOUT = {
     'window': 900,  # Track attempts within 15 minutes
 }
 
-
 def get_rate_limit(limit_key: str, environment: str = 'production') -> dict:
     """
     Get rate limit configuration for a specific endpoint.
@@ -121,7 +116,6 @@ def get_rate_limit(limit_key: str, environment: str = 'production') -> dict:
 
     # Return environment-specific config, fallback to production if missing
     return limit_config.get(environment, limit_config.get('production'))
-
 
 def get_lockout_config() -> dict:
     """
