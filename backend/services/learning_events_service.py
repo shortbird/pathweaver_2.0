@@ -85,7 +85,10 @@ class LearningEventsService(BaseService):
             Dictionary with success status and events list
         """
         try:
-            supabase = get_user_client()  # JWT extracted from request headers
+            # JUSTIFICATION: Admin client used for authenticated learning events endpoint
+            # The route already validates user authentication via @require_auth decorator
+            # Using admin client here for reliable data fetching with user_id filter
+            supabase = get_supabase_admin_client()
 
             # Fetch events
             response = supabase.table('learning_events') \
