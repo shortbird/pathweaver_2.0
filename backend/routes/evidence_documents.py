@@ -700,6 +700,91 @@ def check_quest_completion(supabase, user_id: str, quest_id: str) -> bool:
         logger.error(f"Error checking quest completion: {str(e)}")
         return False
 
+@bp.route('/blocks/<block_id>/file', methods=['DELETE'])
+@require_auth
+def delete_block_file(user_id: str, block_id: str):
+    """
+    Delete file from Supabase storage when a block is deleted or replaced.
+    """
+    try:
+        supabase = get_user_client()
+        # JUSTIFICATION: Admin client only for Supabase storage operations
+        admin_supabase = get_supabase_admin_client()
+
+        # Validate the block exists and belongs to the user
+        block_response = supabase.table('evidence_document_blocks')\
+            .select('*, user_task_evidence_documents!inner(user_id)')\
+            .eq('id', block_id)\
+            .eq('user_task_evidence_documents.user_id', user_id)\
+            .single()\
+            .execute()
+
+        if not block_response.data:
+            return jsonify({
+                'success': False,
+                'error': 'Block not found or access denied'
+            }), 404
+
+        block = block_response.data
+        content = block.get('content', {})
+        file_url = content.get('url')
+
+        if not file_url:
+            return jsonify({
+                'success': True,
+                'message': 'No file to delete'
+            })
+
+        # Extract file path from URL
+        # Supabase URLs look like: https://[project].supabase.co/storage/v1/object/public/quest-evidence/[path]
+        try:
+            if '/quest-evidence/' in file_url:
+                file_path = file_url.split('/quest-evidence/')[1]
+
+                # Delete from storage
+                admin_supabase.storage.from_('quest-evidence').remove([file_path])
+
+                # Update block content to remove file info
+                updated_content = {k: v for k, v in content.items() if k not in ['url', 'filename', 'file_size', 'content_type']}
+
+                supabase.table('evidence_document_blocks')\
+                    .update({'content': updated_content})\
+                    .eq('id', block_id)\
+                    .execute()
+
+                return jsonify({
+                    'success': True,
+                    'message': 'File deleted successfully'
+                })
+            else:
+                # External URL, just remove from block
+                updated_content = {k: v for k, v in content.items() if k not in ['url', 'filename', 'file_size', 'content_type']}
+
+                supabase.table('evidence_document_blocks')\
+                    .update({'content': updated_content})\
+                    .eq('id', block_id)\
+                    .execute()
+
+                return jsonify({
+                    'success': True,
+                    'message': 'File reference removed'
+                })
+
+        except Exception as delete_error:
+            logger.error(f"Error deleting file from storage: {str(delete_error)}")
+            # Don't fail the request if storage deletion fails
+            return jsonify({
+                'success': True,
+                'message': 'File reference removed (storage cleanup may have failed)'
+            })
+
+    except Exception as e:
+        logger.error(f"Error in delete_block_file: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to delete file'
+        }), 500
+
 @bp.route('/documents/<task_id>/complete', methods=['POST'])
 @require_auth
 def complete_task_with_evidence(user_id: str, task_id: str):
