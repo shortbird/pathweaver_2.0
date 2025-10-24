@@ -3,9 +3,17 @@ from app_config import Config
 from flask import request, g
 from typing import Optional
 
-from utils.logger import get_logger
+# Lazy logger import to avoid circular dependency
+# Logger is initialized after config is loaded
+_logger = None
 
-logger = get_logger(__name__)
+def _get_logger():
+    """Lazy logger initialization"""
+    global _logger
+    if _logger is None:
+        from utils.logger import get_logger
+        _logger = get_logger(__name__)
+    return _logger
 
 # Create singleton clients - connection pooling is handled internally by supabase-py
 _supabase_client = None
@@ -80,7 +88,7 @@ def get_user_client(token: Optional[str] = None) -> Client:
         # Validate JWT token format before using
         token_parts = token.split('.')
         if len(token_parts) != 3:
-            logger.warning(f"WARNING: Invalid JWT token format - expected 3 parts, got {len(token_parts)}")
+            _get_logger().warning(f"WARNING: Invalid JWT token format - expected 3 parts, got {len(token_parts)}")
             # Return anonymous client for invalid tokens
             client = get_supabase_client()
             setattr(g, cache_key, client)
@@ -102,7 +110,7 @@ def get_user_client(token: Optional[str] = None) -> Client:
             setattr(g, cache_key, client)
             return client
         except Exception as e:
-            logger.error(f"ERROR: Failed to create client with auth token: {e}")
+            _get_logger().error(f"ERROR: Failed to create client with auth token: {e}")
             # Return anonymous client if token setup fails
             client = get_supabase_client()
             setattr(g, cache_key, client)

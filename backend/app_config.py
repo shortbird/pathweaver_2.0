@@ -4,9 +4,9 @@ import os
 from dotenv import load_dotenv
 from typing import Optional
 
-from utils.logger import get_logger
-
-logger = get_logger(__name__)
+# NOTE: Cannot import logger here due to circular dependency
+# Config is loaded before logging is initialized
+# Use print() for startup warnings - logging happens after config is loaded
 
 # Import centralized constants (relative imports for production compatibility)
 from config.constants import (
@@ -41,15 +41,15 @@ class Config:
         if FLASK_ENV == 'production':
             raise ValueError("FLASK_SECRET_KEY must be set to a secure value in production!")
         else:
-            logger.warning("WARNING: Using insecure SECRET_KEY. Set FLASK_SECRET_KEY in production!")
+            print("WARNING: Using insecure SECRET_KEY. Set FLASK_SECRET_KEY in production!")
             SECRET_KEY = 'dev-secret-key-change-in-production'
-    
+
     # Ensure minimum length for security
     if len(SECRET_KEY) < 32:
         if FLASK_ENV == 'production':
             raise ValueError("FLASK_SECRET_KEY must be at least 32 characters in production!")
         else:
-            logger.warning("WARNING: SECRET_KEY is too short. Use at least 32 characters in production!")
+            print("WARNING: SECRET_KEY is too short. Use at least 32 characters in production!")
     DEBUG = FLASK_ENV == 'development'
     TESTING = False
     
@@ -130,13 +130,13 @@ class Config:
         if not SUPABASE_ANON_KEY:
             raise ValueError("SUPABASE_ANON_KEY is required. Set it in your environment variables.")
         if not SUPABASE_SERVICE_ROLE_KEY:
-            logger.warning("WARNING: SUPABASE_SERVICE_ROLE_KEY not set. Some admin functions may not work.")
+            print("WARNING: SUPABASE_SERVICE_ROLE_KEY not set. Some admin functions may not work.")
     else:
         # Development mode - just warn
         if not SUPABASE_URL:
-            logger.warning("WARNING: SUPABASE_URL not set")
+            print("WARNING: SUPABASE_URL not set")
         if not SUPABASE_ANON_KEY:
-            logger.warning("WARNING: SUPABASE_ANON_KEY not set")
+            print("WARNING: SUPABASE_ANON_KEY not set")
     
     # OpenAI Configuration
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
