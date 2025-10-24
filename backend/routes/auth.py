@@ -681,6 +681,19 @@ def login():
             # Set httpOnly cookies for authentication (ONLY method now)
             session_manager.set_auth_cookies(response, auth_response.user.id)
 
+            # CRITICAL: Also set Supabase access token for RLS enforcement
+            # This token is used by BaseRepository to authenticate with Supabase
+            if auth_response.session and auth_response.session.access_token:
+                response.set_cookie(
+                    'supabase_access_token',
+                    auth_response.session.access_token,
+                    max_age=3600,  # 1 hour (matches Supabase default)
+                    httponly=True,
+                    secure=session_manager.cookie_secure,
+                    samesite=session_manager.cookie_samesite,
+                    path='/'
+                )
+
             return response
         else:
             return jsonify({'error': 'Invalid email or password. Please check your credentials and try again.'}), 401
@@ -748,6 +761,8 @@ def logout():
         response = make_response(jsonify({'message': 'Logged out successfully'}), 200)
         # Clear authentication cookies
         session_manager.clear_auth_cookies(response)
+        # Also clear Supabase access token cookie
+        response.set_cookie('supabase_access_token', '', expires=0, httponly=True, secure=session_manager.cookie_secure, samesite=session_manager.cookie_samesite)
         return response
     except Exception as e:
         return jsonify({'error': str(e)}), 400

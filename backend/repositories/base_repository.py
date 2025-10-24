@@ -78,17 +78,17 @@ class BaseRepository:
         if self._client is None:
             if self.user_id:
                 # Get user client with JWT token from request headers or httpOnly cookies
-                # The token is automatically extracted by get_user_client()
+                # CRITICAL: We need the SUPABASE access token for RLS, not our custom JWT
                 from flask import request
 
-                # Try to get token from Authorization header first
+                # Try to get Supabase token from Authorization header first
                 auth_header = request.headers.get('Authorization', '')
                 token = None
                 if auth_header.startswith('Bearer '):
                     token = auth_header.replace('Bearer ', '')
                 else:
-                    # Fallback to httpOnly cookie
-                    token = request.cookies.get('access_token')
+                    # Fallback to Supabase access token cookie (set during login)
+                    token = request.cookies.get('supabase_access_token')
 
                 self._client = get_user_client(token=token)
             else:
