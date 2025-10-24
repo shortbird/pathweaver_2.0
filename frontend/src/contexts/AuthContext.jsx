@@ -82,10 +82,7 @@ export const AuthProvider = ({ children }) => {
       // ✅ INCOGNITO FIX: Store app tokens in memory for Authorization headers
       // This is the CRITICAL piece that was missing!
       if (app_access_token && app_refresh_token) {
-        console.log('[AuthContext] Storing tokens in memory:', !!app_access_token, !!app_refresh_token)
         tokenStore.setTokens(app_access_token, app_refresh_token)
-      } else {
-        console.error('[AuthContext] No app tokens in login response!')
       }
 
       setSession({ authenticated: true })

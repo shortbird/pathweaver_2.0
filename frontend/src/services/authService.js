@@ -119,19 +119,11 @@ class AuthService {
       // ✅ INCOGNITO MODE FIX: Store app tokens in memory for Authorization headers
       // These are custom JWT tokens (NOT Supabase tokens)
       // Memory storage works in incognito mode where cookies may be blocked
-      console.log('[AuthService] Login response data keys:', Object.keys(response.data))
-      console.log('[AuthService] Has app_access_token?', !!response.data.app_access_token)
-      console.log('[AuthService] Has app_refresh_token?', !!response.data.app_refresh_token)
-
       if (response.data.app_access_token && response.data.app_refresh_token) {
-        console.log('[AuthService] Storing app tokens in memory')
         this.setTokens(
           response.data.app_access_token,
           response.data.app_refresh_token
         )
-        console.log('[AuthService] Tokens stored. Can retrieve?', !!this.getAccessToken())
-      } else {
-        console.error('[AuthService] No app tokens in login response!')
       }
 
       // Store user data for quick access (non-sensitive only - no tokens!)
