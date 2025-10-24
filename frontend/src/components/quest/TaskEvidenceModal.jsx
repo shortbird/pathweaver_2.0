@@ -1,10 +1,10 @@
-import React, { useState, useRef } from 'react';
-import { X, Award, BookOpen, Type, Image, Video, Link2, FileText, AlertCircle } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Award, Type, Image, Video, Link2, FileText, AlertCircle } from 'lucide-react';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import ModalErrorBoundary from '../ModalErrorBoundary';
 import { getPillarData } from '../../utils/pillarMappings';
 
-const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
+const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [completionData, setCompletionData] = useState(null);
@@ -58,47 +58,79 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
         {/* Modal panel */}
         <ModalErrorBoundary onClose={onClose}>
           <div className="inline-block align-bottom bg-white rounded-xl text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full max-h-[85vh] overflow-y-auto">
-            {/* Header with Pillar Color */}
-            <div
-              className="px-8 py-8"
-              style={{ backgroundColor: pillarData.color }}
-            >
-              <div className="flex items-start justify-between">
+            {/* Header - White background with pillar color accent */}
+            <div className="px-8 py-8 border-b border-gray-200">
+              <div className="flex items-start justify-between mb-6">
                 <div className="flex-1">
-                  <div className="text-sm font-semibold uppercase tracking-wide text-white/90 mb-2" style={{ fontFamily: 'Poppins' }}>
-                    {pillarData.name}
-                  </div>
-                  <h3 className="text-3xl font-bold text-white mb-4" style={{ fontFamily: 'Poppins' }}>{task.title}</h3>
-                  <div className="flex items-center gap-3">
-                    <div className="px-6 py-2 bg-white/20 backdrop-blur-sm text-white rounded-full text-lg font-bold flex items-center gap-2" style={{ fontFamily: 'Poppins' }}>
-                      <Award className="w-5 h-5" />
+                  {/* Row 1: Pillar name and XP pill */}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="text-sm font-semibold uppercase tracking-wide" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>
+                      {pillarData.name}
+                    </div>
+                    <div
+                      className="px-4 py-1 rounded-full text-sm font-bold flex items-center gap-2"
+                      style={{
+                        backgroundColor: `${pillarData.color}20`,
+                        color: pillarData.color,
+                        fontFamily: 'Poppins'
+                      }}
+                    >
+                      <Award className="w-4 h-4" />
                       {task.xp_amount} XP
                     </div>
-                    {!successMessage && (
-                      <button
-                        onClick={handleSubmitForXP}
-                        className="px-6 py-2 bg-gradient-primary text-white rounded-full text-lg font-bold hover:shadow-lg transition-all flex items-center gap-2"
-                        style={{ fontFamily: 'Poppins' }}
-                      >
-                        <Award className="w-5 h-5" />
-                        Submit for XP
-                      </button>
-                    )}
                   </div>
+
+                  {/* Row 2: Task title */}
+                  <h3 className="text-3xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins' }}>{task.title}</h3>
+
+                  {/* Row 3: Task description */}
+                  {task.description && (
+                    <div className="text-gray-600 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+                      {task.description.split('\n').map((line, idx) => {
+                        const trimmedLine = line.trim();
+                        if (trimmedLine.startsWith('•')) {
+                          return (
+                            <div key={idx} className="flex items-start mb-2">
+                              <span className="mr-3 mt-1 text-lg font-bold" style={{ color: pillarData.color }}>•</span>
+                              <span className="text-gray-600" style={{ fontFamily: 'Poppins' }}>{trimmedLine.substring(1).trim()}</span>
+                            </div>
+                          );
+                        } else if (trimmedLine) {
+                          return (
+                            <p key={idx} className="mb-2">{trimmedLine}</p>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                  )}
                 </div>
+
+                {/* Save & Close button (replaced X) */}
                 <button
                   onClick={onClose}
-                  className="ml-4 text-white hover:text-white/80 transition-colors"
+                  className="ml-4 px-6 py-2 text-white rounded-lg hover:shadow-lg transition-all font-semibold whitespace-nowrap"
+                  style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
                 >
-                  <X className="w-8 h-8" />
+                  Save & Close
                 </button>
               </div>
             </div>
 
-            {/* Add Content Block Buttons - Right below header */}
-            <div className="px-8 py-4 border-b border-gray-200 bg-gray-50">
-              <div className="mb-2">
+            {/* Add Content Block Section with Submit Button */}
+            <div className="px-8 py-6 border-b border-gray-200 bg-gray-50">
+              <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-semibold text-gray-700" style={{ fontFamily: 'Poppins' }}>Add new content block</span>
+                {!successMessage && (
+                  <button
+                    onClick={handleSubmitForXP}
+                    className="px-6 py-2 bg-gradient-primary text-white rounded-lg font-bold hover:shadow-lg transition-all flex items-center gap-2"
+                    style={{ fontFamily: 'Poppins' }}
+                  >
+                    <Award className="w-4 h-4" />
+                    Submit for XP
+                  </button>
+                )}
               </div>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(blockTypes).map(([type, config]) => {
@@ -107,7 +139,7 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
                     <button
                       key={type}
                       onClick={() => handleAddBlock(type)}
-                      className="px-4 py-2 rounded-full border-2 transition-all duration-200 hover:shadow-md bg-white flex items-center gap-2 text-sm font-semibold"
+                      className="px-4 py-2 rounded-lg border-2 transition-all duration-200 hover:shadow-md bg-white flex items-center gap-2 text-sm font-semibold"
                       style={{
                         borderColor: pillarData.color,
                         color: pillarData.color,
@@ -132,38 +164,6 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
 
             {/* Content */}
             <div className="px-8 py-6 space-y-6">
-              {/* Description */}
-              {task.description && (
-                <div
-                  className="rounded-xl p-6 border-2"
-                  style={{
-                    backgroundColor: `${pillarData.color}10`,
-                    borderColor: `${pillarData.color}50`
-                  }}
-                >
-                  <h4 className="font-bold text-lg mb-3 flex items-center gap-2" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>
-                    <BookOpen className="w-5 h-5" />
-                    Description
-                  </h4>
-                  {task.description.split('\n').map((line, idx) => {
-                    const trimmedLine = line.trim();
-                    if (trimmedLine.startsWith('•')) {
-                      return (
-                        <div key={idx} className="flex items-start mb-2">
-                          <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
-                          <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>{trimmedLine.substring(1).trim()}</span>
-                        </div>
-                      );
-                    } else if (trimmedLine) {
-                      return (
-                        <p key={idx} className="text-gray-700 text-base leading-relaxed mb-2" style={{ fontFamily: 'Poppins' }}>{trimmedLine}</p>
-                      );
-                    }
-                    return null;
-                  })}
-                </div>
-              )}
-
               {/* Success Message */}
               {successMessage && (
                 <div className="p-6 bg-green-50 border-2 border-green-200 rounded-xl">
@@ -206,7 +206,7 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
                 </div>
               )}
 
-              {/* Multi-format Evidence Editor */}
+              {/* Evidence Document Blocks */}
               {!successMessage && (
                 <div>
                   <MultiFormatEvidenceEditor
@@ -220,7 +220,7 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
                 </div>
               )}
 
-              {/* Instructions - Moved to bottom */}
+              {/* Your Evidence Is Public - Bottom message */}
               <div
                 className="border-2 rounded-xl p-6"
                 style={{
@@ -232,50 +232,11 @@ const TaskEvidenceModal = ({ task, questId, onComplete, onClose }) => {
                   <AlertCircle className="w-5 h-5" />
                   Your Evidence Is Public
                 </h4>
-                <p className="text-gray-700 text-base leading-relaxed mb-4" style={{ fontFamily: 'Poppins' }}>
+                <p className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
                   This evidence will appear on your <strong>public portfolio</strong> for others to see. Make sure your content reflects well on you and showcases your best efforts.
                 </p>
-                <ul className="space-y-2">
-                  <li className="flex items-start">
-                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
-                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Mix different content types:</strong> Use text, images, videos, links, and documents to tell your story
-                    </span>
-                  </li>
-                  <li className="flex items-start">
-                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
-                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Document your process:</strong> Show how you learned, not just what you completed
-                    </span>
-                  </li>
-                  <li className="flex items-start">
-                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
-                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Auto-saved:</strong> Your work is saved automatically every few seconds
-                    </span>
-                  </li>
-                  <li className="flex items-start">
-                    <span className="mr-3 mt-1 text-xl font-bold" style={{ color: pillarData.color }}>•</span>
-                    <span className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-                      <strong>Reorder as needed:</strong> Drag blocks to arrange them in the best order
-                    </span>
-                  </li>
-                </ul>
               </div>
             </div>
-
-            {/* Footer */}
-            {!successMessage && (
-              <div className="bg-gray-50 px-8 py-6">
-                <button
-                  onClick={onClose}
-                  className="w-full px-6 py-3 text-white rounded-lg hover:shadow-xl transition-all font-bold text-lg"
-                  style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
-                >
-                  Save & Close
-                </button>
-              </div>
-            )}
           </div>
         </ModalErrorBoundary>
       </div>
