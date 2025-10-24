@@ -4,7 +4,10 @@
       "Bash(while IFS= read -r file)",
       "Bash(do echo \"=== $file ===\" grep -A 5 \"def __init__\" \"$file\")",
       "Bash(do echo \"=== $f ===\")",
-      "Bash(do echo \"=== $file ===\" grep -n \"supabase\" \"$file\")"
+      "Bash(do echo \"=== $file ===\" grep -n \"supabase\" \"$file\")",
+      "Bash(git push:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

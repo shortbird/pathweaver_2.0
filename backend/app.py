@@ -147,6 +147,16 @@ try:
 except Exception as e:
     logger.warning(f"Warning: Badge system routes not available: {e}")
 
+# Register Quest Lifecycle blueprints (Pick Up/Set Down system - January 2025)
+try:
+    from routes.quest_lifecycle import quest_lifecycle_bp
+    from routes.badge_claiming import badge_claiming_bp
+    app.register_blueprint(quest_lifecycle_bp, url_prefix='/api')  # /api/quests/:id/pickup, /api/quests/:id/setdown
+    app.register_blueprint(badge_claiming_bp, url_prefix='/api')  # /api/badges/:id/claim, /api/badges/claimable
+    logger.info("Quest Lifecycle & Badge Claiming routes registered successfully")
+except Exception as e:
+    logger.warning(f"Warning: Quest Lifecycle routes not available: {e}")
+
 # Register AI Jobs blueprint (admin)
 try:
     from routes.admin import ai_jobs

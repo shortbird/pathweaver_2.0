@@ -220,49 +220,91 @@ class BadgeService(BaseService):
     @staticmethod
     def calculate_badge_progress(user_id: str, badge_id: str) -> Dict:
         """
-        Calculate badge completion progress.
+        Calculate badge completion progress using NEW pick up/set down logic.
+
+        Supports two badge types:
+        1. exploration: Any quests picked up and set down (original system)
+        2. onfire_pathway: 3 OnFire courses + 2 custom Optio quests (enrollment driver)
 
         Args:
             user_id: User ID
             badge_id: Badge ID
 
         Returns:
-            Progress dictionary with percentages and counts
+            Progress dictionary with percentages, counts, and type-specific breakdowns
         """
         supabase = get_supabase_admin_client()
 
-        # Get badge requirements
-        badge = supabase.table('badges').select('min_quests, min_xp').eq('id', badge_id).single().execute()
+        # Get badge requirements and type
+        badge = supabase.table('badges').select(
+            'badge_type, min_quests, min_xp, onfire_course_requirement, optio_quest_requirement, quest_source_filter'
+        ).eq('id', badge_id).single().execute()
+
         if not badge.data:
             raise ValueError(f"Badge {badge_id} not found")
 
+        badge_type = badge.data.get('badge_type', 'exploration')
         min_quests = badge.data['min_quests']
         min_xp = badge.data['min_xp']
 
-        # Get ALL quests associated with this badge (not just required)
-        # We want users to complete ANY min_quests number of linked quests
+        # Get ALL quests associated with this badge
         all_badge_quests = supabase.table('badge_quests')\
-            .select('quest_id')\
+            .select('quest_id, is_onfire_course, quest_source')\
             .eq('badge_id', badge_id)\
             .execute()
 
         badge_quest_ids = [q['quest_id'] for q in all_badge_quests.data]
 
-        # Get user's completed quests from this badge (including retroactive completions)
+        # UPDATED: Get user's "set down" quests (not completed_at - we use new status field)
+        # A quest counts toward badge when picked up AND set down (implies meaningful engagement)
         if badge_quest_ids:
-            completed_quests = supabase.table('user_quests')\
+            set_down_quests = supabase.table('user_quests')\
                 .select('quest_id')\
                 .eq('user_id', user_id)\
                 .in_('quest_id', badge_quest_ids)\
-                .not_.is_('completed_at', 'null')\
+                .eq('status', 'set_down')\
                 .execute()
 
-            completed_count = len(completed_quests.data)
+            completed_count = len(set_down_quests.data)
+            completed_quest_ids = {q['quest_id'] for q in set_down_quests.data}
         else:
             completed_count = 0
+            completed_quest_ids = set()
 
-        # Get XP earned from badge-related tasks
-        # In personalized quest system, XP is tracked via user_quest_tasks + quest_task_completions
+        # NEW: OnFire pathway badge logic - separate OnFire vs Optio quest tracking
+        onfire_count = 0
+        optio_count = 0
+
+        if badge_type == 'onfire_pathway':
+            # Count OnFire courses (lms source) that are set down
+            onfire_quest_ids = [
+                q['quest_id'] for q in all_badge_quests.data
+                if q.get('is_onfire_course', False)
+            ]
+            if onfire_quest_ids:
+                onfire_set_down = supabase.table('user_quests')\
+                    .select('quest_id')\
+                    .eq('user_id', user_id)\
+                    .in_('quest_id', onfire_quest_ids)\
+                    .eq('status', 'set_down')\
+                    .execute()
+                onfire_count = len(onfire_set_down.data)
+
+            # Count custom Optio quests that are set down
+            optio_quest_ids = [
+                q['quest_id'] for q in all_badge_quests.data
+                if not q.get('is_onfire_course', False)
+            ]
+            if optio_quest_ids:
+                optio_set_down = supabase.table('user_quests')\
+                    .select('quest_id')\
+                    .eq('user_id', user_id)\
+                    .in_('quest_id', optio_quest_ids)\
+                    .eq('status', 'set_down')\
+                    .execute()
+                optio_count = len(optio_set_down.data)
+
+        # Get XP earned from badge-related tasks (still tracks XP for both badge types)
         xp_earned = 0
         if badge_quest_ids:
             # Get all user-specific tasks from badge quests
@@ -290,42 +332,90 @@ class BadgeService(BaseService):
                     if t['id'] in completed_task_ids
                 )
 
-        # Check if user has this badge active
+        # Check if user has this badge available to claim or already claimed
         user_badge = supabase.table('user_badges')\
-            .select('is_active, completed_at')\
+            .select('is_active, completed_at, available_to_claim_at, claimed_at, is_displayed')\
             .eq('user_id', user_id)\
             .eq('badge_id', badge_id)\
             .execute()
 
         is_active = False
         completed_at = None
+        available_to_claim_at = None
+        claimed_at = None
+        is_displayed = False
+
         if user_badge.data:
             is_active = user_badge.data[0].get('is_active', False)
             completed_at = user_badge.data[0].get('completed_at')
+            available_to_claim_at = user_badge.data[0].get('available_to_claim_at')
+            claimed_at = user_badge.data[0].get('claimed_at')
+            is_displayed = user_badge.data[0].get('is_displayed', False)
 
-        # Calculate progress percentages
-        quest_progress = (completed_count / max(min_quests, 1)) if min_quests > 0 else 1.0
-        xp_progress = (xp_earned / max(min_xp, 1)) if min_xp > 0 else 1.0
+        # Calculate progress based on badge type
+        if badge_type == 'onfire_pathway':
+            # OnFire pathway: 3 courses + 2 custom quests
+            onfire_required = badge.data.get('onfire_course_requirement', 3)
+            optio_required = badge.data.get('optio_quest_requirement', 2)
 
-        # Overall progress is average of both metrics
-        overall_progress = (quest_progress + xp_progress) / 2
+            onfire_progress = (onfire_count / max(onfire_required, 1))
+            optio_progress = (optio_count / max(optio_required, 1))
 
-        # Badge is complete when both requirements are met
-        is_complete = quest_progress >= 1.0 and xp_progress >= 1.0
+            # Overall progress is average of both requirements
+            overall_progress = (onfire_progress + optio_progress) / 2
 
-        return {
-            'badge_id': badge_id,
-            'is_active': is_active,
-            'completed_at': completed_at,
-            'percentage': round(overall_progress * 100, 1),
-            'quests_completed': completed_count,
-            'quests_required': min_quests,
-            'quest_progress': round(quest_progress * 100, 1),
-            'xp_earned': xp_earned,
-            'xp_required': min_xp,
-            'xp_progress': round(xp_progress * 100, 1),
-            'is_complete': is_complete
-        }
+            # Badge is complete when BOTH requirements are met
+            is_complete = onfire_count >= onfire_required and optio_count >= optio_required
+
+            return {
+                'badge_id': badge_id,
+                'badge_type': badge_type,
+                'is_active': is_active,
+                'completed_at': completed_at,
+                'available_to_claim_at': available_to_claim_at,
+                'claimed_at': claimed_at,
+                'is_displayed': is_displayed,
+                'percentage': round(overall_progress * 100, 1),
+                'onfire_courses_completed': onfire_count,
+                'onfire_courses_required': onfire_required,
+                'onfire_progress': round(onfire_progress * 100, 1),
+                'optio_quests_completed': optio_count,
+                'optio_quests_required': optio_required,
+                'optio_progress': round(optio_progress * 100, 1),
+                'xp_earned': xp_earned,
+                'is_complete': is_complete,
+                'can_claim': available_to_claim_at is not None and claimed_at is None
+            }
+
+        else:
+            # Exploration badge: original logic with pick up/set down
+            quest_progress = (completed_count / max(min_quests, 1)) if min_quests > 0 else 1.0
+            xp_progress = (xp_earned / max(min_xp, 1)) if min_xp > 0 else 1.0
+
+            # Overall progress is average of both metrics
+            overall_progress = (quest_progress + xp_progress) / 2
+
+            # Badge is complete when both requirements are met
+            is_complete = quest_progress >= 1.0 and xp_progress >= 1.0
+
+            return {
+                'badge_id': badge_id,
+                'badge_type': badge_type,
+                'is_active': is_active,
+                'completed_at': completed_at,
+                'available_to_claim_at': available_to_claim_at,
+                'claimed_at': claimed_at,
+                'is_displayed': is_displayed,
+                'percentage': round(overall_progress * 100, 1),
+                'quests_completed': completed_count,
+                'quests_required': min_quests,
+                'quest_progress': round(quest_progress * 100, 1),
+                'xp_earned': xp_earned,
+                'xp_required': min_xp,
+                'xp_progress': round(xp_progress * 100, 1),
+                'is_complete': is_complete,
+                'can_claim': available_to_claim_at is not None and claimed_at is None
+            }
 
     @staticmethod
     def get_user_active_badges(user_id: str) -> List[Dict]:
@@ -580,3 +670,181 @@ class BadgeService(BaseService):
                 pass
 
         return progress
+
+    @staticmethod
+    def claim_badge(user_id: str, badge_id: str) -> Dict:
+        """
+        Claim a badge that's available (requirements met).
+
+        NEW: Replaces award_badge() in pick up/set down system.
+        Badges must be explicitly claimed by users (not auto-awarded).
+
+        Args:
+            user_id: User ID
+            badge_id: Badge ID to claim
+
+        Returns:
+            Updated user_badge record with claimed status
+        """
+        supabase = get_user_client()  # JWT extracted from request headers
+
+        # Verify badge is complete and available to claim
+        progress = BadgeService.calculate_badge_progress(user_id, badge_id)
+
+        if not progress['is_complete']:
+            raise ValueError(f"Badge not yet complete. Progress: {progress['percentage']}%")
+
+        if not progress.get('can_claim', False):
+            raise ValueError("Badge is not available to claim")
+
+        # Update user_badge record with claimed timestamp
+        updated = supabase.table('user_badges')\
+            .update({
+                'claimed_at': datetime.utcnow().isoformat(),
+                'is_displayed': True,  # Auto-display on diploma
+                'progress_percentage': 100,
+                'completed_at': datetime.utcnow().isoformat()
+            })\
+            .eq('user_id', user_id)\
+            .eq('badge_id', badge_id)\
+            .execute()
+
+        if not updated.data:
+            raise ValueError("Failed to claim badge - record not found")
+
+        # Update user's achievements count
+        admin_client = get_supabase_admin_client()
+        current_achievements = admin_client.table('users')\
+            .select('achievements_count')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+
+        new_count = (current_achievements.data.get('achievements_count', 0) or 0) + 1
+
+        admin_client.table('users')\
+            .update({'achievements_count': new_count})\
+            .eq('id', user_id)\
+            .execute()
+
+        return updated.data[0]
+
+    @staticmethod
+    def get_claimable_badges(user_id: str) -> List[Dict]:
+        """
+        Get all badges user can claim (requirements met but not yet claimed).
+        Used for notification banner display.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            List of claimable badges with details
+        """
+        supabase = get_supabase_admin_client()
+
+        # Get badges that are available to claim but not yet claimed
+        result = supabase.table('user_badges')\
+            .select('*, badges(*)')\
+            .eq('user_id', user_id)\
+            .not_.is_('available_to_claim_at', 'null')\
+            .is_('claimed_at', 'null')\
+            .execute()
+
+        claimable_badges = []
+        for ub in result.data:
+            badge_data = ub['badges']
+            badge_data['user_badge_id'] = ub['id']
+            badge_data['available_to_claim_at'] = ub['available_to_claim_at']
+            badge_data['claim_notification_sent'] = ub.get('claim_notification_sent', False)
+
+            # Add fresh progress data
+            progress = BadgeService.calculate_badge_progress(user_id, badge_data['id'])
+            badge_data['progress'] = progress
+
+            claimable_badges.append(badge_data)
+
+        return claimable_badges
+
+    @staticmethod
+    def get_claimed_badges(user_id: str) -> List[Dict]:
+        """
+        Get all badges user has claimed.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            List of claimed badges
+        """
+        supabase = get_supabase_admin_client()
+
+        result = supabase.table('user_badges')\
+            .select('*, badges(*)')\
+            .eq('user_id', user_id)\
+            .not_.is_('claimed_at', 'null')\
+            .order('claimed_at', desc=True)\
+            .execute()
+
+        claimed_badges = []
+        for ub in result.data:
+            badge_data = ub['badges']
+            badge_data['user_badge_id'] = ub['id']
+            badge_data['claimed_at'] = ub['claimed_at']
+            badge_data['is_displayed'] = ub.get('is_displayed', True)
+
+            claimed_badges.append(badge_data)
+
+        return claimed_badges
+
+    @staticmethod
+    def get_reflection_prompts(category: Optional[str] = None, limit: int = 5) -> List[Dict]:
+        """
+        Get random reflection prompts for quest "set down" flow.
+
+        Args:
+            category: Optional category filter (discovery, growth, challenge, connection, identity)
+            limit: Number of prompts to return
+
+        Returns:
+            List of reflection prompt dictionaries
+        """
+        supabase = get_supabase_admin_client()
+
+        query = supabase.table('quest_reflection_prompts')\
+            .select('*')\
+            .eq('is_active', True)
+
+        if category:
+            query = query.eq('category', category)
+
+        # Note: Supabase doesn't have built-in RANDOM() in Python client
+        # We'll fetch all and randomly sample in Python
+        result = query.execute()
+
+        if not result.data:
+            return []
+
+        # Randomly sample from results
+        import random
+        prompts = result.data
+        random.shuffle(prompts)
+
+        return prompts[:limit]
+
+    @staticmethod
+    def mark_claim_notification_sent(user_id: str, badge_id: str) -> None:
+        """
+        Mark that claim notification has been sent to user.
+
+        Args:
+            user_id: User ID
+            badge_id: Badge ID
+        """
+        supabase = get_user_client()
+
+        supabase.table('user_badges')\
+            .update({'claim_notification_sent': True})\
+            .eq('user_id', user_id)\
+            .eq('badge_id', badge_id)\
+            .execute()
