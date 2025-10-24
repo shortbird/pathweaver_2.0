@@ -469,8 +469,8 @@ const QuestDetail = () => {
                       className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group transition-all hover:shadow-lg"
                       style={{
                         background: task.is_completed
-                          ? '#15803d'
-                          : `linear-gradient(to right, #ffffff 0%, ${pillarData.color}15 100%)`
+                          ? pillarData.color
+                          : `linear-gradient(to right, #ffffff 0%, ${pillarData.color}30 100%)`
                       }}
                     >
                       {/* Task Content */}
@@ -503,7 +503,7 @@ const QuestDetail = () => {
                         {/* Middle Section - Task Title */}
                         <div className="flex-1 flex items-center justify-center px-2">
                           <h3
-                            className="text-base font-bold text-center leading-tight uppercase"
+                            className="text-2xl font-bold text-center leading-tight uppercase"
                             style={{
                               fontFamily: 'Poppins',
                               color: task.is_completed ? 'white' : '#333'
@@ -528,14 +528,6 @@ const QuestDetail = () => {
                         </div>
                       </div>
 
-                      {/* Completed Indicator */}
-                      {task.is_completed && (
-                        <div className="absolute bottom-2 right-2 flex items-center gap-1 bg-white/20 backdrop-blur-sm px-2 py-1 rounded-full">
-                          <CheckCircle className="w-5 h-5 text-white drop-shadow-lg" />
-                          <span className="text-white text-xs font-bold uppercase" style={{ fontFamily: 'Poppins' }}>Complete!</span>
-                        </div>
-                      )}
-
                       {/* Continue Button for Incomplete Tasks */}
                       {!task.is_completed && quest.user_enrollment && (
                         <button
@@ -551,19 +543,25 @@ const QuestDetail = () => {
                         </button>
                       )}
 
-                      {/* Edit Evidence Button for Completed Tasks */}
+                      {/* Completed Indicator and Edit Evidence Button */}
                       {task.is_completed && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTask(task);
-                            setShowTaskModal(true);
-                          }}
-                          className="absolute bottom-2 left-2 right-2 py-1.5 bg-white/90 text-gray-800 rounded-full font-bold text-xs uppercase tracking-wide transition-all hover:bg-white"
-                          style={{ fontFamily: 'Poppins' }}
-                        >
-                          Edit Evidence
-                        </button>
+                        <>
+                          <div className="absolute bottom-14 left-0 right-0 flex items-center justify-center gap-1">
+                            <CheckCircle className="w-4 h-4 text-white drop-shadow-lg" />
+                            <span className="text-white text-xs font-bold uppercase drop-shadow-lg" style={{ fontFamily: 'Poppins' }}>Complete!</span>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTask(task);
+                              setShowTaskModal(true);
+                            }}
+                            className="absolute bottom-2 left-2 right-2 py-1.5 bg-white/90 text-gray-800 rounded-full font-bold text-xs uppercase tracking-wide transition-all hover:bg-white"
+                            style={{ fontFamily: 'Poppins' }}
+                          >
+                            Edit Evidence
+                          </button>
+                        </>
                       )}
                     </div>
                   );
@@ -573,7 +571,7 @@ const QuestDetail = () => {
                 {quest.user_enrollment && !isQuestCompleted && (
                   <div
                     onClick={() => setShowPersonalizationWizard(true)}
-                    className="aspect-square rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-lg border-4 border-green-700 bg-white flex flex-col items-center justify-center gap-2 text-green-700 group hover:bg-green-50"
+                    className="aspect-square rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-lg border-4 border-black bg-white flex flex-col items-center justify-center gap-2 text-black group hover:bg-gray-50"
                   >
                     <Plus className="w-10 h-10 transition-transform group-hover:scale-110" />
                     <div className="text-xs font-bold uppercase tracking-wide text-center px-2" style={{ fontFamily: 'Poppins' }}>
