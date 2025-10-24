@@ -108,6 +108,7 @@ function App() {
                 <Route path="email-verification" element={<EmailVerificationPage />} />
                 <Route path="terms" element={<TermsOfService />} />
                 <Route path="privacy" element={<PrivacyPolicy />} />
+                {/* Public diploma routes */}
                 <Route path="portfolio/:slug" element={<DiplomaPage />} />
                 <Route path="public/diploma/:userId" element={<DiplomaPage />} />
 

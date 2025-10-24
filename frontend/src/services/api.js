@@ -169,7 +169,7 @@ api.interceptors.response.use(
         // Only redirect to login if we're not already on auth pages or public pages
         const authPaths = ['/login', '/register', '/email-verification', '/', '/subscription/success']
         const currentPath = window.location.pathname
-        const isPublicDiploma = currentPath.startsWith('/diploma/') || currentPath.startsWith('/portfolio/')
+        const isPublicDiploma = currentPath.startsWith('/public/diploma/') || currentPath.startsWith('/portfolio/')
 
         if (!authPaths.includes(currentPath) && !isPublicDiploma) {
           window.location.href = '/login'
