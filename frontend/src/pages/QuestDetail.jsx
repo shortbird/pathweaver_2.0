@@ -460,7 +460,13 @@ const QuestDetail = () => {
           {quest.quest_tasks && quest.quest_tasks.length > 0 ? (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6">
-                {quest.quest_tasks.map((task) => {
+                {[...quest.quest_tasks]
+                  .sort((a, b) => {
+                    // Sort incomplete tasks first, completed tasks last
+                    if (a.is_completed === b.is_completed) return 0;
+                    return a.is_completed ? 1 : -1;
+                  })
+                  .map((task) => {
                   const pillarData = getPillarData(task.pillar);
 
                   return (
@@ -503,10 +509,11 @@ const QuestDetail = () => {
                         {/* Middle Section - Task Title */}
                         <div className="flex-1 flex items-center justify-center px-2">
                           <h3
-                            className="text-2xl font-bold text-center leading-tight uppercase"
+                            className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-center leading-tight uppercase"
                             style={{
                               fontFamily: 'Poppins',
-                              color: task.is_completed ? 'white' : '#333'
+                              color: task.is_completed ? 'white' : '#333',
+                              textDecoration: task.is_completed ? 'line-through' : 'none'
                             }}
                           >
                             {task.title}
@@ -551,11 +558,10 @@ const QuestDetail = () => {
                             setSelectedTask(task);
                             setShowTaskModal(true);
                           }}
-                          className="absolute bottom-2 left-2 right-2 py-1.5 bg-white/90 text-gray-800 rounded-full font-bold text-xs uppercase tracking-wide transition-all hover:bg-white flex items-center justify-center gap-1"
+                          className="absolute bottom-2 left-2 right-2 py-1.5 bg-white/90 text-gray-800 rounded-full font-bold text-xs uppercase tracking-wide transition-all hover:bg-white"
                           style={{ fontFamily: 'Poppins' }}
                         >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          Complete! Edit Evidence
+                          Edit Evidence
                         </button>
                       )}
                     </div>
