@@ -15,7 +15,7 @@ const ActiveQuests = memo(({ activeQuests, completedQuestsCount = 0 }) => {
 
   if (allQuests.length === 0) {
     const isFirstQuest = completedQuestsCount === 0;
-    const buttonText = isFirstQuest ? 'Start Your First Quest' : 'Pick Up a New Quest';
+    const buttonText = isFirstQuest ? 'Pick Up Your First Quest' : 'Pick Up a New Quest';
     const emptyMessage = isFirstQuest ? 'No quests yet.' : 'Ready for your next learning adventure?';
 
     return (
