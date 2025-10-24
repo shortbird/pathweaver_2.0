@@ -2,7 +2,7 @@
 
 from flask import Blueprint, jsonify
 from datetime import datetime, timezone
-from database import get_user_client
+from database import get_supabase_admin_client
 from backend.repositories import (
     UserRepository,
     QuestRepository,
@@ -28,7 +28,8 @@ dashboard_bp = Blueprint('dashboard', __name__)
 @require_auth
 def get_user_subject_xp(user_id):
     """Get user's XP by school subject for diploma credits"""
-    supabase = get_user_client()
+    # Use admin client - user authentication enforced by @require_auth
+    supabase = get_supabase_admin_client()
 
     try:
         # Fetch subject XP data
@@ -57,8 +58,8 @@ def get_user_subject_xp(user_id):
 @require_auth
 def get_dashboard(user_id):
     """Get user dashboard data including active quests and XP stats"""
-    # Use user client with RLS enforcement
-    supabase = get_user_client()
+    # Use admin client - user authentication enforced by @require_auth
+    supabase = get_supabase_admin_client()
 
     try:
         # Fetch user data

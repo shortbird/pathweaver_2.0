@@ -489,7 +489,8 @@ def get_user_active_quests(user_id: str):
     Includes progress information.
     """
     try:
-        supabase = get_supabase_client()
+        # Use admin client - user authentication enforced by @require_auth
+        supabase = get_supabase_admin_client()
         
         # Get user's active quests with progress
         # Note: In V3 personalized system, quest_tasks table is archived
@@ -575,8 +576,9 @@ def get_user_completed_quests(user_id: str):
     Optimized to fetch all data in bulk to prevent N+1 queries.
     """
     try:
-        # Use user client - fetching user-specific quest data
-        supabase = get_user_client(user_id)
+        # Use admin client - user authentication already enforced by @require_auth
+        # Queries are explicitly filtered by user_id
+        supabase = get_supabase_admin_client()
 
         # Fetch ALL user data in parallel using just 3 queries
         # Query 1: Get all user quests (completed + in-progress)
