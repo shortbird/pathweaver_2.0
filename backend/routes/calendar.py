@@ -39,32 +39,33 @@ def get_calendar_items(user_id):
     """
     Get all calendar items for a user (scheduled quests/tasks + completed items).
     Returns data structured for both calendar and list views.
-    OPTIMIZED: Filters out tasks from completed quests.
+    INCLUDES tasks from completed quests for progress tracking persistence.
     """
     try:
         supabase = get_user_client()
         today = date.today()
 
-        # Get user quests to check which are completed
+        # Get user quests (include both active AND completed for calendar persistence)
         user_quests_response = supabase.table('user_quests')\
             .select('quest_id, completed_at, is_active')\
             .eq('user_id', user_id)\
             .execute()
 
-        # Build map of quest statuses - exclude completed quests
-        active_quest_ids = [
+        # Get ALL quest IDs (active + completed) for calendar persistence
+        # Note: is_active=False means abandoned, not completed
+        all_quest_ids = [
             uq['quest_id'] for uq in user_quests_response.data
-            if not uq.get('completed_at') and uq.get('is_active', True)
+            if uq.get('is_active', True)  # Include active and completed (is_active=True with completed_at)
         ]
 
-        if not active_quest_ids:
+        if not all_quest_ids:
             return jsonify({'items': [], 'summary': {'total_active': 0, 'total_completed': 0, 'scheduled_today': 0, 'wandering': 0}}), 200
 
-        # Get all user quest tasks for active quests only
+        # Get all user quest tasks (including tasks from completed quests)
         tasks_response = supabase.table('user_quest_tasks')\
             .select('id, quest_id, title, description, pillar, xp_value, order_index, is_required')\
             .eq('user_id', user_id)\
-            .in_('quest_id', active_quest_ids)\
+            .in_('quest_id', all_quest_ids)\
             .execute()
 
         if not tasks_response.data:
