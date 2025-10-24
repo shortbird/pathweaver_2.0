@@ -6,7 +6,7 @@ Handles all database operations related to parent-student relationships and pare
 
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
-from repositories.base_repository import BaseRepository, NotFoundError, PermissionError
+from backend.repositories.base_repository import BaseRepository, NotFoundError, PermissionError
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

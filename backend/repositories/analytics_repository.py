@@ -6,7 +6,7 @@ Handles all database operations related to admin analytics and reporting.
 
 from typing import List, Dict, Optional, Any
 from datetime import datetime, timedelta
-from repositories.base_repository import BaseRepository
+from backend.repositories.base_repository import BaseRepository
 from utils.logger import get_logger
 
 logger = get_logger(__name__)

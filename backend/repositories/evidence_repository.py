@@ -5,7 +5,7 @@ Handles all database operations related to evidence uploads and evidence documen
 """
 
 from typing import List, Dict, Optional, Any
-from repositories.base_repository import BaseRepository, NotFoundError
+from backend.repositories.base_repository import BaseRepository, NotFoundError
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
