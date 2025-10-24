@@ -274,6 +274,89 @@ def get_user_badges(user_id):
         }), 200
 
 
+@bp.route('/user/<target_user_id>', methods=['GET'])
+def get_user_badges_public(target_user_id):
+    """
+    Get user's badges for public viewing (diploma page).
+    Returns all badges with is_earned status for display on public portfolios.
+
+    Path params:
+        target_user_id: UUID of user whose badges to retrieve
+
+    Returns:
+        {
+            'success': True,
+            'user_badges': [
+                {
+                    'id': badge_id,
+                    'name': 'Badge Name',
+                    'is_earned': True/False,
+                    'earned_at': timestamp or None,
+                    'progress': {...}
+                }
+            ]
+        }
+    """
+    try:
+        from database import get_supabase_admin_client
+
+        supabase = get_supabase_admin_client()
+
+        # Get all user's badge progress (active and completed)
+        user_badges_result = supabase.table('user_badges')\
+            .select('*, badges(*)')\
+            .eq('user_id', target_user_id)\
+            .execute()
+
+        user_badges_data = []
+
+        for ub in user_badges_result.data:
+            badge = ub.get('badges', {})
+            if not badge:
+                continue
+
+            badge_data = {
+                'id': badge.get('id'),
+                'name': badge.get('name'),
+                'description': badge.get('description'),
+                'identity_statement': badge.get('identity_statement'),
+                'pillar_primary': badge.get('pillar_primary'),
+                'image_url': badge.get('image_url'),
+                'is_earned': ub.get('completed_at') is not None,
+                'earned_at': ub.get('completed_at'),
+                'started_at': ub.get('started_at'),
+                'quests_completed': ub.get('quests_completed', 0),
+                'xp_earned': ub.get('xp_earned', 0),
+                'min_quests': badge.get('min_quests', 0),
+                'min_xp': badge.get('min_xp', 0)
+            }
+
+            user_badges_data.append(badge_data)
+
+        # Sort: earned badges first, then by earned date (most recent first)
+        user_badges_data.sort(
+            key=lambda x: (
+                not x['is_earned'],  # False (earned) comes before True (not earned)
+                -(x['earned_at'] or '').replace('T', ' ') if x['earned_at'] else ''
+            )
+        )
+
+        return jsonify({
+            'success': True,
+            'user_badges': user_badges_data,
+            'count': len(user_badges_data),
+            'earned_count': sum(1 for b in user_badges_data if b['is_earned'])
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error fetching user badges for {target_user_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch user badges',
+            'user_badges': []
+        }), 500
+
+
 @bp.route('/<badge_id>/quests', methods=['GET'])
 def get_badge_quests(badge_id):
     """
