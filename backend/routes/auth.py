@@ -385,19 +385,19 @@ def register():
             # Extract session data (but remove tokens for security)
             session_data = auth_response.session.model_dump() if auth_response.session else None
 
-            # ✅ SECURITY FIX: Remove tokens from session data to prevent XSS attacks
-            # Tokens are now ONLY in secure httpOnly cookies, never in response body
+            # Prepare session data
+            # For incognito mode compatibility, we include tokens in response body
+            # Tokens are ALSO set in httpOnly cookies as a fallback
             if session_data:
-                if 'access_token' in session_data:
-                    del session_data['access_token']
-                if 'refresh_token' in session_data:
-                    del session_data['refresh_token']
+                # Keep access_token and refresh_token in session data for Authorization header usage
+                pass  # Don't delete tokens - needed for incognito mode
 
             response_data = {
                 'user': user_profile.data if user_profile.data else auth_response.user.model_dump(),
                 'session': session_data,
-                # ✅ SECURITY: Tokens removed from response body
-                # Authentication now relies exclusively on secure httpOnly cookies
+                # ✅ DUAL AUTH STRATEGY: Tokens in response body for Authorization headers
+                # AND in httpOnly cookies for fallback
+                # This ensures compatibility with incognito mode (where cookies may be blocked)
             }
 
             # Add parental consent flag if user requires it
@@ -660,21 +660,19 @@ def login():
 
             # Create response with user data
 
-            # Extract session data (but remove tokens for security)
+            # Extract session data
             session_data = auth_response.session.model_dump() if auth_response.session else {}
 
-            # ✅ SECURITY FIX: Remove tokens from session data to prevent XSS attacks
-            # Tokens are now ONLY in secure httpOnly cookies, never in response body
-            if 'access_token' in session_data:
-                del session_data['access_token']
-            if 'refresh_token' in session_data:
-                del session_data['refresh_token']
+            # For incognito mode compatibility, we include tokens in response body
+            # Tokens are ALSO set in httpOnly cookies as a fallback
+            # Keep access_token and refresh_token for Authorization header usage
 
             response_data = {
                 'user': user_response_data,
                 'session': session_data,
-                # ✅ SECURITY: Tokens removed from response body
-                # Authentication now relies exclusively on secure httpOnly cookies
+                # ✅ DUAL AUTH STRATEGY: Tokens in response body for Authorization headers
+                # AND in httpOnly cookies for fallback
+                # This ensures compatibility with incognito mode (where cookies may be blocked)
             }
             response = make_response(jsonify(response_data), 200)
 
@@ -809,12 +807,14 @@ def refresh_token():
         except Exception as e:
             logger.error(f"Failed to refresh Supabase session: {str(e)}")
 
-    # ✅ SECURITY FIX: Don't return tokens in response body
-    # Tokens are ONLY in secure httpOnly cookies, never in response body
+    # Return new tokens in response body for incognito mode compatibility
+    # Tokens are ALSO set in httpOnly cookies as a fallback
     response = make_response(jsonify({
         'message': 'Tokens refreshed successfully',
-        # ✅ SECURITY: Tokens removed from response body
-        # Authentication now relies exclusively on secure httpOnly cookies
+        'access_token': new_access_token,
+        'refresh_token': new_refresh_token,
+        # ✅ DUAL AUTH STRATEGY: Tokens in response for Authorization headers
+        # AND in httpOnly cookies for fallback (incognito mode compatibility)
     }), 200)
 
     # Set httpOnly cookies for authentication (ONLY method now)

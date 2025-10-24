@@ -19,13 +19,24 @@ export const getAuthHeaders = () => {
 /**
  * Request Interceptor
  *
- * Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
- * Only adds CSRF token for state-changing requests.
- * Authentication handled exclusively via httpOnly cookies (automatic, XSS-protected).
- * Removed localStorage token management to prevent XSS attacks.
+ * ✅ INCOGNITO MODE FIX (2025-01-24):
+ * Dual authentication strategy for incognito mode compatibility:
+ * 1. Authorization header with in-memory tokens (works in incognito)
+ * 2. httpOnly cookies as fallback (works in normal mode)
+ *
+ * Adds CSRF token for state-changing requests.
  */
 api.interceptors.request.use(
-  (config) => {
+  async (config) => {
+    // ✅ INCOGNITO MODE FIX: Add Authorization header from memory tokens
+    // Import authService dynamically to avoid circular dependency
+    const { default: authService } = await import('./authService.js')
+    const accessToken = authService.getAccessToken()
+
+    if (accessToken) {
+      config.headers['Authorization'] = `Bearer ${accessToken}`
+    }
+
     // Add CSRF token for state-changing requests
     if (['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase())) {
       const csrfToken = getCsrfToken()
@@ -64,10 +75,12 @@ function getCsrfToken() {
 /**
  * Response Interceptor - Token Refresh
  *
- * Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
- * Simplified token refresh using httpOnly cookies only.
- * Server handles token refresh automatically via cookies.
- * Removed localStorage token management to prevent XSS attacks.
+ * ✅ INCOGNITO MODE FIX (2025-01-24):
+ * Dual authentication strategy for token refresh:
+ * 1. Send refresh token in request body (works in incognito)
+ * 2. Server also checks httpOnly cookies as fallback
+ *
+ * Updates in-memory tokens after successful refresh.
  */
 let refreshPromise = null
 
@@ -87,10 +100,24 @@ api.interceptors.response.use(
         if (!refreshPromise) {
           refreshPromise = (async () => {
             try {
-              // Server handles refresh via httpOnly cookies automatically
-              const response = await api.post('/api/auth/refresh', {})
+              // ✅ INCOGNITO MODE FIX: Import authService and send refresh token in body
+              const { default: authService } = await import('./authService.js')
+              const refreshToken = authService.getRefreshToken()
+
+              // Send refresh token in body for incognito mode compatibility
+              // Server will also check cookies as fallback
+              const response = await api.post('/api/auth/refresh', {
+                refresh_token: refreshToken
+              })
 
               if (response.status === 200) {
+                // Update in-memory tokens with new tokens from response
+                if (response.data.access_token && response.data.refresh_token) {
+                  authService.setTokens(
+                    response.data.access_token,
+                    response.data.refresh_token
+                  )
+                }
                 return true // Refresh successful
               }
               throw new Error('Token refresh failed')
@@ -104,10 +131,12 @@ api.interceptors.response.use(
         // Wait for the single refresh to complete
         await refreshPromise
 
-        // Retry the original request (cookies automatically included)
+        // Retry the original request (new tokens automatically added by request interceptor)
         return api(originalRequest)
       } catch (refreshError) {
         // Clear any user data on refresh failure
+        const { default: authService } = await import('./authService.js')
+        authService.clearTokens()
         localStorage.removeItem('user')
 
         // Only redirect to login if we're not already on auth pages or public pages

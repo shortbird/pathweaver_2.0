@@ -13,8 +13,43 @@ class AuthService {
     this.listeners = new Set()
     this.csrfToken = null
 
+    // ✅ INCOGNITO MODE FIX: Store tokens in memory (NOT localStorage for security)
+    // Tokens are cleared when tab/window closes (security feature)
+    this.accessToken = null
+    this.refreshToken = null
+
     // Initialize CSRF token on service creation
     this.initializeCSRF()
+  }
+
+  /**
+   * Get current access token for Authorization header
+   */
+  getAccessToken() {
+    return this.accessToken
+  }
+
+  /**
+   * Get current refresh token
+   */
+  getRefreshToken() {
+    return this.refreshToken
+  }
+
+  /**
+   * Store tokens in memory (cleared on tab close for security)
+   */
+  setTokens(accessToken, refreshToken) {
+    this.accessToken = accessToken
+    this.refreshToken = refreshToken
+  }
+
+  /**
+   * Clear tokens from memory
+   */
+  clearTokens() {
+    this.accessToken = null
+    this.refreshToken = null
   }
 
   /**
@@ -88,9 +123,15 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // ✅ SECURITY FIX: Tokens are now stored in secure httpOnly cookies only
-      // localStorage token storage removed to prevent XSS attacks
-      // The backend sets httpOnly cookies via session_manager.set_auth_cookies()
+      // ✅ INCOGNITO MODE FIX: Store tokens in memory for Authorization headers
+      // Tokens are ALSO in httpOnly cookies as fallback (dual auth strategy)
+      // Memory storage works in incognito mode where cookies may be blocked
+      if (response.data.session) {
+        this.setTokens(
+          response.data.session.access_token,
+          response.data.session.refresh_token
+        )
+      }
 
       // Store user data for quick access (non-sensitive only - no tokens!)
       if (this.user) {
@@ -103,6 +144,7 @@ class AuthService {
     } catch (error) {
       this.user = null
       this.isAuthenticated = false
+      this.clearTokens()
       this.notifyListeners()
 
       const errorMessage = error.response?.data?.error || 'Login failed'
@@ -128,9 +170,14 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // ✅ SECURITY FIX: Tokens are now stored in secure httpOnly cookies only
-      // localStorage token storage removed to prevent XSS attacks
-      // The backend sets httpOnly cookies via session_manager.set_auth_cookies()
+      // ✅ INCOGNITO MODE FIX: Store tokens in memory for Authorization headers
+      // Tokens are ALSO in httpOnly cookies as fallback (dual auth strategy)
+      if (response.data.session) {
+        this.setTokens(
+          response.data.session.access_token,
+          response.data.session.refresh_token
+        )
+      }
 
       // Store user data for quick access (non-sensitive only - no tokens!)
       if (this.user) {
@@ -159,6 +206,7 @@ class AuthService {
       this.user = null
       this.isAuthenticated = false
       this.csrfToken = null
+      this.clearTokens() // Clear memory tokens
 
       // Clear localStorage data
       localStorage.removeItem('user')
@@ -174,9 +222,17 @@ class AuthService {
    */
   async refreshSession() {
     try {
-      const response = await api.post('/api/auth/refresh')
+      // Send refresh token in body for incognito mode compatibility
+      const response = await api.post('/api/auth/refresh', {
+        refresh_token: this.refreshToken
+      })
 
       if (response.status === 200) {
+        // ✅ INCOGNITO MODE FIX: Update memory tokens after refresh
+        if (response.data.access_token && response.data.refresh_token) {
+          this.setTokens(response.data.access_token, response.data.refresh_token)
+        }
+
         // Session refreshed successfully, check current user
         await this.checkAuthStatus()
         return true
@@ -186,6 +242,7 @@ class AuthService {
     } catch (error) {
       this.user = null
       this.isAuthenticated = false
+      this.clearTokens()
       this.notifyListeners()
       return false
     }
