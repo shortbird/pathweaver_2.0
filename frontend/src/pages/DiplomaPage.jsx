@@ -994,15 +994,15 @@ const DiplomaPage = () => {
         })()}
 
         {/* Earned Badges Section */}
-        {earnedBadges.length > 0 && (
-          <div className="mb-12 pb-12 border-b border-gray-100">
-            <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-3 text-primary">Earned Badges</h2>
-              <p className="text-gray-600 max-w-2xl mx-auto">
-                Recognition of mastery and achievement across learning pillars
-              </p>
-            </div>
+        <div className="mb-12 pb-12 border-b border-gray-100">
+          <div className="text-center mb-8">
+            <h2 className="text-3xl font-bold mb-3 text-primary">Earned Badges</h2>
+            <p className="text-gray-600 max-w-2xl mx-auto">
+              Recognition of mastery and achievement across learning pillars
+            </p>
+          </div>
 
+          {earnedBadges.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {earnedBadges.map((userBadge) => (
                 <BadgeCarouselCard
@@ -1011,14 +1011,12 @@ const DiplomaPage = () => {
                 />
               ))}
             </div>
-
-            {earnedBadges.length === 0 && (
-              <div className="text-center py-8">
-                <p className="text-gray-500">No badges earned yet - complete quests to earn your first badge!</p>
-              </div>
-            )}
-          </div>
-        )}
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-gray-500">No badges earned yet - complete quests to earn your first badge!</p>
+            </div>
+          )}
+        </div>
 
         {/* Learning Moments Section */}
         {learningEvents.length > 0 && (
