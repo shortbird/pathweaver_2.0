@@ -62,7 +62,10 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
             <div className="px-8 py-8 border-b border-gray-200">
               <div className="flex items-start justify-between mb-6">
                 <div className="flex-1">
-                  {/* Row 1: Pillar name and XP pill */}
+                  {/* Row 1: Task title */}
+                  <h3 className="text-3xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins' }}>{task.title}</h3>
+
+                  {/* Row 2: Pillar name and XP pill */}
                   <div className="flex items-center gap-3 mb-3">
                     <div className="text-sm font-semibold uppercase tracking-wide" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>
                       {pillarData.name}
@@ -79,9 +82,6 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
                       {task.xp_amount} XP
                     </div>
                   </div>
-
-                  {/* Row 2: Task title */}
-                  <h3 className="text-3xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins' }}>{task.title}</h3>
 
                   {/* Row 3: Task description */}
                   {task.description && (
