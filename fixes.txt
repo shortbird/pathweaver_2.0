@@ -1,0 +1,58 @@
+1.
+finish quest not working:
+{'message': 'column user_quest_tasks.xp_awarded does not exist', 'code': '42703', 'hint': None, 'details': None}
+
+{"timestamp": "2025-10-24T16:25:17.795100Z", "level": "ERROR", "logger": "routes.quests", "message": "Error ending quest: {'message': 'column user_quest_tasks.xp_awarded does not exist', 'code': '42703', 'hint': None, 'details': None}", "module": "quests", "function": "end_quest", "line": 870, "request": {"method": "POST", "path": "/api/quests/37f52b88-54e5-4ed8-b180-823db7b529d2/end", "remote_addr": "10.229.83.5", "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"}, "correlation_id": "e83ce801-91df-44fe-aebc-2366919ff81f"}
+Traceback (most recent call last):
+  File "/opt/render/project/src/backend/routes/quests.py", line 855, in end_quest
+    .execute()
+     ~~~~~~~^^
+  File "/opt/render/project/src/.venv/lib/python3.13/site-packages/postgrest/_sync/request_builder.py", line 78, in execute
+    raise APIError(dict(json_obj))
+postgrest.exceptions.APIError: {'message': 'column user_quest_tasks.xp_awarded does not exist', 'code': '42703', 'hint': None, 'details': None}
+{"timestamp": "2025-10-24T16:25:17.796277Z", "level": "INFO", "logger": "app", "message": "Request completed", "module": "logger", "function": "log_with_extra", "line": 110, "request": {"method": "POST", "path": "/api/quests/37f52b88-54e5-4ed8-b180-823db7b529d2/end", "remote_addr": "10.229.83.5", "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"}, "correlation_id": "e83ce801-91df-44fe-aebc-2366919ff81f", "method": "POST", "path": "/api/quests/37f52b88-54e5-4ed8-b180-823db7b529d2/end", "status": 500}
+
+when I refresh the quest is deactivated, so its working. it's just showing that error and not refreshing automatically.
+
+2.
+the edit evidence modal on completed tasks in completed quests is an old version, it's not using the same modal as active quests with finished tasks. make sure all task cards use the same evidence modal.
+
+3. an empty dashboard with no active quests shouldn't say "start your first quest" because they may have already completed one. it should say "Pick up a new quest!"
+
+4. completed tasks should remain on the calendar even when their associated quest is finished. progress recording is important.
+
+5. Move suggest a quest to same row as badges/quests/search bar
+
+6. unable to enroll in quest
+
+{"timestamp": "2025-10-24T17:09:03.318096Z", "level": "ERROR", "logger": "repositories.quest_repository", "message": "Error enrolling user in quest: {'message': 'new row violates row-level security policy for table \"user_quests\"', 'code': '42501', 'hint': None, 'details': None}", "module": "quest_repository", "function": "enroll_user", "line": 238, "request": {"method": "POST", "path": "/api/quests/de73ea40-d00a-4596-8b72-caca96a77ae6/enroll", "remote_addr": "10.229.83.5", "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"}, "correlation_id": "9ef2307d-2946-4749-a09d-89f1992697db"}
+{"timestamp": "2025-10-24T17:09:03.318294Z", "level": "ERROR", "logger": "routes.quests", "message": "Error enrolling in quest: Failed to enroll in quest", "module": "quests", "function": "enroll_in_quest", "line": 473, "request": {"method": "POST", "path": "/api/quests/de73ea40-d00a-4596-8b72-caca96a77ae6/enroll", "remote_addr": "10.229.83.5", "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"}, "correlation_id": "9ef2307d-2946-4749-a09d-89f1992697db"}
+{"timestamp": "2025-10-24T17:09:03.319221Z", "level": "INFO", "logger": "app", "message": "Request completed", "module": "logger", "function": "log_with_extra", "line": 110, "request": {"method": "POST", "path": "/api/quests/de73ea40-d00a-4596-8b72-caca96a77ae6/enroll", "remote_addr": "10.229.83.5", "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36"}, "correlation_id": "9ef2307d-2946-4749-a09d-89f1992697db", "method": "POST", "path": "/api/quests/de73ea40-d00a-4596-8b72-caca96a77ae6/enroll", "status": 500}
+
+7. admin parent dashboard should allow me to view any child from the parent's perspective. all listed in dropdown.
+
+8. add completed quests section to dashboard
+
+9. Task customization wizard needs styling updates 
+
+10.Parent access changes to Family access with parent & observer roles & invitation ability
+
+11. capitalize first letter of pillars on calendar view
+
+12. update pillar names on what do next & badge/quest filters
+
+13. communication page styling update & past conversation debug
+
+14. connections fix styling
+
+15. Option to Mark evidence as private - only visible to user
+
+16. Suggested tasks swipe left/right
+
+17. Make tasks simpler/more complex
+
+18. Badges require a book
+
+19. Quests "see how others completed this quest"
+
+20. chat bot - all friends should be listed there to chat with.

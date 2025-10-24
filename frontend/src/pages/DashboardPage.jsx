@@ -9,22 +9,26 @@ import {
 } from '@heroicons/react/24/outline'
 
 // Memoized component for Active Quests section
-const ActiveQuests = memo(({ activeQuests }) => {
+const ActiveQuests = memo(({ activeQuests, completedQuestsCount = 0 }) => {
   // Filter out completed and ended quests, but include all for compact view
   const allQuests = activeQuests || []
 
   if (allQuests.length === 0) {
+    const isFirstQuest = completedQuestsCount === 0;
+    const buttonText = isFirstQuest ? 'Start Your First Quest' : 'Pick Up a New Quest';
+    const emptyMessage = isFirstQuest ? 'No quests yet.' : 'Ready for your next learning adventure?';
+
     return (
       <div className="text-center py-8">
         <RocketLaunchIcon className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-        <p className="text-gray-600 mb-4">No quests yet.</p>
+        <p className="text-gray-600 mb-4">{emptyMessage}</p>
         <Link
           to="/quests"
           className="inline-flex items-center px-6 py-3 bg-gradient-primary text-white rounded-lg font-bold shadow-md hover:shadow-lg hover:-translate-y-0.5 transition-all duration-300"
           style={{ fontFamily: 'Poppins, sans-serif' }}
         >
           <RocketLaunchIcon className="w-5 h-5 mr-2" />
-          Start Your First Quest
+          {buttonText}
         </Link>
       </div>
     )
@@ -153,7 +157,10 @@ const DashboardPage = () => {
             Browse All Quests →
           </Link>
         </div>
-        <ActiveQuests activeQuests={dashboardData?.active_quests} />
+        <ActiveQuests
+          activeQuests={dashboardData?.active_quests}
+          completedQuestsCount={dashboardData?.stats?.completed_quests_count || 0}
+        />
       </div>
 
       {/* Learning Event Modal */}

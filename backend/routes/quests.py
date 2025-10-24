@@ -850,11 +850,11 @@ def end_quest(user_id: str, quest_id: str):
         
         # Get task completion stats for the response
         completed_tasks = supabase.table('user_quest_tasks')\
-            .select('xp_awarded')\
+            .select('xp_value')\
             .eq('user_quest_id', user_quest_id)\
             .execute()
-        
-        total_xp = sum(task.get('xp_awarded', 0) for task in completed_tasks.data)
+
+        total_xp = sum(task.get('xp_value', 0) for task in completed_tasks.data)
         task_count = len(completed_tasks.data)
         
         return jsonify({

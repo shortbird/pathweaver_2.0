@@ -77,9 +77,20 @@ class BaseRepository:
         """
         if self._client is None:
             if self.user_id:
-                # Get user client with JWT token from request headers
-                # The token is automatically extracted from Authorization header
-                self._client = get_user_client()
+                # Get user client with JWT token from request headers or httpOnly cookies
+                # The token is automatically extracted by get_user_client()
+                from flask import request
+
+                # Try to get token from Authorization header first
+                auth_header = request.headers.get('Authorization', '')
+                token = None
+                if auth_header.startswith('Bearer '):
+                    token = auth_header.replace('Bearer ', '')
+                else:
+                    # Fallback to httpOnly cookie
+                    token = request.cookies.get('access_token')
+
+                self._client = get_user_client(token=token)
             else:
                 logger.warning(
                     f"Using admin client for {self.table_name} repository. "
