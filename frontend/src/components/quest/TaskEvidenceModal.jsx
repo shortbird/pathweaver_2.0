@@ -10,6 +10,9 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
   const [completionData, setCompletionData] = useState(null);
   const editorRef = useRef(null);
 
+  // Check if task is already completed
+  const isTaskCompleted = task.is_completed || false;
+
   const handleComplete = (data) => {
     setSuccessMessage(data.message);
     setCompletionData(data);
@@ -117,11 +120,11 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
               </div>
             </div>
 
-            {/* Add Content Block Section with Submit Button */}
+            {/* Add Content Block Section with Submit Button or Completion Indicator */}
             <div className="px-8 py-6 border-b border-gray-200 bg-gray-50">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-sm font-semibold text-gray-700" style={{ fontFamily: 'Poppins' }}>Add new content block</span>
-                {!successMessage && (
+                {!successMessage && !isTaskCompleted && (
                   <button
                     onClick={handleSubmitForXP}
                     className="px-6 py-2 bg-gradient-primary text-white rounded-lg font-bold hover:shadow-lg transition-all flex items-center gap-2"
@@ -130,6 +133,18 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
                     <Award className="w-4 h-4" />
                     Submit for XP
                   </button>
+                )}
+                {isTaskCompleted && (
+                  <div className="px-6 py-2 bg-green-50 border-2 border-green-200 rounded-lg flex items-center gap-2">
+                    <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center flex-shrink-0">
+                      <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <span className="text-green-700 font-bold text-sm" style={{ fontFamily: 'Poppins' }}>
+                      Task Completed
+                    </span>
+                  </div>
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
