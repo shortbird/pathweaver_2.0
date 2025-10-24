@@ -350,6 +350,7 @@ def get_public_diploma_by_user_id(user_id):
 
         # Get multi-format evidence documents with their content blocks
         # This query fetches both the document metadata AND all associated blocks
+        # Filter to only PUBLIC evidence blocks (is_private = false) for diploma display
         evidence_documents_response = supabase.table('user_task_evidence_documents').select(
             '''
             id,
@@ -357,14 +358,15 @@ def get_public_diploma_by_user_id(user_id):
             quest_id,
             status,
             completed_at,
-            evidence_document_blocks (
+            evidence_document_blocks!inner (
                 id,
                 block_type,
                 content,
-                order_index
+                order_index,
+                is_private
             )
             '''
-        ).eq('user_id', user_id).eq('status', 'completed').execute()
+        ).eq('user_id', user_id).eq('status', 'completed').eq('evidence_document_blocks.is_private', False).execute()
 
         logger.debug(f"=== EVIDENCE DOCUMENTS DEBUG ===")
         logger.info(f"Found {len(evidence_documents_response.data) if evidence_documents_response.data else 0} evidence documents")

@@ -488,33 +488,34 @@ const QuestBadgeHub = () => {
       <div className="max-w-7xl mx-auto px-4 py-8">
         {/* Controls section */}
         <div className="mb-8 space-y-6">
-          {/* Tab toggle and search */}
-          <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          {/* Tab toggle, search, and suggest button */}
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
             <TabToggle activeTab={activeTab} onTabChange={setActiveTab} />
 
-            <div className="w-full md:w-96">
-              <HubSearch
-                value={searchTerm}
-                onChange={setSearchTerm}
-                placeholder="SEARCH"
-              />
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full lg:w-auto">
+              <div className="w-full sm:w-96">
+                <HubSearch
+                  value={searchTerm}
+                  onChange={setSearchTerm}
+                  placeholder="SEARCH"
+                />
+              </div>
+
+              {/* Quest suggestion button for eligible users - now in header row */}
+              {activeTab === 'quests' && canSuggestQuests && (
+                <button
+                  onClick={handleQuestSuggestion}
+                  className="bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg whitespace-nowrap"
+                  style={{ fontFamily: 'Poppins, sans-serif' }}
+                >
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                  </svg>
+                  Suggest a Quest
+                </button>
+              )}
             </div>
           </div>
-
-          {/* Quest suggestion button for eligible users */}
-          {activeTab === 'quests' && canSuggestQuests && (
-            <div className="flex justify-end">
-              <button
-                onClick={handleQuestSuggestion}
-                className="bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center gap-2 shadow-lg"
-              >
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
-                </svg>
-                Suggest a Quest
-              </button>
-            </div>
-          )}
 
           {/* Filters */}
           <HubFilters

@@ -94,11 +94,12 @@ Supabase project ID: vvfgxcykxjybtvpfzwyx
 
 ### Fix 2: Evidence Modal Inconsistency
 
-**Status**: HIGH - UX inconsistency between active and completed quests
+**Status**: ✅ RESOLVED - No inconsistency found
 **Issue**: Completed tasks in completed quests use old evidence modal version
+**Resolution**: Investigation revealed all evidence modals already use the newer, standardized versions. No action needed.
 
-#### Implementation Tasks
-- [ ] **Frontend Investigation**
+#### Investigation Results
+- [x] **Frontend Investigation** - COMPLETE
   - [ ] Locate evidence modal component (likely in `components/` or `components/ui/`)
   - [ ] Find where active quest tasks render evidence modal
   - [ ] Find where completed quest tasks render evidence modal
@@ -166,28 +167,28 @@ Supabase project ID: vvfgxcykxjybtvpfzwyx
 
 ### Fix 4: Calendar Task Persistence
 
-**Status**: HIGH - Important progress tracking feature
+**Status**: ✅ FIXED - Deployed to develop
 **Issue**: Completed tasks disappear from calendar when quest is finished
+**Resolution**: Modified [calendar.py:54-68](backend/routes/calendar.py#L54-68) to include tasks from completed quests
 
 #### Implementation Tasks
-- [ ] **Calendar Component Investigation**
+- [x] **Calendar Component Investigation** - COMPLETE
   - [ ] Locate calendar component (likely in `components/` or `pages/`)
   - [ ] Find query that fetches tasks for calendar view
   - [ ] Identify filter that removes completed quest tasks
 
-- [ ] **Backend API Update**
-  - [ ] Locate calendar data endpoint (likely `/api/users/:userId/calendar` or in dashboard API)
-  - [ ] Update query to include completed tasks even from finished quests
-  - [ ] Filter by date range, NOT by quest active status
-  - [ ] Include task completion status in response
+- [x] **Backend API Update** - COMPLETE
+  - [x] Located calendar endpoint at `/api/calendar`
+  - [x] Updated query to include ALL active quests (including completed ones)
+  - [x] Only excludes abandoned quests (is_active=False)
+  - [x] Completed tasks already included with status='completed'
 
-- [ ] **Frontend Display Update**
-  - [ ] Ensure calendar shows completed tasks with visual indicator
-  - [ ] Add styling to differentiate completed vs active tasks
-  - [ ] Keep completed tasks visible in calendar for progress tracking
-  - [ ] Consider adding filter toggle (show/hide completed) if calendar gets crowded
+- [x] **Frontend Display Update** - ALREADY IMPLEMENTED
+  - [x] Calendar already shows completed tasks with green status
+  - [x] Styling already differentiates completed vs active tasks
+  - [x] Status helper function in useCalendar.js handles color coding
 
-- [ ] **Testing**
+- [ ] **Testing** - NEEDS VERIFICATION
   - [ ] Complete a quest with tasks on calendar
   - [ ] Verify completed tasks remain visible after quest completion
   - [ ] Check that date ranges work correctly

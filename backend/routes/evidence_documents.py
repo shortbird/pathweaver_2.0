@@ -71,9 +71,9 @@ def get_evidence_document(user_id: str, task_id: str):
 
         document = document_response.data[0]
 
-        # Get all content blocks for this document
+        # Get all content blocks for this document (including is_private field)
         blocks_response = supabase.table('evidence_document_blocks')\
-            .select('*')\
+            .select('id, document_id, block_type, content, order_index, is_private, created_at')\
             .eq('document_id', document['id'])\
             .order('order_index')\
             .execute()
@@ -606,7 +606,8 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
                 'document_id': document_id,
                 'block_type': block['type'],
                 'content': block['content'],
-                'order_index': index
+                'order_index': index,
+                'is_private': block.get('is_private', False)  # Support private evidence blocks
             }
 
             block_id = block.get('id')
