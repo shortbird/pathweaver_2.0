@@ -283,3 +283,84 @@ class UserRepository(BaseRepository):
         except APIError as e:
             logger.error(f"Error fetching dashboard stats for user {user_id}: {e}")
             raise DatabaseError("Failed to fetch dashboard stats") from e
+
+    def find_by_ids(
+        self,
+        user_ids: List[str],
+        select_fields: str = '*'
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Fetch multiple users by IDs in a single query (prevents N+1 queries).
+
+        Args:
+            user_ids: List of user IDs to fetch
+            select_fields: Comma-separated fields to select (default: '*')
+
+        Returns:
+            Dictionary mapping user_id -> user record
+
+        Raises:
+            DatabaseError: If query fails
+        """
+        if not user_ids:
+            return {}
+
+        try:
+            response = (
+                self.client.table(self.table_name)
+                .select(select_fields)
+                .in_('id', user_ids)
+                .execute()
+            )
+
+            # Convert list to dictionary for easy lookup
+            users_dict = {user['id']: user for user in (response.data or [])}
+            return users_dict
+
+        except APIError as e:
+            logger.error(f"Error fetching users by IDs: {e}")
+            raise DatabaseError("Failed to fetch users by IDs") from e
+
+    def get_basic_profiles(
+        self,
+        user_ids: List[str]
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        Fetch basic profile info for multiple users (optimized for connections/friends lists).
+
+        Args:
+            user_ids: List of user IDs to fetch
+
+        Returns:
+            Dictionary mapping user_id -> basic profile (id, display_name, avatar_url, bio)
+
+        Raises:
+            DatabaseError: If query fails
+        """
+        return self.find_by_ids(
+            user_ids,
+            select_fields='id, display_name, avatar_url, bio, portfolio_slug'
+        )
+
+    def update_last_active(self, user_id: str) -> bool:
+        """
+        Update user's last active timestamp.
+
+        Args:
+            user_id: User ID
+
+        Returns:
+            True if successful
+
+        Raises:
+            DatabaseError: If update fails
+        """
+        try:
+            self.update(user_id, {'last_active': 'now()'})
+            return True
+
+        except NotFoundError:
+            logger.warning(f"User {user_id} not found when updating last_active")
+            return False
+        except DatabaseError:
+            raise

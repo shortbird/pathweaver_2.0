@@ -39,6 +39,7 @@ from backend.repositories.parent_repository import ParentRepository
 from backend.repositories.tutor_repository import TutorRepository
 from backend.repositories.lms_repository import LMSRepository
 from backend.repositories.analytics_repository import AnalyticsRepository
+from backend.repositories.task_repository import TaskRepository, TaskCompletionRepository
 
 __all__ = [
     # Base classes
@@ -61,4 +62,6 @@ __all__ = [
     'TutorRepository',
     'LMSRepository',
     'AnalyticsRepository',
+    'TaskRepository',
+    'TaskCompletionRepository',
 ]

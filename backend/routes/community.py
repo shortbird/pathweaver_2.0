@@ -24,45 +24,18 @@ bp = Blueprint('community', __name__)
 @bp.route('/friends', methods=['GET'])
 @require_auth
 def get_friends(user_id):
-    from database import get_user_client
-    # Use user client - fetching user-specific friendship data
-    supabase = get_user_client(user_id)
-
+    """Get all friendships for a user using FriendshipRepository"""
     try:
         logger.info(f"[GET_FRIENDS] Fetching friends for user: {user_id}")
 
-        # Use a single query with OR condition to reduce database connections
-        try:
-            friendships = supabase.table('friendships')\
-                .select('*')\
-                .or_(f'requester_id.eq.{user_id},addressee_id.eq.{user_id}')\
-                .execute()
+        # Use FriendshipRepository instead of direct database access
+        friendship_repo = FriendshipRepository(user_id)
+        user_repo = UserRepository(user_id)
 
-            all_friendships = friendships.data or []
-            logger.info(f"[GET_FRIENDS] Total friendships found: {len(all_friendships)}")
+        # Get all friendships (both as requester and addressee)
+        all_friendships = friendship_repo.find_by_user(user_id)
+        logger.info(f"[GET_FRIENDS] Total friendships found: {len(all_friendships)}")
 
-        except Exception as db_error:
-            logger.error(f"[GET_FRIENDS] Database error: {str(db_error)}")
-            logger.info(f"[GET_FRIENDS] Falling back to separate queries")
-
-            # Fallback to separate queries if OR fails
-            friendships_as_requester = supabase.table('friendships')\
-                .select('*')\
-                .eq('requester_id', user_id)\
-                .execute()
-
-            logger.info(f"[GET_FRIENDS] Friendships as requester: {len(friendships_as_requester.data or [])} found")
-
-            friendships_as_addressee = supabase.table('friendships')\
-                .select('*')\
-                .eq('addressee_id', user_id)\
-                .execute()
-
-            logger.info(f"[GET_FRIENDS] Friendships as addressee: {len(friendships_as_addressee.data or [])} found")
-
-            # Combine both results
-            all_friendships = (friendships_as_requester.data or []) + (friendships_as_addressee.data or [])
-        
         # OPTIMIZED: Collect all unique user IDs first, then fetch in a single batch query
         all_user_ids = set()
         for friendship in all_friendships:
@@ -72,12 +45,11 @@ def get_friends(user_id):
         # Remove current user from the set
         all_user_ids.discard(user_id)
 
-        # Fetch all user data in a single batch query
+        # Fetch all user data using UserRepository batch method (prevents N+1 queries)
         user_lookup = {}
         if all_user_ids:
             try:
-                users_result = supabase.table('users').select('*').in_('id', list(all_user_ids)).execute()
-                user_lookup = {user['id']: user for user in (users_result.data or [])}
+                user_lookup = user_repo.get_basic_profiles(list(all_user_ids))
                 logger.info(f"[GET_FRIENDS] Fetched {len(user_lookup)} user records in batch")
             except Exception as batch_error:
                 logger.error(f"[GET_FRIENDS] Error fetching users in batch: {str(batch_error)}")

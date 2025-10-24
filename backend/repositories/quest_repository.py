@@ -308,6 +308,158 @@ class QuestRepository(BaseRepository):
             logger.error(f"Error searching quests: {e}")
             raise DatabaseError("Failed to search quests") from e
 
+    def get_user_enrollments(
+        self,
+        user_id: str,
+        is_active: Optional[bool] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all quest enrollments for a user.
+
+        Args:
+            user_id: User ID
+            is_active: Filter by active status (optional)
+
+        Returns:
+            List of enrollment records from user_quests table
+
+        Raises:
+            DatabaseError: If query fails
+        """
+        try:
+            query = (
+                self.client.table('user_quests')
+                .select('*')
+                .eq('user_id', user_id)
+            )
+
+            if is_active is not None:
+                query = query.eq('is_active', is_active)
+
+            response = query.execute()
+            return response.data or []
+
+        except APIError as e:
+            logger.error(f"Error fetching user enrollments for {user_id}: {e}")
+            raise DatabaseError("Failed to fetch user enrollments") from e
+
+    def get_user_enrollment(
+        self,
+        user_id: str,
+        quest_id: str
+    ) -> Optional[Dict[str, Any]]:
+        """
+        Get a specific user's enrollment in a quest.
+
+        Args:
+            user_id: User ID
+            quest_id: Quest ID
+
+        Returns:
+            Enrollment record or None if not enrolled
+
+        Raises:
+            DatabaseError: If query fails
+        """
+        try:
+            response = (
+                self.client.table('user_quests')
+                .select('*')
+                .eq('user_id', user_id)
+                .eq('quest_id', quest_id)
+                .execute()
+            )
+
+            if not response.data:
+                return None
+
+            return response.data[0]
+
+        except APIError as e:
+            logger.error(f"Error fetching enrollment for user {user_id}, quest {quest_id}: {e}")
+            raise DatabaseError("Failed to fetch enrollment") from e
+
+    def complete_quest(
+        self,
+        user_id: str,
+        quest_id: str
+    ) -> Dict[str, Any]:
+        """
+        Mark a quest as completed for a user.
+
+        Args:
+            user_id: User ID
+            quest_id: Quest ID
+
+        Returns:
+            Updated enrollment record
+
+        Raises:
+            NotFoundError: If enrollment doesn't exist
+            DatabaseError: If update fails
+        """
+        try:
+            response = (
+                self.client.table('user_quests')
+                .update({'completed_at': 'now()'})
+                .eq('user_id', user_id)
+                .eq('quest_id', quest_id)
+                .execute()
+            )
+
+            if not response.data:
+                raise NotFoundError("Quest enrollment not found")
+
+            logger.info(f"User {user_id} completed quest {quest_id}")
+            return response.data[0]
+
+        except APIError as e:
+            logger.error(f"Error completing quest: {e}")
+            raise DatabaseError("Failed to complete quest") from e
+
+    def get_completed_quests(
+        self,
+        user_id: str,
+        limit: int = 50
+    ) -> List[Dict[str, Any]]:
+        """
+        Get all completed quests for a user with quest details.
+
+        Args:
+            user_id: User ID
+            limit: Maximum number of quests
+
+        Returns:
+            List of quest records with completion data
+
+        Raises:
+            DatabaseError: If query fails
+        """
+        try:
+            response = (
+                self.client.table('user_quests')
+                .select('quest_id, completed_at, quests(*)')
+                .eq('user_id', user_id)
+                .not_.is_('completed_at', 'null')
+                .order('completed_at', desc=True)
+                .limit(limit)
+                .execute()
+            )
+
+            # Extract quest data with completion timestamp
+            quests = []
+            for enrollment in response.data or []:
+                if enrollment.get('quests'):
+                    quest = enrollment['quests']
+                    quest['completed_at'] = enrollment['completed_at']
+                    quests.append(quest)
+
+            return quests
+
+        except APIError as e:
+            logger.error(f"Error fetching completed quests for user {user_id}: {e}")
+            raise DatabaseError("Failed to fetch completed quests") from e
+
 
 class QuestTaskRepository(BaseRepository):
     """Repository for quest task database operations"""
