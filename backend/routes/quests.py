@@ -201,7 +201,9 @@ def get_quest_detail(user_id: str, quest_id: str):
     Uses user-specific tasks if enrolled, otherwise shows quest template.
     """
     try:
-        supabase = get_supabase_client()
+        # Use admin client for all queries since we're accessing user-specific data
+        # User authentication is already enforced by @require_auth decorator
+        supabase = get_supabase_admin_client()
 
         # Get quest basic info (without tasks - they're user-specific now)
         quest = supabase.table('quests')\
@@ -230,6 +232,7 @@ def get_quest_detail(user_id: str, quest_id: str):
         logger.info(f"[QUEST DETAIL] Checking enrollment for user {user_id[:8]} on quest {quest_id[:8]}")
 
         # Get all enrollments for this user and quest
+        # Using admin client since user_id is already authenticated via @require_auth
         all_enrollments = supabase.table('user_quests')\
             .select('*')\
             .eq('user_id', user_id)\
