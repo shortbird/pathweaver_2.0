@@ -90,6 +90,16 @@ class BaseRepository:
                     # Fallback to Supabase access token cookie (set during login)
                     token = request.cookies.get('supabase_access_token')
 
+                # Debug logging to help diagnose RLS issues
+                if not token:
+                    logger.error(
+                        f"CRITICAL: No Supabase token found for user {self.user_id}. "
+                        f"User must logout and login again to get new token. "
+                        f"Available cookies: {list(request.cookies.keys())}"
+                    )
+                else:
+                    logger.debug(f"Using Supabase token for user {self.user_id} (token length: {len(token)})")
+
                 self._client = get_user_client(token=token)
             else:
                 logger.warning(

@@ -297,14 +297,28 @@ const QuestDetail = () => {
 
         {/* Content */}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-          {/* Back Button */}
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white rounded-full hover:shadow-lg transition-all font-semibold mb-6"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            BACK
-          </button>
+          {/* Back Button and View on Diploma Button */}
+          <div className="flex items-center justify-between mb-6">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white rounded-full hover:shadow-lg transition-all font-semibold"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              BACK
+            </button>
+
+            {/* View on Diploma button - show if user has completed any tasks */}
+            {user && completedTasks > 0 && (
+              <button
+                onClick={() => navigate(`/diploma/${user.id}`)}
+                className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-purple-600 border-2 border-purple-200 rounded-full hover:bg-white hover:border-purple-300 hover:shadow-lg transition-all font-semibold"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                <BookOpen className="w-4 h-4" />
+                VIEW ON DIPLOMA
+              </button>
+            )}
+          </div>
 
           {/* Quest Title and Description */}
           <div className="max-w-2xl mb-6">
@@ -412,12 +426,14 @@ const QuestDetail = () => {
         <div className="bg-white rounded-xl shadow-md p-6 mb-8">
           <div className="flex gap-4">
             {isQuestCompleted ? (
+              // Completed quests can be picked up again
               <button
-                onClick={() => navigate('/diploma')}
-                className="flex-1 bg-emerald-500 text-white py-4 px-8 rounded-[30px] hover:bg-emerald-600 hover:-translate-y-1 transition-all duration-300 font-bold text-lg shadow-lg"
+                onClick={handleEnroll}
+                disabled={isEnrolling}
+                className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Award className="w-5 h-5 inline mr-2" />
-                Complete! View on Diploma
+                <Target className="w-5 h-5 inline mr-2" />
+                {isEnrolling ? 'Picking Up...' : 'Pick Up Quest'}
               </button>
             ) : quest.user_enrollment && totalTasks === 0 ? (
               <button
