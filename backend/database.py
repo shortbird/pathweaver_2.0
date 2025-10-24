@@ -15,9 +15,9 @@ def _get_logger():
         _logger = get_logger(__name__)
     return _logger
 
-# Create singleton clients - connection pooling is handled internally by supabase-py
+# Create singleton client for anonymous operations only
+# Admin client is per-request (cached in Flask's g) to prevent HTTP/2 exhaustion
 _supabase_client = None
-_supabase_admin_client = None
 
 def get_supabase_client() -> Client:
     """Get anonymous Supabase client - only for public operations"""
@@ -41,18 +41,20 @@ def get_supabase_admin_client() -> Client:
 
     WARNING: This bypasses RLS policies. Use get_user_client() for user operations.
 
-    NOTE: Uses singleton pattern with proper HTTP/2 configuration to prevent
-    both stream exhaustion AND resource exhaustion.
+    NOTE: Uses Flask's g context to cache per-request to prevent HTTP/2 stream exhaustion
+    while avoiding resource exhaustion from creating too many clients.
     """
-    global _supabase_admin_client
     if not Config.SUPABASE_URL or not Config.SUPABASE_SERVICE_ROLE_KEY:
         raise ValueError("Missing Supabase admin configuration. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.")
 
-    # Create singleton client - supabase-py handles connection pooling internally
-    if _supabase_admin_client is None:
-        _supabase_admin_client = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
+    # Cache admin client in Flask's g context for this request
+    # This prevents HTTP/2 stream exhaustion from singleton pattern
+    # while still limiting to one client per request
+    if not hasattr(g, '_admin_client'):
+        g._admin_client = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
+        _get_logger().debug("Created new admin client for request")
 
-    return _supabase_admin_client
+    return g._admin_client
 
 def get_user_client(token: Optional[str] = None) -> Client:
     """
