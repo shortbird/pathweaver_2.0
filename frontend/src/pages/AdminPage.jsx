@@ -1,6 +1,7 @@
 import React, { memo } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import AdminQuests from '../components/admin/AdminQuests'
+import AdminBadges from '../components/admin/AdminBadges'
 import AdminUsers from '../components/admin/AdminUsers'
 import AdminQuestSuggestions from '../components/admin/AdminQuestSuggestions'
 import AIContentPipeline from './admin/AIContentPipeline'
@@ -28,6 +29,12 @@ const AdminPage = () => {
           className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' || currentPath === 'quests' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Quests
+        </Link>
+        <Link
+          to="/admin/badges"
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'badges' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+        >
+          Badges
         </Link>
         <Link
           to="/admin/users"
@@ -82,6 +89,7 @@ const AdminPage = () => {
       <Routes>
         <Route index element={<AdminQuests />} />
         <Route path="quests" element={<AdminQuests />} />
+        <Route path="badges" element={<AdminBadges />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="quest-suggestions" element={<AdminQuestSuggestions />} />
         <Route path="subscription-tiers" element={<TierManagement />} />
