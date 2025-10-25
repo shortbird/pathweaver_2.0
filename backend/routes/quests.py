@@ -485,45 +485,58 @@ def enroll_in_quest(user_id: str, quest_id: str):
 
         if quest_type == 'course':
             # Course quest - auto-copy preset tasks to user_quest_tasks
-            logger.info(f"Course quest detected - auto-copying preset tasks for user {user_id[:8]}")
+            logger.info(f"[COURSE_ENROLL] Course quest detected - auto-copying preset tasks for user {user_id[:8]}, quest {quest_id[:8]}")
 
-            from routes.quest_types import get_course_tasks_for_quest
+            try:
+                from routes.quest_types import get_course_tasks_for_quest
 
-            preset_tasks = get_course_tasks_for_quest(quest_id)
+                preset_tasks = get_course_tasks_for_quest(quest_id)
+                logger.info(f"[COURSE_ENROLL] Found {len(preset_tasks)} preset tasks")
 
-            if preset_tasks:
-                # Copy all preset tasks to user_quest_tasks
-                user_tasks_data = []
-                for task in preset_tasks:
-                    user_tasks_data.append({
-                        'user_id': user_id,
-                        'quest_id': quest_id,
-                        'user_quest_id': enrollment['id'],
-                        'title': task['title'],
-                        'description': task.get('description', ''),
-                        'pillar': task['pillar'],
-                        'xp_value': task.get('xp_value', 100),
-                        'order_index': task.get('order_index', 0),
-                        'is_required': task.get('is_required', True),
-                        'is_manual': False,
-                        'approval_status': 'approved',
-                        'diploma_subjects': task.get('diploma_subjects', ['Electives']),
-                        'subject_xp_distribution': task.get('subject_xp_distribution', {}),
-                        'created_at': datetime.utcnow().isoformat()
-                    })
+                if preset_tasks:
+                    # Copy all preset tasks to user_quest_tasks
+                    user_tasks_data = []
+                    for task in preset_tasks:
+                        task_data = {
+                            'user_id': user_id,
+                            'quest_id': quest_id,
+                            'user_quest_id': enrollment['id'],
+                            'title': task['title'],
+                            'description': task.get('description', ''),
+                            'pillar': task['pillar'],
+                            'xp_value': task.get('xp_value', 100),
+                            'order_index': task.get('order_index', 0),
+                            'is_required': task.get('is_required', True),
+                            'is_manual': False,
+                            'approval_status': 'approved',
+                            'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                            'subject_xp_distribution': task.get('subject_xp_distribution', {})
+                        }
+                        user_tasks_data.append(task_data)
+                        logger.info(f"[COURSE_ENROLL] Prepared task: {task['title'][:30]}")
 
-                # Bulk insert tasks
-                if user_tasks_data:
-                    quest_repo.client.table('user_quest_tasks').insert(user_tasks_data).execute()
-                    logger.info(f"Auto-copied {len(user_tasks_data)} preset tasks for course quest")
+                    # Bulk insert tasks
+                    if user_tasks_data:
+                        logger.info(f"[COURSE_ENROLL] Inserting {len(user_tasks_data)} tasks into user_quest_tasks")
+                        insert_result = quest_repo.client.table('user_quest_tasks').insert(user_tasks_data).execute()
+                        logger.info(f"[COURSE_ENROLL] Successfully inserted {len(insert_result.data)} tasks")
 
-                # Mark personalization as completed (no wizard needed)
-                quest_repo.client.table('user_quests')\
-                    .update({'personalization_completed': True})\
-                    .eq('id', enrollment['id'])\
-                    .execute()
+                    # Mark personalization as completed (no wizard needed)
+                    logger.info(f"[COURSE_ENROLL] Marking personalization as completed for enrollment {enrollment['id'][:8]}")
+                    quest_repo.client.table('user_quests')\
+                        .update({'personalization_completed': True})\
+                        .eq('id', enrollment['id'])\
+                        .execute()
+                    logger.info(f"[COURSE_ENROLL] Personalization marked complete")
+                else:
+                    logger.warning(f"[COURSE_ENROLL] No preset tasks found for course quest {quest_id[:8]}")
 
-            skip_wizard = True
+                skip_wizard = True
+
+            except Exception as task_error:
+                logger.error(f"[COURSE_ENROLL] ERROR copying tasks: {str(task_error)}", exc_info=True)
+                # Don't fail the enrollment, but log the error
+                # User will still be enrolled but without tasks
 
         return jsonify({
             'success': True,
