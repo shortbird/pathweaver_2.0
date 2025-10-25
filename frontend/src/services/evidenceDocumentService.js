@@ -1,20 +1,19 @@
-import axios from 'axios';
+import api from './api';
 
-const API_URL = import.meta.env.VITE_API_URL || '';
-
-const api = axios.create({
-  baseURL: `${API_URL}/api/evidence`,
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  withCredentials: true, // Enable sending cookies with requests
-});
+// Use the centralized authenticated API client
+// This ensures Authorization headers are added via interceptors
+const evidenceApi = {
+  get: (path) => api.get(`/api/evidence${path}`),
+  post: (path, data, config) => api.post(`/api/evidence${path}`, data, config),
+  put: (path, data) => api.put(`/api/evidence${path}`, data),
+  delete: (path) => api.delete(`/api/evidence${path}`),
+};
 
 export const evidenceDocumentService = {
   // Get evidence document for a task
   async getDocument(taskId) {
     try {
-      const response = await api.get(`/documents/${taskId}`);
+      const response = await evidenceApi.get(`/documents/${taskId}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching evidence document:', error);
@@ -25,7 +24,7 @@ export const evidenceDocumentService = {
   // Save evidence document (auto-save or manual save)
   async saveDocument(taskId, blocks, status = 'draft') {
     try {
-      const response = await api.post(`/documents/${taskId}`, {
+      const response = await evidenceApi.post(`/documents/${taskId}`, {
         blocks,
         status
       });
@@ -39,7 +38,7 @@ export const evidenceDocumentService = {
   // Update evidence document
   async updateDocument(taskId, blocks, status = 'draft') {
     try {
-      const response = await api.put(`/documents/${taskId}`, {
+      const response = await evidenceApi.put(`/documents/${taskId}`, {
         blocks,
         status
       });
@@ -53,7 +52,7 @@ export const evidenceDocumentService = {
   // Complete task with evidence document
   async completeTask(taskId) {
     try {
-      const response = await api.post(`/documents/${taskId}/complete`);
+      const response = await evidenceApi.post(`/documents/${taskId}/complete`);
       return response.data;
     } catch (error) {
       console.error('Error completing task:', error);
@@ -67,7 +66,7 @@ export const evidenceDocumentService = {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await api.post(`/blocks/${blockId}/upload`, formData, {
+      const response = await evidenceApi.post(`/blocks/${blockId}/upload`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
@@ -82,7 +81,7 @@ export const evidenceDocumentService = {
   // Delete file from a content block
   async deleteBlockFile(blockId) {
     try {
-      const response = await api.delete(`/blocks/${blockId}/file`);
+      const response = await evidenceApi.delete(`/blocks/${blockId}/file`);
       return response.data;
     } catch (error) {
       console.error('Error deleting file:', error);
