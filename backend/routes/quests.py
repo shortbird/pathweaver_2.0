@@ -528,15 +528,18 @@ def enroll_in_quest(user_id: str, quest_id: str):
                         user_tasks_data.append(task_data)
                         logger.info(f"[COURSE_ENROLL] Prepared task: {task['title'][:30]}")
 
-                    # Bulk insert tasks
+                    # Bulk insert tasks using admin client (system operation)
+                    # RLS policies require admin privileges for auto-copying preset tasks
                     if user_tasks_data:
                         logger.info(f"[COURSE_ENROLL] Inserting {len(user_tasks_data)} tasks into user_quest_tasks")
-                        insert_result = quest_repo.client.table('user_quest_tasks').insert(user_tasks_data).execute()
+                        admin_client = get_supabase_admin_client()
+                        insert_result = admin_client.table('user_quest_tasks').insert(user_tasks_data).execute()
                         logger.info(f"[COURSE_ENROLL] Successfully inserted {len(insert_result.data)} tasks")
 
                     # Mark personalization as completed (no wizard needed)
                     logger.info(f"[COURSE_ENROLL] Marking personalization as completed for enrollment {enrollment['id'][:8]}")
-                    quest_repo.client.table('user_quests')\
+                    admin_client = get_supabase_admin_client()
+                    admin_client.table('user_quests')\
                         .update({'personalization_completed': True})\
                         .eq('id', enrollment['id'])\
                         .execute()
