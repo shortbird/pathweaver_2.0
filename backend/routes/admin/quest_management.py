@@ -57,14 +57,15 @@ def get_school_subjects_v3():
         }), 500
 
 # Using repository pattern for database access
-@bp.route('/quests/create-v3', methods=['POST'])
+@bp.route('/quests/create', methods=['POST'])
+@bp.route('/quests/create-v3', methods=['POST'])  # Legacy alias
 @require_admin
 def create_quest_v3_clean(user_id):
     """
-    Create a new quest (title + idea only).
+    Create a new Optio quest (title + idea only).
     Tasks are now created individually per student by advisors or AI.
     """
-    logger.info(f"CREATE QUEST V3: admin_user_id={user_id}")
+    logger.info(f"CREATE OPTIO QUEST: admin_user_id={user_id}")
     supabase = get_supabase_admin_client()
 
     try:
@@ -90,7 +91,7 @@ def create_quest_v3_clean(user_id):
             'description': data.get('big_idea', '').strip() or data.get('description', '').strip(),
             'is_v3': True,
             'is_active': data.get('is_active', True),
-            'source': 'optio',  # Always optio for new personalized quests
+            'quest_type': 'optio',  # Optio quest (self-directed, personalized)
             'header_image_url': image_url,
             'image_url': image_url,  # Add to new image_url column
             'created_at': datetime.utcnow().isoformat()
