@@ -3,6 +3,12 @@ Khan Academy Course Scraper Service
 
 Scrapes Khan Academy course structures and creates Optio course quests.
 Extracts course titles, descriptions, units (as tasks) with descriptions.
+
+Strategy: Multi-approach scraping without Selenium
+1. Check for GraphQL API endpoints
+2. Look for embedded JSON in script tags
+3. Try internal REST API patterns
+4. Parse HTML as fallback
 """
 import os
 import requests
@@ -25,9 +31,13 @@ class KhanAcademyScraper(BaseService):
     def __init__(self):
         super().__init__()
         self.base_url = "https://www.khanacademy.org"
+        self.api_base = "https://www.khanacademy.org/api"
         self.session = requests.Session()
         self.session.headers.update({
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'application/json, text/plain, */*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Referer': 'https://www.khanacademy.org/',
         })
         # Cache scraped courses for 24 hours
         self.cache = {}
@@ -36,6 +46,7 @@ class KhanAcademyScraper(BaseService):
     def scrape_course(self, course_url: str, subject_area: str = "Math") -> Optional[Dict[str, Any]]:
         """
         Scrape a Khan Academy course and return structured data.
+        Uses multiple strategies to find course content.
 
         Args:
             course_url: Full URL to KA course page
@@ -55,18 +66,32 @@ class KhanAcademyScraper(BaseService):
 
             logger.info(f"Scraping Khan Academy course: {course_url}")
 
-            # Fetch page HTML
+            # Strategy 1: Try to find and use internal API endpoints
+            api_data = self._try_api_endpoints(course_url)
+            if api_data:
+                logger.info("Successfully extracted data via API endpoints")
+                self.cache[cache_key] = (api_data, datetime.utcnow())
+                return api_data
+
+            # Strategy 2: Fetch HTML and look for embedded JSON
+            logger.info("Trying HTML parsing with embedded JSON...")
             response = self.session.get(course_url, timeout=15)
             response.raise_for_status()
 
             soup = BeautifulSoup(response.text, 'lxml')
 
-            # Extract course title and description
+            # Look for Next.js data or other embedded JSON
+            embedded_data = self._extract_embedded_json(soup)
+            if embedded_data:
+                logger.info("Successfully extracted data from embedded JSON")
+                self.cache[cache_key] = (embedded_data, datetime.utcnow())
+                return embedded_data
+
+            # Strategy 3: Traditional HTML parsing
+            logger.info("Falling back to HTML parsing...")
             course_title = self._extract_course_title(soup, course_url)
             course_description = self._extract_course_description(soup)
-
-            # Extract units (tasks)
-            units = self._extract_units(soup)
+            units = self._extract_units_from_html(soup)
 
             if not course_title or not units:
                 logger.error(f"Failed to extract course data from {course_url}")
@@ -93,6 +118,270 @@ class KhanAcademyScraper(BaseService):
         except Exception as e:
             logger.error(f"Error scraping {course_url}: {str(e)}")
             return None
+
+    def _try_api_endpoints(self, course_url: str) -> Optional[Dict[str, Any]]:
+        """
+        Try various Khan Academy API endpoints to get course data.
+        KA has GraphQL and REST APIs that might be accessible.
+        """
+        try:
+            # Extract course slug from URL
+            # e.g., https://www.khanacademy.org/math/algebra -> algebra
+            url_parts = course_url.rstrip('/').split('/')
+            if len(url_parts) < 2:
+                return None
+
+            course_slug = url_parts[-1]
+            subject_slug = url_parts[-2] if len(url_parts) > 2 else None
+
+            # Try 1: GraphQL endpoint (KA uses this internally)
+            logger.info(f"Trying GraphQL API for {course_slug}...")
+            graphql_data = self._try_graphql_api(course_slug, subject_slug)
+            if graphql_data:
+                return graphql_data
+
+            # Try 2: Old REST API patterns (may still work)
+            logger.info(f"Trying REST API for {course_slug}...")
+            rest_data = self._try_rest_api(course_slug, subject_slug)
+            if rest_data:
+                return rest_data
+
+            # Try 3: Internal JSON endpoints
+            logger.info(f"Trying internal JSON endpoints for {course_slug}...")
+            json_data = self._try_json_endpoints(course_slug, subject_slug)
+            if json_data:
+                return json_data
+
+            return None
+
+        except Exception as e:
+            logger.error(f"Error trying API endpoints: {str(e)}")
+            return None
+
+    def _try_graphql_api(self, course_slug: str, subject_slug: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Try Khan Academy's GraphQL API"""
+        try:
+            # KA's GraphQL endpoint (discovered from browser network tab)
+            graphql_url = "https://www.khanacademy.org/api/internal/graphql"
+
+            # Example query structure (may need adjustment based on actual KA schema)
+            query = {
+                "operationName": "getCourseStructure",
+                "variables": {"slug": course_slug},
+                "query": """
+                    query getCourseStructure($slug: String!) {
+                        topic(slug: $slug) {
+                            title
+                            description
+                            children {
+                                title
+                                description
+                                kind
+                            }
+                        }
+                    }
+                """
+            }
+
+            response = self.session.post(graphql_url, json=query, timeout=10)
+
+            if response.status_code == 200:
+                data = response.json()
+                if data and 'data' in data and 'topic' in data['data']:
+                    topic = data['data']['topic']
+                    return self._parse_graphql_response(topic, course_slug)
+
+        except Exception as e:
+            logger.debug(f"GraphQL attempt failed: {str(e)}")
+
+        return None
+
+    def _try_rest_api(self, course_slug: str, subject_slug: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Try Khan Academy's old REST API patterns"""
+        try:
+            # Old API patterns that might still work
+            endpoints_to_try = [
+                f"{self.api_base}/v1/topic/{course_slug}",
+                f"{self.api_base}/internal/topic/{course_slug}",
+                f"https://www.khanacademy.org/{subject_slug}/{course_slug}.json" if subject_slug else None,
+            ]
+
+            for endpoint in endpoints_to_try:
+                if not endpoint:
+                    continue
+
+                try:
+                    response = self.session.get(endpoint, timeout=10)
+                    if response.status_code == 200:
+                        data = response.json()
+                        if data:
+                            return self._parse_rest_response(data, course_slug)
+                except Exception:
+                    continue
+
+        except Exception as e:
+            logger.debug(f"REST API attempt failed: {str(e)}")
+
+        return None
+
+    def _try_json_endpoints(self, course_slug: str, subject_slug: Optional[str]) -> Optional[Dict[str, Any]]:
+        """Try to find JSON data endpoints"""
+        try:
+            # Some sites expose JSON versions of pages
+            json_urls = [
+                f"https://www.khanacademy.org/{subject_slug}/{course_slug}/data.json" if subject_slug else None,
+                f"https://www.khanacademy.org/api/v2/topics/{course_slug}",
+            ]
+
+            for url in json_urls:
+                if not url:
+                    continue
+
+                try:
+                    response = self.session.get(url, timeout=10)
+                    if response.status_code == 200 and response.headers.get('content-type', '').startswith('application/json'):
+                        data = response.json()
+                        if data:
+                            return self._parse_json_response(data, course_slug)
+                except Exception:
+                    continue
+
+        except Exception as e:
+            logger.debug(f"JSON endpoints attempt failed: {str(e)}")
+
+        return None
+
+    def _parse_graphql_response(self, topic_data: Dict, course_slug: str) -> Dict[str, Any]:
+        """Parse GraphQL API response into our format"""
+        units = []
+
+        children = topic_data.get('children', [])
+        for idx, child in enumerate(children[:50]):
+            units.append({
+                'title': child.get('title', f'Unit {idx + 1}'),
+                'description': child.get('description', f'Complete this unit'),
+                'order_index': idx,
+                'pillar': 'stem',
+                'xp_value': 100,
+                'is_required': True,
+                'diploma_subjects': self._get_diploma_subjects_from_title(child.get('title', ''))
+            })
+
+        return {
+            'title': topic_data.get('title', course_slug.replace('-', ' ').title()),
+            'description': topic_data.get('description', f'Learn {course_slug}'),
+            'subject_area': 'Math',
+            'source_url': f"{self.base_url}/{course_slug}",
+            'units': units,
+            'scraped_at': datetime.utcnow().isoformat()
+        }
+
+    def _parse_rest_response(self, data: Dict, course_slug: str) -> Dict[str, Any]:
+        """Parse REST API response into our format"""
+        units = []
+
+        # Different API versions might structure data differently
+        children = data.get('children', data.get('topics', data.get('units', [])))
+
+        for idx, child in enumerate(children[:50]):
+            if isinstance(child, dict):
+                units.append({
+                    'title': child.get('title', child.get('name', f'Unit {idx + 1}')),
+                    'description': child.get('description', child.get('desc', f'Complete this unit')),
+                    'order_index': idx,
+                    'pillar': 'stem',
+                    'xp_value': 100,
+                    'is_required': True,
+                    'diploma_subjects': self._get_diploma_subjects_from_title(child.get('title', child.get('name', '')))
+                })
+
+        return {
+            'title': data.get('title', data.get('name', course_slug.replace('-', ' ').title())),
+            'description': data.get('description', data.get('desc', f'Learn {course_slug}')),
+            'subject_area': 'Math',
+            'source_url': f"{self.base_url}/{course_slug}",
+            'units': units,
+            'scraped_at': datetime.utcnow().isoformat()
+        }
+
+    def _parse_json_response(self, data: Dict, course_slug: str) -> Dict[str, Any]:
+        """Parse generic JSON response"""
+        return self._parse_rest_response(data, course_slug)
+
+    def _extract_embedded_json(self, soup: BeautifulSoup) -> Optional[Dict[str, Any]]:
+        """Extract course data from embedded JSON in HTML"""
+        try:
+            # Look for Next.js data or similar
+            script_tags = soup.find_all('script', type='application/json')
+
+            for script in script_tags:
+                if not script.string:
+                    continue
+
+                try:
+                    data = json.loads(script.string)
+
+                    # Try different JSON structures
+                    if isinstance(data, dict):
+                        # Next.js pattern
+                        if 'props' in data:
+                            pageProps = data.get('props', {}).get('pageProps', {})
+                            if 'topic' in pageProps:
+                                return self._parse_graphql_response(pageProps['topic'], '')
+                            elif 'contentItems' in pageProps:
+                                return self._parse_content_items(pageProps['contentItems'])
+
+                        # Direct data pattern
+                        if 'topic' in data:
+                            return self._parse_graphql_response(data['topic'], '')
+                        elif 'children' in data or 'units' in data:
+                            return self._parse_rest_response(data, '')
+
+                except (json.JSONDecodeError, KeyError, TypeError):
+                    continue
+
+            # Also look for window.__INITIAL_STATE__ or similar
+            for script in soup.find_all('script'):
+                if script.string and ('__INITIAL_STATE__' in script.string or 'window.KA' in script.string):
+                    # Extract JSON from JavaScript
+                    match = re.search(r'(__INITIAL_STATE__|window\.KA)\s*=\s*({.+?});', script.string, re.DOTALL)
+                    if match:
+                        try:
+                            data = json.loads(match.group(2))
+                            if data:
+                                return self._parse_rest_response(data, '')
+                        except Exception:
+                            continue
+
+        except Exception as e:
+            logger.debug(f"Error extracting embedded JSON: {str(e)}")
+
+        return None
+
+    def _parse_content_items(self, items: List) -> Dict[str, Any]:
+        """Parse contentItems structure"""
+        units = []
+
+        for idx, item in enumerate(items[:50]):
+            if isinstance(item, dict):
+                units.append({
+                    'title': item.get('title', f'Unit {idx + 1}'),
+                    'description': item.get('description', f'Complete this unit'),
+                    'order_index': idx,
+                    'pillar': 'stem',
+                    'xp_value': 100,
+                    'is_required': True,
+                    'diploma_subjects': self._get_diploma_subjects_from_title(item.get('title', ''))
+                })
+
+        return {
+            'title': 'Course',
+            'description': 'Learn with Khan Academy',
+            'subject_area': 'Math',
+            'source_url': '',
+            'units': units,
+            'scraped_at': datetime.utcnow().isoformat()
+        }
 
     def _extract_course_title(self, soup: BeautifulSoup, url: str) -> Optional[str]:
         """Extract course title from page"""
@@ -171,13 +460,62 @@ class KhanAcademyScraper(BaseService):
 
         return None
 
-    def _extract_units(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
-        """Extract unit/lesson structure from course page"""
+    def _extract_units_from_html(self, soup: BeautifulSoup) -> List[Dict[str, Any]]:
+        """Extract unit/lesson structure from HTML parsing (fallback method)"""
         units = []
         order_index = 0
 
         try:
-            # Strategy 1: Look for navigation links or unit cards
+            # Look for navigation links or unit cards in HTML
+            unit_selectors = [
+                'nav a[href*="/"]',  # Navigation links
+                'div[class*="unit"] h2, div[class*="unit"] h3',  # Unit headings
+                'section[class*="unit"]',  # Section elements
+                'li[class*="unit"]',  # List items
+                'a[class*="unit-link"]',  # Unit links
+            ]
+
+            found_units = []
+
+            # Try each selector
+            for selector in unit_selectors:
+                elements = soup.select(selector)
+                if elements and len(elements) >= 3:  # Likely found units if 3+ items
+                    found_units = elements
+                    logger.info(f"Found {len(elements)} units using selector: {selector}")
+                    break
+
+            # If we found some script tags with JSON, try those first
+            script_tags = soup.find_all('script', type='application/json')
+            for script in script_tags:
+                try:
+                    data = json.loads(script.string)
+                    # Look for course structure in the JSON
+                    if isinstance(data, dict):
+                        # Khan Academy might have course data in various structures
+                        # Try to find units/lessons in the data
+                        if 'props' in data and isinstance(data['props'], dict):
+                            pageProps = data['props'].get('pageProps', {})
+                            if 'contentItems' in pageProps:
+                                # Found structured content
+                                for idx, item in enumerate(pageProps['contentItems'][:50]):
+                                    if isinstance(item, dict):
+                                        units.append({
+                                            'title': item.get('title', f'Unit {idx + 1}'),
+                                            'description': item.get('description', f'Complete Unit {idx + 1}'),
+                                            'order_index': idx,
+                                            'pillar': 'stem',
+                                            'xp_value': 100,
+                                            'is_required': True,
+                                            'diploma_subjects': self._get_diploma_subjects_from_title(item.get('title', ''))
+                                        })
+                                if units:
+                                    logger.info(f"Extracted {len(units)} units from embedded JSON")
+                                    return units
+                except (json.JSONDecodeError, KeyError, TypeError) as e:
+                    continue
+
+            # Strategy 2: Look for navigation links or unit cards in HTML
             # Khan Academy often uses nav elements or section cards for units
 
             # Try finding unit sections
