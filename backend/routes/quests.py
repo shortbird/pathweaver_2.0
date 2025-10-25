@@ -261,6 +261,17 @@ def get_quest_detail(user_id: str, quest_id: str):
         # Get user-specific tasks if enrolled (regardless of personalization_completed status)
         if active_enrollment or completed_enrollment:
             enrollment_to_use = completed_enrollment or active_enrollment
+            logger.info(f"[QUEST_DETAIL] Using enrollment ID: {enrollment_to_use['id'][:8]}, user_id: {user_id[:8]}, quest_id: {quest_id[:8]}")
+
+            # Debug: Check ALL tasks for this user and quest (ignoring user_quest_id)
+            all_user_tasks_debug = supabase.table('user_quest_tasks')\
+                .select('id, user_quest_id, title')\
+                .eq('user_id', user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+            logger.info(f"[QUEST_DETAIL] DEBUG: Found {len(all_user_tasks_debug.data or [])} tasks for user+quest combo (any enrollment)")
+            for task in (all_user_tasks_debug.data or [])[:3]:  # Log first 3
+                logger.info(f"[QUEST_DETAIL] DEBUG Task: title={task['title'][:30]}, user_quest_id={task['user_quest_id'][:8]}")
 
             # Get user's personalized tasks
             user_tasks = supabase.table('user_quest_tasks')\
@@ -269,6 +280,8 @@ def get_quest_detail(user_id: str, quest_id: str):
                 .eq('approval_status', 'approved')\
                 .order('order_index')\
                 .execute()
+
+            logger.info(f"[QUEST_DETAIL] Found {len(user_tasks.data or [])} approved tasks for user_quest_id {enrollment_to_use['id'][:8]}")
 
             # Get task completions
             task_completions = supabase.table('quest_task_completions')\
