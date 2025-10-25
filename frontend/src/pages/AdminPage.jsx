@@ -4,6 +4,7 @@ import AdminQuests from '../components/admin/AdminQuests'
 import AdminBadges from '../components/admin/AdminBadges'
 import AdminUsers from '../components/admin/AdminUsers'
 import AdminQuestSuggestions from '../components/admin/AdminQuestSuggestions'
+import AdminKhanAcademySync from '../components/admin/AdminKhanAcademySync'
 import AIContentPipeline from './admin/AIContentPipeline'
 import AIQuestReview from '../components/admin/AIQuestReview'
 import AIPerformanceAnalytics from '../components/admin/AIPerformanceAnalytics'
@@ -45,6 +46,12 @@ const AdminPage = () => {
           Quest Suggestions
         </Link>
         <Link
+          to="/admin/khan-academy"
+          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'khan-academy' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+        >
+          Khan Academy Sync
+        </Link>
+        <Link
           to="/admin/batch-generator"
           className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'batch-generator' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
         >
@@ -64,6 +71,7 @@ const AdminPage = () => {
         <Route path="badges" element={<AdminBadges />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="quest-suggestions" element={<AdminQuestSuggestions />} />
+        <Route path="khan-academy" element={<AdminKhanAcademySync />} />
         <Route path="site-settings" element={<SiteSettings />} />
         <Route path="ai-pipeline" element={<AIContentPipeline />} />
         <Route path="ai-quest-review" element={<AIQuestReview />} />

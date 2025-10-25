@@ -1,0 +1,128 @@
+{
+  "math": [
+    {
+      "title": "Algebra 1",
+      "url": "https://www.khanacademy.org/math/algebra"
+    },
+    {
+      "title": "Algebra 2",
+      "url": "https://www.khanacademy.org/math/algebra2"
+    },
+    {
+      "title": "Geometry",
+      "url": "https://www.khanacademy.org/math/geometry"
+    },
+    {
+      "title": "Trigonometry",
+      "url": "https://www.khanacademy.org/math/trigonometry"
+    },
+    {
+      "title": "Precalculus",
+      "url": "https://www.khanacademy.org/math/precalculus"
+    },
+    {
+      "title": "AP Calculus AB",
+      "url": "https://www.khanacademy.org/math/ap-calculus-ab"
+    },
+    {
+      "title": "AP Calculus BC",
+      "url": "https://www.khanacademy.org/math/ap-calculus-bc"
+    },
+    {
+      "title": "Statistics and Probability",
+      "url": "https://www.khanacademy.org/math/statistics-probability"
+    },
+    {
+      "title": "AP Statistics",
+      "url": "https://www.khanacademy.org/math/ap-statistics"
+    }
+  ],
+  "science": [
+    {
+      "title": "Biology",
+      "url": "https://www.khanacademy.org/science/biology"
+    },
+    {
+      "title": "AP Biology",
+      "url": "https://www.khanacademy.org/science/ap-biology"
+    },
+    {
+      "title": "Chemistry",
+      "url": "https://www.khanacademy.org/science/chemistry"
+    },
+    {
+      "title": "AP Chemistry",
+      "url": "https://www.khanacademy.org/science/ap-chemistry"
+    },
+    {
+      "title": "Physics",
+      "url": "https://www.khanacademy.org/science/physics"
+    },
+    {
+      "title": "AP Physics 1",
+      "url": "https://www.khanacademy.org/science/ap-physics-1"
+    },
+    {
+      "title": "AP Physics 2",
+      "url": "https://www.khanacademy.org/science/ap-physics-2"
+    }
+  ],
+  "computing": [
+    {
+      "title": "Computer Programming",
+      "url": "https://www.khanacademy.org/computing/computer-programming"
+    },
+    {
+      "title": "Computer Science",
+      "url": "https://www.khanacademy.org/computing/computer-science"
+    },
+    {
+      "title": "Algorithms",
+      "url": "https://www.khanacademy.org/computing/computer-science/algorithms"
+    }
+  ],
+  "humanities": [
+    {
+      "title": "US History",
+      "url": "https://www.khanacademy.org/humanities/us-history"
+    },
+    {
+      "title": "AP US History",
+      "url": "https://www.khanacademy.org/humanities/ap-us-history"
+    },
+    {
+      "title": "World History",
+      "url": "https://www.khanacademy.org/humanities/world-history"
+    },
+    {
+      "title": "AP World History",
+      "url": "https://www.khanacademy.org/humanities/ap-world-history"
+    },
+    {
+      "title": "Art History",
+      "url": "https://www.khanacademy.org/humanities/art-history"
+    },
+    {
+      "title": "AP Art History",
+      "url": "https://www.khanacademy.org/humanities/ap-art-history"
+    }
+  ],
+  "economics": [
+    {
+      "title": "Microeconomics",
+      "url": "https://www.khanacademy.org/economics-finance-domain/microeconomics"
+    },
+    {
+      "title": "Macroeconomics",
+      "url": "https://www.khanacademy.org/economics-finance-domain/macroeconomics"
+    },
+    {
+      "title": "AP Microeconomics",
+      "url": "https://www.khanacademy.org/economics-finance-domain/ap-microeconomics"
+    },
+    {
+      "title": "AP Macroeconomics",
+      "url": "https://www.khanacademy.org/economics-finance-domain/ap-macroeconomics"
+    }
+  ]
+}

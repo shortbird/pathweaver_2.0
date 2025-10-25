@@ -215,6 +215,14 @@ try:
 except Exception as e:
     logger.warning(f"Warning: AI Quest Review routes not available: {e}")
 
+# Register Khan Academy Sync blueprint (admin)
+try:
+    from routes.admin import khan_academy_sync
+    app.register_blueprint(khan_academy_sync.bp)  # /api/admin/khan-academy/* (blueprint has url_prefix)
+    logger.info("Khan Academy Sync routes registered successfully")
+except Exception as e:
+    logger.warning(f"Warning: Khan Academy Sync routes not available: {e}")
+
 # Tier Management routes removed in Phase 2 refactoring (January 2025)
 # All subscription tier functionality has been removed from the platform
 # Legacy code: tier_management.bp and tiers.bp blueprints deleted
