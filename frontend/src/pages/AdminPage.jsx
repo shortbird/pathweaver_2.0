@@ -9,11 +9,7 @@ import AIQuestReview from '../components/admin/AIQuestReview'
 import AIPerformanceAnalytics from '../components/admin/AIPerformanceAnalytics'
 import AIPromptOptimizer from '../components/admin/AIPromptOptimizer'
 import BatchContentGenerator from '../components/admin/BatchContentGenerator'
-import BulkImageGenerator from '../components/admin/BulkImageGenerator'
-import BadgeImageGenerator from '../components/admin/BadgeImageGenerator'
-import TierManagement from '../components/admin/TierManagement'
 import SiteSettings from '../components/admin/SiteSettings'
-import LMSIntegrationPanel from '../components/admin/LMSIntegrationPanel'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -55,34 +51,10 @@ const AdminPage = () => {
           Batch Generator
         </Link>
         <Link
-          to="/admin/quest-images"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quest-images' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-        >
-          Quest Images
-        </Link>
-        <Link
-          to="/admin/badge-images"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'badge-images' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-        >
-          Badge Images
-        </Link>
-        <Link
-          to="/admin/subscription-tiers"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'subscription-tiers' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-        >
-          Subscription Tiers
-        </Link>
-        <Link
           to="/admin/site-settings"
           className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'site-settings' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Site Settings
-        </Link>
-        <Link
-          to="/admin/lms-integration"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'lms-integration' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-        >
-          LMS Integration
         </Link>
       </div>
 
@@ -92,16 +64,12 @@ const AdminPage = () => {
         <Route path="badges" element={<AdminBadges />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="quest-suggestions" element={<AdminQuestSuggestions />} />
-        <Route path="subscription-tiers" element={<TierManagement />} />
         <Route path="site-settings" element={<SiteSettings />} />
         <Route path="ai-pipeline" element={<AIContentPipeline />} />
         <Route path="ai-quest-review" element={<AIQuestReview />} />
         <Route path="ai-performance" element={<AIPerformanceAnalytics />} />
         <Route path="ai-optimizer" element={<AIPromptOptimizer />} />
         <Route path="batch-generator" element={<BatchContentGenerator />} />
-        <Route path="quest-images" element={<BulkImageGenerator />} />
-        <Route path="badge-images" element={<BadgeImageGenerator />} />
-        <Route path="lms-integration" element={<LMSIntegrationPanel />} />
       </Routes>
     </div>
   )
