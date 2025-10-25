@@ -136,10 +136,14 @@ def sync_course(user_id):
             'description': course_data['description'],
             'big_idea': course_data['description'],
             'quest_type': 'course',
-            'source': 'khan_academy',
             'is_active': True,
+            'is_v3': True,
             'header_image_url': image_url,
             'image_url': image_url,
+            'metadata': {
+                'source': 'khan_academy',
+                'source_url': course_data.get('source_url')
+            },
             'created_at': datetime.utcnow().isoformat()
         }
 
@@ -288,10 +292,14 @@ def sync_batch_courses(user_id):
                     'description': course_data['description'],
                     'big_idea': course_data['description'],
                     'quest_type': 'course',
-                    'source': 'khan_academy',
                     'is_active': True,
+                    'is_v3': True,
                     'header_image_url': image_url,
                     'image_url': image_url,
+                    'metadata': {
+                        'source': 'khan_academy',
+                        'source_url': course_url
+                    },
                     'created_at': datetime.utcnow().isoformat()
                 }
 
@@ -379,26 +387,34 @@ def get_sync_status(user_id):
     supabase = get_supabase_admin_client()
 
     try:
-        # Get all Khan Academy course quests
+        # Get all course quests (filter by quest_type only since source is in metadata)
         quests = supabase.table('quests')\
-            .select('id, title, description, image_url, created_at, is_active')\
-            .eq('source', 'khan_academy')\
+            .select('id, title, description, image_url, created_at, is_active, metadata')\
             .eq('quest_type', 'course')\
             .order('created_at', desc=True)\
             .execute()
 
-        # Get task counts for each quest
+        # Filter for Khan Academy courses (metadata->source = 'khan_academy')
         quest_list = []
         for quest in quests.data:
-            tasks = supabase.table('course_quest_tasks')\
-                .select('id', count='exact')\
-                .eq('quest_id', quest['id'])\
-                .execute()
+            # Check if this is a Khan Academy quest
+            metadata = quest.get('metadata') or {}
+            if metadata.get('source') == 'khan_academy':
+                # Get task count
+                tasks = supabase.table('course_quest_tasks')\
+                    .select('id', count='exact')\
+                    .eq('quest_id', quest['id'])\
+                    .execute()
 
-            quest_list.append({
-                **quest,
-                'tasks_count': tasks.count
-            })
+                quest_list.append({
+                    'id': quest['id'],
+                    'title': quest['title'],
+                    'description': quest['description'],
+                    'image_url': quest['image_url'],
+                    'created_at': quest['created_at'],
+                    'is_active': quest['is_active'],
+                    'tasks_count': tasks.count
+                })
 
         return jsonify({
             'success': True,
