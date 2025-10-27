@@ -272,7 +272,7 @@ class QuestAIService(BaseService):
         """Get the currently active prompt version for quest generation"""
         try:
             from services.base_service import BaseService
-from database import get_supabase_admin_client
+            from database import get_supabase_admin_client
             supabase = get_supabase_admin_client()
 
             # Get active quest_generation prompt

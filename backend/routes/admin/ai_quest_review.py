@@ -214,17 +214,17 @@ def refresh_review_quest_image(user_id, review_id):
     """
     try:
         from database import get_supabase_admin_client
-from backend.repositories import (
-    UserRepository,
-    QuestRepository,
-    BadgeRepository,
-    EvidenceRepository,
-    FriendshipRepository,
-    ParentRepository,
-    TutorRepository,
-    LMSRepository,
-    AnalyticsRepository
-)
+        from backend.repositories import (
+            UserRepository,
+            QuestRepository,
+            BadgeRepository,
+            EvidenceRepository,
+            FriendshipRepository,
+            ParentRepository,
+            TutorRepository,
+            LMSRepository,
+            AnalyticsRepository
+        )
         from services.image_service import search_quest_image
 
         supabase = get_supabase_admin_client()
