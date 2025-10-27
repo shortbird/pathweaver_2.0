@@ -100,6 +100,17 @@ app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
 app.register_blueprint(settings_bp, url_prefix='/api')  # /api/settings
 app.register_blueprint(promo_bp, url_prefix='/api/promo')  # /api/promo
 
+# Register Personalized Quest System blueprints FIRST (before main quests.bp)
+# This ensures specific personalization routes take precedence over generic quest routes
+try:
+    from routes import quest_personalization
+    from routes.admin import task_approval
+    app.register_blueprint(quest_personalization.bp)  # /api/quests/* (specific routes)
+    app.register_blueprint(task_approval.bp)  # /api/admin/manual-tasks/*
+    logger.info("Personalized Quest System routes registered successfully")
+except Exception as e:
+    logger.warning(f"Warning: Personalized Quest System routes not available: {e}")
+
 # Register routes
 app.register_blueprint(quests.bp)  # /api/quests (blueprint has url_prefix='/api/quests')
 app.register_blueprint(tasks.bp)      # /api/tasks (blueprint has url_prefix='/api/tasks')
@@ -227,16 +238,8 @@ except Exception as e:
 # All subscription tier functionality has been removed from the platform
 # Legacy code: tier_management.bp and tiers.bp blueprints deleted
 
-# Register Personalized Quest System blueprints
-try:
-    from routes import quest_personalization
-    from routes.admin import task_approval
-    app.register_blueprint(quest_personalization.bp)  # /api/quests/*
-    # task_collaboration.bp removed in Phase 1 refactoring (January 2025)
-    app.register_blueprint(task_approval.bp)  # /api/admin/manual-tasks/*
-    logger.info("Personalized Quest System routes registered successfully")
-except Exception as e:
-    logger.warning(f"Warning: Personalized Quest System routes not available: {e}")
+# Personalized Quest System blueprints moved earlier in registration order (above line 103)
+# This ensures personalization routes are registered before main quests.bp to avoid route conflicts
 
 # Register AI Performance Analytics blueprint (admin)
 try:
