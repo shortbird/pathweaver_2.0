@@ -533,12 +533,12 @@ Generate 6-10 tasks that:
 1. Are equivalent to high school unit projects (not final projects, not quick worksheets)
 2. At least 50% of tasks should be worth exactly 100 XP
 3. Other tasks can range from 50-150 XP based on complexity
-4. Each task must be assigned to ONE of these pillars:
-   - STEM & Logic
-   - Life & Wellness
-   - Language & Communication
-   - Society & Culture
-   - Arts & Creativity
+4. Each task must be assigned to ONE of these pillars (use exact lowercase names):
+   - stem
+   - wellness
+   - communication
+   - civics
+   - art
 5. Each task must be mapped to one or more diploma subjects (XP split if multiple):
    - Language Arts, Mathematics, Science, Social Studies, Financial Literacy
    - Health, Physical Education, Fine Arts, Career & Technical Education
@@ -563,7 +563,7 @@ Return as valid JSON array:
   {{
     "title": "Clear, concise task name (5-8 words)",
     "description": "1-2 brief sentences describing the task",
-    "pillar": "One of the five pillars listed above",
+    "pillar": "stem|wellness|communication|civics|art (use exact lowercase name)",
     "diploma_subjects": {{"Subject 1": 50, "Subject 2": 25, "Subject 3": 25}},
     "xp_value": 100
   }}
@@ -605,11 +605,14 @@ Example: If xp_value is 100 with primary and secondary subjects: {{"Science": 75
                 diploma_subjects = {'Electives': task.get('xp_value', 100)}
 
             # Validate pillar - track if it changes
-            original_pillar = task.get('pillar', 'STEM & Logic')
+            original_pillar = task.get('pillar', 'stem')  # Updated default to new format
             validated_pillar = self.ai_service._validate_pillar(original_pillar)
 
+            # Enhanced logging to track pillar validation
             if original_pillar != validated_pillar:
-                print(f"[VALIDATION WARNING] Pillar changed during validation: '{original_pillar}' -> '{validated_pillar}'")
+                logger.warning(f"[PILLAR VALIDATION] Task '{task.get('title', 'Unknown')}': '{original_pillar}' -> '{validated_pillar}'")
+            else:
+                logger.debug(f"[PILLAR VALIDATION] Task '{task.get('title', 'Unknown')}': pillar='{validated_pillar}' (no change)")
 
             validated_task = {
                 'title': task.get('title', 'Learning Task'),

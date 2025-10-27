@@ -31,14 +31,8 @@ class QuestAIService(BaseService):
         # Prompt version for A/B testing
         self.prompt_version = prompt_version or self._get_active_prompt_version()
 
-        # Valid pillars for validation
-        self.valid_pillars = [
-            'STEM & Logic',
-            'Life & Wellness',
-            'Language & Communication',
-            'Society & Culture',
-            'Arts & Creativity'
-        ]
+        # Valid pillars for validation (updated January 2025: single-word format)
+        self.valid_pillars = ['stem', 'wellness', 'communication', 'civics', 'art']
 
         # School subjects (separate from pillars)
         from utils.school_subjects import SCHOOL_SUBJECTS, SCHOOL_SUBJECT_DISPLAY_NAMES
