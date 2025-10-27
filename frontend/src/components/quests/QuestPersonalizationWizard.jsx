@@ -362,8 +362,15 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
           </div>
 
           {/* Task Card */}
-          <div className="bg-white border-2 border-gray-200 rounded-2xl p-8 mb-8 shadow-lg">
-            <div className="mb-6">
+          <div className="bg-white border-2 border-gray-200 rounded-2xl p-8 mb-8 shadow-lg relative">
+            {/* XP Badge - Top Right */}
+            <div className="absolute top-6 right-6 flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full">
+              <span className="font-semibold" style={{ fontFamily: 'Poppins' }}>
+                {currentTask.xp_value} XP
+              </span>
+            </div>
+
+            <div className="mb-6 pr-24">
               <h3 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
                 {currentTask.title}
               </h3>
@@ -377,13 +384,6 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
               <div className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-800 rounded-full">
                 <span className="font-semibold" style={{ fontFamily: 'Poppins' }}>
                   {getPillarData(currentTask.pillar).name}
-                </span>
-              </div>
-
-              {/* XP Badge */}
-              <div className="flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full">
-                <span className="font-semibold" style={{ fontFamily: 'Poppins' }}>
-                  {currentTask.xp_value} XP
                 </span>
               </div>
             </div>

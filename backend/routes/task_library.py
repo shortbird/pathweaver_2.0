@@ -15,13 +15,13 @@ logger = logging.getLogger(__name__)
 
 @task_library_bp.route('/api/quests/<quest_id>/task-library', methods=['GET'])
 @require_auth
-def get_task_library(quest_id):
+def get_task_library(user_id, quest_id):
     """
     Get library tasks for a quest.
     Returns up to 20 most-used tasks, or 5 recent per pillar if insufficient data.
     """
     try:
-        logger.info(f"User requesting task library for quest {quest_id}")
+        logger.info(f"User {user_id} requesting task library for quest {quest_id}")
 
         library_service = TaskLibraryService()
         tasks = library_service.get_library_tasks(quest_id, limit=20)
@@ -42,13 +42,13 @@ def get_task_library(quest_id):
 
 @task_library_bp.route('/api/quests/<quest_id>/task-library/count', methods=['GET'])
 @require_auth
-def get_task_library_count(quest_id):
+def get_task_library_count(user_id, quest_id):
     """
     Get count of available library tasks for a quest.
     Used to determine if quest has any tasks to show.
     """
     try:
-        logger.info(f"Getting task library count for quest {quest_id}")
+        logger.info(f"User {user_id} getting task library count for quest {quest_id}")
 
         library_service = TaskLibraryService()
         count = library_service.get_library_count(quest_id)

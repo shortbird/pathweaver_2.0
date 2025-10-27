@@ -80,7 +80,7 @@ class TaskLibraryService(BaseService):
             combined_tasks = tasks + all_tasks
 
             # Sort by usage_count descending, then created_at descending
-            combined_tasks.sort(key=lambda x: (-x.get('usage_count', 0), x.get('created_at', '')), reverse=True)
+            combined_tasks.sort(key=lambda x: (-x.get('usage_count', 0), -(datetime.fromisoformat(x.get('created_at', '1970-01-01T00:00:00+00:00').replace('Z', '+00:00')).timestamp())))
 
             # Return up to limit tasks
             result = combined_tasks[:limit]
