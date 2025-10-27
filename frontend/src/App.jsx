@@ -23,6 +23,8 @@ const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage')
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const TermsOfService = lazy(() => import('./pages/TermsOfService'))
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
+const OptioAcademyAgreement = lazy(() => import('./pages/OptioAcademyAgreement'))
+const OptioAcademyHandbook = lazy(() => import('./pages/OptioAcademyHandbook'))
 // Quest Pages
 const QuestBadgeHub = lazy(() => import('./pages/QuestBadgeHub'))
 const QuestDetail = lazy(() => import('./pages/QuestDetail'))
@@ -108,6 +110,8 @@ function App() {
                 <Route path="email-verification" element={<EmailVerificationPage />} />
                 <Route path="terms" element={<TermsOfService />} />
                 <Route path="privacy" element={<PrivacyPolicy />} />
+                <Route path="academy-agreement" element={<OptioAcademyAgreement />} />
+                <Route path="academy-handbook" element={<OptioAcademyHandbook />} />
                 {/* Public diploma routes */}
                 <Route path="portfolio/:slug" element={<DiplomaPage />} />
                 <Route path="public/diploma/:userId" element={<DiplomaPage />} />
