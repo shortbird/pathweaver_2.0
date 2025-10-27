@@ -18,7 +18,7 @@ const OptioAcademyHandbook = () => {
                 but a guide to the professional culture we're building together. Read it, understand it, and
                 help us make this a productive and inspiring environment for everyone.
               </p>
-            </section>
+            </div>
 
             <section className="mb-8">
               <h2 className="text-2xl font-semibold mb-4">Our Philosophy</h2>
