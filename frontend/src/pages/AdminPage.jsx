@@ -11,6 +11,7 @@ import AIPerformanceAnalytics from '../components/admin/AIPerformanceAnalytics'
 import AIPromptOptimizer from '../components/admin/AIPromptOptimizer'
 import BatchContentGenerator from '../components/admin/BatchContentGenerator'
 import SiteSettings from '../components/admin/SiteSettings'
+import FlaggedTasksPanel from '../components/admin/FlaggedTasksPanel'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -71,6 +72,7 @@ const AdminPage = () => {
         <Route path="badges" element={<AdminBadges />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="quest-suggestions" element={<AdminQuestSuggestions />} />
+        <Route path="flagged-tasks" element={<FlaggedTasksPanel />} />
         <Route path="khan-academy" element={<AdminKhanAcademySync />} />
         <Route path="site-settings" element={<SiteSettings />} />
         <Route path="ai-pipeline" element={<AIContentPipeline />} />
