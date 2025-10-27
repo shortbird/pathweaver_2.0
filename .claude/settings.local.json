@@ -3,7 +3,10 @@
     "allow": [
       "Bash(git commit:*)",
       "Bash(git add:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(git merge develop -m \"$(cat <<''EOF''\nMerge develop to main: Fix Terms of Service and Privacy Policy redirect\n\nThis merge brings the fix for Terms of Service and Privacy Policy pages\nincorrectly redirecting to login when opened in new tabs from registration.\n\nChanges included:\n- Added /terms and /privacy to public paths in API interceptor\n- Prevents authentication redirect on these legal pages\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
