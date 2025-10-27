@@ -573,7 +573,7 @@ class QuestAIService(BaseService):
             # Get badge details if not provided
             if not badge_context:
                 from services.base_service import BaseService
-from database import get_supabase_admin_client
+                from database import get_supabase_admin_client
                 supabase = get_supabase_admin_client()
                 badge = supabase.table('badges').select('*').eq('id', badge_id).single().execute()
 
