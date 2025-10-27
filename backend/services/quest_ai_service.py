@@ -621,7 +621,7 @@ class QuestAIService(BaseService):
         """
         try:
             from services.base_service import BaseService
-from database import get_supabase_admin_client
+            from database import get_supabase_admin_client
             supabase = get_supabase_admin_client()
 
             # Get all active badges
