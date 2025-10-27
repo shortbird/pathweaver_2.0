@@ -9,6 +9,7 @@ import os
 from typing import Dict, List, Optional, Any, Tuple
 import google.generativeai as genai
 
+from services.base_service import BaseService
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
