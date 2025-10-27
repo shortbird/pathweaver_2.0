@@ -18,7 +18,7 @@ from routes.promo import promo_bp
 
 # Import routes
 from routes import quests, tasks, admin_core, evidence_documents
-from routes.admin import user_management, quest_management, quest_ideas, analytics, student_task_management, sample_task_management, course_quest_management, badge_management
+from routes.admin import user_management, quest_management, quest_ideas, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -124,6 +124,7 @@ app.register_blueprint(analytics.bp)  # /api/admin/analytics (blueprint has url_
 app.register_blueprint(student_task_management.bp)  # /api/admin/users (blueprint has url_prefix='/api/admin/users')
 app.register_blueprint(sample_task_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(course_quest_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
+app.register_blueprint(task_flags.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 # Register quest types routes (sample tasks, course tasks)
 try:
     from routes import quest_types
@@ -147,6 +148,14 @@ try:
     logger.info("AI Tutor routes registered successfully")
 except Exception as e:
     logger.warning(f"Warning: AI Tutor routes not available: {e}")
+
+# Register Task Library blueprint
+try:
+    from routes import task_library
+    app.register_blueprint(task_library.task_library_bp)  # /api/quests/<quest_id>/task-library
+    logger.info("Task Library routes registered successfully")
+except Exception as e:
+    logger.warning(f"Warning: Task Library routes not available: {e}")
 
 # Register LMS Integration blueprint
 try:

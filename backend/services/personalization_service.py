@@ -17,6 +17,9 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
+# Import task library service for saving tasks
+from services.task_library_service import TaskLibraryService
+
 class TaskCacheService(BaseService):
     """Caching service for AI-generated tasks"""
 
@@ -452,6 +455,36 @@ class PersonalizationService(BaseService):
             logger.info(f"[FINALIZE] Database INSERT result - {len(result.data)} tasks created:")
             for i, task_result in enumerate(result.data):
                 print(f"  Task {i}: ID={task_result['id']}, title='{task_result['title']}', pillar='{task_result['pillar']}'")
+
+            # Save all generated tasks to library for future users
+            library_service = TaskLibraryService()
+            logger.info(f"[FINALIZE] Saving {len(ai_tasks)} tasks to library for quest {quest_id}")
+            for task in ai_tasks:
+                # Normalize pillar name before saving
+                try:
+                    pillar_key = normalize_pillar_name(task.get('pillar', 'stem'))
+                except ValueError:
+                    pillar_key = 'stem'
+
+                # Handle diploma_subjects format
+                diploma_subjects = task.get('diploma_subjects', {})
+                if isinstance(diploma_subjects, list):
+                    total_xp = task.get('xp_value', 100)
+                    xp_per = (total_xp // len(diploma_subjects) // 25) * 25
+                    remainder = total_xp - (xp_per * len(diploma_subjects))
+                    diploma_subjects = {s: xp_per + (remainder if i == 0 else 0) for i, s in enumerate(diploma_subjects)}
+                elif not isinstance(diploma_subjects, dict):
+                    diploma_subjects = {'Electives': task.get('xp_value', 100)}
+
+                library_task_data = {
+                    'title': task['title'],
+                    'description': task.get('description', ''),
+                    'pillar': pillar_key,
+                    'xp_value': task.get('xp_value', 100),
+                    'diploma_subjects': diploma_subjects,
+                    'ai_generated': True
+                }
+                library_service.add_library_task(quest_id, library_task_data)
 
             # Mark session as completed
             self.supabase.table('quest_personalization_sessions')\
