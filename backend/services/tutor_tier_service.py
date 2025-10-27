@@ -41,7 +41,7 @@ class TutorTierService(BaseService):
     def __init__(self, user_id: Optional[str] = None):
         """Initialize tier service with predefined limits"""
         super().__init__(user_id)
-self.tier_limits = self._define_tier_limits()
+        self.tier_limits = self._define_tier_limits()
         self.tier_mappings = self._define_tier_mappings()
 
     def _define_tier_limits(self) -> Dict[TutorTier, TierLimits]:
