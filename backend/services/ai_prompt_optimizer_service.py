@@ -21,7 +21,11 @@ logger = logging.getLogger(__name__)
 class AIPromptOptimizerService(BaseService):
     """Service for optimizing AI prompts based on performance data."""
 
-    def __init__(self):    def analyze_prompt_performance(self, days: int = 30) -> List[Dict]:
+    def __init__(self):
+        """Initialize the service"""
+        super().__init__()
+
+    def analyze_prompt_performance(self, days: int = 30) -> List[Dict]:
         """
         Analyze performance of all prompt versions over time period.
 

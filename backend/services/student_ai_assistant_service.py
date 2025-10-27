@@ -28,7 +28,7 @@ class StudentAIAssistantService(BaseService):
     def __init__(self, user_id: Optional[str] = None):
         """Initialize the service with Gemini API."""
         super().__init__(user_id)
-api_key = os.getenv('GEMINI_API_KEY')
+        api_key = os.getenv('GEMINI_API_KEY')
         if not api_key:
             raise ValueError("GEMINI_API_KEY environment variable not set")
 
