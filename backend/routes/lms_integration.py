@@ -209,17 +209,17 @@ def grade_sync_status(user_id):
     """
     try:
         from database import get_supabase_admin_client
-from backend.repositories import (
-    UserRepository,
-    QuestRepository,
-    BadgeRepository,
-    EvidenceRepository,
-    FriendshipRepository,
-    ParentRepository,
-    TutorRepository,
-    LMSRepository,
-    AnalyticsRepository
-)
+        from backend.repositories import (
+            UserRepository,
+            QuestRepository,
+            BadgeRepository,
+            EvidenceRepository,
+            FriendshipRepository,
+            ParentRepository,
+            TutorRepository,
+            LMSRepository,
+            AnalyticsRepository
+        )
         supabase = get_supabase_admin_client()
 
         # Get counts by status
