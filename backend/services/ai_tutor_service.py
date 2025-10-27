@@ -54,7 +54,7 @@ class AITutorService(BaseService):
     def __init__(self, user_id: Optional[str] = None):
         """Initialize AI tutor service"""
         super().__init__(user_id)
-self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
+        self.api_key = os.getenv('GOOGLE_API_KEY') or os.getenv('GEMINI_API_KEY')
         self.model_name = os.getenv('GEMINI_MODEL', 'gemini-2.5-flash-lite')
 
         if not self.api_key:
