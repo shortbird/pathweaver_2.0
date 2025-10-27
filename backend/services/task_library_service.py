@@ -16,7 +16,7 @@ class TaskLibraryService(BaseService):
 
     def __init__(self):
         super().__init__()
-        self.supabase = get_supabase_admin_client()
+        # supabase client is available via self.supabase property from BaseService
 
     def get_library_tasks(self, quest_id: str, limit: int = 20) -> List[Dict]:
         """
