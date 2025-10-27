@@ -29,14 +29,32 @@ logger = get_logger(__name__)
 
 bp = Blueprint('quest_personalization', __name__, url_prefix='/api/quests')
 
+# Add explicit OPTIONS handler for CORS preflight
+@bp.after_request
+def after_request(response):
+    """Add CORS headers to all responses"""
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-CSRF-Token')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
+    return response
+
 # Using repository pattern for database access
-@bp.route('/<quest_id>/start-personalization', methods=['POST'])
-@require_auth
-def start_personalization(user_id: str, quest_id: str):
+@bp.route('/<quest_id>/start-personalization', methods=['POST', 'OPTIONS'])
+def start_personalization(quest_id: str):
     """
     Begin the personalization flow for a quest.
     Creates or resumes a personalization session.
     """
+    # Handle OPTIONS preflight
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'}), 200
+
+    # POST request requires auth
+    from utils.auth.decorators import get_user_from_token
+    user_id = get_user_from_token()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+
     try:
         result = personalization_service.start_personalization_session(
             user_id=user_id,
@@ -61,9 +79,8 @@ def start_personalization(user_id: str, quest_id: str):
             'error': 'Failed to start personalization'
         }), 500
 
-@bp.route('/<quest_id>/generate-tasks', methods=['POST'])
-@require_auth
-def generate_tasks(user_id: str, quest_id: str):
+@bp.route('/<quest_id>/generate-tasks', methods=['POST', 'OPTIONS'])
+def generate_tasks(quest_id: str):
     """
     Generate AI task suggestions based on student inputs.
 
@@ -75,6 +92,16 @@ def generate_tasks(user_id: str, quest_id: str):
         "cross_curricular_subjects": ["math", "science", "..."]
     }
     """
+    # Handle OPTIONS preflight
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'}), 200
+
+    # POST request requires auth
+    from utils.auth.decorators import get_user_from_token
+    user_id = get_user_from_token()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+
     try:
         data = request.get_json()
 
@@ -317,9 +344,8 @@ def add_manual_task(user_id: str, quest_id: str):
             'error': 'Failed to add manual task'
         }), 500
 
-@bp.route('/<quest_id>/finalize-tasks', methods=['POST'])
-@require_auth
-def finalize_tasks(user_id: str, quest_id: str):
+@bp.route('/<quest_id>/finalize-tasks', methods=['POST', 'OPTIONS'])
+def finalize_tasks(quest_id: str):
     """
     Finalize personalization and create user-specific tasks.
     This enrolls the user in the quest with their personalized tasks.
@@ -329,6 +355,16 @@ def finalize_tasks(user_id: str, quest_id: str):
         "session_id": "uuid"
     }
     """
+    # Handle OPTIONS preflight
+    if request.method == 'OPTIONS':
+        return jsonify({'status': 'ok'}), 200
+
+    # POST request requires auth
+    from utils.auth.decorators import get_user_from_token
+    user_id = get_user_from_token()
+    if not user_id:
+        return jsonify({'error': 'Unauthorized'}), 401
+
     try:
         supabase = get_supabase_admin_client()
         data = request.get_json()
