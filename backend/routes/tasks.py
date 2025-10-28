@@ -409,7 +409,9 @@ def drop_task(user_id: str, task_id: str):
         JSON response with success status
     """
     try:
-        supabase = get_user_client()
+        # Use admin client to ensure delete permissions
+        # User authentication is already enforced by @require_auth decorator
+        supabase = get_supabase_admin_client()
 
         # Verify task belongs to user
         task = supabase.table('user_quest_tasks')\
@@ -420,6 +422,7 @@ def drop_task(user_id: str, task_id: str):
             .execute()
 
         if not task.data:
+            logger.warning(f"Task {task_id} not found for user {user_id}")
             return jsonify({
                 'success': False,
                 'error': 'Task not found or not owned by you'
@@ -435,19 +438,21 @@ def drop_task(user_id: str, task_id: str):
             .execute()
 
         if completed.data:
+            logger.warning(f"Cannot drop completed task {task_id} for user {user_id}")
             return jsonify({
                 'success': False,
                 'error': 'Cannot remove completed tasks'
             }), 400
 
         # Delete the task from user's personalized task list
-        supabase.table('user_quest_tasks')\
+        logger.info(f"Deleting task {task_id} ({task_data['title']}) for user {user_id}")
+        delete_result = supabase.table('user_quest_tasks')\
             .delete()\
             .eq('id', task_id)\
             .eq('user_id', user_id)\
             .execute()
 
-        logger.info(f"User {user_id} dropped task {task_id} ({task_data['title']}) from quest {task_data['quest_id']}")
+        logger.info(f"Delete result: {delete_result.data}, User {user_id} dropped task {task_id} ({task_data['title']}) from quest {task_data['quest_id']}")
 
         return jsonify({
             'success': True,

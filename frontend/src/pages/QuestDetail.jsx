@@ -231,6 +231,13 @@ const QuestDetail = () => {
       console.log('[DROP TASK] Refetching quest data');
       const refetchResult = await refetchQuest();
       console.log('[DROP TASK] Refetch result:', refetchResult?.data?.quest_tasks?.length, 'tasks');
+      console.log('[DROP TASK] Full refetch data:', {
+        hasData: !!refetchResult?.data,
+        questId: refetchResult?.data?.id,
+        taskCount: refetchResult?.data?.quest_tasks?.length,
+        taskIds: refetchResult?.data?.quest_tasks?.map(t => t.id.substring(0, 8)),
+        droppedTaskStillPresent: refetchResult?.data?.quest_tasks?.some(t => t.id === taskId)
+      });
 
       console.log('[DROP TASK] Refetching library tasks');
       await refetchLibraryTasks();
