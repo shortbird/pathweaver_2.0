@@ -29,8 +29,9 @@ class FriendshipRepository(BaseRepository):
             List of friendships
         """
         try:
-            query = self.client.table(self.table_name)\
-                .select('*, requester:requester_id(id, display_name, avatar_url), addressee:addressee_id(id, display_name, avatar_url)')
+            # Don't use nested select - just get the friendship records
+            # User data will be fetched separately in the route handler
+            query = self.client.table(self.table_name).select('*')
 
             # User is either requester or addressee
             if status:
@@ -71,7 +72,7 @@ class FriendshipRepository(BaseRepository):
         """
         try:
             result = self.client.table(self.table_name)\
-                .select('*, requester:requester_id(id, display_name, avatar_url)')\
+                .select('*')\
                 .eq('addressee_id', user_id)\
                 .eq('status', 'pending')\
                 .order('created_at', desc=True)\
@@ -94,7 +95,7 @@ class FriendshipRepository(BaseRepository):
         """
         try:
             result = self.client.table(self.table_name)\
-                .select('*, addressee:addressee_id(id, display_name, avatar_url)')\
+                .select('*')\
                 .eq('requester_id', user_id)\
                 .eq('status', 'pending')\
                 .order('created_at', desc=True)\
