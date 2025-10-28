@@ -210,8 +210,6 @@ const QuestDetail = () => {
 
     setDroppingTaskId(taskId);
     try {
-      // TODO: Create backend endpoint for dropping/deactivating tasks
-      // For now, we'll use a placeholder
       await api.delete(`/api/tasks/${taskId}`);
       await refetchQuest();
       toast.success('Task removed from your quest');

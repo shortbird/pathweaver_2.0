@@ -19,12 +19,13 @@ def get_task_library(user_id, quest_id):
     """
     Get library tasks for a quest.
     Returns up to 20 most-used tasks, or 5 recent per pillar if insufficient data.
+    Filters out tasks user has already added to their quest.
     """
     try:
         logger.info(f"User {user_id} requesting task library for quest {quest_id}")
 
         library_service = TaskLibraryService()
-        tasks = library_service.get_library_tasks(quest_id, limit=20)
+        tasks = library_service.get_library_tasks(quest_id, user_id=user_id, limit=20)
 
         return jsonify({
             'success': True,

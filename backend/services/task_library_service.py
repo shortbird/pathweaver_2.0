@@ -20,21 +20,35 @@ class TaskLibraryService(BaseService):
         # supabase client is available via self.supabase property from BaseService
         self.logger = logging.getLogger(__name__)
 
-    def get_library_tasks(self, quest_id: str, limit: int = 20) -> List[Dict]:
+    def get_library_tasks(self, quest_id: str, user_id: str = None, limit: int = 20) -> List[Dict]:
         """
         Get top library tasks for a quest.
-        Returns up to 20 most-used tasks, excluding flagged ones.
+        Returns up to 20 most-used tasks, excluding flagged ones and tasks user already has.
         If insufficient tasks, returns 5 most recent per pillar.
 
         Args:
             quest_id: The quest ID to get tasks for
+            user_id: User ID to exclude their existing tasks (optional)
             limit: Maximum number of tasks to return (default 20)
 
         Returns:
             List of task dictionaries with all fields
         """
         try:
-            self.logger.info(f"Getting library tasks for quest {quest_id}")
+            self.logger.info(f"Getting library tasks for quest {quest_id}, user {user_id}")
+
+            # Get user's existing task titles to filter out
+            existing_titles = set()
+            if user_id:
+                user_tasks_response = self.supabase.table('user_quest_tasks') \
+                    .select('title') \
+                    .eq('user_id', user_id) \
+                    .eq('quest_id', quest_id) \
+                    .execute()
+
+                if user_tasks_response.data:
+                    existing_titles = {task['title'] for task in user_tasks_response.data}
+                    self.logger.info(f"User has {len(existing_titles)} existing tasks, will filter those out")
 
             # First, try to get most-used tasks
             response = self.supabase.table('quest_sample_tasks') \
@@ -43,15 +57,17 @@ class TaskLibraryService(BaseService):
                 .eq('is_flagged', False) \
                 .order('usage_count', desc=True) \
                 .order('created_at', desc=True) \
-                .limit(limit) \
+                .limit(limit * 2) \
                 .execute()
 
-            tasks = response.data if response.data else []
+            # Filter out tasks user already has
+            tasks = [task for task in (response.data or []) if task['title'] not in existing_titles]
 
             # If we have enough tasks (>= limit), return them
             if len(tasks) >= limit:
-                self.logger.info(f"Found {len(tasks)} library tasks (by usage)")
-                return tasks
+                result = tasks[:limit]
+                self.logger.info(f"Found {len(result)} library tasks (by usage)")
+                return result
 
             # If not enough tasks, fall back to 5 most recent per pillar
             self.logger.info(f"Only found {len(tasks)} tasks by usage, falling back to recent per pillar")
@@ -67,14 +83,14 @@ class TaskLibraryService(BaseService):
                     .eq('pillar', pillar) \
                     .eq('is_flagged', False) \
                     .order('created_at', desc=True) \
-                    .limit(5) \
+                    .limit(10) \
                     .execute()
 
                 pillar_tasks = pillar_response.data if pillar_response.data else []
 
-                # Add tasks that aren't already in our list
+                # Add tasks that aren't already in our list and user doesn't have
                 for task in pillar_tasks:
-                    if task['id'] not in seen_ids:
+                    if task['id'] not in seen_ids and task['title'] not in existing_titles:
                         all_tasks.append(task)
                         seen_ids.add(task['id'])
 
@@ -86,7 +102,7 @@ class TaskLibraryService(BaseService):
 
             # Return up to limit tasks
             result = combined_tasks[:limit]
-            self.logger.info(f"Returning {len(result)} total library tasks")
+            self.logger.info(f"Returning {len(result)} total library tasks (filtered)")
             return result
 
         except Exception as e:
