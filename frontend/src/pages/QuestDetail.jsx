@@ -103,6 +103,13 @@ const QuestDetail = () => {
 
   // Fetch library tasks for enrolled Optio quests
   useEffect(() => {
+    console.log('[LIBRARY] useEffect triggered:', {
+      hasQuest: !!quest,
+      hasEnrollment: !!quest?.user_enrollment,
+      source: quest?.source,
+      isOptio: quest?.source === 'optio',
+      questId: quest?.id
+    });
     refetchLibraryTasks();
   }, [quest, id]);
 
@@ -764,7 +771,21 @@ const QuestDetail = () => {
           ) : null}
 
           {/* Task Library Section - ALWAYS show if enrolled in active Optio quest */}
-          {quest.user_enrollment && quest.source === 'optio' && !isQuestCompleted && (
+          {(() => {
+            const showLibrary = quest.user_enrollment && quest.source === 'optio' && !isQuestCompleted;
+            console.log('[LIBRARY] Render conditions:', {
+              hasEnrollment: !!quest.user_enrollment,
+              enrollment: quest.user_enrollment,
+              source: quest.source,
+              isOptio: quest.source === 'optio',
+              isQuestCompleted,
+              completedEnrollment: quest.completed_enrollment,
+              progressPercentage: quest.progress?.percentage,
+              showLibrary,
+              libraryTasksLength: libraryTasks.length
+            });
+            return showLibrary;
+          })() && (
             <div className="mb-8">
               <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
                 Task Library
