@@ -33,10 +33,10 @@ const InfoModal = ({ isOpen, onClose, title, children, actionText = "Got It", on
         </div>
         
         {/* Footer */}
-        <div className="p-6 border-t border-gray-100 bg-gray-50">
+        <div className="p-6 border-t border-gray-100 bg-gray-50 flex justify-end">
           <button
             onClick={onAction || onClose}
-            className="w-full sm:w-auto px-6 py-3 bg-gradient-primary text-white font-semibold rounded-lg hover:shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2"
+            className="px-6 py-3 bg-gradient-primary text-white font-semibold rounded-lg hover:shadow-lg transform hover:scale-105 transition-all duration-200 flex items-center justify-center gap-2"
           >
             {actionText}
             <ArrowRight className="w-4 h-4" />

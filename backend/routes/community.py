@@ -30,7 +30,9 @@ def get_friends(user_id):
 
         # Use FriendshipRepository instead of direct database access
         friendship_repo = FriendshipRepository(user_id)
-        user_repo = UserRepository(user_id)
+        # IMPORTANT: Use admin client for UserRepository to fetch OTHER users' profiles
+        # RLS would prevent user-scoped client from seeing other users' basic info
+        user_repo = UserRepository(None)  # None = uses admin client
 
         # Get all friendships (both as requester and addressee)
         all_friendships = friendship_repo.find_by_user(user_id)

@@ -29,34 +29,43 @@ ChartJS.register(
 
 const DiplomaDemoDisplay = () => {
   const { demoState } = useDemo();
-  const { selectedQuests, submittedWork, workVisibility } = demoState;
+  const { selectedQuests, earnedXP } = demoState;
   const [showDiplomaModal, setShowDiplomaModal] = useState(false);
-  
-  // Calculate XP from submitted work
-  const calculateXP = () => {
-    const xp = {
-      creativity: 0,
-      critical_thinking: 0,
-      practical_skills: 0,
-      communication: 0,
-      cultural_literacy: 0
-    };
-    
-    submittedWork.forEach(work => {
-      const quest = selectedQuests.find(q => q.id === work.questId);
-      if (quest) {
-        const task = quest.tasks.find(t => t.id === work.taskId);
-        if (task) {
-          xp[task.pillar] += task.xp;
-        }
-      }
-    });
-    
-    return xp;
+
+  // Use earnedXP from demo state (includes XP from mini-quest)
+  // Add demo data for display purposes
+  const xpData = {
+    stem: earnedXP.stem + 150,
+    wellness: earnedXP.wellness + 200,
+    communication: earnedXP.communication + 100, // This already has 75 from mini-quest
+    civics: earnedXP.civics + 125,
+    art: earnedXP.art + 175
   };
 
-  const xpData = calculateXP();
   const totalXP = Object.values(xpData).reduce((sum, val) => sum + val, 0);
+
+  // Demo submitted work - show progress on selected quests
+  const demoSubmittedWork = selectedQuests.length > 0 ? [
+    {
+      questId: selectedQuests[0].id,
+      taskId: selectedQuests[0].tasks[0].id,
+      work: 'Interviewed grandmother about family recipe origins and traditions',
+      visibility: 'public'
+    },
+    {
+      questId: selectedQuests[0].id,
+      taskId: selectedQuests[0].tasks[1]?.id,
+      work: 'Documented 12 family recipes with photos and stories',
+      visibility: 'public'
+    }
+  ] : [];
+
+  const demoWorkVisibility = selectedQuests.length > 0 ? {
+    [selectedQuests[0].id]: {
+      [selectedQuests[0].tasks[0].id]: 'public',
+      [selectedQuests[0].tasks[1]?.id]: 'public'
+    }
+  } : {};
   
   // Calculate max value for radar chart scale
   const maxXP = Math.max(...Object.values(xpData), 100);
@@ -65,20 +74,20 @@ const DiplomaDemoDisplay = () => {
   // Radar chart data
   const radarData = {
     labels: [
-      'Creativity',
-      'Critical Thinking',
-      'Practical Skills',
+      'STEM',
+      'Wellness',
       'Communication',
-      'Cultural Literacy'
+      'Civics',
+      'Art'
     ],
     datasets: [{
       label: 'Skills',
       data: [
-        xpData.creativity,
-        xpData.critical_thinking,
-        xpData.practical_skills,
+        xpData.stem,
+        xpData.wellness,
         xpData.communication,
-        xpData.cultural_literacy
+        xpData.civics,
+        xpData.art
       ],
       backgroundColor: 'rgba(239, 89, 123, 0.2)',
       borderColor: 'rgba(239, 89, 123, 1)',
@@ -299,7 +308,7 @@ const DiplomaDemoDisplay = () => {
 
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           {selectedQuests.map(quest => {
-            const questWork = submittedWork.filter(w => w.questId === quest.id);
+            const questWork = demoSubmittedWork.filter(w => w.questId === quest.id);
 
             return (
               <div key={quest.id} className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
@@ -310,12 +319,12 @@ const DiplomaDemoDisplay = () => {
                   </div>
                   <Award className="w-6 h-6 sm:w-8 sm:h-8 text-optio-purple flex-shrink-0" />
                 </div>
-                
+
                 {/* Tasks & Submitted Work */}
                 <div className="space-y-3">
                   {quest.tasks.map(task => {
                     const work = questWork.find(w => w.taskId === task.id);
-                    const visibility = workVisibility[quest.id]?.[task.id];
+                    const visibility = demoWorkVisibility[quest.id]?.[task.id];
                     
                     return (
                       <div key={task.id} className="border-l-4 border-optio-pink/30 pl-4">
@@ -381,9 +390,6 @@ const DiplomaDemoDisplay = () => {
           </div>
           <p className="text-gray-700 max-w-2xl mx-auto">
             No extra uploads. No friction. Just proof of your growth.
-          </p>
-          <p className="text-sm text-gray-600 italic">
-            Your portfolio grows as you learn - that's the beauty of "The Process Is The Goal"
           </p>
         </div>
       </div>

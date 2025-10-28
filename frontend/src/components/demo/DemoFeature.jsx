@@ -64,9 +64,12 @@ const DemoFeature = () => {
   };
 
   const canGoBack = currentStep > 0 && currentStep < 7;
-  const canGoForward = currentStep > 0 && currentStep < 7 &&
-    (currentStep !== 1 || demoState.selectedQuests.length > 0) &&
-    (currentStep !== 2 || demoState.simulatedTaskCompleted);
+  const canGoForward = () => {
+    if (currentStep === 0 || currentStep >= 7) return false;
+    if (currentStep === 1) return demoState.selectedQuests.length > 0;
+    if (currentStep === 2) return demoState.simulatedTaskCompleted;
+    return true; // All other steps can proceed
+  };
 
   const stepInfo = getStepInfo();
 
@@ -127,9 +130,9 @@ const DemoFeature = () => {
               {currentStep < 7 && (
                 <button
                   onClick={actions.nextStep}
-                  disabled={!canGoForward}
+                  disabled={!canGoForward()}
                   className={`flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-semibold transition-all min-h-[48px] touch-manipulation order-1 sm:order-2 sm:ml-auto
-                    ${canGoForward
+                    ${canGoForward()
                       ? 'bg-gradient-primary text-white hover:shadow-lg transform hover:scale-105'
                       : 'bg-gray-100 text-gray-400 cursor-not-allowed'}`}
                 >
