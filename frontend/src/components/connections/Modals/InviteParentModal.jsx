@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { X, InformationCircleIcon } from 'lucide-react'
+import { X } from 'lucide-react'
+import { InformationCircleIcon } from '@heroicons/react/24/outline'
 
 const InviteParentModal = ({ isOpen, onClose, onSendInvite, isLoading }) => {
   const [email, setEmail] = useState('')
