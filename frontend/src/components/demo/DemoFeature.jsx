@@ -2,10 +2,12 @@ import React, { useEffect } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
 import DemoHero from './DemoHero';
 import QuestSelector from './QuestSelector';
-import WorkSubmission from './WorkSubmission';
+import MiniQuestExperience from './MiniQuestExperience';
+import BadgeUnlock from './BadgeUnlock';
+import ParentDashboardPreview from './ParentDashboardPreview';
+import FamilyEngagementPreview from './FamilyEngagementPreview';
 import DiplomaDemoDisplay from './DiplomaDemoDisplay';
-import ValidationComparison from './ValidationComparison';
-import ConversionPanel from './ConversionPanel';
+import JoinJourney from './JoinJourney';
 import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 
 const DemoFeature = () => {
@@ -31,17 +33,17 @@ const DemoFeature = () => {
       case 1:
         return <QuestSelector />;
       case 2:
-        return <WorkSubmission />;
+        return <MiniQuestExperience />;
       case 3:
-        return <DiplomaDemoDisplay />;
+        return <BadgeUnlock />;
       case 4:
-        return <ValidationComparison />;
+        return <ParentDashboardPreview />;
       case 5:
-        return <ValidationComparison />; // Placeholder for ParentDashboardPreview
+        return <FamilyEngagementPreview />;
       case 6:
-        return <ValidationComparison />; // Placeholder for FamilyEngagementPreview
+        return <DiplomaDemoDisplay />;
       case 7:
-        return <ConversionPanel />;
+        return <JoinJourney />;
       default:
         return <DemoHero onStart={() => actions.nextStep()} />;
     }

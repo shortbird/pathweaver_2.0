@@ -20,11 +20,11 @@ const QuestSelector = () => {
   };
 
   const pillars = {
-    creativity: { color: 'bg-purple-500', name: 'Creativity' },
-    critical_thinking: { color: 'bg-blue-500', name: 'Critical Thinking' },
-    practical_skills: { color: 'bg-green-500', name: 'Practical Skills' },
-    communication: { color: 'bg-orange-500', name: 'Communication' },
-    cultural_literacy: { color: 'bg-pink-500', name: 'Cultural Literacy' }
+    stem: { color: 'bg-blue-500', name: 'STEM', icon: '🔬' },
+    wellness: { color: 'bg-green-500', name: 'Wellness', icon: '💚' },
+    communication: { color: 'bg-orange-500', name: 'Communication', icon: '💬' },
+    civics: { color: 'bg-purple-500', name: 'Civics', icon: '🏛️' },
+    art: { color: 'bg-pink-500', name: 'Art', icon: '🎨' }
   };
 
   const isQuestSelected = (questId) => {
@@ -50,12 +50,34 @@ const QuestSelector = () => {
       {/* Header */}
       <div className="text-center space-y-2">
         <h2 className="text-3xl font-bold text-text-primary">
-          Start Your Quest
+          Choose Your Next Adventure
         </h2>
         <p className="text-gray-600">
-          Choose up to 4 quests to begin your learning journey
+          What are you curious about today?
         </p>
-        <p className="text-sm text-optio-purple">
+      </div>
+
+      {/* Pillar Visualization */}
+      <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-6">
+        <p className="text-sm font-semibold text-gray-700 mb-3 text-center">
+          Every quest helps you explore these learning pillars:
+        </p>
+        <div className="flex flex-wrap justify-center gap-3">
+          {Object.entries(pillars).map(([key, pillar]) => (
+            <div
+              key={key}
+              className={`flex items-center gap-2 px-4 py-2 rounded-full text-white font-medium text-sm ${pillar.color} shadow-sm`}
+            >
+              <span>{pillar.icon}</span>
+              <span>{pillar.name}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Selection Status */}
+      <div className="text-center">
+        <p className="text-sm text-optio-purple font-semibold">
           {selectedQuests.length}/4 quests selected
         </p>
       </div>
@@ -124,8 +146,23 @@ const QuestSelector = () => {
                   </div>
                 </div>
 
+                {/* You'll Explore Section */}
+                <div className="mb-3 pb-3 border-b border-gray-100">
+                  <p className="text-xs font-semibold text-gray-500 mb-2">You'll explore:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {quest.pillars && quest.pillars.map((pillarKey) => (
+                      <span
+                        key={pillarKey}
+                        className={`px-2 py-1 rounded-full text-xs font-medium text-white ${pillars[pillarKey]?.color}`}
+                      >
+                        {pillars[pillarKey]?.icon} {pillars[pillarKey]?.name}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
                 {/* Footer */}
-                <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-optio-purple">
                       {quest.totalXP} XP
@@ -159,13 +196,12 @@ const QuestSelector = () => {
         <div className="flex items-start gap-3">
           <Info className="w-5 h-5 text-optio-purple mt-0.5" />
           <div className="space-y-2">
-            <h4 className="font-semibold text-text-primary">Open-Ended Learning</h4>
             <p className="text-sm text-gray-700">
-              Start multiple quests simultaneously - just like real life! Complete tasks at your own pace, 
-              switch between projects, and build a diverse portfolio that reflects your interests.
+              Every quest is an adventure. Pick what sparks your curiosity—there's no wrong choice.
+              Start multiple quests, work at your own pace, and explore what interests you.
             </p>
             <p className="text-sm text-gray-600 italic">
-              There's no "failing" a quest - only choosing to focus elsewhere.
+              "The Process Is The Goal" - Learning happens through the journey.
             </p>
           </div>
         </div>

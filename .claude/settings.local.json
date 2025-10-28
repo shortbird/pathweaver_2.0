@@ -3,7 +3,8 @@
     "allow": [
       "Bash(git add:*)",
       "Bash(git commit -m \"$(cat <<''EOF''\nUpdate homepage to emphasize platform features over teacher partnership\n\nMajor homepage redesign focusing on platform capabilities for families managing their children''s education:\n\nHero Section:\n- Simplified to single powerful tagline: \"Raise doers, not dependents\"\n- Clear value prop: Transform learning into professional portfolio automatically\n- Updated CTAs to \"Create Free Account\" (removed consultation focus)\n\nWhat Optio Provides (6 Platform Features):\n- Automatic Portfolio Building - zero friction documentation\n- Gamified Learning Journey - quests, XP, badges\n- Parent Dashboard - rhythm tracking without micromanaging\n- Family Engagement - observer roles for extended family\n- AI Learning Support - 24/7 Gemini-powered tutor\n- Professional Showcase Pages - college-ready portfolios\n\nHow It Works:\n- Create Account → Build Quests → Document As You Go → Track & Celebrate\n- Platform-focused steps emphasizing automation and family control\n\nFAQ Section:\n- Rewritten with platform-focused questions\n- How automatic portfolio works\n- Quest creation process\n- Family observer access\n- Homeschool integration\n- Past work upload\n\nCTAs Throughout:\n- All consultation CTAs replaced with \"Create Free Account\"\n- Emphasis on \"Free to start, no credit card required\"\n- Focus on immediate platform access\n\nRemoved:\n- All teacher partnership language and imagery\n- Consultation-focused sections\n- Teacher meeting process steps\n\nCopy Tone:\n- Family empowerment and control\n- Automation and zero friction\n- Extended family involvement\n- Present-focused, process-oriented\n- Proof for colleges/employers\n\n🤖 Generated with Claude Code\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []

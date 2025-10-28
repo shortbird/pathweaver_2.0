@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
-import { 
-  Award, Globe, Lock, Eye, EyeOff, User, 
-  Calendar, Trophy, Target, Info, ExternalLink, CheckCircle
+import {
+  Award, Globe, Lock, Eye, EyeOff, User,
+  Calendar, Trophy, Target, Info, ExternalLink, CheckCircle,
+  Bot, MessageCircle, TrendingUp
 } from 'lucide-react';
 import InfoModal from './InfoModal';
 // Chart imports - using dynamic import to avoid build issues
@@ -113,6 +114,16 @@ const DiplomaDemoDisplay = () => {
 
   return (
     <div className="space-y-6">
+      {/* Title */}
+      <div className="text-center space-y-2">
+        <h2 className="text-3xl font-bold text-text-primary">
+          Your Living Portfolio
+        </h2>
+        <p className="text-gray-600">
+          This grows automatically as you learn
+        </p>
+      </div>
+
       {/* Diploma Header */}
       <div className="bg-gradient-primary rounded-xl p-4 sm:p-6 lg:p-8 text-white">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
@@ -143,6 +154,59 @@ const DiplomaDemoDisplay = () => {
             <ExternalLink className="w-4 h-4 flex-shrink-0" />
             <span>View Full Diploma</span>
           </button>
+        </div>
+      </div>
+
+      {/* Learning Journey Timeline */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h3 className="font-bold text-lg text-text-primary mb-4 flex items-center gap-2">
+          <TrendingUp className="w-5 h-5 text-optio-purple" />
+          Your Learning Journey
+        </h3>
+        <div className="relative">
+          {/* Timeline Line */}
+          <div className="absolute left-6 top-6 bottom-6 w-0.5 bg-gradient-primary hidden sm:block" />
+
+          {/* Timeline Items */}
+          <div className="space-y-6">
+            {/* September - Started Journey */}
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center text-white font-bold z-10 border-4 border-white shadow-lg">
+                9
+              </div>
+              <div className="flex-1 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-100">
+                <p className="text-sm text-gray-600">September 2024</p>
+                <p className="font-semibold text-gray-800">Started Your Journey</p>
+                <p className="text-sm text-gray-600 mt-1">Joined Optio & selected first quests</p>
+              </div>
+            </div>
+
+            {/* October - Recipe Quest */}
+            {selectedQuests.length > 0 && (
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center text-white font-bold z-10 border-4 border-white shadow-lg">
+                  10
+                </div>
+                <div className="flex-1 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-purple-100">
+                  <p className="text-sm text-gray-600">October 2024</p>
+                  <p className="font-semibold text-gray-800">{selectedQuests[0].title}</p>
+                  <p className="text-sm text-gray-600 mt-1">Completed task 1 • Earned 75 XP</p>
+                </div>
+              </div>
+            )}
+
+            {/* November - Current */}
+            <div className="flex items-start gap-4">
+              <div className="flex-shrink-0 w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center text-white font-bold z-10 border-4 border-white shadow-lg animate-pulse">
+                11
+              </div>
+              <div className="flex-1 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-4 border border-green-200">
+                <p className="text-sm text-green-600 font-semibold">Now</p>
+                <p className="font-semibold text-gray-800">Growing Your Skills</p>
+                <p className="text-sm text-gray-600 mt-1">Active in Communication & Civics</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -178,6 +242,53 @@ const DiplomaDemoDisplay = () => {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </div>
+
+      {/* AI Tutor Preview */}
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h3 className="font-bold text-lg text-text-primary mb-4 flex items-center gap-2">
+          <Bot className="w-5 h-5 text-optio-purple" />
+          AI Tutor Helped You
+        </h3>
+        <div className="space-y-4">
+          {/* Simulated Conversation */}
+          <div className="space-y-3">
+            {/* User Message */}
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-600 flex-shrink-0">
+                <User className="w-5 h-5" />
+              </div>
+              <div className="flex-1 bg-gray-100 rounded-lg p-3">
+                <p className="text-sm text-gray-800">
+                  "How do I organize interview notes effectively?"
+                </p>
+              </div>
+            </div>
+
+            {/* AI Response */}
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 bg-gradient-primary rounded-full flex items-center justify-center text-white flex-shrink-0">
+                <Bot className="w-5 h-5" />
+              </div>
+              <div className="flex-1 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg p-3 border border-purple-100">
+                <p className="text-sm text-gray-800 leading-relaxed">
+                  "Great question! Let me suggest a storytelling framework. Start by grouping
+                  quotes into themes - family traditions, personal memories, recipe origins.
+                  Then create a timeline to show how recipes evolved over generations..."
+                </p>
+                <button className="text-sm text-optio-purple font-semibold mt-2 hover:underline">
+                  View full conversation →
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-lg p-4">
+            <p className="text-sm text-gray-700 text-center">
+              24/7 AI support whenever you need help - automatically documented in your portfolio
+            </p>
           </div>
         </div>
       </div>
@@ -261,21 +372,19 @@ const DiplomaDemoDisplay = () => {
         </div>
       </div>
 
-      {/* Public Accountability Note */}
-      <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-4 sm:p-6">
-        <div className="flex items-start gap-3">
-          <Info className="w-5 h-5 text-optio-purple mt-0.5 flex-shrink-0" />
-          <div className="min-w-0">
-            <h4 className="font-semibold text-text-primary mb-1 text-sm sm:text-base">This is Your Living Diploma</h4>
-            <p className="text-sm text-gray-700 leading-relaxed">
-              Your diploma grows with every quest you complete. Public submissions are visible to everyone,
-              creating natural accountability for quality work. Confidential submissions show completion
-              but require direct contact for details.
-            </p>
-            <p className="text-sm text-gray-600 mt-2 italic leading-relaxed">
-              Share this diploma with colleges, employers, and anyone interested in your real achievements.
-            </p>
+      {/* Automatic Capture Message */}
+      <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-6">
+        <div className="text-center space-y-3">
+          <div className="inline-flex items-center justify-center gap-2 text-optio-purple">
+            <CheckCircle className="w-6 h-6" />
+            <h4 className="font-bold text-lg">Everything Captured Automatically</h4>
           </div>
+          <p className="text-gray-700 max-w-2xl mx-auto">
+            No extra uploads. No friction. Just proof of your growth.
+          </p>
+          <p className="text-sm text-gray-600 italic">
+            Your portfolio grows as you learn - that's the beauty of "The Process Is The Goal"
+          </p>
         </div>
       </div>
 
