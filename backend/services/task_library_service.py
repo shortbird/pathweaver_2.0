@@ -7,6 +7,7 @@ and reused across users. Handles usage tracking and flagging system.
 from typing import List, Dict, Optional
 from uuid import UUID
 from datetime import datetime
+import logging
 from database import get_supabase_admin_client
 from services.base_service import BaseService
 
@@ -17,6 +18,7 @@ class TaskLibraryService(BaseService):
     def __init__(self):
         super().__init__()
         # supabase client is available via self.supabase property from BaseService
+        self.logger = logging.getLogger(__name__)
 
     def get_library_tasks(self, quest_id: str, limit: int = 20) -> List[Dict]:
         """
