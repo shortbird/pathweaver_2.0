@@ -81,28 +81,29 @@ const QuestDetail = () => {
     fetchLibraryCount();
   }, [quest, id]);
 
+  // Reusable function to refetch library tasks
+  const refetchLibraryTasks = async () => {
+    // Only fetch if user is enrolled in an Optio quest
+    if (!quest || !quest.user_enrollment || quest.source !== 'optio') {
+      setLibraryTasks([]);
+      return;
+    }
+
+    setLoadingLibraryTasks(true);
+    try {
+      const response = await api.get(`/api/quests/${id}/task-library`);
+      setLibraryTasks(response.data.tasks || []);
+    } catch (err) {
+      console.error('Failed to fetch library tasks:', err);
+      setLibraryTasks([]);
+    } finally {
+      setLoadingLibraryTasks(false);
+    }
+  };
+
   // Fetch library tasks for enrolled Optio quests
   useEffect(() => {
-    const fetchLibraryTasks = async () => {
-      // Only fetch if user is enrolled in an Optio quest
-      if (!quest || !quest.user_enrollment || quest.source !== 'optio') {
-        setLibraryTasks([]);
-        return;
-      }
-
-      setLoadingLibraryTasks(true);
-      try {
-        const response = await api.get(`/api/quests/${id}/task-library`);
-        setLibraryTasks(response.data.tasks || []);
-      } catch (err) {
-        console.error('Failed to fetch library tasks:', err);
-        setLibraryTasks([]);
-      } finally {
-        setLoadingLibraryTasks(false);
-      }
-    };
-
-    fetchLibraryTasks();
+    refetchLibraryTasks();
   }, [quest, id]);
 
   // Handle error display
@@ -193,6 +194,7 @@ const QuestDetail = () => {
 
       if (response.data.success) {
         await refetchQuest(); // Reload quest with new task
+        await refetchLibraryTasks(); // Refresh library to remove added task
         toast.success('Task added to your quest!');
       }
     } catch (err) {
@@ -212,6 +214,7 @@ const QuestDetail = () => {
     try {
       await api.delete(`/api/tasks/${taskId}`);
       await refetchQuest();
+      await refetchLibraryTasks(); // Refresh library to show dropped task
       toast.success('Task removed from your quest');
     } catch (err) {
       console.error('Failed to drop task:', err);

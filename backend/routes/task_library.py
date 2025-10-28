@@ -69,13 +69,12 @@ def get_task_library_count(user_id, quest_id):
 
 @task_library_bp.route('/api/quests/<quest_id>/task-library/select', methods=['POST'])
 @require_auth
-def select_library_task(quest_id):
+def select_library_task(user_id, quest_id):
     """
     Select a task from the library and add it to user's quest.
     Increments usage_count and creates user_quest_tasks entry.
     """
     try:
-        user_id = request.user_id
         data = request.get_json()
 
         sample_task_id = data.get('sample_task_id')
