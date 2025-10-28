@@ -44,28 +44,78 @@ const DiplomaDemoDisplay = () => {
 
   const totalXP = Object.values(xpData).reduce((sum, val) => sum + val, 0);
 
-  // Demo submitted work - show progress on selected quests
-  const demoSubmittedWork = selectedQuests.length > 0 ? [
-    {
-      questId: selectedQuests[0].id,
-      taskId: selectedQuests[0].tasks[0].id,
-      work: 'Interviewed grandmother about family recipe origins and traditions',
-      visibility: 'public'
-    },
-    {
-      questId: selectedQuests[0].id,
-      taskId: selectedQuests[0].tasks[1]?.id,
-      work: 'Documented 12 family recipes with photos and stories',
-      visibility: 'public'
-    }
-  ] : [];
+  // Demo submitted work - create dynamic examples based on selected quest
+  const demoSubmittedWork = selectedQuests.length > 0 ? selectedQuests.map(quest => {
+    // Create examples that match the quest's actual tasks
+    const questExamples = {
+      'family-recipes': [
+        {
+          questId: quest.id,
+          taskId: quest.tasks[0].id,
+          work: 'Interviewed grandmother about family recipe origins and traditions',
+          visibility: 'public'
+        },
+        {
+          questId: quest.id,
+          taskId: quest.tasks[1]?.id,
+          work: 'Documented 12 family recipes with photos and stories',
+          visibility: 'public'
+        }
+      ],
+      'music-composition': [
+        {
+          questId: quest.id,
+          taskId: quest.tasks[0].id,
+          work: 'Completed music theory fundamentals course with 95% score',
+          visibility: 'public'
+        },
+        {
+          questId: quest.id,
+          taskId: quest.tasks[1]?.id,
+          work: 'Composed original piano piece "Autumn Reflections"',
+          visibility: 'public'
+        }
+      ],
+      'small-business': [
+        {
+          questId: quest.id,
+          taskId: quest.tasks[0].id,
+          work: 'Surveyed 50 potential customers about jewelry preferences',
+          visibility: 'public'
+        },
+        {
+          questId: quest.id,
+          taskId: quest.tasks[1]?.id,
+          work: 'Created detailed business plan with financial projections',
+          visibility: 'public'
+        }
+      ],
+      'volunteer-impact': [
+        {
+          questId: quest.id,
+          taskId: quest.tasks[0].id,
+          work: 'Chose to support local food bank helping 200+ families',
+          visibility: 'public'
+        },
+        {
+          questId: quest.id,
+          taskId: quest.tasks[1]?.id,
+          work: 'Completed 25 hours organizing donations and food distribution',
+          visibility: 'public'
+        }
+      ]
+    };
 
-  const demoWorkVisibility = selectedQuests.length > 0 ? {
-    [selectedQuests[0].id]: {
-      [selectedQuests[0].tasks[0].id]: 'public',
-      [selectedQuests[0].tasks[1]?.id]: 'public'
-    }
-  } : {};
+    return questExamples[quest.id] || [];
+  }).flat() : [];
+
+  const demoWorkVisibility = selectedQuests.length > 0 ? selectedQuests.reduce((acc, quest) => {
+    acc[quest.id] = {
+      [quest.tasks[0].id]: 'public',
+      [quest.tasks[1]?.id]: 'public'
+    };
+    return acc;
+  }, {}) : {};
   
   // Calculate max value for radar chart scale
   const maxXP = Math.max(...Object.values(xpData), 100);
@@ -76,7 +126,7 @@ const DiplomaDemoDisplay = () => {
     labels: [
       'STEM',
       'Wellness',
-      'Communication',
+      'Comm.',
       'Civics',
       'Art'
     ],
