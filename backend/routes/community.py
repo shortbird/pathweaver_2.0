@@ -44,6 +44,7 @@ def get_friends(user_id):
 
         # Remove current user from the set
         all_user_ids.discard(user_id)
+        logger.info(f"[GET_FRIENDS] Unique user IDs to fetch: {list(all_user_ids)}")
 
         # Fetch all user data using UserRepository batch method (prevents N+1 queries)
         user_lookup = {}
@@ -51,8 +52,15 @@ def get_friends(user_id):
             try:
                 user_lookup = user_repo.get_basic_profiles(list(all_user_ids))
                 logger.info(f"[GET_FRIENDS] Fetched {len(user_lookup)} user records in batch")
+                logger.info(f"[GET_FRIENDS] User lookup keys: {list(user_lookup.keys())}")
+                if user_lookup:
+                    # Log sample user data to see structure
+                    sample_key = list(user_lookup.keys())[0]
+                    logger.info(f"[GET_FRIENDS] Sample user data: {user_lookup[sample_key]}")
             except Exception as batch_error:
                 logger.error(f"[GET_FRIENDS] Error fetching users in batch: {str(batch_error)}")
+                import traceback
+                logger.error(f"[GET_FRIENDS] Batch fetch traceback: {traceback.format_exc()}")
 
         # Now process friendships using the lookup dictionary
         friends = []
@@ -60,37 +68,57 @@ def get_friends(user_id):
         sent_requests = []
 
         for friendship in all_friendships:
-            logger.debug(f"[GET_FRIENDS] Processing friendship: {friendship}")
+            logger.info(f"[GET_FRIENDS] Processing friendship ID {friendship['id']}: status={friendship['status']}, requester={friendship['requester_id']}, addressee={friendship['addressee_id']}")
+
             if friendship['status'] == 'accepted':
                 # Determine which user is the friend
                 friend_id = friendship['addressee_id'] if friendship['requester_id'] == user_id else friendship['requester_id']
                 friend_data = user_lookup.get(friend_id)
                 if friend_data:
                     friends.append(friend_data)
+                    logger.info(f"[GET_FRIENDS] Added accepted friend: {friend_id}")
+                else:
+                    logger.warning(f"[GET_FRIENDS] Missing user data for friend_id: {friend_id}")
+
             elif friendship['status'] == 'pending':
                 if friendship['addressee_id'] == user_id:
                     # Incoming pending request - get requester's data from lookup
-                    requester_data = user_lookup.get(friendship['requester_id'])
+                    requester_id = friendship['requester_id']
+                    requester_data = user_lookup.get(requester_id)
+                    logger.info(f"[GET_FRIENDS] Processing incoming request from {requester_id}, found data: {requester_data is not None}")
                     if requester_data:
-                        pending_requests.append({
+                        pending_request = {
                             'friendship_id': friendship['id'],
                             'requester': requester_data,
                             'created_at': friendship.get('created_at'),
                             'updated_at': friendship.get('updated_at')
-                        })
+                        }
+                        pending_requests.append(pending_request)
+                        logger.info(f"[GET_FRIENDS] Added pending request: {pending_request}")
+                    else:
+                        logger.warning(f"[GET_FRIENDS] Missing user data for requester_id: {requester_id}")
+
                 elif friendship['requester_id'] == user_id:
                     # Outgoing pending request - get addressee's data from lookup
-                    addressee_data = user_lookup.get(friendship['addressee_id'])
+                    addressee_id = friendship['addressee_id']
+                    addressee_data = user_lookup.get(addressee_id)
+                    logger.info(f"[GET_FRIENDS] Processing outgoing request to {addressee_id}, found data: {addressee_data is not None}")
                     if addressee_data:
-                        sent_requests.append({
+                        sent_request = {
                             'friendship_id': friendship['id'],
                             'addressee': addressee_data,
                             'status': friendship['status'],
                             'created_at': friendship.get('created_at'),
                             'updated_at': friendship.get('updated_at')
-                        })
+                        }
+                        sent_requests.append(sent_request)
+                        logger.info(f"[GET_FRIENDS] Added sent request: {sent_request}")
+                    else:
+                        logger.warning(f"[GET_FRIENDS] Missing user data for addressee_id: {addressee_id}")
 
         logger.info(f"[GET_FRIENDS] Returning {len(friends)} friends, {len(pending_requests)} pending requests, and {len(sent_requests)} sent requests")
+        logger.info(f"[GET_FRIENDS] Pending requests data: {pending_requests}")
+        logger.info(f"[GET_FRIENDS] Sent requests data: {sent_requests}")
 
         return jsonify({
             'friends': friends,
