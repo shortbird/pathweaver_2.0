@@ -332,14 +332,14 @@ class UserRepository(BaseRepository):
             user_ids: List of user IDs to fetch
 
         Returns:
-            Dictionary mapping user_id -> basic profile (id, display_name, avatar_url, bio)
+            Dictionary mapping user_id -> basic profile (id, first_name, last_name, display_name, avatar_url, bio, role)
 
         Raises:
             DatabaseError: If query fails
         """
         return self.find_by_ids(
             user_ids,
-            select_fields='id, display_name, avatar_url, bio, portfolio_slug'
+            select_fields='id, first_name, last_name, display_name, avatar_url, bio, portfolio_slug, role'
         )
 
     def update_last_active(self, user_id: str) -> bool:
