@@ -26,9 +26,8 @@ const Layout = () => {
     }
   }
 
-  // Hide sidebar on quest/badge hub pages
-  const isHubPage = location.pathname.startsWith('/quests') || location.pathname.startsWith('/badges')
-  const shouldShowSidebar = isAuthenticated && !isHubPage
+  // Show sidebar for all authenticated users (removed hub page restriction)
+  const shouldShowSidebar = isAuthenticated
 
   return (
     <div className="min-h-screen bg-neutral-50">
@@ -48,7 +47,8 @@ const Layout = () => {
 
       {/* Main Content Area */}
       <main className={`
-        pt-16
+        pt-16 sm:pt-16
+        ${isAuthenticated ? 'pt-[7.5rem] sm:pt-16' : 'pt-16'}
         ${shouldShowSidebar ? 'lg:ml-64' : ''}
         min-h-[calc(100vh-4rem)]
       `}>

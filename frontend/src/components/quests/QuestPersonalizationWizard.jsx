@@ -377,19 +377,19 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
           </div>
 
           {/* Task Card */}
-          <div className="bg-white border-2 border-gray-200 rounded-2xl p-8 mb-8 shadow-lg relative">
+          <div className="bg-white border-2 border-gray-200 rounded-2xl p-4 sm:p-8 mb-8 shadow-lg relative">
             {/* XP Badge - Top Right */}
-            <div className="absolute top-6 right-6 flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full">
-              <span className="font-semibold" style={{ fontFamily: 'Poppins' }}>
+            <div className="absolute top-3 right-3 sm:top-6 sm:right-6 flex items-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 bg-green-100 text-green-800 rounded-full">
+              <span className="text-sm sm:text-base font-semibold" style={{ fontFamily: 'Poppins' }}>
                 {currentTask.xp_value} XP
               </span>
             </div>
 
-            <div className="mb-6 pr-24">
-              <h3 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+            <div className="mb-6 pr-20 sm:pr-24">
+              <h3 className="text-xl sm:text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
                 {currentTask.title}
               </h3>
-              <p className="text-gray-700 text-lg leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+              <p className="text-gray-700 text-base sm:text-lg leading-relaxed" style={{ fontFamily: 'Poppins' }}>
                 {currentTask.description}
               </p>
             </div>
@@ -405,16 +405,16 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
           </div>
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-3 gap-4 mb-6">
+          <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
             {/* Skip Button */}
             <button
               onClick={handleSkipTask}
               disabled={loading}
-              className="flex flex-col items-center justify-center p-6 border-2 border-red-300 bg-red-50 rounded-2xl hover:bg-red-100 hover:border-red-400 transition-all disabled:opacity-50"
+              className="flex flex-col items-center justify-center p-3 sm:p-6 border-2 border-red-300 bg-red-50 rounded-xl sm:rounded-2xl hover:bg-red-100 hover:border-red-400 transition-all disabled:opacity-50"
             >
-              <X className="w-12 h-12 text-red-600 mb-2" />
-              <span className="font-bold text-lg text-red-700" style={{ fontFamily: 'Poppins' }}>
-                Skip Task
+              <X className="w-8 h-8 sm:w-12 sm:h-12 text-red-600 mb-1 sm:mb-2" />
+              <span className="font-bold text-xs sm:text-lg text-red-700" style={{ fontFamily: 'Poppins' }}>
+                Skip
               </span>
             </button>
 
@@ -422,11 +422,11 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             <button
               onClick={() => setShowFlagModal(true)}
               disabled={loading}
-              className="flex flex-col items-center justify-center p-6 border-2 border-yellow-300 bg-yellow-50 rounded-2xl hover:bg-yellow-100 hover:border-yellow-400 transition-all disabled:opacity-50"
+              className="flex flex-col items-center justify-center p-3 sm:p-6 border-2 border-yellow-300 bg-yellow-50 rounded-xl sm:rounded-2xl hover:bg-yellow-100 hover:border-yellow-400 transition-all disabled:opacity-50"
             >
-              <Flag className="w-12 h-12 text-yellow-600 mb-2" />
-              <span className="font-bold text-lg text-yellow-700" style={{ fontFamily: 'Poppins' }}>
-                Flag Task
+              <Flag className="w-8 h-8 sm:w-12 sm:h-12 text-yellow-600 mb-1 sm:mb-2" />
+              <span className="font-bold text-xs sm:text-lg text-yellow-700" style={{ fontFamily: 'Poppins' }}>
+                Flag
               </span>
             </button>
 
@@ -434,11 +434,11 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             <button
               onClick={handleAcceptTask}
               disabled={loading}
-              className="flex flex-col items-center justify-center p-6 border-2 border-green-300 bg-green-50 rounded-2xl hover:bg-green-100 hover:border-green-400 transition-all disabled:opacity-50"
+              className="flex flex-col items-center justify-center p-3 sm:p-6 border-2 border-green-300 bg-green-50 rounded-xl sm:rounded-2xl hover:bg-green-100 hover:border-green-400 transition-all disabled:opacity-50"
             >
-              <Check className="w-12 h-12 text-green-600 mb-2" />
-              <span className="font-bold text-lg text-green-700" style={{ fontFamily: 'Poppins' }}>
-                {loading ? 'Adding...' : 'Add Task'}
+              <Check className="w-8 h-8 sm:w-12 sm:h-12 text-green-600 mb-1 sm:mb-2" />
+              <span className="font-bold text-xs sm:text-lg text-green-700" style={{ fontFamily: 'Poppins' }}>
+                {loading ? 'Adding...' : 'Add'}
               </span>
             </button>
           </div>

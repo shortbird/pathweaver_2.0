@@ -236,8 +236,8 @@ const AdminUsers = () => {
         </div>
       </div>
 
-      {/* Users Table */}
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      {/* Users Table - Desktop */}
+      <div className="bg-white rounded-lg shadow overflow-hidden hidden md:block">
         <table className="min-w-full">
           <thead className="bg-gray-50">
             <tr>
@@ -336,7 +336,7 @@ const AdminUsers = () => {
           </tbody>
         </table>
 
-        {/* Pagination */}
+        {/* Pagination - Desktop */}
         {totalPages > 1 && (
           <div className="bg-gray-50 px-4 py-3 flex items-center justify-between border-t border-gray-200">
             <div className="flex-1 flex justify-between sm:hidden">
@@ -381,6 +381,92 @@ const AdminUsers = () => {
                 </nav>
               </div>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Users Cards - Mobile */}
+      <div className="md:hidden space-y-4">
+        {users.map((user) => (
+          <div key={user.id} className="bg-white rounded-lg shadow p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center flex-1">
+                <input
+                  type="checkbox"
+                  checked={selectedUsers.has(user.id)}
+                  onChange={() => toggleUserSelection(user.id)}
+                  className="rounded mr-3"
+                />
+                <div className="flex-shrink-0 h-10 w-10">
+                  <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
+                    <span className="text-gray-600 font-medium">
+                      {(user.first_name?.[0] || user.email[0]).toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+                <div className="ml-3 flex-1 min-w-0">
+                  <div className="text-sm font-medium text-gray-900 truncate">
+                    {user.first_name} {user.last_name}
+                  </div>
+                  <div className="text-sm text-gray-500 truncate">{user.email}</div>
+                </div>
+              </div>
+              <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ml-2 ${getRoleBadge(user.role || 'student')}`}>
+                {getRoleDisplayName(user.role || 'student')}
+              </span>
+            </div>
+            <div className="text-xs text-gray-500 mb-3">
+              Last active: {formatDate(user.last_active)}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => handleEditUser(user)}
+                className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
+              >
+                Edit
+              </button>
+              <button
+                onClick={() => handleAddTasks(user)}
+                className="px-3 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100 transition-colors"
+              >
+                Add Tasks
+              </button>
+              <button
+                onClick={() => handleViewChatLogs(user)}
+                className="px-3 py-2 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-100 transition-colors"
+              >
+                Chats
+              </button>
+              <button
+                onClick={() => handleDeleteUser(user.id)}
+                className="px-3 py-2 bg-red-50 text-red-700 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {/* Pagination - Mobile */}
+        {totalPages > 1 && (
+          <div className="flex justify-between items-center pt-4">
+            <button
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1}
+              className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Previous
+            </button>
+            <span className="text-sm text-gray-700">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages}
+              className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Next
+            </button>
           </div>
         )}
       </div>
