@@ -46,7 +46,7 @@ const QuestCardSimple = ({ quest }) => {
 
         {/* Title Overlay */}
         <div className="absolute inset-x-0 bottom-0 p-6">
-          <h3 className="text-white text-xl font-bold leading-tight drop-shadow-lg line-clamp-2">
+          <h3 className="text-white text-lg sm:text-xl font-bold leading-tight drop-shadow-lg line-clamp-2">
             {quest.title}
           </h3>
         </div>

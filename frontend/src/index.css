@@ -82,24 +82,24 @@
 @layer components {
   /* Button styles */
   .btn-primary {
-    @apply bg-gradient-primary text-white px-11 py-4 rounded-[30px] font-semibold 
-           shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] 
+    @apply bg-gradient-primary text-white px-6 py-3 sm:px-8 sm:py-3.5 md:px-11 md:py-4 rounded-[30px] font-semibold
+           shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)]
            hover:-translate-y-0.5 transition-all duration-300;
   }
-  
+
   .btn-secondary {
-    @apply bg-primary text-white px-11 py-4 rounded-[30px] font-semibold 
-           shadow-[0_2px_10px_rgba(109,70,155,0.15)] hover:bg-primary-dark 
+    @apply bg-primary text-white px-6 py-3 sm:px-8 sm:py-3.5 md:px-11 md:py-4 rounded-[30px] font-semibold
+           shadow-[0_2px_10px_rgba(109,70,155,0.15)] hover:bg-primary-dark
            hover:-translate-y-0.5 transition-all duration-300;
   }
-  
+
   .btn-tertiary {
-    @apply bg-transparent text-primary px-11 py-4 rounded-[30px] font-semibold 
+    @apply bg-transparent text-primary px-6 py-3 sm:px-8 sm:py-3.5 md:px-11 md:py-4 rounded-[30px] font-semibold
            border-2 border-primary hover:bg-purple-50 transition-all duration-300;
   }
-  
+
   .btn-ghost {
-    @apply bg-transparent text-primary px-11 py-4 rounded-[30px] font-semibold 
+    @apply bg-transparent text-primary px-6 py-3 sm:px-8 sm:py-3.5 md:px-11 md:py-4 rounded-[30px] font-semibold
            hover:bg-purple-50 transition-all duration-300;
   }
   

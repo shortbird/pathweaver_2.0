@@ -80,7 +80,7 @@ export default function BadgeCarouselCard({ badge }) {
 
         {/* Badge Name - Positioned at bottom of image */}
         <div className="absolute bottom-4 left-4 right-4">
-          <h3 className="text-white text-xl font-bold drop-shadow-lg line-clamp-2">
+          <h3 className="text-white text-lg sm:text-xl font-bold drop-shadow-lg line-clamp-2">
             {badge.name}
           </h3>
         </div>

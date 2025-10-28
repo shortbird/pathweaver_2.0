@@ -839,7 +839,7 @@ const DiplomaPage = () => {
                 Portfolio Diploma
               </div>
             </div>
-            <h1 className="text-4xl font-bold mb-4" style={{ letterSpacing: '-1px' }}>
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4" style={{ letterSpacing: '-1px' }}>
               {getStudentName()}
             </h1>
             <div className="text-base md:text-lg text-white/95 mb-6 leading-relaxed">

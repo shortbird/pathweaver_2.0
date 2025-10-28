@@ -126,7 +126,7 @@ const DashboardPage = () => {
       {/* Header Section with Capture Button */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
             {isNewUser ? `Welcome to Optio, ${user?.first_name}!` : `Welcome back, ${user?.first_name}!`}
           </h1>
           <p className="text-gray-600 mt-2">
