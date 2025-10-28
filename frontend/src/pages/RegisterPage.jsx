@@ -411,6 +411,17 @@ const RegisterPage = () => {
             )}
           </div>
 
+          {/* Optional Handbook Link - No checkbox required, signed in person */}
+          <div className="bg-blue-50 border-l-4 border-blue-500 p-4">
+            <p className="text-sm text-blue-900">
+              <strong>Optio Academy Participants:</strong> Please review the{' '}
+              <Link to="/academy-handbook" target="_blank" className="text-primary hover:text-purple-600 underline font-semibold">
+                Optio Academy Participant Handbook
+              </Link>
+              . A signed agreement will be completed during in-person enrollment.
+            </p>
+          </div>
+
           <div>
             <button
               type="submit"

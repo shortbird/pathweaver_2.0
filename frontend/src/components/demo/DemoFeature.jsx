@@ -2,10 +2,12 @@ import React, { useEffect } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
 import DemoHero from './DemoHero';
 import QuestSelector from './QuestSelector';
-import WorkSubmission from './WorkSubmission';
+import MiniQuestExperience from './MiniQuestExperience';
+import BadgeUnlock from './BadgeUnlock';
+import ParentDashboardPreview from './ParentDashboardPreview';
+import FamilyEngagementPreview from './FamilyEngagementPreview';
 import DiplomaDemoDisplay from './DiplomaDemoDisplay';
-import ValidationComparison from './ValidationComparison';
-import ConversionPanel from './ConversionPanel';
+import JoinJourney from './JoinJourney';
 import { ChevronLeft, ChevronRight, RotateCcw } from 'lucide-react';
 
 const DemoFeature = () => {
@@ -31,13 +33,17 @@ const DemoFeature = () => {
       case 1:
         return <QuestSelector />;
       case 2:
-        return <WorkSubmission />;
+        return <MiniQuestExperience />;
       case 3:
-        return <DiplomaDemoDisplay />;
+        return <BadgeUnlock />;
       case 4:
-        return <ValidationComparison />;
+        return <ParentDashboardPreview />;
       case 5:
-        return <ConversionPanel />;
+        return <FamilyEngagementPreview />;
+      case 6:
+        return <DiplomaDemoDisplay />;
+      case 7:
+        return <JoinJourney />;
       default:
         return <DemoHero onStart={() => actions.nextStep()} />;
     }
@@ -45,20 +51,22 @@ const DemoFeature = () => {
 
   const getStepInfo = () => {
     const steps = [
-      { title: 'Welcome', subtitle: 'Get Your Diploma Day 1' },
-      { title: 'Choose Your Quests', subtitle: 'Start Multiple Learning Paths' },
-      { title: 'Submit Your Work', subtitle: 'Public or Confidential' },
-      { title: 'Your Living Diploma', subtitle: 'See It Fill with Achievements' },
-      { title: 'Student vs Teacher Validation', subtitle: 'Why Public Work Matters' },
-      { title: 'Start Your Journey', subtitle: 'Join Optio Today' }
+      { title: 'Your Learning Story Starts Here', subtitle: 'What will you discover today?' },
+      { title: 'Choose Your Next Adventure', subtitle: 'What are you curious about today?' },
+      { title: 'Experience Learning', subtitle: 'Complete your first task' },
+      { title: "You're Growing!", subtitle: 'Watch your skills take shape' },
+      { title: 'Parents Can Cheer You On', subtitle: 'They see your rhythm, not every detail' },
+      { title: 'Your Learning Community', subtitle: 'Family can celebrate with you' },
+      { title: 'Your Living Portfolio', subtitle: 'This grows automatically as you learn' },
+      { title: 'Ready to Start Your Story?', subtitle: 'Join thousands of learners' }
     ];
     return steps[currentStep] || steps[0];
   };
 
-  const canGoBack = currentStep > 0 && currentStep < 5;
-  const canGoForward = currentStep > 0 && currentStep < 5 && 
+  const canGoBack = currentStep > 0 && currentStep < 7;
+  const canGoForward = currentStep > 0 && currentStep < 7 &&
     (currentStep !== 1 || demoState.selectedQuests.length > 0) &&
-    (currentStep !== 2 || demoState.submittedWork.length > 0 || currentStep > 2);
+    (currentStep !== 2 || demoState.simulatedTaskCompleted);
 
   const stepInfo = getStepInfo();
 
@@ -66,7 +74,7 @@ const DemoFeature = () => {
     <div className="min-h-screen bg-gradient-to-br from-[#6d469b]/5 via-white to-[#ef597b]/5">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Progress Header */}
-        {currentStep > 0 && currentStep <= 5 && (
+        {currentStep > 0 && currentStep <= 7 && (
           <div className="mb-6 sm:mb-8">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <div className="flex-1 min-w-0">
@@ -76,7 +84,7 @@ const DemoFeature = () => {
                 <p className="text-gray-600 mt-1 text-sm sm:text-base">{stepInfo.subtitle}</p>
               </div>
               <div className="flex items-center justify-between sm:justify-start gap-4 flex-shrink-0">
-                <span className="text-sm text-gray-600">Step {currentStep} of 5</span>
+                <span className="text-sm text-gray-600">Step {currentStep} of 7</span>
                 <button
                   onClick={actions.resetDemo}
                   className="flex items-center gap-1 text-sm text-optio-purple hover:underline py-1 px-2 -mx-2 rounded touch-manipulation"
@@ -86,12 +94,12 @@ const DemoFeature = () => {
                 </button>
               </div>
             </div>
-            
+
             {/* Progress Bar */}
             <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-              <div 
+              <div
                 className="h-full bg-gradient-primary transition-all duration-500"
-                style={{ width: `${(currentStep / 5) * 100}%` }}
+                style={{ width: `${(currentStep / 7) * 100}%` }}
               />
             </div>
           </div>
@@ -116,7 +124,7 @@ const DemoFeature = () => {
                 </button>
               )}
 
-              {currentStep < 5 && (
+              {currentStep < 7 && (
                 <button
                   onClick={actions.nextStep}
                   disabled={!canGoForward}

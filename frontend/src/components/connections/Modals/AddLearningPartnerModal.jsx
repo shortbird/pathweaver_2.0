@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { XMarkIcon } from '@heroicons/react/24/outline'
 
-const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false }) => {
+const AddLearningPartnerModal = ({ isOpen, onClose, onSendRequest, isLoading = false }) => {
   const [email, setEmail] = useState('')
   const [message, setMessage] = useState('')
   const [errors, setErrors] = useState({})
@@ -83,13 +83,13 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
 
       {/* Modal */}
       <div
-        className="relative bg-white rounded-[24px] shadow-[0_20px_60px_rgba(109,70,155,0.15)] p-8 sm:p-10 w-full max-w-[560px] animate-[modalEnter_300ms_ease-out]"
+        className="relative bg-white rounded-2xl shadow-xl p-6 sm:p-8 w-full max-w-md animate-[modalEnter_300ms_ease-out]"
         style={{ maxHeight: '90vh', overflowY: 'auto' }}
       >
         {/* Close Button */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 text-neutral-400 hover:text-neutral-500 transition-colors"
+          className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 transition-colors"
           aria-label="Close modal"
         >
           <XMarkIcon className="w-6 h-6" />
@@ -98,17 +98,17 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
         {/* Title */}
         <h2
           id="modal-title"
-          className="text-2xl font-bold text-neutral-700 mb-2"
+          className="text-2xl font-bold text-gray-900 mb-2 pr-8"
           style={{ fontFamily: 'Poppins', fontWeight: 700 }}
         >
           Connect with a Learning Partner
         </h2>
 
         <p
-          className="text-neutral-500 mb-6"
+          className="text-gray-600 mb-6"
           style={{ fontFamily: 'Poppins', fontWeight: 500 }}
         >
-          Enter their email address to send a connection request
+          Enter their email to send a connection request. You'll be able to see what they're learning and celebrate their progress together.
         </p>
 
         {/* Form */}
@@ -117,7 +117,7 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
           <div className="mb-6">
             <label
               htmlFor="email"
-              className="block text-sm font-semibold text-neutral-700 mb-2"
+              className="block text-sm font-semibold text-gray-700 mb-2"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
               Email Address
@@ -130,18 +130,19 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
                 setEmail(e.target.value)
                 setErrors({ ...errors, email: null })
               }}
-              className={`w-full px-4 py-3 rounded-[12px] border-2 transition-all focus:outline-none ${
+              className={`w-full px-4 py-3 rounded-lg border-2 transition-all focus:outline-none ${
                 errors.email
                   ? 'border-red-500 focus:border-red-500'
-                  : 'border-[#EEEBEF] focus:border-transparent focus:ring-2 focus:ring-offset-0'
+                  : 'border-gray-200 focus:border-purple-400'
               }`}
               style={{
                 fontFamily: 'Poppins',
                 fontWeight: 500,
               }}
-              placeholder="friend@example.com"
+              placeholder="partner@example.com"
               aria-invalid={!!errors.email}
               aria-describedby={errors.email ? 'email-error' : undefined}
+              autoFocus
             />
             {errors.email && (
               <p
@@ -158,10 +159,10 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
           <div className="mb-6">
             <label
               htmlFor="message"
-              className="block text-sm font-semibold text-neutral-700 mb-2"
+              className="block text-sm font-semibold text-gray-700 mb-2"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
-              Add a personal message (optional)
+              Add a Personal Message (Optional)
             </label>
             <textarea
               id="message"
@@ -171,7 +172,7 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
                   setMessage(e.target.value)
                 }
               }}
-              className="w-full px-4 py-3 rounded-[12px] border-2 border-[#EEEBEF] focus:border-transparent focus:ring-2 focus:outline-none resize-none"
+              className="w-full px-4 py-3 rounded-lg border-2 border-gray-200 focus:border-purple-400 focus:outline-none resize-none"
               style={{
                 fontFamily: 'Poppins',
                 fontWeight: 500,
@@ -182,7 +183,7 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
             />
             <div className="flex justify-between items-center mt-1">
               <p
-                className="text-xs text-neutral-400"
+                className="text-xs text-gray-400"
                 style={{ fontFamily: 'Poppins', fontWeight: 500 }}
               >
                 {message.length}/{MAX_MESSAGE_LENGTH} characters
@@ -191,9 +192,9 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
           </div>
 
           {/* Tip */}
-          <div className="bg-neutral-50 rounded-[12px] p-4 mb-6">
+          <div className="bg-purple-50 border-2 border-purple-100 rounded-xl p-4 mb-6">
             <p
-              className="text-sm text-neutral-500 flex items-start gap-2"
+              className="text-sm text-purple-900 flex items-start gap-2"
               style={{ fontFamily: 'Poppins', fontWeight: 500 }}
             >
               <span className="text-xl flex-shrink-0">💡</span>
@@ -204,13 +205,13 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
           </div>
 
           {/* Actions */}
-          <div className="flex flex-col-reverse sm:flex-row gap-3 justify-end">
+          <div className="flex gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
               disabled={isLoading}
-              className="px-6 py-3 rounded-full font-medium bg-gray-100 text-gray-700 hover:bg-gray-200 transition-colors disabled:opacity-50"
-              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+              className="flex-1 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-full font-semibold hover:bg-gray-50 transition-all disabled:opacity-50"
+              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
               Cancel
             </button>
@@ -218,10 +219,10 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
             <button
               type="submit"
               disabled={isLoading || !email.trim()}
-              className="px-8 py-3 rounded-full font-semibold bg-gradient-primary text-white shadow-[0_4px_20px_rgba(109,70,155,0.15)] hover:shadow-[0_6px_25px_rgba(109,70,155,0.25)] transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-6 py-3 bg-gradient-primary text-white rounded-full font-semibold shadow-md hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
-              {isLoading ? 'Sending...' : 'Send Connection Request'}
+              {isLoading ? 'Sending...' : 'Send Request'}
             </button>
           </div>
         </form>
@@ -244,4 +245,4 @@ const AddConnectionModal = ({ isOpen, onClose, onSendRequest, isLoading = false 
   )
 }
 
-export default AddConnectionModal
+export default AddLearningPartnerModal

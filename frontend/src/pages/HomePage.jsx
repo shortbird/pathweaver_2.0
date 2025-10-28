@@ -21,11 +21,11 @@ const HomePage = () => {
         Skip to main content
       </a>
 
-      {/* Hero Section - Main Tagline Only */}
+      {/* Hero Section - Simplified */}
       <div
         className="bg-gradient-primary text-white relative overflow-hidden"
         role="banner"
-        aria-label="Hero section introducing Optio teacher-partnership model"
+        aria-label="Hero section introducing Optio learning platform"
       >
         {/* Subtle background elements */}
         <div className="absolute inset-0 opacity-10">
@@ -36,55 +36,40 @@ const HomePage = () => {
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32 relative">
           <div className="text-center">
-              <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                <span className="block drop-shadow-lg">Supporting Parents.</span>
-                <span className="block drop-shadow-lg mt-4">Empowering Students.</span>
-                <span className="block drop-shadow-lg mt-4">Building Futures.</span>
-              </h1>
+            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold leading-tight mb-8 drop-shadow-lg" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              Raise doers, not dependents.
+            </h1>
+            <p className="text-xl sm:text-2xl md:text-3xl text-white/95 max-w-4xl mx-auto leading-relaxed mb-10" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+              Transform your child's learning into a professional portfolio.
+            </p>
+
+            {/* CTAs */}
+            {!isAuthenticated && (
+              <div className="flex flex-col gap-4 justify-center items-center max-w-sm mx-auto sm:max-w-none sm:flex-row">
+                <Link
+                  to="/register"
+                  className="bg-white text-optio-purple hover:bg-gray-100 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center min-h-[52px] touch-manipulation"
+                  style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+                >
+                  <BookOpen className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0" aria-hidden="true" />
+                  Create Free Account
+                </Link>
+
+                <Link
+                  to="/demo"
+                  className="bg-white/10 backdrop-blur-sm border-2 border-white text-white hover:bg-white hover:text-optio-purple px-8 py-4 rounded-lg font-semibold inline-flex items-center transition-all w-full sm:w-auto justify-center shadow-md min-h-[52px] touch-manipulation"
+                  style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+                >
+                  <Play className="mr-2 w-5 h-5" aria-hidden="true" />
+                  Try 2-Min Demo
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Secondary Hero Section - Teacher Focus */}
-      <div className="bg-white py-16">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-gray-900 mb-6 leading-tight" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-            An experienced educator in your corner.
-          </h2>
-          <p className="text-xl sm:text-2xl text-gray-700 mb-8 leading-relaxed italic" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-            Raising doers, not dependents.
-          </p>
-
-          {/* CTAs - Consultation Focused */}
-          {!isAuthenticated && (
-            <div className="flex flex-col gap-4 justify-center items-center max-w-sm mx-auto sm:max-w-none sm:flex-row">
-              <Link
-                to="/consultation"
-                className="bg-gradient-primary text-white hover:opacity-90 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center min-h-[52px] touch-manipulation"
-                style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-                aria-describedby="consultation-description"
-              >
-                <Users className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0" aria-hidden="true" />
-                Schedule FREE Consultation
-              </Link>
-              <span id="consultation-description" className="sr-only">
-                Schedule a free 30-minute consultation with a licensed teacher
-              </span>
-
-              <Link
-                to="/demo"
-                className="bg-white border-2 border-optio-purple text-optio-purple hover:bg-optio-purple hover:text-white px-8 py-4 rounded-lg font-semibold inline-flex items-center transition-all w-full sm:w-auto justify-center shadow-md min-h-[52px] touch-manipulation"
-                style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-              >
-                <Play className="mr-2 w-5 h-5" aria-hidden="true" />
-                Try 2-Min Demo
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* What Optio Provides Section - Column Layout with Image */}
+      {/* What Optio Provides Section - Platform Features Grid */}
       <div className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -92,68 +77,88 @@ const HomePage = () => {
               What Optio Provides
             </h2>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              A complete support system for your family's learning rhythm
+              Everything your family needs to manage, document, and celebrate learning
             </p>
           </div>
 
-          {/* Column Layout: Content Left, Image Right */}
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            {/* Left Column - Content */}
-            <div className="space-y-8">
-              {/* Your Own Dedicated Teacher */}
-              <div>
-                <div className="flex items-start mb-3">
-                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-                    <Users className="w-6 h-6 text-optio-purple" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Your Own Licensed Teacher</h3>
-                    <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                      Your family's experienced educational partner.
-                    </p>
-                  </div>
-                </div>
+          {/* 6-Feature Grid */}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {/* Automatic Portfolio Building */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100 hover:border-purple-300 transition-all">
+              <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
+                <BookOpen className="w-6 h-6 text-white" />
               </div>
-
-              {/* Student-Driven Learning Platform */}
-              <div>
-                <div className="flex items-start mb-3">
-                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-                    <BookOpen className="w-6 h-6 text-optio-purple" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Student-Driven Learning Platform</h3>
-                    <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                      Digital portfolio capturing your child's unique learning journey.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Parent Peace of Mind */}
-              <div>
-                <div className="flex items-start mb-3">
-                  <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mr-4 flex-shrink-0">
-                    <Heart className="w-6 h-6 text-optio-purple" />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Parent Peace of Mind</h3>
-                    <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                      Professional support with flexibility and family control.
-                    </p>
-                  </div>
-                </div>
-              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                Automatic Portfolio Building
+              </h3>
+              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                Every project, essay, and creation automatically captured. No manual uploads, no friction—just learning that builds itself into proof.
+              </p>
             </div>
 
-            {/* Right Column - Image */}
-            <div className="rounded-xl overflow-hidden shadow-lg border-2 border-gray-200">
-              <img
-                src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/homepage/educator.jpg"
-                alt="Teacher collaborating with parent and student in a supportive learning environment"
-                className="w-full h-full object-cover aspect-[4/3]"
-                loading="lazy"
-              />
+            {/* Gamified Learning Journey */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100 hover:border-purple-300 transition-all">
+              <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                Gamified Learning Journey
+              </h3>
+              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                Quests, XP, and badges transform progress into play. Visual skill tracking across five learning pillars keeps motivation high.
+              </p>
+            </div>
+
+            {/* Parent Dashboard */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100 hover:border-purple-300 transition-all">
+              <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
+                <Heart className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                Parent Dashboard
+              </h3>
+              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                See your child's learning rhythm and weekly wins without micromanaging. Celebrate flow state, offer support when needed.
+              </p>
+            </div>
+
+            {/* Family Engagement */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100 hover:border-purple-300 transition-all">
+              <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
+                <Users className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                Family Engagement
+              </h3>
+              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                Observer roles let grandparents, mentors, and extended family cheer progress, leave encouragement, and stay connected to your child's journey.
+              </p>
+            </div>
+
+            {/* AI Learning Support */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100 hover:border-purple-300 transition-all">
+              <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
+                <BookOpen className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                AI Learning Support
+              </h3>
+              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                24/7 Gemini-powered tutor provides instant help, answers questions, and keeps momentum going—even when parents are busy.
+              </p>
+            </div>
+
+            {/* Professional Showcase Pages */}
+            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100 hover:border-purple-300 transition-all">
+              <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
+                <CheckCircle className="w-6 h-6 text-white" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                Professional Showcase Pages
+              </h3>
+              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                Custom portfolio URLs ready to share with colleges, employers, and scholarship applications. Make learning instantly visible and credible.
+              </p>
             </div>
           </div>
         </div>
@@ -163,121 +168,129 @@ const HomePage = () => {
       {/* All features now free for all users */}
 
       {/* How It Works Section */}
-      <div className="py-16 bg-white">
+      <div className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
               How It Works
             </h2>
             <p className="text-lg text-gray-600 max-w-3xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              A simple, supportive process designed around your family's needs
+              Learning documentation that happens automatically as your family learns
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {/* Step 1 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-optio-purple" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>1</span>
+              <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>1</span>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Meet Your Teacher</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Create Your Account</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Schedule a free consultation to discuss your family's vision and needs.
+                Set up your family's learning hub in minutes. Add students, invite family observers, customize your approach.
               </p>
             </div>
 
             {/* Step 2 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-optio-purple" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>2</span>
+              <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>2</span>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Create Your Plan</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Build Your Quests</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Work with your teacher to design a learning approach that fits your child's interests and your family's goals.
+                Create learning projects aligned with your child's interests and your educational goals. Make learning an adventure.
               </p>
             </div>
 
             {/* Step 3 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-optio-purple" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>3</span>
+              <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>3</span>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Learn & Document</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Document As You Go</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Your student pursues projects and interests while our platform records their growth. Your teacher provides guidance along the way.
+                Work automatically flows into the portfolio as students complete tasks. No extra uploads, no friction—just learning.
               </p>
             </div>
 
             {/* Step 4 */}
             <div className="text-center">
-              <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-optio-purple" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>4</span>
+              <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>4</span>
               </div>
-              <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Review & Celebrate</h3>
+              <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Track & Celebrate</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Regular check-ins with your teacher ensure progress and celebrate milestones.
+                Watch visual progress, badges earned, and portfolio building in real-time. Celebrate every step of the journey.
               </p>
             </div>
           </div>
 
           <div className="text-center mt-12">
             <Link
-              to="/consultation"
+              to="/register"
               className="inline-flex items-center bg-gradient-primary text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
-              <Users className="mr-2 w-5 h-5" />
-              Start with a Free Consultation
+              <BookOpen className="mr-2 w-5 h-5" />
+              Create Free Account
             </Link>
           </div>
         </div>
       </div>
 
-      {/* Consultation CTA Section - Replaces Old Signup Form */}
+      {/* Main CTA Section - Platform Launch */}
       <div className="py-16 bg-gradient-primary text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-8">
             <h2 className="text-3xl sm:text-4xl font-bold mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-              Take the Next Step
+              Start Building Your Family's Learning Portfolio Today
             </h2>
             <p className="text-xl mb-6 opacity-95" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
-              Schedule Your FREE Consultation
+              Free to start. No credit card required.
             </p>
             <p className="text-lg opacity-90 max-w-2xl mx-auto leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              Meet with an Optio teacher to discuss your family's unique situation. No pressure, no commitment—just a conversation about what's possible.
+              Join families who are transforming their children's learning into tangible proof of growth, capability, and achievement.
             </p>
           </div>
 
           <div className="bg-white/10 backdrop-blur-sm rounded-2xl border-2 border-white/20 p-6 sm:p-8 mb-8">
-            <h3 className="text-xl font-bold mb-4 text-center" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>What to Expect:</h3>
+            <h3 className="text-xl font-bold mb-4 text-center" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>What You Get:</h3>
             <div className="grid md:grid-cols-2 gap-4">
               <div className="flex items-start">
                 <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
-                <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>30-minute video call with a licensed teacher</span>
+                <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Automatic portfolio building with zero friction</span>
               </div>
               <div className="flex items-start">
                 <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
-                <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Discussion of your child's interests and your ideas</span>
+                <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Gamified quests, XP, and achievement badges</span>
               </div>
               <div className="flex items-start">
                 <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
-                <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Overview of how Optio could work for your family</span>
+                <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Parent dashboard for rhythm tracking</span>
               </div>
               <div className="flex items-start">
                 <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
-                <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Answers to all your questions</span>
+                <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Family observer access for extended support</span>
+              </div>
+              <div className="flex items-start">
+                <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
+                <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>24/7 AI tutor for learning support</span>
+              </div>
+              <div className="flex items-start">
+                <CheckCircle className="w-5 h-5 mr-3 mt-0.5 flex-shrink-0" />
+                <span style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Professional showcase pages for colleges</span>
               </div>
             </div>
           </div>
 
           <div className="text-center">
             <Link
-              to="/consultation"
+              to="/register"
               className="inline-flex items-center bg-white text-optio-purple hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all"
               style={{ fontFamily: 'Poppins', fontWeight: 700 }}
             >
-              <Users className="mr-2 w-5 h-5" />
-              Book Your Free Consultation
+              <BookOpen className="mr-2 w-5 h-5" />
+              Create Free Account
             </Link>
 
             <p className="text-sm opacity-90 mt-6" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
@@ -290,7 +303,7 @@ const HomePage = () => {
       {/* Our Philosophy Section */}
       <PhilosophySection onPhilosophyModalOpen={() => setPhilosophyModalOpen(true)} />
 
-      {/* FAQ Section - Teacher-Partnership Focus */}
+      {/* FAQ Section - Platform Focus */}
       <div className="py-16 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -302,68 +315,68 @@ const HomePage = () => {
           <div className="space-y-6">
             <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
               <h3 className="text-lg font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                What does an Optio teacher actually do?
+                How does the automatic portfolio work?
               </h3>
               <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Your Optio teacher is a licensed educator who becomes a non-parent adult invested in your child's education. They work WITH you as a partner, providing experienced guidance, answering questions, and keeping momentum going. They can provide daily support, check-ins, and be a person you can rely on to keep your kids' education moving when you get busy. Your teacher is there to support your family's learning journey with professional insight and encouragement.
+                As your child completes quest tasks, their work—essays, projects, videos, photos—automatically flows into their portfolio. No manual uploading, no extra steps. You document once, and it instantly becomes part of their professional showcase ready to share with colleges and employers.
               </p>
             </div>
 
             <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
               <h3 className="text-lg font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                How much control do I have over my child's education?
+                What are quests and how do we create them?
               </h3>
               <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                You maintain complete control over your family's learning vision and approach. Your teacher is there to support, not impose. Together, you'll find your family's natural learning rhythm without requirements or hurdles. The teacher's role is guidance and professional support, not gatekeeping.
+                Quests are learning adventures aligned with your child's interests. You can create custom quests based on your family's goals, choose from Optio's library, or let your child propose ideas. Each quest has tasks that earn XP across five learning pillars: STEM, Wellness, Communication, Civics, and Art.
               </p>
             </div>
 
             <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
               <h3 className="text-lg font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                How often do we meet with our teacher?
+                Can extended family members see my child's work?
               </h3>
               <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                That's up to your family! Options range from daily check-ins for more support to quarterly touchpoints for more independent families. Your teacher works around your schedule and needs. It's flexible by design.
+                Yes! You can invite grandparents, mentors, and other trusted adults as "observers." They get read-only access to cheer progress, leave encouragement, and stay connected to your child's learning journey—transforming learning into a shared family experience.
               </p>
             </div>
 
             <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
               <h3 className="text-lg font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                Is this accredited?
+                How do we use this if we're already homeschooling?
               </h3>
               <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Yes, Optio students can earn traditional accredited high school diplomas. We have created a unique system that combines student-driven learning with the necessary structure to meet accreditation standards. Our teachers ensure that your child meets all graduation requirements while pursuing their passions.
+                Optio complements any homeschool approach. Use it to document what you're already doing, add gamification to boost motivation, track progress across subjects, and build a portfolio that proves learning to colleges. It's a tool that fits YOUR family's existing rhythm.
               </p>
             </div>
 
             <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
               <h3 className="text-lg font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                What if we're already homeschooling?
+                What happens to the work my child has already done?
               </h3>
               <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Perfect! Many Optio families are already homeschooling and use our teachers as professional support to enhance what they're already doing. Your teacher can offer guidance, provide accountability, and bring the expertise you've been looking for.
+                You can manually upload past work to their portfolio to give context and show growth over time. While current work flows in automatically, we make it easy to backfill evidence of previous learning so your child's full story is told.
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Final CTA - Consultation Focused */}
+      {/* Final CTA - Platform Signup */}
       <div className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Ready to Talk?</h2>
+            <h2 className="text-3xl sm:text-4xl font-bold mb-4 text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Ready to Get Started?</h2>
             <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              Connect with an Optio teacher to explore how we can support your family's learning journey.
+              Join families who are transforming learning into proof of capability. Free to start, easy to use.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
               <Link
-                to="/consultation"
+                to="/register"
                 className="bg-gradient-primary text-white hover:shadow-lg text-lg px-8 py-4 rounded-lg font-bold transition-all inline-flex items-center transform hover:scale-105"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
-                <Users className="mr-2 w-5 h-5" aria-hidden="true" />
-                Schedule Consultation
+                <BookOpen className="mr-2 w-5 h-5" aria-hidden="true" />
+                Create Free Account
               </Link>
               <Link
                 to="/demo"

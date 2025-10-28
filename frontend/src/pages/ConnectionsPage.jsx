@@ -5,53 +5,35 @@ import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import {
   useFriends,
-  useFriendsActivity,
   useSendFriendRequest,
   useAcceptFriendRequest,
   useDeclineFriendRequest,
   useCancelFriendRequest,
-  // useCollaborations, // REMOVED - Phase 3 refactoring (January 2025)
 } from '../hooks/api/useFriends'
-// import { collaborationAPI } from '../services/api' // REMOVED - Phase 3 refactoring (January 2025)
-// import { hasFeatureAccess } from '../utils/tierMapping' // REMOVED - Phase 3 refactoring (January 2025)
 
 // Import new components
 import ConnectionsHeader from '../components/connections/ConnectionsHeader'
-import ConnectionsTabs from '../components/connections/ConnectionsTabs'
-import ActivityFeedTab from '../components/connections/ActivityFeed/ActivityFeedTab'
-import ConnectionsTab from '../components/connections/YourConnections/ConnectionsTab'
-import InvitationsTab from '../components/connections/Invitations/InvitationsTab'
-import AddConnectionModal from '../components/connections/Modals/AddConnectionModal'
+import QuickActions from '../components/connections/QuickActions'
+import NetworkSection from '../components/connections/NetworkSection'
+import InviteParentModal from '../components/connections/Modals/InviteParentModal'
+import AddLearningPartnerModal from '../components/connections/Modals/AddLearningPartnerModal'
 
 const ConnectionsPage = () => {
   const navigate = useNavigate()
   const { user } = useAuth()
 
   // State
-  const [activeTab, setActiveTab] = useState('activity')
-  const [showAddModal, setShowAddModal] = useState(false)
+  const [showInviteParentModal, setShowInviteParentModal] = useState(false)
+  const [showAddPartnerModal, setShowAddPartnerModal] = useState(false)
   const [returnToQuest, setReturnToQuest] = useState(null)
   const [parentRequests, setParentRequests] = useState([])
+  const [sendingParentInvite, setSendingParentInvite] = useState(false)
 
-  // React Query hooks - Connections feature is available to ALL users including free tier
+  // React Query hooks
   const {
     data: friendsData,
     isLoading: loadingFriends,
   } = useFriends(user?.id, {
-    enabled: !!user?.id,
-  })
-
-  // const { // REMOVED - Phase 3 refactoring (January 2025)
-  //   data: collaborationsData,
-  //   isLoading: loadingCollaborations,
-  // } = useCollaborations(user?.id, {
-  //   enabled: !!user?.id,
-  // })
-
-  const {
-    data: activityData,
-    isLoading: loadingActivity,
-  } = useFriendsActivity(user?.id, {
     enabled: !!user?.id,
   })
 
@@ -61,18 +43,13 @@ const ConnectionsPage = () => {
   const declineFriendRequestMutation = useDeclineFriendRequest()
   const cancelFriendRequestMutation = useCancelFriendRequest()
 
-  // Connections feature is available to ALL users - no tier restriction
-  const hasAccess = true
-
   // Extract data from React Query
   const friends = friendsData?.friends || []
   const pendingRequests = friendsData?.pending_requests || []
   const sentRequests = friendsData?.sent_requests || []
-  // const teamInvitations = collaborationsData?.received_invitations || [] // REMOVED - Phase 3 refactoring (January 2025)
-  // const sentTeamInvitations = collaborationsData?.sent_invitations || [] // REMOVED - Phase 3 refactoring (January 2025)
 
   // Loading state
-  const loading = loadingFriends || loadingActivity // loadingCollaborations removed (Phase 3 refactoring)
+  const loading = loadingFriends
 
   // Check if we should return to a quest after adding friends
   useEffect(() => {
@@ -97,9 +74,6 @@ const ConnectionsPage = () => {
       loadParentRequests()
     }
   }, [user])
-
-  // Get activity feed from API
-  const activities = activityData?.activities || []
 
   // Helper function to format time ago
   const formatTimeAgo = (timestamp) => {
@@ -131,38 +105,37 @@ const ConnectionsPage = () => {
     timeAgo: formatTimeAgo(req.requested_at),
   }))
 
-  // Team-up invitations removed - Phase 3 refactoring (January 2025)
-  // const formattedTeamInvitations = teamInvitations.map((invite) => ({
-  //   ...invite,
-  //   timeAgo: formatTimeAgo(invite.created_at),
-  // }))
-
-  // const formattedSentTeamInvitations = sentTeamInvitations.map((invite) => ({
-  //   ...invite,
-  //   timeAgo: formatTimeAgo(invite.created_at),
-  // }))
-
   // Handlers
   const handleBackToQuest = () => {
     sessionStorage.removeItem('returnToQuest')
     navigate(`/quests/${returnToQuest}`)
   }
 
-  const handleSendRequest = (email, message) => {
+  const handleSendPartnerRequest = (email, message) => {
     sendFriendRequestMutation.mutate(email, {
       onSuccess: () => {
-        if (returnToQuest) {
-          toast.success("Connection request sent! Once accepted, you can team up on the quest.")
-        } else {
-          toast.success("Connection request sent!")
-        }
-        setShowAddModal(false)
-        setActiveTab('invitations') // Switch to invitations tab
+        toast.success("Connection request sent!")
+        setShowAddPartnerModal(false)
       },
       onError: (error) => {
         toast.error(error.response?.data?.error || 'Failed to send connection request')
       },
     })
+  }
+
+  const handleSendParentInvite = async (email, message) => {
+    try {
+      setSendingParentInvite(true)
+      await api.post('/api/parents/invite', { email, message })
+      toast.success('Parent invitation sent!')
+      setShowInviteParentModal(false)
+    } catch (error) {
+      console.error('Error sending parent invite:', error)
+      const errorMessage = error.response?.data?.error || 'Failed to send parent invitation'
+      toast.error(errorMessage)
+    } finally {
+      setSendingParentInvite(false)
+    }
   }
 
   const handleAcceptRequest = (friendshipId) => {
@@ -209,11 +182,6 @@ const ConnectionsPage = () => {
     }
   }
 
-  // Team-up handlers removed - Phase 3 refactoring (January 2025)
-  // const handleAcceptTeamInvite = async (inviteId, questId) => { ... }
-  // const handleDeclineTeamInvite = async (inviteId) => { ... }
-  // const handleCancelTeamInvite = async (inviteId) => { ... }
-
   // Loading state
   if (loading) {
     return (
@@ -223,58 +191,44 @@ const ConnectionsPage = () => {
     )
   }
 
-  // Connections feature is available to all users - no upgrade wall needed
-
   return (
     <div className="min-h-screen bg-white">
       <ConnectionsHeader returnToQuest={returnToQuest} onBackToQuest={handleBackToQuest} />
 
-      <ConnectionsTabs
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        counts={{
-          connections: friends.length,
-          pendingRequests: pendingRequests.length,
-          // teamInvitations: teamInvitations.length, // REMOVED - Phase 3 refactoring (January 2025)
-        }}
+      <QuickActions
+        onInviteParent={() => setShowInviteParentModal(true)}
+        onConnectPartner={() => setShowAddPartnerModal(true)}
       />
 
-      {activeTab === 'activity' && (
-        <ActivityFeedTab
-          activities={activities}
-          onAddConnection={() => setShowAddModal(true)}
-        />
-      )}
+      <NetworkSection
+        // Family/Parent props
+        familyConnections={friends.filter(f => f.role === 'parent' || f.parent_name)} // Basic filtering - can improve later
+        pendingParentRequests={formattedParentRequests}
+        onAcceptParentRequest={handleAcceptParentRequest}
+        onDeclineParentRequest={handleDeclineParentRequest}
+        onInviteParent={() => setShowInviteParentModal(true)}
+        // Learning Partner props
+        learningPartners={friends.filter(f => !f.role || f.role !== 'parent')} // Basic filtering
+        pendingPartnerRequests={formattedPendingRequests}
+        sentPartnerRequests={formattedSentRequests}
+        onAcceptPartnerRequest={handleAcceptRequest}
+        onDeclinePartnerRequest={handleDeclineRequest}
+        onCancelPartnerRequest={handleCancelRequest}
+        onConnectPartner={() => setShowAddPartnerModal(true)}
+      />
 
-      {activeTab === 'connections' && (
-        <ConnectionsTab
-          connections={friends}
-          onAddConnection={() => setShowAddModal(true)}
-        />
-      )}
+      {/* Modals */}
+      <InviteParentModal
+        isOpen={showInviteParentModal}
+        onClose={() => setShowInviteParentModal(false)}
+        onSendInvite={handleSendParentInvite}
+        isLoading={sendingParentInvite}
+      />
 
-      {activeTab === 'invitations' && (
-        <InvitationsTab
-          pendingRequests={formattedPendingRequests}
-          sentRequests={formattedSentRequests}
-          parentRequests={formattedParentRequests}
-          // teamInvitations={formattedTeamInvitations} // REMOVED - Phase 3 refactoring (January 2025)
-          // sentTeamInvitations={formattedSentTeamInvitations} // REMOVED - Phase 3 refactoring (January 2025)
-          onAcceptRequest={handleAcceptRequest}
-          onDeclineRequest={handleDeclineRequest}
-          onCancelRequest={handleCancelRequest}
-          onAcceptParentRequest={handleAcceptParentRequest}
-          onDeclineParentRequest={handleDeclineParentRequest}
-          // onAcceptTeamInvite={handleAcceptTeamInvite} // REMOVED - Phase 3 refactoring (January 2025)
-          // onDeclineTeamInvite={handleDeclineTeamInvite} // REMOVED - Phase 3 refactoring (January 2025)
-          // onCancelTeamInvite={handleCancelTeamInvite} // REMOVED - Phase 3 refactoring (January 2025)
-        />
-      )}
-
-      <AddConnectionModal
-        isOpen={showAddModal}
-        onClose={() => setShowAddModal(false)}
-        onSendRequest={handleSendRequest}
+      <AddLearningPartnerModal
+        isOpen={showAddPartnerModal}
+        onClose={() => setShowAddPartnerModal(false)}
+        onSendRequest={handleSendPartnerRequest}
         isLoading={sendFriendRequestMutation.isPending}
       />
     </div>
