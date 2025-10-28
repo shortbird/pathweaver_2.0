@@ -69,7 +69,6 @@ const DemoHero = ({ onStart }) => {
             <span className="flex items-center gap-3">
               <Play className="w-6 h-6 group-hover:animate-pulse" />
               Start Your 2-Minute Adventure
-              <Sparkles className="w-5 h-5" />
             </span>
 
             <span className="absolute inset-0 rounded-full bg-white/20 animate-pulse" />
@@ -80,12 +79,6 @@ const DemoHero = ({ onStart }) => {
           </p>
         </div>
 
-        {/* Philosophy Box */}
-        <div className="bg-gradient-to-r from-[#ef597b]/10 to-[#6d469b]/10 rounded-xl p-6 max-w-3xl mx-auto mt-8">
-          <p className="text-gray-700 italic">
-            "Every quest is an adventure. Pick what sparks your curiosity—there's no wrong choice."
-          </p>
-        </div>
       </div>
     </div>
   );

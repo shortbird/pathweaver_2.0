@@ -32,16 +32,16 @@ const QuestSelector = () => {
   };
 
   const additionalQuests = [
-    { title: "Build a Weather App", xp: 300, pillar: "practical_skills" },
+    { title: "Build a Weather App", xp: 300, pillar: "stem" },
     { title: "Create a Podcast Series", xp: 350, pillar: "communication" },
-    { title: "Design a Board Game", xp: 400, pillar: "creativity" },
-    { title: "Local History Documentary", xp: 350, pillar: "cultural_literacy" },
+    { title: "Design a Board Game", xp: 400, pillar: "art" },
+    { title: "Local History Documentary", xp: 350, pillar: "civics" },
     { title: "Learn Sign Language", xp: 300, pillar: "communication" },
-    { title: "Community Garden Project", xp: 400, pillar: "practical_skills" },
-    { title: "Write a Children's Book", xp: 350, pillar: "creativity" },
-    { title: "Solar Power Experiment", xp: 300, pillar: "critical_thinking" },
-    { title: "Cultural Exchange Blog", xp: 300, pillar: "cultural_literacy" },
-    { title: "3D Printing Workshop", xp: 350, pillar: "practical_skills" },
+    { title: "Community Garden Project", xp: 400, pillar: "wellness" },
+    { title: "Write a Children's Book", xp: 350, pillar: "art" },
+    { title: "Solar Power Experiment", xp: 300, pillar: "stem" },
+    { title: "Cultural Exchange Blog", xp: 300, pillar: "civics" },
+    { title: "3D Printing Workshop", xp: 350, pillar: "stem" },
     // Add more to reach 100+
   ];
 
