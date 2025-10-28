@@ -64,7 +64,7 @@ const QuestDetail = () => {
   useEffect(() => {
     const fetchLibraryCount = async () => {
       // Only fetch for Optio quests (not course quests)
-      if (!quest || quest.source !== 'optio') return;
+      if (!quest || quest.quest_type !== 'optio') return;
 
       setLoadingLibraryCount(true);
       try {
@@ -84,7 +84,7 @@ const QuestDetail = () => {
   // Reusable function to refetch library tasks
   const refetchLibraryTasks = async () => {
     // Only fetch if user is enrolled in an Optio quest
-    if (!quest || !quest.user_enrollment || quest.source !== 'optio') {
+    if (!quest || !quest.user_enrollment || quest.quest_type !== 'optio') {
       setLibraryTasks([]);
       return;
     }
@@ -106,8 +106,8 @@ const QuestDetail = () => {
     console.log('[LIBRARY] useEffect triggered:', {
       hasQuest: !!quest,
       hasEnrollment: !!quest?.user_enrollment,
-      source: quest?.source,
-      isOptio: quest?.source === 'optio',
+      quest_type: quest?.quest_type,
+      isOptio: quest?.quest_type === 'optio',
       questId: quest?.id
     });
     refetchLibraryTasks();
@@ -426,7 +426,7 @@ const QuestDetail = () => {
   const seasonalDisplay = getSeasonalDisplay();
 
   // Get quest header image
-  const questImage = quest.image_url || quest.header_image_url || getQuestHeaderImageSync(quest.source);
+  const questImage = quest.image_url || quest.header_image_url || getQuestHeaderImageSync(quest.quest_type);
 
   return (
     <div className="min-h-screen bg-gray-50 pt-[50px] sm:pt-0">
@@ -772,12 +772,12 @@ const QuestDetail = () => {
 
           {/* Task Library Section - ALWAYS show if enrolled in active Optio quest */}
           {(() => {
-            const showLibrary = quest.user_enrollment && quest.source === 'optio' && !isQuestCompleted;
+            const showLibrary = quest.user_enrollment && quest.quest_type === 'optio' && !isQuestCompleted;
             console.log('[LIBRARY] Render conditions:', {
               hasEnrollment: !!quest.user_enrollment,
               enrollment: quest.user_enrollment,
-              source: quest.source,
-              isOptio: quest.source === 'optio',
+              quest_type: quest.quest_type,
+              isOptio: quest.quest_type === 'optio',
               isQuestCompleted,
               completedEnrollment: quest.completed_enrollment,
               progressPercentage: quest.progress?.percentage,
