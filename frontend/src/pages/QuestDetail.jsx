@@ -729,61 +729,89 @@ const QuestDetail = () => {
               </div>
 
               {/* Task Library Section - Show if enrolled in Optio quest */}
-              {quest.user_enrollment && quest.source === 'optio' && !isQuestCompleted && libraryTasks.length > 0 && (
+              {quest.user_enrollment && quest.source === 'optio' && !isQuestCompleted && (
                 <div className="mb-8">
                   <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
                     Task Library
                   </h2>
-                  <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {libraryTasks.map((task) => {
-                      const pillarData = getPillarData(task.pillar);
-                      const isAdding = addingTaskId === task.id;
 
-                      return (
-                        <div
-                          key={task.id}
-                          className="border-2 border-gray-200 rounded-xl p-5 hover:shadow-lg transition-all bg-white"
-                        >
-                          {/* Task Title */}
-                          <h4 className="font-bold text-lg mb-2 line-clamp-2" style={{ fontFamily: 'Poppins' }}>
-                            {task.title}
-                          </h4>
+                  {loadingLibraryTasks ? (
+                    <div className="text-center py-8">
+                      <div className="animate-pulse">
+                        <div className="h-6 bg-gray-300 rounded w-1/3 mx-auto"></div>
+                      </div>
+                    </div>
+                  ) : libraryTasks.length > 0 ? (
+                    <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {libraryTasks.map((task) => {
+                        const pillarData = getPillarData(task.pillar);
+                        const isAdding = addingTaskId === task.id;
 
-                          {/* Task Description */}
-                          <p className="text-gray-600 text-sm mb-4 line-clamp-3" style={{ fontFamily: 'Poppins' }}>
-                            {task.description}
-                          </p>
-
-                          {/* Badges */}
-                          <div className="flex items-center gap-2 mb-4">
-                            <div className="px-3 py-1 rounded-full text-xs font-semibold" style={{ backgroundColor: pillarData.color, color: 'white' }}>
-                              {pillarData.name}
-                            </div>
-                            <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
-                              {task.xp_value} XP
-                            </div>
-                          </div>
-
-                          {/* Add Task Button */}
-                          <button
-                            onClick={() => handleAddTask(task.id)}
-                            disabled={isAdding}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all disabled:opacity-50 font-semibold"
-                            style={{ fontFamily: 'Poppins' }}
+                        return (
+                          <div
+                            key={task.id}
+                            className="border-2 border-gray-200 rounded-xl p-5 hover:shadow-lg transition-all bg-white"
                           >
-                            {isAdding ? (
-                              'Adding...'
-                            ) : (
-                              <>
-                                <Plus className="w-4 h-4" />
-                                Add Task
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
+                            {/* Task Title */}
+                            <h4 className="font-bold text-lg mb-2 line-clamp-2" style={{ fontFamily: 'Poppins' }}>
+                              {task.title}
+                            </h4>
+
+                            {/* Task Description */}
+                            <p className="text-gray-600 text-sm mb-4 line-clamp-3" style={{ fontFamily: 'Poppins' }}>
+                              {task.description}
+                            </p>
+
+                            {/* Badges */}
+                            <div className="flex items-center gap-2 mb-4">
+                              <div className="px-3 py-1 rounded-full text-xs font-semibold" style={{ backgroundColor: pillarData.color, color: 'white' }}>
+                                {pillarData.name}
+                              </div>
+                              <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                                {task.xp_value} XP
+                              </div>
+                            </div>
+
+                            {/* Add Task Button */}
+                            <button
+                              onClick={() => handleAddTask(task.id)}
+                              disabled={isAdding}
+                              className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all disabled:opacity-50 font-semibold"
+                              style={{ fontFamily: 'Poppins' }}
+                            >
+                              {isAdding ? (
+                                'Adding...'
+                              ) : (
+                                <>
+                                  <Plus className="w-4 h-4" />
+                                  Add Task
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+                      <BookOpen className="w-10 h-10 mx-auto mb-3 text-gray-400" />
+                      <p className="text-gray-600 mb-2" style={{ fontFamily: 'Poppins' }}>
+                        No additional tasks available yet
+                      </p>
+                      <p className="text-sm text-gray-500 max-w-md mx-auto" style={{ fontFamily: 'Poppins' }}>
+                        {quest.quest_tasks && quest.quest_tasks.length > 0
+                          ? "You've added all available tasks from the library. Generate more custom tasks to continue learning!"
+                          : "This quest doesn't have any pre-generated tasks yet. Generate your first set of personalized tasks!"}
+                      </p>
+                      <button
+                        onClick={() => setShowPersonalizationWizard(true)}
+                        className="mt-4 px-6 py-2 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90"
+                        style={{ fontFamily: 'Poppins' }}
+                      >
+                        Generate More Tasks
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </>
