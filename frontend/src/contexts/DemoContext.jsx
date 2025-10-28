@@ -16,13 +16,14 @@ const DEMO_QUESTS = [
     title: 'Create an Original Music Composition',
     description: 'Compose and perform your own original piece of music',
     tasks: [
-      { id: 'theory', title: 'Learn music theory basics', pillar: 'critical_thinking', xp: 75 },
-      { id: 'compose', title: 'Compose your piece', pillar: 'creativity', xp: 100 },
-      { id: 'record', title: 'Record your performance', pillar: 'practical_skills', xp: 75 },
+      { id: 'theory', title: 'Learn music theory basics', pillar: 'stem', xp: 75 },
+      { id: 'compose', title: 'Compose your piece', pillar: 'art', xp: 100 },
+      { id: 'record', title: 'Record your performance', pillar: 'art', xp: 75 },
       { id: 'share', title: 'Share with community', pillar: 'communication', xp: 50 },
     ],
     totalXP: 300,
-    appeal: 'Perfect for students with creative passions'
+    appeal: 'Perfect for students with creative passions',
+    pillars: ['stem', 'art', 'communication']
   },
   {
     id: 'family-recipes',
@@ -30,38 +31,41 @@ const DEMO_QUESTS = [
     description: 'Document and preserve your family culinary traditions',
     tasks: [
       { id: 'interview', title: 'Interview family members', pillar: 'communication', xp: 75 },
-      { id: 'document', title: 'Document recipes', pillar: 'cultural_literacy', xp: 100 },
-      { id: 'test', title: 'Test cooking recipes', pillar: 'practical_skills', xp: 100 },
-      { id: 'design', title: 'Design digital book', pillar: 'creativity', xp: 75 },
+      { id: 'document', title: 'Document recipes', pillar: 'civics', xp: 100 },
+      { id: 'test', title: 'Test cooking recipes', pillar: 'wellness', xp: 100 },
+      { id: 'design', title: 'Design digital book', pillar: 'art', xp: 75 },
     ],
     totalXP: 350,
-    appeal: 'Turns family activities into academic credit'
+    appeal: 'Turns family activities into academic credit',
+    pillars: ['communication', 'civics', 'wellness', 'art']
   },
   {
     id: 'small-business',
     title: 'Start a Small Business',
     description: 'Launch your own entrepreneurial venture',
     tasks: [
-      { id: 'research', title: 'Market research', pillar: 'cultural_literacy', xp: 100 },
+      { id: 'research', title: 'Market research', pillar: 'civics', xp: 100 },
       { id: 'plan', title: 'Create business plan', pillar: 'communication', xp: 100 },
-      { id: 'build', title: 'Build product/service', pillar: 'practical_skills', xp: 100 },
-      { id: 'customer', title: 'Get first customer', pillar: 'cultural_literacy', xp: 100 },
+      { id: 'build', title: 'Build product/service', pillar: 'stem', xp: 100 },
+      { id: 'customer', title: 'Get first customer', pillar: 'communication', xp: 100 },
     ],
     totalXP: 400,
-    appeal: 'Real entrepreneurship experience'
+    appeal: 'Real entrepreneurship experience',
+    pillars: ['civics', 'communication', 'stem']
   },
   {
     id: 'volunteer-impact',
     title: 'Document Your Volunteer Impact',
     description: 'Showcase your community service and its real impact',
     tasks: [
-      { id: 'choose', title: 'Choose your cause', pillar: 'critical_thinking', xp: 75 },
-      { id: 'serve', title: 'Complete 20 hours service', pillar: 'practical_skills', xp: 100 },
+      { id: 'choose', title: 'Choose your cause', pillar: 'civics', xp: 75 },
+      { id: 'serve', title: 'Complete 20 hours service', pillar: 'wellness', xp: 100 },
       { id: 'interview', title: 'Interview beneficiaries', pillar: 'communication', xp: 100 },
-      { id: 'report', title: 'Create impact report', pillar: 'cultural_literacy', xp: 75 },
+      { id: 'report', title: 'Create impact report', pillar: 'communication', xp: 75 },
     ],
     totalXP: 350,
-    appeal: 'Validates community service already being done'
+    appeal: 'Validates community service already being done',
+    pillars: ['civics', 'wellness', 'communication']
   }
 ];
 
@@ -73,12 +77,13 @@ const initialState = {
   selectedQuests: [], // For multiple quest starts
   completedTasks: [],
   earnedXP: {
-    creativity: 0,
-    critical_thinking: 0,
-    practical_skills: 0,
+    stem: 0,
+    wellness: 0,
     communication: 0,
-    cultural_literacy: 0
+    civics: 0,
+    art: 0
   },
+  unlockedBadges: [], // NEW: Track badge unlocks in demo
   userInputs: {
     name: '',
     learnerName: '',
@@ -98,7 +103,10 @@ const initialState = {
   },
   // Work submission states
   submittedWork: [],
-  workVisibility: {} // questId -> { taskId: 'public' | 'confidential' }
+  workVisibility: {}, // questId -> { taskId: 'public' | 'confidential' }
+  // NEW: Mini-quest experience state
+  miniQuestCompleted: false,
+  simulatedTaskCompleted: false
 };
 
 export const DemoProvider = ({ children }) => {
@@ -269,6 +277,31 @@ export const DemoProvider = ({ children }) => {
     }));
   }, []);
 
+  // NEW: Complete simulated mini-quest task
+  const completeSimulatedTask = useCallback((pillar, xp) => {
+    setDemoState(prev => ({
+      ...prev,
+      simulatedTaskCompleted: true,
+      earnedXP: {
+        ...prev.earnedXP,
+        [pillar]: prev.earnedXP[pillar] + xp
+      }
+    }));
+  }, []);
+
+  // NEW: Unlock badge
+  const unlockBadge = useCallback((badgeData) => {
+    setDemoState(prev => ({
+      ...prev,
+      unlockedBadges: [...prev.unlockedBadges, badgeData]
+    }));
+  }, []);
+
+  // NEW: Calculate total XP
+  const calculateTotalXP = useCallback(() => {
+    return Object.values(demoState.earnedXP).reduce((sum, xp) => sum + xp, 0);
+  }, [demoState.earnedXP]);
+
   const value = {
     demoState,
     demoQuests: DEMO_QUESTS,
@@ -278,6 +311,9 @@ export const DemoProvider = ({ children }) => {
       toggleQuestSelection,
       completeTask,
       submitWork,
+      completeSimulatedTask,
+      unlockBadge,
+      calculateTotalXP,
       generateDiploma,
       showVisionaryTier,
       nextStep,

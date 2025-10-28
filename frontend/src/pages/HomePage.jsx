@@ -40,7 +40,7 @@ const HomePage = () => {
               Raise doers, not dependents.
             </h1>
             <p className="text-xl sm:text-2xl md:text-3xl text-white/95 max-w-4xl mx-auto leading-relaxed mb-10" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              Transform your child's learning into a professional portfolio—automatically. Give colleges and employers proof of what your kids can actually do.
+              Transform your child's learning into a professional portfolio.
             </p>
 
             {/* CTAs */}
