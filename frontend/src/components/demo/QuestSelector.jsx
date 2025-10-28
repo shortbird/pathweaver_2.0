@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDemo } from '../../contexts/DemoContext';
-import { 
-  BookOpen, Code, Camera, Heart, Palette, Calculator, 
+import {
+  BookOpen, Code, Camera, Heart, Palette, Calculator,
   ChefHat, Briefcase, Globe, Plus, Check, Info, Search
 } from 'lucide-react';
 import InfoModal from './InfoModal';
@@ -11,6 +11,13 @@ const QuestSelector = () => {
   const { selectedQuests } = demoState;
   const [showLibraryModal, setShowLibraryModal] = useState(false);
   const [hoveredQuest, setHoveredQuest] = useState(null);
+
+  // Pre-select family recipe quest on mount
+  useEffect(() => {
+    if (selectedQuests.length === 0) {
+      actions.toggleQuestSelection('family-recipes');
+    }
+  }, []);
 
   const questIcons = {
     'family-recipes': <ChefHat className="w-6 h-6" />,

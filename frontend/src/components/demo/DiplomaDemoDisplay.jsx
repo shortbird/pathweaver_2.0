@@ -283,11 +283,13 @@ const DiplomaDemoDisplay = () => {
         <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
           <h3 className="font-bold text-base sm:text-lg text-text-primary mb-4">XP by Pillar</h3>
           <div className="space-y-3 sm:space-y-4">
-            {Object.entries(xpData).map(([pillar, xp]) => (
-              <div key={pillar} className="flex flex-col xs:flex-row xs:items-center gap-2">
-                <span className="text-sm font-medium text-gray-700 capitalize flex-shrink-0 xs:w-24 sm:w-auto">
-                  {pillar.replace('_', ' ')}
-                </span>
+            {Object.entries(xpData).map(([pillar, xp]) => {
+              const pillarLabel = pillar === 'communication' ? 'Comm.' : pillar.replace('_', ' ');
+              return (
+                <div key={pillar} className="flex flex-col xs:flex-row xs:items-center gap-2">
+                  <span className="text-sm font-medium text-gray-700 capitalize flex-shrink-0 xs:w-24 sm:w-auto">
+                    {pillarLabel}
+                  </span>
                 <div className="flex items-center gap-2 flex-1 min-w-0">
                   <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden min-w-0">
                     <div
@@ -300,7 +302,8 @@ const DiplomaDemoDisplay = () => {
                   </span>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       </div>
