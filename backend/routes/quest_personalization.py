@@ -546,6 +546,79 @@ def accept_task_immediate(user_id: str, quest_id: str):
             'error': 'Failed to add task'
         }), 500
 
+@bp.route('/<quest_id>/personalization/skip-task', methods=['POST'])
+@require_auth
+def skip_task_save_to_library(user_id: str, quest_id: str):
+    """
+    Save a skipped task to the library so other users can find it.
+    This ensures AI-generated tasks aren't lost when users skip them.
+
+    Request body:
+    {
+        "session_id": "uuid",
+        "task": { task object }
+    }
+    """
+    try:
+        from services.task_library_service import TaskLibraryService
+        from utils.pillar_mapping import normalize_pillar_name
+
+        data = request.get_json()
+
+        session_id = data.get('session_id')
+        task = data.get('task')
+
+        if not session_id or not task:
+            return jsonify({
+                'success': False,
+                'error': 'session_id and task are required'
+            }), 400
+
+        # Normalize pillar name
+        try:
+            pillar_key = normalize_pillar_name(task.get('pillar', 'stem'))
+        except ValueError:
+            pillar_key = 'stem'
+
+        # Handle diploma_subjects format
+        diploma_subjects = task.get('diploma_subjects', {})
+        if isinstance(diploma_subjects, list):
+            total_xp = task.get('xp_value', 100)
+            xp_per = (total_xp // len(diploma_subjects) // 25) * 25
+            remainder = total_xp - (xp_per * len(diploma_subjects))
+            diploma_subjects = {s: xp_per + (remainder if i == 0 else 0) for i, s in enumerate(diploma_subjects)}
+        elif not isinstance(diploma_subjects, dict):
+            diploma_subjects = {'Electives': task.get('xp_value', 100)}
+
+        # Save task to library for future users
+        library_service = TaskLibraryService()
+        library_task_data = {
+            'title': task['title'],
+            'description': task.get('description', ''),
+            'pillar': pillar_key,
+            'xp_value': task.get('xp_value', 100),
+            'diploma_subjects': diploma_subjects,
+            'ai_generated': True
+        }
+        library_service.add_library_task(quest_id, library_task_data)
+
+        logger.info(f"User {user_id} skipped task '{task['title']}' - saved to library for quest {quest_id}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Task saved to library for other students'
+        })
+
+    except Exception as e:
+        logger.error(f"Error saving skipped task to library: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Don't fail the skip operation - just log the error
+        return jsonify({
+            'success': True,
+            'message': 'Task skipped (library save failed)'
+        })
+
 @bp.route('/<quest_id>/personalization-status', methods=['GET'])
 @require_auth
 def get_personalization_status(user_id: str, quest_id: str):

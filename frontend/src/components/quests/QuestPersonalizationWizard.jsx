@@ -138,7 +138,22 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
   };
 
   // Handle skipping a task
-  const handleSkipTask = () => {
+  const handleSkipTask = async () => {
+    const currentTask = generatedTasks[currentTaskIndex];
+
+    // Save skipped task to library for other users (non-blocking)
+    try {
+      await api.post(`/api/quests/${questId}/personalization/skip-task`, {
+        session_id: sessionId,
+        task: currentTask
+      });
+      console.log('Skipped task saved to library:', currentTask.title);
+    } catch (err) {
+      // Don't block the user if library save fails
+      console.warn('Failed to save skipped task to library:', err);
+    }
+
+    // Move to next task or complete wizard
     if (currentTaskIndex < generatedTasks.length - 1) {
       setCurrentTaskIndex(currentTaskIndex + 1);
     } else {

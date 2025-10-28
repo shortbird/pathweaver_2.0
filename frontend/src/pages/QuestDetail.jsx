@@ -193,8 +193,13 @@ const QuestDetail = () => {
       });
 
       if (response.data.success) {
+        // Invalidate React Query cache to force refetch
+        queryClient.invalidateQueries(queryKeys.quests.detail(id));
+
+        // Refetch quest data and library tasks
         await refetchQuest(); // Reload quest with new task
         await refetchLibraryTasks(); // Refresh library to remove added task
+
         toast.success('Task added to your quest!');
       }
     } catch (err) {
@@ -213,8 +218,14 @@ const QuestDetail = () => {
     setDroppingTaskId(taskId);
     try {
       await api.delete(`/api/tasks/${taskId}`);
+
+      // Invalidate React Query cache to force refetch
+      queryClient.invalidateQueries(queryKeys.quests.detail(id));
+
+      // Refetch quest data and library tasks
       await refetchQuest();
       await refetchLibraryTasks(); // Refresh library to show dropped task
+
       toast.success('Task removed from your quest');
     } catch (err) {
       console.error('Failed to drop task:', err);
