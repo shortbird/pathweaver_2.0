@@ -393,3 +393,75 @@ def complete_task(user_id: str, task_id: str):
 # Note: The above functions have been removed because:
 # 1. get_task_completions() - queried non-existent quest_tasks table and had no UI
 # 2. suggest_task() - created quest_tasks entries which conflict with personalized quest system
+
+@bp.route('/<task_id>', methods=['DELETE'])
+@require_auth
+def drop_task(user_id: str, task_id: str):
+    """
+    Drop/remove a task from user's active quest.
+    Allows users to deactivate tasks and re-add them later from the task library.
+
+    Args:
+        user_id: The authenticated user's ID
+        task_id: The ID of the user_quest_tasks record to remove
+
+    Returns:
+        JSON response with success status
+    """
+    try:
+        # Use admin client to ensure delete permissions
+        # User authentication is already enforced by @require_auth decorator
+        supabase = get_supabase_admin_client()
+
+        # Verify task belongs to user
+        task = supabase.table('user_quest_tasks')\
+            .select('id, quest_id, title')\
+            .eq('id', task_id)\
+            .eq('user_id', user_id)\
+            .single()\
+            .execute()
+
+        if not task.data:
+            logger.warning(f"Task {task_id} not found for user {user_id}")
+            return jsonify({
+                'success': False,
+                'error': 'Task not found or not owned by you'
+            }), 404
+
+        task_data = task.data
+
+        # Check if task is already completed
+        completed = supabase.table('quest_task_completions')\
+            .select('id')\
+            .eq('user_quest_task_id', task_id)\
+            .eq('user_id', user_id)\
+            .execute()
+
+        if completed.data:
+            logger.warning(f"Cannot drop completed task {task_id} for user {user_id}")
+            return jsonify({
+                'success': False,
+                'error': 'Cannot remove completed tasks'
+            }), 400
+
+        # Delete the task from user's personalized task list
+        logger.info(f"Deleting task {task_id} ({task_data['title']}) for user {user_id}")
+        delete_result = supabase.table('user_quest_tasks')\
+            .delete()\
+            .eq('id', task_id)\
+            .eq('user_id', user_id)\
+            .execute()
+
+        logger.info(f"Delete result: {delete_result.data}, User {user_id} dropped task {task_id} ({task_data['title']}) from quest {task_data['quest_id']}")
+
+        return jsonify({
+            'success': True,
+            'message': f"Task '{task_data['title']}' removed from your quest"
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error dropping task {task_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to remove task'
+        }), 500

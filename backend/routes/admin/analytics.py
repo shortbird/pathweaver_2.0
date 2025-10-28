@@ -101,6 +101,11 @@ def get_overview_metrics(user_id):
             .eq('status', 'pending').execute()
         pending_count = pending_submissions.count or 0
 
+        # Get flagged tasks count
+        flagged_tasks = supabase.table('quest_sample_tasks').select('id', count='exact')\
+            .eq('is_flagged', True).execute()
+        flagged_tasks_count = flagged_tasks.count or 0
+
         # Get subscription distribution (return as array for frontend)
         subscription_stats = []
         # Use all valid subscription tiers from database schema
@@ -132,6 +137,7 @@ def get_overview_metrics(user_id):
                 'quest_completions_week': completions_week,
                 'total_xp_week': total_xp_week,
                 'pending_submissions': pending_count,
+                'flagged_tasks_count': flagged_tasks_count,
                 'engagement_rate': engagement_rate,
                 'subscription_distribution': subscription_stats,
                 'last_updated': now.isoformat()
@@ -151,6 +157,7 @@ def get_overview_metrics(user_id):
                 'quest_completions_week': 0,
                 'total_xp_week': 0,
                 'pending_submissions': 0,
+                'flagged_tasks_count': 0,
                 'engagement_rate': 0,
                 'subscription_distribution': [
                     {'tier': 'free', 'count': 0},

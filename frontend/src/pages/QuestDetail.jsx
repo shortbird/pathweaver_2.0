@@ -4,12 +4,14 @@ import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import { useQuestDetail, useEnrollQuest, useCompleteTask, useEndQuest } from '../hooks/api/useQuests';
 import { handleApiResponse } from '../utils/errorHandling';
+import api from '../services/api';
 import { getPillarData, normalizePillarKey } from '../utils/pillarMappings';
 import { queryKeys } from '../utils/queryKeys';
 import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import TaskDetailModal from '../components/quest/TaskDetailModal';
 import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
 import SampleTaskCard from '../components/quest/SampleTaskCard';
+import TaskLibraryView from '../components/quest-library/TaskLibraryView';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
 import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus, ArrowLeft, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -49,6 +51,67 @@ const QuestDetail = () => {
   const [taskDetailToShow, setTaskDetailToShow] = useState(null);
   const [showPersonalizationWizard, setShowPersonalizationWizard] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState(new Set());
+
+  // Task library state (for Optio quests)
+  const [libraryCount, setLibraryCount] = useState(null);
+  const [loadingLibraryCount, setLoadingLibraryCount] = useState(false);
+  const [libraryTasks, setLibraryTasks] = useState([]);
+  const [loadingLibraryTasks, setLoadingLibraryTasks] = useState(false);
+  const [addingTaskId, setAddingTaskId] = useState(null);
+  const [droppingTaskId, setDroppingTaskId] = useState(null);
+
+  // Fetch library count for Optio quests
+  useEffect(() => {
+    const fetchLibraryCount = async () => {
+      // Only fetch for Optio quests (not course quests)
+      if (!quest || quest.quest_type !== 'optio') return;
+
+      setLoadingLibraryCount(true);
+      try {
+        const response = await api.get(`/api/quests/${id}/task-library/count`);
+        setLibraryCount(response.data.count || 0);
+      } catch (err) {
+        console.error('Failed to fetch library count:', err);
+        setLibraryCount(0); // Default to 0 on error
+      } finally {
+        setLoadingLibraryCount(false);
+      }
+    };
+
+    fetchLibraryCount();
+  }, [quest, id]);
+
+  // Reusable function to refetch library tasks
+  const refetchLibraryTasks = async () => {
+    // Only fetch if user is enrolled in an Optio quest
+    if (!quest || !quest.user_enrollment || quest.quest_type !== 'optio') {
+      setLibraryTasks([]);
+      return;
+    }
+
+    setLoadingLibraryTasks(true);
+    try {
+      const response = await api.get(`/api/quests/${id}/task-library`);
+      setLibraryTasks(response.data.tasks || []);
+    } catch (err) {
+      console.error('Failed to fetch library tasks:', err);
+      setLibraryTasks([]);
+    } finally {
+      setLoadingLibraryTasks(false);
+    }
+  };
+
+  // Fetch library tasks for enrolled Optio quests
+  useEffect(() => {
+    console.log('[LIBRARY] useEffect triggered:', {
+      hasQuest: !!quest,
+      hasEnrollment: !!quest?.user_enrollment,
+      quest_type: quest?.quest_type,
+      isOptio: quest?.quest_type === 'optio',
+      questId: quest?.id
+    });
+    refetchLibraryTasks();
+  }, [quest, id]);
 
   // Handle error display
   if (error) {
@@ -101,10 +164,16 @@ const QuestDetail = () => {
           // Course quest - tasks are already added, just show success
           toast.success('Enrolled! Your course tasks are ready.');
         } else {
-          // Optio quest - show personalization wizard after successful enrollment
-          setTimeout(() => {
-            setShowPersonalizationWizard(true);
-          }, 100);
+          // Optio quest - check library count to decide flow
+          if (libraryCount === 0) {
+            // No library tasks available - show wizard immediately
+            setTimeout(() => {
+              setShowPersonalizationWizard(true);
+            }, 100);
+          } else {
+            // Library has tasks - let user browse first, don't auto-show wizard
+            toast.success('Enrolled! Browse the task library below or generate custom tasks.');
+          }
         }
       },
       onError: (error) => {
@@ -121,6 +190,74 @@ const QuestDetail = () => {
 
   const handlePersonalizationCancel = () => {
     setShowPersonalizationWizard(false);
+  };
+
+  const handleAddTask = async (sampleTaskId) => {
+    setAddingTaskId(sampleTaskId);
+    try {
+      const response = await api.post(`/api/quests/${id}/task-library/select`, {
+        sample_task_id: sampleTaskId
+      });
+
+      if (response.data.success) {
+        // Invalidate React Query cache to force refetch
+        queryClient.invalidateQueries(queryKeys.quests.detail(id));
+
+        // Refetch quest data and library tasks
+        await refetchQuest(); // Reload quest with new task
+        await refetchLibraryTasks(); // Refresh library to remove added task
+
+        toast.success('Task added to your quest!');
+      }
+    } catch (err) {
+      console.error('Failed to add task:', err);
+      toast.error(err.response?.data?.error || 'Failed to add task');
+    } finally {
+      setAddingTaskId(null);
+    }
+  };
+
+  const handleDropTask = async (taskId) => {
+    if (!window.confirm('Remove this task from your active quest? You can add it back later from the task library.')) {
+      return;
+    }
+
+    console.log('[DROP TASK] Starting drop for task ID:', taskId);
+    setDroppingTaskId(taskId);
+
+    try {
+      console.log('[DROP TASK] Calling DELETE /api/tasks/' + taskId);
+      const response = await api.delete(`/api/tasks/${taskId}`);
+      console.log('[DROP TASK] Delete response:', response.data);
+
+      // Invalidate React Query cache to force refetch
+      console.log('[DROP TASK] Invalidating query cache');
+      queryClient.invalidateQueries(queryKeys.quests.detail(id));
+
+      // Refetch quest data and library tasks
+      console.log('[DROP TASK] Refetching quest data');
+      const refetchResult = await refetchQuest();
+      console.log('[DROP TASK] Refetch result:', refetchResult?.data?.quest_tasks?.length, 'tasks');
+      console.log('[DROP TASK] Full refetch data:', {
+        hasData: !!refetchResult?.data,
+        questId: refetchResult?.data?.id,
+        taskCount: refetchResult?.data?.quest_tasks?.length,
+        taskIds: refetchResult?.data?.quest_tasks?.map(t => t.id.substring(0, 8)),
+        droppedTaskStillPresent: refetchResult?.data?.quest_tasks?.some(t => t.id === taskId)
+      });
+
+      console.log('[DROP TASK] Refetching library tasks');
+      await refetchLibraryTasks();
+      console.log('[DROP TASK] Library refetch complete');
+
+      toast.success('Task removed from your quest');
+    } catch (err) {
+      console.error('[DROP TASK] Error:', err);
+      toast.error(err.response?.data?.error || 'Failed to remove task');
+    } finally {
+      console.log('[DROP TASK] Clearing dropping state');
+      setDroppingTaskId(null);
+    }
   };
 
   const handleEndQuest = async () => {
@@ -289,7 +426,7 @@ const QuestDetail = () => {
   const seasonalDisplay = getSeasonalDisplay();
 
   // Get quest header image
-  const questImage = quest.image_url || quest.header_image_url || getQuestHeaderImageSync(quest.source);
+  const questImage = quest.image_url || quest.header_image_url || getQuestHeaderImageSync(quest.quest_type);
 
   return (
     <div className="min-h-screen bg-gray-50 pt-[50px] sm:pt-0">
@@ -484,140 +621,296 @@ const QuestDetail = () => {
         <div className="mb-8">
           {quest.quest_tasks && quest.quest_tasks.length > 0 ? (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 mb-6">
-                {[...quest.quest_tasks]
-                  .sort((a, b) => {
-                    // Sort incomplete tasks first, completed tasks last
-                    if (a.is_completed === b.is_completed) return 0;
-                    return a.is_completed ? 1 : -1;
-                  })
-                  .map((task) => {
-                  const pillarData = getPillarData(task.pillar);
+              {/* Active Tasks Section */}
+              <div className="mb-8">
+                <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+                  Active Tasks
+                </h2>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                  {[...quest.quest_tasks]
+                    .sort((a, b) => {
+                      // Sort incomplete tasks first, completed tasks last
+                      if (a.is_completed === b.is_completed) return 0;
+                      return a.is_completed ? 1 : -1;
+                    })
+                    .map((task) => {
+                    const pillarData = getPillarData(task.pillar);
 
-                  return (
-                    <div
-                      key={task.id}
-                      className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group transition-all hover:shadow-lg"
-                      style={{
-                        background: task.is_completed
-                          ? pillarData.color
-                          : `linear-gradient(to right, #ffffff 0%, ${pillarData.color}30 100%)`
-                      }}
-                    >
-                      {/* Task Content */}
+                    return (
                       <div
-                        onClick={() => {
-                          if (quest.user_enrollment) {
-                            setSelectedTask(task);
-                            setShowTaskModal(true);
-                          } else {
-                            setTaskDetailToShow(task);
-                            setShowTaskDetailModal(true);
-                          }
+                        key={task.id}
+                        className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group transition-all hover:shadow-lg"
+                        style={{
+                          background: task.is_completed
+                            ? pillarData.color
+                            : `linear-gradient(to right, #ffffff 0%, ${pillarData.color}30 100%)`
                         }}
-                        className="absolute inset-0 p-3 flex flex-col justify-between"
                       >
-                        {/* Top Section - Pillar Name Pill */}
-                        <div>
-                          <div
-                            className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold"
-                            style={{
-                              backgroundColor: task.is_completed ? 'rgba(255,255,255,0.3)' : pillarData.color,
-                              color: 'white',
-                              fontFamily: 'Poppins'
+                        {/* Task Content */}
+                        <div
+                          onClick={() => {
+                            if (quest.user_enrollment) {
+                              setSelectedTask(task);
+                              setShowTaskModal(true);
+                            } else {
+                              setTaskDetailToShow(task);
+                              setShowTaskDetailModal(true);
+                            }
+                          }}
+                          className="absolute inset-0 p-3 flex flex-col justify-between"
+                        >
+                          {/* Top Section - Pillar Name Pill */}
+                          <div>
+                            <div
+                              className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold"
+                              style={{
+                                backgroundColor: task.is_completed ? 'rgba(255,255,255,0.3)' : pillarData.color,
+                                color: 'white',
+                                fontFamily: 'Poppins'
+                              }}
+                            >
+                              {pillarData.name}
+                            </div>
+                          </div>
+
+                          {/* Middle Section - Task Title */}
+                          <div className="flex-1 flex items-center justify-center px-2">
+                            <h3
+                              className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-center leading-tight uppercase"
+                              style={{
+                                fontFamily: 'Poppins',
+                                color: task.is_completed ? 'white' : '#333',
+                                textDecoration: task.is_completed ? 'line-through' : 'none'
+                              }}
+                            >
+                              {task.title}
+                            </h3>
+                          </div>
+
+                          {/* Bottom Section - XP Pill */}
+                          <div className="flex justify-center">
+                            <div
+                              className="px-2 py-0.5 rounded-full text-xs font-bold"
+                              style={{
+                                backgroundColor: task.is_completed ? 'rgba(255,255,255,0.3)' : pillarData.color,
+                                color: 'white',
+                                fontFamily: 'Poppins'
+                              }}
+                            >
+                              {task.xp_amount} XP
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Continue Button for Incomplete Tasks */}
+                        {!task.is_completed && quest.user_enrollment && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTask(task);
+                              setShowTaskModal(true);
                             }}
+                            className="absolute bottom-2 left-2 right-2 py-1.5 rounded-full font-bold text-xs uppercase tracking-wide text-white transition-all hover:shadow-lg"
+                            style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
                           >
+                            Continue
+                          </button>
+                        )}
+
+                        {/* Edit Evidence Button for Completed Tasks */}
+                        {task.is_completed && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTask(task);
+                              setShowTaskModal(true);
+                            }}
+                            className="absolute bottom-2 left-2 right-2 py-1.5 bg-white/90 text-gray-800 rounded-full font-bold text-xs uppercase tracking-wide transition-all hover:bg-white"
+                            style={{ fontFamily: 'Poppins' }}
+                          >
+                            Edit Evidence
+                          </button>
+                        )}
+
+                        {/* Drop Task Button - top right corner */}
+                        {quest.user_enrollment && !isQuestCompleted && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDropTask(task.id);
+                            }}
+                            disabled={droppingTaskId === task.id}
+                            className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all disabled:opacity-50"
+                            title="Remove from active tasks"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Add Task Card - only show if enrolled and not completed */}
+                  {quest.user_enrollment && !isQuestCompleted && (
+                    <div
+                      onClick={() => setShowPersonalizationWizard(true)}
+                      className="aspect-square rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-lg border-4 border-black bg-white flex flex-col items-center justify-center gap-2 text-black group hover:bg-gray-50"
+                    >
+                      <Plus className="w-10 h-10 transition-transform group-hover:scale-110" />
+                      <div className="text-xs font-bold uppercase tracking-wide text-center px-2" style={{ fontFamily: 'Poppins' }}>
+                        Add Task
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </>
+          ) : null}
+
+          {/* Task Library Section - ALWAYS show if enrolled in active Optio quest */}
+          {(() => {
+            const showLibrary = quest.user_enrollment && quest.quest_type === 'optio' && !isQuestCompleted;
+            console.log('[LIBRARY] Render conditions:', {
+              hasEnrollment: !!quest.user_enrollment,
+              enrollment: quest.user_enrollment,
+              quest_type: quest.quest_type,
+              isOptio: quest.quest_type === 'optio',
+              isQuestCompleted,
+              completedEnrollment: quest.completed_enrollment,
+              progressPercentage: quest.progress?.percentage,
+              showLibrary,
+              libraryTasksLength: libraryTasks.length
+            });
+            return showLibrary;
+          })() && (
+            <div className="mb-8">
+              <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+                Task Library
+              </h2>
+
+              {loadingLibraryTasks ? (
+                <div className="text-center py-8">
+                  <div className="animate-pulse">
+                    <div className="h-6 bg-gray-300 rounded w-1/3 mx-auto"></div>
+                  </div>
+                </div>
+              ) : libraryTasks.length > 0 ? (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {libraryTasks.map((task) => {
+                    const pillarData = getPillarData(task.pillar);
+                    const isAdding = addingTaskId === task.id;
+
+                    return (
+                      <div
+                        key={task.id}
+                        className="border-2 border-gray-200 rounded-xl p-5 hover:shadow-lg transition-all bg-white"
+                      >
+                        {/* Task Title */}
+                        <h4 className="font-bold text-lg mb-2 line-clamp-2" style={{ fontFamily: 'Poppins' }}>
+                          {task.title}
+                        </h4>
+
+                        {/* Task Description */}
+                        <p className="text-gray-600 text-sm mb-4 line-clamp-3" style={{ fontFamily: 'Poppins' }}>
+                          {task.description}
+                        </p>
+
+                        {/* Badges */}
+                        <div className="flex items-center gap-2 mb-4">
+                          <div className="px-3 py-1 rounded-full text-xs font-semibold" style={{ backgroundColor: pillarData.color, color: 'white' }}>
                             {pillarData.name}
                           </div>
-                        </div>
-
-                        {/* Middle Section - Task Title */}
-                        <div className="flex-1 flex items-center justify-center px-2">
-                          <h3
-                            className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-center leading-tight uppercase"
-                            style={{
-                              fontFamily: 'Poppins',
-                              color: task.is_completed ? 'white' : '#333',
-                              textDecoration: task.is_completed ? 'line-through' : 'none'
-                            }}
-                          >
-                            {task.title}
-                          </h3>
-                        </div>
-
-                        {/* Bottom Section - XP Pill */}
-                        <div className="flex justify-center">
-                          <div
-                            className="px-2 py-0.5 rounded-full text-xs font-bold"
-                            style={{
-                              backgroundColor: task.is_completed ? 'rgba(255,255,255,0.3)' : pillarData.color,
-                              color: 'white',
-                              fontFamily: 'Poppins'
-                            }}
-                          >
-                            {task.xp_amount} XP
+                          <div className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-xs font-semibold">
+                            {task.xp_value} XP
                           </div>
                         </div>
-                      </div>
 
-                      {/* Continue Button for Incomplete Tasks */}
-                      {!task.is_completed && quest.user_enrollment && (
+                        {/* Add Task Button */}
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTask(task);
-                            setShowTaskModal(true);
-                          }}
-                          className="absolute bottom-2 left-2 right-2 py-1.5 rounded-full font-bold text-xs uppercase tracking-wide text-white transition-all hover:shadow-lg"
-                          style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
-                        >
-                          Continue
-                        </button>
-                      )}
-
-                      {/* Edit Evidence Button for Completed Tasks */}
-                      {task.is_completed && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTask(task);
-                            setShowTaskModal(true);
-                          }}
-                          className="absolute bottom-2 left-2 right-2 py-1.5 bg-white/90 text-gray-800 rounded-full font-bold text-xs uppercase tracking-wide transition-all hover:bg-white"
+                          onClick={() => handleAddTask(task.id)}
+                          disabled={isAdding}
+                          className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-all disabled:opacity-50 font-semibold"
                           style={{ fontFamily: 'Poppins' }}
                         >
-                          Edit Evidence
+                          {isAdding ? (
+                            'Adding...'
+                          ) : (
+                            <>
+                              <Plus className="w-4 h-4" />
+                              Add Task
+                            </>
+                          )}
                         </button>
-                      )}
-                    </div>
-                  );
-                })}
-
-                {/* Add Task Card - only show if enrolled and not completed */}
-                {quest.user_enrollment && !isQuestCompleted && (
-                  <div
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="text-center py-8 bg-gray-50 rounded-xl border-2 border-dashed border-gray-300">
+                  <BookOpen className="w-10 h-10 mx-auto mb-3 text-gray-400" />
+                  <p className="text-gray-600 mb-2" style={{ fontFamily: 'Poppins' }}>
+                    No additional tasks available yet
+                  </p>
+                  <p className="text-sm text-gray-500 max-w-md mx-auto" style={{ fontFamily: 'Poppins' }}>
+                    {quest.quest_tasks && quest.quest_tasks.length > 0
+                      ? "You've added all available tasks from the library. Generate more custom tasks to continue learning!"
+                      : "This quest doesn't have any pre-generated tasks yet. Generate your first set of personalized tasks!"}
+                  </p>
+                  <button
                     onClick={() => setShowPersonalizationWizard(true)}
-                    className="aspect-square rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-lg border-4 border-black bg-white flex flex-col items-center justify-center gap-2 text-black group hover:bg-gray-50"
+                    className="mt-4 px-6 py-2 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90"
+                    style={{ fontFamily: 'Poppins' }}
                   >
-                    <Plus className="w-10 h-10 transition-transform group-hover:scale-110" />
-                    <div className="text-xs font-bold uppercase tracking-wide text-center px-2" style={{ fontFamily: 'Poppins' }}>
-                      Add Task
-                    </div>
-                  </div>
-                )}
-              </div>
-            </>
-          ) : quest.user_enrollment && !showPersonalizationWizard ? (
-            <div className="text-center py-12 bg-white rounded-xl shadow-md">
-              <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-lg text-gray-600 mb-4">This quest needs to be personalized</p>
-              <button
-                onClick={() => setShowPersonalizationWizard(true)}
-                className="px-6 py-3 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90"
-              >
-                Personalize Quest
-              </button>
+                    Generate More Tasks
+                  </button>
+                </div>
+              )}
             </div>
+          )}
+
+          {/* Enrollment flow for users without tasks */}
+          {quest.quest_tasks && quest.quest_tasks.length === 0 && quest.user_enrollment && !showPersonalizationWizard ? (
+            loadingLibraryCount ? (
+              <div className="text-center py-12">
+                <div className="animate-pulse">
+                  <div className="h-8 bg-gray-300 rounded w-1/2 mx-auto mb-4"></div>
+                  <div className="h-4 bg-gray-300 rounded w-1/3 mx-auto"></div>
+                </div>
+              </div>
+            ) : libraryCount === 0 ? (
+              // No library tasks available - show generate CTA
+              <div className="text-center py-12 bg-white rounded-xl shadow-md">
+                <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+                <p className="text-lg text-gray-600 mb-2" style={{ fontFamily: 'Poppins' }}>
+                  This quest has no pre-generated tasks yet.
+                </p>
+                <p className="text-sm text-gray-500 mb-6" style={{ fontFamily: 'Poppins' }}>
+                  Be the first to create personalized tasks for this quest!
+                </p>
+                <button
+                  onClick={() => setShowPersonalizationWizard(true)}
+                  className="px-6 py-3 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90"
+                  style={{ fontFamily: 'Poppins' }}
+                >
+                  Generate Personalized Tasks
+                </button>
+              </div>
+            ) : (
+              // Library has tasks - show TaskLibraryView
+              <div className="mb-8">
+                <TaskLibraryView
+                  questId={id}
+                  onTaskAdded={() => {
+                    refetchQuest();
+                    toast.success('Task added to your quest!');
+                  }}
+                  onGenerateCustom={() => setShowPersonalizationWizard(true)}
+                />
+              </div>
+            )
           ) : !quest.user_enrollment ? (
             <>
               {/* Show sample tasks for Optio quests OR preset tasks for Course quests */}

@@ -455,6 +455,45 @@ const AdminDashboard = () => {
               </p>
             </button>
 
+            {/* Flagged Tasks Review */}
+            <button
+              onClick={() => window.location.href = '/admin/flagged-tasks'}
+              className={`group relative p-6 rounded-xl transition-all duration-200 text-left border ${
+                (overviewData?.flagged_tasks_count || 0) > 0
+                  ? 'bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200 hover:from-orange-100 hover:to-orange-200'
+                  : 'bg-gradient-to-br from-gray-50 to-gray-100 border-gray-200 hover:from-gray-100 hover:to-gray-200'
+              }`}
+            >
+              {(overviewData?.flagged_tasks_count || 0) > 0 && (
+                <div className="absolute -top-2 -right-2 bg-orange-500 text-white text-xs font-bold rounded-full w-8 h-8 flex items-center justify-center animate-pulse">
+                  {overviewData.flagged_tasks_count}
+                </div>
+              )}
+              <div className="flex items-center justify-between mb-3">
+                <div className={`p-3 rounded-lg ${
+                  (overviewData?.flagged_tasks_count || 0) > 0 ? 'bg-orange-500' : 'bg-gray-400'
+                }`}>
+                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21v-4m0 0V5a2 2 0 012-2h6.5l1 1H21l-3 6 3 6h-8.5l-1-1H5a2 2 0 00-2 2zm9-13.5V9" />
+                  </svg>
+                </div>
+                <svg className={`w-5 h-5 transition-colors ${
+                  (overviewData?.flagged_tasks_count || 0) > 0
+                    ? 'text-orange-400 group-hover:text-orange-600'
+                    : 'text-gray-400 group-hover:text-gray-600'
+                }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </div>
+              <h3 className="font-semibold text-gray-900 mb-1">Flagged Tasks</h3>
+              <p className="text-sm text-gray-600">
+                {(overviewData?.flagged_tasks_count || 0) > 0
+                  ? `${overviewData.flagged_tasks_count} tasks flagged for review`
+                  : 'No flagged tasks'
+                }
+              </p>
+            </button>
+
             {/* AI Tools */}
             <button
               onClick={() => window.location.href = '/admin/ai-pipeline'}

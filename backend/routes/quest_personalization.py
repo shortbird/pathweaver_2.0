@@ -29,31 +29,16 @@ logger = get_logger(__name__)
 
 bp = Blueprint('quest_personalization', __name__, url_prefix='/api/quests')
 
-# Add explicit OPTIONS handler for CORS preflight
-@bp.after_request
-def after_request(response):
-    """Add CORS headers to all responses"""
-    response.headers.add('Access-Control-Allow-Origin', '*')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,X-CSRF-Token')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS')
-    return response
+# CORS headers are set globally in app.py - do not duplicate here
 
 # Using repository pattern for database access
-@bp.route('/<quest_id>/start-personalization', methods=['POST', 'OPTIONS'])
-def start_personalization(quest_id: str):
+@bp.route('/<quest_id>/start-personalization', methods=['POST'])
+@require_auth
+def start_personalization(user_id: str, quest_id: str):
     """
     Begin the personalization flow for a quest.
     Creates or resumes a personalization session.
     """
-    # Handle OPTIONS preflight
-    if request.method == 'OPTIONS':
-        return jsonify({'status': 'ok'}), 200
-
-    # POST request requires auth
-    from utils.auth.decorators import get_user_from_token
-    user_id = get_user_from_token()
-    if not user_id:
-        return jsonify({'error': 'Unauthorized'}), 401
 
     try:
         result = personalization_service.start_personalization_session(
@@ -79,34 +64,27 @@ def start_personalization(quest_id: str):
             'error': 'Failed to start personalization'
         }), 500
 
-@bp.route('/<quest_id>/generate-tasks', methods=['POST', 'OPTIONS'])
-def generate_tasks(quest_id: str):
+@bp.route('/<quest_id>/generate-tasks', methods=['POST'])
+@require_auth
+def generate_tasks(user_id: str, quest_id: str):
     """
     Generate AI task suggestions based on student inputs.
+    Always generates 10 tasks per request.
 
     Request body:
     {
         "session_id": "uuid",
-        "approach": "real_world_project|traditional_class|hybrid",
+        "approach": "real_world_project|traditional_class|hybrid" (optional, defaults to 'hybrid'),
         "interests": ["basketball", "piano", "..."],
         "cross_curricular_subjects": ["math", "science", "..."]
     }
     """
-    # Handle OPTIONS preflight
-    if request.method == 'OPTIONS':
-        return jsonify({'status': 'ok'}), 200
-
-    # POST request requires auth
-    from utils.auth.decorators import get_user_from_token
-    user_id = get_user_from_token()
-    if not user_id:
-        return jsonify({'error': 'Unauthorized'}), 401
 
     try:
         data = request.get_json()
 
         session_id = data.get('session_id')
-        approach = data.get('approach')
+        approach = data.get('approach', 'hybrid')  # Default to hybrid if not provided
         interests = data.get('interests', [])
         cross_curricular_subjects = data.get('cross_curricular_subjects', [])
 
@@ -116,15 +94,9 @@ def generate_tasks(quest_id: str):
                 'error': 'session_id is required'
             }), 400
 
-        if not approach:
-            return jsonify({
-                'success': False,
-                'error': 'approach is required'
-            }), 400
-
-        # Validate approach
+        # Validate approach (optional now)
         valid_approaches = ['real_world_project', 'traditional_class', 'hybrid']
-        if approach not in valid_approaches:
+        if approach and approach not in valid_approaches:
             return jsonify({
                 'success': False,
                 'error': f'Invalid approach. Must be one of: {", ".join(valid_approaches)}'
@@ -344,8 +316,9 @@ def add_manual_task(user_id: str, quest_id: str):
             'error': 'Failed to add manual task'
         }), 500
 
-@bp.route('/<quest_id>/finalize-tasks', methods=['POST', 'OPTIONS'])
-def finalize_tasks(quest_id: str):
+@bp.route('/<quest_id>/finalize-tasks', methods=['POST'])
+@require_auth
+def finalize_tasks(user_id: str, quest_id: str):
     """
     Finalize personalization and create user-specific tasks.
     This enrolls the user in the quest with their personalized tasks.
@@ -355,15 +328,6 @@ def finalize_tasks(quest_id: str):
         "session_id": "uuid"
     }
     """
-    # Handle OPTIONS preflight
-    if request.method == 'OPTIONS':
-        return jsonify({'status': 'ok'}), 200
-
-    # POST request requires auth
-    from utils.auth.decorators import get_user_from_token
-    user_id = get_user_from_token()
-    if not user_id:
-        return jsonify({'error': 'Unauthorized'}), 401
 
     try:
         supabase = get_supabase_admin_client()
@@ -443,6 +407,217 @@ def finalize_tasks(quest_id: str):
             'success': False,
             'error': 'Failed to finalize tasks'
         }), 500
+
+@bp.route('/<quest_id>/personalization/accept-task', methods=['POST'])
+@require_auth
+def accept_task_immediate(user_id: str, quest_id: str):
+    """
+    Immediately accept and add a single task during one-at-a-time review.
+    Creates user_quest_tasks entry and saves task to library.
+
+    Request body:
+    {
+        "session_id": "uuid",
+        "task": { task object }
+    }
+    """
+    try:
+        from services.task_library_service import TaskLibraryService
+        from utils.pillar_mapping import normalize_pillar_name
+
+        supabase = get_supabase_admin_client()
+        data = request.get_json()
+
+        session_id = data.get('session_id')
+        task = data.get('task')
+
+        if not session_id or not task:
+            return jsonify({
+                'success': False,
+                'error': 'session_id and task are required'
+            }), 400
+
+        # Check if already enrolled, if not create enrollment
+        existing_enrollment = supabase.table('user_quests')\
+            .select('id, is_active')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .eq('is_active', True)\
+            .execute()
+
+        if existing_enrollment.data:
+            user_quest_id = existing_enrollment.data[0]['id']
+        else:
+            enrollment = supabase.table('user_quests')\
+                .insert({
+                    'user_id': user_id,
+                    'quest_id': quest_id,
+                    'started_at': datetime.utcnow().isoformat(),
+                    'is_active': True
+                })\
+                .execute()
+
+            if not enrollment.data:
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to create enrollment'
+                }), 500
+
+            user_quest_id = enrollment.data[0]['id']
+
+        # Normalize pillar name
+        try:
+            pillar_key = normalize_pillar_name(task.get('pillar', 'stem'))
+        except ValueError:
+            pillar_key = 'stem'
+
+        # Handle diploma_subjects format
+        diploma_subjects = task.get('diploma_subjects', {})
+        if isinstance(diploma_subjects, list):
+            total_xp = task.get('xp_value', 100)
+            xp_per = (total_xp // len(diploma_subjects) // 25) * 25
+            remainder = total_xp - (xp_per * len(diploma_subjects))
+            diploma_subjects = {s: xp_per + (remainder if i == 0 else 0) for i, s in enumerate(diploma_subjects)}
+        elif not isinstance(diploma_subjects, dict):
+            diploma_subjects = {'Electives': task.get('xp_value', 100)}
+
+        # Get next order_index
+        existing_tasks = supabase.table('user_quest_tasks')\
+            .select('order_index')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .execute()
+
+        max_order = max([t.get('order_index', -1) for t in existing_tasks.data], default=-1) if existing_tasks.data else -1
+
+        # Create user_quest_tasks entry
+        user_task = {
+            'user_id': user_id,
+            'quest_id': quest_id,
+            'user_quest_id': user_quest_id,
+            'title': task['title'],
+            'description': task.get('description', ''),
+            'pillar': pillar_key,
+            'diploma_subjects': diploma_subjects,
+            'xp_value': task.get('xp_value', 100),
+            'order_index': max_order + 1,
+            'is_required': True,
+            'is_manual': False,
+            'approval_status': 'approved',
+            'created_at': datetime.utcnow().isoformat()
+        }
+
+        result = supabase.table('user_quest_tasks')\
+            .insert(user_task)\
+            .execute()
+
+        if not result.data:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to create task'
+            }), 500
+
+        # Save task to library for future users
+        library_service = TaskLibraryService()
+        library_task_data = {
+            'title': task['title'],
+            'description': task.get('description', ''),
+            'pillar': pillar_key,
+            'xp_value': task.get('xp_value', 100),
+            'diploma_subjects': diploma_subjects,
+            'ai_generated': True
+        }
+        library_service.add_library_task(quest_id, library_task_data)
+
+        logger.info(f"User {user_id} accepted task '{task['title']}' for quest {quest_id}")
+
+        return jsonify({
+            'success': True,
+            'task': result.data[0],
+            'message': 'Task added to your quest'
+        })
+
+    except Exception as e:
+        logger.error(f"Error accepting task: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': 'Failed to add task'
+        }), 500
+
+@bp.route('/<quest_id>/personalization/skip-task', methods=['POST'])
+@require_auth
+def skip_task_save_to_library(user_id: str, quest_id: str):
+    """
+    Save a skipped task to the library so other users can find it.
+    This ensures AI-generated tasks aren't lost when users skip them.
+
+    Request body:
+    {
+        "session_id": "uuid",
+        "task": { task object }
+    }
+    """
+    try:
+        from services.task_library_service import TaskLibraryService
+        from utils.pillar_mapping import normalize_pillar_name
+
+        data = request.get_json()
+
+        session_id = data.get('session_id')
+        task = data.get('task')
+
+        if not session_id or not task:
+            return jsonify({
+                'success': False,
+                'error': 'session_id and task are required'
+            }), 400
+
+        # Normalize pillar name
+        try:
+            pillar_key = normalize_pillar_name(task.get('pillar', 'stem'))
+        except ValueError:
+            pillar_key = 'stem'
+
+        # Handle diploma_subjects format
+        diploma_subjects = task.get('diploma_subjects', {})
+        if isinstance(diploma_subjects, list):
+            total_xp = task.get('xp_value', 100)
+            xp_per = (total_xp // len(diploma_subjects) // 25) * 25
+            remainder = total_xp - (xp_per * len(diploma_subjects))
+            diploma_subjects = {s: xp_per + (remainder if i == 0 else 0) for i, s in enumerate(diploma_subjects)}
+        elif not isinstance(diploma_subjects, dict):
+            diploma_subjects = {'Electives': task.get('xp_value', 100)}
+
+        # Save task to library for future users
+        library_service = TaskLibraryService()
+        library_task_data = {
+            'title': task['title'],
+            'description': task.get('description', ''),
+            'pillar': pillar_key,
+            'xp_value': task.get('xp_value', 100),
+            'diploma_subjects': diploma_subjects,
+            'ai_generated': True
+        }
+        library_service.add_library_task(quest_id, library_task_data)
+
+        logger.info(f"User {user_id} skipped task '{task['title']}' - saved to library for quest {quest_id}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Task saved to library for other students'
+        })
+
+    except Exception as e:
+        logger.error(f"Error saving skipped task to library: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Don't fail the skip operation - just log the error
+        return jsonify({
+            'success': True,
+            'message': 'Task skipped (library save failed)'
+        })
 
 @bp.route('/<quest_id>/personalization-status', methods=['GET'])
 @require_auth

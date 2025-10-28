@@ -1,29 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Globe, BookOpen, Zap } from 'lucide-react';
+import { X, Check, Flag } from 'lucide-react';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
-
-const APPROACH_OPTIONS = [
-  {
-    id: 'real_world_project',
-    title: 'Real-World Project',
-    description: 'Apply this learning to something you care about (sports, hobbies, interests)',
-    IconComponent: Globe
-  },
-  {
-    id: 'traditional_class',
-    title: 'Traditional Class',
-    description: 'Study this like a school subject (textbook, lessons, practice)',
-    IconComponent: BookOpen
-  },
-  {
-    id: 'hybrid',
-    title: 'Hybrid Approach',
-    description: 'Mix of real-world application and traditional study',
-    IconComponent: Zap
-  }
-];
 
 const INTEREST_OPTIONS = [
   { id: 'sports', label: 'Sports & Athletics', icon: '⚽' },
@@ -38,12 +17,13 @@ const INTEREST_OPTIONS = [
   { id: 'social', label: 'Social Impact', icon: '🤝' }
 ];
 
+// Updated pillar names
 const DIPLOMA_SUBJECTS = [
-  { id: 'stem_logic', label: 'STEM & Logic' },
-  { id: 'life_wellness', label: 'Life & Wellness' },
-  { id: 'language_communication', label: 'Language & Communication' },
-  { id: 'society_culture', label: 'Society & Culture' },
-  { id: 'arts_creativity', label: 'Arts & Creativity' }
+  { id: 'stem', label: 'STEM' },
+  { id: 'wellness', label: 'Wellness' },
+  { id: 'communication', label: 'Communication' },
+  { id: 'civics', label: 'Civics' },
+  { id: 'art', label: 'Art' }
 ];
 
 export default function QuestPersonalizationWizard({ questId, questTitle, onComplete, onCancel }) {
@@ -53,13 +33,15 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
   const navigate = useNavigate();
 
   // Wizard state
-  const [selectedApproach, setSelectedApproach] = useState(null);
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [crossCurricularSubjects, setCrossCurricularSubjects] = useState([]);
   const [generatedTasks, setGeneratedTasks] = useState([]);
-  const [selectedTasks, setSelectedTasks] = useState([]);
+  const [currentTaskIndex, setCurrentTaskIndex] = useState(0);
+  const [acceptedTasks, setAcceptedTasks] = useState([]);
   const [sessionId, setSessionId] = useState(null);
   const [additionalFeedback, setAdditionalFeedback] = useState('');
+  const [showFlagModal, setShowFlagModal] = useState(false);
+  const [flagReason, setFlagReason] = useState('');
 
   // Start personalization session
   const startSession = async () => {
@@ -72,7 +54,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
         throw new Error('No session ID returned from server');
       }
       setSessionId(newSessionId);
-      setStep(2);
+      setStep(2); // Skip to interests (was step 3, now step 2)
     } catch (err) {
       console.error('Failed to start session:', err);
       setError(err.response?.data?.error || err.message || 'Failed to start personalization');
@@ -81,10 +63,10 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
     }
   };
 
-  // Generate tasks from AI
+  // Generate tasks from AI (always generates 10)
   const generateTasks = async () => {
-    if (!selectedApproach || selectedInterests.length === 0) {
-      setError('Please select an approach and at least one interest');
+    if (selectedInterests.length === 0) {
+      setError('Please select at least one interest');
       return;
     }
 
@@ -99,89 +81,125 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
     try {
       const response = await api.post(`/api/quests/${questId}/generate-tasks`, {
         session_id: sessionId,
-        approach: selectedApproach,
-        interests: selectedInterests,
-        cross_curricular_subjects: crossCurricularSubjects
-      });
-      const tasks = response.data.tasks;
-      setGeneratedTasks(tasks);
-      // Deselect all tasks by default - user must choose
-      setSelectedTasks([]);
-      setStep(4);
-    } catch (err) {
-      console.error('Failed to generate tasks:', err);
-      setError(err.response?.data?.error || 'Failed to generate tasks');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Regenerate non-selected tasks
-  const regenerateNonSelected = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Get titles of selected tasks to avoid duplicates
-      const selectedTaskTitles = generatedTasks
-        .filter((_, index) => selectedTasks.includes(index))
-        .map(task => task.title);
-
-      const response = await api.post(`/api/quests/${questId}/generate-tasks`, {
-        session_id: sessionId,
-        approach: selectedApproach,
+        approach: 'hybrid', // Default since we removed the approach selection
         interests: selectedInterests,
         cross_curricular_subjects: crossCurricularSubjects,
-        exclude_tasks: selectedTaskTitles,
         additional_feedback: additionalFeedback
       });
 
-      // Replace non-selected tasks with new ones
-      const newTasks = [...generatedTasks];
-      let newTaskIndex = 0;
-      for (let i = 0; i < newTasks.length; i++) {
-        if (!selectedTasks.includes(i) && newTaskIndex < response.data.tasks.length) {
-          newTasks[i] = response.data.tasks[newTaskIndex];
-          newTaskIndex++;
-        }
+      const tasks = response.data.tasks || [];
+      if (tasks.length === 0) {
+        throw new Error('No tasks were generated');
       }
 
-      setGeneratedTasks(newTasks);
-      // Keep only previously selected tasks selected
+      setGeneratedTasks(tasks);
+      setCurrentTaskIndex(0);
+      setAcceptedTasks([]);
+      setStep(3); // Move to one-at-a-time review (was step 4, now step 3)
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to regenerate tasks');
+      console.error('Failed to generate tasks:', err);
+      setError(err.response?.data?.error || err.message || 'Failed to generate tasks');
     } finally {
       setLoading(false);
     }
   };
 
-  // Finalize and save tasks
-  const finalizeTasks = async () => {
+  // Handle accepting a task
+  const handleAcceptTask = async () => {
+    const currentTask = generatedTasks[currentTaskIndex];
     setLoading(true);
     setError(null);
-    try {
-      // Only send selected tasks
-      const tasksToFinalize = generatedTasks.filter((_, index) => selectedTasks.includes(index));
 
-      await api.post(`/api/quests/${questId}/finalize-tasks`, {
+    try {
+      // Add task immediately to user's quest
+      const response = await api.post(`/api/quests/${questId}/personalization/accept-task`, {
         session_id: sessionId,
-        tasks: tasksToFinalize
+        task: currentTask
       });
-      onComplete();
+
+      if (response.data.success) {
+        // Track accepted task
+        setAcceptedTasks([...acceptedTasks, currentTask]);
+
+        // Move to next task or complete
+        if (currentTaskIndex < generatedTasks.length - 1) {
+          setCurrentTaskIndex(currentTaskIndex + 1);
+        } else {
+          // All tasks reviewed, complete wizard
+          completeWizard();
+        }
+      }
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to finalize tasks');
+      console.error('Failed to accept task:', err);
+      setError(err.response?.data?.error || 'Failed to add task');
     } finally {
       setLoading(false);
     }
   };
 
-  const toggleTaskSelection = (index) => {
-    setSelectedTasks(prev =>
-      prev.includes(index)
-        ? prev.filter(i => i !== index)
-        : [...prev, index]
-    );
+  // Handle skipping a task
+  const handleSkipTask = async () => {
+    const currentTask = generatedTasks[currentTaskIndex];
+
+    // Save skipped task to library for other users (non-blocking)
+    try {
+      await api.post(`/api/quests/${questId}/personalization/skip-task`, {
+        session_id: sessionId,
+        task: currentTask
+      });
+      console.log('Skipped task saved to library:', currentTask.title);
+    } catch (err) {
+      // Don't block the user if library save fails
+      console.warn('Failed to save skipped task to library:', err);
+    }
+
+    // Move to next task or complete wizard
+    if (currentTaskIndex < generatedTasks.length - 1) {
+      setCurrentTaskIndex(currentTaskIndex + 1);
+    } else {
+      // Last task, complete wizard with what we have
+      completeWizard();
+    }
   };
 
+  // Handle flagging a task
+  const handleFlagTask = async () => {
+    const currentTask = generatedTasks[currentTaskIndex];
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Flag the task (assuming we need to save it to library first to get an ID)
+      // For now, we'll just log it and move on
+      console.log('Task flagged:', currentTask.title, 'Reason:', flagReason);
+
+      // TODO: Send flag to backend once task is in library
+      // await api.post(`/api/quests/${questId}/task-library/${taskId}/flag`, {
+      //   reason: flagReason
+      // });
+
+      setShowFlagModal(false);
+      setFlagReason('');
+
+      // User can still skip or accept after flagging
+    } catch (err) {
+      console.error('Failed to flag task:', err);
+      setError('Failed to flag task');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Complete wizard
+  const completeWizard = () => {
+    if (acceptedTasks.length > 0) {
+      onComplete();
+    } else {
+      setError('You must accept at least one task');
+    }
+  };
+
+  // Toggle interest selection
   const toggleInterest = (interestId) => {
     setSelectedInterests(prev =>
       prev.includes(interestId)
@@ -190,6 +208,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
     );
   };
 
+  // Toggle subject selection
   const toggleSubject = (subjectId) => {
     setCrossCurricularSubjects(prev =>
       prev.includes(subjectId)
@@ -198,17 +217,22 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
     );
   };
 
+  const currentTask = generatedTasks[currentTaskIndex];
+  const totalSteps = 3; // Reduced from 4
+
   return (
     <div className="max-w-4xl mx-auto p-8">
       {/* Progress indicator */}
       <div className="mb-8">
         <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-bold uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Step {step} of 4</span>
+          <span className="text-sm font-bold uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>
+            Step {step} of {totalSteps}
+          </span>
         </div>
         <div className="w-full bg-gray-200 rounded-full h-3">
           <div
             className="bg-gradient-primary h-3 rounded-full transition-all duration-300"
-            style={{ width: `${(step / 4) * 100}%` }}
+            style={{ width: `${(step / totalSteps) * 100}%` }}
           />
         </div>
       </div>
@@ -222,20 +246,17 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       {/* Step 1: Welcome */}
       {step === 1 && (
         <div className="text-center">
-          <h2 className="text-4xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>Personalize Your Quest</h2>
+          <h2 className="text-4xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+            Personalize Your Quest
+          </h2>
           <p className="text-gray-600 mb-6 max-w-2xl mx-auto text-lg" style={{ fontFamily: 'Poppins' }}>
             Let's customize "{questTitle}" to match your interests and learning style.
             Our AI will help generate tasks that are meaningful to you.
           </p>
-          <div className="bg-red-50 border-2 border-red-200 rounded-xl p-5 mb-4 max-w-2xl mx-auto">
-            <p className="text-sm text-red-900" style={{ fontFamily: 'Poppins' }}>
-              <strong>⚠️ Important:</strong> All personalized quests must be approved by a licensed teacher before they count toward XP or diploma credits.
-            </p>
-          </div>
           <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 mb-6 max-w-2xl mx-auto">
             <p className="text-sm text-blue-900" style={{ fontFamily: 'Poppins' }}>
               💡 <strong>Remember:</strong> You're in control. The AI suggests tasks based on your choices,
-              but you decide what to learn. We recommend working with an Optio teacher for the best experience.
+              but you decide what to learn. You can accept, skip, or flag any task.
             </p>
           </div>
           <button
@@ -249,31 +270,74 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
         </div>
       )}
 
-      {/* Step 2: Choose Approach */}
+      {/* Step 2: Select Interests & Subjects (previously Step 3) */}
       {step === 2 && (
         <div>
-          <h2 className="text-3xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>How do you want to learn?</h2>
-          <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins' }}>Choose the approach that excites you most</p>
-          <div className="grid md:grid-cols-3 gap-4 mb-8">
-            {APPROACH_OPTIONS.map(option => {
-              const IconComponent = option.IconComponent;
-              return (
+          <h2 className="text-3xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+            What are you interested in?
+          </h2>
+          <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins' }}>
+            Select your interests to personalize your tasks
+          </p>
+
+          {/* Interests */}
+          <div className="mb-8">
+            <h3 className="font-semibold text-lg mb-3" style={{ fontFamily: 'Poppins' }}>Your Interests</h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {INTEREST_OPTIONS.map(interest => (
                 <button
-                  key={option.id}
-                  onClick={() => setSelectedApproach(option.id)}
-                  className={`p-6 border-2 rounded-xl text-left transition-all hover:shadow-lg ${
-                    selectedApproach === option.id
+                  key={interest.id}
+                  onClick={() => toggleInterest(interest.id)}
+                  className={`p-4 border-2 rounded-xl text-center transition-all hover:shadow-lg ${
+                    selectedInterests.includes(interest.id)
                       ? 'border-optio-pink bg-pink-50 shadow-lg'
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
-                  <IconComponent className="w-12 h-12 mb-3 text-optio-purple" />
-                  <h3 className="font-bold text-lg mb-2" style={{ fontFamily: 'Poppins' }}>{option.title}</h3>
-                  <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins' }}>{option.description}</p>
+                  <div className="text-3xl mb-2">{interest.icon}</div>
+                  <div className="text-sm font-medium" style={{ fontFamily: 'Poppins' }}>{interest.label}</div>
                 </button>
-              );
-            })}
+              ))}
+            </div>
           </div>
+
+          {/* Diploma Subjects */}
+          <div className="mb-8">
+            <h3 className="font-semibold text-lg mb-3" style={{ fontFamily: 'Poppins' }}>
+              Focus Areas (Optional)
+            </h3>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+              {DIPLOMA_SUBJECTS.map(subject => (
+                <button
+                  key={subject.id}
+                  onClick={() => toggleSubject(subject.id)}
+                  className={`p-4 border-2 rounded-xl text-center transition-all hover:shadow-lg ${
+                    crossCurricularSubjects.includes(subject.id)
+                      ? 'border-optio-purple bg-purple-50 shadow-lg'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="text-sm font-medium" style={{ fontFamily: 'Poppins' }}>{subject.label}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Additional Feedback */}
+          <div className="mb-8">
+            <h3 className="font-semibold text-lg mb-3" style={{ fontFamily: 'Poppins' }}>
+              Any specific ideas? (Optional)
+            </h3>
+            <textarea
+              value={additionalFeedback}
+              onChange={(e) => setAdditionalFeedback(e.target.value)}
+              placeholder="Tell us more about what you'd like to learn..."
+              className="w-full p-4 border-2 border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+              rows={4}
+              style={{ fontFamily: 'Poppins' }}
+            />
+          </div>
+
           <div className="flex justify-between">
             <button
               onClick={() => setStep(1)}
@@ -283,79 +347,10 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
               Back
             </button>
             <button
-              onClick={() => setStep(3)}
-              disabled={!selectedApproach}
-              className="px-6 py-3 bg-gradient-primary text-white rounded-xl disabled:opacity-50 font-bold hover:shadow-xl transition-all"
-              style={{ fontFamily: 'Poppins' }}
-            >
-              Continue
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Step 3: Select Interests & Subjects */}
-      {step === 3 && (
-        <div>
-          <h2 className="text-3xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>What are you interested in?</h2>
-          <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins' }}>Select your interests (at least one)</p>
-
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
-            {INTEREST_OPTIONS.map(interest => (
-              <button
-                key={interest.id}
-                onClick={() => toggleInterest(interest.id)}
-                className={`p-4 border-2 rounded-lg transition-all ${
-                  selectedInterests.includes(interest.id)
-                    ? 'border-optio-pink bg-pink-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                <div className="text-3xl mb-2">{interest.icon}</div>
-                <div className="text-sm font-medium">{interest.label}</div>
-              </button>
-            ))}
-          </div>
-
-          <h3 className="text-xl font-semibold mb-4">Connect to other subjects (optional)</h3>
-          <p className="text-gray-600 mb-4">Make this a cross-curricular project</p>
-
-          <div className="grid md:grid-cols-5 gap-3 mb-6">
-            {DIPLOMA_SUBJECTS.map(subject => (
-              <button
-                key={subject.id}
-                onClick={() => toggleSubject(subject.id)}
-                className={`p-3 border-2 rounded-lg text-sm transition-all ${
-                  crossCurricularSubjects.includes(subject.id)
-                    ? 'border-optio-purple bg-purple-50'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-              >
-                {subject.label}
-              </button>
-            ))}
-          </div>
-
-          <h3 className="text-xl font-semibold mb-4">Additional Details (Optional)</h3>
-          <p className="text-gray-600 mb-4">Any specific requirements or preferences for your tasks?</p>
-          <textarea
-            value={additionalFeedback}
-            onChange={(e) => setAdditionalFeedback(e.target.value)}
-            placeholder="E.g., 'I want tasks that involve video creation' or 'Focus on practical skills I can use at home'"
-            className="w-full p-3 border border-gray-300 rounded-lg mb-6 min-h-[100px] focus:ring-2 focus:ring-[#ef597b] focus:border-transparent"
-          />
-
-          <div className="flex justify-between">
-            <button
-              onClick={() => setStep(2)}
-              className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-            >
-              Back
-            </button>
-            <button
               onClick={generateTasks}
               disabled={loading || selectedInterests.length === 0}
-              className="px-6 py-2 bg-gradient-primary text-white rounded-lg disabled:opacity-50"
+              className="px-6 py-3 bg-gradient-primary text-white rounded-xl disabled:opacity-50 font-bold hover:shadow-xl transition-all"
+              style={{ fontFamily: 'Poppins' }}
             >
               {loading ? 'Generating Tasks...' : 'Generate Tasks'}
             </button>
@@ -363,97 +358,139 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
         </div>
       )}
 
-      {/* Step 4: Review & Finalize Tasks */}
-      {step === 4 && (
+      {/* Step 3: One-at-a-Time Task Review (previously Step 4) */}
+      {step === 3 && currentTask && (
         <div>
-          <h2 className="text-3xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>Select Tasks to Keep</h2>
-          <p className="text-gray-600 mb-6 text-lg" style={{ fontFamily: 'Poppins' }}>Choose which tasks to include in your quest</p>
-
-          <div className="space-y-3 mb-8">
-            {generatedTasks.map((task, index) => {
-              const isSelected = selectedTasks.includes(index);
-              return (
-                <div
-                  key={index}
-                  className={`border-2 rounded-lg p-4 transition-all cursor-pointer ${
-                    isSelected ? 'border-green-500 bg-green-50' : 'border-gray-200 hover:border-gray-300'
-                  }`}
-                  onClick={() => toggleTaskSelection(index)}
-                >
-                  <div className="flex items-start gap-3">
-                    <input
-                      type="checkbox"
-                      checked={isSelected}
-                      onChange={() => toggleTaskSelection(index)}
-                      className="mt-1 w-5 h-5 text-green-500 rounded focus:ring-green-500"
-                      onClick={(e) => e.stopPropagation()}
-                    />
-                    <div className="flex-1">
-                      <div className="flex items-start justify-between mb-2">
-                        <h3 className="font-semibold text-lg">{task.title}</h3>
-                        <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium whitespace-nowrap ml-2">
-                          {task.xp_value} XP
-                        </span>
-                      </div>
-                      <p className="text-gray-600 mb-3">{task.description}</p>
-                      {task.bullet_points && task.bullet_points.length > 0 && (
-                        <ul className="space-y-1 mb-3">
-                          {task.bullet_points.map((point, idx) => (
-                            <li key={idx} className="text-sm text-gray-700 flex items-start">
-                              <span className="text-green-500 mr-2">•</span>
-                              <span>{point}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="text-gray-500">
-                          Pillar: <span className="font-medium">{getPillarData(task.pillar).name}</span>
-                        </span>
-                        {task.diploma_subjects && task.diploma_subjects.length > 0 && (
-                          <span className="text-gray-500">
-                            Subjects: <span className="font-medium">{task.diploma_subjects.join(', ')}</span>
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-3xl font-bold" style={{ fontFamily: 'Poppins' }}>Review Tasks</h2>
+              <span className="text-lg font-semibold text-gray-600" style={{ fontFamily: 'Poppins' }}>
+                Task {currentTaskIndex + 1} of {generatedTasks.length}
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div
+                className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${((currentTaskIndex + 1) / generatedTasks.length) * 100}%` }}
+              />
+            </div>
           </div>
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
-            <p className="text-sm text-blue-900">
-              💡 <strong>Tip:</strong> Select the tasks you like, then regenerate the rest. You can repeat this until you're happy with all tasks.
+          {/* Task Card */}
+          <div className="bg-white border-2 border-gray-200 rounded-2xl p-8 mb-8 shadow-lg relative">
+            {/* XP Badge - Top Right */}
+            <div className="absolute top-6 right-6 flex items-center gap-2 px-4 py-2 bg-green-100 text-green-800 rounded-full">
+              <span className="font-semibold" style={{ fontFamily: 'Poppins' }}>
+                {currentTask.xp_value} XP
+              </span>
+            </div>
+
+            <div className="mb-6 pr-24">
+              <h3 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+                {currentTask.title}
+              </h3>
+              <p className="text-gray-700 text-lg leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+                {currentTask.description}
+              </p>
+            </div>
+
+            <div className="flex items-center gap-4">
+              {/* Pillar Badge */}
+              <div className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-800 rounded-full">
+                <span className="font-semibold" style={{ fontFamily: 'Poppins' }}>
+                  {getPillarData(currentTask.pillar).name}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            {/* Skip Button */}
+            <button
+              onClick={handleSkipTask}
+              disabled={loading}
+              className="flex flex-col items-center justify-center p-6 border-2 border-red-300 bg-red-50 rounded-2xl hover:bg-red-100 hover:border-red-400 transition-all disabled:opacity-50"
+            >
+              <X className="w-12 h-12 text-red-600 mb-2" />
+              <span className="font-bold text-lg text-red-700" style={{ fontFamily: 'Poppins' }}>
+                Skip Task
+              </span>
+            </button>
+
+            {/* Flag Button */}
+            <button
+              onClick={() => setShowFlagModal(true)}
+              disabled={loading}
+              className="flex flex-col items-center justify-center p-6 border-2 border-yellow-300 bg-yellow-50 rounded-2xl hover:bg-yellow-100 hover:border-yellow-400 transition-all disabled:opacity-50"
+            >
+              <Flag className="w-12 h-12 text-yellow-600 mb-2" />
+              <span className="font-bold text-lg text-yellow-700" style={{ fontFamily: 'Poppins' }}>
+                Flag Task
+              </span>
+            </button>
+
+            {/* Accept Button */}
+            <button
+              onClick={handleAcceptTask}
+              disabled={loading}
+              className="flex flex-col items-center justify-center p-6 border-2 border-green-300 bg-green-50 rounded-2xl hover:bg-green-100 hover:border-green-400 transition-all disabled:opacity-50"
+            >
+              <Check className="w-12 h-12 text-green-600 mb-2" />
+              <span className="font-bold text-lg text-green-700" style={{ fontFamily: 'Poppins' }}>
+                {loading ? 'Adding...' : 'Add Task'}
+              </span>
+            </button>
+          </div>
+
+          {/* Progress Summary */}
+          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5">
+            <p className="text-sm text-blue-900" style={{ fontFamily: 'Poppins' }}>
+              💡 <strong>Progress:</strong> You've accepted {acceptedTasks.length} task{acceptedTasks.length !== 1 ? 's' : ''} so far.
+              {currentTaskIndex === generatedTasks.length - 1 && ' This is the last task!'}
             </p>
           </div>
+        </div>
+      )}
 
-          <div className="flex justify-between gap-3">
+      {/* Flag Modal */}
+      {showFlagModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full">
+            <h3 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+              Flag This Task
+            </h3>
+            <p className="text-gray-600 mb-4" style={{ fontFamily: 'Poppins' }}>
+              Help us improve by reporting tasks that don't make sense or are inappropriate.
+            </p>
+            <textarea
+              value={flagReason}
+              onChange={(e) => setFlagReason(e.target.value)}
+              placeholder="Why are you flagging this task? (optional)"
+              className="w-full p-4 border-2 border-gray-200 rounded-xl resize-none focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:border-transparent mb-4"
+              rows={4}
+              style={{ fontFamily: 'Poppins' }}
+            />
             <div className="flex gap-3">
               <button
-                onClick={() => setStep(3)}
-                className="px-6 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                onClick={() => {
+                  setShowFlagModal(false);
+                  setFlagReason('');
+                }}
+                className="flex-1 px-6 py-3 border-2 border-gray-300 rounded-xl hover:bg-gray-50 font-semibold transition-all"
+                style={{ fontFamily: 'Poppins' }}
               >
-                Back
+                Cancel
               </button>
-              {selectedTasks.length < generatedTasks.length && (
-                <button
-                  onClick={regenerateNonSelected}
-                  disabled={loading}
-                  className="px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50"
-                >
-                  {loading ? 'Regenerating...' : 'Regenerate Non-Selected'}
-                </button>
-              )}
+              <button
+                onClick={handleFlagTask}
+                disabled={loading}
+                className="flex-1 px-6 py-3 bg-yellow-500 text-white rounded-xl hover:bg-yellow-600 font-bold transition-all disabled:opacity-50"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                {loading ? 'Flagging...' : 'Submit Flag'}
+              </button>
             </div>
-            <button
-              onClick={finalizeTasks}
-              disabled={loading || selectedTasks.length === 0}
-              className="px-6 py-2 bg-gradient-primary text-white rounded-lg disabled:opacity-50"
-            >
-              {loading ? 'Finalizing...' : `Finalize ${selectedTasks.length} Tasks`}
-            </button>
           </div>
         </div>
       )}
@@ -463,6 +500,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
         <button
           onClick={onCancel}
           className="text-gray-500 hover:text-gray-700 text-sm"
+          style={{ fontFamily: 'Poppins' }}
         >
           Cancel Personalization
         </button>
