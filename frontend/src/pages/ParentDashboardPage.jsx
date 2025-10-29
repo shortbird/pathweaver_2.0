@@ -14,7 +14,8 @@ import {
   UserGroupIcon,
   LightBulbIcon,
   PaperAirplaneIcon,
-  XMarkIcon
+  XMarkIcon,
+  ChevronRightIcon
 } from '@heroicons/react/24/outline';
 
 const ParentDashboardPage = () => {
@@ -36,6 +37,11 @@ const ParentDashboardPage = () => {
   const [pendingRequests, setPendingRequests] = useState([]);
   const [showAddChildModal, setShowAddChildModal] = useState(false);
   const [showRhythmModal, setShowRhythmModal] = useState(false);
+  const [conversations, setConversations] = useState([]);
+  const [loadingConversations, setLoadingConversations] = useState(false);
+  const [selectedConversationId, setSelectedConversationId] = useState(null);
+  const [conversationMessages, setConversationMessages] = useState([]);
+  const [loadingMessages, setLoadingMessages] = useState(false);
 
   // Pillar display names mapping
   const pillarDisplayNames = {
@@ -138,6 +144,51 @@ const ParentDashboardPage = () => {
 
     loadDashboardData();
   }, [selectedStudentId, children.length]);
+
+  // Load conversations when Communications tab is active
+  useEffect(() => {
+    const loadConversations = async () => {
+      if (activeTab !== 'communications' || !selectedStudentId) {
+        return;
+      }
+
+      setLoadingConversations(true);
+      try {
+        const response = await parentAPI.getTutorConversations(selectedStudentId);
+        setConversations(response.data.conversations || []);
+      } catch (error) {
+        console.error('Error loading conversations:', error);
+        toast.error('Failed to load tutor conversations');
+      } finally {
+        setLoadingConversations(false);
+      }
+    };
+
+    loadConversations();
+  }, [activeTab, selectedStudentId]);
+
+  // Load conversation messages when a conversation is selected
+  useEffect(() => {
+    const loadMessages = async () => {
+      if (!selectedConversationId) {
+        setConversationMessages([]);
+        return;
+      }
+
+      setLoadingMessages(true);
+      try {
+        const response = await parentAPI.getConversationMessages(selectedConversationId);
+        setConversationMessages(response.data.messages || []);
+      } catch (error) {
+        console.error('Error loading conversation messages:', error);
+        toast.error('Failed to load conversation messages');
+      } finally {
+        setLoadingMessages(false);
+      }
+    };
+
+    loadMessages();
+  }, [selectedConversationId]);
 
   // Allow parent and admin roles to access the dashboard
   if (!user || (user.role !== 'parent' && user.role !== 'admin')) {
@@ -906,15 +957,120 @@ const ParentDashboardPage = () => {
               <p className="text-gray-600 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 View your learner's conversations with OptioBot. All conversations are automatically monitored for safety.
               </p>
-              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+              <div className="bg-purple-50 rounded-lg p-4 border border-purple-200 mb-6">
                 <p className="text-purple-900 font-medium text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   🔒 Privacy respected: Conversations are available for safety monitoring while honoring your learner's autonomy.
                 </p>
               </div>
-              {/* TODO: Implement conversation list */}
-              <p className="text-gray-500 font-medium mt-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Communication monitoring feature coming soon.
-              </p>
+
+              {loadingConversations ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                  <span className="ml-3 text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Loading conversations...
+                  </span>
+                </div>
+              ) : conversations.length === 0 ? (
+                <div className="text-center py-8">
+                  <ChatBubbleLeftRightIcon className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+                  <p className="text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    No tutor conversations yet
+                  </p>
+                  <p className="text-gray-400 text-sm mt-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Conversations will appear here when your learner uses OptioBot
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {conversations.map((conv) => (
+                    <div
+                      key={conv.id}
+                      className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
+                      onClick={() => setSelectedConversationId(conv.id)}
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-900 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {conv.title}
+                          </h4>
+                          <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            Mode: <span className="capitalize">{conv.mode}</span> • {conv.message_count} messages
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            Last activity: {new Date(conv.last_activity).toLocaleDateString()}
+                          </p>
+                        </div>
+                        <ChevronRightIcon className="h-5 w-5 text-gray-400" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Conversation Detail Modal */}
+              {selectedConversationId && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                  <div className="bg-white rounded-lg max-w-3xl w-full max-h-[80vh] overflow-hidden">
+                    <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                      <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        Conversation Details
+                      </h3>
+                      <button
+                        onClick={() => setSelectedConversationId(null)}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <XMarkIcon className="h-6 w-6" />
+                      </button>
+                    </div>
+                    <div className="p-6 overflow-y-auto max-h-[60vh]">
+                      {loadingMessages ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                        </div>
+                      ) : conversationMessages.length === 0 ? (
+                        <p className="text-gray-500 text-center py-8" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                          No messages in this conversation
+                        </p>
+                      ) : (
+                        <div className="space-y-4">
+                          {conversationMessages.map((msg) => (
+                            <div
+                              key={msg.id}
+                              className={`p-4 rounded-lg ${
+                                msg.role === 'user'
+                                  ? 'bg-purple-50 border border-purple-200 ml-8'
+                                  : 'bg-gray-50 border border-gray-200 mr-8'
+                              }`}
+                            >
+                              <div className="flex items-center justify-between mb-2">
+                                <span
+                                  className={`text-xs font-semibold ${
+                                    msg.role === 'user' ? 'text-purple-700' : 'text-gray-700'
+                                  }`}
+                                  style={{ fontFamily: 'Poppins, sans-serif' }}
+                                >
+                                  {msg.role === 'user' ? 'Student' : 'OptioBot'}
+                                </span>
+                                {msg.safety_level !== 'safe' && (
+                                  <span className="text-xs font-semibold text-red-600 bg-red-100 px-2 py-1 rounded">
+                                    ⚠️ {msg.safety_level}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-gray-800 font-medium whitespace-pre-wrap" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                {msg.content}
+                              </p>
+                              <p className="text-xs text-gray-500 mt-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                {new Date(msg.created_at).toLocaleString()}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </>
