@@ -221,14 +221,25 @@ class EmailService(BaseService):
     def send_promo_welcome_email(self, parent_email: str, parent_name: str, teen_age: str, activity: str = '') -> bool:
         """Send welcome email to parents who fill out the promo form"""
         tanner_email = os.getenv('ADMIN_EMAIL', 'tanner@optioeducation.com')
+
+        # Format teen_age_text for template (handles empty/None values)
+        teen_age_text = ''
+        if teen_age and str(teen_age).strip():
+            teen_age_text = f" (age {teen_age})"
+
+        # Format activity_text for template (handles empty/None values)
+        activity_text = ''
+        if activity and str(activity).strip():
+            activity_text = f" We're excited to hear that they're interested in {activity}."
+
         return self.send_templated_email(
             to_email=parent_email,
             subject="Welcome to Optio! Let's Chat About Your Teen's Future",
             template_name='promo_welcome',
             context={
                 'parent_name': parent_name,
-                'teen_age': teen_age,
-                'activity': activity
+                'teen_age_text': teen_age_text,
+                'activity_text': activity_text
             },
             bcc=[tanner_email]  # Copy Tanner for personal follow-up
         )
