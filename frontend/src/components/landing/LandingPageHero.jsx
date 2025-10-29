@@ -55,7 +55,7 @@ const LandingPageHero = ({
           <div
             className="absolute inset-0"
             style={{
-              background: 'linear-gradient(135deg, rgba(109, 70, 155, 0.75) 0%, rgba(128, 88, 172, 0.7) 50%, rgba(239, 89, 123, 0.75) 100%)'
+              background: 'linear-gradient(135deg, rgba(109, 70, 155, 0.8) 0%, rgba(239, 89, 123, 0.8) 100%)'
             }}
           />
         </>
