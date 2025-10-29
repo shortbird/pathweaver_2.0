@@ -23,6 +23,7 @@ from backend.repositories import (
 from utils.auth.decorators import require_auth
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
+from collections import defaultdict
 import logging
 
 from utils.logger import get_logger
