@@ -23,7 +23,6 @@ from backend.repositories import (
 from utils.auth.decorators import require_auth
 from middleware.error_handler import AuthorizationError, NotFoundError
 from utils.pillar_utils import get_pillar_name
-from collections import defaultdict
 import logging
 
 from utils.logger import get_logger
@@ -448,14 +447,8 @@ def get_task_details(user_id, student_id, task_id):
 
         completion = completion_response.data[0] if completion_response.data else None
 
-        # Get evidence documents if task is completed
-        evidence_documents = []
-        if completion:
-            evidence_docs_response = supabase.table('evidence_document_blocks').select('''
-                id, file_name, file_type, file_size, file_url, created_at
-            ''').eq('task_completion_id', completion['id']).execute()
-
-            evidence_documents = evidence_docs_response.data if evidence_docs_response.data else []
+        # Note: Evidence is stored in the completion record as text and URL fields
+        # No separate file uploads table exists
 
         # Get scheduled date if exists
         deadline_response = supabase.table('user_quest_deadlines').select(
@@ -498,8 +491,7 @@ def get_task_details(user_id, student_id, task_id):
                 'evidence_text': completion['evidence_text'] if completion else None,
                 'evidence_url': completion['evidence_url'] if completion else None,
                 'xp_awarded': task.get('xp_value', 0)  # XP comes from task, not completion
-            } if completion else None,
-            'evidence_documents': evidence_documents
+            } if completion else None
         }), 200
 
     except AuthorizationError as e:
@@ -810,17 +802,6 @@ def get_recent_completions(user_id, student_id):
 
             quests_map = {q['id']: q for q in quests_response.data}
 
-        # Get evidence documents for all completions
-        completion_ids = [comp['id'] for comp in completions_response.data]
-        evidence_docs_response = supabase.table('evidence_document_blocks').select('''
-            id, task_completion_id, file_name, file_type, file_size, file_url, created_at
-        ''').in_('task_completion_id', completion_ids).execute()
-
-        # Group evidence by completion_id
-        evidence_by_completion = defaultdict(list)
-        for doc in evidence_docs_response.data:
-            evidence_by_completion[doc['task_completion_id']].append(doc)
-
         # Build completions list
         completions = []
         for comp in completions_response.data:
@@ -847,8 +828,7 @@ def get_recent_completions(user_id, student_id):
                 },
                 'completed_at': comp['completed_at'],
                 'evidence_text': comp.get('evidence_text'),
-                'evidence_url': comp.get('evidence_url'),
-                'evidence_documents': evidence_by_completion.get(comp['id'], [])
+                'evidence_url': comp.get('evidence_url')
             })
 
         return jsonify({

@@ -1151,7 +1151,7 @@ const ParentDashboardPage = () => {
                               <span className="text-xs font-semibold px-2 py-1 rounded bg-blue-100 text-blue-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
                                 {completion.task.xp_value} XP
                               </span>
-                              {(completion.evidence_text || completion.evidence_url || completion.evidence_documents.length > 0) && (
+                              {(completion.evidence_text || completion.evidence_url) && (
                                 <span className="text-xs font-semibold px-2 py-1 rounded bg-purple-100 text-purple-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
                                   Has Evidence
                                 </span>
@@ -1381,41 +1381,7 @@ const ParentDashboardPage = () => {
                         </div>
                       )}
 
-                      {selectedCompletion.evidence_documents && selectedCompletion.evidence_documents.length > 0 && (
-                        <div>
-                          <h5 className="font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            Uploaded Files ({selectedCompletion.evidence_documents.length}):
-                          </h5>
-                          <div className="space-y-2">
-                            {selectedCompletion.evidence_documents.map((doc) => (
-                              <a
-                                key={doc.id}
-                                href={doc.file_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
-                              >
-                                <div className="flex-shrink-0 w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                                  <span className="text-xs font-bold text-purple-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                    {doc.file_type?.split('/')[1]?.toUpperCase().slice(0, 4) || 'FILE'}
-                                  </span>
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                  <p className="font-semibold text-gray-900 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                    {doc.file_name}
-                                  </p>
-                                  <p className="text-xs text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                                    {(doc.file_size / 1024).toFixed(1)} KB • {new Date(doc.created_at).toLocaleDateString()}
-                                  </p>
-                                </div>
-                                <ChevronRightIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {!selectedCompletion.evidence_text && !selectedCompletion.evidence_url && selectedCompletion.evidence_documents.length === 0 && (
+                      {!selectedCompletion.evidence_text && !selectedCompletion.evidence_url && (
                         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
                           <p className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
                             No evidence was submitted with this task completion
