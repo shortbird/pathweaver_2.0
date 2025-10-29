@@ -138,8 +138,13 @@ def update_quest(user_id, quest_id):
         update_data = {}
         if 'title' in data:
             update_data['title'] = data['title'].strip()
-        if 'description' in data:
-            update_data['description'] = data['description'].strip()
+
+        # Handle both 'big_idea' and 'description' fields (frontend sends big_idea, backend uses both)
+        if 'big_idea' in data or 'description' in data:
+            quest_desc = data.get('big_idea', '').strip() or data.get('description', '').strip()
+            update_data['big_idea'] = quest_desc
+            update_data['description'] = quest_desc  # Keep both fields in sync
+
         if 'header_image_url' in data:
             update_data['header_image_url'] = data['header_image_url']
         if 'is_active' in data:
