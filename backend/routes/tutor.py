@@ -815,14 +815,14 @@ def get_parent_tutor_conversations(user_id: str, student_id: str):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this student
-        parent_repo = ParentRepository(supabase)
+        parent_repo = ParentRepository(user_id)
         if not parent_repo.is_linked(user_id, student_id):
             raise AuthorizationError("You do not have access to this student's data")
 
         # Get student's conversations
         conversations_response = supabase.table('tutor_conversations').select('''
             id,
-            mode,
+            conversation_mode,
             title,
             created_at,
             updated_at,
@@ -873,7 +873,7 @@ def get_parent_conversation_messages(user_id: str, conversation_id: str):
 
         # Get conversation to find student_id
         conversation_response = supabase.table('tutor_conversations').select(
-            'id, user_id, mode, title'
+            'id, user_id, conversation_mode, title'
         ).eq('id', conversation_id).single().execute()
 
         if not conversation_response.data:
@@ -883,7 +883,7 @@ def get_parent_conversation_messages(user_id: str, conversation_id: str):
         student_id = conversation['user_id']
 
         # Verify parent has access to this student
-        parent_repo = ParentRepository(supabase)
+        parent_repo = ParentRepository(user_id)
         if not parent_repo.is_linked(user_id, student_id):
             raise AuthorizationError("You do not have access to this conversation")
 
@@ -936,7 +936,7 @@ def get_parent_safety_reports(user_id: str, student_id: str):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this student
-        parent_repo = ParentRepository(supabase)
+        parent_repo = ParentRepository(user_id)
         if not parent_repo.is_linked(user_id, student_id):
             raise AuthorizationError("You do not have access to this student's data")
 
@@ -992,7 +992,7 @@ def get_parent_monitoring_settings(user_id: str, student_id: str):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this student
-        parent_repo = ParentRepository(supabase)
+        parent_repo = ParentRepository(user_id)
         if not parent_repo.is_linked(user_id, student_id):
             raise AuthorizationError("You do not have access to this student's data")
 
@@ -1044,7 +1044,7 @@ def update_parent_monitoring_settings(user_id: str, student_id: str):
         supabase = get_supabase_admin_client()
 
         # Verify parent has access to this student
-        parent_repo = ParentRepository(supabase)
+        parent_repo = ParentRepository(user_id)
         if not parent_repo.is_linked(user_id, student_id):
             raise AuthorizationError("You do not have access to this student's data")
 
