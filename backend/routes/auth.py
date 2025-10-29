@@ -940,50 +940,67 @@ def forgot_password():
     Returns success message regardless of whether email exists (security best practice).
     """
     try:
+        logger.info("[FORGOT_PASSWORD] === Starting password reset request ===")
         data = request.json
         email = data.get('email')
+        logger.info(f"[FORGOT_PASSWORD] Received request for email: {email}")
 
         if not email:
+            logger.warning("[FORGOT_PASSWORD] No email provided")
             return jsonify({'error': 'Email is required'}), 400
 
         # Sanitize email input
         email = sanitize_input(email.lower().strip())
+        logger.info(f"[FORGOT_PASSWORD] Sanitized email: {email}")
 
         # Validate email format
         email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
         if not re.match(email_regex, email):
+            logger.warning(f"[FORGOT_PASSWORD] Invalid email format: {email}")
             return jsonify({'error': 'Invalid email format'}), 400
 
         from database import get_supabase_admin_client
         admin_client = get_supabase_admin_client()
+        logger.info("[FORGOT_PASSWORD] Got admin client")
 
         # Check if user exists (for internal logging only)
+        logger.info(f"[FORGOT_PASSWORD] Looking up user: {email}")
         user_check = admin_client.table('users').select('id, display_name, first_name, email').eq('email', email).execute()
+        logger.info(f"[FORGOT_PASSWORD] User lookup result: {len(user_check.data) if user_check.data else 0} users found")
 
         if user_check.data:
             user = user_check.data[0]
             user_id = user.get('id')
             user_name = user.get('display_name') or user.get('first_name') or 'there'
+            logger.info(f"[FORGOT_PASSWORD] Found user: {user_id}, name: {user_name}")
 
             try:
                 # Generate secure token
+                logger.info("[FORGOT_PASSWORD] Generating reset token")
                 reset_token = secrets.token_urlsafe(32)
                 expires_at = datetime.utcnow() + timedelta(hours=24)
+                logger.info(f"[FORGOT_PASSWORD] Token generated, expires at: {expires_at.isoformat()}")
 
                 # Store token in database
-                admin_client.table('password_reset_tokens').insert({
+                logger.info("[FORGOT_PASSWORD] Storing token in database")
+                token_result = admin_client.table('password_reset_tokens').insert({
                     'user_id': user_id,
                     'token': reset_token,
                     'expires_at': expires_at.isoformat(),
                     'used': False,
                     'created_at': datetime.utcnow().isoformat()
                 }).execute()
+                logger.info(f"[FORGOT_PASSWORD] Token stored successfully: {token_result.data}")
 
                 # Generate reset link
                 frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
                 reset_link = f"{frontend_url}/reset-password?token={reset_token}"
+                logger.info(f"[FORGOT_PASSWORD] Generated reset link: {reset_link[:50]}...")
 
                 # Send email using our EmailService
+                logger.info(f"[FORGOT_PASSWORD] Calling email_service.send_password_reset_email()")
+                logger.info(f"[FORGOT_PASSWORD] Email params: user_email={email}, user_name={user_name}, expiry_hours=24")
+
                 email_sent = email_service.send_password_reset_email(
                     user_email=email,
                     user_name=user_name,
@@ -991,23 +1008,34 @@ def forgot_password():
                     expiry_hours=24
                 )
 
+                logger.info(f"[FORGOT_PASSWORD] Email send result: {email_sent}")
+
                 if email_sent:
-                    logger.info(f"[FORGOT_PASSWORD] Password reset email sent to {email}")
+                    logger.info(f"[FORGOT_PASSWORD] ✓ Password reset email SUCCESSFULLY sent to {email}")
                 else:
-                    logger.error(f"[FORGOT_PASSWORD] Failed to send email to {email}")
+                    logger.error(f"[FORGOT_PASSWORD] ✗ FAILED to send email to {email}")
 
             except Exception as reset_error:
-                logger.error(f"[FORGOT_PASSWORD] Error generating reset token: {str(reset_error)}")
+                logger.error(f"[FORGOT_PASSWORD] ✗ Exception during reset token generation or email send: {str(reset_error)}")
+                logger.error(f"[FORGOT_PASSWORD] Exception type: {type(reset_error).__name__}")
+                import traceback
+                logger.error(f"[FORGOT_PASSWORD] Traceback: {traceback.format_exc()}")
                 # Still return success to avoid revealing user existence
+        else:
+            logger.info(f"[FORGOT_PASSWORD] No user found with email: {email}")
 
         # Always return success message (don't reveal if email exists or not)
+        logger.info("[FORGOT_PASSWORD] === Returning success response ===")
         return jsonify({
             'message': 'If an account exists with this email, you will receive password reset instructions shortly.',
             'note': 'Please check your spam folder if you don\'t see the email within a few minutes.'
         }), 200
 
     except Exception as e:
-        logger.error(f"[FORGOT_PASSWORD] Error: {str(e)}")
+        logger.error(f"[FORGOT_PASSWORD] ✗ Top-level exception: {str(e)}")
+        logger.error(f"[FORGOT_PASSWORD] Exception type: {type(e).__name__}")
+        import traceback
+        logger.error(f"[FORGOT_PASSWORD] Traceback: {traceback.format_exc()}")
         # Return generic success message to avoid revealing system errors
         return jsonify({
             'message': 'Password reset request processed. If an account exists, an email will be sent.'
