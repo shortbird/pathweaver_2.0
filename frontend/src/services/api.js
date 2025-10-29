@@ -253,6 +253,9 @@ export const parentAPI = {
   // Get learning insights and analytics for a student
   getInsights: (studentId) => api.get(`/api/parent/insights/${studentId}`),
 
+  // Get task details with evidence (for Calendar tab task detail modal)
+  getTaskDetails: (studentId, taskId) => api.get(`/api/parent/task/${studentId}/${taskId}`),
+
   // Upload evidence on behalf of student (requires student approval)
   uploadEvidence: (studentId, taskId, formData) =>
     api.post(`/api/parent/evidence/${studentId}`, formData, {

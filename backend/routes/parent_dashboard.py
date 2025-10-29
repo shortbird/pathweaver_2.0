@@ -412,6 +412,107 @@ def get_student_calendar(user_id, student_id):
         return jsonify({'error': 'Failed to get student calendar'}), 500
 
 
+@bp.route('/task/<student_id>/<task_id>', methods=['GET'])
+@require_auth
+def get_task_details(user_id, student_id, task_id):
+    """
+    Get detailed task information including evidence for parent viewing.
+    Parents can view task details and any submitted evidence.
+    """
+    supabase = None
+    try:
+        supabase = get_supabase_admin_client()
+        verify_parent_access(supabase, user_id, student_id)
+
+        # Get task details from user_quest_tasks
+        task_response = supabase.table('user_quest_tasks').select('''
+            id, quest_id, user_quest_id, title, description, pillar, xp_value, order_index, is_required
+        ''').eq('user_id', student_id).eq('id', task_id).single().execute()
+
+        if not task_response.data:
+            raise NotFoundError("Task not found")
+
+        task = task_response.data
+
+        # Get quest details
+        quest_response = supabase.table('quests').select('''
+            id, title, description, image_url, header_image_url
+        ''').eq('id', task['quest_id']).single().execute()
+
+        quest = quest_response.data if quest_response.data else {}
+
+        # Get completion status and evidence
+        completion_response = supabase.table('quest_task_completions').select('''
+            id, completed_at, evidence_url, evidence_text, xp_awarded
+        ''').eq('user_id', student_id).eq('task_id', task_id).execute()
+
+        completion = completion_response.data[0] if completion_response.data else None
+
+        # Get evidence documents if task is completed
+        evidence_documents = []
+        if completion:
+            evidence_docs_response = supabase.table('evidence_document_blocks').select('''
+                id, file_name, file_type, file_size, file_url, created_at
+            ''').eq('task_completion_id', completion['id']).execute()
+
+            evidence_documents = evidence_docs_response.data if evidence_docs_response.data else []
+
+        # Get scheduled date if exists
+        deadline_response = supabase.table('user_quest_deadlines').select(
+            'scheduled_date'
+        ).eq('user_id', student_id).eq('task_id', task_id).execute()
+
+        scheduled_date = deadline_response.data[0]['scheduled_date'] if deadline_response.data else None
+
+        # Determine status
+        status = 'not_started'
+        if completion:
+            status = 'completed'
+        elif scheduled_date:
+            scheduled_date_obj = datetime.strptime(scheduled_date, '%Y-%m-%d').date()
+            if scheduled_date_obj < date.today():
+                status = 'overdue'
+            else:
+                status = 'scheduled'
+
+        return jsonify({
+            'task': {
+                'id': task['id'],
+                'title': task['title'],
+                'description': task.get('description'),
+                'pillar': get_pillar_name(task['pillar']),
+                'xp_value': task.get('xp_value', 0),
+                'order_index': task.get('order_index'),
+                'is_required': task.get('is_required', False),
+                'status': status,
+                'scheduled_date': scheduled_date
+            },
+            'quest': {
+                'id': quest.get('id'),
+                'title': quest.get('title'),
+                'description': quest.get('description'),
+                'image_url': quest.get('image_url') or quest.get('header_image_url')
+            },
+            'completion': {
+                'completed_at': completion['completed_at'] if completion else None,
+                'evidence_text': completion['evidence_text'] if completion else None,
+                'evidence_url': completion['evidence_url'] if completion else None,
+                'xp_awarded': completion['xp_awarded'] if completion else None
+            } if completion else None,
+            'evidence_documents': evidence_documents
+        }), 200
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except NotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error getting task details: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to get task details'}), 500
+
+
 @bp.route('/progress/<student_id>', methods=['GET'])
 @require_auth
 def get_student_progress(user_id, student_id):

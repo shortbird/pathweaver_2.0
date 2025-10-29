@@ -42,6 +42,9 @@ const ParentDashboardPage = () => {
   const [selectedConversationId, setSelectedConversationId] = useState(null);
   const [conversationMessages, setConversationMessages] = useState([]);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [taskDetails, setTaskDetails] = useState(null);
+  const [loadingTaskDetails, setLoadingTaskDetails] = useState(false);
 
   // Pillar display names mapping
   const pillarDisplayNames = {
@@ -189,6 +192,29 @@ const ParentDashboardPage = () => {
 
     loadMessages();
   }, [selectedConversationId]);
+
+  // Load task details when a task is selected
+  useEffect(() => {
+    const loadTaskDetails = async () => {
+      if (!selectedTask || !selectedStudentId) {
+        setTaskDetails(null);
+        return;
+      }
+
+      setLoadingTaskDetails(true);
+      try {
+        const response = await parentAPI.getTaskDetails(selectedStudentId, selectedTask.id);
+        setTaskDetails(response.data);
+      } catch (error) {
+        console.error('Error loading task details:', error);
+        toast.error('Failed to load task details');
+      } finally {
+        setLoadingTaskDetails(false);
+      }
+    };
+
+    loadTaskDetails();
+  }, [selectedTask, selectedStudentId]);
 
   // Allow parent and admin roles to access the dashboard
   if (!user || (user.role !== 'parent' && user.role !== 'admin')) {
@@ -800,7 +826,11 @@ const ParentDashboardPage = () => {
                     })
                     .slice(0, 10)
                     .map((item) => (
-                      <div key={item.id} className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg">
+                      <div
+                        key={item.id}
+                        className="flex items-start gap-4 p-4 border border-gray-200 rounded-lg hover:shadow-md hover:border-purple-300 transition-all cursor-pointer"
+                        onClick={() => setSelectedTask(item)}
+                      >
                         <CalendarIcon className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1" />
                         <div className="flex-1">
                           <h4 className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
@@ -819,6 +849,7 @@ const ParentDashboardPage = () => {
                             )}
                           </div>
                         </div>
+                        <ChevronRightIcon className="h-5 w-5 text-gray-400 flex-shrink-0 mt-1" />
                       </div>
                     ))}
                 </div>
@@ -827,6 +858,182 @@ const ParentDashboardPage = () => {
                   No scheduled tasks yet. They're exploring freely!
                 </p>
               )}
+            </div>
+          )}
+
+          {/* Task Detail Modal */}
+          {selectedTask && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg max-w-3xl w-full max-h-[85vh] overflow-hidden">
+                <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                  <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Task Details
+                  </h3>
+                  <button
+                    onClick={() => setSelectedTask(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <XMarkIcon className="h-6 w-6" />
+                  </button>
+                </div>
+                <div className="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
+                  {loadingTaskDetails ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                    </div>
+                  ) : taskDetails ? (
+                    <div className="space-y-6">
+                      {/* Quest Info */}
+                      {taskDetails.quest && (
+                        <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                          <h4 className="font-bold text-purple-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            From Quest: {taskDetails.quest.title}
+                          </h4>
+                          {taskDetails.quest.description && (
+                            <p className="text-sm text-purple-800 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              {taskDetails.quest.description}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Task Info */}
+                      <div>
+                        <h4 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                          {taskDetails.task.title}
+                        </h4>
+                        {taskDetails.task.description && (
+                          <p className="text-gray-700 font-medium mb-3 whitespace-pre-wrap" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {taskDetails.task.description}
+                          </p>
+                        )}
+                        <div className="flex flex-wrap gap-2">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {taskDetails.task.pillar}
+                          </span>
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {taskDetails.task.xp_value} XP
+                          </span>
+                          {taskDetails.task.is_required && (
+                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              Required
+                            </span>
+                          )}
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
+                            taskDetails.task.status === 'completed' ? 'bg-green-100 text-green-800' :
+                            taskDetails.task.status === 'overdue' ? 'bg-yellow-100 text-yellow-800' :
+                            'bg-gray-100 text-gray-800'
+                          }`} style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {taskDetails.task.status === 'completed' ? 'Completed' :
+                             taskDetails.task.status === 'overdue' ? 'Overdue' :
+                             taskDetails.task.status === 'scheduled' ? 'Scheduled' :
+                             'Not Started'}
+                          </span>
+                        </div>
+                        {taskDetails.task.scheduled_date && (
+                          <p className="text-sm text-gray-600 font-medium mt-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            Scheduled: {new Date(taskDetails.task.scheduled_date).toLocaleDateString()}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Completion & Evidence */}
+                      {taskDetails.completion ? (
+                        <div className="border-t border-gray-200 pt-6">
+                          <h4 className="text-lg font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            Submitted Evidence
+                          </h4>
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+                            <p className="text-sm text-green-800 font-semibold mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              Completed on {new Date(taskDetails.completion.completed_at).toLocaleDateString()}
+                            </p>
+                            <p className="text-xs text-green-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              Awarded {taskDetails.completion.xp_awarded} XP
+                            </p>
+                          </div>
+
+                          {taskDetails.completion.evidence_text && (
+                            <div className="mb-4">
+                              <h5 className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                Student Notes:
+                              </h5>
+                              <p className="text-gray-700 font-medium whitespace-pre-wrap bg-gray-50 p-4 rounded-lg border border-gray-200" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                {taskDetails.completion.evidence_text}
+                              </p>
+                            </div>
+                          )}
+
+                          {taskDetails.completion.evidence_url && (
+                            <div className="mb-4">
+                              <h5 className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                Evidence Link:
+                              </h5>
+                              <a
+                                href={taskDetails.completion.evidence_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-purple-600 hover:text-purple-800 font-medium underline"
+                                style={{ fontFamily: 'Poppins, sans-serif' }}
+                              >
+                                {taskDetails.completion.evidence_url}
+                              </a>
+                            </div>
+                          )}
+
+                          {taskDetails.evidence_documents && taskDetails.evidence_documents.length > 0 && (
+                            <div>
+                              <h5 className="font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                Uploaded Files ({taskDetails.evidence_documents.length}):
+                              </h5>
+                              <div className="space-y-2">
+                                {taskDetails.evidence_documents.map((doc) => (
+                                  <a
+                                    key={doc.id}
+                                    href={doc.file_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
+                                  >
+                                    <div className="flex-shrink-0 w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                                      <span className="text-xs font-bold text-purple-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                        {doc.file_type?.split('/')[1]?.toUpperCase().slice(0, 4) || 'FILE'}
+                                      </span>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-semibold text-gray-900 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                        {doc.file_name}
+                                      </p>
+                                      <p className="text-xs text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                        {(doc.file_size / 1024).toFixed(1)} KB • {new Date(doc.created_at).toLocaleDateString()}
+                                      </p>
+                                    </div>
+                                    <ChevronRightIcon className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="border-t border-gray-200 pt-6">
+                          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
+                            <p className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              No evidence submitted yet
+                            </p>
+                            <p className="text-sm text-gray-500 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              Your learner hasn't completed this task yet
+                            </p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-gray-500 text-center py-8" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      Failed to load task details
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
