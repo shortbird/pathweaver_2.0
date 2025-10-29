@@ -167,7 +167,7 @@ api.interceptors.response.use(
         localStorage.removeItem('user')
 
         // Only redirect to login if we're not already on auth pages or public pages
-        const authPaths = ['/login', '/register', '/email-verification', '/', '/subscription/success', '/terms', '/privacy', '/academy-agreement', '/academy-handbook']
+        const authPaths = ['/login', '/register', '/email-verification', '/forgot-password', '/reset-password', '/', '/subscription/success', '/terms', '/privacy', '/academy-agreement', '/academy-handbook']
         const currentPath = window.location.pathname
         const isPublicDiploma = currentPath.startsWith('/public/diploma/') || currentPath.startsWith('/portfolio/')
         const isPromoPage = currentPath.startsWith('/promo/') || currentPath === '/promo'
