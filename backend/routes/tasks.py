@@ -103,7 +103,10 @@ def complete_task(user_id: str, task_id: str):
                 'success': False,
                 'error': 'Evidence type is required'
             }), 400
-        
+
+        # Get confidential flag
+        is_confidential = request.form.get('is_confidential', 'false').lower() == 'true'
+
         # Prepare evidence data based on type
         evidence_data = {}
         evidence_content = ''
@@ -234,6 +237,7 @@ def complete_task(user_id: str, task_id: str):
                 'user_quest_task_id': task_id,  # Reference to personalized task
                 'evidence_text': evidence_content if evidence_type == 'text' else None,
                 'evidence_url': evidence_content if evidence_type != 'text' else None,
+                'is_confidential': is_confidential,
                 'xp_awarded': final_xp,
                 'completed_at': datetime.utcnow().isoformat()
             })\

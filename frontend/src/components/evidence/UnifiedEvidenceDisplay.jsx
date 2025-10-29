@@ -10,9 +10,10 @@
  * @param {string} displayMode - 'full' | 'compact' | 'preview'
  * @param {boolean} showMetadata - Show task/quest context header
  * @param {boolean} allowPrivateBlocks - Show private blocks (owner only)
+ * @param {string} viewerUserId - User ID of current viewer (for confidential check)
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import TextBlock from './blocks/TextBlock';
 import ImageBlock from './blocks/ImageBlock';
@@ -27,9 +28,11 @@ const UnifiedEvidenceDisplay = ({
   context = {},
   displayMode = 'full',
   showMetadata = false,
-  allowPrivateBlocks = false
+  allowPrivateBlocks = false,
+  viewerUserId = null
 }) => {
   const [expandedBlocks, setExpandedBlocks] = useState(new Set());
+  const [studentName, setStudentName] = useState('This student');
 
   // Handle null or undefined evidence
   if (!evidence) {
@@ -40,8 +43,58 @@ const UnifiedEvidenceDisplay = ({
     evidence_type,
     evidence_blocks = [],
     evidence_text,
-    evidence_url
+    evidence_url,
+    is_confidential = false,
+    owner_user_id = null
   } = evidence;
+
+  // Fetch student name if this is confidential evidence
+  useEffect(() => {
+    if (is_confidential && owner_user_id && owner_user_id !== viewerUserId) {
+      // Try to get student name from context first
+      if (context?.student_name) {
+        setStudentName(context.student_name);
+      } else {
+        // Fetch from API
+        import('../../services/api').then(({ default: api }) => {
+          api.get(`/users/${owner_user_id}/profile`)
+            .then(response => {
+              const name = response.data.display_name || response.data.first_name || 'This student';
+              setStudentName(name);
+            })
+            .catch(() => {
+              setStudentName('This student');
+            });
+        });
+      }
+    }
+  }, [is_confidential, owner_user_id, viewerUserId, context]);
+
+  // Check if evidence is confidential and viewer is not the owner
+  const isConfidentialToViewer = is_confidential && owner_user_id && owner_user_id !== viewerUserId;
+
+  // Show confidential message if needed
+  if (isConfidentialToViewer) {
+    return (
+      <div className="bg-gradient-to-br from-purple-50 to-pink-50 border-2 border-purple-200 rounded-lg p-8">
+        <div className="flex items-start gap-4">
+          <div className="flex-shrink-0 w-12 h-12 bg-gradient-to-br from-purple-600 to-pink-500 rounded-lg flex items-center justify-center">
+            <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+          </div>
+          <div className="flex-1">
+            <h4 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Confidential Evidence
+            </h4>
+            <p className="text-gray-700 font-medium leading-relaxed" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              {studentName} has marked this evidence as confidential. Please contact them directly for more information.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // Filter private blocks if needed
   const visibleBlocks = allowPrivateBlocks
@@ -214,18 +267,22 @@ UnifiedEvidenceDisplay.propTypes = {
     })),
     evidence_text: PropTypes.string,
     evidence_url: PropTypes.string,
-    evidence_content: PropTypes.string // Legacy field name
+    evidence_content: PropTypes.string, // Legacy field name
+    is_confidential: PropTypes.bool,
+    owner_user_id: PropTypes.string
   }),
   context: PropTypes.shape({
     taskTitle: PropTypes.string,
     questTitle: PropTypes.string,
     pillar: PropTypes.string,
     completedAt: PropTypes.string,
-    xpAwarded: PropTypes.number
+    xpAwarded: PropTypes.number,
+    student_name: PropTypes.string
   }),
   displayMode: PropTypes.oneOf(['full', 'compact', 'preview']),
   showMetadata: PropTypes.bool,
-  allowPrivateBlocks: PropTypes.bool
+  allowPrivateBlocks: PropTypes.bool,
+  viewerUserId: PropTypes.string
 };
 
 export default UnifiedEvidenceDisplay;

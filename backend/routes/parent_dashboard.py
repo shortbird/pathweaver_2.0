@@ -58,8 +58,9 @@ def parse_document_id_from_evidence_text(evidence_text: str) -> Optional[str]:
 def fetch_evidence_blocks_by_document_id(
     supabase,
     document_id: str,
-    filter_private: bool = False  # Parents should see all evidence
-) -> List[Dict[str, Any]]:
+    filter_private: bool = False,
+    viewer_user_id: str = None
+) -> tuple[List[Dict[str, Any]], bool, str]:
     """
     Fetch evidence blocks directly by document ID.
     Used as fallback when task_id matching fails.
@@ -68,13 +69,16 @@ def fetch_evidence_blocks_by_document_id(
         supabase: Supabase client
         document_id: UUID of user_task_evidence_documents record
         filter_private: If True, exclude private blocks (False for parents)
+        viewer_user_id: User ID of the person viewing
 
     Returns:
-        List of evidence blocks sorted by order_index
+        Tuple of (blocks list, is_confidential boolean, owner_user_id string)
     """
     try:
         query = supabase.table('user_task_evidence_documents').select('''
             id,
+            user_id,
+            is_confidential,
             evidence_document_blocks (
                 id, block_type, content, order_index, is_private
             )
@@ -86,15 +90,21 @@ def fetch_evidence_blocks_by_document_id(
         result = query.execute()
 
         if result.data and len(result.data) > 0:
-            blocks = result.data[0].get('evidence_document_blocks', [])
-            return sorted(blocks, key=lambda b: b.get('order_index', 0))
+            doc = result.data[0]
+            is_confidential = doc.get('is_confidential', False)
+            owner_user_id = doc.get('user_id')
+
+            blocks = doc.get('evidence_document_blocks', [])
+            sorted_blocks = sorted(blocks, key=lambda b: b.get('order_index', 0))
+
+            return sorted_blocks, is_confidential, owner_user_id
 
         logger.warning(f"No evidence blocks found for document ID: {document_id}")
-        return []
+        return [], False, None
 
     except Exception as e:
         logger.error(f"Error fetching evidence blocks for document {document_id}: {e}")
-        return []
+        return [], False, None
 
 
 def verify_parent_access(supabase, parent_user_id, student_user_id):
@@ -879,6 +889,8 @@ def get_recent_completions(user_id, student_id):
             evidence_url = comp.get('evidence_url')
             evidence_blocks = []
             evidence_type = 'legacy_text'  # Default
+            is_confidential = comp.get('is_confidential', False)
+            owner_user_id = student_id
 
             # Check if evidence_text contains multi-format document reference
             document_id = parse_document_id_from_evidence_text(evidence_text)
@@ -886,13 +898,17 @@ def get_recent_completions(user_id, student_id):
             if document_id:
                 # Fetch blocks directly by document ID
                 logger.info(f"Fetching evidence blocks for completion {comp['id']} via document ID: {document_id}")
-                blocks = fetch_evidence_blocks_by_document_id(supabase, document_id, filter_private=False)
+                blocks, doc_confidential, doc_owner = fetch_evidence_blocks_by_document_id(
+                    supabase, document_id, filter_private=False, viewer_user_id=parent_user_id
+                )
 
                 if blocks:
                     evidence_blocks = blocks
                     evidence_type = 'multi_format'
                     # Clear placeholder text so frontend doesn't display it
                     evidence_text = None
+                    is_confidential = doc_confidential
+                    owner_user_id = doc_owner
 
             completions.append({
                 'completion_id': comp['id'],
@@ -912,7 +928,9 @@ def get_recent_completions(user_id, student_id):
                 'evidence_type': evidence_type,
                 'evidence_text': evidence_text,
                 'evidence_url': evidence_url,
-                'evidence_blocks': evidence_blocks
+                'evidence_blocks': evidence_blocks,
+                'is_confidential': is_confidential,
+                'owner_user_id': owner_user_id
             })
 
         return jsonify({

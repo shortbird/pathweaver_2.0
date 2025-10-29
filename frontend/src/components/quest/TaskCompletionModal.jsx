@@ -8,6 +8,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
   const [evidenceData, setEvidenceData] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [isConfidential, setIsConfidential] = useState(false);
 
   const handleEvidenceChange = (data) => {
     setEvidenceData(data);
@@ -26,6 +27,7 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
     try {
       const formData = new FormData();
       formData.append('evidence_type', evidenceType);
+      formData.append('is_confidential', isConfidential ? 'true' : 'false');
 
       // Add evidence data based on type
       if (evidenceType === 'text') {
@@ -168,6 +170,31 @@ const TaskCompletionModal = ({ task, questId, onComplete, onClose }) => {
               {error}
             </div>
           )}
+
+          {/* Confidential Checkbox */}
+          <div className="mb-6 p-4 bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-lg">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={isConfidential}
+                onChange={(e) => setIsConfidential(e.target.checked)}
+                className="mt-1 h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 rounded cursor-pointer"
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <svg className="h-4 w-4 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                  <span className="text-sm font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Mark as Confidential
+                  </span>
+                </div>
+                <p className="text-xs text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  Only you will be able to see this evidence. Others will see a message that this evidence is confidential.
+                </p>
+              </div>
+            </label>
+          </div>
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-3">
