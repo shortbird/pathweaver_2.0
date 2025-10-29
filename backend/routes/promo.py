@@ -174,10 +174,15 @@ def credit_tracker_signup():
         # Use admin client for public form submissions
         supabase = get_supabase_admin_client()
 
-        # Insert signup data
+        # Store curriculum info in activity field
+        current_curriculum = data.get('currentCurriculum', '')
+
+        # Insert signup data (matches promo_signups table schema)
         signup_data = {
+            'parent_name': None,  # Not collected by this form
             'email': email,
-            'current_curriculum': data.get('currentCurriculum', ''),
+            'teen_age': None,  # Not collected by this form
+            'activity': current_curriculum,  # Store curriculum selection here
             'created_at': datetime.utcnow().isoformat(),
             'source': 'credit-tracker'
         }
@@ -193,7 +198,7 @@ def credit_tracker_signup():
                     parent_email=email,
                     parent_name='',
                     teen_age='',
-                    activity=data.get('currentCurriculum', '')
+                    activity=current_curriculum
                 )
                 if email_sent:
                     logger.info(f"Welcome email sent to {email}")
@@ -218,8 +223,8 @@ def homeschool_portfolio_signup():
     try:
         data = request.get_json()
 
-        # Validate required fields
-        required_fields = ['parentName', 'email', 'studentAge']
+        # Validate required fields (matches current form fields)
+        required_fields = ['parentName', 'email']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'{field} is required'}), 400
@@ -236,8 +241,8 @@ def homeschool_portfolio_signup():
         signup_data = {
             'parent_name': data['parentName'],
             'email': email,
-            'student_age': data['studentAge'],
-            'current_method': data.get('currentMethod', ''),
+            'teen_age': None,  # Not collected by this form
+            'activity': '',
             'created_at': datetime.utcnow().isoformat(),
             'source': 'homeschool-portfolio'
         }
@@ -253,7 +258,7 @@ def homeschool_portfolio_signup():
                     parent_email=email,
                     parent_name=data['parentName'],
                     teen_age='',
-                    activity=data.get('currentMethod', '')
+                    activity=''
                 )
                 if email_sent:
                     logger.info(f"Welcome email sent to {email}")
@@ -278,8 +283,8 @@ def teacher_consultation_signup():
     try:
         data = request.get_json()
 
-        # Validate required fields
-        required_fields = ['parentName', 'email', 'studentAge', 'currentSituation']
+        # Validate required fields (matches current form fields)
+        required_fields = ['parentName', 'email']
         for field in required_fields:
             if not data.get(field):
                 return jsonify({'error': f'{field} is required'}), 400
@@ -292,21 +297,25 @@ def teacher_consultation_signup():
         # Use admin client for public form submissions
         supabase = get_supabase_admin_client()
 
-        # Insert consultation request data
-        consultation_data = {
+        # Store goals and phone in activity field for admin review
+        activity_parts = []
+        if data.get('phone'):
+            activity_parts.append(f"Phone: {data['phone']}")
+        if data.get('goals'):
+            activity_parts.append(f"Goals: {data['goals']}")
+        activity = ' | '.join(activity_parts) if activity_parts else ''
+
+        # Insert into promo_signups table
+        signup_data = {
             'parent_name': data['parentName'],
             'email': email,
-            'phone': data.get('phone', ''),
-            'student_age': data['studentAge'],
-            'current_situation': data['currentSituation'],
-            'goals': data.get('goals', ''),
-            'preferred_time': data.get('preferredTime', ''),
+            'teen_age': None,  # Not collected by this form
+            'activity': activity,
             'created_at': datetime.utcnow().isoformat(),
-            'status': 'pending',
             'source': 'teacher-consultation'
         }
 
-        result = supabase.table('consultation_requests').insert(consultation_data).execute()
+        result = supabase.table('promo_signups').insert(signup_data).execute()
 
         if result.data:
             logger.info(f"Teacher consultation request recorded: {email}")
