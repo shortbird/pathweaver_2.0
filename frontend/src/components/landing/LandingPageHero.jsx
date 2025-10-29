@@ -51,8 +51,13 @@ const LandingPageHero = ({
               backgroundSize: 'cover'
             }}
           />
-          {/* Dark overlay for text readability */}
-          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/60" />
+          {/* Gradient overlay for text readability - uses Optio brand gradient with opacity */}
+          <div
+            className="absolute inset-0"
+            style={{
+              background: 'linear-gradient(135deg, rgba(109, 70, 155, 0.75) 0%, rgba(128, 88, 172, 0.7) 50%, rgba(239, 89, 123, 0.75) 100%)'
+            }}
+          />
         </>
       )}
 
