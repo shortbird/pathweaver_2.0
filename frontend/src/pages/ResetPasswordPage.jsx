@@ -16,24 +16,18 @@ const ResetPasswordPage = () => {
   const password = watch('password', '')
   const confirmPassword = watch('confirmPassword', '')
 
-  // Extract access token from URL hash (Supabase format: #access_token=xxx)
-  const [accessToken, setAccessToken] = useState('')
+  // Extract token from URL query params (our custom format: ?token=xxx)
+  const [resetToken, setResetToken] = useState('')
 
   useEffect(() => {
-    // Check URL hash for access_token
-    const hash = window.location.hash
-    if (hash) {
-      const params = new URLSearchParams(hash.substring(1))
-      const token = params.get('access_token')
-      if (token) {
-        setAccessToken(token)
-      } else {
-        setErrorMessage('Invalid or missing reset token. Please request a new password reset.')
-      }
+    // Check URL query params for token
+    const token = searchParams.get('token')
+    if (token) {
+      setResetToken(token)
     } else {
       setErrorMessage('Invalid or missing reset token. Please request a new password reset.')
     }
-  }, [])
+  }, [searchParams])
 
   const onSubmit = async (data) => {
     if (data.password !== data.confirmPassword) {
@@ -41,7 +35,7 @@ const ResetPasswordPage = () => {
       return
     }
 
-    if (!accessToken) {
+    if (!resetToken) {
       setErrorMessage('Invalid or missing reset token. Please request a new password reset.')
       return
     }
@@ -51,7 +45,7 @@ const ResetPasswordPage = () => {
 
     try {
       const response = await api.post('/api/auth/reset-password', {
-        access_token: accessToken,
+        token: resetToken,
         new_password: data.password
       })
 
@@ -207,7 +201,7 @@ const ResetPasswordPage = () => {
           <div>
             <button
               type="submit"
-              disabled={loading || !accessToken}
+              disabled={loading || !resetToken}
               className="w-full btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
