@@ -41,8 +41,8 @@ const CommunicationPage = () => {
 
   // Auto-select OptioBot on initial load with most recent conversation
   useEffect(() => {
-    if (!selectedConversation && mostRecentTutorConv !== null) {
-      // Select OptioBot by default with the most recent conversation ID
+    if (!selectedConversation) {
+      // Select OptioBot by default
       setSelectedConversation({
         id: 'optiobot',
         type: 'bot',
@@ -52,26 +52,17 @@ const CommunicationPage = () => {
           first_name: 'OptioBot',
           role: 'bot'
         },
-        tutorConversationId: mostRecentTutorConv,
+        tutorConversationId: mostRecentTutorConv, // Will be null initially, then update
         last_message_at: new Date().toISOString(),
         last_message_preview: 'Your AI Learning Companion',
         unread_count: 0
       })
-    } else if (!selectedConversation && mostRecentTutorConv === null) {
-      // No conversations yet, just select OptioBot without conversation ID
-      setSelectedConversation({
-        id: 'optiobot',
-        type: 'bot',
-        other_user: {
-          id: 'bot',
-          display_name: 'OptioBot',
-          first_name: 'OptioBot',
-          role: 'bot'
-        },
-        last_message_at: new Date().toISOString(),
-        last_message_preview: 'Your AI Learning Companion',
-        unread_count: 0
-      })
+    } else if (selectedConversation && selectedConversation.type === 'bot' && mostRecentTutorConv && !selectedConversation.tutorConversationId) {
+      // Update OptioBot with conversation ID once it's loaded
+      setSelectedConversation(prev => ({
+        ...prev,
+        tutorConversationId: mostRecentTutorConv
+      }))
     }
   }, [selectedConversation, mostRecentTutorConv])
 
