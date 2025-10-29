@@ -987,61 +987,6 @@ const ParentDashboardPage = () => {
 
           {activeTab === 'insights' && insightsData && (
             <div className="space-y-6">
-              {/* Conversation Starters */}
-              {!isFlowState && (
-                <div className="bg-yellow-50 border-2 border-yellow-200 rounded-lg p-6">
-                  <h3 className="text-xl font-bold text-yellow-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Conversation Starters
-                  </h3>
-                  <p className="text-gray-700 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    {dashboardData?.learning_rhythm?.has_overdue_tasks
-                      ? 'Some tasks are wandering past their deadlines. Here are some gentle ways to start a conversation:'
-                      : 'They haven\'t checked in recently. Here are some ways to explore together:'}
-                  </p>
-                  <ul className="space-y-2 text-sm font-medium text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    <li>• "I'd love to see what you're working on!"</li>
-                    <li>• "What's the most interesting thing you learned today?"</li>
-                    <li>• "Would you like help thinking through your schedule?"</li>
-                  </ul>
-                </div>
-              )}
-
-              {/* Time Patterns */}
-              {insightsData.time_patterns && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Learning Patterns
-                  </h3>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {insightsData.time_patterns.peak_hour && (
-                      <div>
-                        <h4 className="font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          Peak Learning Time
-                        </h4>
-                        <p className="text-2xl font-bold text-purple-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          {insightsData.time_patterns.peak_hour}
-                        </p>
-                        <p className="text-sm text-gray-600 font-medium mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          Most active during this hour
-                        </p>
-                      </div>
-                    )}
-                    {insightsData.time_patterns.peak_day && (
-                      <div>
-                        <h4 className="font-semibold text-gray-700 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          Most Active Day
-                        </h4>
-                        <p className="text-2xl font-bold text-purple-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          {insightsData.time_patterns.peak_day}
-                        </p>
-                        <p className="text-sm text-gray-600 font-medium mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          They seem to flow best on this day
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
 
               {/* Pillar Preferences */}
               {insightsData.pillar_preferences?.length > 0 && (
@@ -1077,30 +1022,6 @@ const ParentDashboardPage = () => {
                 </div>
               )}
 
-              {/* Completion Velocity */}
-              {insightsData.completion_velocity?.average_days_per_quest && (
-                <div className="bg-white rounded-lg border border-gray-200 p-6">
-                  <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Learning Pace
-                  </h3>
-                  <div className="flex items-center gap-4">
-                    <div className="bg-purple-50 rounded-full p-4">
-                      <ArrowPathIcon className="w-8 h-8 text-purple-600" />
-                    </div>
-                    <div>
-                      <p className="text-3xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        {insightsData.completion_velocity.average_days_per_quest} days
-                      </p>
-                      <p className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        Average time per quest
-                      </p>
-                      <p className="text-sm text-gray-500 font-medium mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                        Based on {insightsData.completion_velocity.total_quests_analyzed} completed quests
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Recently Completed */}
               <div className="bg-white rounded-lg border border-gray-200 p-6">
