@@ -848,7 +848,7 @@ def get_recent_completions(user_id, student_id):
         # Get completions from last 30 days
         thirty_days_ago = (date.today() - timedelta(days=30)).isoformat()
         completions_response = supabase.table('quest_task_completions').select('''
-            id, task_id, user_quest_task_id, completed_at, evidence_url, evidence_text
+            id, task_id, user_quest_task_id, completed_at, evidence_url, evidence_text, is_confidential
         ''').eq('user_id', student_id).gte('completed_at', thirty_days_ago).order('completed_at', desc=True).execute()
 
         if not completions_response.data:
