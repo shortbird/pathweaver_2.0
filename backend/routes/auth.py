@@ -930,4 +930,134 @@ def get_csrf_token_endpoint():
         logger.error(f"Error generating CSRF token: {str(e)}")
         return jsonify({'error': 'Failed to generate CSRF token'}), 500
 
+@bp.route('/forgot-password', methods=['POST'])
+@rate_limit(max_requests=3, window_seconds=3600)  # 3 requests per hour per IP
+def forgot_password():
+    """
+    Request password reset email.
+    Returns success message regardless of whether email exists (security best practice).
+    """
+    try:
+        data = request.json
+        email = data.get('email')
+
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+
+        # Sanitize email input
+        email = sanitize_input(email.lower().strip())
+
+        # Validate email format
+        email_regex = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_regex, email):
+            return jsonify({'error': 'Invalid email format'}), 400
+
+        supabase = get_supabase_client()
+
+        # Check if user exists (for internal logging only)
+        user_check = supabase.table('users').select('id, display_name, first_name').eq('email', email).execute()
+
+        if user_check.data:
+            user = user_check.data[0]
+            user_name = user.get('display_name') or user.get('first_name') or 'there'
+
+            # Generate password reset link using Supabase Auth
+            try:
+                # Get frontend URL from environment
+                frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+                redirect_to = f"{frontend_url}/reset-password"
+
+                # Request password reset from Supabase (this generates the token)
+                supabase.auth.reset_password_for_email(email, {
+                    'redirect_to': redirect_to
+                })
+
+                # Note: Supabase will send its own email, but we can also send a custom one
+                # For now, we'll rely on Supabase's email system
+                # In the future, we could intercept the token and send via our EmailService
+
+                logger.info(f"[FORGOT_PASSWORD] Password reset requested for {email}")
+
+            except Exception as reset_error:
+                logger.error(f"[FORGOT_PASSWORD] Supabase error: {str(reset_error)}")
+                # Still return success to avoid revealing user existence
+
+        # Always return success message (don't reveal if email exists or not)
+        return jsonify({
+            'message': 'If an account exists with this email, you will receive password reset instructions shortly.',
+            'note': 'Please check your spam folder if you don\'t see the email within a few minutes.'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"[FORGOT_PASSWORD] Error: {str(e)}")
+        # Return generic success message to avoid revealing system errors
+        return jsonify({
+            'message': 'Password reset request processed. If an account exists, an email will be sent.'
+        }), 200
+
+@bp.route('/reset-password', methods=['POST'])
+def reset_password():
+    """
+    Reset password using token from email link.
+    Validates new password and updates user account.
+    """
+    try:
+        data = request.json
+        access_token = data.get('access_token')  # Token from URL
+        new_password = data.get('new_password')
+
+        if not access_token or not new_password:
+            return jsonify({'error': 'Access token and new password are required'}), 400
+
+        # Validate password strength
+        from utils.validation.password_validator import validate_password
+
+        is_valid, error_message = validate_password(new_password)
+        if not is_valid:
+            return jsonify({'error': error_message}), 400
+
+        supabase = get_supabase_client()
+
+        try:
+            # Update user password using the access token
+            # This verifies the token is valid and not expired
+            auth_response = supabase.auth.update_user(
+                access_token,
+                {'password': new_password}
+            )
+
+            if not auth_response or not auth_response.user:
+                return jsonify({'error': 'Invalid or expired reset token'}), 400
+
+            user_email = auth_response.user.email
+
+            # Clear any account lockouts for this user
+            reset_login_attempts(user_email)
+
+            logger.info(f"[RESET_PASSWORD] Password successfully reset for {user_email}")
+
+            return jsonify({
+                'message': 'Password reset successful. You can now login with your new password.',
+                'redirect': '/login'
+            }), 200
+
+        except Exception as auth_error:
+            error_str = str(auth_error).lower()
+            logger.error(f"[RESET_PASSWORD] Supabase error: {str(auth_error)}")
+
+            if 'expired' in error_str or 'invalid' in error_str:
+                return jsonify({
+                    'error': 'Reset link has expired or is invalid. Please request a new password reset.'
+                }), 400
+            else:
+                return jsonify({
+                    'error': 'Failed to reset password. Please try again or request a new reset link.'
+                }), 500
+
+    except ValidationError as ve:
+        return jsonify({'error': str(ve)}), 400
+    except Exception as e:
+        logger.error(f"[RESET_PASSWORD] Error: {str(e)}")
+        return jsonify({'error': 'An error occurred while resetting your password'}), 500
+
 
