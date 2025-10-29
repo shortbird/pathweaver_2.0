@@ -81,7 +81,7 @@ const LandingPageHero = ({
 
         {/* Rotating Words or Static Subtitle */}
         {rotatingWords.length > 0 ? (
-          <div className="relative h-28 sm:h-36 md:h-40 my-6">
+          <div className="relative h-32 sm:h-40 md:h-44 lg:h-48 my-6">
             <div className="absolute inset-0 flex items-center justify-center">
               <span
                 key={currentWordIndex}
@@ -95,7 +95,9 @@ const LandingPageHero = ({
                   WebkitTextFillColor: 'transparent',
                   textRendering: 'optimizeLegibility',
                   WebkitFontSmoothing: 'antialiased',
-                  MozOsxFontSmoothing: 'grayscale'
+                  MozOsxFontSmoothing: 'grayscale',
+                  textShadow: '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3), 0 8px 20px rgba(0, 0, 0, 0.2)',
+                  filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))'
                 }}
               >
                 {rotatingWords[currentWordIndex]}
