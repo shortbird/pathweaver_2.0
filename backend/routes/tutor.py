@@ -816,7 +816,7 @@ def get_parent_tutor_conversations(user_id: str, student_id: str):
 
         # Verify parent has access to this student
         parent_repo = ParentRepository(supabase)
-        if not parent_repo.has_access_to_student(user_id, student_id):
+        if not parent_repo.is_linked(user_id, student_id):
             raise AuthorizationError("You do not have access to this student's data")
 
         # Get student's conversations
@@ -884,7 +884,7 @@ def get_parent_conversation_messages(user_id: str, conversation_id: str):
 
         # Verify parent has access to this student
         parent_repo = ParentRepository(supabase)
-        if not parent_repo.has_access_to_student(user_id, student_id):
+        if not parent_repo.is_linked(user_id, student_id):
             raise AuthorizationError("You do not have access to this conversation")
 
         # Get messages
@@ -937,7 +937,7 @@ def get_parent_safety_reports(user_id: str, student_id: str):
 
         # Verify parent has access to this student
         parent_repo = ParentRepository(supabase)
-        if not parent_repo.has_access_to_student(user_id, student_id):
+        if not parent_repo.is_linked(user_id, student_id):
             raise AuthorizationError("You do not have access to this student's data")
 
         # Get safety logs for this student
@@ -993,7 +993,7 @@ def get_parent_monitoring_settings(user_id: str, student_id: str):
 
         # Verify parent has access to this student
         parent_repo = ParentRepository(supabase)
-        if not parent_repo.has_access_to_student(user_id, student_id):
+        if not parent_repo.is_linked(user_id, student_id):
             raise AuthorizationError("You do not have access to this student's data")
 
         # Get student's tutor settings
@@ -1045,7 +1045,7 @@ def update_parent_monitoring_settings(user_id: str, student_id: str):
 
         # Verify parent has access to this student
         parent_repo = ParentRepository(supabase)
-        if not parent_repo.has_access_to_student(user_id, student_id):
+        if not parent_repo.is_linked(user_id, student_id):
             raise AuthorizationError("You do not have access to this student's data")
 
         # Parents can only update monitoring flag

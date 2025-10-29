@@ -64,7 +64,7 @@ class TutorRepository(BaseRepository):
         try:
             data = {
                 'user_id': user_id,
-                'mode': mode,
+                'conversation_mode': mode,
                 'title': title or f"{mode.replace('_', ' ').title()} Session",
                 'context': context,
                 'is_active': True,

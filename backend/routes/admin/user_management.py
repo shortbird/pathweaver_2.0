@@ -391,8 +391,7 @@ def get_user_conversations(admin_user_id, user_id):
         conversations_query = supabase.table('tutor_conversations').select('''
             id, title, conversation_mode, quest_id, task_id,
             is_active, message_count, last_message_at, created_at,
-            quests(title),
-            quest_tasks(title, pillar)
+            quests(title)
         ''').eq('user_id', user_id).order('last_message_at', desc=True).range(offset, offset + limit - 1)
 
         conversations_result = conversations_query.execute()
@@ -424,8 +423,7 @@ def get_conversation_details(admin_user_id, conversation_id):
         conversation_query = supabase.table('tutor_conversations').select('''
             id, title, conversation_mode, quest_id, task_id, user_id,
             is_active, message_count, last_message_at, created_at,
-            quests(title),
-            quest_tasks(title, pillar)
+            quests(title)
         ''').eq('id', conversation_id).single()
 
         conversation_result = conversation_query.execute()
