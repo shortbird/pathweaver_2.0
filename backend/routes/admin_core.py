@@ -532,13 +532,16 @@ def delete_user_account(admin_id, user_id):
     
     try:
         # Delete user data in proper order to avoid foreign key violations
-        
+
         # Delete user XP data
         supabase.table('user_skill_xp').delete().eq('user_id', user_id).execute()
-        
+
         # Delete user quest enrollments and completions
-        supabase.table('user_quests').delete().eq('user_id', user_id).execute()
+        # NOTE: With CASCADE constraint, quest_task_completions will auto-delete when user_quest_tasks are deleted
+        # But we delete explicitly here for clarity and to handle any edge cases
         supabase.table('quest_task_completions').delete().eq('user_id', user_id).execute()
+        supabase.table('user_quest_tasks').delete().eq('user_id', user_id).execute()
+        supabase.table('user_quests').delete().eq('user_id', user_id).execute()
         
         # Delete user profile
         response = supabase.table('users').delete().eq('id', user_id).execute()
