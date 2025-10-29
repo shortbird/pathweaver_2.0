@@ -964,8 +964,9 @@ def forgot_password():
         logger.info("[FORGOT_PASSWORD] Got admin client")
 
         # Check if user exists (for internal logging only)
+        # Use ilike for case-insensitive email matching
         logger.info(f"[FORGOT_PASSWORD] Looking up user: {email}")
-        user_check = admin_client.table('users').select('id, display_name, first_name, email').eq('email', email).execute()
+        user_check = admin_client.table('users').select('id, display_name, first_name, email').ilike('email', email).execute()
         logger.info(f"[FORGOT_PASSWORD] User lookup result: {len(user_check.data) if user_check.data else 0} users found")
 
         if user_check.data:
