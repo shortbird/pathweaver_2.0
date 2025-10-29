@@ -17,6 +17,22 @@ class ParentRepository(BaseRepository):
 
     table_name = 'parent_student_links'
 
+    def __init__(self, client):
+        """
+        Initialize repository with Supabase client.
+
+        Args:
+            client: Supabase client (admin client for cross-user operations)
+        """
+        self.table_name = 'parent_student_links'
+        self._client = client
+        self.user_id = None  # Not used for parent operations
+
+    @property
+    def client(self):
+        """Return the provided client."""
+        return self._client
+
     def find_children(self, parent_id: str) -> List[Dict[str, Any]]:
         """
         Get all students linked to a parent.
@@ -29,9 +45,10 @@ class ParentRepository(BaseRepository):
         """
         try:
             result = self.client.table(self.table_name)\
-                .select('*, student:student_id(id, display_name, avatar_url, first_name, last_name)')\
-                .eq('parent_id', parent_id)\
-                .order('linked_at', desc=True)\
+                .select('*, student:student_user_id(id, display_name, avatar_url, first_name, last_name)')\
+                .eq('parent_user_id', parent_id)\
+                .eq('status', 'approved')\
+                .order('approved_at', desc=True)\
                 .execute()
 
             return result.data or []
@@ -51,9 +68,10 @@ class ParentRepository(BaseRepository):
         """
         try:
             result = self.client.table(self.table_name)\
-                .select('*, parent:parent_id(id, display_name, avatar_url, first_name, last_name)')\
-                .eq('student_id', student_id)\
-                .order('linked_at', desc=True)\
+                .select('*, parent:parent_user_id(id, display_name, avatar_url, first_name, last_name)')\
+                .eq('student_user_id', student_id)\
+                .eq('status', 'approved')\
+                .order('approved_at', desc=True)\
                 .execute()
 
             return result.data or []
@@ -75,8 +93,9 @@ class ParentRepository(BaseRepository):
         try:
             result = self.client.table(self.table_name)\
                 .select('id')\
-                .eq('parent_id', parent_id)\
-                .eq('student_id', student_id)\
+                .eq('parent_user_id', parent_id)\
+                .eq('student_user_id', student_id)\
+                .eq('status', 'approved')\
                 .execute()
 
             return bool(result.data)
