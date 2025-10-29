@@ -745,3 +745,374 @@ def get_pending_requests(user_id):
         import traceback
         traceback.print_exc()
         return jsonify({'error': 'Failed to get pending requests'}), 500
+
+
+@bp.route('/my-links', methods=['GET'])
+@require_auth
+def get_my_links(user_id):
+    """
+    Student gets list of linked parents AND pending invitations.
+    Combined endpoint for ParentLinking.jsx component.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Verify user is a student
+        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        if not user_response.data or user_response.data.get('role') not in ['student', None]:
+            raise AuthorizationError("Only students can access this endpoint")
+
+        # Get active parent links with parent details
+        active_links_response = supabase.table('parent_student_links').select('''
+            id,
+            parent_user_id,
+            status,
+            approved_at,
+            created_at,
+            users!parent_student_links_parent_user_id_fkey(
+                id,
+                first_name,
+                last_name,
+                email,
+                avatar_url
+            )
+        ''').eq('student_user_id', user_id).eq('status', 'active').execute()
+
+        linked_parents = []
+        if active_links_response.data:
+            for link in active_links_response.data:
+                parent = link.get('users')
+                if parent:
+                    linked_parents.append({
+                        'link_id': link['id'],
+                        'parent_id': link['parent_user_id'],
+                        'parent_first_name': parent.get('first_name'),
+                        'parent_last_name': parent.get('last_name'),
+                        'parent_email': parent.get('email'),
+                        'parent_avatar_url': parent.get('avatar_url'),
+                        'linked_since': link['created_at'],
+                        'approved_at': link['approved_at']
+                    })
+
+        # Get pending invitations (student invited parent, parent hasn't registered)
+        invitations_response = supabase.table('parent_invitations').select(
+            'id, email, expires_at, created_at'
+        ).eq('invited_by_student_id', user_id).execute()
+
+        pending_invitations = []
+        if invitations_response.data:
+            for invite in invitations_response.data:
+                # Check if expired
+                expires_at = datetime.fromisoformat(invite['expires_at'].replace('Z', '+00:00'))
+                is_expired = expires_at < datetime.utcnow()
+
+                pending_invitations.append({
+                    'invitation_id': invite['id'],
+                    'parent_email': invite['email'],
+                    'expires_at': invite['expires_at'],
+                    'created_at': invite['created_at'],
+                    'is_expired': is_expired
+                })
+
+        # Get pending approval requests (parent registered, awaiting student approval)
+        pending_approvals_response = supabase.table('parent_student_links').select('''
+            id,
+            parent_user_id,
+            status,
+            created_at,
+            users!parent_student_links_parent_user_id_fkey(
+                id,
+                first_name,
+                last_name,
+                email
+            )
+        ''').eq('student_user_id', user_id).eq('status', 'pending_approval').execute()
+
+        pending_approvals = []
+        if pending_approvals_response.data:
+            for link in pending_approvals_response.data:
+                parent = link.get('users')
+                if parent:
+                    pending_approvals.append({
+                        'link_id': link['id'],
+                        'parent_id': link['parent_user_id'],
+                        'parent_first_name': parent.get('first_name'),
+                        'parent_last_name': parent.get('last_name'),
+                        'parent_email': parent.get('email'),
+                        'requested_at': link['created_at']
+                    })
+
+        return jsonify({
+            'linked_parents': linked_parents,
+            'pending_invitations': pending_invitations,
+            'pending_approvals': pending_approvals
+        }), 200
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error getting student links: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to get parent links'}), 500
+
+
+@bp.route('/invitations/<invitation_id>', methods=['DELETE'])
+@require_auth
+def cancel_invitation(user_id, invitation_id):
+    """
+    Student cancels a sent parent invitation.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get invitation
+        invitation_response = supabase.table('parent_invitations').select(
+            'id, invited_by_student_id, email'
+        ).eq('id', invitation_id).execute()
+
+        if not invitation_response.data:
+            raise NotFoundError("Invitation not found")
+
+        invitation = invitation_response.data[0]
+
+        # Verify student owns this invitation
+        if invitation['invited_by_student_id'] != user_id:
+            raise AuthorizationError("You can only cancel your own invitations")
+
+        # Delete invitation
+        supabase.table('parent_invitations').delete().eq('id', invitation_id).execute()
+
+        logger.info(f"Student {user_id} cancelled invitation {invitation_id}")
+
+        return jsonify({
+            'message': 'Invitation cancelled successfully'
+        }), 200
+
+    except NotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error cancelling invitation: {str(e)}")
+        return jsonify({'error': 'Failed to cancel invitation'}), 500
+
+
+@bp.route('/pending-invitations', methods=['GET'])
+@require_auth
+def get_pending_invitations_for_parent(user_id):
+    """
+    Parent gets list of invitations sent by students awaiting registration.
+    Shows invitations where the parent email matches the logged-in parent's email.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get parent info and verify role
+        parent_response = supabase.table('users').select(
+            'id, email, role'
+        ).eq('id', user_id).single().execute()
+
+        if not parent_response.data:
+            raise NotFoundError("User not found")
+
+        parent = parent_response.data
+        if parent.get('role') != 'parent':
+            raise AuthorizationError("Only parent accounts can access this endpoint")
+
+        parent_email = parent.get('email', '').strip().lower()
+
+        # Get invitations matching parent's email with student details
+        invitations_response = supabase.table('parent_invitations').select('''
+            id,
+            email,
+            invited_by_student_id,
+            expires_at,
+            created_at
+        ''').eq('email', parent_email).execute()
+
+        if not invitations_response.data:
+            return jsonify({'pending_invitations': []}), 200
+
+        # Get student details for all invitations
+        student_ids = [inv['invited_by_student_id'] for inv in invitations_response.data]
+        students_response = supabase.table('users').select(
+            'id, first_name, last_name, avatar_url'
+        ).in_('id', student_ids).execute()
+
+        students_map = {s['id']: s for s in students_response.data}
+
+        pending_invitations = []
+        for invite in invitations_response.data:
+            # Check if expired
+            expires_at = datetime.fromisoformat(invite['expires_at'].replace('Z', '+00:00'))
+            is_expired = expires_at < datetime.utcnow()
+
+            student = students_map.get(invite['invited_by_student_id'])
+            if student:
+                pending_invitations.append({
+                    'invitation_id': invite['id'],
+                    'student_id': invite['invited_by_student_id'],
+                    'student_first_name': student.get('first_name'),
+                    'student_last_name': student.get('last_name'),
+                    'student_avatar_url': student.get('avatar_url'),
+                    'expires_at': invite['expires_at'],
+                    'created_at': invite['created_at'],
+                    'is_expired': is_expired
+                })
+
+        return jsonify({'pending_invitations': pending_invitations}), 200
+
+    except NotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error getting parent pending invitations: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to get pending invitations'}), 500
+
+
+@bp.route('/invitations/<invitation_id>/approve', methods=['POST'])
+@require_auth
+def approve_invitation(user_id, invitation_id):
+    """
+    Parent approves a student invitation by creating their account and linking.
+    This is an alternative to the /register endpoint - used when parent already has account.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get parent info and verify role
+        parent_response = supabase.table('users').select(
+            'id, email, role'
+        ).eq('id', user_id).single().execute()
+
+        if not parent_response.data:
+            raise NotFoundError("User not found")
+
+        parent = parent_response.data
+        if parent.get('role') != 'parent':
+            raise AuthorizationError("Only parent accounts can approve invitations")
+
+        parent_email = parent.get('email', '').strip().lower()
+
+        # Get invitation
+        invitation_response = supabase.table('parent_invitations').select(
+            'id, email, invited_by_student_id, expires_at'
+        ).eq('id', invitation_id).execute()
+
+        if not invitation_response.data:
+            raise NotFoundError("Invitation not found")
+
+        invitation = invitation_response.data[0]
+
+        # Verify invitation email matches parent email
+        if invitation['email'].lower() != parent_email:
+            raise AuthorizationError("This invitation was not sent to your email address")
+
+        # Check if expired
+        expires_at = datetime.fromisoformat(invitation['expires_at'].replace('Z', '+00:00'))
+        if expires_at < datetime.utcnow():
+            return jsonify({'error': 'This invitation has expired'}), 400
+
+        # Check if already linked
+        existing_link = supabase.table('parent_student_links').select('id, status').eq(
+            'parent_user_id', user_id
+        ).eq('student_user_id', invitation['invited_by_student_id']).execute()
+
+        if existing_link.data:
+            link_status = existing_link.data[0]['status']
+            if link_status == 'active':
+                return jsonify({'error': 'You are already linked to this student'}), 400
+            elif link_status == 'pending_approval':
+                return jsonify({'error': 'A link already exists pending approval'}), 400
+
+        # Create active parent-student link (parent approving = immediate activation)
+        link_data = {
+            'id': str(uuid.uuid4()),
+            'parent_user_id': user_id,
+            'student_user_id': invitation['invited_by_student_id'],
+            'status': 'active',
+            'approved_at': datetime.utcnow().isoformat(),
+            'created_at': datetime.utcnow().isoformat()
+        }
+
+        supabase.table('parent_student_links').insert(link_data).execute()
+
+        # Delete used invitation
+        supabase.table('parent_invitations').delete().eq('id', invitation_id).execute()
+
+        logger.info(f"Parent {user_id} approved invitation {invitation_id} from student {invitation['invited_by_student_id']}")
+
+        return jsonify({
+            'message': 'Invitation approved. You are now connected to this student.',
+            'status': 'active',
+            'link_id': link_data['id']
+        }), 201
+
+    except NotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error approving invitation: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to approve invitation'}), 500
+
+
+@bp.route('/invitations/<invitation_id>/decline', methods=['DELETE'])
+@require_auth
+def decline_invitation(user_id, invitation_id):
+    """
+    Parent declines a student invitation.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get parent info and verify role
+        parent_response = supabase.table('users').select(
+            'id, email, role'
+        ).eq('id', user_id).single().execute()
+
+        if not parent_response.data:
+            raise NotFoundError("User not found")
+
+        parent = parent_response.data
+        if parent.get('role') != 'parent':
+            raise AuthorizationError("Only parent accounts can decline invitations")
+
+        parent_email = parent.get('email', '').strip().lower()
+
+        # Get invitation
+        invitation_response = supabase.table('parent_invitations').select(
+            'id, email, invited_by_student_id'
+        ).eq('id', invitation_id).execute()
+
+        if not invitation_response.data:
+            raise NotFoundError("Invitation not found")
+
+        invitation = invitation_response.data[0]
+
+        # Verify invitation email matches parent email
+        if invitation['email'].lower() != parent_email:
+            raise AuthorizationError("This invitation was not sent to your email address")
+
+        # Delete invitation
+        supabase.table('parent_invitations').delete().eq('id', invitation_id).execute()
+
+        logger.info(f"Parent {user_id} declined invitation {invitation_id}")
+
+        return jsonify({
+            'message': 'Invitation declined successfully'
+        }), 200
+
+    except NotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error declining invitation: {str(e)}")
+        return jsonify({'error': 'Failed to decline invitation'}), 500
