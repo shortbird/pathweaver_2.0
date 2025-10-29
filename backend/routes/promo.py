@@ -156,6 +156,184 @@ def consultation_request():
         logger.error(f"Error in consultation request: {str(e)}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@promo_bp.route('/credit-tracker', methods=['POST'])
+def credit_tracker_signup():
+    """Handle credit tracker landing page signup form submissions"""
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        if not data.get('email'):
+            return jsonify({'error': 'Email is required'}), 400
+
+        # Validate email format
+        email = data['email']
+        if '@' not in email or '.' not in email:
+            return jsonify({'error': 'Invalid email format'}), 400
+
+        # Use admin client for public form submissions
+        supabase = get_supabase_admin_client()
+
+        # Insert signup data
+        signup_data = {
+            'email': email,
+            'current_curriculum': data.get('currentCurriculum', ''),
+            'created_at': datetime.utcnow().isoformat(),
+            'source': 'credit-tracker'
+        }
+
+        result = supabase.table('promo_signups').insert(signup_data).execute()
+
+        if result.data:
+            logger.info(f"Credit tracker signup recorded: {email}")
+
+            # Send welcome email
+            try:
+                email_sent = email_service.send_promo_welcome_email(
+                    parent_email=email,
+                    parent_name='',
+                    teen_age='',
+                    activity=data.get('currentCurriculum', '')
+                )
+                if email_sent:
+                    logger.info(f"Welcome email sent to {email}")
+            except Exception as e:
+                logger.error(f"Error sending welcome email: {str(e)}")
+
+            return jsonify({
+                'success': True,
+                'message': 'Signup recorded successfully',
+                'id': result.data[0]['id']
+            }), 201
+        else:
+            return jsonify({'error': 'Failed to record signup'}), 500
+
+    except Exception as e:
+        logger.error(f"Error in credit-tracker signup: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@promo_bp.route('/homeschool-portfolio', methods=['POST'])
+def homeschool_portfolio_signup():
+    """Handle homeschool portfolio landing page signup form submissions"""
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ['parentName', 'email', 'studentAge']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'{field} is required'}), 400
+
+        # Validate email format
+        email = data['email']
+        if '@' not in email or '.' not in email:
+            return jsonify({'error': 'Invalid email format'}), 400
+
+        # Use admin client for public form submissions
+        supabase = get_supabase_admin_client()
+
+        # Insert signup data
+        signup_data = {
+            'parent_name': data['parentName'],
+            'email': email,
+            'student_age': data['studentAge'],
+            'current_method': data.get('currentMethod', ''),
+            'created_at': datetime.utcnow().isoformat(),
+            'source': 'homeschool-portfolio'
+        }
+
+        result = supabase.table('promo_signups').insert(signup_data).execute()
+
+        if result.data:
+            logger.info(f"Homeschool portfolio signup recorded: {email}")
+
+            # Send welcome email
+            try:
+                email_sent = email_service.send_promo_welcome_email(
+                    parent_email=email,
+                    parent_name=data['parentName'],
+                    teen_age='',
+                    activity=data.get('currentMethod', '')
+                )
+                if email_sent:
+                    logger.info(f"Welcome email sent to {email}")
+            except Exception as e:
+                logger.error(f"Error sending welcome email: {str(e)}")
+
+            return jsonify({
+                'success': True,
+                'message': 'Signup recorded successfully',
+                'id': result.data[0]['id']
+            }), 201
+        else:
+            return jsonify({'error': 'Failed to record signup'}), 500
+
+    except Exception as e:
+        logger.error(f"Error in homeschool-portfolio signup: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+@promo_bp.route('/teacher-consultation', methods=['POST'])
+def teacher_consultation_signup():
+    """Handle teacher consultation landing page form submissions"""
+    try:
+        data = request.get_json()
+
+        # Validate required fields
+        required_fields = ['parentName', 'email', 'studentAge', 'currentSituation']
+        for field in required_fields:
+            if not data.get(field):
+                return jsonify({'error': f'{field} is required'}), 400
+
+        # Validate email format
+        email = data['email']
+        if '@' not in email or '.' not in email:
+            return jsonify({'error': 'Invalid email format'}), 400
+
+        # Use admin client for public form submissions
+        supabase = get_supabase_admin_client()
+
+        # Insert consultation request data
+        consultation_data = {
+            'parent_name': data['parentName'],
+            'email': email,
+            'phone': data.get('phone', ''),
+            'student_age': data['studentAge'],
+            'current_situation': data['currentSituation'],
+            'goals': data.get('goals', ''),
+            'preferred_time': data.get('preferredTime', ''),
+            'created_at': datetime.utcnow().isoformat(),
+            'status': 'pending',
+            'source': 'teacher-consultation'
+        }
+
+        result = supabase.table('consultation_requests').insert(consultation_data).execute()
+
+        if result.data:
+            logger.info(f"Teacher consultation request recorded: {email}")
+
+            # Send confirmation email
+            try:
+                email_sent = email_service.send_consultation_confirmation_email(
+                    parent_email=email,
+                    parent_name=data['parentName']
+                )
+                if email_sent:
+                    logger.info(f"Consultation confirmation email sent to {email}")
+            except Exception as e:
+                logger.error(f"Error sending consultation confirmation email: {str(e)}")
+
+            return jsonify({
+                'success': True,
+                'message': 'Consultation request recorded successfully',
+                'id': result.data[0]['id']
+            }), 201
+        else:
+            return jsonify({'error': 'Failed to record consultation request'}), 500
+
+    except Exception as e:
+        logger.error(f"Error in teacher-consultation request: {str(e)}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 @promo_bp.route('/signups', methods=['GET'])
 @require_admin
 def get_promo_signups(user_id):

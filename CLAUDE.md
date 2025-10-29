@@ -750,6 +750,8 @@ mcp__render__list_logs(resource, limit, filters)
 ```
 **Supabase MCP Setup:**
 
+project ID: vvfgxcykxjybtvpfzwyx
+
 To configure Supabase MCP for read-only database access:
 
 ```bash

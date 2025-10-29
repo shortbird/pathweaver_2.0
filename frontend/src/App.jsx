@@ -18,6 +18,9 @@ import PrivateRoute from './components/PrivateRoute'
 // Lazy-loaded pages for code splitting
 const PromoLandingPage = lazy(() => import('./pages/PromoLandingPage'))
 const ConsultationPage = lazy(() => import('./pages/ConsultationPage'))
+const CreditTrackerLandingPage = lazy(() => import('./pages/CreditTrackerPage'))
+const HomeschoolPortfolioPage = lazy(() => import('./pages/HomeschoolPortfolioPage'))
+const TeacherConsultationPage = lazy(() => import('./pages/TeacherConsultationPage'))
 const DemoPage = lazy(() => import('./pages/DemoPage'))
 const EmailVerificationPage = lazy(() => import('./pages/EmailVerificationPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
@@ -103,6 +106,9 @@ function App() {
               <Route path="/" element={<Layout />}>
                 <Route index element={<HomePage />} />
                 <Route path="promo" element={<PromoLandingPage />} />
+                <Route path="promo/credit-tracker" element={<CreditTrackerLandingPage />} />
+                <Route path="promo/homeschool-portfolio" element={<HomeschoolPortfolioPage />} />
+                <Route path="promo/teacher-consultation" element={<TeacherConsultationPage />} />
                 <Route path="consultation" element={<ConsultationPage />} />
                 <Route path="demo" element={<DemoProvider><DemoPage /></DemoProvider>} />
                 <Route path="login" element={<LoginPage />} />
