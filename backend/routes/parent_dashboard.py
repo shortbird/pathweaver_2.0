@@ -768,6 +768,103 @@ def get_learning_insights(user_id, student_id):
         return jsonify({'error': 'Failed to get learning insights'}), 500
 
 
+@bp.route('/completions/<student_id>', methods=['GET'])
+@require_auth
+def get_recent_completions(user_id, student_id):
+    """
+    Get recent task completions with evidence for parent viewing.
+    Returns last 30 days of completed tasks with full evidence details.
+    """
+    supabase = None
+    try:
+        supabase = get_supabase_admin_client()
+        verify_parent_access(supabase, user_id, student_id)
+
+        # Get completions from last 30 days
+        thirty_days_ago = (date.today() - timedelta(days=30)).isoformat()
+        completions_response = supabase.table('quest_task_completions').select('''
+            id, task_id, user_quest_task_id, completed_at, evidence_url, evidence_text
+        ''').eq('user_id', student_id).gte('completed_at', thirty_days_ago).order('completed_at', desc=True).execute()
+
+        if not completions_response.data:
+            return jsonify({'completions': []}), 200
+
+        # Get task details
+        task_ids = [comp['user_quest_task_id'] for comp in completions_response.data if comp.get('user_quest_task_id')]
+
+        tasks_map = {}
+        quests_map = {}
+
+        if task_ids:
+            tasks_response = supabase.table('user_quest_tasks').select('''
+                id, quest_id, title, description, pillar, xp_value
+            ''').in_('id', task_ids).execute()
+
+            tasks_map = {task['id']: task for task in tasks_response.data}
+
+            # Get quest details
+            quest_ids = list(set(task['quest_id'] for task in tasks_response.data))
+            quests_response = supabase.table('quests').select('''
+                id, title, image_url, header_image_url
+            ''').in_('id', quest_ids).execute()
+
+            quests_map = {q['id']: q for q in quests_response.data}
+
+        # Get evidence documents for all completions
+        completion_ids = [comp['id'] for comp in completions_response.data]
+        evidence_docs_response = supabase.table('evidence_document_blocks').select('''
+            id, task_completion_id, file_name, file_type, file_size, file_url, created_at
+        ''').in_('task_completion_id', completion_ids).execute()
+
+        # Group evidence by completion_id
+        evidence_by_completion = defaultdict(list)
+        for doc in evidence_docs_response.data:
+            evidence_by_completion[doc['task_completion_id']].append(doc)
+
+        # Build completions list
+        completions = []
+        for comp in completions_response.data:
+            task_id = comp.get('user_quest_task_id')
+            if not task_id or task_id not in tasks_map:
+                continue
+
+            task = tasks_map[task_id]
+            quest = quests_map.get(task['quest_id'], {})
+
+            completions.append({
+                'completion_id': comp['id'],
+                'task': {
+                    'id': comp['task_id'],
+                    'title': task['title'],
+                    'description': task.get('description'),
+                    'pillar': get_pillar_name(task['pillar']),
+                    'xp_value': task.get('xp_value', 0)
+                },
+                'quest': {
+                    'id': task['quest_id'],
+                    'title': quest.get('title'),
+                    'image_url': quest.get('image_url') or quest.get('header_image_url')
+                },
+                'completed_at': comp['completed_at'],
+                'evidence_text': comp.get('evidence_text'),
+                'evidence_url': comp.get('evidence_url'),
+                'evidence_documents': evidence_by_completion.get(comp['id'], [])
+            })
+
+        return jsonify({
+            'completions': completions,
+            'total_count': len(completions)
+        }), 200
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error getting recent completions: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to get recent completions'}), 500
+
+
 @bp.route('/communications/<student_id>', methods=['GET'])
 @require_auth
 def get_student_communications(user_id, student_id):

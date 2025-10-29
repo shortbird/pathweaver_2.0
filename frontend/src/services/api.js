@@ -256,6 +256,9 @@ export const parentAPI = {
   // Get task details with evidence (for Calendar tab task detail modal)
   getTaskDetails: (studentId, taskId) => api.get(`/api/parent/task/${studentId}/${taskId}`),
 
+  // Get recent completions with evidence (for Insights tab)
+  getRecentCompletions: (studentId) => api.get(`/api/parent/completions/${studentId}`),
+
   // Upload evidence on behalf of student (requires student approval)
   uploadEvidence: (studentId, taskId, formData) =>
     api.post(`/api/parent/evidence/${studentId}`, formData, {
