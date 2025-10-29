@@ -18,7 +18,7 @@ import PrivateRoute from './components/PrivateRoute'
 // Lazy-loaded pages for code splitting
 const PromoLandingPage = lazy(() => import('./pages/PromoLandingPage'))
 const ConsultationPage = lazy(() => import('./pages/ConsultationPage'))
-const CreditTrackerLandingPage = lazy(() => import('./pages/CreditTrackerPage'))
+const CreditTrackerLandingPage = lazy(() => import('./pages/CreditTrackerLandingPage'))
 const HomeschoolPortfolioPage = lazy(() => import('./pages/HomeschoolPortfolioPage'))
 const TeacherConsultationPage = lazy(() => import('./pages/TeacherConsultationPage'))
 const DemoPage = lazy(() => import('./pages/DemoPage'))

@@ -160,6 +160,7 @@ const HomeschoolPortfolioPage = () => {
         staticSubtitle="The complete homeschool documentation system that grows with your student"
         ctaText="Create Free Account"
         onCtaClick={scrollToForm}
+        backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/homeschool-portfolio-hero.jpg"
       />
 
       <LandingPageForm

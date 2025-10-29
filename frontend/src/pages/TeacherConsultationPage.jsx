@@ -179,6 +179,7 @@ const TeacherConsultationPage = () => {
         staticSubtitle="Expert guidance for creating a learning plan that fits your family"
         ctaText="Book Free 30-Minute Consultation"
         onCtaClick={scrollToForm}
+        backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/teacher-consultation-hero.jpg"
       />
 
       <LandingPageForm

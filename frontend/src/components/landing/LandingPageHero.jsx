@@ -8,6 +8,7 @@ const LandingPageHero = ({
   ctaText,
   onCtaClick,
   backgroundGradient = 'linear-gradient(135deg, #6D469B 0%, #8058AC 50%, #EF597B 100%)',
+  backgroundImage = null,
   secondaryCta = null,
 }) => {
   const [currentWordIndex, setCurrentWordIndex] = useState(0)
@@ -34,13 +35,34 @@ const LandingPageHero = ({
   return (
     <div
       className="relative py-20 px-4 text-center overflow-hidden"
-      style={{ background: backgroundGradient }}
+      style={{
+        background: backgroundImage ? 'transparent' : backgroundGradient,
+        minHeight: '500px'
+      }}
     >
-      {/* Decorative background elements */}
-      <div className="absolute inset-0 opacity-10">
-        <div className="absolute top-10 left-10 w-32 h-32 bg-white rounded-full blur-3xl"></div>
-        <div className="absolute bottom-10 right-10 w-40 h-40 bg-white rounded-full blur-3xl"></div>
-      </div>
+      {/* Background Image with Overlay */}
+      {backgroundImage && (
+        <>
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundImage: `url(${backgroundImage})`,
+              backgroundPosition: 'center',
+              backgroundSize: 'cover'
+            }}
+          />
+          {/* Dark overlay for text readability */}
+          <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/50 to-black/60" />
+        </>
+      )}
+
+      {/* Decorative background elements (only show if no background image) */}
+      {!backgroundImage && (
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute top-10 left-10 w-32 h-32 bg-white rounded-full blur-3xl"></div>
+          <div className="absolute bottom-10 right-10 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+        </div>
+      )}
 
       <div className="relative max-w-6xl mx-auto">
         {/* Main Title */}
