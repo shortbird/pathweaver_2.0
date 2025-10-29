@@ -3,10 +3,12 @@ import { useAuth } from '../contexts/AuthContext'
 import { useConversations } from '../hooks/api/useDirectMessages'
 import ConversationList from '../components/communication/ConversationList'
 import ChatWindow from '../components/communication/ChatWindow'
+import api from '../services/api'
 
 const CommunicationPage = () => {
   const { user } = useAuth()
   const [selectedConversation, setSelectedConversation] = useState(null)
+  const [mostRecentTutorConv, setMostRecentTutorConv] = useState(null)
 
   // React Query hook for conversations
   const {
@@ -16,10 +18,47 @@ const CommunicationPage = () => {
     enabled: !!user?.id
   })
 
-  // Auto-select OptioBot on initial load
+  // Fetch user's most recent tutor conversation
   useEffect(() => {
-    if (!selectedConversation) {
-      // Select OptioBot by default
+    const fetchMostRecentTutorConversation = async () => {
+      if (!user?.id) return
+
+      try {
+        const response = await api.get('/api/tutor/conversations', {
+          params: { limit: 1, offset: 0 }
+        })
+
+        if (response.data?.conversations && response.data.conversations.length > 0) {
+          setMostRecentTutorConv(response.data.conversations[0].id)
+        }
+      } catch (error) {
+        console.error('Failed to fetch most recent tutor conversation:', error)
+      }
+    }
+
+    fetchMostRecentTutorConversation()
+  }, [user?.id])
+
+  // Auto-select OptioBot on initial load with most recent conversation
+  useEffect(() => {
+    if (!selectedConversation && mostRecentTutorConv !== null) {
+      // Select OptioBot by default with the most recent conversation ID
+      setSelectedConversation({
+        id: 'optiobot',
+        type: 'bot',
+        other_user: {
+          id: 'bot',
+          display_name: 'OptioBot',
+          first_name: 'OptioBot',
+          role: 'bot'
+        },
+        tutorConversationId: mostRecentTutorConv,
+        last_message_at: new Date().toISOString(),
+        last_message_preview: 'Your AI Learning Companion',
+        unread_count: 0
+      })
+    } else if (!selectedConversation && mostRecentTutorConv === null) {
+      // No conversations yet, just select OptioBot without conversation ID
       setSelectedConversation({
         id: 'optiobot',
         type: 'bot',
@@ -34,7 +73,7 @@ const CommunicationPage = () => {
         unread_count: 0
       })
     }
-  }, [selectedConversation])
+  }, [selectedConversation, mostRecentTutorConv])
 
   const handleSelectConversation = (conversation) => {
     setSelectedConversation(conversation)
