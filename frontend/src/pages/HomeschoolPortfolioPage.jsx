@@ -100,7 +100,7 @@ const HomeschoolPortfolioPage = () => {
     },
     {
       question: 'What\'s included in the free account?',
-      answer: 'Free accounts can create unlimited quests, upload evidence, track progress, and generate basic transcripts. Paid plans unlock advanced features like advisor collaboration, AI tutor, and premium portfolio themes.',
+      answer: 'Free accounts include full platform access with no restrictions: unlimited quests, evidence uploads, progress tracking, transcript generation, portfolio building, and all core features. Create your account and start using the complete system today.',
     },
   ]
 
@@ -118,38 +118,6 @@ const HomeschoolPortfolioPage = () => {
       label: 'Your Email',
       placeholder: 'parent@example.com',
       required: true,
-    },
-    {
-      name: 'studentAge',
-      type: 'select',
-      label: 'Student Age/Grade',
-      placeholder: 'Select age or grade...',
-      required: true,
-      options: [
-        '5-7 years (K-2)',
-        '8-10 years (3-5)',
-        '11-13 years (6-8)',
-        '14-15 years (9-10)',
-        '16-18 years (11-12)',
-        '18+ (Post-secondary)',
-      ],
-    },
-    {
-      name: 'currentMethod',
-      type: 'select',
-      label: 'What best describes your homeschool approach?',
-      placeholder: 'Select an approach...',
-      required: false,
-      options: [
-        'Online curriculum (Khan, Time4Learning, etc.)',
-        'Textbook-based',
-        'Unit studies',
-        'Unschooling',
-        'Charlotte Mason',
-        'Classical',
-        'Eclectic (mix of everything)',
-        'Other',
-      ],
     },
   ]
 
@@ -181,27 +149,6 @@ const HomeschoolPortfolioPage = () => {
         title="Getting Started Is Easy"
         steps={steps}
       />
-
-      {/* Testimonial Section */}
-      <div className="py-16 px-4 bg-gradient-to-br from-blue-50 to-purple-50">
-        <div className="max-w-4xl mx-auto text-center">
-          <div className="bg-white rounded-2xl shadow-xl p-8 md:p-12">
-            <BookCheck className="w-16 h-16 text-optio-purple mx-auto mb-6" />
-            <blockquote
-              className="text-xl md:text-2xl text-gray-700 mb-6 italic"
-              style={{ fontFamily: 'Poppins', fontWeight: 500 }}
-            >
-              "Finally, a portfolio system that makes sense! We've tried logbooks and spreadsheets, but Optio is the first tool that actually makes documenting our eclectic homeschool <em>enjoyable</em>. My daughter loves seeing her XP grow, and I love having a professional transcript ready for college apps."
-            </blockquote>
-            <p
-              className="text-lg text-gray-600"
-              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-            >
-              — Sarah M., Homeschool Parent of 3
-            </p>
-          </div>
-        </div>
-      </div>
 
       <FAQSection faqs={faqs} />
 

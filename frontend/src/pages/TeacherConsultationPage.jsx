@@ -56,10 +56,6 @@ const TeacherConsultationPage = () => {
       title: 'Receive Your Custom Plan',
       description: 'Get a personalized education roadmap with curriculum recommendations, learning goals, and next steps.',
     },
-    {
-      title: 'Start Learning (Optional)',
-      description: 'If you choose, implement your plan using Optio\'s platform with continued advisor support and progress tracking.',
-    },
   ]
 
   const faqs = [
@@ -179,7 +175,7 @@ const TeacherConsultationPage = () => {
         staticSubtitle="Expert guidance for creating a learning plan that fits your family"
         ctaText="Book Free 30-Minute Consultation"
         onCtaClick={scrollToForm}
-        backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/teacher-consultation-hero.jpg"
+        backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/teacher_hero.jpg"
       />
 
       <LandingPageForm

@@ -16,10 +16,72 @@ from datetime import datetime
 from utils.auth.decorators import require_auth
 
 from utils.logger import get_logger
+import re
+from typing import Optional, List, Dict, Any
 
 logger = get_logger(__name__)
 
 bp = Blueprint('portfolio', __name__)
+
+
+# Helper functions for evidence display enhancement
+def parse_document_id_from_evidence_text(evidence_text: str) -> Optional[str]:
+    """
+    Extract document ID from multi-format evidence placeholder string.
+
+    Args:
+        evidence_text: Text from quest_task_completions.evidence_text
+
+    Returns:
+        Document UUID if found, None otherwise
+    """
+    if evidence_text and evidence_text.startswith('Multi-format evidence document'):
+        match = re.search(r'Document ID: ([\w-]+)', evidence_text)
+        if match:
+            return match.group(1)
+    return None
+
+
+def fetch_evidence_blocks_by_document_id(
+    supabase,
+    document_id: str,
+    filter_private: bool = True
+) -> List[Dict[str, Any]]:
+    """
+    Fetch evidence blocks directly by document ID.
+    Used as fallback when task_id matching fails.
+
+    Args:
+        supabase: Supabase client
+        document_id: UUID of user_task_evidence_documents record
+        filter_private: If True, exclude private blocks
+
+    Returns:
+        List of evidence blocks sorted by order_index
+    """
+    try:
+        query = supabase.table('user_task_evidence_documents').select('''
+            id,
+            evidence_document_blocks!inner (
+                id, block_type, content, order_index, is_private
+            )
+        ''').eq('id', document_id)
+
+        if filter_private:
+            query = query.eq('evidence_document_blocks.is_private', False)
+
+        result = query.execute()
+
+        if result.data and len(result.data) > 0:
+            blocks = result.data[0].get('evidence_document_blocks', [])
+            return sorted(blocks, key=lambda b: b.get('order_index', 0))
+
+        logger.warning(f"No evidence blocks found for document ID: {document_id}")
+        return []
+
+    except Exception as e:
+        logger.error(f"Error fetching evidence blocks for document {document_id}: {e}")
+        return []
 
 # Using repository pattern for database access
 @bp.route('/public/<portfolio_slug>', methods=['GET'])
@@ -483,11 +545,31 @@ def get_public_diploma_by_user_id(user_id):
                             'is_legacy': False
                         }
                     else:
-                        # Use legacy single-format evidence
+                        # Use legacy single-format evidence OR parse document ID fallback
                         evidence_text = tc.get('evidence_text', '')
                         evidence_url = tc.get('evidence_url', '')
 
-                        # Determine evidence type
+                        # Check if evidence_text contains multi-format document reference
+                        document_id = parse_document_id_from_evidence_text(evidence_text)
+
+                        if document_id:
+                            # Fallback: Fetch blocks directly by document ID
+                            logger.info(f"Using document ID fallback for task '{task_title}': {document_id}")
+                            blocks = fetch_evidence_blocks_by_document_id(supabase, document_id, filter_private=True)
+
+                            if blocks:
+                                # Successfully fetched blocks - treat as multi_format
+                                task_evidence[task_title] = {
+                                    'evidence_type': 'multi_format',
+                                    'evidence_blocks': blocks,
+                                    'xp_awarded': task_xp,
+                                    'completed_at': tc.get('completed_at'),
+                                    'pillar': task_info.get('pillar', 'Arts & Creativity'),
+                                    'is_legacy': False
+                                }
+                                continue  # Skip legacy fallback
+
+                        # Standard legacy evidence handling
                         if evidence_text and not evidence_text.startswith('Multi-format evidence document'):
                             evidence_type = 'text'
                             evidence_content = evidence_text
@@ -495,9 +577,9 @@ def get_public_diploma_by_user_id(user_id):
                             evidence_type = 'link'
                             evidence_content = evidence_url
                         else:
-                            # No evidence or just document reference
+                            # No evidence available
                             evidence_type = 'text'
-                            evidence_content = 'Evidence submitted but not available for display'
+                            evidence_content = 'No evidence submitted for this task'
 
                         task_evidence[task_title] = {
                             'evidence_type': evidence_type,

@@ -17,6 +17,7 @@ import {
   XMarkIcon,
   ChevronRightIcon
 } from '@heroicons/react/24/outline';
+import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
 
 const ParentDashboardPage = () => {
   const { user } = useAuth();
@@ -1151,7 +1152,7 @@ const ParentDashboardPage = () => {
                               <span className="text-xs font-semibold px-2 py-1 rounded bg-blue-100 text-blue-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
                                 {completion.task.xp_value} XP
                               </span>
-                              {(completion.evidence_text || completion.evidence_url) && (
+                              {(completion.evidence_text || completion.evidence_url || (completion.evidence_blocks && completion.evidence_blocks.length > 0)) && (
                                 <span className="text-xs font-semibold px-2 py-1 rounded bg-purple-100 text-purple-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
                                   Has Evidence
                                 </span>
@@ -1353,41 +1354,17 @@ const ParentDashboardPage = () => {
                         Submitted Evidence
                       </h4>
 
-                      {selectedCompletion.evidence_text && (
-                        <div className="mb-4">
-                          <h5 className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            Student Notes:
-                          </h5>
-                          <p className="text-gray-700 font-medium whitespace-pre-wrap bg-gray-50 p-4 rounded-lg border border-gray-200" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {selectedCompletion.evidence_text}
-                          </p>
-                        </div>
-                      )}
-
-                      {selectedCompletion.evidence_url && (
-                        <div className="mb-4">
-                          <h5 className="font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            Evidence Link:
-                          </h5>
-                          <a
-                            href={selectedCompletion.evidence_url}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-purple-600 hover:text-purple-800 font-medium underline break-all"
-                            style={{ fontFamily: 'Poppins, sans-serif' }}
-                          >
-                            {selectedCompletion.evidence_url}
-                          </a>
-                        </div>
-                      )}
-
-                      {!selectedCompletion.evidence_text && !selectedCompletion.evidence_url && (
-                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-                          <p className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            No evidence was submitted with this task completion
-                          </p>
-                        </div>
-                      )}
+                      <UnifiedEvidenceDisplay
+                        evidence={{
+                          evidence_type: selectedCompletion.evidence_type,
+                          evidence_blocks: selectedCompletion.evidence_blocks,
+                          evidence_text: selectedCompletion.evidence_text,
+                          evidence_url: selectedCompletion.evidence_url
+                        }}
+                        displayMode="full"
+                        showMetadata={false}
+                        allowPrivateBlocks={true}
+                      />
                     </div>
                   </div>
                 </div>

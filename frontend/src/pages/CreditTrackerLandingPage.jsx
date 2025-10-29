@@ -94,7 +94,7 @@ const CreditTrackerLandingPage = () => {
     },
     {
       question: 'What happens after my first free credit?',
-      answer: 'You can continue using Optio to track all your learning. Paid plans unlock unlimited credits, advanced portfolio features, and transcript customization. But your first credit is completely free to try the system.',
+      answer: 'You can continue using Optio to track all your learning with full platform access. Free accounts include unlimited credits, portfolio features, and transcript generation with no restrictions. Start building your complete learning record today.',
     },
   ]
 

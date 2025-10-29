@@ -16,6 +16,7 @@ import {
   meetsGraduationRequirements
 } from '../utils/creditRequirements';
 import { getPillarGradient, getPillarDisplayName } from '../config/pillars';
+import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
 
 const DiplomaPage = () => {
   const { user, loginTimestamp } = useAuth();
@@ -457,180 +458,15 @@ const DiplomaPage = () => {
   };
 
   const renderEvidence = (evidence) => {
-    // Handle new multi-format evidence
-    if (evidence.evidence_type === 'multi_format') {
-      const blocks = evidence.evidence_blocks || [];
+    // Convert legacy evidence_content to modern format if needed
+    const normalizedEvidence = {
+      evidence_type: evidence.evidence_type,
+      evidence_blocks: evidence.evidence_blocks,
+      evidence_text: evidence.evidence_text || evidence.evidence_content,
+      evidence_url: evidence.evidence_url || (evidence.evidence_type === 'link' ? evidence.evidence_content : null)
+    };
 
-      if (!blocks || blocks.length === 0) {
-        return (
-          <div className="p-6 rounded-lg bg-gradient-to-br from-yellow-50 to-amber-50 border border-yellow-200">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 bg-yellow-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                <svg className="w-5 h-5 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <h4 className="font-semibold text-yellow-800 mb-1">Evidence Document Unavailable</h4>
-                <p className="text-sm text-yellow-700">
-                  This task was completed with a multi-format evidence document, but the content is not currently available for display.
-                </p>
-              </div>
-            </div>
-          </div>
-        );
-      }
-
-      const MultiFormatEvidenceDisplay = React.lazy(() => import('../components/diploma/MultiFormatEvidenceDisplay'));
-      return (
-        <React.Suspense fallback={
-          <div className="p-6 bg-gradient-to-br from-optio-pink/5 to-optio-purple/5 border border-optio-purple/15 rounded-lg">
-            <div className="flex items-center justify-center gap-3">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-optio-purple"></div>
-              <p className="text-sm text-gray-600">Loading evidence...</p>
-            </div>
-          </div>
-        }>
-          <MultiFormatEvidenceDisplay blocks={blocks} />
-        </React.Suspense>
-      );
-    }
-
-    // Handle legacy single-format evidence
-    switch (evidence.evidence_type) {
-      case 'text':
-        return (
-          <div className="p-4 rounded-lg bg-gradient-subtle">
-            <p className="text-sm text-gray-700 whitespace-pre-wrap">
-              {evidence.evidence_content}
-            </p>
-          </div>
-        );
-      
-      case 'link':
-        const linkUrl = evidence.evidence_content;
-        if (!linkUrl || linkUrl === '' || linkUrl === 'undefined') {
-          return (
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-gray-500 text-sm">Link evidence not available</p>
-            </div>
-          );
-        }
-
-        // Ensure URL has proper protocol
-        const formattedUrl = linkUrl.startsWith('http') ? linkUrl : `https://${linkUrl}`;
-
-        // Create display text (truncate if too long)
-        const displayText = linkUrl.length > 50 ? `${linkUrl.substring(0, 47)}...` : linkUrl;
-
-        return (
-          <div className="p-3 bg-blue-50 rounded-lg">
-            <a
-              href={formattedUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-blue-600 hover:text-blue-700 underline text-sm flex items-center break-all"
-            >
-              <svg className="w-4 h-4 mr-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z" />
-                <path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z" />
-              </svg>
-              {displayText}
-            </a>
-          </div>
-        );
-      
-      case 'image':
-        const imageUrl = evidence.evidence_content;
-        if (!imageUrl || imageUrl === '' || imageUrl === 'undefined') {
-          return (
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-gray-500 text-sm">Image evidence not available</p>
-            </div>
-          );
-        }
-
-        return (
-          <div className="p-4 rounded-lg bg-gradient-subtle">
-            <img
-              src={imageUrl}
-              alt="Task evidence"
-              loading="lazy"
-              decoding="async"
-              className="max-w-full rounded-lg cursor-pointer hover:opacity-90"
-              onClick={() => window.open(imageUrl, '_blank')}
-              onError={(e) => {
-                e.target.style.display = 'none';
-                e.target.nextSibling.style.display = 'block';
-              }}
-            />
-            <p className="text-gray-500 text-sm" style={{ display: 'none' }}>
-              Unable to load image evidence
-            </p>
-          </div>
-        );
-      
-      case 'video':
-        const videoUrl = evidence.evidence_content;
-        if (!videoUrl || videoUrl === '' || videoUrl === 'undefined') {
-          return (
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-gray-500 text-sm">Video evidence not available</p>
-            </div>
-          );
-        }
-
-        const formattedVideoUrl = videoUrl.startsWith('http') ? videoUrl : `https://${videoUrl}`;
-        const videoDisplayText = videoUrl.length > 45 ? `${videoUrl.substring(0, 42)}...` : videoUrl;
-
-        return (
-          <div className="p-3 bg-orange-50 rounded-lg">
-            <a
-              href={formattedVideoUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-orange-600 hover:text-orange-700 underline text-sm flex items-center break-all"
-            >
-              <svg className="w-4 h-4 mr-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M2 6a2 2 0 012-2h6l2 2h6a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6zM5 8a1 1 0 011-1h1a1 1 0 010 2H6a1 1 0 01-1-1zm6 1a1 1 0 100 2h3a1 1 0 100-2H11z" />
-              </svg>
-              {videoDisplayText}
-            </a>
-          </div>
-        );
-
-      case 'document':
-        const documentUrl = evidence.evidence_content;
-        if (!documentUrl || documentUrl === '' || documentUrl === 'undefined') {
-          return (
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-gray-500 text-sm">Document evidence not available</p>
-            </div>
-          );
-        }
-
-        const formattedDocumentUrl = documentUrl.startsWith('http') ? documentUrl : `https://${documentUrl}`;
-        const documentDisplayText = documentUrl.length > 45 ? `${documentUrl.substring(0, 42)}...` : documentUrl;
-
-        return (
-          <div className="p-3 bg-gray-50 rounded-lg">
-            <a
-              href={formattedDocumentUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-gray-600 hover:text-gray-700 underline text-sm flex items-center break-all"
-            >
-              <svg className="w-4 h-4 mr-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
-              </svg>
-              {documentDisplayText}
-            </a>
-          </div>
-        );
-
-      default:
-        return null;
-    }
+    return <UnifiedEvidenceDisplay evidence={normalizedEvidence} displayMode="full" />;
   };
 
   if (isLoading) {

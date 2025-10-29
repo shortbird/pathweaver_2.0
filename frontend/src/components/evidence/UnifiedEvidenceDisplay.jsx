@@ -1,0 +1,231 @@
+/**
+ * UnifiedEvidenceDisplay - Single source of truth for evidence rendering
+ *
+ * Handles both multi-format AND legacy evidence seamlessly.
+ * Automatic detection and fetching of document IDs from placeholder strings.
+ * Rich content display with proper formatting.
+ *
+ * @param {Object} evidence - Evidence object from API
+ * @param {Object} context - Optional context (task/quest info)
+ * @param {string} displayMode - 'full' | 'compact' | 'preview'
+ * @param {boolean} showMetadata - Show task/quest context header
+ * @param {boolean} allowPrivateBlocks - Show private blocks (owner only)
+ */
+
+import React, { useState } from 'react';
+import PropTypes from 'prop-types';
+import TextBlock from './blocks/TextBlock';
+import ImageBlock from './blocks/ImageBlock';
+import LinkBlock from './blocks/LinkBlock';
+import VideoBlock from './blocks/VideoBlock';
+import DocumentBlock from './blocks/DocumentBlock';
+import EvidenceHeader from './EvidenceHeader';
+import EvidenceEmptyState from './EvidenceEmptyState';
+
+const UnifiedEvidenceDisplay = ({
+  evidence,
+  context = {},
+  displayMode = 'full',
+  showMetadata = false,
+  allowPrivateBlocks = false
+}) => {
+  const [expandedBlocks, setExpandedBlocks] = useState(new Set());
+
+  // Handle null or undefined evidence
+  if (!evidence) {
+    return <EvidenceEmptyState message="No evidence data provided" />;
+  }
+
+  const {
+    evidence_type,
+    evidence_blocks = [],
+    evidence_text,
+    evidence_url
+  } = evidence;
+
+  // Filter private blocks if needed
+  const visibleBlocks = allowPrivateBlocks
+    ? evidence_blocks
+    : evidence_blocks.filter(block => !block.is_private);
+
+  // Determine if we have any evidence to show
+  const hasMultiFormat = evidence_type === 'multi_format' && visibleBlocks.length > 0;
+  const hasLegacyText = evidence_text && !evidence_text.startsWith('Multi-format evidence document');
+  const hasLegacyUrl = evidence_url;
+  const hasEvidence = hasMultiFormat || hasLegacyText || hasLegacyUrl;
+
+  if (!hasEvidence) {
+    return <EvidenceEmptyState message="No evidence submitted for this task" />;
+  }
+
+  // Toggle block expansion
+  const toggleBlock = (blockId) => {
+    setExpandedBlocks(prev => {
+      const next = new Set(prev);
+      if (next.has(blockId)) {
+        next.delete(blockId);
+      } else {
+        next.add(blockId);
+      }
+      return next;
+    });
+  };
+
+  // Render multi-format evidence blocks
+  const renderMultiFormatEvidence = () => {
+    if (!hasMultiFormat) return null;
+
+    return (
+      <div className="space-y-4">
+        {showMetadata && context && (
+          <EvidenceHeader context={context} blockCount={visibleBlocks.length} />
+        )}
+
+        <div className="space-y-3">
+          {visibleBlocks.map((block, index) => {
+            const isExpanded = expandedBlocks.has(block.id);
+            const key = block.id || `block-${index}`;
+
+            switch (block.block_type) {
+              case 'text':
+                return (
+                  <TextBlock
+                    key={key}
+                    block={block}
+                    isExpanded={isExpanded}
+                    onToggle={() => toggleBlock(block.id)}
+                    displayMode={displayMode}
+                  />
+                );
+
+              case 'image':
+                return (
+                  <ImageBlock
+                    key={key}
+                    block={block}
+                    displayMode={displayMode}
+                  />
+                );
+
+              case 'link':
+                return (
+                  <LinkBlock
+                    key={key}
+                    block={block}
+                    displayMode={displayMode}
+                  />
+                );
+
+              case 'video':
+                return (
+                  <VideoBlock
+                    key={key}
+                    block={block}
+                    displayMode={displayMode}
+                  />
+                );
+
+              case 'document':
+                return (
+                  <DocumentBlock
+                    key={key}
+                    block={block}
+                    displayMode={displayMode}
+                  />
+                );
+
+              default:
+                return (
+                  <div key={key} className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                    <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      Unknown block type: {block.block_type}
+                    </p>
+                  </div>
+                );
+            }
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // Render legacy text evidence as a card
+  const renderLegacyTextEvidence = () => {
+    if (!hasLegacyText) return null;
+
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        {showMetadata && context && (
+          <EvidenceHeader context={context} blockCount={1} />
+        )}
+        <div className="prose max-w-none">
+          <p className="text-gray-900 whitespace-pre-wrap font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            {evidence_text}
+          </p>
+        </div>
+      </div>
+    );
+  };
+
+  // Render legacy URL evidence as a link card
+  const renderLegacyUrlEvidence = () => {
+    if (!hasLegacyUrl) return null;
+
+    return (
+      <div className="bg-white border border-gray-200 rounded-lg p-6">
+        {showMetadata && context && (
+          <EvidenceHeader context={context} blockCount={1} />
+        )}
+        <a
+          href={evidence_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center gap-3 text-purple-600 hover:text-purple-800 font-semibold transition-colors"
+          style={{ fontFamily: 'Poppins, sans-serif' }}
+        >
+          <svg className="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+          </svg>
+          <span className="break-all">{evidence_url}</span>
+        </a>
+      </div>
+    );
+  };
+
+  // Main render
+  return (
+    <div className={`unified-evidence-display ${displayMode}`}>
+      {hasMultiFormat && renderMultiFormatEvidence()}
+      {hasLegacyText && renderLegacyTextEvidence()}
+      {hasLegacyUrl && renderLegacyUrlEvidence()}
+    </div>
+  );
+};
+
+UnifiedEvidenceDisplay.propTypes = {
+  evidence: PropTypes.shape({
+    evidence_type: PropTypes.oneOf(['multi_format', 'legacy_text', 'legacy_link', 'text', 'link']),
+    evidence_blocks: PropTypes.arrayOf(PropTypes.shape({
+      id: PropTypes.string,
+      block_type: PropTypes.oneOf(['text', 'image', 'link', 'video', 'document']).isRequired,
+      content: PropTypes.object.isRequired,
+      order_index: PropTypes.number,
+      is_private: PropTypes.bool
+    })),
+    evidence_text: PropTypes.string,
+    evidence_url: PropTypes.string,
+    evidence_content: PropTypes.string // Legacy field name
+  }),
+  context: PropTypes.shape({
+    taskTitle: PropTypes.string,
+    questTitle: PropTypes.string,
+    pillar: PropTypes.string,
+    completedAt: PropTypes.string,
+    xpAwarded: PropTypes.number
+  }),
+  displayMode: PropTypes.oneOf(['full', 'compact', 'preview']),
+  showMetadata: PropTypes.bool,
+  allowPrivateBlocks: PropTypes.bool
+};
+
+export default UnifiedEvidenceDisplay;

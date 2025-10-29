@@ -27,12 +27,74 @@ from collections import defaultdict
 import logging
 
 from utils.logger import get_logger
+import re
+from typing import Optional, List, Dict, Any
 
 logger = get_logger(__name__)
 
 logger = logging.getLogger(__name__)
 
 bp = Blueprint('parent_dashboard', __name__, url_prefix='/api/parent')
+
+
+# Helper functions for evidence display enhancement
+def parse_document_id_from_evidence_text(evidence_text: str) -> Optional[str]:
+    """
+    Extract document ID from multi-format evidence placeholder string.
+
+    Args:
+        evidence_text: Text from quest_task_completions.evidence_text
+
+    Returns:
+        Document UUID if found, None otherwise
+    """
+    if evidence_text and evidence_text.startswith('Multi-format evidence document'):
+        match = re.search(r'Document ID: ([\w-]+)', evidence_text)
+        if match:
+            return match.group(1)
+    return None
+
+
+def fetch_evidence_blocks_by_document_id(
+    supabase,
+    document_id: str,
+    filter_private: bool = False  # Parents should see all evidence
+) -> List[Dict[str, Any]]:
+    """
+    Fetch evidence blocks directly by document ID.
+    Used as fallback when task_id matching fails.
+
+    Args:
+        supabase: Supabase client
+        document_id: UUID of user_task_evidence_documents record
+        filter_private: If True, exclude private blocks (False for parents)
+
+    Returns:
+        List of evidence blocks sorted by order_index
+    """
+    try:
+        query = supabase.table('user_task_evidence_documents').select('''
+            id,
+            evidence_document_blocks (
+                id, block_type, content, order_index, is_private
+            )
+        ''').eq('id', document_id)
+
+        if filter_private:
+            query = query.eq('evidence_document_blocks.is_private', False)
+
+        result = query.execute()
+
+        if result.data and len(result.data) > 0:
+            blocks = result.data[0].get('evidence_document_blocks', [])
+            return sorted(blocks, key=lambda b: b.get('order_index', 0))
+
+        logger.warning(f"No evidence blocks found for document ID: {document_id}")
+        return []
+
+    except Exception as e:
+        logger.error(f"Error fetching evidence blocks for document {document_id}: {e}")
+        return []
 
 
 def verify_parent_access(supabase, parent_user_id, student_user_id):
@@ -803,7 +865,7 @@ def get_recent_completions(user_id, student_id):
 
             quests_map = {q['id']: q for q in quests_response.data}
 
-        # Build completions list
+        # Build completions list with evidence enhancement
         completions = []
         for comp in completions_response.data:
             task_id = comp.get('user_quest_task_id')
@@ -812,6 +874,25 @@ def get_recent_completions(user_id, student_id):
 
             task = tasks_map[task_id]
             quest = quests_map.get(task['quest_id'], {})
+
+            evidence_text = comp.get('evidence_text')
+            evidence_url = comp.get('evidence_url')
+            evidence_blocks = []
+            evidence_type = 'legacy_text'  # Default
+
+            # Check if evidence_text contains multi-format document reference
+            document_id = parse_document_id_from_evidence_text(evidence_text)
+
+            if document_id:
+                # Fetch blocks directly by document ID
+                logger.info(f"Fetching evidence blocks for completion {comp['id']} via document ID: {document_id}")
+                blocks = fetch_evidence_blocks_by_document_id(supabase, document_id, filter_private=False)
+
+                if blocks:
+                    evidence_blocks = blocks
+                    evidence_type = 'multi_format'
+                    # Clear placeholder text so frontend doesn't display it
+                    evidence_text = None
 
             completions.append({
                 'completion_id': comp['id'],
@@ -828,8 +909,10 @@ def get_recent_completions(user_id, student_id):
                     'image_url': quest.get('image_url') or quest.get('header_image_url')
                 },
                 'completed_at': comp['completed_at'],
-                'evidence_text': comp.get('evidence_text'),
-                'evidence_url': comp.get('evidence_url')
+                'evidence_type': evidence_type,
+                'evidence_text': evidence_text,
+                'evidence_url': evidence_url,
+                'evidence_blocks': evidence_blocks
             })
 
         return jsonify({
