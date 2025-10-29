@@ -113,58 +113,12 @@ const TeacherConsultationPage = () => {
       helpText: 'We\'ll use this to send appointment reminders',
     },
     {
-      name: 'studentAge',
-      type: 'select',
-      label: 'Student Age/Grade',
-      placeholder: 'Select age or grade...',
-      required: true,
-      options: [
-        '5-7 years (K-2)',
-        '8-10 years (3-5)',
-        '11-13 years (6-8)',
-        '14-15 years (9-10)',
-        '16-18 years (11-12)',
-        '18+ (Post-secondary)',
-      ],
-    },
-    {
-      name: 'currentSituation',
-      type: 'select',
-      label: 'What best describes your current situation?',
-      placeholder: 'Select one...',
-      required: true,
-      options: [
-        'Currently homeschooling, need guidance',
-        'Considering homeschool, exploring options',
-        'Transitioning from traditional school',
-        'Looking to supplement school with enrichment',
-        'Unhappy with current homeschool approach',
-        'Student learning independently, need structure',
-        'Other',
-      ],
-    },
-    {
       name: 'goals',
       type: 'textarea',
       label: 'What are you hoping to accomplish? (Optional)',
       placeholder: 'Share any specific goals, challenges, or questions you\'d like to discuss during the consultation...',
       required: false,
       helpText: 'This helps us match you with the right advisor',
-    },
-    {
-      name: 'preferredTime',
-      type: 'select',
-      label: 'Preferred Time for Consultation',
-      placeholder: 'Select a time slot...',
-      required: false,
-      options: [
-        'Weekday mornings (9am-12pm)',
-        'Weekday afternoons (12pm-4pm)',
-        'Weekday evenings (4pm-7pm)',
-        'Weekend mornings',
-        'Weekend afternoons',
-        'I\'m flexible',
-      ],
     },
   ]
 
@@ -279,45 +233,6 @@ const TeacherConsultationPage = () => {
         title="How It Works"
         steps={steps}
       />
-
-      {/* Trust Signals */}
-      <div className="py-16 px-4 bg-white">
-        <div className="max-w-4xl mx-auto">
-          <h2
-            className="text-3xl md:text-4xl text-center text-gray-900 mb-12"
-            style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-          >
-            You're In Good Hands
-          </h2>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-            <div>
-              <div className="text-5xl font-black text-optio-purple mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                500+
-              </div>
-              <p className="text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
-                Families Advised
-              </p>
-            </div>
-            <div>
-              <div className="text-5xl font-black text-optio-pink mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                15+
-              </div>
-              <p className="text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
-                Licensed Teachers
-              </p>
-            </div>
-            <div>
-              <div className="text-5xl font-black text-optio-purple mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                4.9★
-              </div>
-              <p className="text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
-                Average Rating
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       <FAQSection faqs={faqs} />
 

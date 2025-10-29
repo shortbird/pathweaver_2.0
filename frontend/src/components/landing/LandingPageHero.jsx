@@ -44,10 +44,10 @@ const LandingPageHero = ({
       {backgroundImage && (
         <>
           <div
-            className="absolute inset-0 bg-cover bg-center"
+            className="absolute inset-0 bg-cover bg-top"
             style={{
               backgroundImage: `url(${backgroundImage})`,
-              backgroundPosition: 'center',
+              backgroundPosition: 'top',
               backgroundSize: 'cover'
             }}
           />
