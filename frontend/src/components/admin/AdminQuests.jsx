@@ -11,6 +11,7 @@ const AdminQuests = () => {
   const [editingQuest, setEditingQuest] = useState(null)
   const [showCreationForm, setShowCreationForm] = useState(false)
   const [showCourseQuestForm, setShowCourseQuestForm] = useState(false)
+  const [editingCourseQuest, setEditingCourseQuest] = useState(null)
 
   useEffect(() => {
     fetchQuests()
@@ -30,12 +31,20 @@ const AdminQuests = () => {
   const handleQuestSave = () => {
     setShowManager(false)
     setEditingQuest(null)
+    setEditingCourseQuest(null)
     fetchQuests()
   }
 
   const handleEdit = (quest) => {
-    setEditingQuest(quest)
-    setShowManager(true)
+    // Check quest type to determine which form to show
+    if (quest.quest_type === 'course') {
+      setEditingCourseQuest(quest)
+      setShowCourseQuestForm(true)
+    } else {
+      // Default to Optio quest form for 'optio' type or undefined
+      setEditingQuest(quest)
+      setShowManager(true)
+    }
   }
 
   const handleDelete = async (questId) => {
@@ -148,10 +157,16 @@ const AdminQuests = () => {
 
       {showCourseQuestForm && (
         <CourseQuestForm
-          onClose={() => setShowCourseQuestForm(false)}
+          mode={editingCourseQuest ? 'edit' : 'create'}
+          quest={editingCourseQuest}
+          onClose={() => {
+            setShowCourseQuestForm(false)
+            setEditingCourseQuest(null)
+          }}
           onSuccess={(newQuest) => {
             fetchQuests()
             setShowCourseQuestForm(false)
+            setEditingCourseQuest(null)
           }}
         />
       )}

@@ -147,11 +147,19 @@ def update_quest(user_id, quest_id):
 
         if update_data:
             update_data['updated_at'] = datetime.utcnow().isoformat()
-            supabase.table('quests').update(update_data).eq('id', quest_id).execute()
+            result = supabase.table('quests').update(update_data).eq('id', quest_id).execute()
+
+            updated_quest = result.data[0] if result.data else None
+
+            return jsonify({
+                'success': True,
+                'message': 'Quest updated successfully',
+                'quest': updated_quest
+            })
 
         return jsonify({
             'success': True,
-            'message': 'Quest updated successfully'
+            'message': 'No updates provided'
         })
 
     except Exception as e:

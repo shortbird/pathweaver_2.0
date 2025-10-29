@@ -1,20 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { X, Plus, Trash2, GripVertical, AlertCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
 
-const CourseQuestForm = ({ onClose, onSuccess }) => {
+const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) => {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState({});
+  const [loadingTasks, setLoadingTasks] = useState(mode === 'edit');
 
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    lms_platform: '',
-    lms_course_id: '',
-    lms_assignment_id: '',
-    is_active: true,
+    title: quest?.title || '',
+    description: quest?.description || '',
+    lms_platform: quest?.lms_platform || '',
+    lms_course_id: quest?.lms_course_id || '',
+    lms_assignment_id: quest?.lms_assignment_id || '',
+    is_active: quest?.is_active !== undefined ? quest.is_active : true,
     tasks: [
       {
         title: '',
@@ -27,6 +28,38 @@ const CourseQuestForm = ({ onClose, onSuccess }) => {
   });
 
   const pillars = ['stem', 'wellness', 'communication', 'civics', 'art'];
+
+  // Load existing tasks when in edit mode
+  useEffect(() => {
+    const loadCourseTasks = async () => {
+      if (mode === 'edit' && quest?.id) {
+        try {
+          const response = await api.get(`/api/admin/quests/${quest.id}/course-tasks`);
+
+          if (response.data.tasks && response.data.tasks.length > 0) {
+            setFormData(prev => ({
+              ...prev,
+              tasks: response.data.tasks.map((task, index) => ({
+                id: task.id, // Keep task ID for updates
+                title: task.title || '',
+                description: task.description || '',
+                pillar: task.pillar || 'stem',
+                xp_value: task.xp_value || 100,
+                order_index: index
+              }))
+            }));
+          }
+        } catch (error) {
+          console.error('Error loading course tasks:', error);
+          toast.error('Failed to load course tasks');
+        } finally {
+          setLoadingTasks(false);
+        }
+      }
+    };
+
+    loadCourseTasks();
+  }, [mode, quest]);
 
   const validateForm = () => {
     const newErrors = {};
@@ -80,9 +113,18 @@ const CourseQuestForm = ({ onClose, onSuccess }) => {
         }))
       };
 
-      const response = await api.post('/api/admin/quests/create-course-quest', submitData);
+      let response;
 
-      toast.success(`Course quest created with ${formData.tasks.length} preset tasks!`);
+      if (mode === 'edit') {
+        // Update existing course quest
+        response = await api.put(`/api/admin/quests/${quest.id}/course-tasks`, submitData);
+        toast.success(`Course quest updated with ${formData.tasks.length} tasks!`);
+      } else {
+        // Create new course quest
+        response = await api.post('/api/admin/quests/create-course-quest', submitData);
+        toast.success(`Course quest created with ${formData.tasks.length} preset tasks!`);
+      }
+
       onSuccess && onSuccess(response.data.quest);
       onClose();
     } catch (error) {
@@ -152,7 +194,7 @@ const CourseQuestForm = ({ onClose, onSuccess }) => {
       <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center z-10">
           <h2 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-            Create Course Quest
+            {mode === 'edit' ? 'Edit Course Quest' : 'Create Course Quest'}
           </h2>
           <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
             <X size={24} />
@@ -167,8 +209,16 @@ const CourseQuestForm = ({ onClose, onSuccess }) => {
             </p>
           </div>
 
-          {/* Quest Details */}
-          <div className="space-y-6 mb-8">
+          {/* Loading State for Edit Mode */}
+          {loadingTasks ? (
+            <div className="flex justify-center items-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+              <span className="ml-3 text-gray-600">Loading course tasks...</span>
+            </div>
+          ) : (
+            <>
+              {/* Quest Details */}
+              <div className="space-y-6 mb-8">
             <div>
               <label className="block text-sm font-semibold mb-2 text-gray-800">
                 Quest Title
@@ -399,9 +449,11 @@ const CourseQuestForm = ({ onClose, onSuccess }) => {
               disabled={loading}
               className="px-6 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90 disabled:opacity-50 font-semibold"
             >
-              {loading ? 'Creating...' : 'Create Course Quest'}
+              {loading ? (mode === 'edit' ? 'Updating...' : 'Creating...') : (mode === 'edit' ? 'Update Course Quest' : 'Create Course Quest')}
             </button>
           </div>
+            </>
+          )}
         </form>
       </div>
     </div>

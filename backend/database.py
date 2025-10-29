@@ -75,9 +75,23 @@ def get_user_client(token: Optional[str] = None) -> Client:
 
     # Get token from parameter or request headers
     if not token:
-        auth_header = request.headers.get('Authorization', '')
-        if auth_header.startswith('Bearer '):
-            token = auth_header.replace('Bearer ', '')
+        try:
+            # Ensure we're in a valid request context before accessing request.headers
+            if not request or not hasattr(request, 'headers'):
+                _get_logger().warning("WARNING: get_user_client called outside request context or with invalid request object")
+                client = get_supabase_client()
+                setattr(g, f'_user_client_anon', client)
+                return client
+
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Bearer '):
+                token = auth_header.replace('Bearer ', '')
+        except (RuntimeError, AttributeError) as e:
+            # Handle cases where request context is invalid or request is a dict
+            _get_logger().warning(f"WARNING: Cannot access request headers: {e}")
+            client = get_supabase_client()
+            setattr(g, f'_user_client_anon', client)
+            return client
 
     # Create a cache key based on the token
     cache_key = f'_user_client_{token[:20] if token else "anon"}'
