@@ -204,10 +204,16 @@ def get_course_tasks(user_id, quest_id):
 @require_admin
 def update_course_tasks(user_id, quest_id):
     """
-    Replace all preset tasks for a course quest.
+    Update a course quest and replace all preset tasks.
 
     Request body:
     {
+        "title": "Quest title",
+        "description": "Quest description",
+        "lms_platform": "canvas|google_classroom|schoology|moodle",
+        "lms_course_id": "course-123",
+        "lms_assignment_id": "assignment-456",
+        "is_active": true,
         "tasks": [
             {
                 "title": "Task 1",
@@ -242,6 +248,33 @@ def update_course_tasks(user_id, quest_id):
                 'success': False,
                 'error': 'Tasks array is required'
             }), 400
+
+        # Update quest attributes (title, description, lms fields, etc.)
+        quest_update_data = {}
+
+        if 'title' in data:
+            quest_update_data['title'] = data['title'].strip()
+        if 'description' in data:
+            quest_update_data['description'] = data['description'].strip()
+            quest_update_data['big_idea'] = data['description'].strip()  # Keep big_idea in sync
+        if 'lms_platform' in data:
+            quest_update_data['lms_platform'] = data.get('lms_platform')
+        if 'lms_course_id' in data:
+            quest_update_data['lms_course_id'] = data.get('lms_course_id')
+        if 'lms_assignment_id' in data:
+            quest_update_data['lms_assignment_id'] = data.get('lms_assignment_id')
+        if 'is_active' in data:
+            quest_update_data['is_active'] = data['is_active']
+
+        # Always update the updated_at timestamp
+        quest_update_data['updated_at'] = datetime.utcnow().isoformat()
+
+        # Update the quest record
+        if quest_update_data:
+            quest_result = supabase.table('quests').update(quest_update_data).eq('id', quest_id).execute()
+            logger.info(f"Updated course quest {quest_id} attributes: {list(quest_update_data.keys())}")
+        else:
+            quest_result = None
 
         # Delete existing tasks
         supabase.table('course_quest_tasks').delete().eq('quest_id', quest_id).execute()
@@ -293,9 +326,13 @@ def update_course_tasks(user_id, quest_id):
 
         logger.info(f"Updated course tasks for quest {quest_id}: {len(tasks_result.data)} tasks")
 
+        # Get the updated quest data to return to frontend
+        updated_quest = supabase.table('quests').select('*').eq('id', quest_id).single().execute()
+
         return jsonify({
             'success': True,
-            'message': f'Course tasks updated: {len(tasks_result.data)} tasks',
+            'message': f'Course quest updated with {len(tasks_result.data)} tasks',
+            'quest': updated_quest.data if updated_quest.data else None,
             'tasks': tasks_result.data
         })
 
