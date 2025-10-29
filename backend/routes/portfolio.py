@@ -45,8 +45,9 @@ def parse_document_id_from_evidence_text(evidence_text: str) -> Optional[str]:
 def fetch_evidence_blocks_by_document_id(
     supabase,
     document_id: str,
-    filter_private: bool = True
-) -> List[Dict[str, Any]]:
+    filter_private: bool = True,
+    viewer_user_id: str = None
+) -> tuple[List[Dict[str, Any]], bool, str]:
     """
     Fetch evidence blocks directly by document ID.
     Used as fallback when task_id matching fails.
@@ -55,13 +56,16 @@ def fetch_evidence_blocks_by_document_id(
         supabase: Supabase client
         document_id: UUID of user_task_evidence_documents record
         filter_private: If True, exclude private blocks
+        viewer_user_id: User ID of the person viewing (None for public view)
 
     Returns:
-        List of evidence blocks sorted by order_index
+        Tuple of (blocks list, is_confidential boolean, owner_user_id string)
     """
     try:
         query = supabase.table('user_task_evidence_documents').select('''
             id,
+            user_id,
+            is_confidential,
             evidence_document_blocks!inner (
                 id, block_type, content, order_index, is_private
             )
@@ -73,15 +77,21 @@ def fetch_evidence_blocks_by_document_id(
         result = query.execute()
 
         if result.data and len(result.data) > 0:
-            blocks = result.data[0].get('evidence_document_blocks', [])
-            return sorted(blocks, key=lambda b: b.get('order_index', 0))
+            doc = result.data[0]
+            is_confidential = doc.get('is_confidential', False)
+            owner_user_id = doc.get('user_id')
+
+            blocks = doc.get('evidence_document_blocks', [])
+            sorted_blocks = sorted(blocks, key=lambda b: b.get('order_index', 0))
+
+            return sorted_blocks, is_confidential, owner_user_id
 
         logger.warning(f"No evidence blocks found for document ID: {document_id}")
-        return []
+        return [], False, None
 
     except Exception as e:
         logger.error(f"Error fetching evidence blocks for document {document_id}: {e}")
-        return []
+        return [], False, None
 
 # Using repository pattern for database access
 @bp.route('/public/<portfolio_slug>', methods=['GET'])
@@ -418,8 +428,10 @@ def get_public_diploma_by_user_id(user_id):
             id,
             task_id,
             quest_id,
+            user_id,
             status,
             completed_at,
+            is_confidential,
             evidence_document_blocks!inner (
                 id,
                 block_type,
@@ -447,7 +459,9 @@ def get_public_diploma_by_user_id(user_id):
                     evidence_docs_map[task_id] = {
                         'document_id': doc.get('id'),
                         'blocks': doc.get('evidence_document_blocks', []),
-                        'completed_at': doc.get('completed_at')
+                        'completed_at': doc.get('completed_at'),
+                        'is_confidential': doc.get('is_confidential', False),
+                        'owner_user_id': doc.get('user_id')
                     }
                     print(f"Mapped evidence doc for task {task_id}: {len(doc.get('evidence_document_blocks', []))} blocks")
 
@@ -534,7 +548,9 @@ def get_public_diploma_by_user_id(user_id):
                     if evidence_doc and evidence_doc.get('blocks'):
                         # Use new multi-format evidence
                         blocks = evidence_doc.get('blocks', [])
-                        print(f"Task '{task_title}' has {len(blocks)} evidence blocks")
+                        is_confidential = evidence_doc.get('is_confidential', False)
+                        owner_user_id = evidence_doc.get('owner_user_id')
+                        print(f"Task '{task_title}' has {len(blocks)} evidence blocks, confidential: {is_confidential}")
 
                         task_evidence[task_title] = {
                             'evidence_type': 'multi_format',
@@ -542,7 +558,9 @@ def get_public_diploma_by_user_id(user_id):
                             'xp_awarded': task_xp,
                             'completed_at': tc.get('completed_at'),
                             'pillar': task_info.get('pillar', 'Arts & Creativity'),
-                            'is_legacy': False
+                            'is_legacy': False,
+                            'is_confidential': is_confidential,
+                            'owner_user_id': owner_user_id
                         }
                     else:
                         # Use legacy single-format evidence OR parse document ID fallback
@@ -555,7 +573,9 @@ def get_public_diploma_by_user_id(user_id):
                         if document_id:
                             # Fallback: Fetch blocks directly by document ID
                             logger.info(f"Using document ID fallback for task '{task_title}': {document_id}")
-                            blocks = fetch_evidence_blocks_by_document_id(supabase, document_id, filter_private=True)
+                            blocks, is_confidential, owner_user_id = fetch_evidence_blocks_by_document_id(
+                                supabase, document_id, filter_private=True, viewer_user_id=None
+                            )
 
                             if blocks:
                                 # Successfully fetched blocks - treat as multi_format
@@ -565,11 +585,15 @@ def get_public_diploma_by_user_id(user_id):
                                     'xp_awarded': task_xp,
                                     'completed_at': tc.get('completed_at'),
                                     'pillar': task_info.get('pillar', 'Arts & Creativity'),
-                                    'is_legacy': False
+                                    'is_legacy': False,
+                                    'is_confidential': is_confidential,
+                                    'owner_user_id': owner_user_id
                                 }
                                 continue  # Skip legacy fallback
 
                         # Standard legacy evidence handling
+                        is_confidential = tc.get('is_confidential', False)
+
                         if evidence_text and not evidence_text.startswith('Multi-format evidence document'):
                             evidence_type = 'text'
                             evidence_content = evidence_text
@@ -587,7 +611,9 @@ def get_public_diploma_by_user_id(user_id):
                             'xp_awarded': task_xp,
                             'completed_at': tc.get('completed_at'),
                             'pillar': task_info.get('pillar', 'Arts & Creativity'),
-                            'is_legacy': True
+                            'is_legacy': True,
+                            'is_confidential': is_confidential,
+                            'owner_user_id': user_id
                         }
 
                 achievement = {

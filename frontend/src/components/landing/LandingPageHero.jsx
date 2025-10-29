@@ -84,10 +84,10 @@ const LandingPageHero = ({
           <div className="relative h-32 sm:h-40 md:h-44 lg:h-48 my-6">
             <div className="absolute inset-0 flex items-center justify-center">
               <div
-                className="px-8 py-4 rounded-2xl"
+                className="px-8 py-4"
                 style={{
-                  backgroundColor: 'rgba(0, 0, 0, 0.4)',
-                  backdropFilter: 'blur(8px)'
+                  background: 'radial-gradient(ellipse, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.15) 50%, transparent 80%)',
+                  backdropFilter: 'blur(4px)'
                 }}
               >
                 <span

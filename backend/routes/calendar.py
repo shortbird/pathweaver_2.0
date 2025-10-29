@@ -40,12 +40,26 @@ def parse_document_id_from_evidence_text(evidence_text: str) -> Optional[str]:
 def fetch_evidence_blocks_by_document_id(
     supabase,
     document_id: str,
-    filter_private: bool = False  # User viewing their own calendar
-) -> List[Dict[str, Any]]:
-    """Fetch evidence blocks directly by document ID."""
+    filter_private: bool = False,
+    viewer_user_id: str = None
+) -> tuple[List[Dict[str, Any]], bool, str]:
+    """
+    Fetch evidence blocks directly by document ID.
+
+    Args:
+        supabase: Supabase client
+        document_id: UUID of user_task_evidence_documents record
+        filter_private: If True, exclude private blocks
+        viewer_user_id: User ID of the person viewing
+
+    Returns:
+        Tuple of (blocks list, is_confidential boolean, owner_user_id string)
+    """
     try:
         query = supabase.table('user_task_evidence_documents').select('''
             id,
+            user_id,
+            is_confidential,
             evidence_document_blocks (
                 id, block_type, content, order_index, is_private
             )
@@ -57,14 +71,20 @@ def fetch_evidence_blocks_by_document_id(
         result = query.execute()
 
         if result.data and len(result.data) > 0:
-            blocks = result.data[0].get('evidence_document_blocks', [])
-            return sorted(blocks, key=lambda b: b.get('order_index', 0))
+            doc = result.data[0]
+            is_confidential = doc.get('is_confidential', False)
+            owner_user_id = doc.get('user_id')
 
-        return []
+            blocks = doc.get('evidence_document_blocks', [])
+            sorted_blocks = sorted(blocks, key=lambda b: b.get('order_index', 0))
+
+            return sorted_blocks, is_confidential, owner_user_id
+
+        return [], False, None
 
     except Exception as e:
         logger.error(f"Error fetching evidence blocks for document {document_id}: {e}")
-        return []
+        return [], False, None
 
 # Add OPTIONS handler for CORS preflight
 @calendar_bp.route('/<path:path>', methods=['OPTIONS'])
@@ -162,16 +182,22 @@ def get_calendar_items(user_id):
             evidence_url = completion['evidence_url'] if completion else None
             evidence_blocks = []
             evidence_type = 'legacy_text'
+            is_confidential = completion.get('is_confidential', False) if completion else False
+            owner_user_id = user_id  # User is viewing their own calendar
 
             if completion and evidence_text:
                 document_id = parse_document_id_from_evidence_text(evidence_text)
                 if document_id:
                     # Fetch blocks directly by document ID
-                    blocks = fetch_evidence_blocks_by_document_id(supabase, document_id, filter_private=False)
+                    blocks, doc_confidential, doc_owner = fetch_evidence_blocks_by_document_id(
+                        supabase, document_id, filter_private=False, viewer_user_id=user_id
+                    )
                     if blocks:
                         evidence_blocks = blocks
                         evidence_type = 'multi_format'
                         evidence_text = None  # Clear placeholder
+                        is_confidential = doc_confidential
+                        owner_user_id = doc_owner
 
             calendar_items.append({
                 'id': task_id,
@@ -188,6 +214,8 @@ def get_calendar_items(user_id):
                 'evidence_text': evidence_text,
                 'evidence_blocks': evidence_blocks,
                 'evidence_type': evidence_type,
+                'is_confidential': is_confidential,
+                'owner_user_id': owner_user_id,
                 'status': status,
                 'is_required': task.get('is_required', False),
                 'order_index': task.get('order_index', 0)
