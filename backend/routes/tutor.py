@@ -804,6 +804,296 @@ def _schedule_parent_notification(user_id: str, conversation_id: str, message_co
     except Exception as e:
         logger.error(f"Failed to schedule parent notification: {e}")
 
+@bp.route('/parent/conversations/<student_id>', methods=['GET'])
+@require_auth
+def get_parent_tutor_conversations(user_id: str, student_id: str):
+    """
+    Parent gets list of student's AI tutor conversations for monitoring.
+    Returns conversation metadata only, not full message content.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Verify parent has access to this student
+        parent_repo = ParentRepository(supabase)
+        if not parent_repo.has_access_to_student(user_id, student_id):
+            raise AuthorizationError("You do not have access to this student's data")
+
+        # Get student's conversations
+        conversations_response = supabase.table('tutor_conversations').select('''
+            id,
+            mode,
+            title,
+            created_at,
+            updated_at,
+            is_active
+        ''').eq('user_id', student_id).eq('is_active', True).order('updated_at', desc=True).execute()
+
+        conversations = []
+        for conv in conversations_response.data if conversations_response.data else []:
+            # Count messages in this conversation
+            message_count_response = supabase.table('tutor_messages').select(
+                'id', count='exact'
+            ).eq('conversation_id', conv['id']).execute()
+
+            message_count = message_count_response.count if message_count_response.count else 0
+
+            conversations.append({
+                'id': conv['id'],
+                'mode': conv['mode'],
+                'title': conv.get('title', 'Untitled Conversation'),
+                'message_count': message_count,
+                'created_at': conv['created_at'],
+                'last_activity': conv['updated_at']
+            })
+
+        return jsonify({
+            'conversations': conversations,
+            'total_count': len(conversations)
+        }), 200
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error getting parent tutor conversations: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to get tutor conversations'}), 500
+
+
+@bp.route('/parent/conversations/<conversation_id>/messages', methods=['GET'])
+@require_auth
+def get_parent_conversation_messages(user_id: str, conversation_id: str):
+    """
+    Parent gets messages from a specific student conversation.
+    Allows parent to review conversation content for safety monitoring.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Get conversation to find student_id
+        conversation_response = supabase.table('tutor_conversations').select(
+            'id, user_id, mode, title'
+        ).eq('id', conversation_id).single().execute()
+
+        if not conversation_response.data:
+            return jsonify({'error': 'Conversation not found'}), 404
+
+        conversation = conversation_response.data
+        student_id = conversation['user_id']
+
+        # Verify parent has access to this student
+        parent_repo = ParentRepository(supabase)
+        if not parent_repo.has_access_to_student(user_id, student_id):
+            raise AuthorizationError("You do not have access to this conversation")
+
+        # Get messages
+        messages_response = supabase.table('tutor_messages').select('''
+            id,
+            role,
+            content,
+            created_at,
+            safety_level
+        ''').eq('conversation_id', conversation_id).order('created_at', desc=False).execute()
+
+        messages = []
+        for msg in messages_response.data if messages_response.data else []:
+            messages.append({
+                'id': msg['id'],
+                'role': msg['role'],
+                'content': msg['content'],
+                'created_at': msg['created_at'],
+                'safety_level': msg.get('safety_level', 'safe')
+            })
+
+        return jsonify({
+            'conversation': {
+                'id': conversation['id'],
+                'mode': conversation['mode'],
+                'title': conversation.get('title', 'Untitled Conversation')
+            },
+            'messages': messages,
+            'total_count': len(messages)
+        }), 200
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error getting conversation messages: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to get conversation messages'}), 500
+
+
+@bp.route('/parent/safety-reports/<student_id>', methods=['GET'])
+@require_auth
+def get_parent_safety_reports(user_id: str, student_id: str):
+    """
+    Parent gets safety reports for student's tutor conversations.
+    Shows any flagged content or safety concerns.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Verify parent has access to this student
+        parent_repo = ParentRepository(supabase)
+        if not parent_repo.has_access_to_student(user_id, student_id):
+            raise AuthorizationError("You do not have access to this student's data")
+
+        # Get safety logs for this student
+        safety_logs_response = supabase.table('tutor_safety_logs').select('''
+            id,
+            message_id,
+            flagged_content,
+            safety_score,
+            action_taken,
+            created_at
+        ''').eq('user_id', student_id).order('created_at', desc=True).limit(50).execute()
+
+        safety_reports = []
+        for log in safety_logs_response.data if safety_logs_response.data else []:
+            safety_reports.append({
+                'id': log['id'],
+                'message_id': log['message_id'],
+                'flagged_content': log.get('flagged_content'),
+                'safety_score': log.get('safety_score'),
+                'action_taken': log.get('action_taken'),
+                'created_at': log['created_at']
+            })
+
+        # Count by action type
+        action_summary = {}
+        for report in safety_reports:
+            action = report['action_taken'] or 'none'
+            action_summary[action] = action_summary.get(action, 0) + 1
+
+        return jsonify({
+            'safety_reports': safety_reports,
+            'total_count': len(safety_reports),
+            'summary': action_summary
+        }), 200
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error getting safety reports: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to get safety reports'}), 500
+
+
+@bp.route('/parent/settings/<student_id>', methods=['GET'])
+@require_auth
+def get_parent_monitoring_settings(user_id: str, student_id: str):
+    """
+    Parent gets current tutor monitoring settings for student.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Verify parent has access to this student
+        parent_repo = ParentRepository(supabase)
+        if not parent_repo.has_access_to_student(user_id, student_id):
+            raise AuthorizationError("You do not have access to this student's data")
+
+        # Get student's tutor settings
+        settings_response = supabase.table('tutor_settings').select('''
+            default_mode,
+            safety_mode,
+            max_tokens_per_message,
+            parent_monitoring_enabled
+        ''').eq('user_id', student_id).single().execute()
+
+        if not settings_response.data:
+            # Return defaults if no settings exist
+            return jsonify({
+                'default_mode': 'teacher',
+                'safety_mode': 'moderate',
+                'max_tokens_per_message': 1000,
+                'parent_monitoring_enabled': True
+            }), 200
+
+        settings = settings_response.data
+        return jsonify({
+            'default_mode': settings.get('default_mode', 'teacher'),
+            'safety_mode': settings.get('safety_mode', 'moderate'),
+            'max_tokens_per_message': settings.get('max_tokens_per_message', 1000),
+            'parent_monitoring_enabled': settings.get('parent_monitoring_enabled', True)
+        }), 200
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error getting parent monitoring settings: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to get monitoring settings'}), 500
+
+
+@bp.route('/parent/settings/<student_id>', methods=['PUT'])
+@require_auth
+def update_parent_monitoring_settings(user_id: str, student_id: str):
+    """
+    Parent updates tutor monitoring settings for student.
+    Note: Parents can only update parent_monitoring_enabled flag.
+    Other settings are student-controlled.
+    """
+    try:
+        data = request.get_json()
+
+        supabase = get_supabase_admin_client()
+
+        # Verify parent has access to this student
+        parent_repo = ParentRepository(supabase)
+        if not parent_repo.has_access_to_student(user_id, student_id):
+            raise AuthorizationError("You do not have access to this student's data")
+
+        # Parents can only update monitoring flag
+        if 'parent_monitoring_enabled' not in data:
+            raise ValidationError("No settings to update")
+
+        parent_monitoring_enabled = bool(data['parent_monitoring_enabled'])
+
+        # Check if settings exist
+        existing_settings = supabase.table('tutor_settings').select('user_id').eq(
+            'user_id', student_id
+        ).execute()
+
+        if existing_settings.data:
+            # Update existing settings
+            supabase.table('tutor_settings').update({
+                'parent_monitoring_enabled': parent_monitoring_enabled,
+                'updated_at': datetime.utcnow().isoformat()
+            }).eq('user_id', student_id).execute()
+        else:
+            # Create new settings with defaults
+            supabase.table('tutor_settings').insert({
+                'user_id': student_id,
+                'default_mode': 'teacher',
+                'safety_mode': 'moderate',
+                'max_tokens_per_message': 1000,
+                'parent_monitoring_enabled': parent_monitoring_enabled,
+                'updated_at': datetime.utcnow().isoformat()
+            }).execute()
+
+        logger.info(f"Parent {user_id} updated monitoring settings for student {student_id}")
+
+        return jsonify({
+            'message': 'Monitoring settings updated successfully',
+            'parent_monitoring_enabled': parent_monitoring_enabled
+        }), 200
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error updating parent monitoring settings: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to update monitoring settings'}), 500
+
+
 @bp.route('/test-service', methods=['GET'])
 @require_auth
 def test_tutor_service(user_id: str):
