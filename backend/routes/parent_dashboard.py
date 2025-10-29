@@ -899,7 +899,7 @@ def get_recent_completions(user_id, student_id):
                 # Fetch blocks directly by document ID
                 logger.info(f"Fetching evidence blocks for completion {comp['id']} via document ID: {document_id}")
                 blocks, doc_confidential, doc_owner = fetch_evidence_blocks_by_document_id(
-                    supabase, document_id, filter_private=False, viewer_user_id=parent_user_id
+                    supabase, document_id, filter_private=False, viewer_user_id=user_id
                 )
 
                 if blocks:
