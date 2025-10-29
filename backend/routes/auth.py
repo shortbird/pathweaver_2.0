@@ -963,67 +963,88 @@ def forgot_password():
         admin_client = get_supabase_admin_client()
         logger.info("[FORGOT_PASSWORD] Got admin client")
 
-        # Check if user exists (for internal logging only)
-        # Use ilike for case-insensitive email matching
-        logger.info(f"[FORGOT_PASSWORD] Looking up user: {email}")
-        user_check = admin_client.table('users').select('id, display_name, first_name, email').ilike('email', email).execute()
-        logger.info(f"[FORGOT_PASSWORD] User lookup result: {len(user_check.data) if user_check.data else 0} users found")
+        # Check if user exists in auth.users (the source of truth for authentication)
+        # Use admin client to query auth.users directly
+        logger.info(f"[FORGOT_PASSWORD] Looking up user in auth.users: {email}")
 
-        if user_check.data:
-            user = user_check.data[0]
-            user_id = user.get('id')
-            user_name = user.get('display_name') or user.get('first_name') or 'there'
-            logger.info(f"[FORGOT_PASSWORD] Found user: {user_id}, name: {user_name}")
+        try:
+            # Query auth.users directly using admin client
+            auth_user = admin_client.auth.admin.list_users()
+            matching_user = None
 
-            try:
-                # Generate secure token
-                logger.info("[FORGOT_PASSWORD] Generating reset token")
-                reset_token = secrets.token_urlsafe(32)
-                expires_at = datetime.utcnow() + timedelta(hours=24)
-                logger.info(f"[FORGOT_PASSWORD] Token generated, expires at: {expires_at.isoformat()}")
+            for user in auth_user:
+                if user.email and user.email.lower() == email.lower():
+                    matching_user = user
+                    break
 
-                # Store token in database
-                logger.info("[FORGOT_PASSWORD] Storing token in database")
-                token_result = admin_client.table('password_reset_tokens').insert({
-                    'user_id': user_id,
-                    'token': reset_token,
-                    'expires_at': expires_at.isoformat(),
-                    'used': False,
-                    'created_at': datetime.utcnow().isoformat()
-                }).execute()
-                logger.info(f"[FORGOT_PASSWORD] Token stored successfully: {token_result.data}")
+            logger.info(f"[FORGOT_PASSWORD] Auth user lookup result: {'Found' if matching_user else 'Not found'}")
 
-                # Generate reset link
-                frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
-                reset_link = f"{frontend_url}/reset-password?token={reset_token}"
-                logger.info(f"[FORGOT_PASSWORD] Generated reset link: {reset_link[:50]}...")
+            if matching_user:
+                user_id = matching_user.id
 
-                # Send email using our EmailService
-                logger.info(f"[FORGOT_PASSWORD] Calling email_service.send_password_reset_email()")
-                logger.info(f"[FORGOT_PASSWORD] Email params: user_email={email}, user_name={user_name}, expiry_hours=24")
-
-                email_sent = email_service.send_password_reset_email(
-                    user_email=email,
-                    user_name=user_name,
-                    reset_link=reset_link,
-                    expiry_hours=24
-                )
-
-                logger.info(f"[FORGOT_PASSWORD] Email send result: {email_sent}")
-
-                if email_sent:
-                    logger.info(f"[FORGOT_PASSWORD] ✓ Password reset email SUCCESSFULLY sent to {email}")
+                # Get display name from public.users for personalization
+                profile_check = admin_client.table('users').select('display_name, first_name').eq('id', user_id).execute()
+                if profile_check.data:
+                    user_name = profile_check.data[0].get('display_name') or profile_check.data[0].get('first_name') or 'there'
                 else:
-                    logger.error(f"[FORGOT_PASSWORD] ✗ FAILED to send email to {email}")
+                    user_name = 'there'
 
-            except Exception as reset_error:
-                logger.error(f"[FORGOT_PASSWORD] ✗ Exception during reset token generation or email send: {str(reset_error)}")
-                logger.error(f"[FORGOT_PASSWORD] Exception type: {type(reset_error).__name__}")
-                import traceback
-                logger.error(f"[FORGOT_PASSWORD] Traceback: {traceback.format_exc()}")
-                # Still return success to avoid revealing user existence
-        else:
-            logger.info(f"[FORGOT_PASSWORD] No user found with email: {email}")
+                logger.info(f"[FORGOT_PASSWORD] Found user: {user_id}, name: {user_name}, auth email: {matching_user.email}")
+
+                try:
+                    # Generate secure token
+                    logger.info("[FORGOT_PASSWORD] Generating reset token")
+                    reset_token = secrets.token_urlsafe(32)
+                    expires_at = datetime.utcnow() + timedelta(hours=24)
+                    logger.info(f"[FORGOT_PASSWORD] Token generated, expires at: {expires_at.isoformat()}")
+
+                    # Store token in database
+                    logger.info("[FORGOT_PASSWORD] Storing token in database")
+                    token_result = admin_client.table('password_reset_tokens').insert({
+                        'user_id': user_id,
+                        'token': reset_token,
+                        'expires_at': expires_at.isoformat(),
+                        'used': False,
+                        'created_at': datetime.utcnow().isoformat()
+                    }).execute()
+                    logger.info(f"[FORGOT_PASSWORD] Token stored successfully: {token_result.data}")
+
+                    # Generate reset link
+                    frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+                    reset_link = f"{frontend_url}/reset-password?token={reset_token}"
+                    logger.info(f"[FORGOT_PASSWORD] Generated reset link: {reset_link[:50]}...")
+
+                    # Send email to the auth.users email (source of truth)
+                    # This ensures the email sent matches the email used for authentication
+                    auth_email = matching_user.email
+                    logger.info(f"[FORGOT_PASSWORD] Calling email_service.send_password_reset_email()")
+                    logger.info(f"[FORGOT_PASSWORD] Email params: user_email={auth_email}, user_name={user_name}, expiry_hours=24")
+
+                    email_sent = email_service.send_password_reset_email(
+                        user_email=auth_email,
+                        user_name=user_name,
+                        reset_link=reset_link,
+                        expiry_hours=24
+                    )
+
+                    logger.info(f"[FORGOT_PASSWORD] Email send result: {email_sent}")
+
+                    if email_sent:
+                        logger.info(f"[FORGOT_PASSWORD] ✓ Password reset email SUCCESSFULLY sent to {auth_email}")
+                    else:
+                        logger.error(f"[FORGOT_PASSWORD] ✗ FAILED to send email to {auth_email}")
+
+                except Exception as reset_error:
+                    logger.error(f"[FORGOT_PASSWORD] ✗ Exception during reset token generation or email send: {str(reset_error)}")
+                    logger.error(f"[FORGOT_PASSWORD] Exception type: {type(reset_error).__name__}")
+                    import traceback
+                    logger.error(f"[FORGOT_PASSWORD] Traceback: {traceback.format_exc()}")
+                    # Still return success to avoid revealing user existence
+            else:
+                logger.info(f"[FORGOT_PASSWORD] No user found with email: {email}")
+        except Exception as lookup_error:
+            logger.error(f"[FORGOT_PASSWORD] Error looking up user in auth.users: {str(lookup_error)}")
+            # Continue to return generic success message
 
         # Always return success message (don't reveal if email exists or not)
         logger.info("[FORGOT_PASSWORD] === Returning success response ===")
@@ -1090,12 +1111,13 @@ def reset_password():
 
             user_id = token_data['user_id']
 
-            # Get user email
-            user_check = admin_client.table('users').select('email').eq('id', user_id).execute()
-            if not user_check.data:
+            # Get user from auth.users (source of truth for authentication)
+            auth_user = admin_client.auth.admin.get_user_by_id(user_id)
+            if not auth_user or not auth_user.user:
                 return jsonify({'error': 'User not found'}), 404
 
-            user_email = user_check.data[0]['email']
+            auth_email = auth_user.user.email
+            logger.info(f"[RESET_PASSWORD] Found user in auth.users: {auth_email}")
 
             # Update password using Supabase Admin API
             supabase_client = get_supabase_client()
@@ -1107,6 +1129,21 @@ def reset_password():
             if not auth_response:
                 return jsonify({'error': 'Failed to update password'}), 500
 
+            # Sync email in public.users to match auth.users (prevent future mismatches)
+            try:
+                profile_check = admin_client.table('users').select('email').eq('id', user_id).execute()
+                if profile_check.data:
+                    current_profile_email = profile_check.data[0]['email']
+                    if current_profile_email.lower() != auth_email.lower():
+                        logger.warning(f"[RESET_PASSWORD] Email mismatch detected: auth={auth_email}, profile={current_profile_email}")
+                        logger.info(f"[RESET_PASSWORD] Syncing profile email to match auth.users")
+                        admin_client.table('users').update({
+                            'email': auth_email
+                        }).eq('id', user_id).execute()
+            except Exception as sync_error:
+                # Don't fail password reset if email sync fails, just log it
+                logger.error(f"[RESET_PASSWORD] Warning: Failed to sync email in public.users: {sync_error}")
+
             # Mark token as used
             admin_client.table('password_reset_tokens')\
                 .update({'used': True, 'used_at': datetime.utcnow().isoformat()})\
@@ -1114,9 +1151,9 @@ def reset_password():
                 .execute()
 
             # Clear any account lockouts for this user
-            reset_login_attempts(user_email)
+            reset_login_attempts(auth_email)
 
-            logger.info(f"[RESET_PASSWORD] Password successfully reset for {user_email}")
+            logger.info(f"[RESET_PASSWORD] Password successfully reset for {auth_email}")
 
             return jsonify({
                 'message': 'Password reset successful. You can now login with your new password.',
