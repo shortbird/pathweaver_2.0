@@ -2,6 +2,7 @@ import React from 'react'
 import { Link } from 'react-router-dom'
 import { XMarkIcon, CheckCircleIcon, CalendarIcon } from '@heroicons/react/24/outline'
 import { getPillarColor } from '../../hooks/api/useCalendar'
+import UnifiedEvidenceDisplay from '../evidence/UnifiedEvidenceDisplay'
 
 const EventDetailModal = ({ event, onClose }) => {
   if (!event) return null
@@ -116,22 +117,22 @@ const EventDetailModal = ({ event, onClose }) => {
             </div>
 
             {/* Evidence (if completed) */}
-            {isCompleted && (props.evidenceText || props.evidenceUrl) && (
-              <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
-                <h4 className="font-semibold text-green-900 mb-2">Evidence Submitted</h4>
-                {props.evidenceText && (
-                  <p className="text-sm text-green-800 mb-2">{props.evidenceText}</p>
-                )}
-                {props.evidenceUrl && (
-                  <a
-                    href={props.evidenceUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-green-700 hover:text-green-900 underline"
-                  >
-                    View Evidence
-                  </a>
-                )}
+            {isCompleted && (props.evidenceText || props.evidenceUrl || (props.evidenceBlocks && props.evidenceBlocks.length > 0)) && (
+              <div className="mb-6">
+                <h4 className="font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  Evidence Submitted
+                </h4>
+                <UnifiedEvidenceDisplay
+                  evidence={{
+                    evidence_type: props.evidenceType || (props.evidenceBlocks?.length > 0 ? 'multi_format' : 'legacy_text'),
+                    evidence_blocks: props.evidenceBlocks,
+                    evidence_text: props.evidenceText,
+                    evidence_url: props.evidenceUrl
+                  }}
+                  displayMode="full"
+                  showMetadata={false}
+                  allowPrivateBlocks={true}
+                />
               </div>
             )}
 

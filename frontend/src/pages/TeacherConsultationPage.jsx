@@ -130,6 +130,7 @@ const TeacherConsultationPage = () => {
         ctaText="Book Free 30-Minute Consultation"
         onCtaClick={scrollToForm}
         backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/teacher_hero.jpg"
+        backgroundPosition="center 25%"
       />
 
       <LandingPageForm

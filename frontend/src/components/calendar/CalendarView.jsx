@@ -36,7 +36,9 @@ const CalendarView = ({ data, userId, selectedPillar }) => {
           xpValue: item.xp_value,
           status: item.status,
           evidenceUrl: item.evidence_url,
-          evidenceText: item.evidence_text
+          evidenceText: item.evidence_text,
+          evidenceBlocks: item.evidence_blocks,
+          evidenceType: item.evidence_type
         }
       }
     })

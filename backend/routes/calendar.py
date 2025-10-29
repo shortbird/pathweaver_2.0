@@ -19,10 +19,52 @@ from utils.auth.decorators import require_auth
 from collections import defaultdict
 
 from utils.logger import get_logger
+import re
+from typing import Optional, List, Dict, Any
 
 logger = get_logger(__name__)
 
 calendar_bp = Blueprint('calendar', __name__, url_prefix='/api/calendar')
+
+
+# Helper functions for evidence display enhancement
+def parse_document_id_from_evidence_text(evidence_text: str) -> Optional[str]:
+    """Extract document ID from multi-format evidence placeholder string."""
+    if evidence_text and evidence_text.startswith('Multi-format evidence document'):
+        match = re.search(r'Document ID: ([\w-]+)', evidence_text)
+        if match:
+            return match.group(1)
+    return None
+
+
+def fetch_evidence_blocks_by_document_id(
+    supabase,
+    document_id: str,
+    filter_private: bool = False  # User viewing their own calendar
+) -> List[Dict[str, Any]]:
+    """Fetch evidence blocks directly by document ID."""
+    try:
+        query = supabase.table('user_task_evidence_documents').select('''
+            id,
+            evidence_document_blocks (
+                id, block_type, content, order_index, is_private
+            )
+        ''').eq('id', document_id)
+
+        if filter_private:
+            query = query.eq('evidence_document_blocks.is_private', False)
+
+        result = query.execute()
+
+        if result.data and len(result.data) > 0:
+            blocks = result.data[0].get('evidence_document_blocks', [])
+            return sorted(blocks, key=lambda b: b.get('order_index', 0))
+
+        return []
+
+    except Exception as e:
+        logger.error(f"Error fetching evidence blocks for document {document_id}: {e}")
+        return []
 
 # Add OPTIONS handler for CORS preflight
 @calendar_bp.route('/<path:path>', methods=['OPTIONS'])
@@ -115,6 +157,22 @@ def get_calendar_items(user_id):
             else:
                 status = 'exploring'
 
+            # Handle evidence - check for multi-format document ID
+            evidence_text = completion['evidence_text'] if completion else None
+            evidence_url = completion['evidence_url'] if completion else None
+            evidence_blocks = []
+            evidence_type = 'legacy_text'
+
+            if completion and evidence_text:
+                document_id = parse_document_id_from_evidence_text(evidence_text)
+                if document_id:
+                    # Fetch blocks directly by document ID
+                    blocks = fetch_evidence_blocks_by_document_id(supabase, document_id, filter_private=False)
+                    if blocks:
+                        evidence_blocks = blocks
+                        evidence_type = 'multi_format'
+                        evidence_text = None  # Clear placeholder
+
             calendar_items.append({
                 'id': task_id,
                 'quest_id': quest_id,
@@ -126,8 +184,10 @@ def get_calendar_items(user_id):
                 'xp_value': task.get('xp_value'),
                 'scheduled_date': task_deadline,
                 'completed_at': completion['completed_at'] if completion else None,
-                'evidence_url': completion['evidence_url'] if completion else None,
-                'evidence_text': completion['evidence_text'] if completion else None,
+                'evidence_url': evidence_url,
+                'evidence_text': evidence_text,
+                'evidence_blocks': evidence_blocks,
+                'evidence_type': evidence_type,
                 'status': status,
                 'is_required': task.get('is_required', False),
                 'order_index': task.get('order_index', 0)

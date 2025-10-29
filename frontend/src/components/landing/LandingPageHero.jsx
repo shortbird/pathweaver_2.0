@@ -9,6 +9,7 @@ const LandingPageHero = ({
   onCtaClick,
   backgroundGradient = 'linear-gradient(135deg, #6D469B 0%, #8058AC 50%, #EF597B 100%)',
   backgroundImage = null,
+  backgroundPosition = 'center',
   secondaryCta = null,
 }) => {
   const [currentWordIndex, setCurrentWordIndex] = useState(0)
@@ -44,10 +45,10 @@ const LandingPageHero = ({
       {backgroundImage && (
         <>
           <div
-            className="absolute inset-0 bg-cover bg-top"
+            className="absolute inset-0 bg-cover"
             style={{
               backgroundImage: `url(${backgroundImage})`,
-              backgroundPosition: 'top',
+              backgroundPosition: backgroundPosition,
               backgroundSize: 'cover'
             }}
           />
@@ -80,7 +81,7 @@ const LandingPageHero = ({
 
         {/* Rotating Words or Static Subtitle */}
         {rotatingWords.length > 0 ? (
-          <div className="relative h-24 sm:h-32 md:h-36 my-6">
+          <div className="relative h-28 sm:h-36 md:h-40 my-6">
             <div className="absolute inset-0 flex items-center justify-center">
               <span
                 key={currentWordIndex}
@@ -92,7 +93,9 @@ const LandingPageHero = ({
                   WebkitBackgroundClip: 'text',
                   backgroundClip: 'text',
                   WebkitTextFillColor: 'transparent',
-                  filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.5))'
+                  textRendering: 'optimizeLegibility',
+                  WebkitFontSmoothing: 'antialiased',
+                  MozOsxFontSmoothing: 'grayscale'
                 }}
               >
                 {rotatingWords[currentWordIndex]}
