@@ -1057,7 +1057,7 @@ def reset_password():
             return jsonify({'error': 'Reset token and new password are required'}), 400
 
         # Validate password strength
-        from utils.validation.password_validator import validate_password
+        from utils.validation import validate_password
 
         is_valid, error_message = validate_password(new_password)
         if not is_valid:
