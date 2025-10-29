@@ -443,7 +443,7 @@ def get_task_details(user_id, student_id, task_id):
 
         # Get completion status and evidence
         completion_response = supabase.table('quest_task_completions').select('''
-            id, completed_at, evidence_url, evidence_text, xp_awarded
+            id, completed_at, evidence_url, evidence_text
         ''').eq('user_id', student_id).eq('task_id', task_id).execute()
 
         completion = completion_response.data[0] if completion_response.data else None
@@ -497,7 +497,7 @@ def get_task_details(user_id, student_id, task_id):
                 'completed_at': completion['completed_at'] if completion else None,
                 'evidence_text': completion['evidence_text'] if completion else None,
                 'evidence_url': completion['evidence_url'] if completion else None,
-                'xp_awarded': completion['xp_awarded'] if completion else None
+                'xp_awarded': task.get('xp_value', 0)  # XP comes from task, not completion
             } if completion else None,
             'evidence_documents': evidence_documents
         }), 200
