@@ -83,25 +83,31 @@ const LandingPageHero = ({
         {rotatingWords.length > 0 ? (
           <div className="relative h-32 sm:h-40 md:h-44 lg:h-48 my-6">
             <div className="absolute inset-0 flex items-center justify-center">
-              <span
-                key={currentWordIndex}
-                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl animate-fade-in px-4"
+              <div
+                className="px-8 py-4 rounded-2xl"
                 style={{
-                  fontFamily: 'Poppins',
-                  fontWeight: 700,
-                  background: getWordGradient(currentWordIndex),
-                  WebkitBackgroundClip: 'text',
-                  backgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  textRendering: 'optimizeLegibility',
-                  WebkitFontSmoothing: 'antialiased',
-                  MozOsxFontSmoothing: 'grayscale',
-                  textShadow: '0 4px 12px rgba(0, 0, 0, 0.4), 0 2px 6px rgba(0, 0, 0, 0.3), 0 8px 20px rgba(0, 0, 0, 0.2)',
-                  filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.5))'
+                  backgroundColor: 'rgba(0, 0, 0, 0.4)',
+                  backdropFilter: 'blur(8px)'
                 }}
               >
-                {rotatingWords[currentWordIndex]}
-              </span>
+                <span
+                  key={currentWordIndex}
+                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl animate-fade-in"
+                  style={{
+                    fontFamily: 'Poppins',
+                    fontWeight: 700,
+                    background: getWordGradient(currentWordIndex),
+                    WebkitBackgroundClip: 'text',
+                    backgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                    textRendering: 'optimizeLegibility',
+                    WebkitFontSmoothing: 'antialiased',
+                    MozOsxFontSmoothing: 'grayscale'
+                  }}
+                >
+                  {rotatingWords[currentWordIndex]}
+                </span>
+              </div>
             </div>
           </div>
         ) : staticSubtitle ? (
