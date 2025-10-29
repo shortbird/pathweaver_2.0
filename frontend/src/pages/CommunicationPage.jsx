@@ -29,7 +29,11 @@ const CommunicationPage = () => {
         })
 
         if (response.data?.conversations && response.data.conversations.length > 0) {
-          setMostRecentTutorConv(response.data.conversations[0].id)
+          const convId = response.data.conversations[0].id
+          console.log('📝 CommunicationPage: Setting most recent conversation ID:', convId)
+          setMostRecentTutorConv(convId)
+        } else {
+          console.log('📝 CommunicationPage: No conversations found')
         }
       } catch (error) {
         console.error('Failed to fetch most recent tutor conversation:', error)
@@ -43,6 +47,7 @@ const CommunicationPage = () => {
   useEffect(() => {
     if (!selectedConversation) {
       // Select OptioBot by default
+      console.log('📝 CommunicationPage: Creating initial OptioBot selection, convId:', mostRecentTutorConv)
       setSelectedConversation({
         id: 'optiobot',
         type: 'bot',
@@ -59,6 +64,7 @@ const CommunicationPage = () => {
       })
     } else if (selectedConversation && selectedConversation.type === 'bot' && mostRecentTutorConv && !selectedConversation.tutorConversationId) {
       // Update OptioBot with conversation ID once it's loaded
+      console.log('📝 CommunicationPage: Updating OptioBot with conversation ID:', mostRecentTutorConv)
       setSelectedConversation(prev => ({
         ...prev,
         tutorConversationId: mostRecentTutorConv

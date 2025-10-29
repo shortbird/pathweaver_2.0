@@ -54,8 +54,10 @@ const ChatInterface = ({
 
   // Load conversation and usage stats on mount
   useEffect(() => {
+    console.log('📝 ChatInterface: conversationId changed to:', conversationId)
     // Only reload conversation if we didn't just create it
     if (conversationId && !justCreatedConversation.current) {
+      console.log('📝 ChatInterface: Loading conversation...')
       loadConversation();
     }
     // Reset the flag after checking
@@ -75,7 +77,10 @@ const ChatInterface = ({
   const loadConversation = async () => {
     try {
       if (conversationId) {
+        console.log('📝 ChatInterface: Fetching conversation from API:', conversationId)
         const response = await api.get(`/api/tutor/conversations/${conversationId}`);
+        console.log('📝 ChatInterface: Loaded conversation:', response.data.conversation)
+        console.log('📝 ChatInterface: Loaded messages:', response.data.messages?.length || 0)
         setConversation(response.data.conversation);
         setMessages(response.data.messages || []);
         setSelectedMode(response.data.conversation.conversation_mode || 'teacher');
