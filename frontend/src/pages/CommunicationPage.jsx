@@ -8,6 +8,8 @@ import api from '../services/api'
 const CommunicationPage = () => {
   const { user } = useAuth()
   const [selectedConversation, setSelectedConversation] = useState(null)
+  const [mostRecentTutorConversationId, setMostRecentTutorConversationId] = useState(null)
+  const [isLoadingTutorHistory, setIsLoadingTutorHistory] = useState(true)
 
   // React Query hook for conversations
   const {
@@ -17,10 +19,33 @@ const CommunicationPage = () => {
     enabled: !!user?.id
   })
 
-  // Auto-select OptioBot on initial load (with blank/new conversation)
+  // Fetch most recent tutor conversation on mount
   useEffect(() => {
-    if (!selectedConversation) {
-      // Select OptioBot by default with NO conversation ID (starts fresh)
+    const fetchMostRecentTutorConversation = async () => {
+      if (!user?.id) return
+
+      try {
+        setIsLoadingTutorHistory(true)
+        const response = await api.get('/api/tutor/conversations?limit=1')
+        const data = response.data?.data || response.data
+
+        if (data.conversations && data.conversations.length > 0) {
+          setMostRecentTutorConversationId(data.conversations[0].id)
+        }
+      } catch (error) {
+        console.error('Failed to fetch tutor conversation history:', error)
+      } finally {
+        setIsLoadingTutorHistory(false)
+      }
+    }
+
+    fetchMostRecentTutorConversation()
+  }, [user?.id])
+
+  // Auto-select OptioBot on initial load with most recent conversation
+  useEffect(() => {
+    if (!selectedConversation && !isLoadingTutorHistory) {
+      // Select OptioBot by default, resuming most recent conversation if available
       setSelectedConversation({
         id: 'optiobot',
         type: 'bot',
@@ -30,13 +55,13 @@ const CommunicationPage = () => {
           first_name: 'OptioBot',
           role: 'bot'
         },
-        tutorConversationId: null, // Always start with blank conversation
+        tutorConversationId: mostRecentTutorConversationId, // Resume most recent conversation
         last_message_at: new Date().toISOString(),
         last_message_preview: 'Your AI Learning Companion',
         unread_count: 0
       })
     }
-  }, [selectedConversation])
+  }, [selectedConversation, isLoadingTutorHistory, mostRecentTutorConversationId])
 
   const handleSelectConversation = (conversation) => {
     setSelectedConversation(conversation)
@@ -67,6 +92,8 @@ const CommunicationPage = () => {
                     ...prev,
                     tutorConversationId: convId
                   }))
+                  // Also update most recent conversation ID for future page loads
+                  setMostRecentTutorConversationId(convId)
                 }
               }}
             />

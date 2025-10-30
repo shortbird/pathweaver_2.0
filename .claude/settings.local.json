@@ -6,7 +6,9 @@
       "Bash(git push:*)",
       "Bash(git commit:*)",
       "Bash(git checkout:*)",
-      "Bash(git merge:*)"
+      "Bash(git merge:*)",
+      "Bash(psql \"postgresql://postgres.vvfgxcykxjybtvpfzwyx:Tannerthegoat10!@aws-0-us-east-1.pooler.supabase.com:6543/postgres\" -c \"\\d tutor_conversations\")",
+      "Bash(psql \"postgresql://postgres.vvfgxcykxjybtvpfzwyx:Tannerthegoat10!@aws-0-us-east-1.pooler.supabase.com:6543/postgres\" -c \"\\d tutor_messages\")"
     ],
     "deny": [],
     "ask": []
