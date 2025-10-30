@@ -54,10 +54,8 @@ const ChatInterface = ({
 
   // Load conversation and usage stats on mount
   useEffect(() => {
-    console.log('📝 ChatInterface: conversationId changed to:', conversationId)
     // Only reload conversation if we didn't just create it
     if (conversationId && !justCreatedConversation.current) {
-      console.log('📝 ChatInterface: Loading conversation...')
       loadConversation();
     }
     // Reset the flag after checking
@@ -77,21 +75,15 @@ const ChatInterface = ({
   const loadConversation = async () => {
     try {
       if (conversationId) {
-        console.log('📝 ChatInterface: Fetching conversation from API:', conversationId)
         const response = await api.get(`/api/tutor/conversations/${conversationId}`);
 
         // Backend wraps response in {data: {...}, success: true}
         const data = response.data?.data || response.data
-        console.log('📝 ChatInterface: Loaded conversation:', data.conversation)
-        console.log('📝 ChatInterface: Loaded messages:', data.messages?.length || 0)
 
         if (data.conversation) {
           setConversation(data.conversation);
           setMessages(data.messages || []);
           setSelectedMode(data.conversation.conversation_mode || 'teacher');
-        } else {
-          console.warn('No conversation data found in response')
-          // Don't trigger infinite loop - just log the issue
         }
       }
     } catch (error) {
