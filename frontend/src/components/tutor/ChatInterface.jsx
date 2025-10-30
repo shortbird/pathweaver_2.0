@@ -79,18 +79,25 @@ const ChatInterface = ({
       if (conversationId) {
         console.log('📝 ChatInterface: Fetching conversation from API:', conversationId)
         const response = await api.get(`/api/tutor/conversations/${conversationId}`);
-        console.log('📝 ChatInterface: Loaded conversation:', response.data.conversation)
-        console.log('📝 ChatInterface: Loaded messages:', response.data.messages?.length || 0)
-        setConversation(response.data.conversation);
-        setMessages(response.data.messages || []);
-        setSelectedMode(response.data.conversation.conversation_mode || 'teacher');
+
+        // Backend wraps response in {data: {...}, success: true}
+        const data = response.data?.data || response.data
+        console.log('📝 ChatInterface: Loaded conversation:', data.conversation)
+        console.log('📝 ChatInterface: Loaded messages:', data.messages?.length || 0)
+
+        if (data.conversation) {
+          setConversation(data.conversation);
+          setMessages(data.messages || []);
+          setSelectedMode(data.conversation.conversation_mode || 'teacher');
+        } else {
+          console.warn('No conversation data found in response')
+          // Don't trigger infinite loop - just log the issue
+        }
       }
     } catch (error) {
       console.error('Failed to load conversation:', error);
-      // Don't show error to user, just start a fresh conversation instead
-      if (onConversationCreate) {
-        onConversationCreate(null); // Clear the conversation ID to start fresh
-      }
+      // Don't call onConversationCreate to avoid infinite loop
+      // Just fail gracefully and let user start fresh manually
     }
   };
 
