@@ -22,18 +22,30 @@ const CommunicationPage = () => {
   // Fetch most recent tutor conversation on mount
   useEffect(() => {
     const fetchMostRecentTutorConversation = async () => {
-      if (!user?.id) return
+      if (!user?.id) {
+        console.log('CommunicationPage: No user ID, skipping tutor conversation fetch')
+        setIsLoadingTutorHistory(false)
+        return
+      }
 
       try {
+        console.log('CommunicationPage: Fetching most recent tutor conversation for user:', user.id)
         setIsLoadingTutorHistory(true)
         const response = await api.get('/api/tutor/conversations?limit=1')
         const data = response.data?.data || response.data
 
+        console.log('CommunicationPage: Tutor conversations response:', data)
+
         if (data.conversations && data.conversations.length > 0) {
+          console.log('CommunicationPage: Found most recent conversation:', data.conversations[0].id)
           setMostRecentTutorConversationId(data.conversations[0].id)
+        } else {
+          console.log('CommunicationPage: No tutor conversations found, starting with blank chat')
         }
       } catch (error) {
-        console.error('Failed to fetch tutor conversation history:', error)
+        console.error('CommunicationPage: Failed to fetch tutor conversation history:', error)
+        console.error('CommunicationPage: Error response:', error.response)
+        // Don't fail silently - user can still start a new conversation
       } finally {
         setIsLoadingTutorHistory(false)
       }
