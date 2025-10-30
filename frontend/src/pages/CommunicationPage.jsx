@@ -28,12 +28,15 @@ const CommunicationPage = () => {
           params: { limit: 1, offset: 0 }
         })
 
+        console.log('📝 CommunicationPage: API response:', response.data)
+        console.log('📝 CommunicationPage: Conversations array:', response.data?.conversations)
+
         if (response.data?.conversations && response.data.conversations.length > 0) {
           const convId = response.data.conversations[0].id
           console.log('📝 CommunicationPage: Setting most recent conversation ID:', convId)
           setMostRecentTutorConv(convId)
         } else {
-          console.log('📝 CommunicationPage: No conversations found')
+          console.log('📝 CommunicationPage: No conversations found - response.data.conversations is empty or undefined')
         }
       } catch (error) {
         console.error('Failed to fetch most recent tutor conversation:', error)
