@@ -814,10 +814,16 @@ def get_parent_tutor_conversations(user_id: str, student_id: str):
     try:
         supabase = get_supabase_admin_client()
 
-        # Verify parent has access to this student
-        parent_repo = ParentRepository(supabase)
-        if not parent_repo.is_linked(user_id, student_id):
-            raise AuthorizationError("You do not have access to this student's data")
+        # Get user role to check if admin
+        user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        is_admin = user_result.data and user_result.data.get('role') == 'admin'
+        is_same_user = (user_id == student_id)
+
+        # Verify parent has access to this student (or is admin, or viewing own data)
+        if not is_admin and not is_same_user:
+            parent_repo = ParentRepository(supabase)
+            if not parent_repo.is_linked(user_id, student_id):
+                raise AuthorizationError("You do not have access to this student's data")
 
         # Get student's conversations
         conversations_response = supabase.table('tutor_conversations').select('''
@@ -882,10 +888,16 @@ def get_parent_conversation_messages(user_id: str, conversation_id: str):
         conversation = conversation_response.data
         student_id = conversation['user_id']
 
-        # Verify parent has access to this student
-        parent_repo = ParentRepository(supabase)
-        if not parent_repo.is_linked(user_id, student_id):
-            raise AuthorizationError("You do not have access to this conversation")
+        # Get user role to check if admin
+        user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        is_admin = user_result.data and user_result.data.get('role') == 'admin'
+        is_same_user = (user_id == student_id)
+
+        # Verify parent has access to this student (or is admin, or viewing own data)
+        if not is_admin and not is_same_user:
+            parent_repo = ParentRepository(supabase)
+            if not parent_repo.is_linked(user_id, student_id):
+                raise AuthorizationError("You do not have access to this conversation")
 
         # Get messages
         messages_response = supabase.table('tutor_messages').select('''
@@ -935,10 +947,16 @@ def get_parent_safety_reports(user_id: str, student_id: str):
     try:
         supabase = get_supabase_admin_client()
 
-        # Verify parent has access to this student
-        parent_repo = ParentRepository(supabase)
-        if not parent_repo.is_linked(user_id, student_id):
-            raise AuthorizationError("You do not have access to this student's data")
+        # Get user role to check if admin
+        user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        is_admin = user_result.data and user_result.data.get('role') == 'admin'
+        is_same_user = (user_id == student_id)
+
+        # Verify parent has access to this student (or is admin, or viewing own data)
+        if not is_admin and not is_same_user:
+            parent_repo = ParentRepository(supabase)
+            if not parent_repo.is_linked(user_id, student_id):
+                raise AuthorizationError("You do not have access to this student's data")
 
         # Get safety logs for this student
         safety_logs_response = supabase.table('tutor_safety_logs').select('''
@@ -991,10 +1009,16 @@ def get_parent_monitoring_settings(user_id: str, student_id: str):
     try:
         supabase = get_supabase_admin_client()
 
-        # Verify parent has access to this student
-        parent_repo = ParentRepository(supabase)
-        if not parent_repo.is_linked(user_id, student_id):
-            raise AuthorizationError("You do not have access to this student's data")
+        # Get user role to check if admin
+        user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        is_admin = user_result.data and user_result.data.get('role') == 'admin'
+        is_same_user = (user_id == student_id)
+
+        # Verify parent has access to this student (or is admin, or viewing own data)
+        if not is_admin and not is_same_user:
+            parent_repo = ParentRepository(supabase)
+            if not parent_repo.is_linked(user_id, student_id):
+                raise AuthorizationError("You do not have access to this student's data")
 
         # Get student's tutor settings
         settings_response = supabase.table('tutor_settings').select('''
@@ -1043,10 +1067,16 @@ def update_parent_monitoring_settings(user_id: str, student_id: str):
 
         supabase = get_supabase_admin_client()
 
-        # Verify parent has access to this student
-        parent_repo = ParentRepository(supabase)
-        if not parent_repo.is_linked(user_id, student_id):
-            raise AuthorizationError("You do not have access to this student's data")
+        # Get user role to check if admin
+        user_result = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        is_admin = user_result.data and user_result.data.get('role') == 'admin'
+        is_same_user = (user_id == student_id)
+
+        # Verify parent has access to this student (or is admin, or viewing own data)
+        if not is_admin and not is_same_user:
+            parent_repo = ParentRepository(supabase)
+            if not parent_repo.is_linked(user_id, student_id):
+                raise AuthorizationError("You do not have access to this student's data")
 
         # Parents can only update monitoring flag
         if 'parent_monitoring_enabled' not in data:
