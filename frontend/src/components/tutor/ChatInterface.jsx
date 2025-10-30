@@ -221,8 +221,11 @@ const ChatInterface = ({
     try {
       // Load the selected conversation
       const response = await api.get(`/api/tutor/conversations/${conversationId}`);
-      const conversationData = response.data.conversation;
-      const conversationMessages = response.data.messages || [];
+
+      // Backend wraps response in {data: {...}, success: true}
+      const data = response.data?.data || response.data
+      const conversationData = data.conversation;
+      const conversationMessages = data.messages || [];
 
       setConversation(conversationData);
       setMessages(conversationMessages);
@@ -231,6 +234,11 @@ const ChatInterface = ({
       // Update the mode to match the conversation
       if (conversationData.conversation_mode) {
         setSelectedMode(conversationData.conversation_mode);
+      }
+
+      // Notify parent component about conversation change
+      if (onConversationCreate && conversationId) {
+        onConversationCreate(conversationId);
       }
     } catch (error) {
       console.error('Error loading conversation:', error);
