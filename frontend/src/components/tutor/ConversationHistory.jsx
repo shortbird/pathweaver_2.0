@@ -15,9 +15,13 @@ const ConversationHistory = ({ onSelectConversation, onBack, onCreateNew }) => {
     try {
       setLoading(true)
       const response = await api.get('/api/tutor/conversations')
-      setConversations(response.data.conversations || [])
+      // Backend wraps response in {data: {...}, success: true}
+      const data = response.data?.data || response.data
+      setConversations(data.conversations || [])
+      console.log('ConversationHistory: Fetched conversations:', data.conversations?.length || 0)
     } catch (error) {
-      console.error('Error fetching conversations:', error)
+      console.error('ConversationHistory: Error fetching conversations:', error)
+      console.error('ConversationHistory: Error response:', error.response)
       toast.error('Failed to load conversation history')
     } finally {
       setLoading(false)
