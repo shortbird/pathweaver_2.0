@@ -846,7 +846,7 @@ def get_parent_tutor_conversations(user_id: str, student_id: str):
 
             conversations.append({
                 'id': conv['id'],
-                'mode': conv['mode'],
+                'mode': conv['conversation_mode'],
                 'title': conv.get('title', 'Untitled Conversation'),
                 'message_count': message_count,
                 'created_at': conv['created_at'],
