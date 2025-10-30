@@ -29,14 +29,17 @@ const CommunicationPage = () => {
         })
 
         console.log('📝 CommunicationPage: API response:', response.data)
-        console.log('📝 CommunicationPage: Conversations array:', response.data?.conversations)
 
-        if (response.data?.conversations && response.data.conversations.length > 0) {
-          const convId = response.data.conversations[0].id
+        // Backend wraps response in {data: {...}, success: true}
+        const conversations = response.data?.data?.conversations || response.data?.conversations
+        console.log('📝 CommunicationPage: Conversations array:', conversations)
+
+        if (conversations && conversations.length > 0) {
+          const convId = conversations[0].id
           console.log('📝 CommunicationPage: Setting most recent conversation ID:', convId)
           setMostRecentTutorConv(convId)
         } else {
-          console.log('📝 CommunicationPage: No conversations found - response.data.conversations is empty or undefined')
+          console.log('📝 CommunicationPage: No conversations found')
         }
       } catch (error) {
         console.error('Failed to fetch most recent tutor conversation:', error)
