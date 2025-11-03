@@ -2,6 +2,7 @@ import React, { useEffect, lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
+import { HelmetProvider } from 'react-helmet-async'
 import { AuthProvider } from './contexts/AuthContext'
 import { DemoProvider } from './contexts/DemoContext'
 import ErrorBoundary from './components/ErrorBoundary'
@@ -86,8 +87,9 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <Router>
+      <HelmetProvider>
+        <QueryClientProvider client={queryClient}>
+          <Router>
           <ScrollToTop />
           <AuthProvider>
             <Toaster
@@ -169,8 +171,9 @@ function App() {
           </Routes>
           </Suspense>
         </AuthProvider>
-      </Router>
-    </QueryClientProvider>
+        </Router>
+      </QueryClientProvider>
+      </HelmetProvider>
     </ErrorBoundary>
   )
 }

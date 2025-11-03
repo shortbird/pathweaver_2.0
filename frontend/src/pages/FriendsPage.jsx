@@ -43,8 +43,7 @@ const FriendsPage = () => {
   const [returnToQuest, setReturnToQuest] = useState(null)
   const [activeTab, setActiveTab] = useState('incoming')
 
-  // Check if user has access to friends feature
-  const hasAccess = true; // All features free (Phase 2)
+  // All users have access to connections feature (Phase 2)
 
   // Use React Query data directly (no manual state)
   const friends = friendsData?.friends || [];
@@ -168,83 +167,6 @@ const FriendsPage = () => {
     return (
       <div className="flex justify-center items-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-      </div>
-    )
-  }
-
-  // If user doesn't have access, show upgrade message
-  if (!hasAccess) {
-    return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center">
-          <div className="mb-8">
-            <svg className="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-            </svg>
-          </div>
-          
-          <h1 className="text-3xl font-bold mb-4">Connect with Learning Partners</h1>
-          <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-            Build your learning community by connecting with friends, collaborating on quests, and earning bonus XP together.
-          </p>
-          
-          <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-            <h2 className="text-xl font-semibold mb-6">Supported Tier Features</h2>
-            <div className="grid md:grid-cols-2 gap-6 text-left">
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <div>
-                  <h3 className="font-medium">Connect with Friends</h3>
-                  <p className="text-sm text-gray-600">Send and accept friend requests to build your learning network</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <div>
-                  <h3 className="font-medium">Team-Up for 2x XP</h3>
-                  <p className="text-sm text-gray-600">Collaborate on quests with friends to earn double experience points</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <div>
-                  <h3 className="font-medium">Learning Community</h3>
-                  <p className="text-sm text-gray-600">Join a supportive community of learners and educators</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <svg className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                </svg>
-                <div>
-                  <h3 className="font-medium">Portfolio Diploma Access</h3>
-                  <p className="text-sm text-gray-600">Build and share your professional learning portfolio</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex justify-center gap-4">
-            <button
-              onClick={() => navigate('/subscription')}
-              className="bg-gradient-primary text-white px-8 py-3 rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
-            >
-              Upgrade to Supported
-            </button>
-            <button
-              onClick={() => navigate('/quests')}
-              className="bg-gray-100 text-gray-700 px-6 py-3 rounded-[30px] font-medium hover:bg-gray-200 transition-colors"
-            >
-              Continue Learning
-            </button>
-          </div>
-        </div>
       </div>
     )
   }

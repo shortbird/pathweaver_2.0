@@ -154,38 +154,21 @@ const QuestListItem = ({ quest, onEnroll, onTeamUp }) => {
                   </Button>
                 ) : (
                   <>
-                    {canStartQuests ? (
-                      <>
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          className="!min-w-[100px]"
-                          onClick={handleEnroll}
-                        >
-                          <span>Start Quest</span>
-                        </Button>
-                        <button
-                          onClick={handleTeamUpClick}
-                          className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
-                          title="Team up for bonus XP!"
-                        >
-                          <User className="w-4 h-4 text-gray-600" />
-                        </button>
-                      </>
-                    ) : (
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="!bg-gray-100 !text-gray-600 hover:!bg-gray-200 !min-w-[120px]"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate('/subscription');
-                        }}
-                      >
-                        <Lock className="w-4 h-4 mr-1" />
-                        <span>Upgrade</span>
-                      </Button>
-                    )}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="!min-w-[100px]"
+                      onClick={handleEnroll}
+                    >
+                      <span>Start Quest</span>
+                    </Button>
+                    <button
+                      onClick={handleTeamUpClick}
+                      className="p-2 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors"
+                      title="Team up for bonus XP!"
+                    >
+                      <User className="w-4 h-4 text-gray-600" />
+                    </button>
                   </>
                 )}
               </div>
