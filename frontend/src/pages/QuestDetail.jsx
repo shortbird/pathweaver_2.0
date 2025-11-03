@@ -590,28 +590,14 @@ const QuestDetail = () => {
                 Personalize Quest
               </button>
             ) : !quest.user_enrollment ? (
-              <>
-                {canStartQuests ? (
-                  // Paid tier users - show start button only
-                  <button
-                    onClick={handleEnroll}
-                    disabled={isEnrolling}
-                    className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Target className="w-5 h-5 inline mr-2" />
-                    {isEnrolling ? 'Picking Up...' : 'Pick Up Quest'}
-                  </button>
-                ) : (
-                  // Free tier users - show upgrade button
-                  <button
-                    onClick={() => navigate('/subscription')}
-                    className="flex-1 bg-gray-100 text-gray-600 py-4 px-8 rounded-[30px] hover:bg-gray-200 transition-all duration-300 font-bold text-lg border-2 border-gray-300"
-                  >
-                    <Lock className="w-5 h-5 inline mr-2" />
-                    Upgrade to Start
-                  </button>
-                )}
-              </>
+              <button
+                onClick={handleEnroll}
+                disabled={isEnrolling}
+                className="flex-1 bg-gradient-primary text-white py-4 px-8 rounded-[30px] hover:shadow-[0_8px_30px_rgba(239,89,123,0.3)] hover:-translate-y-1 transition-all duration-300 font-bold text-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <Target className="w-5 h-5 inline mr-2" />
+                {isEnrolling ? 'Picking Up...' : 'Pick Up Quest'}
+              </button>
             ) : null}
           </div>
         </div>

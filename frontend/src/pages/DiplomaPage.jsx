@@ -1,4 +1,5 @@
 import React, { useState, useEffect, memo, useCallback, useMemo } from 'react';
+import { Helmet } from 'react-helmet-async';
 import { useAuth } from '../contexts/AuthContext';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../services/api';
@@ -514,108 +515,6 @@ const DiplomaPage = () => {
     );
   }
 
-  // If owner doesn't have access, show upgrade message
-  if (isOwner && !hasAccess) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="text-center">
-            <div className="mb-8">
-              <svg className="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-              </svg>
-            </div>
-            
-            <h1 className="text-4xl font-bold mb-4">Your Portfolio Diploma</h1>
-            <p className="text-lg text-gray-600 mb-8 max-w-2xl mx-auto">
-              Build a professional portfolio that showcases your self-validated learning journey and achievements to the world.
-            </p>
-            
-            <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
-              <h2 className="text-xl font-semibold mb-6">What You Get with Supported Tier</h2>
-              <div className="grid md:grid-cols-2 gap-6 text-left">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <div>
-                    <h3 className="font-medium">Professional Portfolio</h3>
-                    <p className="text-sm text-gray-600">Create a stunning, shareable portfolio of your learning journey</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <div>
-                    <h3 className="font-medium">Evidence-Based Learning</h3>
-                    <p className="text-sm text-gray-600">Submit and showcase real evidence of your educational accomplishments</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <div>
-                    <h3 className="font-medium">Growth Tracking</h3>
-                    <p className="text-sm text-gray-600">Track XP and skill development across all learning dimensions</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <div>
-                    <h3 className="font-medium">Share Your Story</h3>
-                    <p className="text-sm text-gray-600">Get a public link to share your diploma on resumes and applications</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <div>
-                    <h3 className="font-medium">Learning Community</h3>
-                    <p className="text-sm text-gray-600">Connect with other learners and collaborate on quests</p>
-                  </div>
-                </div>
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-green-500 mt-1 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <div>
-                    <h3 className="font-medium">Educational Support</h3>
-                    <p className="text-sm text-gray-600">Access to a support team of experienced educators</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="mt-8 p-4 bg-gradient-to-r from-optio-pink/5 to-optio-purple/5 rounded-lg border border-optio-pink/20">
-                <p className="text-sm text-gray-700 text-center">
-                  <strong>Self-Validated Learning:</strong> Take control of your education by documenting your learning process with real evidence, not test scores.
-                </p>
-              </div>
-            </div>
-            
-            <div className="flex justify-center gap-4">
-              <button
-                onClick={() => navigate('/subscription')}
-                className="bg-gradient-primary text-white px-8 py-3 rounded-[30px] font-semibold shadow-[0_4px_20px_rgba(239,89,123,0.15)] hover:shadow-[0_6px_25px_rgba(239,89,123,0.25)] hover:-translate-y-0.5 transition-all duration-300"
-              >
-                Upgrade to Supported
-              </button>
-              <button
-                onClick={() => navigate('/quests')}
-                className="bg-gray-100 text-gray-700 px-6 py-3 rounded-[30px] font-medium hover:bg-gray-200 transition-colors"
-              >
-                Continue Learning
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   // Unified view - show same layout for both public and owner, with conditional elements
   const viewMode = isOwner && !previewMode ? 'owner' : 'public';
@@ -660,8 +559,42 @@ const DiplomaPage = () => {
     return `${firstName}'s`;
   };
 
+  // Generate canonical URL (prefer /portfolio/:slug format)
+  const studentName = getStudentName();
+  const canonicalUrl = slug
+    ? `https://www.optioeducation.com/portfolio/${slug}`
+    : diploma?.student?.portfolio_slug
+      ? `https://www.optioeducation.com/portfolio/${diploma.student.portfolio_slug}`
+      : `https://www.optioeducation.com/public/diploma/${userId || user?.id}`;
+
+  const pageTitle = `${studentName} - Portfolio Diploma | Optio`;
+  const pageDescription = `${studentName} has accepted the responsibility to self-validate their education. This portfolio diploma showcases their learning journey with evidence-based achievements.`;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
+      <Helmet>
+        <title>{pageTitle}</title>
+        <meta name="description" content={pageDescription} />
+
+        {/* Canonical URL - prefer /portfolio/:slug format */}
+        <link rel="canonical" href={canonicalUrl} />
+
+        {/* Open Graph / Social Media Tags */}
+        <meta property="og:type" content="profile" />
+        <meta property="og:title" content={pageTitle} />
+        <meta property="og:description" content={pageDescription} />
+        <meta property="og:url" content={canonicalUrl} />
+        <meta property="og:site_name" content="Optio Education" />
+
+        {/* Twitter Card Tags */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={pageTitle} />
+        <meta name="twitter:description" content={pageDescription} />
+
+        {/* Additional SEO */}
+        <meta name="robots" content="index, follow" />
+      </Helmet>
+
       {/* Hero Section with Professional Diploma Title */}
       <div className="relative overflow-hidden bg-gradient-primary text-white">
         <div className="absolute inset-0 bg-black opacity-10"></div>

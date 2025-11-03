@@ -10,9 +10,6 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [isEnrolling, setIsEnrolling] = useState(false);
-  
-  // Check if user can start quests (requires paid tier)
-  const canStartQuests = true; // All features free (Phase 2)
 
   // Simplified data extraction
   // Note: In personalized quest system, XP and task count are user-specific
@@ -193,47 +190,28 @@ const QuestCard = ({ quest, onEnroll, onTeamUp }) => {
               <span className="truncate">Continue</span>
             </Button>
           ) : (
-            // Quest not started - show different buttons based on tier
+            // Quest not started - show start and team up buttons
             <>
-              {canStartQuests ? (
-                // Paid tier users - show start and team up buttons
-                <>
-                  <Button
-                    variant="primary"
-                    size="md"
-                    className="flex-1 !min-h-[48px] touch-manipulation"
-                    onClick={handleEnroll}
-                    loading={isEnrolling}
-                  >
-                    <span className="truncate">Start Quest</span>
-                  </Button>
-                  
-                  <button
-                    onClick={handleTeamUpClick}
-                    className="p-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors group/team min-h-[48px] min-w-[48px] flex items-center justify-center touch-manipulation"
-                    title="Team up for bonus XP!"
-                    aria-label="Team up for bonus XP"
-                  >
-                    <svg className="w-5 h-5 text-gray-600 group-hover/team:text-optio-purple" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-                    </svg>
-                  </button>
-                </>
-              ) : (
-                // Free tier users - show upgrade button
-                <Button
-                  variant="secondary"
-                  size="md"
-                  className="flex-1 !bg-gray-100 !text-gray-600 hover:!bg-gray-200 !min-h-[48px] touch-manipulation"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigate('/subscription');
-                  }}
-                >
-                  <Lock className="w-4 h-4 mr-2 flex-shrink-0" />
-                  <span className="truncate">Upgrade to Start</span>
-                </Button>
-              )}
+              <Button
+                variant="primary"
+                size="md"
+                className="flex-1 !min-h-[48px] touch-manipulation"
+                onClick={handleEnroll}
+                loading={isEnrolling}
+              >
+                <span className="truncate">Start Quest</span>
+              </Button>
+
+              <button
+                onClick={handleTeamUpClick}
+                className="p-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors group/team min-h-[48px] min-w-[48px] flex items-center justify-center touch-manipulation"
+                title="Team up for bonus XP!"
+                aria-label="Team up for bonus XP"
+              >
+                <svg className="w-5 h-5 text-gray-600 group-hover/team:text-optio-purple" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
+                </svg>
+              </button>
             </>
           )}
         </div>

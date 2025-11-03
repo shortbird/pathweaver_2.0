@@ -1,0 +1,36 @@
+# Optio Education - Robots.txt
+
+# Allow all crawlers
+User-agent: *
+Allow: /
+
+# Sitemap location
+Sitemap: https://www.optioeducation.com/sitemap.xml
+
+# Crawl rate optimization
+Crawl-delay: 1
+
+# Allow indexing of public portfolio pages (these are the CORE product)
+# Format: /portfolio/[slug] and /public/diploma/[userId]
+Allow: /portfolio/
+Allow: /public/diploma/
+
+# Allow indexing of public marketing pages
+Allow: /
+Allow: /login
+Allow: /register
+Allow: /terms
+Allow: /privacy
+
+# Prevent indexing of private authenticated pages
+Disallow: /dashboard
+Disallow: /quests
+Disallow: /badges
+Disallow: /connections
+Disallow: /settings
+Disallow: /parent
+
+# Prevent indexing of temporary/auth pages
+Disallow: /email-verification
+Disallow: /forgot-password
+Disallow: /reset-password
