@@ -165,6 +165,22 @@ try:
 except Exception as e:
     logger.warning(f"Warning: LMS Integration routes not available: {e}")
 
+# Register Spark LMS Integration blueprint (January 2025)
+try:
+    from routes import spark_integration
+    app.register_blueprint(spark_integration.bp)  # /spark/* endpoints
+    logger.info("Spark LMS Integration routes registered successfully")
+except Exception as e:
+    logger.warning(f"Warning: Spark LMS Integration routes not available: {e}")
+
+# Register Observer Role blueprint (January 2025)
+try:
+    from routes import observer
+    app.register_blueprint(observer.bp)  # /api/observers/* endpoints
+    logger.info("Observer role routes registered successfully")
+except Exception as e:
+    logger.warning(f"Warning: Observer role routes not available: {e}")
+
 # Register Badge System blueprints
 try:
     from routes import badges, credits, ai_content, admin_badge_seed, quest_badge_hub
