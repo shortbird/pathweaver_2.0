@@ -62,14 +62,27 @@ class RateLimiter:
 # Global rate limiter instance
 rate_limiter = RateLimiter()
 
-def rate_limit(max_requests: int = 60, window_seconds: int = 60):
+def rate_limit(max_requests: int = None, window_seconds: int = None, limit: int = None, per: int = None):
     """
     Decorator to apply rate limiting to routes
-    
+
     Args:
-        max_requests: Maximum number of requests allowed
-        window_seconds: Time window in seconds
+        max_requests: Maximum number of requests allowed (deprecated, use limit)
+        window_seconds: Time window in seconds (deprecated, use per)
+        limit: Maximum number of requests allowed (new style)
+        per: Time window in seconds (new style)
     """
+    # Support both old and new parameter styles
+    if limit is not None:
+        max_requests = limit
+    if per is not None:
+        window_seconds = per
+
+    # Default values
+    if max_requests is None:
+        max_requests = 60
+    if window_seconds is None:
+        window_seconds = 60
     def decorator(f):
         @wraps(f)
         def decorated_function(*args, **kwargs):

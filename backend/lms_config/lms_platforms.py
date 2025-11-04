@@ -62,6 +62,19 @@ LMS_PLATFORMS = {
         'supports_grade_passback': True,
         'supports_deep_linking': True,
         'supports_roster_sync': True
+    },
+    'spark': {
+        'name': 'Spark LMS',
+        'auth_method': 'simple_jwt',
+        'shared_secret': 'ENV:SPARK_SSO_SECRET',
+        'webhook_secret': 'ENV:SPARK_WEBHOOK_SECRET',
+        'api_url': 'ENV:SPARK_API_URL',
+        'api_key': 'ENV:SPARK_API_KEY',
+        'storage_domains': 'ENV:SPARK_STORAGE_DOMAINS',
+        'supports_grade_passback': True,
+        'supports_deep_linking': False,
+        'supports_roster_sync': True,
+        'supports_webhooks': True
     }
 }
 
