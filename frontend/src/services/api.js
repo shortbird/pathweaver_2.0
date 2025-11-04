@@ -74,6 +74,12 @@ api.interceptors.request.use(
       }
     }
 
+    // ✅ FILE UPLOAD FIX: Don't override Content-Type for FormData
+    // Let Axios automatically set multipart/form-data with boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type']
+    }
+
     return config
   },
   (error) => {
