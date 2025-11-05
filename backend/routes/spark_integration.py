@@ -345,25 +345,58 @@ def process_spark_submission(data: dict) -> dict:
         .eq('quest_id', quest_id) \
         .execute()
 
+    enrollment_id = None
     if not enrollment.data:
         # Create enrollment
-        supabase.table('user_quests').insert({
+        enrollment_result = supabase.table('user_quests').insert({
             'user_id': user_id,
             'quest_id': quest_id,
             'is_active': True,
             'started_at': datetime.utcnow().isoformat()
         }).execute()
+        enrollment_id = enrollment_result.data[0]['id']
         logger.info(f"Auto-enrolled user {user_id} in Spark quest {quest_id}")
+
+        # Copy course tasks to user_quest_tasks (since this is a course quest)
+        from routes.quest_types import get_course_tasks_for_quest
+        preset_tasks = get_course_tasks_for_quest(quest_id)
+
+        if preset_tasks:
+            user_tasks_data = []
+            for task in preset_tasks:
+                task_data = {
+                    'user_id': user_id,
+                    'quest_id': quest_id,
+                    'user_quest_id': enrollment_id,
+                    'title': task['title'],
+                    'description': task.get('description', ''),
+                    'pillar': task['pillar'],
+                    'xp_value': task.get('xp_value', 100),
+                    'order_index': task.get('order_index', 0),
+                    'is_required': task.get('is_required', True),
+                    'is_manual': False,
+                    'approval_status': 'approved',
+                    'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                    'subject_xp_distribution': task.get('subject_xp_distribution', {})
+                }
+                user_tasks_data.append(task_data)
+
+            if user_tasks_data:
+                supabase.table('user_quest_tasks').insert(user_tasks_data).execute()
+                logger.info(f"Copied {len(user_tasks_data)} preset tasks to user_quest_tasks for Spark enrollment")
     elif enrollment.data[0].get('is_active') == False or enrollment.data[0].get('completed_at'):
         # Reactivate completed quest on new submission
+        enrollment_id = enrollment.data[0]['id']
         supabase.table('user_quests') \
             .update({
                 'is_active': True,
                 'completed_at': None
             }) \
-            .eq('id', enrollment.data[0]['id']) \
+            .eq('id', enrollment_id) \
             .execute()
         logger.info(f"Reactivated completed Spark quest {quest_id} for user {user_id}")
+    else:
+        enrollment_id = enrollment.data[0]['id']
 
     # Find user's tasks for this quest (should exist after enrollment)
     tasks = supabase.table('user_quest_tasks') \
