@@ -383,8 +383,7 @@ def process_spark_submission(data: dict) -> dict:
         'task_id': task_id,
         'evidence_text': data.get('submission_text', ''),
         'evidence_url': evidence_files[0] if evidence_files else None,
-        'completed_at': data['submitted_at'],
-        'xp_awarded': task_data['xp_value']
+        'completed_at': data['submitted_at']
     }).execute()
 
     completion_id = completion.data[0]['id']
