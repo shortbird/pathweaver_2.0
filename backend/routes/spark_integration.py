@@ -236,8 +236,28 @@ def create_or_update_spark_user(claims: dict) -> dict:
         user_id = user.data[0]['id']
         logger.info(f"Linking existing user {user_id} to Spark")
     else:
-        # Create new user
+        # Create new user in Supabase Auth first
+        import secrets
+        temp_password = secrets.token_urlsafe(32)  # Generate random password
+
+        auth_user = supabase.auth.admin.create_user({
+            'email': email,
+            'password': temp_password,
+            'email_confirm': True,  # Auto-confirm email for SSO users
+            'user_metadata': {
+                'first_name': claims.get('given_name', ''),
+                'last_name': claims.get('family_name', ''),
+                'display_name': f"{claims.get('given_name', '')} {claims.get('family_name', '')}".strip(),
+                'sso_provider': 'spark'
+            }
+        })
+
+        user_id = auth_user.user.id
+        logger.info(f"Created auth user {user_id} from Spark SSO")
+
+        # Create user profile in public.users table
         new_user = supabase.table('users').insert({
+            'id': user_id,  # Use auth user ID
             'email': email,
             'first_name': claims.get('given_name', ''),
             'last_name': claims.get('family_name', ''),
@@ -245,8 +265,7 @@ def create_or_update_spark_user(claims: dict) -> dict:
             'display_name': f"{claims.get('given_name', '')} {claims.get('family_name', '')}".strip()
         }).execute()
 
-        user_id = new_user.data[0]['id']
-        logger.info(f"Created new user {user_id} from Spark SSO")
+        logger.info(f"Created user profile {user_id} from Spark SSO")
 
     # Create LMS integration record
     supabase.table('lms_integrations').insert({
