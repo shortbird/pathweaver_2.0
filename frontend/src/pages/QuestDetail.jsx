@@ -547,8 +547,8 @@ const QuestDetail = () => {
 
                 {/* Set Down Quest / Mark Completed Button - In same row as stats */}
                 {quest.user_enrollment && !isQuestCompleted && (
-                  quest.source === 'lms' ? (
-                    // LMS quests show "Mark Quest Completed" button
+                  quest.lms_platform ? (
+                    // LMS-linked quests show "Mark Quest Completed" button
                     <button
                       onClick={() => {
                         if (window.confirm('⚠️ Only mark this quest as completed if you are finished with the associated LMS class.\n\nIf you submit more evidence to this quest later, it will automatically be reactivated.')) {
@@ -584,8 +584,8 @@ const QuestDetail = () => {
 
       {/* Collaboration status removed in Phase 3 refactoring (January 2025) */}
 
-      {/* 4. Call-to-Action Buttons - Hide for LMS quests (auto-enrolled via SSO) */}
-      {quest.source !== 'lms' && (isQuestCompleted || !quest.user_enrollment || (quest.user_enrollment && totalTasks === 0)) && (
+      {/* 4. Call-to-Action Buttons - Hide for LMS-linked quests (auto-enrolled via SSO) */}
+      {!quest.lms_platform && (isQuestCompleted || !quest.user_enrollment || (quest.user_enrollment && totalTasks === 0)) && (
         <div className="bg-white rounded-xl shadow-md p-6 mb-8">
           <div className="flex gap-4">
             {isQuestCompleted ? (

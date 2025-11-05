@@ -245,8 +245,12 @@ frontend/src/
 **quests**
 - id (UUID, PK)
 - title, description
-- source (optio/lms) ← **UPDATED: Simplified from khan_academy/brilliant/custom/ai_generated**
-- lms_course_id, lms_assignment_id, lms_platform ← **NEW: LMS integration columns**
+- quest_type (optio/course) ← **Quest type distinguishes Optio-created vs course-based quests**
+  - **optio**: Student-personalized quests created within Optio platform
+  - **course**: Structured course quests (may or may not be linked to external LMS)
+- lms_course_id, lms_assignment_id, lms_platform ← **LMS integration columns (optional)**
+  - Present when course quest is linked to external LMS (e.g., Spark, Canvas)
+  - Empty when course quest is Optio-only (no external LMS)
 - image_url (auto-fetched from Pexels API)
 - header_image_url (legacy, same as image_url)
 - is_active
