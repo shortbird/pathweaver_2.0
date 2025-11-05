@@ -338,7 +338,24 @@ def process_spark_submission(data: dict) -> dict:
 
     quest_id = quest.data[0]['id']
 
-    # Find user's tasks for this quest
+    # Auto-enroll user in quest if not already enrolled
+    enrollment = supabase.table('user_quests') \
+        .select('id') \
+        .eq('user_id', user_id) \
+        .eq('quest_id', quest_id) \
+        .execute()
+
+    if not enrollment.data:
+        # Create enrollment
+        supabase.table('user_quests').insert({
+            'user_id': user_id,
+            'quest_id': quest_id,
+            'is_active': True,
+            'started_at': datetime.utcnow().isoformat()
+        }).execute()
+        logger.info(f"Auto-enrolled user {user_id} in Spark quest {quest_id}")
+
+    # Find user's tasks for this quest (should exist after enrollment)
     tasks = supabase.table('user_quest_tasks') \
         .select('id, xp_value, pillar') \
         .eq('user_id', user_id) \
@@ -346,7 +363,7 @@ def process_spark_submission(data: dict) -> dict:
         .execute()
 
     if not tasks.data:
-        raise ValueError(f"User has not started quest for assignment: {spark_assignment_id}")
+        raise ValueError(f"No tasks found for quest: {spark_assignment_id}. Quest may not have tasks configured.")
 
     # Use first task (or we could mark all tasks complete)
     task_data = tasks.data[0]
