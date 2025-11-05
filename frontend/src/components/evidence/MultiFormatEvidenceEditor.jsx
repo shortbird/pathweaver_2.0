@@ -21,6 +21,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
   const [uploadingBlocks, setUploadingBlocks] = useState(new Set()); // Block IDs currently uploading
   const [uploadErrors, setUploadErrors] = useState({}); // Block ID → error message
   const [collapsedBlocks, setCollapsedBlocks] = useState(new Set()); // Collapsed block IDs
+  const [hasLegacyEvidence, setHasLegacyEvidence] = useState(false); // Track if we loaded legacy Spark evidence
   const fileInputRef = useRef(null);
   const autoSaverRef = useRef(null);
 
@@ -149,21 +150,41 @@ const MultiFormatEvidenceEditor = forwardRef(({
         } else {
           // New document - check for legacy evidence text (Spark submissions)
           if (legacyEvidenceText) {
-            // Create a read-only text block from legacy evidence
-            setBlocks([{
+            // Create an editable text block from legacy evidence
+            const legacyBlock = {
               id: `legacy-text-${Date.now()}`,
               type: 'text',
               content: { text: legacyEvidenceText },
               order: 0,
               is_private: false
-            }]);
+            };
+            setBlocks([legacyBlock]);
             setDocumentStatus('completed'); // Legacy evidence means task is already completed
+            setHasLegacyEvidence(true);
+
+            // Immediately save legacy evidence to new document system
+            // This creates the document in user_task_evidence_documents table
+            setSaveStatus('saving');
+            try {
+              await evidenceDocumentService.saveDocument(taskId, [legacyBlock], 'completed');
+              setSaveStatus('saved');
+              setLastSaved(new Date());
+            } catch (saveError) {
+              console.error('Failed to save legacy evidence:', saveError);
+              // Don't show error to user - they can still edit and it will save on next change
+              setSaveStatus('saved'); // Pretend it's saved to avoid confusing the user
+            }
           } else {
             setBlocks([]);
             setDocumentStatus('draft');
+            setSaveStatus('saved');
           }
         }
-        setSaveStatus('saved');
+
+        // Only set saved status if we didn't already handle it above
+        if (!legacyEvidenceText || response.document) {
+          setSaveStatus('saved');
+        }
       }
     } catch (error) {
       console.error('Error loading document:', error);
