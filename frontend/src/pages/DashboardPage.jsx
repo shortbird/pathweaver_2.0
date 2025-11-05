@@ -70,6 +70,24 @@ const DashboardPage = () => {
   const { user } = useAuth()
   const [showLearningEventModal, setShowLearningEventModal] = useState(false)
 
+  // Extract SSO tokens from URL (for Spark/LMS SSO)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const accessToken = params.get('access_token')
+    const refreshToken = params.get('refresh_token')
+
+    if (accessToken && refreshToken) {
+      // Store tokens for Authorization headers
+      import('../services/api').then(({ tokenStore }) => {
+        tokenStore.setTokens(accessToken, refreshToken)
+      })
+
+      // Clean URL (remove tokens from address bar)
+      const newUrl = window.location.pathname + (params.get('lti') ? '?lti=true' : '')
+      window.history.replaceState({}, '', newUrl)
+    }
+  }, [])
+
   // Redirect parents to their dedicated dashboard
   if (user?.role === 'parent') {
     return <Navigate to="/parent/dashboard" replace />

@@ -91,8 +91,17 @@ def spark_sso():
     try:
         user = create_or_update_spark_user(claims)
 
-        # Set session cookies
-        response = redirect(f"{os.getenv('FRONTEND_URL', 'http://localhost:5173')}/dashboard?lti=true")
+        # Generate tokens for Authorization header (incognito mode compatibility)
+        access_token = session_manager.generate_access_token(user['id'])
+        refresh_token = session_manager.generate_refresh_token(user['id'])
+
+        # Redirect to frontend with tokens in URL (will be extracted and stored by frontend)
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+        redirect_url = f"{frontend_url}/dashboard?lti=true&access_token={access_token}&refresh_token={refresh_token}"
+
+        response = redirect(redirect_url)
+
+        # Also set cookies as fallback (will be skipped in cross-origin mode)
         session_manager.set_auth_cookies(response, user['id'])
 
         logger.info(f"Spark SSO successful: user_id={user['id']}")
