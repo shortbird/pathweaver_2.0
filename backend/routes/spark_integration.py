@@ -372,7 +372,7 @@ def process_spark_submission(data: dict) -> dict:
     # Check for duplicate submission (idempotency)
     existing = supabase.table('quest_task_completions') \
         .select('id') \
-        .eq('task_id', task_id) \
+        .eq('user_quest_task_id', task_id) \
         .eq('user_id', user_id) \
         .execute()
 
@@ -393,11 +393,11 @@ def process_spark_submission(data: dict) -> dict:
             logger.error(f"Failed to download file {file_data['filename']}: {str(e)}")
             # Continue processing, just log the error
 
-    # Mark task complete
+    # Mark task complete (use user_quest_task_id, not legacy task_id)
     completion = supabase.table('quest_task_completions').insert({
         'user_id': user_id,
         'quest_id': quest_id,
-        'task_id': task_id,
+        'user_quest_task_id': task_id,  # This is the id from user_quest_tasks table
         'evidence_text': data.get('submission_text', ''),
         'evidence_url': evidence_files[0] if evidence_files else None,
         'completed_at': data['submitted_at']
