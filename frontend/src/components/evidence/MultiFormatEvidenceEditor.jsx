@@ -5,6 +5,7 @@ import { evidenceDocumentService } from '../../services/evidenceDocumentService'
 const MultiFormatEvidenceEditor = forwardRef(({
   taskId,
   userId,
+  legacyEvidenceText, // Legacy text evidence from quest_task_completions (Spark submissions)
   onComplete,
   onError,
   autoSaveEnabled = true
@@ -146,9 +147,21 @@ const MultiFormatEvidenceEditor = forwardRef(({
             setLastSaved(new Date(response.document.updated_at));
           }
         } else {
-          // New document
-          setBlocks([]);
-          setDocumentStatus('draft');
+          // New document - check for legacy evidence text (Spark submissions)
+          if (legacyEvidenceText) {
+            // Create a read-only text block from legacy evidence
+            setBlocks([{
+              id: `legacy-text-${Date.now()}`,
+              type: 'text',
+              content: { text: legacyEvidenceText },
+              order: 0,
+              is_private: false
+            }]);
+            setDocumentStatus('completed'); // Legacy evidence means task is already completed
+          } else {
+            setBlocks([]);
+            setDocumentStatus('draft');
+          }
         }
         setSaveStatus('saved');
       }

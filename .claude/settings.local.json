@@ -13,7 +13,15 @@
       "Bash(npm install:*)",
       "Bash(git log:*)",
       "Bash(openssl rand:*)",
-      "Bash(node test_spark_sso.js:*)"
+      "Bash(node test_spark_sso.js:*)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(psql \"postgresql://postgres.vvfgxcykxjybtvpfzwyx:Tannerthegoat10!@aws-0-us-east-1.pooler.supabase.com:6543/postgres\" -c \"SELECT id, email, display_name, first_name, last_name, role, created_at FROM users WHERE email = ''spark-test@optioeducation.com'';\")",
+      "Bash(node test_spark_webhook.js:*)",
+      "Bash(if [ -z \"$SUPABASE_SERVICE_KEY\" ])",
+      "Bash(then echo \"❌ SUPABASE_SERVICE_KEY is not set\")",
+      "Bash(else echo \"✅ SUPABASE_SERVICE_KEY is set\")",
+      "Bash(fi)"
     ],
     "deny": [],
     "ask": []
