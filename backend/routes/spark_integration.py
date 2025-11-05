@@ -325,20 +325,32 @@ def process_spark_submission(data: dict) -> dict:
 
     user_id = integration.data[0]['user_id']
 
-    # Find task for this assignment
+    # Find quest for this assignment
     spark_assignment_id = data['spark_assignment_id']
-    task = supabase.table('user_quest_tasks') \
-        .select('id, quest_id, xp_value, pillar, lms_assignment_id') \
-        .eq('user_id', user_id) \
+    quest = supabase.table('quests') \
+        .select('id') \
         .eq('lms_assignment_id', spark_assignment_id) \
+        .eq('lms_platform', 'spark') \
         .execute()
 
-    if not task.data:
-        raise ValueError(f"Task not found for assignment: {spark_assignment_id}")
+    if not quest.data:
+        raise ValueError(f"Quest not found for assignment: {spark_assignment_id}")
 
-    task_data = task.data[0]
+    quest_id = quest.data[0]['id']
+
+    # Find user's tasks for this quest
+    tasks = supabase.table('user_quest_tasks') \
+        .select('id, xp_value, pillar') \
+        .eq('user_id', user_id) \
+        .eq('quest_id', quest_id) \
+        .execute()
+
+    if not tasks.data:
+        raise ValueError(f"User has not started quest for assignment: {spark_assignment_id}")
+
+    # Use first task (or we could mark all tasks complete)
+    task_data = tasks.data[0]
     task_id = task_data['id']
-    quest_id = task_data['quest_id']
 
     # Check for duplicate submission (idempotency)
     existing = supabase.table('quest_task_completions') \
