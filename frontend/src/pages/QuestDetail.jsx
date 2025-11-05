@@ -545,16 +545,33 @@ const QuestDetail = () => {
                   <div className="text-xs text-gray-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>Tasks</div>
                 </div>
 
-                {/* Set Down Quest Button - In same row as stats */}
+                {/* Set Down Quest / Mark Completed Button - In same row as stats */}
                 {quest.user_enrollment && !isQuestCompleted && (
-                  <button
-                    onClick={handleEndQuest}
-                    disabled={endQuestMutation.isPending}
-                    className="px-6 py-2 bg-gradient-primary text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50 ml-auto"
-                    style={{ fontFamily: 'Poppins' }}
-                  >
-                    {endQuestMutation.isPending ? 'Setting Down...' : 'SET DOWN QUEST'}
-                  </button>
+                  quest.source === 'lms' ? (
+                    // LMS quests show "Mark Quest Completed" button
+                    <button
+                      onClick={() => {
+                        if (window.confirm('⚠️ Only mark this quest as completed if you are finished with the associated LMS class.\n\nIf you submit more evidence to this quest later, it will automatically be reactivated.')) {
+                          handleEndQuest();
+                        }
+                      }}
+                      disabled={endQuestMutation.isPending}
+                      className="px-6 py-2 bg-gradient-primary text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50 ml-auto"
+                      style={{ fontFamily: 'Poppins' }}
+                    >
+                      {endQuestMutation.isPending ? 'Marking Complete...' : 'MARK QUEST COMPLETED'}
+                    </button>
+                  ) : (
+                    // Optio quests show regular "Set Down Quest" button
+                    <button
+                      onClick={handleEndQuest}
+                      disabled={endQuestMutation.isPending}
+                      className="px-6 py-2 bg-gradient-primary text-white rounded-full hover:shadow-lg transition-all font-bold disabled:opacity-50 ml-auto"
+                      style={{ fontFamily: 'Poppins' }}
+                    >
+                      {endQuestMutation.isPending ? 'Setting Down...' : 'SET DOWN QUEST'}
+                    </button>
+                  )
                 )}
               </div>
             </div>
@@ -567,8 +584,8 @@ const QuestDetail = () => {
 
       {/* Collaboration status removed in Phase 3 refactoring (January 2025) */}
 
-      {/* 4. Call-to-Action Buttons */}
-      {(isQuestCompleted || !quest.user_enrollment || (quest.user_enrollment && totalTasks === 0)) && (
+      {/* 4. Call-to-Action Buttons - Hide for LMS quests (auto-enrolled via SSO) */}
+      {quest.source !== 'lms' && (isQuestCompleted || !quest.user_enrollment || (quest.user_enrollment && totalTasks === 0)) && (
         <div className="bg-white rounded-xl shadow-md p-6 mb-8">
           <div className="flex gap-4">
             {isQuestCompleted ? (

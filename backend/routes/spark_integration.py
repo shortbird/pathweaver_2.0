@@ -338,9 +338,9 @@ def process_spark_submission(data: dict) -> dict:
 
     quest_id = quest.data[0]['id']
 
-    # Auto-enroll user in quest if not already enrolled
+    # Auto-enroll user in quest if not already enrolled, or reactivate if completed
     enrollment = supabase.table('user_quests') \
-        .select('id') \
+        .select('id, is_active, completed_at') \
         .eq('user_id', user_id) \
         .eq('quest_id', quest_id) \
         .execute()
@@ -354,6 +354,16 @@ def process_spark_submission(data: dict) -> dict:
             'started_at': datetime.utcnow().isoformat()
         }).execute()
         logger.info(f"Auto-enrolled user {user_id} in Spark quest {quest_id}")
+    elif enrollment.data[0].get('is_active') == False or enrollment.data[0].get('completed_at'):
+        # Reactivate completed quest on new submission
+        supabase.table('user_quests') \
+            .update({
+                'is_active': True,
+                'completed_at': None
+            }) \
+            .eq('id', enrollment.data[0]['id']) \
+            .execute()
+        logger.info(f"Reactivated completed Spark quest {quest_id} for user {user_id}")
 
     # Find user's tasks for this quest (should exist after enrollment)
     tasks = supabase.table('user_quest_tasks') \
