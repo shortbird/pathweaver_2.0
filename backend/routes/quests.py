@@ -283,9 +283,9 @@ def get_quest_detail(user_id: str, quest_id: str):
 
             logger.info(f"[QUEST_DETAIL] Found {len(user_tasks.data or [])} approved tasks for user_quest_id {enrollment_to_use['id'][:8]}")
 
-            # Get task completions with evidence
+            # Get task completions with evidence (only columns that exist in table)
             task_completions = supabase.table('quest_task_completions')\
-                .select('user_quest_task_id, evidence_text, evidence_url, evidence_type, evidence_blocks, completed_at')\
+                .select('user_quest_task_id, evidence_text, evidence_url, completed_at')\
                 .eq('user_id', user_id)\
                 .eq('quest_id', quest_id)\
                 .execute()
@@ -310,9 +310,9 @@ def get_quest_detail(user_id: str, quest_id: str):
                     completion = completion_data_map[task['id']]
                     task['evidence_text'] = completion.get('evidence_text')
                     task['evidence_url'] = completion.get('evidence_url')
-                    task['evidence_type'] = completion.get('evidence_type')
-                    task['evidence_blocks'] = completion.get('evidence_blocks')
                     task['completed_at'] = completion.get('completed_at')
+                    # Note: evidence_type and evidence_blocks are not in quest_task_completions table
+                    # They may be stored in evidence_document_blocks table separately
 
                 # Map xp_value to xp_amount for frontend compatibility
                 if 'xp_value' in task:
