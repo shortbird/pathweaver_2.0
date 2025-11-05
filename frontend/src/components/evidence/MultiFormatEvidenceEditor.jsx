@@ -159,14 +159,15 @@ const MultiFormatEvidenceEditor = forwardRef(({
               is_private: false
             };
             setBlocks([legacyBlock]);
-            setDocumentStatus('completed'); // Legacy evidence means task is already completed
+            setDocumentStatus('draft'); // Allow editing even though task is already marked complete
             setHasLegacyEvidence(true);
 
-            // Immediately save legacy evidence to new document system
+            // Immediately save legacy evidence to new document system as DRAFT
             // This creates the document in user_task_evidence_documents table
+            // Keep as draft so user can continue editing/adding evidence
             setSaveStatus('saving');
             try {
-              await evidenceDocumentService.saveDocument(taskId, [legacyBlock], 'completed');
+              await evidenceDocumentService.saveDocument(taskId, [legacyBlock], 'draft');
               setSaveStatus('saved');
               setLastSaved(new Date());
             } catch (saveError) {
