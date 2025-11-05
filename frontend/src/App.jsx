@@ -7,6 +7,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { DemoProvider } from './contexts/DemoContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { warmupBackend } from './utils/retryHelper'
+import { tokenStore } from './services/api'
 
 // Always-loaded components (Layout, Auth, Landing pages)
 import Layout from './components/Layout'
@@ -79,6 +80,25 @@ const queryClient = new QueryClient({
 })
 
 function App() {
+  // ✅ SSO TOKEN EXTRACTION: Extract tokens IMMEDIATELY on app load (before AuthContext)
+  // This runs synchronously during App mount to ensure tokens are available for AuthContext
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const accessToken = params.get('access_token')
+    const refreshToken = params.get('refresh_token')
+
+    if (accessToken && refreshToken) {
+      // Store tokens immediately in memory
+      tokenStore.setTokens(accessToken, refreshToken)
+
+      // Clean URL (remove tokens from address bar for security)
+      const newUrl = window.location.pathname + (params.get('lti') ? '?lti=true' : '')
+      window.history.replaceState({}, '', newUrl)
+
+      console.log('[SSO] Tokens extracted and stored from URL')
+    }
+  }, []) // Empty deps = runs once on mount
+
   // Warm up the backend service on app load (helps with Render cold starts)
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';

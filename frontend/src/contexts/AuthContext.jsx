@@ -72,18 +72,6 @@ export const AuthProvider = ({ children }) => {
     }
 
     checkSession()
-
-    // ✅ SSO FIX: Re-check for tokens after a short delay to handle race condition
-    // This ensures tokens extracted by DashboardPage module are detected
-    const recheckTimeout = setTimeout(() => {
-      const hasTokens = !!tokenStore.getAccessToken()
-      if (hasTokens && !session) {
-        // Tokens were added after initial check (SSO flow), re-check session
-        checkSession()
-      }
-    }, 100) // 100ms delay to allow module-level token extraction
-
-    return () => clearTimeout(recheckTimeout)
   }, [])
 
   const login = async (email, password) => {
