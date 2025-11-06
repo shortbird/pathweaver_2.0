@@ -513,15 +513,31 @@ def process_spark_submission(data: dict) -> dict:
             'completion_id': existing.data[0]['id']
         }
 
-    # Download and upload files
+    # Download and upload files (returns list of {url, filename, type})
     evidence_files = []
     for file_data in data.get('submission_files', []):
         try:
             file_url = download_and_upload_file(file_data['url'], user_id)
-            evidence_files.append(file_url)
+            evidence_files.append({
+                'url': file_url,
+                'filename': file_data.get('filename', 'attachment'),
+                'type': file_data.get('type', 'application/octet-stream')
+            })
         except Exception as e:
-            logger.error(f"Failed to download file {file_data['filename']}: {str(e)}")
+            logger.error(f"Failed to download file {file_data.get('filename', 'unknown')}: {str(e)}")
             # Continue processing, just log the error
+
+    # ✅ BLOCK-BASED EVIDENCE: Create evidence document with blocks (Option 1 implementation)
+    # This allows UI editing after webhook submission and unifies evidence system
+    document_id = create_block_based_evidence(
+        supabase=supabase,
+        user_id=user_id,
+        quest_id=quest_id,
+        task_id=task_id,
+        submission_text=data.get('submission_text', ''),
+        files=evidence_files,
+        submitted_at=data['submitted_at']
+    )
 
     # Mark task complete (need both task_id and user_quest_task_id for schema compatibility)
     completion = supabase.table('quest_task_completions').insert({
@@ -529,8 +545,8 @@ def process_spark_submission(data: dict) -> dict:
         'quest_id': quest_id,
         'task_id': task_id,  # Legacy column (NOT NULL constraint)
         'user_quest_task_id': task_id,  # New column (this is the id from user_quest_tasks table)
-        'evidence_text': data.get('submission_text', ''),
-        'evidence_url': evidence_files[0] if evidence_files else None,
+        'evidence_text': data.get('submission_text', ''),  # Keep for backward compatibility
+        'evidence_url': evidence_files[0]['url'] if evidence_files else None,  # Keep for backward compatibility
         'completed_at': data['submitted_at']
     }).execute()
 
@@ -550,6 +566,136 @@ def process_spark_submission(data: dict) -> dict:
         'user_id': user_id,
         'completion_id': completion_id
     }
+
+
+def create_block_based_evidence(supabase, user_id: str, quest_id: str, task_id: str,
+                               submission_text: str, files: list, submitted_at: str) -> str:
+    """
+    Create block-based evidence document for Spark webhook submissions.
+    This allows evidence to be editable in the UI after webhook submission.
+
+    Args:
+        supabase: Supabase admin client
+        user_id: Optio user ID
+        quest_id: Quest ID
+        task_id: Task ID from user_quest_tasks
+        submission_text: Text submission from Spark
+        files: List of uploaded files with {url, filename, type}
+        submitted_at: ISO timestamp of submission
+
+    Returns:
+        Evidence document ID
+
+    Creates:
+        - user_task_evidence_documents record
+        - evidence_document_blocks for text content
+        - evidence_document_blocks for each file attachment
+    """
+    from datetime import datetime
+
+    # Get or create evidence document (handle existing documents from UI edits)
+    existing = supabase.table('user_task_evidence_documents')\
+        .select('id, status')\
+        .eq('user_id', user_id)\
+        .eq('task_id', task_id)\
+        .execute()
+
+    if existing.data:
+        # Update existing document to completed status
+        document_id = existing.data[0]['id']
+        supabase.table('user_task_evidence_documents')\
+            .update({
+                'status': 'completed',
+                'completed_at': submitted_at,
+                'updated_at': submitted_at
+            })\
+            .eq('id', document_id)\
+            .execute()
+
+        # Delete existing blocks (Spark submission is authoritative)
+        supabase.table('evidence_document_blocks')\
+            .delete()\
+            .eq('document_id', document_id)\
+            .execute()
+
+        logger.info(f"Updated existing evidence document {document_id} and cleared old blocks for Spark submission")
+    else:
+        # Create new evidence document
+        document = supabase.table('user_task_evidence_documents').insert({
+            'user_id': user_id,
+            'quest_id': quest_id,
+            'task_id': task_id,
+            'status': 'completed',
+            'completed_at': submitted_at,
+            'created_at': submitted_at,
+            'updated_at': submitted_at
+        }).execute()
+
+        if not document.data:
+            logger.error(f"Failed to create evidence document for task {task_id}")
+            raise ValueError("Failed to create evidence document")
+
+        document_id = document.data[0]['id']
+        logger.info(f"Created new evidence document {document_id} for Spark submission")
+
+    # Create blocks for the evidence
+    blocks = []
+    order_index = 0
+
+    # Add text block if submission has text
+    if submission_text and submission_text.strip():
+        blocks.append({
+            'document_id': document_id,
+            'block_type': 'text',
+            'content': {'text': submission_text},
+            'order_index': order_index,
+            'is_private': False
+        })
+        order_index += 1
+
+    # Add file blocks for each attachment
+    for file in files:
+        file_type = file['type']
+
+        # Determine block type based on MIME type
+        if file_type.startswith('image/'):
+            block_type = 'image'
+            content = {
+                'url': file['url'],
+                'alt': file['filename'],
+                'caption': f"Submitted via Spark LMS: {file['filename']}"
+            }
+        elif file_type.startswith('video/'):
+            block_type = 'video'
+            content = {
+                'url': file['url'],
+                'title': file['filename'],
+                'platform': 'custom'  # Not YouTube/Vimeo, direct video file
+            }
+        else:
+            # PDFs, docs, etc.
+            block_type = 'document'
+            content = {
+                'url': file['url'],
+                'title': file['filename'],
+                'filename': file['filename']
+            }
+
+        blocks.append({
+            'document_id': document_id,
+            'block_type': block_type,
+            'content': content,
+            'order_index': order_index,
+            'is_private': False
+        })
+        order_index += 1
+
+    # Batch insert all blocks
+    if blocks:
+        supabase.table('evidence_document_blocks').insert(blocks).execute()
+        logger.info(f"Created {len(blocks)} evidence blocks for document {document_id}")
+
+    return document_id
 
 
 def download_and_upload_file(temp_url: str, user_id: str) -> str:
