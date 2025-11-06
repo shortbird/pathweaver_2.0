@@ -111,11 +111,11 @@ class QualityMonitor:
         """
         supabase = get_supabase_admin_client()
 
-        # Get all active AI-generated quests
+        # Get all active AI-generated quests (optio type)
         ai_quests = supabase.table('quests')\
-            .select('id, title, source')\
+            .select('id, title, quest_type')\
             .eq('is_active', True)\
-            .like('source', 'ai_%')\
+            .eq('quest_type', 'optio')\
             .execute()
 
         poor_performers = []
@@ -175,7 +175,7 @@ class QualityMonitor:
 
         # Get quests pending review
         pending_quests = supabase.table('quests')\
-            .select('id, title, description, source')\
+            .select('id, title, description, quest_type')\
             .eq('requires_review', True)\
             .gte('created_at', cutoff_date)\
             .execute()

@@ -69,7 +69,7 @@ class AIQuestMaintenanceService(BaseService):
             .execute()
 
         # Calculate engagement score (average tasks completed per student)
-        total_tasks = supabase.table('quest_tasks').select('id').eq('quest_id', quest_id).execute()
+        total_tasks = supabase.table('user_quest_tasks').select('id').eq('quest_id', quest_id).execute()
         num_tasks = len(total_tasks.data) if total_tasks.data else 1
 
         if starts_count > 0:
@@ -93,10 +93,8 @@ class AIQuestMaintenanceService(BaseService):
                 avg_completion_time = sum(completion_times) / len(completion_times)
 
         # Get student feedback ratings
-        ratings = supabase.table('quest_ratings').select('rating').eq('quest_id', quest_id).execute()
+        # Note: quest_ratings table was removed in Phase 1 refactoring
         avg_rating = None
-        if ratings.data:
-            avg_rating = sum(r['rating'] for r in ratings.data) / len(ratings.data)
 
         # Determine status and recommendation
         status = 'healthy'
@@ -241,7 +239,7 @@ class AIQuestMaintenanceService(BaseService):
         supabase = get_supabase_admin_client()
 
         # Get all quests (both AI and human-created)
-        quests = supabase.table('quests').select('id, source').eq('is_active', True).execute()
+        quests = supabase.table('quests').select('id, quest_type').eq('is_active', True).execute()
 
         if not quests.data:
             return 0
@@ -410,11 +408,11 @@ class AIQuestMaintenanceService(BaseService):
         # Get quest creation trends (last 30 days)
         thirty_days_ago = (datetime.utcnow() - timedelta(days=30)).isoformat()
         recent_quests = supabase.table('quests')\
-            .select('created_at, source')\
+            .select('created_at, quest_type')\
             .gte('created_at', thirty_days_ago)\
             .execute()
 
-        ai_created_count = len([q for q in recent_quests.data if q.get('source') == 'ai_generated']) if recent_quests.data else 0
+        ai_created_count = len([q for q in recent_quests.data if q.get('quest_type') == 'optio']) if recent_quests.data else 0
         total_created_count = len(recent_quests.data) if recent_quests.data else 0
 
         return {
