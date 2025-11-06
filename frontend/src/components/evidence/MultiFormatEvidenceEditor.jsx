@@ -73,6 +73,21 @@ const MultiFormatEvidenceEditor = forwardRef(({
         (result) => {
           setSaveStatus('saved');
           setLastSaved(new Date());
+
+          // Update block IDs with real database UUIDs from save response
+          if (result.blocks && Array.isArray(result.blocks)) {
+            setBlocks(prevBlocks => {
+              return prevBlocks.map((block, index) => {
+                // Find matching saved block by order_index
+                const savedBlock = result.blocks.find(sb => sb.order_index === index);
+                if (savedBlock?.id && savedBlock.id !== block.id) {
+                  // Update temporary ID with real database UUID
+                  return { ...block, id: savedBlock.id };
+                }
+                return block;
+              });
+            });
+          }
         },
         (error) => {
           console.error('Auto-save failed:', error);
