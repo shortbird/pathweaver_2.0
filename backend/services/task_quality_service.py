@@ -175,7 +175,7 @@ Return ONLY valid JSON (no markdown):
   "suggested_pillar": "stem|wellness|communication|civics|art",
   "diploma_subjects": {{"Subject": percentage}},
   "overall_feedback": "1 concise sentence"
-}}
+}}"""
 
     def _validate_analysis_response(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
         """
