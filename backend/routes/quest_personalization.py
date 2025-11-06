@@ -251,10 +251,10 @@ def analyze_manual_task(user_id: str, quest_id: str):
                 'error': 'Task title must be at least 3 characters'
             }), 400
 
-        if not description or len(description) < 50:
+        if not description or len(description.strip()) == 0:
             return jsonify({
                 'success': False,
-                'error': 'Task description must be at least 50 characters (about 3 sentences)'
+                'error': 'Task description is required'
             }), 400
 
         # Analyze task quality using AI
