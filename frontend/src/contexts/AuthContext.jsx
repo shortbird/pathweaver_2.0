@@ -37,34 +37,42 @@ export const AuthProvider = ({ children }) => {
   })
 
   useEffect(() => {
-    // ✅ INCOGNITO FIX: Check for tokens before making /me request
+    // ✅ INCOGNITO FIX: Restore tokens from localStorage before checking session
     const checkSession = async () => {
       try {
-        // Check if we have tokens in memory (cross-origin/incognito mode)
+        // STEP 1: Restore tokens from localStorage (survives page refresh)
+        const tokensRestored = tokenStore.restoreTokens()
+
+        // STEP 2: Check if we have tokens (either restored or in memory)
         const hasTokens = !!tokenStore.getAccessToken()
 
         if (hasTokens) {
-          // We have tokens, try to fetch user profile
+          // We have tokens, verify with backend
           const response = await api.get('/api/auth/me')
           if (response.data) {
             setSession({ authenticated: true })
             setLoginTimestamp(Date.now())
+            console.log('[AuthContext] Session restored successfully')
           }
         } else {
-          // No tokens in memory, try cookie-based auth (same-origin mode)
+          // No tokens available - try cookie-based auth (localhost fallback)
           try {
             const response = await api.get('/api/auth/me')
             if (response.data) {
               setSession({ authenticated: true })
               setLoginTimestamp(Date.now())
+              console.log('[AuthContext] Session restored via cookies')
             }
           } catch {
-            // No valid session
+            // No valid session - user needs to log in
+            console.log('[AuthContext] No valid session found')
             setSession(null)
           }
         }
       } catch (error) {
-        // No valid session
+        // Token invalid/expired - clear and require login
+        console.log('[AuthContext] Session validation failed:', error.message)
+        tokenStore.clearTokens()
         setSession(null)
       } finally {
         setLoading(false)
@@ -156,9 +164,11 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (session) {
-        // ✅ SECURITY FIX: Tokens are now stored in secure httpOnly cookies only
-        // localStorage token storage removed to prevent XSS attacks
-        // The backend sets httpOnly cookies via session_manager.set_auth_cookies()
+        // ✅ INCOGNITO FIX: Extract and store tokens from registration response
+        const { app_access_token, app_refresh_token } = response.data
+        if (app_access_token && app_refresh_token) {
+          tokenStore.setTokens(app_access_token, app_refresh_token)
+        }
 
         setSession({ authenticated: true })
         setLoginTimestamp(Date.now()) // Force refresh of data

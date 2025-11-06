@@ -17,8 +17,9 @@ const api = axios.create({
   withCredentials: !isCrossOrigin(), // Only true for localhost
 })
 
-// ✅ INCOGNITO MODE FIX: Token storage in module scope (avoid circular dependency)
-// This is a simple closure that authService can access
+// ✅ INCOGNITO MODE FIX: Token storage with localStorage persistence
+// Tokens stored in both memory (fast access) and localStorage (survives page refresh)
+// localStorage works in incognito mode and is cleared when tab closes
 let tokenStorage = {
   accessToken: null,
   refreshToken: null
@@ -26,15 +27,59 @@ let tokenStorage = {
 
 // Export token storage interface for authService
 export const tokenStore = {
+  // Restore tokens from localStorage (call on app initialization)
+  restoreTokens: () => {
+    try {
+      const access = localStorage.getItem('app_access_token')
+      const refresh = localStorage.getItem('app_refresh_token')
+
+      if (access && refresh) {
+        tokenStorage.accessToken = access
+        tokenStorage.refreshToken = refresh
+        console.log('[TokenStore] Tokens restored from localStorage')
+        return true
+      }
+      console.log('[TokenStore] No tokens found in localStorage')
+      return false
+    } catch (e) {
+      // localStorage unavailable (strict privacy settings) - fallback to memory only
+      console.warn('[TokenStore] localStorage unavailable:', e.message)
+      return false
+    }
+  },
+
+  // Set tokens in both memory and localStorage
   setTokens: (access, refresh) => {
+    // Always update memory (fast access for request interceptor)
     tokenStorage.accessToken = access
     tokenStorage.refreshToken = refresh
+
+    // Persist to localStorage for page refresh survival
+    try {
+      localStorage.setItem('app_access_token', access)
+      localStorage.setItem('app_refresh_token', refresh)
+      console.log('[TokenStore] Tokens stored in memory and localStorage')
+    } catch (e) {
+      // localStorage quota exceeded or unavailable - continue with memory only
+      console.warn('[TokenStore] Failed to persist tokens to localStorage:', e.message)
+    }
   },
+
   getAccessToken: () => tokenStorage.accessToken,
   getRefreshToken: () => tokenStorage.refreshToken,
+
+  // Clear tokens from both memory and localStorage
   clearTokens: () => {
     tokenStorage.accessToken = null
     tokenStorage.refreshToken = null
+
+    try {
+      localStorage.removeItem('app_access_token')
+      localStorage.removeItem('app_refresh_token')
+      console.log('[TokenStore] Tokens cleared from memory and localStorage')
+    } catch (e) {
+      console.warn('[TokenStore] Failed to clear localStorage:', e.message)
+    }
   }
 }
 
