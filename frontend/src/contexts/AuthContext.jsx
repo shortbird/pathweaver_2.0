@@ -30,7 +30,7 @@ export const AuthProvider = ({ children }) => {
       const response = await api.get('/api/auth/me')
       return response.data
     },
-    enabled: !!session, // Only fetch if we have a session
+    enabled: false, // ✅ SPARK SSO FIX: Disable auto-fetching - we manually update cache in checkSession()
     staleTime: 5 * 60 * 1000, // Consider user data fresh for 5 minutes
     cacheTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
     retry: 1, // Only retry once for auth checks
