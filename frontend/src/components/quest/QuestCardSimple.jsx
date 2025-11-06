@@ -29,27 +29,51 @@ const QuestCardSimple = ({ quest }) => {
     >
       {/* Image Section with Title Overlay */}
       <div className="relative h-48 overflow-hidden">
-        {/* Background Image */}
-        {quest.image_url || quest.header_image_url ? (
-          <img
-            src={quest.image_url || quest.header_image_url}
-            alt={quest.title}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-          />
+        {/* Check if this is an OnFire course quest */}
+        {quest.lms_platform === 'spark' ? (
+          /* OnFire Quest: White background with logo on the right */
+          <>
+            <div className="w-full h-full bg-white flex items-center justify-between px-6">
+              {/* Title on the left */}
+              <h3 className="text-gray-900 text-lg sm:text-xl font-bold leading-tight line-clamp-3 flex-1 pr-4">
+                {quest.title}
+              </h3>
+              {/* OnFire logo on the right */}
+              <div className="flex-shrink-0">
+                <img
+                  src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/onfire.png"
+                  alt="OnFire"
+                  className="h-24 w-auto object-contain"
+                />
+              </div>
+            </div>
+          </>
         ) : (
-          /* Fallback gradient if no image */
-          <div className="w-full h-full bg-gradient-to-br bg-gradient-primary" />
+          /* Regular Quest: Background image with overlay */
+          <>
+            {/* Background Image */}
+            {quest.image_url || quest.header_image_url ? (
+              <img
+                src={quest.image_url || quest.header_image_url}
+                alt={quest.title}
+                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+            ) : (
+              /* Fallback gradient if no image */
+              <div className="w-full h-full bg-gradient-to-br bg-gradient-primary" />
+            )}
+
+            {/* Gradient Overlay for Text Readability */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent" />
+
+            {/* Title Overlay */}
+            <div className="absolute inset-x-0 bottom-0 p-6">
+              <h3 className="text-white text-lg sm:text-xl font-bold leading-tight drop-shadow-lg line-clamp-2">
+                {quest.title}
+              </h3>
+            </div>
+          </>
         )}
-
-        {/* Gradient Overlay for Text Readability */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent" />
-
-        {/* Title Overlay */}
-        <div className="absolute inset-x-0 bottom-0 p-6">
-          <h3 className="text-white text-lg sm:text-xl font-bold leading-tight drop-shadow-lg line-clamp-2">
-            {quest.title}
-          </h3>
-        </div>
       </div>
 
       {/* Conditional Section: Three states - Not Started, In Progress, Completed */}
