@@ -55,19 +55,10 @@ export default function AuthCallback() {
         }
 
         const data = await response.json()
-        const { user_id, access_token, refresh_token } = data
+        const { user_id } = data
 
-        // ✅ INCOGNITO MODE FIX: Dual authentication strategy
-        // - Cross-origin (Render): Tokens in response body → store in memory/localStorage
-        // - Same-origin (localhost): Tokens in httpOnly cookies → no storage needed
-        if (access_token && refresh_token) {
-          // Cross-origin mode: Store tokens for Authorization header
-          console.log('[AuthCallback] Storing tokens from response body (cross-origin mode)')
-          tokenStore.setTokens(access_token, refresh_token)
-        } else {
-          // Same-origin mode: Cookies automatically included in future requests
-          console.log('[AuthCallback] Using httpOnly cookies (same-origin mode)')
-        }
+        // ✅ SECURITY FIX: Tokens are now in httpOnly cookies (set by backend)
+        // No need to call tokenStore.setTokens() - cookies are automatically included in future requests
 
         // ✅ CRITICAL FIX: Fetch user data immediately and update React Query cache
         // This ensures AuthContext sees the authenticated state before navigation

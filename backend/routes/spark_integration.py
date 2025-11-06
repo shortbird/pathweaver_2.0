@@ -192,54 +192,36 @@ def exchange_auth_code():
         logger.info(f"Token exchange successful: user_id={user_id}")
 
         # ✅ SECURITY FIX: Set httpOnly cookies (like /api/auth/login does)
-        # ✅ INCOGNITO MODE FIX: Dual authentication strategy based on deployment mode
-        # - Cross-origin (Render): Return tokens in response body (incognito mode compatible)
-        # - Same-origin (localhost): Use httpOnly cookies (more secure, no XSS risk)
+        # Tokens should NEVER be in response body to prevent XSS attacks
         from flask import make_response
+        response = make_response(jsonify({
+            'user_id': user_id,
+            'message': 'Authentication successful'
+        }), 200)
 
-        if session_manager.is_cross_origin:
-            # Cross-origin deployment: Return tokens in response body for Authorization headers
-            # Frontend will store in memory/localStorage and send via Authorization: Bearer {token}
-            # This works in incognito mode where SameSite=None cookies are blocked
-            logger.info("[Spark SSO] Cross-origin mode: Returning tokens in response body")
-            return jsonify({
-                'user_id': user_id,
-                'access_token': access_token,
-                'refresh_token': refresh_token,
-                'message': 'Authentication successful'
-            }), 200
-        else:
-            # Same-origin deployment: Use httpOnly cookies (XSS protection)
-            # Tokens should NEVER be in response body for same-origin to prevent XSS attacks
-            logger.info("[Spark SSO] Same-origin mode: Setting httpOnly cookies")
-            response = make_response(jsonify({
-                'user_id': user_id,
-                'message': 'Authentication successful'
-            }), 200)
+        # Set httpOnly cookies (cross-origin compatible with credentials: 'include')
+        # IMPORTANT: Cookie names MUST match session_manager.py lines 141/151 (access_token, refresh_token)
+        response.set_cookie(
+            'access_token',
+            access_token,
+            max_age=3600,  # 1 hour
+            httponly=True,
+            secure=session_manager.cookie_secure,
+            samesite=session_manager.cookie_samesite,
+            path='/'
+        )
 
-            # Set httpOnly cookies (same-origin only)
-            # IMPORTANT: Cookie names MUST match session_manager.py lines 141/151 (access_token, refresh_token)
-            response.set_cookie(
-                'access_token',
-                access_token,
-                max_age=3600,  # 1 hour
-                httponly=True,
-                secure=session_manager.cookie_secure,
-                samesite=session_manager.cookie_samesite,
-                path='/'
-            )
+        response.set_cookie(
+            'refresh_token',
+            refresh_token,
+            max_age=2592000,  # 30 days
+            httponly=True,
+            secure=session_manager.cookie_secure,
+            samesite=session_manager.cookie_samesite,
+            path='/'
+        )
 
-            response.set_cookie(
-                'refresh_token',
-                refresh_token,
-                max_age=2592000,  # 30 days
-                httponly=True,
-                secure=session_manager.cookie_secure,
-                samesite=session_manager.cookie_samesite,
-                path='/'
-            )
-
-            return response
+        return response
 
     except Exception as e:
         logger.error(f"Token exchange error: {str(e)}", exc_info=True)
