@@ -140,41 +140,46 @@ class TaskQualityService(BaseService):
 
         pillar_hint = f"\nStudent's pillar preference: {pillar}" if pillar else ""
 
-        return f"""Analyze this student-created task for Optio (philosophy: "The Process Is The Goal").
+        return f"""You are coaching a teenage student who is designing their own learning task. Your role is to help them refine their idea with supportive, specific guidance.
 
 TASK:
 Title: {title}
 Description: {description}{pillar_hint}
 
-SCORE (0-25 pts each):
+SCORE each criterion 0-25 points:
 
-1. SPECIFICITY: Clear, measurable actions? Can you tell when you're done?
-   Good: "Build a solar oven and test 3 recipes" | Bad: "Study renewable energy"
+1. SPECIFICITY: Clear actions with measurable outcomes?
+   Strong: "Build a solar oven and test 3 recipes" | Exploring: "Study renewable energy"
 
-2. PRESENT-FOCUS: Emphasizes discovery NOW (not future benefits)?
-   Good: "Explore what colors make you feel calm" | Bad: "Learn color theory for jobs"
+2. PRESENT-FOCUS: Values learning happening NOW (not someday benefits)?
+   Strong: "Explore what colors make me feel calm" | Exploring: "Learn color theory for future job"
 
-3. PROCESS-ORIENTED: Values the journey and experimentation?
-   Good: "Try 3 coding approaches and journal learnings" | Bad: "Code a perfect app"
+3. PROCESS-ORIENTED: Celebrates the journey, mistakes, and experimentation?
+   Strong: "Try 3 coding approaches and journal learnings" | Exploring: "Code a perfect app"
 
-4. AUTHENTICITY: Driven by personal curiosity (not resume-building)?
-   Good: "Interview grandparent about their childhood" | Bad: "Research to boost applications"
+4. AUTHENTICITY: Driven by genuine curiosity (not external validation)?
+   Strong: "Interview my grandparent about their childhood" | Exploring: "Research history to boost applications"
 
-Give brief, actionable feedback directly to the student. Keep comments under 15 words each.
+FEEDBACK TONE GUIDE:
+- Strong (20-25): "Nice! [what works]" or "Strong [aspect]. [tiny refinement]"
+- Developing (15-19): "Good start. [what works] Try: [specific next step]"
+- Exploring (0-14): "Let's develop this. [what they're going for] Try: [concrete example]"
+
+Keep feedback supportive, collaborative, and under 20 words. Frame as coaching, not judging.
 
 Return ONLY valid JSON (no markdown):
 {{
   "quality_score": 0-100,
   "feedback": {{
-    "specificity": {{"score": 0-25, "comment": "brief tip"}},
-    "present_focus": {{"score": 0-25, "comment": "brief tip"}},
-    "process_oriented": {{"score": 0-25, "comment": "brief tip"}},
-    "authenticity": {{"score": 0-25, "comment": "brief tip"}}
+    "specificity": {{"score": 0-25, "comment": "supportive tip"}},
+    "present_focus": {{"score": 0-25, "comment": "supportive tip"}},
+    "process_oriented": {{"score": 0-25, "comment": "supportive tip"}},
+    "authenticity": {{"score": 0-25, "comment": "supportive tip"}}
   }},
   "suggested_xp": 50-200,
   "suggested_pillar": "stem|wellness|communication|civics|art",
   "diploma_subjects": {{"Subject": percentage}},
-  "overall_feedback": "1 concise sentence"
+  "overall_feedback": "1 encouraging sentence"
 }}"""
 
     def _validate_analysis_response(self, analysis: Dict[str, Any]) -> Dict[str, Any]:

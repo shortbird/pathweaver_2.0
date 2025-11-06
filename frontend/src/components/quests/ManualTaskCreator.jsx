@@ -140,10 +140,11 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
 
     const { quality_score, feedback, suggested_xp, suggested_pillar, approval_status, overall_feedback } = analysis;
 
-    const getFeedbackIcon = (score) => {
-      if (score >= 20) return '✅';
-      if (score >= 15) return '⚠️';
-      return '❌';
+    const getFeedbackIndicator = (score) => {
+      // Development stages: celebrates progress, not just achievement
+      if (score >= 20) return { icon: '🌟', label: 'Strong', colorClass: 'text-green-600' };
+      if (score >= 15) return { icon: '⚙️', label: 'Developing', colorClass: 'text-amber-600' };
+      return { icon: '💭', label: 'Exploring', colorClass: 'text-blue-600' };
     };
 
     return (
@@ -162,20 +163,28 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {Object.entries(feedback).map(([criterion, data]) => (
-                <div key={criterion} className="bg-white p-3 rounded border border-gray-200">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-lg">{getFeedbackIcon(data.score)}</span>
-                    <span className="text-sm font-semibold text-gray-900 capitalize">
-                      {criterion.replace('_', ' ')}
-                    </span>
-                    <span className="text-xs text-gray-500 ml-auto">
-                      {data.score}/25
-                    </span>
+              {Object.entries(feedback).map(([criterion, data]) => {
+                const indicator = getFeedbackIndicator(data.score);
+                return (
+                  <div key={criterion} className="bg-white p-3 rounded border border-gray-200">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-lg">{indicator.icon}</span>
+                      <div className="flex-1">
+                        <span className="text-sm font-semibold text-gray-900 capitalize block">
+                          {criterion.replace('_', ' ')}
+                        </span>
+                        <span className={`text-xs font-medium ${indicator.colorClass}`}>
+                          {indicator.label}
+                        </span>
+                      </div>
+                      <span className="text-sm font-bold text-gray-700">
+                        {data.score}/25
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-700 leading-relaxed">{data.comment}</p>
                   </div>
-                  <p className="text-xs text-gray-600">{data.comment}</p>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div className="flex items-center gap-4 text-sm">
@@ -192,27 +201,35 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
             {/* Action Buttons */}
             <div className="flex gap-3 pt-2">
               {quality_score >= 70 && (
-                <button
-                  onClick={handleAddTask}
-                  className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg transition-colors"
-                >
-                  ✓ Add Task
-                </button>
+                <>
+                  <button
+                    onClick={handleAddTask}
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
+                  >
+                    Add This Task
+                  </button>
+                  <button
+                    onClick={handleRevise}
+                    className="px-4 py-2 bg-white hover:bg-purple-50 text-purple-600 border-2 border-purple-600 font-semibold rounded-lg transition-colors"
+                  >
+                    Keep Refining
+                  </button>
+                </>
               )}
 
               {quality_score >= 50 && quality_score < 70 && (
                 <>
                   <button
                     onClick={handleRevise}
-                    className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white font-semibold rounded-lg transition-colors"
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
                   >
-                    ✏️ Revise
+                    Refine This Task
                   </button>
                   <button
                     onClick={handleSubmitAnyway}
-                    className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg transition-colors"
+                    className="px-4 py-2 bg-white hover:bg-purple-50 text-purple-600 border-2 border-purple-600 font-semibold rounded-lg transition-colors"
                   >
-                    Submit for Review
+                    Ask Advisor to Review
                   </button>
                 </>
               )}
@@ -220,9 +237,9 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
               {quality_score < 50 && (
                 <button
                   onClick={handleRevise}
-                  className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg transition-colors"
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
                 >
-                  ✏️ Revise Task
+                  Develop This Further
                 </button>
               )}
             </div>
