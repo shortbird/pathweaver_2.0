@@ -21,6 +21,7 @@ from backend.repositories import (
 )
 from utils.auth.decorators import require_auth
 from services.personalization_service import personalization_service
+from services.task_quality_service import TaskQualityService
 from datetime import datetime
 
 from utils.logger import get_logger
@@ -229,10 +230,201 @@ def edit_task(user_id: str, quest_id: str):
             'error': 'Failed to edit task'
         }), 500
 
+@bp.route('/<quest_id>/analyze-manual-task', methods=['POST'])
+@require_auth
+def analyze_manual_task(user_id: str, quest_id: str):
+    """
+    Analyze a student-created task for quality using AI.
+    Returns quality score, feedback, and suggested XP/pillar values.
+    """
+    try:
+        data = request.get_json()
+
+        title = data.get('title', '').strip()
+        description = data.get('description', '').strip()
+        pillar = data.get('pillar', '').strip()
+
+        # Validate inputs
+        if not title or len(title) < 3:
+            return jsonify({
+                'success': False,
+                'error': 'Task title must be at least 3 characters'
+            }), 400
+
+        if not description or len(description) < 50:
+            return jsonify({
+                'success': False,
+                'error': 'Task description must be at least 50 characters (about 3 sentences)'
+            }), 400
+
+        # Analyze task quality using AI
+        quality_service = TaskQualityService()
+        analysis = quality_service.analyze_task_quality(
+            title=title,
+            description=description,
+            pillar=pillar if pillar else None
+        )
+
+        logger.info(
+            f"Task quality analysis for user {user_id}: "
+            f"score={analysis['quality_score']}, "
+            f"status={analysis['approval_status']}"
+        )
+
+        return jsonify({
+            'success': True,
+            **analysis
+        })
+
+    except ValueError as e:
+        logger.error(f"Validation error in analyze_manual_task: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 400
+    except Exception as e:
+        logger.error(f"Error analyzing manual task: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Failed to analyze task. Please try again.'
+        }), 500
+
+@bp.route('/<quest_id>/add-manual-tasks', methods=['POST'])
+@require_auth
+def add_manual_tasks_batch(user_id: str, quest_id: str):
+    """
+    Add multiple student-created tasks at once after quality analysis.
+    Tasks with score >= 70 are auto-approved.
+    """
+    try:
+        from utils.pillar_mapping import normalize_pillar_name
+
+        supabase = get_supabase_admin_client()
+        data = request.get_json()
+
+        tasks = data.get('tasks', [])
+
+        if not tasks:
+            return jsonify({
+                'success': False,
+                'error': 'No tasks provided'
+            }), 400
+
+        # Check if already enrolled, if not create enrollment
+        existing_enrollment = supabase.table('user_quests')\
+            .select('id, is_active')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .eq('is_active', True)\
+            .execute()
+
+        if existing_enrollment.data:
+            user_quest_id = existing_enrollment.data[0]['id']
+        else:
+            enrollment = supabase.table('user_quests')\
+                .insert({
+                    'user_id': user_id,
+                    'quest_id': quest_id,
+                    'started_at': datetime.utcnow().isoformat(),
+                    'is_active': True
+                })\
+                .execute()
+
+            if not enrollment.data:
+                return jsonify({
+                    'success': False,
+                    'error': 'Failed to create quest enrollment'
+                }), 500
+
+            user_quest_id = enrollment.data[0]['id']
+
+        # Get next order_index
+        existing_tasks = supabase.table('user_quest_tasks')\
+            .select('order_index')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .execute()
+
+        max_order = max(
+            [t.get('order_index', -1) for t in existing_tasks.data],
+            default=-1
+        ) if existing_tasks.data else -1
+
+        # Create user_quest_tasks entries
+        created_tasks = []
+        auto_approved_count = 0
+        pending_review_count = 0
+
+        for idx, task in enumerate(tasks):
+            # Normalize pillar name
+            try:
+                pillar_key = normalize_pillar_name(task.get('pillar', 'stem'))
+            except ValueError:
+                pillar_key = 'stem'
+
+            # Ensure diploma_subjects is a dict
+            diploma_subjects = task.get('diploma_subjects', {})
+            if not isinstance(diploma_subjects, dict):
+                diploma_subjects = {'Electives': task.get('xp_value', 100)}
+
+            # Determine approval status
+            approval_status = task.get('approval_status', 'pending_review')
+            if approval_status == 'approved':
+                auto_approved_count += 1
+            else:
+                pending_review_count += 1
+
+            user_task = {
+                'user_id': user_id,
+                'quest_id': quest_id,
+                'user_quest_id': user_quest_id,
+                'title': task['title'],
+                'description': task.get('description', ''),
+                'pillar': pillar_key,
+                'diploma_subjects': diploma_subjects,
+                'xp_value': task.get('xp_value', 100),
+                'order_index': max_order + idx + 1,
+                'is_required': True,
+                'is_manual': True,
+                'approval_status': approval_status,
+                'created_at': datetime.utcnow().isoformat()
+            }
+
+            result = supabase.table('user_quest_tasks')\
+                .insert(user_task)\
+                .execute()
+
+            if result.data:
+                created_tasks.append(result.data[0])
+
+        logger.info(
+            f"User {user_id} added {len(created_tasks)} manual tasks to quest {quest_id}. "
+            f"Auto-approved: {auto_approved_count}, Pending review: {pending_review_count}"
+        )
+
+        return jsonify({
+            'success': True,
+            'tasks': created_tasks,
+            'auto_approved_count': auto_approved_count,
+            'pending_review_count': pending_review_count,
+            'message': f'Added {len(created_tasks)} task(s). ' +
+                      (f'{auto_approved_count} auto-approved, ' if auto_approved_count else '') +
+                      (f'{pending_review_count} pending admin review.' if pending_review_count else 'All approved!')
+        })
+
+    except Exception as e:
+        logger.error(f"Error adding manual tasks: {str(e)}", exc_info=True)
+        return jsonify({
+            'success': False,
+            'error': 'Failed to add tasks. Please try again.'
+        }), 500
+
 @bp.route('/<quest_id>/add-manual-task', methods=['POST'])
 @require_auth
 def add_manual_task(user_id: str, quest_id: str):
     """
+    DEPRECATED: Use add-manual-tasks endpoint instead.
+
     Student adds a custom task. Requires admin approval.
 
     Request body:

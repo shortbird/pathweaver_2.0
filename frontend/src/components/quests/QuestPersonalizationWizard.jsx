@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { X, Check, Flag } from 'lucide-react';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
+import ManualTaskCreator from './ManualTaskCreator';
 
 const INTEREST_OPTIONS = [
   { id: 'sports', label: 'Sports & Athletics', icon: '⚽' },
@@ -32,6 +33,9 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
   const [error, setError] = useState(null);
   const navigate = useNavigate();
 
+  // NEW: Creation method selection
+  const [creationMethod, setCreationMethod] = useState(null); // 'ai' or 'manual'
+
   // Wizard state
   const [selectedInterests, setSelectedInterests] = useState([]);
   const [crossCurricularSubjects, setCrossCurricularSubjects] = useState([]);
@@ -44,17 +48,25 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
   const [flagReason, setFlagReason] = useState('');
 
   // Start personalization session
-  const startSession = async () => {
+  const startSession = async (method) => {
+    setCreationMethod(method);
     setLoading(true);
     setError(null);
     try {
-      const response = await api.post(`/api/quests/${questId}/start-personalization`, {});
+      const response = await api.post(`/api/quests/${questId}/start-personalization`, {
+        creation_method: method
+      });
       const newSessionId = response.data.session_id;
       if (!newSessionId) {
         throw new Error('No session ID returned from server');
       }
       setSessionId(newSessionId);
-      setStep(2); // Skip to interests (was step 3, now step 2)
+
+      if (method === 'ai') {
+        setStep(2); // Go to interests selection
+      } else {
+        setStep(3); // Go directly to manual task creation
+      }
     } catch (err) {
       console.error('Failed to start session:', err);
       setError(err.response?.data?.error || err.message || 'Failed to start personalization');
@@ -95,13 +107,19 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       setGeneratedTasks(tasks);
       setCurrentTaskIndex(0);
       setAcceptedTasks([]);
-      setStep(3); // Move to one-at-a-time review (was step 4, now step 3)
+      setStep(4); // Move to one-at-a-time review for AI path
     } catch (err) {
       console.error('Failed to generate tasks:', err);
       setError(err.response?.data?.error || err.message || 'Failed to generate tasks');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Handle manual task creation completion
+  const handleManualTasksCreated = (response) => {
+    console.log('Manual tasks created:', response);
+    onComplete(response);
   };
 
   // Handle accepting a task
@@ -218,24 +236,26 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
   };
 
   const currentTask = generatedTasks[currentTaskIndex];
-  const totalSteps = 3; // Reduced from 4
+  const totalSteps = creationMethod === 'ai' ? 4 : 3; // AI: path selection, interests, generation, review. Manual: path selection, skip interests, manual creator
 
   return (
     <div className="max-w-4xl mx-auto p-8">
-      {/* Progress indicator */}
-      <div className="mb-8">
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-sm font-bold uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>
-            Step {step} of {totalSteps}
-          </span>
+      {/* Progress indicator - hide for manual path step 3 (full-screen component) */}
+      {!(creationMethod === 'manual' && step === 3) && (
+        <div className="mb-8">
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-sm font-bold uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>
+              Step {step} of {totalSteps}
+            </span>
+          </div>
+          <div className="w-full bg-gray-200 rounded-full h-3">
+            <div
+              className="bg-gradient-primary h-3 rounded-full transition-all duration-300"
+              style={{ width: `${(step / totalSteps) * 100}%` }}
+            />
+          </div>
         </div>
-        <div className="w-full bg-gray-200 rounded-full h-3">
-          <div
-            className="bg-gradient-primary h-3 rounded-full transition-all duration-300"
-            style={{ width: `${(step / totalSteps) * 100}%` }}
-          />
-        </div>
-      </div>
+      )}
 
       {error && (
         <div className="mb-6 p-5 bg-red-50 border-2 border-red-200 rounded-xl text-red-700">
@@ -243,30 +263,53 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
         </div>
       )}
 
-      {/* Step 1: Welcome */}
+      {/* Step 1: Choose Creation Method */}
       {step === 1 && (
         <div className="text-center">
           <h2 className="text-4xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
-            Personalize Your Quest
+            How would you like to create tasks?
           </h2>
-          <p className="text-gray-600 mb-6 max-w-2xl mx-auto text-lg" style={{ fontFamily: 'Poppins' }}>
-            Let's customize "{questTitle}" to match your interests and learning style.
-            Our AI will help generate tasks that are meaningful to you.
+          <p className="text-gray-600 mb-8 max-w-2xl mx-auto text-lg" style={{ fontFamily: 'Poppins' }}>
+            Choose how you want to build your quest for "{questTitle}"
           </p>
-          <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-5 mb-6 max-w-2xl mx-auto">
-            <p className="text-sm text-blue-900" style={{ fontFamily: 'Poppins' }}>
-              💡 <strong>Remember:</strong> You're in control. The AI suggests tasks based on your choices,
-              but you decide what to learn. You can accept, skip, or flag any task.
-            </p>
+
+          <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto mb-6">
+            {/* AI Generation Option */}
+            <button
+              onClick={() => startSession('ai')}
+              disabled={loading}
+              className="group p-8 border-2 border-gray-300 rounded-xl hover:border-purple-500 hover:shadow-xl transition-all text-left disabled:opacity-50"
+            >
+              <div className="text-5xl mb-4">✨</div>
+              <h3 className="text-2xl font-bold mb-2 group-hover:text-purple-600 transition-colors" style={{ fontFamily: 'Poppins' }}>
+                AI Generate
+              </h3>
+              <p className="text-gray-600" style={{ fontFamily: 'Poppins' }}>
+                Let AI create personalized tasks based on your interests and learning style
+              </p>
+            </button>
+
+            {/* Manual Creation Option */}
+            <button
+              onClick={() => startSession('manual')}
+              disabled={loading}
+              className="group p-8 border-2 border-gray-300 rounded-xl hover:border-pink-500 hover:shadow-xl transition-all text-left disabled:opacity-50"
+            >
+              <div className="text-5xl mb-4">✍️</div>
+              <h3 className="text-2xl font-bold mb-2 group-hover:text-pink-600 transition-colors" style={{ fontFamily: 'Poppins' }}>
+                Write My Own
+              </h3>
+              <p className="text-gray-600" style={{ fontFamily: 'Poppins' }}>
+                Create custom tasks based on your own ideas with AI quality feedback
+              </p>
+            </button>
           </div>
-          <button
-            onClick={startSession}
-            disabled={loading}
-            className="px-8 py-4 bg-gradient-primary text-white rounded-xl font-bold text-lg hover:shadow-xl transition-all disabled:opacity-50"
-            style={{ fontFamily: 'Poppins' }}
-          >
-            {loading ? 'Starting...' : 'Begin Personalization'}
-          </button>
+
+          {loading && (
+            <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins' }}>
+              Starting...
+            </p>
+          )}
         </div>
       )}
 
@@ -358,8 +401,18 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
         </div>
       )}
 
-      {/* Step 3: One-at-a-Time Task Review (previously Step 4) */}
-      {step === 3 && currentTask && (
+      {/* Step 3: Manual Task Creator (manual path only) */}
+      {step === 3 && creationMethod === 'manual' && (
+        <ManualTaskCreator
+          questId={questId}
+          sessionId={sessionId}
+          onTasksCreated={handleManualTasksCreated}
+          onCancel={onCancel}
+        />
+      )}
+
+      {/* Step 4: One-at-a-Time Task Review (AI path only) */}
+      {step === 4 && creationMethod === 'ai' && currentTask && (
         <div>
           <div className="mb-6">
             <div className="flex items-center justify-between mb-2">
