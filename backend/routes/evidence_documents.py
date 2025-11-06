@@ -52,7 +52,12 @@ def get_evidence_document(user_id: str, task_id: str):
     Returns the document with all content blocks.
     """
     try:
-        supabase = get_user_client()
+        # JUSTIFICATION: Using admin client for evidence retrieval because:
+        # 1. User authentication already validated by @require_auth decorator
+        # 2. Spark SSO users don't have Supabase auth.users entries (only public.users)
+        # 3. RLS policies check auth.uid() which doesn't exist for Spark users
+        # 4. We validate user_id matches request below (security check)
+        supabase = get_supabase_admin_client()
 
         # Get the evidence document
         document_response = supabase.table('user_task_evidence_documents')\
