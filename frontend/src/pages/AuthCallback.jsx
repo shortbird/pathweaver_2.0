@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import api, { tokenStore } from '../services/api'
+import { tokenStore } from '../services/api'
 
 /**
  * OAuth Authorization Code Callback Page
@@ -10,7 +10,8 @@ import api, { tokenStore } from '../services/api'
  * 1. Receives one-time auth code from SSO redirect
  * 2. Exchanges code for access/refresh tokens via POST
  * 3. Stores tokens in memory (not localStorage - XSS protection)
- * 4. Redirects to dashboard
+ * 4. Updates AuthContext with user session
+ * 5. Redirects to dashboard
  *
  * SECURITY: Tokens never appear in URL, only the one-time code does.
  */
@@ -50,15 +51,16 @@ export default function AuthCallback() {
         const data = await response.json()
         const { access_token, refresh_token, user_id } = data
 
-        // Store tokens in memory (NOT localStorage - prevents XSS)
+        // Store tokens in memory + localStorage (survives page refresh)
         tokenStore.setTokens(access_token, refresh_token)
 
         setStatus('success')
 
-        // Redirect to dashboard
+        // Use window.location to force a full page reload
+        // This ensures AuthContext's checkSession useEffect runs with the new tokens
         setTimeout(() => {
-          navigate('/dashboard', { replace: true })
-        }, 500)
+          window.location.href = '/dashboard'
+        }, 300)
       } catch (err) {
         console.error('Token exchange failed:', err)
         setError(err.response?.data?.error || 'Authentication failed')
