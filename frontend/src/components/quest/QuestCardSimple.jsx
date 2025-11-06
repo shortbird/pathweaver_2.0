@@ -32,22 +32,24 @@ const QuestCardSimple = ({ quest }) => {
         {/* Check if this is an OnFire course quest */}
         {quest.lms_platform === 'spark' ? (
           /* OnFire Quest: White background with logo on the right */
-          <>
-            <div className="w-full h-full bg-white flex items-center justify-between px-6">
-              {/* Title on the left */}
-              <h3 className="text-gray-900 text-lg sm:text-xl font-bold leading-tight line-clamp-3 flex-1 pr-4">
-                {quest.title}
-              </h3>
-              {/* OnFire logo on the right */}
-              <div className="flex-shrink-0">
-                <img
-                  src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/onfire.png"
-                  alt="OnFire"
-                  className="h-24 w-auto object-contain"
-                />
-              </div>
+          <div className="w-full h-full bg-white flex items-center justify-between px-6">
+            {/* Title on the left */}
+            <h3 className="text-gray-900 text-lg sm:text-xl font-bold leading-tight line-clamp-3 flex-1 pr-4" style={{ fontFamily: 'Poppins' }}>
+              {quest.title}
+            </h3>
+            {/* OnFire logo on the right */}
+            <div className="flex-shrink-0">
+              <img
+                src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/onfire.png"
+                alt="OnFire"
+                className="h-24 w-auto object-contain"
+                onError={(e) => {
+                  console.error('Failed to load OnFire logo');
+                  e.target.style.display = 'none';
+                }}
+              />
             </div>
-          </>
+          </div>
         ) : (
           /* Regular Quest: Background image with overlay */
           <>
