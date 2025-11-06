@@ -99,9 +99,11 @@ def save_evidence_document(user_id: str, task_id: str):
     This is used for auto-save and manual save operations.
     """
     try:
-        supabase = get_user_client()
-        # JUSTIFICATION: Admin client only for Supabase storage operations (line 361, 367)
-        # User client handles all database operations with proper RLS enforcement
+        # JUSTIFICATION: Using admin client for evidence operations because:
+        # 1. User authentication already validated by @require_auth decorator
+        # 2. Spark SSO users don't have Supabase auth.users entries (only public.users)
+        # 3. RLS policies check auth.uid() which doesn't exist for Spark users
+        # 4. We validate user_id matches task owner below (lines 126-130)
         admin_supabase = get_supabase_admin_client()
 
         data = request.get_json()
@@ -109,7 +111,7 @@ def save_evidence_document(user_id: str, task_id: str):
         status = data.get('status', 'draft')  # 'draft' or 'completed'
 
         # Validate task exists and user is enrolled (V3 personalized task system)
-        task_check = supabase.table('user_quest_tasks')\
+        task_check = admin_supabase.table('user_quest_tasks')\
             .select('quest_id, title, xp_value, pillar, user_id')\
             .eq('id', task_id)\
             .execute()
@@ -132,7 +134,7 @@ def save_evidence_document(user_id: str, task_id: str):
         quest_id = task_check.data[0]['quest_id']
 
         # Check if user is enrolled in the quest
-        enrollment = supabase.table('user_quests')\
+        enrollment = admin_supabase.table('user_quests')\
             .select('id')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
@@ -146,7 +148,7 @@ def save_evidence_document(user_id: str, task_id: str):
             }), 403
 
         # Get or create evidence document using upsert pattern
-        document_response = supabase.table('user_task_evidence_documents')\
+        document_response = admin_supabase.table('user_task_evidence_documents')\
             .select('*')\
             .eq('user_id', user_id)\
             .eq('task_id', task_id)\
@@ -164,14 +166,14 @@ def save_evidence_document(user_id: str, task_id: str):
             if status == 'completed':
                 update_data['completed_at'] = datetime.utcnow().isoformat()
 
-            supabase.table('user_task_evidence_documents')\
+            admin_supabase.table('user_task_evidence_documents')\
                 .update(update_data)\
                 .eq('id', document_id)\
                 .execute()
         else:
             # Create new document with conflict handling
             try:
-                document_insert = supabase.table('user_task_evidence_documents')\
+                document_insert = admin_supabase.table('user_task_evidence_documents')\
                     .insert({
                         'user_id': user_id,
                         'quest_id': quest_id,
@@ -183,7 +185,7 @@ def save_evidence_document(user_id: str, task_id: str):
 
                 if not document_insert.data:
                     # If insert failed, try to get it again (race condition)
-                    document_response = supabase.table('user_task_evidence_documents')\
+                    document_response = admin_supabase.table('user_task_evidence_documents')\
                         .select('*')\
                         .eq('user_id', user_id)\
                         .eq('task_id', task_id)\
@@ -201,7 +203,7 @@ def save_evidence_document(user_id: str, task_id: str):
             except Exception as insert_error:
                 # Handle 409 conflict - document was created by another request
                 logger.error(f"Insert conflict (likely race condition): {str(insert_error)}")
-                document_response = supabase.table('user_task_evidence_documents')\
+                document_response = admin_supabase.table('user_task_evidence_documents')\
                     .select('*')\
                     .eq('user_id', user_id)\
                     .eq('task_id', task_id)\
@@ -213,7 +215,7 @@ def save_evidence_document(user_id: str, task_id: str):
                     raise  # Re-raise if we still can't find it
 
         # Update content blocks
-        update_document_blocks(supabase, document_id, blocks)
+        update_document_blocks(admin_supabase, document_id, blocks)
 
         # If completing the task, award XP
         xp_awarded = 0
@@ -222,7 +224,7 @@ def save_evidence_document(user_id: str, task_id: str):
 
         if status == 'completed':
             # Check if this task was already completed (V3 system)
-            existing_completion = supabase.table('quest_task_completions')\
+            existing_completion = admin_supabase.table('quest_task_completions')\
                 .select('id')\
                 .eq('user_id', user_id)\
                 .eq('task_id', task_id)\
@@ -239,7 +241,7 @@ def save_evidence_document(user_id: str, task_id: str):
                 )
 
                 # Create task completion record using V3 system
-                completion = supabase.table('quest_task_completions')\
+                completion = admin_supabase.table('quest_task_completions')\
                     .insert({
                         'user_id': user_id,
                         'quest_id': quest_id,
@@ -263,10 +265,10 @@ def save_evidence_document(user_id: str, task_id: str):
                     )
 
                     # Check if quest is now completed
-                    quest_completed = check_quest_completion(supabase, user_id, quest_id)
+                    quest_completed = check_quest_completion(admin_supabase, user_id, quest_id)
 
         # Get the saved blocks to return their IDs
-        saved_blocks_response = supabase.table('evidence_document_blocks')\
+        saved_blocks_response = admin_supabase.table('evidence_document_blocks')\
             .select('id, order_index')\
             .eq('document_id', document_id)\
             .order('order_index')\
