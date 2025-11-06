@@ -13,10 +13,11 @@ import { queryKeys } from '../utils/queryKeys'
  * 1. Receives one-time auth code from SSO redirect
  * 2. Exchanges code for access/refresh tokens via POST
  * 3. Stores tokens in memory (not localStorage - XSS protection)
- * 4. Updates AuthContext with user session
+ * 4. Updates AuthContext with user session via React Query cache
  * 5. Redirects to dashboard
  *
  * SECURITY: Tokens never appear in URL, only the one-time code does.
+ * NOTE: Must update React Query cache BEFORE navigation to avoid race condition.
  */
 export default function AuthCallback() {
   const [searchParams] = useSearchParams()
