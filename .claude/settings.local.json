@@ -21,7 +21,8 @@
       "Bash(if [ -z \"$SUPABASE_SERVICE_KEY\" ])",
       "Bash(then echo \"❌ SUPABASE_SERVICE_KEY is not set\")",
       "Bash(else echo \"✅ SUPABASE_SERVICE_KEY is set\")",
-      "Bash(fi)"
+      "Bash(fi)",
+      "Bash(0\"\n- Set subject_xp_distribution to null for new tasks\n- Added backward compatibility for existing template tasks with subject XP\n\nBackend (tasks.py):\n- Added clarifying comment that subject XP distribution is optional\n- Existing logic already handles null/empty subject_xp_distribution gracefully\n- Tasks without subject XP only award pillar XP (no changes needed)\n\nImpact:\n- New tasks store only pillar + xp_value\n- Diploma/transcript no longer tracks traditional school subjects for new tasks\n- Existing tasks with subject XP remain functional (backward compatible)\n- Significantly simplified UX for advisors creating tasks\n\n🤖 Generated with Claude Code\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
