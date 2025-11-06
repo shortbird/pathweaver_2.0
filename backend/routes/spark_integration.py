@@ -200,8 +200,9 @@ def exchange_auth_code():
         }), 200)
 
         # Set httpOnly cookies (cross-origin compatible with credentials: 'include')
+        # IMPORTANT: Cookie names MUST match session_manager.py lines 141/151 (access_token, refresh_token)
         response.set_cookie(
-            'supabase_access_token',
+            'access_token',
             access_token,
             max_age=3600,  # 1 hour
             httponly=True,
@@ -211,7 +212,7 @@ def exchange_auth_code():
         )
 
         response.set_cookie(
-            'supabase_refresh_token',
+            'refresh_token',
             refresh_token,
             max_age=2592000,  # 30 days
             httponly=True,
