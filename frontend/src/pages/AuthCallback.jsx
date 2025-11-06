@@ -45,6 +45,7 @@ export default function AuthCallback() {
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include',  // ✅ CRITICAL: Enable cookie sending/receiving
           body: JSON.stringify({ code }),
         })
 
@@ -54,10 +55,10 @@ export default function AuthCallback() {
         }
 
         const data = await response.json()
-        const { access_token, refresh_token, user_id } = data
+        const { user_id } = data
 
-        // Store tokens in memory + localStorage (survives page refresh)
-        tokenStore.setTokens(access_token, refresh_token)
+        // ✅ SECURITY FIX: Tokens are now in httpOnly cookies (set by backend)
+        // No need to call tokenStore.setTokens() - cookies are automatically included in future requests
 
         // ✅ CRITICAL FIX: Fetch user data immediately and update React Query cache
         // This ensures AuthContext sees the authenticated state before navigation

@@ -138,9 +138,12 @@ def exchange_auth_code():
         code: One-time authorization code from SSO redirect
 
     Returns:
-        200: {access_token, refresh_token, user_id}
+        200: {user_id} + httpOnly cookies with tokens
         400: Missing/invalid code
         401: Code expired or already used
+
+    SECURITY: Tokens are set as httpOnly cookies (not in response body) to prevent XSS attacks.
+    This matches the authentication pattern used by /api/auth/login endpoint.
     """
     try:
         data = request.get_json()
@@ -188,11 +191,36 @@ def exchange_auth_code():
 
         logger.info(f"Token exchange successful: user_id={user_id}")
 
-        return jsonify({
-            'access_token': access_token,
-            'refresh_token': refresh_token,
-            'user_id': user_id
-        })
+        # ✅ SECURITY FIX: Set httpOnly cookies (like /api/auth/login does)
+        # Tokens should NEVER be in response body to prevent XSS attacks
+        from flask import make_response
+        response = make_response(jsonify({
+            'user_id': user_id,
+            'message': 'Authentication successful'
+        }), 200)
+
+        # Set httpOnly cookies (cross-origin compatible with credentials: 'include')
+        response.set_cookie(
+            'supabase_access_token',
+            access_token,
+            max_age=3600,  # 1 hour
+            httponly=True,
+            secure=session_manager.cookie_secure,
+            samesite=session_manager.cookie_samesite,
+            path='/'
+        )
+
+        response.set_cookie(
+            'supabase_refresh_token',
+            refresh_token,
+            max_age=2592000,  # 30 days
+            httponly=True,
+            secure=session_manager.cookie_secure,
+            samesite=session_manager.cookie_samesite,
+            path='/'
+        )
+
+        return response
 
     except Exception as e:
         logger.error(f"Token exchange error: {str(e)}", exc_info=True)
