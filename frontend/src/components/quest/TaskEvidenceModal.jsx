@@ -200,6 +200,7 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
                   ref={editorRef}
                   taskId={task.id}
                   userId={null} // Will be extracted from auth token
+                  legacyEvidenceText={task.evidence_text} // Pass text evidence from quest_task_completions
                   onComplete={handleComplete}
                   onError={handleError}
                   autoSaveEnabled={true}

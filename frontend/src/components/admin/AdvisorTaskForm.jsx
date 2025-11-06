@@ -10,28 +10,26 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
   const [selectedTemplates, setSelectedTemplates] = useState(new Set())
   const [previewTask, setPreviewTask] = useState(null)
   const [errors, setErrors] = useState({})
-  const [availableSubjects, setAvailableSubjects] = useState([])
 
-  // Custom task form state - uses subject_xp_distribution
+  // Custom task form state - simplified to use xp_value
   const [customTask, setCustomTask] = useState({
     title: '',
     description: '',
     pillar: '',
-    subject_xp_distribution: { 'Electives': 100 }
+    xp_value: 100
   })
 
-  // Pillar options
+  // Pillar options (using simplified single-word keys)
   const pillarOptions = [
-    { value: 'stem_logic', label: 'STEM & Logic' },
-    { value: 'life_wellness', label: 'Life & Wellness' },
-    { value: 'language_communication', label: 'Language & Communication' },
-    { value: 'society_culture', label: 'Society & Culture' },
-    { value: 'arts_creativity', label: 'Arts & Creativity' }
+    { value: 'stem', label: 'STEM' },
+    { value: 'wellness', label: 'Wellness' },
+    { value: 'communication', label: 'Communication' },
+    { value: 'civics', label: 'Civics' },
+    { value: 'art', label: 'Art' }
   ]
 
   useEffect(() => {
     fetchTemplates()
-    fetchSchoolSubjects()
   }, [questId, student.id])
 
   const fetchTemplates = async () => {
@@ -48,44 +46,6 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
     }
   }
 
-  const fetchSchoolSubjects = async () => {
-    try {
-      const response = await api.get('/api/admin/school-subjects')
-      if (response.data.success) {
-        setAvailableSubjects(response.data.school_subjects || [])
-      } else {
-        setAvailableSubjects([
-          { key: 'language_arts', name: 'Language Arts' },
-          { key: 'math', name: 'Math' },
-          { key: 'science', name: 'Science' },
-          { key: 'social_studies', name: 'Social Studies' },
-          { key: 'financial_literacy', name: 'Financial Literacy' },
-          { key: 'health', name: 'Health' },
-          { key: 'pe', name: 'PE' },
-          { key: 'fine_arts', name: 'Fine Arts' },
-          { key: 'cte', name: 'CTE' },
-          { key: 'digital_literacy', name: 'Digital Literacy' },
-          { key: 'electives', name: 'Electives' }
-        ])
-      }
-    } catch (error) {
-      console.error('Error fetching school subjects:', error)
-      // Use fallback subjects on error
-      setAvailableSubjects([
-        { key: 'language_arts', name: 'Language Arts' },
-        { key: 'math', name: 'Math' },
-        { key: 'science', name: 'Science' },
-        { key: 'social_studies', name: 'Social Studies' },
-        { key: 'financial_literacy', name: 'Financial Literacy' },
-        { key: 'health', name: 'Health' },
-        { key: 'pe', name: 'PE' },
-        { key: 'fine_arts', name: 'Fine Arts' },
-        { key: 'cte', name: 'CTE' },
-        { key: 'digital_literacy', name: 'Digital Literacy' },
-        { key: 'electives', name: 'Electives' }
-      ])
-    }
-  }
 
   const toggleTemplateSelection = (templateId) => {
     setSelectedTemplates(prev => {
@@ -101,45 +61,28 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
 
   const getPillarColor = (pillar) => {
     const colors = {
-      stem_logic: 'bg-blue-100 text-blue-700',
-      life_wellness: 'bg-green-100 text-green-700',
-      language_communication: 'bg-orange-100 text-orange-700',
-      society_culture: 'bg-red-100 text-red-700',
-      arts_creativity: 'bg-purple-100 text-purple-700'
+      stem: 'bg-blue-100 text-blue-700',
+      wellness: 'bg-red-100 text-red-700',
+      communication: 'bg-green-100 text-green-700',
+      civics: 'bg-orange-100 text-orange-700',
+      art: 'bg-purple-100 text-purple-700'
     }
     return colors[pillar] || 'bg-gray-100 text-gray-700'
   }
 
   const getPillarLabel = (pillar) => {
     const labels = {
-      stem_logic: 'STEM & Logic',
-      life_wellness: 'Life & Wellness',
-      language_communication: 'Language & Communication',
-      society_culture: 'Society & Culture',
-      arts_creativity: 'Arts & Creativity'
+      stem: 'STEM',
+      wellness: 'Wellness',
+      communication: 'Communication',
+      civics: 'Civics',
+      art: 'Art'
     }
     return labels[pillar] || pillar
   }
 
   const getTotalTaskXP = (task) => {
-    if (task.subject_xp_distribution) {
-      return Object.values(task.subject_xp_distribution).reduce((sum, xp) => sum + (xp || 0), 0)
-    }
     return task.xp_value || 100
-  }
-
-  const updateSubjectXP = (subject, xp) => {
-    const newDistribution = { ...customTask.subject_xp_distribution }
-    const xpValue = parseInt(xp) || 0
-
-    if (xpValue > 0) {
-      newDistribution[subject] = xpValue
-    } else {
-      delete newDistribution[subject]
-    }
-
-    setCustomTask({ ...customTask, subject_xp_distribution: newDistribution })
-    if (errors.xp) setErrors({ ...errors, xp: '' })
   }
 
   const validateCustomTask = () => {
@@ -153,9 +96,8 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
       newErrors.pillar = 'Learning pillar is required'
     }
 
-    const totalXP = getTotalTaskXP(customTask)
-    if (totalXP <= 0) {
-      newErrors.xp = 'At least one subject must have XP assigned'
+    if (!customTask.xp_value || customTask.xp_value <= 0) {
+      newErrors.xp = 'XP value must be greater than 0'
     }
 
     setErrors(newErrors)
@@ -178,7 +120,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
         title: '',
         description: '',
         pillar: '',
-        subject_xp_distribution: { 'Electives': 100 }
+        xp_value: 100
       })
       setErrors({})
 
@@ -400,6 +342,19 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-600">
+                    Task Description (Optional)
+                  </label>
+                  <textarea
+                    value={customTask.description}
+                    onChange={(e) => setCustomTask({ ...customTask, description: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg border-gray-300"
+                    rows={3}
+                    placeholder="Provide detailed instructions..."
+                  />
+                </div>
+
+                <div>
                   <label className="block text-sm font-semibold mb-2 text-gray-800">
                     Learning Pillar
                     <span className="text-red-500 font-bold ml-1">*</span>
@@ -429,51 +384,31 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
 
                 <div>
                   <label className="block text-sm font-semibold mb-2 text-gray-800">
-                    School Subject XP Distribution
+                    XP Value
                     <span className="text-red-500 font-bold ml-1">*</span>
                   </label>
-                  <div className="grid grid-cols-2 gap-2 p-3 border rounded-lg bg-gray-50">
-                    {availableSubjects.map(subject => (
-                      <div key={subject.key} className="flex items-center justify-between bg-white p-2 rounded">
-                        <span className="text-sm font-medium">{subject.name}</span>
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            value={customTask.subject_xp_distribution[subject.name] || ''}
-                            onChange={(e) => updateSubjectXP(subject.name, e.target.value)}
-                            className="w-16 px-2 py-1 text-sm border rounded text-center"
-                            placeholder="0"
-                            min="0"
-                            step="25"
-                          />
-                          <span className="text-xs text-gray-500">XP</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-2 p-2 bg-purple-50 rounded flex justify-between items-center">
-                    <span className="text-sm font-medium text-purple-800">Total XP:</span>
-                    <span className="text-lg font-bold text-purple-600">{getTotalTaskXP(customTask)}</span>
-                  </div>
+                  <input
+                    type="number"
+                    value={customTask.xp_value}
+                    onChange={(e) => {
+                      setCustomTask({ ...customTask, xp_value: parseInt(e.target.value) || 0 })
+                      if (errors.xp) setErrors({ ...errors, xp: '' })
+                    }}
+                    className={`w-full px-4 py-2 border rounded-lg ${errors.xp ? 'border-red-500' : 'border-gray-300'}`}
+                    placeholder="Enter XP value..."
+                    min="25"
+                    max="500"
+                    step="25"
+                  />
+                  <p className="text-sm text-gray-500 mt-1">
+                    Recommended: 25-100 XP for small tasks, 100-250 XP for medium tasks, 250-500 XP for large tasks
+                  </p>
                   {errors.xp && (
                     <p className="text-red-600 text-sm mt-1 flex items-center">
                       <AlertCircle size={14} className="mr-1" />
                       {errors.xp}
                     </p>
                   )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-600">
-                    Task Description (Optional)
-                  </label>
-                  <textarea
-                    value={customTask.description}
-                    onChange={(e) => setCustomTask({ ...customTask, description: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg border-gray-300"
-                    rows={3}
-                    placeholder="Provide detailed instructions..."
-                  />
                 </div>
               </div>
             </div>
@@ -548,22 +483,6 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Description</label>
                   <p className="text-gray-700">{previewTask.description}</p>
-                </div>
-              )}
-
-              {previewTask.subject_xp_distribution && Object.keys(previewTask.subject_xp_distribution).length > 0 && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">XP Breakdown by Subject</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {Object.entries(previewTask.subject_xp_distribution)
-                      .filter(([_, xp]) => xp > 0)
-                      .map(([subject, xp]) => (
-                        <div key={subject} className="flex justify-between items-center bg-purple-50 px-3 py-2 rounded">
-                          <span className="text-sm font-medium text-purple-900">{subject}</span>
-                          <span className="text-sm font-bold text-purple-700">{xp} XP</span>
-                        </div>
-                      ))}
-                  </div>
                 </div>
               )}
 

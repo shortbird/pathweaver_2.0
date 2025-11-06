@@ -8,6 +8,8 @@ import {
   RocketLaunchIcon
 } from '@heroicons/react/24/outline'
 
+// Note: SSO token extraction now happens at App.jsx level before routing
+
 // Memoized component for Active Quests section
 const ActiveQuests = memo(({ activeQuests, completedQuestsCount = 0 }) => {
   // Filter out completed and ended quests, but include all for compact view

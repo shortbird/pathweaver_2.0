@@ -466,7 +466,7 @@ def get_user_quest_enrollments(user_id, target_user_id):
     try:
         # Get all active quests
         all_quests = supabase.table('quests')\
-            .select('id, title, big_idea, description, source')\
+            .select('id, title, big_idea, description, quest_type')\
             .eq('is_active', True)\
             .order('created_at', desc=True)\
             .execute()

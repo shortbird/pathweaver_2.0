@@ -7,6 +7,7 @@ import { AuthProvider } from './contexts/AuthContext'
 import { DemoProvider } from './contexts/DemoContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { warmupBackend } from './utils/retryHelper'
+import { tokenStore } from './services/api'
 
 // Always-loaded components (Layout, Auth, Landing pages)
 import Layout from './components/Layout'
@@ -16,6 +17,7 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import ForgotPasswordPage from './pages/ForgotPasswordPage'
 import ResetPasswordPage from './pages/ResetPasswordPage'
+import AuthCallback from './pages/AuthCallback'
 import PrivateRoute from './components/PrivateRoute'
 
 // Lazy-loaded pages for code splitting
@@ -79,6 +81,25 @@ const queryClient = new QueryClient({
 })
 
 function App() {
+  // ✅ SSO TOKEN EXTRACTION: Extract tokens IMMEDIATELY on app load (before AuthContext)
+  // This runs synchronously during App mount to ensure tokens are available for AuthContext
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const accessToken = params.get('access_token')
+    const refreshToken = params.get('refresh_token')
+
+    if (accessToken && refreshToken) {
+      // Store tokens immediately in memory
+      tokenStore.setTokens(accessToken, refreshToken)
+
+      // Clean URL (remove tokens from address bar for security)
+      const newUrl = window.location.pathname + (params.get('lti') ? '?lti=true' : '')
+      window.history.replaceState({}, '', newUrl)
+
+      console.log('[SSO] Tokens extracted and stored from URL')
+    }
+  }, []) // Empty deps = runs once on mount
+
   // Warm up the backend service on app load (helps with Render cold starts)
   useEffect(() => {
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
@@ -119,6 +140,7 @@ function App() {
                 <Route path="register" element={<RegisterPage />} />
                 <Route path="forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="reset-password" element={<ResetPasswordPage />} />
+                <Route path="auth/callback" element={<AuthCallback />} />
                 <Route path="email-verification" element={<EmailVerificationPage />} />
                 <Route path="terms" element={<TermsOfService />} />
                 <Route path="privacy" element={<PrivacyPolicy />} />

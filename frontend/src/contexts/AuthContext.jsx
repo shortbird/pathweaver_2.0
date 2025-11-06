@@ -30,41 +30,56 @@ export const AuthProvider = ({ children }) => {
       const response = await api.get('/api/auth/me')
       return response.data
     },
-    enabled: !!session, // Only fetch if we have a session
+    enabled: false, // ✅ SPARK SSO FIX: Disable auto-fetching - we manually update cache in checkSession()
     staleTime: 5 * 60 * 1000, // Consider user data fresh for 5 minutes
     cacheTime: 30 * 60 * 1000, // Keep in cache for 30 minutes
     retry: 1, // Only retry once for auth checks
   })
 
   useEffect(() => {
-    // ✅ INCOGNITO FIX: Check for tokens before making /me request
+    // ✅ INCOGNITO FIX: Restore tokens from localStorage before checking session
     const checkSession = async () => {
       try {
-        // Check if we have tokens in memory (cross-origin/incognito mode)
+        // STEP 1: Restore tokens from localStorage (survives page refresh)
+        const tokensRestored = tokenStore.restoreTokens()
+
+        // STEP 2: Check if we have tokens (either restored or in memory)
         const hasTokens = !!tokenStore.getAccessToken()
 
         if (hasTokens) {
-          // We have tokens, try to fetch user profile
+          // We have tokens, verify with backend
           const response = await api.get('/api/auth/me')
           if (response.data) {
+            // ✅ SPARK SSO FIX: Update React Query cache IMMEDIATELY with user data
+            // This prevents PrivateRoute from redirecting to /login before user data loads
+            queryClient.setQueryData(queryKeys.user.profile('current'), response.data)
+
             setSession({ authenticated: true })
             setLoginTimestamp(Date.now())
+            console.log('[AuthContext] Session restored successfully')
           }
         } else {
-          // No tokens in memory, try cookie-based auth (same-origin mode)
+          // No tokens available - try cookie-based auth (localhost fallback)
           try {
             const response = await api.get('/api/auth/me')
             if (response.data) {
+              // ✅ SPARK SSO FIX: Update React Query cache for cookie-based auth too
+              queryClient.setQueryData(queryKeys.user.profile('current'), response.data)
+
               setSession({ authenticated: true })
               setLoginTimestamp(Date.now())
+              console.log('[AuthContext] Session restored via cookies')
             }
           } catch {
-            // No valid session
+            // No valid session - user needs to log in
+            console.log('[AuthContext] No valid session found')
             setSession(null)
           }
         }
       } catch (error) {
-        // No valid session
+        // Token invalid/expired - clear and require login
+        console.log('[AuthContext] Session validation failed:', error.message)
+        tokenStore.clearTokens()
         setSession(null)
       } finally {
         setLoading(false)
@@ -156,9 +171,11 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (session) {
-        // ✅ SECURITY FIX: Tokens are now stored in secure httpOnly cookies only
-        // localStorage token storage removed to prevent XSS attacks
-        // The backend sets httpOnly cookies via session_manager.set_auth_cookies()
+        // ✅ INCOGNITO FIX: Extract and store tokens from registration response
+        const { app_access_token, app_refresh_token } = response.data
+        if (app_access_token && app_refresh_token) {
+          tokenStore.setTokens(app_access_token, app_refresh_token)
+        }
 
         setSession({ authenticated: true })
         setLoginTimestamp(Date.now()) // Force refresh of data

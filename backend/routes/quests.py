@@ -283,14 +283,17 @@ def get_quest_detail(user_id: str, quest_id: str):
 
             logger.info(f"[QUEST_DETAIL] Found {len(user_tasks.data or [])} approved tasks for user_quest_id {enrollment_to_use['id'][:8]}")
 
-            # Get task completions
+            # Get task completions with evidence (only columns that exist in table)
             task_completions = supabase.table('quest_task_completions')\
-                .select('user_quest_task_id')\
+                .select('user_quest_task_id, evidence_text, evidence_url, completed_at')\
                 .eq('user_id', user_id)\
                 .eq('quest_id', quest_id)\
                 .execute()
 
             completed_task_ids = {t['user_quest_task_id'] for t in task_completions.data} if task_completions.data else set()
+
+            # Create a mapping of task_id to completion data for easy lookup
+            completion_data_map = {t['user_quest_task_id']: t for t in task_completions.data} if task_completions.data else {}
 
             # Debug: Check raw pillar values from database
             logger.info(f"[QUEST_DETAIL] Raw tasks from DB for quest {quest_id}:")
@@ -301,6 +304,16 @@ def get_quest_detail(user_id: str, quest_id: str):
             quest_tasks = user_tasks.data or []
             for task in quest_tasks:
                 task['is_completed'] = task['id'] in completed_task_ids
+
+                # Add evidence data if task is completed
+                if task['id'] in completion_data_map:
+                    completion = completion_data_map[task['id']]
+                    task['evidence_text'] = completion.get('evidence_text')
+                    task['evidence_url'] = completion.get('evidence_url')
+                    task['completed_at'] = completion.get('completed_at')
+                    # Note: evidence_type and evidence_blocks are not in quest_task_completions table
+                    # They may be stored in evidence_document_blocks table separately
+
                 # Map xp_value to xp_amount for frontend compatibility
                 if 'xp_value' in task:
                     task['xp_amount'] = task['xp_value']

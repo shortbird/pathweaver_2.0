@@ -32,6 +32,14 @@ def configure_cors(app):
              r"/csrf-token": {
                  "origins": allowed_origins,
                  "supports_credentials": cors_config['supports_credentials']
+             },
+             r"/spark/*": {
+                 "origins": allowed_origins,
+                 "supports_credentials": cors_config['supports_credentials']
+             },
+             r"/lti/*": {
+                 "origins": allowed_origins,
+                 "supports_credentials": cors_config['supports_credentials']
              }
          },
          allow_headers=cors_config['allow_headers'],

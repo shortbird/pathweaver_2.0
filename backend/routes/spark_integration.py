@@ -91,16 +91,112 @@ def spark_sso():
     try:
         user = create_or_update_spark_user(claims)
 
-        # Set session cookies
-        response = redirect(f"{os.getenv('FRONTEND_URL', 'http://localhost:5173')}/dashboard?lti=true")
-        session_manager.set_auth_cookies(response, user['id'])
+        # Generate one-time authorization code (OAuth 2.0 authorization code flow)
+        # SECURITY: This prevents tokens from appearing in browser history/logs
+        auth_code = generate_auth_code()
+        expires_at = datetime.utcnow() + timedelta(seconds=60)  # 60 second expiry
 
-        logger.info(f"Spark SSO successful: user_id={user['id']}")
+        supabase = get_supabase_admin_client()
+        supabase.table('spark_auth_codes').insert({
+            'code': auth_code,
+            'user_id': user['id'],
+            'expires_at': expires_at.isoformat(),
+            'used': False
+        }).execute()
+
+        # Redirect to frontend with one-time code (not tokens)
+        frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
+        redirect_url = f"{frontend_url}/auth/callback?code={auth_code}"
+
+        response = redirect(redirect_url)
+
+        logger.info(f"Spark SSO successful: user_id={user['id']}, code issued")
         return response
 
     except Exception as e:
         logger.error(f"Failed to create Spark user: {str(e)}", exc_info=True)
         return jsonify({'error': 'Failed to create user account'}), 500
+
+
+def generate_auth_code() -> str:
+    """Generate a cryptographically secure random authorization code"""
+    import secrets
+    return secrets.token_urlsafe(32)
+
+
+# ============================================
+# TOKEN EXCHANGE ENDPOINT
+# ============================================
+
+@bp.route('/spark/token', methods=['POST'])
+@rate_limit(limit=10, per=60)  # 10 token exchanges per minute
+def exchange_auth_code():
+    """
+    Exchange authorization code for access/refresh tokens (OAuth 2.0 pattern)
+
+    Request Body:
+        code: One-time authorization code from SSO redirect
+
+    Returns:
+        200: {access_token, refresh_token, user_id}
+        400: Missing/invalid code
+        401: Code expired or already used
+    """
+    try:
+        data = request.get_json()
+        code = data.get('code')
+
+        if not code:
+            return jsonify({'error': 'Missing authorization code'}), 400
+
+        supabase = get_supabase_admin_client()
+
+        # Validate code (one-time use, not expired)
+        code_record = supabase.table('spark_auth_codes')\
+            .select('*')\
+            .eq('code', code)\
+            .single()\
+            .execute()
+
+        if not code_record.data:
+            logger.warning(f"Invalid auth code attempted: {code[:10]}...")
+            return jsonify({'error': 'Invalid authorization code'}), 401
+
+        record = code_record.data
+
+        # Check if already used
+        if record['used']:
+            logger.warning(f"Auth code reuse attempted: {code[:10]}...")
+            return jsonify({'error': 'Authorization code already used'}), 401
+
+        # Check if expired
+        expires_at = datetime.fromisoformat(record['expires_at'].replace('Z', '+00:00'))
+        if datetime.now(expires_at.tzinfo) > expires_at:
+            logger.warning(f"Expired auth code attempted: {code[:10]}...")
+            return jsonify({'error': 'Authorization code expired'}), 401
+
+        # Mark code as used (one-time use)
+        supabase.table('spark_auth_codes')\
+            .update({'used': True})\
+            .eq('code', code)\
+            .execute()
+
+        # Generate tokens
+        user_id = record['user_id']
+        access_token = session_manager.generate_access_token(user_id)
+        refresh_token = session_manager.generate_refresh_token(user_id)
+
+        logger.info(f"Token exchange successful: user_id={user_id}")
+
+        return jsonify({
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'user_id': user_id
+        })
+
+    except Exception as e:
+        logger.error(f"Token exchange error: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Token exchange failed'}), 500
 
 
 # ============================================
@@ -236,8 +332,28 @@ def create_or_update_spark_user(claims: dict) -> dict:
         user_id = user.data[0]['id']
         logger.info(f"Linking existing user {user_id} to Spark")
     else:
-        # Create new user
+        # Create new user in Supabase Auth first
+        import secrets
+        temp_password = secrets.token_urlsafe(32)  # Generate random password
+
+        auth_user = supabase.auth.admin.create_user({
+            'email': email,
+            'password': temp_password,
+            'email_confirm': True,  # Auto-confirm email for SSO users
+            'user_metadata': {
+                'first_name': claims.get('given_name', ''),
+                'last_name': claims.get('family_name', ''),
+                'display_name': f"{claims.get('given_name', '')} {claims.get('family_name', '')}".strip(),
+                'sso_provider': 'spark'
+            }
+        })
+
+        user_id = auth_user.user.id
+        logger.info(f"Created auth user {user_id} from Spark SSO")
+
+        # Create user profile in public.users table
         new_user = supabase.table('users').insert({
+            'id': user_id,  # Use auth user ID
             'email': email,
             'first_name': claims.get('given_name', ''),
             'last_name': claims.get('family_name', ''),
@@ -245,8 +361,7 @@ def create_or_update_spark_user(claims: dict) -> dict:
             'display_name': f"{claims.get('given_name', '')} {claims.get('family_name', '')}".strip()
         }).execute()
 
-        user_id = new_user.data[0]['id']
-        logger.info(f"Created new user {user_id} from Spark SSO")
+        logger.info(f"Created user profile {user_id} from Spark SSO")
 
     # Create LMS integration record
     supabase.table('lms_integrations').insert({
@@ -297,25 +412,97 @@ def process_spark_submission(data: dict) -> dict:
 
     user_id = integration.data[0]['user_id']
 
-    # Find task for this assignment
+    # Find quest for this assignment
     spark_assignment_id = data['spark_assignment_id']
-    task = supabase.table('user_quest_tasks') \
-        .select('id, quest_id, xp_value, pillar, lms_assignment_id') \
-        .eq('user_id', user_id) \
+    quest = supabase.table('quests') \
+        .select('id') \
         .eq('lms_assignment_id', spark_assignment_id) \
+        .eq('lms_platform', 'spark') \
         .execute()
 
-    if not task.data:
-        raise ValueError(f"Task not found for assignment: {spark_assignment_id}")
+    if not quest.data:
+        raise ValueError(f"Quest not found for assignment: {spark_assignment_id}")
 
-    task_data = task.data[0]
+    quest_id = quest.data[0]['id']
+
+    # Auto-enroll user in quest if not already enrolled, or reactivate if completed
+    enrollment = supabase.table('user_quests') \
+        .select('id, is_active, completed_at') \
+        .eq('user_id', user_id) \
+        .eq('quest_id', quest_id) \
+        .execute()
+
+    enrollment_id = None
+    if not enrollment.data:
+        # Create enrollment
+        enrollment_result = supabase.table('user_quests').insert({
+            'user_id': user_id,
+            'quest_id': quest_id,
+            'is_active': True,
+            'started_at': datetime.utcnow().isoformat()
+        }).execute()
+        enrollment_id = enrollment_result.data[0]['id']
+        logger.info(f"Auto-enrolled user {user_id} in Spark quest {quest_id}")
+
+        # Copy course tasks to user_quest_tasks (since this is a course quest)
+        from routes.quest_types import get_course_tasks_for_quest
+        preset_tasks = get_course_tasks_for_quest(quest_id)
+
+        if preset_tasks:
+            user_tasks_data = []
+            for task in preset_tasks:
+                task_data = {
+                    'user_id': user_id,
+                    'quest_id': quest_id,
+                    'user_quest_id': enrollment_id,
+                    'title': task['title'],
+                    'description': task.get('description', ''),
+                    'pillar': task['pillar'],
+                    'xp_value': task.get('xp_value', 100),
+                    'order_index': task.get('order_index', 0),
+                    'is_required': task.get('is_required', True),
+                    'is_manual': False,
+                    'approval_status': 'approved',
+                    'diploma_subjects': task.get('diploma_subjects', ['Electives']),
+                    'subject_xp_distribution': task.get('subject_xp_distribution', {})
+                }
+                user_tasks_data.append(task_data)
+
+            if user_tasks_data:
+                supabase.table('user_quest_tasks').insert(user_tasks_data).execute()
+                logger.info(f"Copied {len(user_tasks_data)} preset tasks to user_quest_tasks for Spark enrollment")
+    elif enrollment.data[0].get('is_active') == False or enrollment.data[0].get('completed_at'):
+        # Reactivate completed quest on new submission
+        enrollment_id = enrollment.data[0]['id']
+        supabase.table('user_quests') \
+            .update({
+                'is_active': True,
+                'completed_at': None
+            }) \
+            .eq('id', enrollment_id) \
+            .execute()
+        logger.info(f"Reactivated completed Spark quest {quest_id} for user {user_id}")
+    else:
+        enrollment_id = enrollment.data[0]['id']
+
+    # Find user's tasks for this quest (should exist after enrollment)
+    tasks = supabase.table('user_quest_tasks') \
+        .select('id, xp_value, pillar') \
+        .eq('user_id', user_id) \
+        .eq('quest_id', quest_id) \
+        .execute()
+
+    if not tasks.data:
+        raise ValueError(f"No tasks found for quest: {spark_assignment_id}. Quest may not have tasks configured.")
+
+    # Use first task (or we could mark all tasks complete)
+    task_data = tasks.data[0]
     task_id = task_data['id']
-    quest_id = task_data['quest_id']
 
     # Check for duplicate submission (idempotency)
     existing = supabase.table('quest_task_completions') \
         .select('id') \
-        .eq('task_id', task_id) \
+        .eq('user_quest_task_id', task_id) \
         .eq('user_id', user_id) \
         .execute()
 
@@ -336,15 +523,15 @@ def process_spark_submission(data: dict) -> dict:
             logger.error(f"Failed to download file {file_data['filename']}: {str(e)}")
             # Continue processing, just log the error
 
-    # Mark task complete
+    # Mark task complete (need both task_id and user_quest_task_id for schema compatibility)
     completion = supabase.table('quest_task_completions').insert({
         'user_id': user_id,
         'quest_id': quest_id,
-        'task_id': task_id,
+        'task_id': task_id,  # Legacy column (NOT NULL constraint)
+        'user_quest_task_id': task_id,  # New column (this is the id from user_quest_tasks table)
         'evidence_text': data.get('submission_text', ''),
         'evidence_url': evidence_files[0] if evidence_files else None,
-        'completed_at': data['submitted_at'],
-        'xp_awarded': task_data['xp_value']
+        'completed_at': data['submitted_at']
     }).execute()
 
     completion_id = completion.data[0]['id']
