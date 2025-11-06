@@ -600,7 +600,11 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
             .execute()
 
         existing_block_ids = {block['id'] for block in existing_blocks.data}
-        incoming_block_ids = {block.get('id') for block in blocks if block.get('id')}
+        # Filter out temporary IDs (legacy-, temp-, etc.) - only real UUIDs count
+        incoming_block_ids = {
+            block.get('id') for block in blocks
+            if block.get('id') and not str(block.get('id')).startswith(('legacy-', 'temp-', 'new-'))
+        }
 
         # Delete blocks that are no longer present
         blocks_to_delete = existing_block_ids - incoming_block_ids
@@ -624,12 +628,15 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
             }
 
             block_id = block.get('id')
-            if block_id and block_id in existing_block_ids:
+            # Check if this is a real UUID that exists in the database
+            is_temporary_id = not block_id or str(block_id).startswith(('legacy-', 'temp-', 'new-'))
+
+            if block_id and not is_temporary_id and block_id in existing_block_ids:
                 # Update existing block
                 block_data['id'] = block_id
                 blocks_to_update.append(block_data)
             else:
-                # Create new block
+                # Create new block (includes temporary IDs and actual new blocks)
                 blocks_to_insert.append(block_data)
 
         # Batch insert new blocks
