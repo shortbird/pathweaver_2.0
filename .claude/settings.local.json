@@ -1,28 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git add:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nUpdate homepage to emphasize platform features over teacher partnership\n\nMajor homepage redesign focusing on platform capabilities for families managing their children''s education:\n\nHero Section:\n- Simplified to single powerful tagline: \"Raise doers, not dependents\"\n- Clear value prop: Transform learning into professional portfolio automatically\n- Updated CTAs to \"Create Free Account\" (removed consultation focus)\n\nWhat Optio Provides (6 Platform Features):\n- Automatic Portfolio Building - zero friction documentation\n- Gamified Learning Journey - quests, XP, badges\n- Parent Dashboard - rhythm tracking without micromanaging\n- Family Engagement - observer roles for extended family\n- AI Learning Support - 24/7 Gemini-powered tutor\n- Professional Showcase Pages - college-ready portfolios\n\nHow It Works:\n- Create Account → Build Quests → Document As You Go → Track & Celebrate\n- Platform-focused steps emphasizing automation and family control\n\nFAQ Section:\n- Rewritten with platform-focused questions\n- How automatic portfolio works\n- Quest creation process\n- Family observer access\n- Homeschool integration\n- Past work upload\n\nCTAs Throughout:\n- All consultation CTAs replaced with \"Create Free Account\"\n- Emphasis on \"Free to start, no credit card required\"\n- Focus on immediate platform access\n\nRemoved:\n- All teacher partnership language and imagery\n- Consultation-focused sections\n- Teacher meeting process steps\n\nCopy Tone:\n- Family empowerment and control\n- Automation and zero friction\n- Extended family involvement\n- Present-focused, process-oriented\n- Proof for colleges/employers\n\n🤖 Generated with Claude Code\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git commit -m \"$(cat <<''EOF''\nAdd student-created tasks with AI quality analysis\n\nEnhances quest personalization wizard to allow students to write their own tasks with AI-powered quality feedback and auto-approval for high-quality submissions.\n\nKey features:\n- Path selection: Students choose between AI-generated or student-created tasks\n- AI quality analysis: Evaluates tasks on 4 criteria (specificity, present-focus, process-oriented, authenticity)\n- Auto-approval: Tasks scoring 70+ are instantly approved, eliminating admin bottleneck\n- Quality feedback: Detailed suggestions help students improve task design\n- XP determination: AI suggests appropriate XP values (50-200 range) based on complexity\n\nBackend changes:\n- TaskQualityService: New AI service for analyzing student task quality\n- Gemini prompt: Philosophy-aligned evaluation based on \"The Process Is The Goal\"\n- API endpoints: /analyze-manual-task and /add-manual-tasks for batch creation\n- Personalization service: Track creation_method (''ai'' or ''manual'') in sessions\n\nFrontend changes:\n- QualityScoreGauge: Circular gauge component with color-coded quality indicators\n- ManualTaskCreator: Full task creation interface with real-time AI feedback\n- QuestPersonalizationWizard: Added path selection step before interests\n\nQuality scoring criteria (0-25 pts each):\n1. Specificity: Clear, measurable actions vs vague goals\n2. Present-Focus: Celebrates discovery NOW (not future benefits)\n3. Process-Oriented: Values learning journey (mistakes welcome)\n4. Authenticity: Personal curiosity-driven (not résumé-building)\n\nApproval logic:\n- Score 70-100: Auto-approved immediately\n- Score 50-69: Student can revise or submit for admin review\n- Score <50: Must revise before submission\n\nAligns with core philosophy by empowering students to design their own learning while maintaining quality standards through AI guidance.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(git push:*)",
-      "Bash(git commit:*)",
       "Bash(git checkout:*)",
-      "Bash(git merge:*)",
-      "Bash(psql \"postgresql://postgres.vvfgxcykxjybtvpfzwyx:Tannerthegoat10!@aws-0-us-east-1.pooler.supabase.com:6543/postgres\" -c \"\\d tutor_conversations\")",
-      "Bash(psql \"postgresql://postgres.vvfgxcykxjybtvpfzwyx:Tannerthegoat10!@aws-0-us-east-1.pooler.supabase.com:6543/postgres\" -c \"\\d tutor_messages\")",
-      "Bash(claude mcp list-tools:*)",
-      "Bash(npm install:*)",
-      "Bash(git log:*)",
-      "Bash(openssl rand:*)",
-      "Bash(node test_spark_sso.js:*)",
-      "Bash(python:*)",
-      "Bash(curl:*)",
-      "Bash(psql \"postgresql://postgres.vvfgxcykxjybtvpfzwyx:Tannerthegoat10!@aws-0-us-east-1.pooler.supabase.com:6543/postgres\" -c \"SELECT id, email, display_name, first_name, last_name, role, created_at FROM users WHERE email = ''spark-test@optioeducation.com'';\")",
-      "Bash(node test_spark_webhook.js:*)",
-      "Bash(if [ -z \"$SUPABASE_SERVICE_KEY\" ])",
-      "Bash(then echo \"❌ SUPABASE_SERVICE_KEY is not set\")",
-      "Bash(else echo \"✅ SUPABASE_SERVICE_KEY is set\")",
-      "Bash(fi)",
-      "Bash(0\"\n- Set subject_xp_distribution to null for new tasks\n- Added backward compatibility for existing template tasks with subject XP\n\nBackend (tasks.py):\n- Added clarifying comment that subject XP distribution is optional\n- Existing logic already handles null/empty subject_xp_distribution gracefully\n- Tasks without subject XP only award pillar XP (no changes needed)\n\nImpact:\n- New tasks store only pillar + xp_value\n- Diploma/transcript no longer tracks traditional school subjects for new tasks\n- Existing tasks with subject XP remain functional (backward compatible)\n- Significantly simplified UX for advisors creating tasks\n\n🤖 Generated with Claude Code\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(git pull:*)"
     ],
     "deny": [],
     "ask": []

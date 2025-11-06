@@ -46,8 +46,8 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
       return;
     }
 
-    if (!currentTask.description || currentTask.description.length < 50) {
-      setError('Task description must be at least 50 characters (about 3 sentences)');
+    if (!currentTask.description || currentTask.description.trim().length === 0) {
+      setError('Task description is required');
       return;
     }
 
@@ -335,7 +335,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
               disabled={isAnalyzing}
             />
             <p className="text-xs text-gray-500 mt-1">
-              {currentTask.description.length} characters (minimum 50)
+              {currentTask.description.length} characters
             </p>
           </div>
 

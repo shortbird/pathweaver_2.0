@@ -32,8 +32,8 @@ class TaskQualityService(BaseService):
         Analyze a student-created task for quality and generate suggestions.
 
         Args:
-            title: Task title
-            description: Task description (min 50 chars)
+            title: Task title (min 3 chars)
+            description: Task description
             pillar: Optional pillar selection from student
 
         Returns:
@@ -51,8 +51,8 @@ class TaskQualityService(BaseService):
         # Validate inputs
         if not title or len(title.strip()) < 3:
             raise ValueError("Task title must be at least 3 characters")
-        if not description or len(description.strip()) < 50:
-            raise ValueError("Task description must be at least 50 characters")
+        if not description or len(description.strip()) == 0:
+            raise ValueError("Task description is required")
 
         try:
             # Generate quality analysis using Gemini
@@ -140,59 +140,42 @@ class TaskQualityService(BaseService):
 
         pillar_hint = f"\nStudent's pillar preference: {pillar}" if pillar else ""
 
-        return f"""You are analyzing a student-created learning task for Optio, an educational platform guided by "The Process Is The Goal" philosophy.
+        return f"""Analyze this student-created task for Optio (philosophy: "The Process Is The Goal").
 
-PHILOSOPHY PRINCIPLES:
-- Learning is valuable RIGHT NOW (not for future career benefits)
-- Focus on internal growth (not external validation or impressing others)
-- Celebrate process, mistakes, and exploration (not just completion)
-- Encourage curiosity and authentic personal interests
-
-TASK TO ANALYZE:
+TASK:
 Title: {title}
 Description: {description}{pillar_hint}
 
-SCORE on these 4 criteria (0-25 points each):
+SCORE (0-25 pts each):
 
-1. SPECIFICITY (25 pts):
-   - Are actions clear and measurable? (not vague like "learn about X")
-   - Can the student easily know if they've done it?
-   - Examples: "Build a solar oven and test 3 recipes" (good) vs "Study renewable energy" (bad)
+1. SPECIFICITY: Clear, measurable actions? Can you tell when you're done?
+   Good: "Build a solar oven and test 3 recipes" | Bad: "Study renewable energy"
 
-2. PRESENT-FOCUS (25 pts):
-   - Does it emphasize discovery/creation NOW? (not future benefits)
-   - Avoid: "will help you later", "for your career", "to impress employers"
-   - Examples: "Explore what colors make you feel calm" (good) vs "Learn color theory for graphic design jobs" (bad)
+2. PRESENT-FOCUS: Emphasizes discovery NOW (not future benefits)?
+   Good: "Explore what colors make you feel calm" | Bad: "Learn color theory for jobs"
 
-3. PROCESS-ORIENTED (25 pts):
-   - Does it value the learning journey? (not just the end result)
-   - Are mistakes/experimentation welcome?
-   - Examples: "Try 3 different coding approaches and journal what you learned" (good) vs "Code a perfect app" (bad)
+3. PROCESS-ORIENTED: Values the journey and experimentation?
+   Good: "Try 3 coding approaches and journal learnings" | Bad: "Code a perfect app"
 
-4. AUTHENTICITY (25 pts):
-   - Is it personally curious/interesting? (not resume-building)
-   - Avoid: "demonstrate competency", "prove skills", "stand out"
-   - Examples: "Interview your grandparent about their childhood" (good) vs "Research history to boost college applications" (bad)
+4. AUTHENTICITY: Driven by personal curiosity (not resume-building)?
+   Good: "Interview grandparent about their childhood" | Bad: "Research to boost applications"
 
-ALSO DETERMINE:
-- XP value (50-200): Based on complexity, depth, time investment, creative output
-- Best-fit pillar: stem, wellness, communication, civics, art
-- Relevant diploma subjects (if applicable): Math, Science, English, History, Art, etc.
+Give brief, actionable feedback directly to the student. Keep comments under 15 words each.
 
-Return ONLY valid JSON in this exact format (no markdown, no code blocks):
+Return ONLY valid JSON (no markdown):
 {{
   "quality_score": 0-100,
   "feedback": {{
-    "specificity": {{"score": 0-25, "comment": "specific suggestion"}},
-    "present_focus": {{"score": 0-25, "comment": "specific suggestion"}},
-    "process_oriented": {{"score": 0-25, "comment": "specific suggestion"}},
-    "authenticity": {{"score": 0-25, "comment": "specific suggestion"}}
+    "specificity": {{"score": 0-25, "comment": "brief tip"}},
+    "present_focus": {{"score": 0-25, "comment": "brief tip"}},
+    "process_oriented": {{"score": 0-25, "comment": "brief tip"}},
+    "authenticity": {{"score": 0-25, "comment": "brief tip"}}
   }},
   "suggested_xp": 50-200,
-  "suggested_pillar": "pillar_name",
-  "diploma_subjects": {{"Subject Name": percentage}},
-  "overall_feedback": "1-2 sentence summary"
-}}"""
+  "suggested_pillar": "stem|wellness|communication|civics|art",
+  "diploma_subjects": {{"Subject": percentage}},
+  "overall_feedback": "1 concise sentence"
+}}
 
     def _validate_analysis_response(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
         """
