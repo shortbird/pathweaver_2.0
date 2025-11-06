@@ -109,7 +109,9 @@ try:
     app.register_blueprint(task_approval.bp)  # /api/admin/manual-tasks/*
     logger.info("Personalized Quest System routes registered successfully")
 except Exception as e:
-    logger.warning(f"Warning: Personalized Quest System routes not available: {e}")
+    logger.error(f"CRITICAL: Failed to register quest_personalization blueprint: {e}", exc_info=True)
+    # Re-raise to see full traceback in production logs
+    raise
 
 # Register routes
 app.register_blueprint(quests.bp)  # /api/quests (blueprint has url_prefix='/api/quests')
