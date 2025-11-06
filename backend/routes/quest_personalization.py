@@ -8,17 +8,6 @@ to generate custom learning paths aligned with their interests.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from backend.repositories import (
-    UserRepository,
-    QuestRepository,
-    BadgeRepository,
-    EvidenceRepository,
-    FriendshipRepository,
-    ParentRepository,
-    TutorRepository,
-    LMSRepository,
-    AnalyticsRepository
-)
 from utils.auth.decorators import require_auth
 from services.personalization_service import personalization_service
 from services.task_quality_service import TaskQualityService
