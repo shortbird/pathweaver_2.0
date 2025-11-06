@@ -395,8 +395,14 @@ const signature = crypto
 - Webhook validates HMAC signature using constant-time comparison
 - Files downloaded to Supabase storage bucket `evidence-documents`
 - Task marked complete in `quest_task_completions` table
+- **Evidence stored in block-based system**: Creates `user_task_evidence_documents` record + `evidence_document_blocks` for rich content
+  - `submission_text` → text block
+  - Image files → image blocks with captions
+  - Video files → video blocks
+  - Documents (PDFs, etc.) → document blocks
 - XP awarded to student via `XPService`
 - Evidence appears in portfolio within minutes
+- **Evidence is editable**: After webhook submission, students can edit evidence in Optio UI (unified evidence system)
 
 ---
 
