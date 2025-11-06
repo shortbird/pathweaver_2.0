@@ -106,9 +106,11 @@ def create_student_task(user_id, target_user_id, quest_id):
                     'error': 'Template task not found'
                 }), 404
 
-            # Calculate total XP from subject_xp_distribution
-            subject_xp_dist = template.data.get('subject_xp_distribution', {})
-            total_xp = sum(subject_xp_dist.values()) if subject_xp_dist else template.data.get('xp_value', 100)
+            # Get XP value from template (use xp_value if available, fallback to subject_xp_distribution for backward compatibility)
+            xp_value = template.data.get('xp_value')
+            if not xp_value:
+                subject_xp_dist = template.data.get('subject_xp_distribution', {})
+                xp_value = sum(subject_xp_dist.values()) if subject_xp_dist else 100
 
             task_data = {
                 'user_id': target_user_id,
@@ -117,8 +119,8 @@ def create_student_task(user_id, target_user_id, quest_id):
                 'title': template.data['title'],
                 'description': template.data.get('description', ''),
                 'pillar': template.data['pillar'],
-                'subject_xp_distribution': subject_xp_dist or {"Electives": total_xp},
-                'xp_value': int(total_xp),
+                'subject_xp_distribution': None,
+                'xp_value': int(xp_value),
                 'order_index': max_order + 1,
                 'is_required': True,
                 'approval_status': 'approved',  # Admin-created tasks are pre-approved
@@ -150,16 +152,13 @@ def create_student_task(user_id, target_user_id, quest_id):
 
             normalized_pillar = normalize_pillar_name(pillar)
 
-            # Validate subject XP distribution
-            subject_xp_distribution = data.get('subject_xp_distribution', {})
-            if not subject_xp_distribution or sum(subject_xp_distribution.values()) <= 0:
+            # Validate XP value
+            xp_value = data.get('xp_value')
+            if not xp_value or xp_value <= 0:
                 return jsonify({
                     'success': False,
-                    'error': 'At least one subject must have XP assigned'
+                    'error': 'XP value must be greater than 0'
                 }), 400
-
-            # Calculate total XP
-            total_xp = sum(subject_xp_distribution.values())
 
             task_data = {
                 'user_id': target_user_id,
@@ -168,8 +167,8 @@ def create_student_task(user_id, target_user_id, quest_id):
                 'title': data['title'].strip(),
                 'description': data.get('description', '').strip(),
                 'pillar': normalized_pillar,
-                'subject_xp_distribution': subject_xp_distribution,
-                'xp_value': int(total_xp),
+                'subject_xp_distribution': None,
+                'xp_value': int(xp_value),
                 'order_index': max_order + 1,
                 'is_required': True,
                 'approval_status': 'approved',  # Admin-created tasks are pre-approved
@@ -281,9 +280,11 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
         # Create tasks from templates
         tasks_to_create = []
         for idx, template in enumerate(templates.data):
-            # Calculate total XP from subject_xp_distribution
-            subject_xp_dist = template.get('subject_xp_distribution', {})
-            total_xp = sum(subject_xp_dist.values()) if subject_xp_dist else template.get('xp_value', 100)
+            # Get XP value from template (use xp_value if available, fallback to subject_xp_distribution for backward compatibility)
+            xp_value = template.get('xp_value')
+            if not xp_value:
+                subject_xp_dist = template.get('subject_xp_distribution', {})
+                xp_value = sum(subject_xp_dist.values()) if subject_xp_dist else 100
 
             task_data = {
                 'user_id': target_user_id,
@@ -292,8 +293,8 @@ def batch_copy_tasks(user_id, target_user_id, quest_id):
                 'title': template['title'],
                 'description': template.get('description', ''),
                 'pillar': template['pillar'],
-                'subject_xp_distribution': subject_xp_dist or {"Electives": total_xp},
-                'xp_value': int(total_xp),
+                'subject_xp_distribution': None,
+                'xp_value': int(xp_value),
                 'order_index': max_order + idx + 1,
                 'is_required': True,
                 'approval_status': 'approved',

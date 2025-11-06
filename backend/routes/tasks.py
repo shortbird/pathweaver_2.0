@@ -267,7 +267,7 @@ def complete_task(user_id: str, task_id: str):
         if not xp_awarded:
             logger.error(f"Warning: Failed to award XP for task {task_id} to user {user_id}")
 
-        # Award subject-specific XP for diploma credits
+        # Award subject-specific XP for diploma credits (optional - for backward compatibility with old tasks)
         subject_xp_distribution = task_data.get('subject_xp_distribution', {})
         if subject_xp_distribution:
             logger.info(f"=== SUBJECT XP TRACKING ===")
