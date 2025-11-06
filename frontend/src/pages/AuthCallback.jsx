@@ -56,10 +56,10 @@ export default function AuthCallback() {
 
         setStatus('success')
 
-        // Use window.location to force a full page reload
-        // This ensures AuthContext's checkSession useEffect runs with the new tokens
+        // Use React Router navigate to preserve in-memory state
+        // This avoids race condition with localStorage persistence during page reload
         setTimeout(() => {
-          window.location.href = '/dashboard'
+          navigate('/dashboard', { replace: true })
         }, 300)
       } catch (err) {
         console.error('Token exchange failed:', err)
