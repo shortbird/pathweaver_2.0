@@ -50,6 +50,10 @@ export const AuthProvider = ({ children }) => {
           // We have tokens, verify with backend
           const response = await api.get('/api/auth/me')
           if (response.data) {
+            // ✅ SPARK SSO FIX: Update React Query cache IMMEDIATELY with user data
+            // This prevents PrivateRoute from redirecting to /login before user data loads
+            queryClient.setQueryData(queryKeys.user.profile('current'), response.data)
+
             setSession({ authenticated: true })
             setLoginTimestamp(Date.now())
             console.log('[AuthContext] Session restored successfully')
@@ -59,6 +63,9 @@ export const AuthProvider = ({ children }) => {
           try {
             const response = await api.get('/api/auth/me')
             if (response.data) {
+              // ✅ SPARK SSO FIX: Update React Query cache for cookie-based auth too
+              queryClient.setQueryData(queryKeys.user.profile('current'), response.data)
+
               setSession({ authenticated: true })
               setLoginTimestamp(Date.now())
               console.log('[AuthContext] Session restored via cookies')
