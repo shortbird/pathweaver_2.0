@@ -428,18 +428,35 @@ const QuestDetail = () => {
   // Get quest header image
   const questImage = quest.image_url || quest.header_image_url || getQuestHeaderImageSync(quest.quest_type);
 
+  // Check if this is a Spark LMS quest
+  const isSparkQuest = quest.lms_platform === 'spark';
+  const sparkLogoUrl = 'https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/onfire.png';
+
   return (
     <div className="min-h-screen bg-gray-50 pt-[50px] sm:pt-0">
-      {/* Hero Section with Background Image */}
+      {/* Hero Section with Background Image or White (Spark) */}
       <div className="relative min-h-[500px] w-full overflow-hidden pb-8">
-        {/* Background Image */}
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${questImage})` }}
-        />
-
-        {/* Left-to-right gradient overlay (white to transparent) */}
-        <div className="absolute inset-0 bg-gradient-to-r from-white via-white/80 to-transparent" />
+        {isSparkQuest ? (
+          // Spark LMS: White background with logo on right
+          <>
+            <div className="absolute inset-0 bg-white" />
+            {/* Spark Logo - Right Side */}
+            <div
+              className="absolute right-0 top-0 bottom-0 w-1/3 bg-no-repeat bg-right bg-contain opacity-20"
+              style={{ backgroundImage: `url(${sparkLogoUrl})` }}
+            />
+          </>
+        ) : (
+          // Regular quest: Background Image
+          <>
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{ backgroundImage: `url(${questImage})` }}
+            />
+            {/* Left-to-right gradient overlay (white to transparent) */}
+            <div className="absolute inset-0 bg-gradient-to-r from-white via-white/80 to-transparent" />
+          </>
+        )}
 
         {/* Content */}
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
