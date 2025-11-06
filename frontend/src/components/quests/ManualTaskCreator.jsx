@@ -1,13 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
-import QualityScoreGauge from './QualityScoreGauge';
+import SuggestionBox from './SuggestionBox';
 import api from '../../services/api';
 
 /**
  * ManualTaskCreator Component
  *
- * Allows students to create custom quest tasks with AI quality analysis.
- * Tasks with quality score >= 70 are auto-approved.
+ * Allows students to create custom quest tasks with optional AI suggestions.
+ * Features:
+ * - Clean, simple form focused on creativity
+ * - Auto-trigger suggestions after 3-second typing pause (first time only)
+ * - Manual refresh on >20 character changes
+ * - Clickable suggestion chips with undo functionality
+ * - No gates or approval requirements
  */
 const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => {
   const [currentTask, setCurrentTask] = useState({
@@ -16,11 +21,21 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
     pillar: ''
   });
 
-  const [analysis, setAnalysis] = useState(null);
+  const [analysis, setAnalysis] = useState(null); // Store full analysis response
+  const [suggestions, setSuggestions] = useState(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [addedTasks, setAddedTasks] = useState([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
+
+  // Undo functionality
+  const [lastAppliedSuggestion, setLastAppliedSuggestion] = useState(null);
+  const [previousDescription, setPreviousDescription] = useState('');
+
+  // Auto-trigger state
+  const [hasAutoTriggered, setHasAutoTriggered] = useState(false);
+  const [descriptionAtLastAnalysis, setDescriptionAtLastAnalysis] = useState('');
+  const typingTimeoutRef = useRef(null);
 
   const pillars = [
     { key: '', label: 'Let AI suggest' },
@@ -31,23 +46,59 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
     { key: 'art', label: 'Art' }
   ];
 
+  // Auto-trigger logic: First call after 3-second typing pause
+  useEffect(() => {
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Only auto-trigger if:
+    // 1. Haven't triggered yet
+    // 2. Have title (3+ chars) and description
+    // 3. User stopped typing for 3 seconds
+    if (!hasAutoTriggered && currentTask.title.length >= 3 && currentTask.description.trim().length > 0) {
+      typingTimeoutRef.current = setTimeout(() => {
+        handleAnalyzeTask(true); // true = auto-triggered
+      }, 3000);
+    }
+
+    return () => {
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, [currentTask.title, currentTask.description, hasAutoTriggered]);
+
   const handleInputChange = (field, value) => {
     setCurrentTask(prev => ({ ...prev, [field]: value }));
-    setAnalysis(null); // Clear analysis when user edits
     setError('');
+
+    // Smart refresh: Check if description changed significantly (>20 chars) since last analysis
+    if (field === 'description' && descriptionAtLastAnalysis) {
+      const changeAmount = Math.abs(value.length - descriptionAtLastAnalysis.length);
+      if (changeAmount > 20 && !isAnalyzing) {
+        // Significant change - refresh suggestions
+        handleAnalyzeTask(false);
+      }
+    }
   };
 
-  const handleAnalyzeTask = async () => {
+  const handleAnalyzeTask = async (isAutoTriggered = false) => {
     setError('');
 
     // Validation
     if (!currentTask.title || currentTask.title.length < 3) {
-      setError('Task title must be at least 3 characters');
+      if (!isAutoTriggered) {
+        setError('Task title must be at least 3 characters');
+      }
       return;
     }
 
     if (!currentTask.description || currentTask.description.trim().length === 0) {
-      setError('Task description is required');
+      if (!isAutoTriggered) {
+        setError('Task description is required');
+      }
       return;
     }
 
@@ -61,51 +112,122 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
       });
 
       if (response.data.success) {
-        setAnalysis(response.data);
+        // Store full analysis for later use
+        setAnalysis({
+          suggested_xp: response.data.suggested_xp,
+          suggested_pillar: response.data.suggested_pillar,
+          diploma_subjects: response.data.diploma_subjects
+        });
+
+        setSuggestions(response.data.suggestions || []);
+        setDescriptionAtLastAnalysis(currentTask.description);
+
+        if (isAutoTriggered) {
+          setHasAutoTriggered(true);
+        }
       } else {
-        setError(response.data.error || 'Failed to analyze task');
+        setError(response.data.error || 'Failed to get suggestions');
       }
     } catch (err) {
-      console.error('Error analyzing task:', err);
-      setError(err.response?.data?.error || 'Failed to analyze task. Please try again.');
+      console.error('Error getting suggestions:', err);
+      if (!isAutoTriggered) {
+        setError(err.response?.data?.error || 'Failed to get suggestions. Please try again.');
+      }
     } finally {
       setIsAnalyzing(false);
     }
   };
 
-  const handleAddTask = () => {
-    if (!analysis) return;
+  const handleApplySuggestion = useCallback((suggestion) => {
+    // Save current state for undo
+    setPreviousDescription(currentTask.description);
+    setLastAppliedSuggestion(suggestion);
 
-    const taskToAdd = {
-      title: currentTask.title,
-      description: currentTask.description,
-      quality_score: analysis.quality_score,
-      xp_value: analysis.suggested_xp,
-      pillar: analysis.suggested_pillar,
-      diploma_subjects: analysis.diploma_subjects,
-      approval_status: analysis.approval_status
-    };
+    // Append suggestion to description with proper spacing
+    const newDescription = currentTask.description.trim()
+      ? `${currentTask.description.trim()} ${suggestion}`
+      : suggestion;
 
-    setAddedTasks(prev => [...prev, taskToAdd]);
+    setCurrentTask(prev => ({
+      ...prev,
+      description: newDescription
+    }));
+  }, [currentTask.description]);
+
+  const handleUndo = useCallback(() => {
+    if (previousDescription !== null) {
+      setCurrentTask(prev => ({
+        ...prev,
+        description: previousDescription
+      }));
+      setPreviousDescription('');
+      setLastAppliedSuggestion(null);
+    }
+  }, [previousDescription]);
+
+  const handleAddTask = async () => {
+    setError('');
+
+    // Validation
+    if (!currentTask.title || currentTask.title.length < 3) {
+      setError('Task title must be at least 3 characters');
+      return;
+    }
+
+    if (!currentTask.description || currentTask.description.trim().length === 0) {
+      setError('Task description is required');
+      return;
+    }
+
+    // If no analysis yet, get it to determine XP and pillar
+    let taskData = { ...currentTask };
+
+    if (!analysis) {
+      setIsAnalyzing(true);
+      try {
+        const response = await api.post(`/api/quests/${questId}/analyze-manual-task`, {
+          title: currentTask.title,
+          description: currentTask.description,
+          pillar: currentTask.pillar || undefined
+        });
+
+        if (response.data.success) {
+          taskData.xp_value = response.data.suggested_xp;
+          taskData.pillar = response.data.suggested_pillar;
+          taskData.diploma_subjects = response.data.diploma_subjects;
+        }
+      } catch (err) {
+        console.error('Error analyzing task:', err);
+        // Use defaults if analysis fails
+        taskData.xp_value = 100;
+        taskData.pillar = currentTask.pillar || 'stem';
+        taskData.diploma_subjects = { 'Electives': 100 };
+      } finally {
+        setIsAnalyzing(false);
+      }
+    } else {
+      // Use values from last analysis
+      taskData.xp_value = analysis.suggested_xp;
+      taskData.pillar = analysis.suggested_pillar;
+      taskData.diploma_subjects = analysis.diploma_subjects;
+    }
+
+    // Add to tasks list
+    setAddedTasks(prev => [...prev, taskData]);
 
     // Reset form
     setCurrentTask({ title: '', description: '', pillar: '' });
     setAnalysis(null);
+    setSuggestions(null);
+    setDescriptionAtLastAnalysis('');
+    setHasAutoTriggered(false);
+    setLastAppliedSuggestion(null);
+    setPreviousDescription('');
     setError('');
   };
 
   const handleRemoveTask = (index) => {
     setAddedTasks(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const handleRevise = () => {
-    setAnalysis(null);
-    setError('');
-  };
-
-  const handleSubmitAnyway = () => {
-    // Allow submission of tasks with score 50-69 for admin review
-    handleAddTask();
   };
 
   const handleFinish = async () => {
@@ -135,144 +257,14 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
     }
   };
 
-  const renderFeedbackSection = () => {
-    if (!analysis) return null;
-
-    const { quality_score, feedback, suggested_xp, suggested_pillar, approval_status, overall_feedback } = analysis;
-
-    const getFeedbackIndicator = (score) => {
-      // Development stages: celebrates progress, not just achievement
-      if (score >= 20) return { icon: '🌟', label: 'Strong', colorClass: 'text-green-600' };
-      if (score >= 15) return { icon: '⚙️', label: 'Developing', colorClass: 'text-amber-600' };
-      return { icon: '💭', label: 'Exploring', colorClass: 'text-blue-600' };
-    };
-
-    return (
-      <div className="mt-6 p-6 bg-gray-50 rounded-lg border border-gray-200">
-        <div className="flex items-start gap-6">
-          {/* Quality Score Gauge */}
-          <div className="flex-shrink-0">
-            <QualityScoreGauge score={quality_score} size="large" />
-          </div>
-
-          {/* Feedback Details */}
-          <div className="flex-1 space-y-4">
-            <div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-1">Quality Analysis</h4>
-              <p className="text-sm text-gray-600">{overall_feedback}</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {Object.entries(feedback).map(([criterion, data]) => {
-                const indicator = getFeedbackIndicator(data.score);
-                return (
-                  <div key={criterion} className="bg-white p-3 rounded border border-gray-200">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="text-lg">{indicator.icon}</span>
-                      <div className="flex-1">
-                        <span className="text-sm font-semibold text-gray-900 capitalize block">
-                          {criterion.replace('_', ' ')}
-                        </span>
-                        <span className={`text-xs font-medium ${indicator.colorClass}`}>
-                          {indicator.label}
-                        </span>
-                      </div>
-                      <span className="text-sm font-bold text-gray-700">
-                        {data.score}/25
-                      </span>
-                    </div>
-                    <p className="text-sm text-gray-700 leading-relaxed">{data.comment}</p>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="flex items-center gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-gray-700">XP Value:</span>
-                <span className="text-purple-600 font-bold">{suggested_xp} XP</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="font-semibold text-gray-700">Pillar:</span>
-                <span className="text-gray-900 capitalize">{suggested_pillar}</span>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3 pt-2">
-              {quality_score >= 70 && (
-                <>
-                  <button
-                    onClick={handleAddTask}
-                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
-                  >
-                    Add This Task
-                  </button>
-                  <button
-                    onClick={handleRevise}
-                    className="px-4 py-2 bg-white hover:bg-purple-50 text-purple-600 border-2 border-purple-600 font-semibold rounded-lg transition-colors"
-                  >
-                    Keep Refining
-                  </button>
-                </>
-              )}
-
-              {quality_score >= 50 && quality_score < 70 && (
-                <>
-                  <button
-                    onClick={handleRevise}
-                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
-                  >
-                    Refine This Task
-                  </button>
-                  <button
-                    onClick={handleSubmitAnyway}
-                    className="px-4 py-2 bg-white hover:bg-purple-50 text-purple-600 border-2 border-purple-600 font-semibold rounded-lg transition-colors"
-                  >
-                    Ask Advisor to Review
-                  </button>
-                </>
-              )}
-
-              {quality_score < 50 && (
-                <button
-                  onClick={handleRevise}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded-lg transition-colors"
-                >
-                  Develop This Further
-                </button>
-              )}
-            </div>
-
-            {approval_status === 'pending_review' && (
-              <p className="text-xs text-yellow-700 bg-yellow-50 p-2 rounded border border-yellow-200">
-                Note: This task will require admin approval before you can complete it.
-              </p>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
-
   const renderAddedTasksList = () => {
     if (addedTasks.length === 0) return null;
 
-    const autoApprovedCount = addedTasks.filter(t => t.approval_status === 'approved').length;
-    const pendingCount = addedTasks.length - autoApprovedCount;
-
     return (
       <div className="mt-6">
-        <div className="flex items-center justify-between mb-3">
-          <h4 className="text-lg font-semibold text-gray-900">
-            Your Tasks ({addedTasks.length})
-          </h4>
-          {pendingCount > 0 && (
-            <span className="text-xs text-yellow-700 bg-yellow-100 px-2 py-1 rounded">
-              {pendingCount} awaiting review
-            </span>
-          )}
-        </div>
+        <h4 className="text-lg font-semibold text-gray-900 mb-3">
+          Your Tasks ({addedTasks.length})
+        </h4>
 
         <div className="space-y-2">
           {addedTasks.map((task, index) => (
@@ -283,8 +275,8 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <h5 className="font-semibold text-gray-900">{task.title}</h5>
-                  <span className="text-sm text-purple-600 font-bold">{task.xp_value} XP</span>
-                  <span className="text-xs text-gray-500 capitalize">({task.pillar})</span>
+                  <span className="text-sm text-purple-600 font-bold">{task.xp_value || 100} XP</span>
+                  <span className="text-xs text-gray-500 capitalize">({task.pillar || 'stem'})</span>
                 </div>
                 <p className="text-xs text-gray-600 mt-1 line-clamp-2">{task.description}</p>
               </div>
@@ -307,8 +299,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
       <div className="mb-6">
         <h2 className="text-2xl font-bold text-gray-900 mb-2">Create Your Quest Tasks</h2>
         <p className="text-gray-600">
-          Design tasks that spark your curiosity and help you explore what interests you.
-          Our AI will help ensure your tasks are clear and meaningful.
+          Design tasks that spark your curiosity. Our AI can suggest ideas, but you're in control.
         </p>
       </div>
 
@@ -374,18 +365,35 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
             </select>
           </div>
 
-          {/* Analyze Button */}
+          {/* Suggestion Box (appears automatically or on demand) */}
+          <SuggestionBox
+            suggestions={suggestions}
+            onApplySuggestion={handleApplySuggestion}
+            lastAppliedSuggestion={lastAppliedSuggestion}
+            onUndo={handleUndo}
+            isLoading={isAnalyzing}
+          />
+
+          {/* Get Suggestions Button (manual trigger) */}
+          {!suggestions && !isAnalyzing && hasAutoTriggered && (
+            <button
+              onClick={() => handleAnalyzeTask(false)}
+              disabled={!currentTask.title || !currentTask.description}
+              className="w-full px-6 py-3 bg-purple-100 hover:bg-purple-200 disabled:bg-gray-100 disabled:cursor-not-allowed text-purple-700 font-semibold rounded-lg transition-colors"
+            >
+              Get Fresh Ideas
+            </button>
+          )}
+
+          {/* Add Task Button */}
           <button
-            onClick={handleAnalyzeTask}
-            disabled={isAnalyzing || !currentTask.title || !currentTask.description}
+            onClick={handleAddTask}
+            disabled={!currentTask.title || !currentTask.description || isAnalyzing}
             className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
           >
-            {isAnalyzing ? 'Analyzing Task...' : 'Analyze Task'}
+            Add This Task
           </button>
         </div>
-
-        {/* Feedback Section */}
-        {renderFeedbackSection()}
       </div>
 
       {/* Added Tasks List */}

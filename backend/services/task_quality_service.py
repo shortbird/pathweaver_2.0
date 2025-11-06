@@ -29,7 +29,7 @@ class TaskQualityService(BaseService):
         pillar: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Analyze a student-created task for quality and generate suggestions.
+        Analyze a student-created task and generate helpful suggestions.
 
         Args:
             title: Task title (min 3 chars)
@@ -38,15 +38,12 @@ class TaskQualityService(BaseService):
 
         Returns:
             Dict containing:
-                - quality_score: int (0-100)
-                - feedback: dict with scores and comments for each criterion
+                - suggestions: list of strings (3-5 actionable suggestions)
                 - suggested_xp: int (50-200)
                 - suggested_pillar: str
                 - diploma_subjects: dict
-                - approval_status: 'approved' or 'pending_review'
-                - overall_feedback: str
         """
-        logger.info(f"Analyzing task quality for: {title}")
+        logger.info(f"Generating suggestions for task: {title}")
 
         # Validate inputs
         if not title or len(title.strip()) < 3:
@@ -55,28 +52,24 @@ class TaskQualityService(BaseService):
             raise ValueError("Task description is required")
 
         try:
-            # Generate quality analysis using Gemini
+            # Generate suggestions using Gemini
             analysis = self._call_gemini_for_analysis(title, description, pillar)
 
-            # Calculate approval status based on quality score
-            quality_score = analysis.get('quality_score', 0)
-            if quality_score >= 70:
-                approval_status = 'approved'
-            else:
-                approval_status = 'pending_review'
-
-            # Add approval status to response
-            analysis['approval_status'] = approval_status
-
+            # Log internal quality score for analytics (not sent to frontend)
+            internal_score = analysis.get('internal_quality_score', 0)
             logger.info(
-                f"Task analysis complete. Score: {quality_score}, "
-                f"Status: {approval_status}"
+                f"Task suggestion generation complete. "
+                f"Internal score: {internal_score}, "
+                f"Suggestions: {len(analysis.get('suggestions', []))}"
             )
+
+            # Remove internal_quality_score from response (frontend doesn't need it)
+            analysis.pop('internal_quality_score', None)
 
             return analysis
 
         except Exception as e:
-            logger.error(f"Error analyzing task quality: {str(e)}", exc_info=True)
+            logger.error(f"Error generating task suggestions: {str(e)}", exc_info=True)
             raise
 
     def _call_gemini_for_analysis(
@@ -136,51 +129,49 @@ class TaskQualityService(BaseService):
         description: str,
         pillar: Optional[str]
     ) -> str:
-        """Build the prompt for Gemini quality analysis"""
+        """Build the prompt for Gemini suggestion generation"""
 
         pillar_hint = f"\nStudent's pillar preference: {pillar}" if pillar else ""
 
-        return f"""You are coaching a teenage student who is designing their own learning task. Your role is to help them refine their idea with supportive, specific guidance.
+        return f"""You are a supportive learning coach helping a teenage student design their own learning task. Generate 3-5 specific, actionable suggestions that could make their task more engaging and meaningful.
 
-TASK:
+STUDENT'S TASK:
 Title: {title}
 Description: {description}{pillar_hint}
 
-SCORE each criterion 0-25 points:
+YOUR ROLE:
+- Suggest concrete rewordings or additions they can click to incorporate
+- Each suggestion should be a complete sentence or phrase they can add to their description
+- Focus on making tasks specific, present-focused, process-oriented, and curiosity-driven
+- Keep suggestions practical and achievable for a teenage student
+- Be encouraging and collaborative, not prescriptive
 
-1. SPECIFICITY: Clear actions with measurable outcomes?
-   Strong: "Build a solar oven and test 3 recipes" | Exploring: "Study renewable energy"
+SUGGESTION QUALITY GUIDELINES:
+- Add specificity: "Interview 3 people about X" instead of "Research X"
+- Emphasize present discovery: "Explore what happens when..." instead of "Learn for future career"
+- Celebrate process: "Try 3 different approaches and document what works" instead of "Create perfect result"
+- Build authenticity: "Document your personal reactions" instead of "Make it look professional"
 
-2. PRESENT-FOCUS: Values learning happening NOW (not someday benefits)?
-   Strong: "Explore what colors make me feel calm" | Exploring: "Learn color theory for future job"
-
-3. PROCESS-ORIENTED: Celebrates the journey, mistakes, and experimentation?
-   Strong: "Try 3 coding approaches and journal learnings" | Exploring: "Code a perfect app"
-
-4. AUTHENTICITY: Driven by genuine curiosity (not external validation)?
-   Strong: "Interview my grandparent about their childhood" | Exploring: "Research history to boost applications"
-
-FEEDBACK TONE GUIDE:
-- Strong (20-25): "Nice! [what works]" or "Strong [aspect]. [tiny refinement]"
-- Developing (15-19): "Good start. [what works] Try: [specific next step]"
-- Exploring (0-14): "Let's develop this. [what they're going for] Try: [concrete example]"
-
-Keep feedback supportive, collaborative, and under 20 words. Frame as coaching, not judging.
+EVALUATION CRITERIA (use internally, don't show scores):
+1. Specificity: Clear actions with measurable outcomes
+2. Present-focus: Values learning happening NOW
+3. Process-oriented: Celebrates journey and experimentation
+4. Authenticity: Driven by genuine curiosity
 
 Return ONLY valid JSON (no markdown):
 {{
-  "quality_score": 0-100,
-  "feedback": {{
-    "specificity": {{"score": 0-25, "comment": "supportive tip"}},
-    "present_focus": {{"score": 0-25, "comment": "supportive tip"}},
-    "process_oriented": {{"score": 0-25, "comment": "supportive tip"}},
-    "authenticity": {{"score": 0-25, "comment": "supportive tip"}}
-  }},
+  "suggestions": [
+    "Complete sentence suggestion 1",
+    "Complete sentence suggestion 2",
+    "Complete sentence suggestion 3"
+  ],
   "suggested_xp": 50-200,
   "suggested_pillar": "stem|wellness|communication|civics|art",
   "diploma_subjects": {{"Subject": percentage}},
-  "overall_feedback": "1 encouraging sentence"
-}}"""
+  "internal_quality_score": 0-100
+}}
+
+Make suggestions conversational and specific to their task idea."""
 
     def _validate_analysis_response(self, analysis: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -188,27 +179,22 @@ Return ONLY valid JSON (no markdown):
 
         Ensures all required fields are present and values are within expected ranges.
         """
-        # Validate quality_score
-        if 'quality_score' not in analysis:
-            raise ValueError("Missing quality_score in AI response")
-        analysis['quality_score'] = max(0, min(100, int(analysis['quality_score'])))
+        # Validate suggestions array
+        if 'suggestions' not in analysis:
+            raise ValueError("Missing suggestions in AI response")
+        if not isinstance(analysis['suggestions'], list):
+            raise ValueError("Suggestions must be a list")
+        if len(analysis['suggestions']) < 1:
+            raise ValueError("At least one suggestion is required")
 
-        # Validate feedback structure
-        if 'feedback' not in analysis or not isinstance(analysis['feedback'], dict):
-            raise ValueError("Missing or invalid feedback in AI response")
+        # Ensure suggestions are strings
+        analysis['suggestions'] = [str(s) for s in analysis['suggestions']]
 
-        required_criteria = ['specificity', 'present_focus', 'process_oriented', 'authenticity']
-        for criterion in required_criteria:
-            if criterion not in analysis['feedback']:
-                raise ValueError(f"Missing {criterion} in feedback")
-            if 'score' not in analysis['feedback'][criterion]:
-                raise ValueError(f"Missing score for {criterion}")
-            if 'comment' not in analysis['feedback'][criterion]:
-                analysis['feedback'][criterion]['comment'] = "No specific feedback"
-
-            # Clamp scores to 0-25
-            score = analysis['feedback'][criterion]['score']
-            analysis['feedback'][criterion]['score'] = max(0, min(25, int(score)))
+        # Validate internal_quality_score (used for logging/analytics, not sent to frontend)
+        if 'internal_quality_score' not in analysis:
+            logger.warning("Missing internal_quality_score in AI response, defaulting to 50")
+            analysis['internal_quality_score'] = 50
+        analysis['internal_quality_score'] = max(0, min(100, int(analysis['internal_quality_score'])))
 
         # Validate suggested_xp (50-200 range for manual tasks)
         if 'suggested_xp' not in analysis:
@@ -230,9 +216,5 @@ Return ONLY valid JSON (no markdown):
             analysis['diploma_subjects'] = {}
         if not isinstance(analysis['diploma_subjects'], dict):
             analysis['diploma_subjects'] = {}
-
-        # Validate overall_feedback
-        if 'overall_feedback' not in analysis:
-            analysis['overall_feedback'] = "Task analyzed successfully"
 
         return analysis

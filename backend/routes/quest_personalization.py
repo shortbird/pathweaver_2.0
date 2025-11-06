@@ -223,8 +223,8 @@ def edit_task(user_id: str, quest_id: str):
 @require_auth
 def analyze_manual_task(user_id: str, quest_id: str):
     """
-    Analyze a student-created task for quality using AI.
-    Returns quality score, feedback, and suggested XP/pillar values.
+    Generate helpful suggestions for a student-created task using AI.
+    Returns suggestions, suggested XP, and pillar values.
     """
     try:
         data = request.get_json()
@@ -246,7 +246,7 @@ def analyze_manual_task(user_id: str, quest_id: str):
                 'error': 'Task description is required'
             }), 400
 
-        # Analyze task quality using AI
+        # Generate suggestions using AI
         quality_service = TaskQualityService()
         analysis = quality_service.analyze_task_quality(
             title=title,
@@ -255,9 +255,8 @@ def analyze_manual_task(user_id: str, quest_id: str):
         )
 
         logger.info(
-            f"Task quality analysis for user {user_id}: "
-            f"score={analysis['quality_score']}, "
-            f"status={analysis['approval_status']}"
+            f"Task suggestions generated for user {user_id}: "
+            f"{len(analysis.get('suggestions', []))} suggestions"
         )
 
         return jsonify({
@@ -282,8 +281,8 @@ def analyze_manual_task(user_id: str, quest_id: str):
 @require_auth
 def add_manual_tasks_batch(user_id: str, quest_id: str):
     """
-    Add multiple student-created tasks at once after quality analysis.
-    Tasks with score >= 70 are auto-approved.
+    Add multiple student-created tasks at once.
+    All tasks are approved immediately - students have full control of their learning.
     """
     try:
         from utils.pillar_mapping import normalize_pillar_name
@@ -341,8 +340,6 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
 
         # Create user_quest_tasks entries
         created_tasks = []
-        auto_approved_count = 0
-        pending_review_count = 0
 
         for idx, task in enumerate(tasks):
             # Normalize pillar name
@@ -356,13 +353,6 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
             if not isinstance(diploma_subjects, dict):
                 diploma_subjects = {'Electives': task.get('xp_value', 100)}
 
-            # Determine approval status
-            approval_status = task.get('approval_status', 'pending_review')
-            if approval_status == 'approved':
-                auto_approved_count += 1
-            else:
-                pending_review_count += 1
-
             user_task = {
                 'user_id': user_id,
                 'quest_id': quest_id,
@@ -375,7 +365,7 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
                 'order_index': max_order + idx + 1,
                 'is_required': True,
                 'is_manual': True,
-                'approval_status': approval_status,
+                'approval_status': 'approved',  # All tasks auto-approved
                 'created_at': datetime.utcnow().isoformat()
             }
 
@@ -387,18 +377,13 @@ def add_manual_tasks_batch(user_id: str, quest_id: str):
                 created_tasks.append(result.data[0])
 
         logger.info(
-            f"User {user_id} added {len(created_tasks)} manual tasks to quest {quest_id}. "
-            f"Auto-approved: {auto_approved_count}, Pending review: {pending_review_count}"
+            f"User {user_id} added {len(created_tasks)} manual tasks to quest {quest_id}"
         )
 
         return jsonify({
             'success': True,
             'tasks': created_tasks,
-            'auto_approved_count': auto_approved_count,
-            'pending_review_count': pending_review_count,
-            'message': f'Added {len(created_tasks)} task(s). ' +
-                      (f'{auto_approved_count} auto-approved, ' if auto_approved_count else '') +
-                      (f'{pending_review_count} pending admin review.' if pending_review_count else 'All approved!')
+            'message': f'Added {len(created_tasks)} task(s) to your quest!'
         })
 
     except Exception as e:

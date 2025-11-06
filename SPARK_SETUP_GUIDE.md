@@ -27,25 +27,6 @@ Two features that connect Spark LMS to Optio:
 1. **SSO Authentication** - "View Optio Portfolio" button that logs students into Optio automatically
 2. **Submission Webhooks** - Auto-sync completed assignments to student portfolios
 
-### Timeline
-
-- **SSO Authentication:** 2-4 hours
-- **Submission Webhooks:** 4-8 hours
-- **Testing:** 2-4 hours
-- **Total:** 1-2 days
-
-### What Students Experience
-
-**Before Integration:**
-- Student completes assignment in Spark
-- Student manually copies work to Optio
-- Duplicate data entry, frustration
-
-**After Integration:**
-- Student completes assignment in Spark
-- Click "View Portfolio" button
-- Portfolio automatically updated with zero extra work
-
 ---
 
 ## Prerequisites
