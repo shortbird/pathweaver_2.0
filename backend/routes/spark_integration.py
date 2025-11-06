@@ -91,25 +91,112 @@ def spark_sso():
     try:
         user = create_or_update_spark_user(claims)
 
-        # Generate tokens for Authorization header (incognito mode compatibility)
-        access_token = session_manager.generate_access_token(user['id'])
-        refresh_token = session_manager.generate_refresh_token(user['id'])
+        # Generate one-time authorization code (OAuth 2.0 authorization code flow)
+        # SECURITY: This prevents tokens from appearing in browser history/logs
+        auth_code = generate_auth_code()
+        expires_at = datetime.utcnow() + timedelta(seconds=60)  # 60 second expiry
 
-        # Redirect to frontend with tokens in URL (will be extracted and stored by frontend)
+        supabase = get_supabase_admin_client()
+        supabase.table('spark_auth_codes').insert({
+            'code': auth_code,
+            'user_id': user['id'],
+            'expires_at': expires_at.isoformat(),
+            'used': False
+        }).execute()
+
+        # Redirect to frontend with one-time code (not tokens)
         frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
-        redirect_url = f"{frontend_url}/dashboard?lti=true&access_token={access_token}&refresh_token={refresh_token}"
+        redirect_url = f"{frontend_url}/auth/callback?code={auth_code}"
 
         response = redirect(redirect_url)
 
-        # Also set cookies as fallback (will be skipped in cross-origin mode)
-        session_manager.set_auth_cookies(response, user['id'])
-
-        logger.info(f"Spark SSO successful: user_id={user['id']}")
+        logger.info(f"Spark SSO successful: user_id={user['id']}, code issued")
         return response
 
     except Exception as e:
         logger.error(f"Failed to create Spark user: {str(e)}", exc_info=True)
         return jsonify({'error': 'Failed to create user account'}), 500
+
+
+def generate_auth_code() -> str:
+    """Generate a cryptographically secure random authorization code"""
+    import secrets
+    return secrets.token_urlsafe(32)
+
+
+# ============================================
+# TOKEN EXCHANGE ENDPOINT
+# ============================================
+
+@bp.route('/spark/token', methods=['POST'])
+@rate_limit(limit=10, per=60)  # 10 token exchanges per minute
+def exchange_auth_code():
+    """
+    Exchange authorization code for access/refresh tokens (OAuth 2.0 pattern)
+
+    Request Body:
+        code: One-time authorization code from SSO redirect
+
+    Returns:
+        200: {access_token, refresh_token, user_id}
+        400: Missing/invalid code
+        401: Code expired or already used
+    """
+    try:
+        data = request.get_json()
+        code = data.get('code')
+
+        if not code:
+            return jsonify({'error': 'Missing authorization code'}), 400
+
+        supabase = get_supabase_admin_client()
+
+        # Validate code (one-time use, not expired)
+        code_record = supabase.table('spark_auth_codes')\
+            .select('*')\
+            .eq('code', code)\
+            .single()\
+            .execute()
+
+        if not code_record.data:
+            logger.warning(f"Invalid auth code attempted: {code[:10]}...")
+            return jsonify({'error': 'Invalid authorization code'}), 401
+
+        record = code_record.data
+
+        # Check if already used
+        if record['used']:
+            logger.warning(f"Auth code reuse attempted: {code[:10]}...")
+            return jsonify({'error': 'Authorization code already used'}), 401
+
+        # Check if expired
+        expires_at = datetime.fromisoformat(record['expires_at'].replace('Z', '+00:00'))
+        if datetime.now(expires_at.tzinfo) > expires_at:
+            logger.warning(f"Expired auth code attempted: {code[:10]}...")
+            return jsonify({'error': 'Authorization code expired'}), 401
+
+        # Mark code as used (one-time use)
+        supabase.table('spark_auth_codes')\
+            .update({'used': True})\
+            .eq('code', code)\
+            .execute()
+
+        # Generate tokens
+        user_id = record['user_id']
+        access_token = session_manager.generate_access_token(user_id)
+        refresh_token = session_manager.generate_refresh_token(user_id)
+
+        logger.info(f"Token exchange successful: user_id={user_id}")
+
+        return jsonify({
+            'access_token': access_token,
+            'refresh_token': refresh_token,
+            'user_id': user_id
+        })
+
+    except Exception as e:
+        logger.error(f"Token exchange error: {str(e)}", exc_info=True)
+        return jsonify({'error': 'Token exchange failed'}), 500
 
 
 # ============================================
