@@ -19,13 +19,13 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
     xp_value: 100
   })
 
-  // Pillar options
+  // Pillar options (using simplified single-word keys)
   const pillarOptions = [
-    { value: 'stem_logic', label: 'STEM & Logic' },
-    { value: 'life_wellness', label: 'Life & Wellness' },
-    { value: 'language_communication', label: 'Language & Communication' },
-    { value: 'society_culture', label: 'Society & Culture' },
-    { value: 'arts_creativity', label: 'Arts & Creativity' }
+    { value: 'stem', label: 'STEM' },
+    { value: 'wellness', label: 'Wellness' },
+    { value: 'communication', label: 'Communication' },
+    { value: 'civics', label: 'Civics' },
+    { value: 'art', label: 'Art' }
   ]
 
   useEffect(() => {
@@ -61,22 +61,22 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
 
   const getPillarColor = (pillar) => {
     const colors = {
-      stem_logic: 'bg-blue-100 text-blue-700',
-      life_wellness: 'bg-green-100 text-green-700',
-      language_communication: 'bg-orange-100 text-orange-700',
-      society_culture: 'bg-red-100 text-red-700',
-      arts_creativity: 'bg-purple-100 text-purple-700'
+      stem: 'bg-blue-100 text-blue-700',
+      wellness: 'bg-red-100 text-red-700',
+      communication: 'bg-green-100 text-green-700',
+      civics: 'bg-orange-100 text-orange-700',
+      art: 'bg-purple-100 text-purple-700'
     }
     return colors[pillar] || 'bg-gray-100 text-gray-700'
   }
 
   const getPillarLabel = (pillar) => {
     const labels = {
-      stem_logic: 'STEM & Logic',
-      life_wellness: 'Life & Wellness',
-      language_communication: 'Language & Communication',
-      society_culture: 'Society & Culture',
-      arts_creativity: 'Arts & Creativity'
+      stem: 'STEM',
+      wellness: 'Wellness',
+      communication: 'Communication',
+      civics: 'Civics',
+      art: 'Art'
     }
     return labels[pillar] || pillar
   }
@@ -342,6 +342,19 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                 </div>
 
                 <div>
+                  <label className="block text-sm font-medium mb-2 text-gray-600">
+                    Task Description (Optional)
+                  </label>
+                  <textarea
+                    value={customTask.description}
+                    onChange={(e) => setCustomTask({ ...customTask, description: e.target.value })}
+                    className="w-full px-3 py-2 border rounded-lg border-gray-300"
+                    rows={3}
+                    placeholder="Provide detailed instructions..."
+                  />
+                </div>
+
+                <div>
                   <label className="block text-sm font-semibold mb-2 text-gray-800">
                     Learning Pillar
                     <span className="text-red-500 font-bold ml-1">*</span>
@@ -396,19 +409,6 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                       {errors.xp}
                     </p>
                   )}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2 text-gray-600">
-                    Task Description (Optional)
-                  </label>
-                  <textarea
-                    value={customTask.description}
-                    onChange={(e) => setCustomTask({ ...customTask, description: e.target.value })}
-                    className="w-full px-3 py-2 border rounded-lg border-gray-300"
-                    rows={3}
-                    placeholder="Provide detailed instructions..."
-                  />
                 </div>
               </div>
             </div>
