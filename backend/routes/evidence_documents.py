@@ -299,26 +299,36 @@ def upload_block_file(user_id: str, block_id: str):
     Upload a file for a specific content block (image or document).
     """
     try:
-        supabase = get_user_client()
-        # JUSTIFICATION: Admin client only for Supabase storage operations (line 361, 367)
-        # User client handles all database operations with proper RLS enforcement
+        # JUSTIFICATION: Using admin client for evidence operations because:
+        # 1. User authentication already validated by @require_auth decorator
+        # 2. Spark SSO users don't have Supabase auth.users entries (only public.users)
+        # 3. RLS policies check auth.uid() which doesn't exist for Spark users
+        # 4. We validate user_id matches block owner below (line 315-319)
         admin_supabase = get_supabase_admin_client()
 
         # Validate the block exists and belongs to the user
-        block_response = supabase.table('evidence_document_blocks')\
-            .select('*, user_task_evidence_documents!inner(user_id)')\
+        block_response = admin_supabase.table('evidence_document_blocks')\
+            .select('*, user_task_evidence_documents(user_id)')\
             .eq('id', block_id)\
-            .eq('user_task_evidence_documents.user_id', user_id)\
             .single()\
             .execute()
 
         if not block_response.data:
             return jsonify({
                 'success': False,
-                'error': 'Block not found or access denied'
+                'error': 'Block not found'
             }), 404
 
         block = block_response.data
+
+        # Validate user owns the document (manual RLS check)
+        document_user_id = block.get('user_task_evidence_documents', {}).get('user_id') if isinstance(block.get('user_task_evidence_documents'), dict) else None
+        if document_user_id != user_id:
+            return jsonify({
+                'success': False,
+                'error': 'Access denied'
+            }), 403
+
         block_type = block['block_type']
 
         if block_type not in ['image', 'document']:
@@ -400,7 +410,7 @@ def upload_block_file(user_id: str, block_id: str):
             if block_type == 'image' and not current_content.get('alt'):
                 current_content['alt'] = filename
 
-            supabase.table('evidence_document_blocks')\
+            admin_supabase.table('evidence_document_blocks')\
                 .update({'content': current_content})\
                 .eq('id', block_id)\
                 .execute()
@@ -432,10 +442,11 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
     Process evidence document completion - extracted from save_evidence_document
     """
     try:
-        supabase = get_user_client()
+        # JUSTIFICATION: Using admin client for evidence operations (Spark SSO users)
+        admin_supabase = get_supabase_admin_client()
 
         # Validate task exists and user is enrolled (V3 personalized task system)
-        task_check = supabase.table('user_quest_tasks')\
+        task_check = admin_supabase.table('user_quest_tasks')\
             .select('quest_id, title, xp_value, pillar')\
             .eq('id', task_id)\
             .execute()
@@ -449,7 +460,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
         quest_id = task_check.data[0]['quest_id']
 
         # Check if user is enrolled in the quest
-        enrollment = supabase.table('user_quests')\
+        enrollment = admin_supabase.table('user_quests')\
             .select('id')\
             .eq('user_id', user_id)\
             .eq('quest_id', quest_id)\
@@ -463,7 +474,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
             }
 
         # Get or update evidence document
-        document_response = supabase.table('user_task_evidence_documents')\
+        document_response = admin_supabase.table('user_task_evidence_documents')\
             .select('*')\
             .eq('user_id', user_id)\
             .eq('task_id', task_id)\
@@ -481,7 +492,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
             if status == 'completed':
                 update_data['completed_at'] = datetime.utcnow().isoformat()
 
-            supabase.table('user_task_evidence_documents')\
+            admin_supabase.table('user_task_evidence_documents')\
                 .update(update_data)\
                 .eq('id', document_id)\
                 .execute()
@@ -492,7 +503,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
             }
 
         # Update content blocks
-        update_document_blocks(supabase, document_id, blocks)
+        update_document_blocks(admin_supabase, document_id, blocks)
 
         # If completing the task, award XP
         xp_awarded = 0
@@ -501,7 +512,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
 
         if status == 'completed':
             # Check if this task was already completed
-            existing_completion = supabase.table('user_quest_tasks')\
+            existing_completion = admin_supabase.table('user_quest_tasks')\
                 .select('id')\
                 .eq('user_id', user_id)\
                 .eq('quest_task_id', task_id)\
@@ -518,7 +529,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
                 )
 
                 # Get user_quest_id for the completion record
-                user_quest_response = supabase.table('user_quests')\
+                user_quest_response = admin_supabase.table('user_quests')\
                     .select('id')\
                     .eq('user_id', user_id)\
                     .eq('quest_id', quest_id)\
@@ -531,7 +542,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
                 user_quest_id = user_quest_response.data[0]['id']
 
                 # Create task completion record using V3 system
-                completion = supabase.table('user_quest_tasks')\
+                completion = admin_supabase.table('user_quest_tasks')\
                     .insert({
                         'user_id': user_id,
                         'quest_task_id': task_id,
@@ -556,7 +567,7 @@ def process_evidence_completion(user_id: str, task_id: str, blocks: List[Dict], 
                     )
 
                     # Check if quest is now completed
-                    quest_completed = check_quest_completion(supabase, user_id, quest_id)
+                    quest_completed = check_quest_completion(admin_supabase, user_id, quest_id)
 
         return {
             'success': True,
