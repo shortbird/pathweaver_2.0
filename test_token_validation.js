@@ -18,7 +18,13 @@ async function testTokenFlow() {
     // Step 1: Generate SSO token and get auth code
     console.log('Step 1: Generating Spark SSO token...');
     const jwt = require('jsonwebtoken');
-    const SECRET = '3d69457249381391c19f7f7a64ec1d5b9e78adab7583343d2087a47b4a7cb00';
+    const SECRET = process.env.SPARK_SSO_SECRET;
+
+    if (!SECRET) {
+      console.error('❌ ERROR: SPARK_SSO_SECRET environment variable not set');
+      console.error('Set it with: export SPARK_SSO_SECRET=your_secret_here');
+      return;
+    }
 
     const ssoToken = jwt.sign({
       sub: 'test_student_001',

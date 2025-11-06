@@ -54,24 +54,25 @@ This guide walks through comprehensive testing of the Spark LMS integration to e
 
 ### 2. Environment Variables
 
-Set the following environment variables (development secrets only):
+Set the following environment variables:
 
 ```bash
 # SSO secret (for JWT signing/validation)
-export OPTIO_SHARED_SECRET=3d69457249381391c19f7f7a64ec1d5b9e78adab7583c343d2087a47b4a7cb00
+export SPARK_SSO_SECRET=[obtain from Optio team]
 
 # Webhook secret (for HMAC signature calculation)
-export OPTIO_WEBHOOK_SECRET=616bf3413b37e8a213c8252b12ecc923fed22a577ce6a9ff1c12a2178077aad5
+export SPARK_WEBHOOK_SECRET=[obtain from Optio team]
 
 # Supabase service key (for test data setup)
-export SUPABASE_SERVICE_KEY=<your-supabase-service-key>
+export SUPABASE_SERVICE_KEY=[obtain from Optio team]
 ```
 
 **⚠️ CRITICAL SECURITY NOTE:**
-- These are DEVELOPMENT secrets ONLY
-- Production must use different secrets
+- Secret values are NOT documented for security reasons
+- Contact Optio team lead to obtain secret values
+- Access secrets via Render Dashboard → Services → optio-[env]-backend → Environment
 - Never commit secrets to version control
-- Never use dev secrets in production
+- Production uses different secrets than development
 
 ### 3. Test Account
 
@@ -535,7 +536,7 @@ console.log('HMAC Signature:', signature);
 
 3. **Restore correct secret:**
    ```bash
-   export OPTIO_WEBHOOK_SECRET=616bf3413b37e8a213c8252b12ecc923fed22a577ce6a9ff1c12a2178077aad5
+   export SPARK_WEBHOOK_SECRET=[obtain from Optio team]
    ```
 
 ### Test 6C: Old Webhook Timestamp (Replay Protection)

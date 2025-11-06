@@ -7,8 +7,15 @@
 
 const jwt = require('jsonwebtoken');
 
-// Secrets from Render environment
-const SSO_SECRET = '3d69457249381391c19f7f7a64ec1d5b9e78adab7583c343d2087a47b4a7cb00';
+// Secrets from Render environment - MUST be set as environment variable
+const SSO_SECRET = process.env.SPARK_SSO_SECRET;
+
+if (!SSO_SECRET) {
+  console.error('❌ ERROR: SPARK_SSO_SECRET environment variable not set');
+  console.error('Set it with: export SPARK_SSO_SECRET=your_secret_here');
+  console.error('Contact Optio team for the secret value.');
+  process.exit(1);
+}
 
 // Test student account details
 const testStudent = {

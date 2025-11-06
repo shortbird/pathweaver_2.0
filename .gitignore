@@ -119,6 +119,14 @@ playwright-report/
 cypress/videos/
 cypress/screenshots/
 
+# Test scripts with secrets (DO NOT COMMIT)
+test_spark_sso.js
+test_spark_webhook.js
+test_token_validation.js
+verify_block_evidence.js
+test_evidence_api.js
+setup_spark_test_data.js
+
 # Documentation build
 docs/_build/
 site/

@@ -738,19 +738,23 @@ ORDER BY qtc.completed_at DESC;
 
 **Backend (Render) - Development:**
 ```bash
-SPARK_SSO_SECRET=3d69457249381391c19f7f7a64ec1d5b9e78adab7583c343d2087a47b4a7cb00
-SPARK_WEBHOOK_SECRET=616bf3413b37e8a213c8252b12ecc923fed22a577ce6a9ff1c12a2178077aad5
+SPARK_SSO_SECRET=[64-character hex secret - stored in Render env vars]
+SPARK_WEBHOOK_SECRET=[64-character hex secret - stored in Render env vars]
 SPARK_STORAGE_DOMAINS=spark-storage.com,spark-cdn.com
 FRONTEND_URL=https://optio-dev-frontend.onrender.com
 ```
 
 **Backend (Render) - Production:**
 ```bash
-SPARK_SSO_SECRET=3d69457249381391c19f7f7a64ec1d5b9e78adab7583c343d2087a47b4a7cb00
-SPARK_WEBHOOK_SECRET=616bf3413b37e8a213c8252b12ecc923fed22a577ce6a9ff1c12a2178077aad5
+SPARK_SSO_SECRET=[64-character hex secret - stored in Render env vars]
+SPARK_WEBHOOK_SECRET=[64-character hex secret - stored in Render env vars]
 SPARK_STORAGE_DOMAINS=spark-storage.com,spark-cdn.com
 FRONTEND_URL=https://www.optioeducation.com
 ```
+
+**Note:** Secret values are NOT documented here for security reasons. Access secrets via:
+- Render Dashboard → Services → optio-[env]-backend → Environment
+- Contact Optio team lead for secret rotation or access
 
 ### Deployment Process
 

@@ -408,15 +408,15 @@ Before running any tests, ensure you have:
 
 3. **Environment variables set**:
    ```bash
-   # For test scripts (development secrets only)
-   export OPTIO_SHARED_SECRET=3d69457249381391c19f7f7a64ec1d5b9e78adab7583c343d2087a47b4a7cb00
-   export OPTIO_WEBHOOK_SECRET=616bf3413b37e8a213c8252b12ecc923fed22a577ce6a9ff1c12a2178077aad5
+   # For test scripts - obtain secret values from Optio team
+   export SPARK_SSO_SECRET=[obtain from Optio team]
+   export SPARK_WEBHOOK_SECRET=[obtain from Optio team]
 
    # For setup script
-   export SUPABASE_SERVICE_KEY=<your-supabase-service-key>
+   export SUPABASE_SERVICE_KEY=[obtain from Optio team]
    ```
 
-   **⚠️ IMPORTANT**: These are DEVELOPMENT secrets only. Never use these in production. Production secrets must be different and stored securely in environment variables.
+   **⚠️ IMPORTANT**: Secret values are NOT documented for security reasons. Contact Optio team lead to obtain values. Production secrets must be different from development secrets and stored securely in environment variables.
 
 4. **Test account created** in Optio database (contact Optio team if needed)
 

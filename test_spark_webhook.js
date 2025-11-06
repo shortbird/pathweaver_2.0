@@ -7,8 +7,15 @@
 const crypto = require('crypto');
 const https = require('https');
 
-// Secrets from Render environment
-const WEBHOOK_SECRET = '616bf3413b37e8a213c8252b12ecc923fed22a577ce6a9ff1c12a2178077aad5';
+// Secrets from Render environment - MUST be set as environment variable
+const WEBHOOK_SECRET = process.env.SPARK_WEBHOOK_SECRET;
+
+if (!WEBHOOK_SECRET) {
+  console.error('❌ ERROR: SPARK_WEBHOOK_SECRET environment variable not set');
+  console.error('Set it with: export SPARK_WEBHOOK_SECRET=your_secret_here');
+  console.error('Contact Optio team for the secret value.');
+  process.exit(1);
+}
 
 // Test submission payload
 const submission = {
