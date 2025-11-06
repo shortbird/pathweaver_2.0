@@ -32,9 +32,23 @@ export default function AuthCallback() {
 
       try {
         // Exchange code for tokens (OAuth 2.0 token endpoint)
-        const response = await api.post('/spark/token', { code })
+        // Note: Spark endpoints are at root level, not under /api
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+        const response = await fetch(`${apiUrl}/spark/token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ code }),
+        })
 
-        const { access_token, refresh_token, user_id } = response.data
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Token exchange failed')
+        }
+
+        const data = await response.json()
+        const { access_token, refresh_token, user_id } = data
 
         // Store tokens in memory (NOT localStorage - prevents XSS)
         tokenStore.setTokens(access_token, refresh_token)
