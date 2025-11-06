@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { tokenStore } from '../services/api'
+import api from '../services/api'
+import { useQueryClient } from '@tanstack/react-query'
+import { queryKeys } from '../utils/queryKeys'
 
 /**
  * OAuth Authorization Code Callback Page
@@ -18,6 +21,7 @@ import { tokenStore } from '../services/api'
 export default function AuthCallback() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [status, setStatus] = useState('processing')
   const [error, setError] = useState(null)
 
@@ -54,10 +58,24 @@ export default function AuthCallback() {
         // Store tokens in memory + localStorage (survives page refresh)
         tokenStore.setTokens(access_token, refresh_token)
 
+        // ✅ CRITICAL FIX: Fetch user data immediately and update React Query cache
+        // This ensures AuthContext sees the authenticated state before navigation
+        try {
+          const userResponse = await api.get('/api/auth/me')
+          if (userResponse.data) {
+            // Update React Query cache with user data
+            queryClient.setQueryData(queryKeys.user.profile('current'), userResponse.data)
+            console.log('[AuthCallback] User data cached, authentication complete')
+          }
+        } catch (err) {
+          console.error('[AuthCallback] Failed to fetch user data:', err)
+          // Continue anyway - AuthContext will fetch on next mount
+        }
+
         setStatus('success')
 
         // Use React Router navigate to preserve in-memory state
-        // This avoids race condition with localStorage persistence during page reload
+        // Small delay allows React Query cache update to propagate
         setTimeout(() => {
           navigate('/dashboard', { replace: true })
         }, 300)
