@@ -396,6 +396,30 @@ app.post('/assignments/:id/submit', async (req, res) => {
 
 ## Testing
 
+### Prerequisites
+
+Before running any tests, ensure you have:
+
+1. **Node.js installed** (version 14 or higher)
+2. **Required dependencies**:
+   ```bash
+   npm install jsonwebtoken
+   ```
+
+3. **Environment variables set**:
+   ```bash
+   # For test scripts (development secrets only)
+   export OPTIO_SHARED_SECRET=3d69457249381391c19f7f7a64ec1d5b9e78adab7583c343d2087a47b4a7cb00
+   export OPTIO_WEBHOOK_SECRET=616bf3413b37e8a213c8252b12ecc923fed22a577ce6a9ff1c12a2178077aad5
+
+   # For setup script
+   export SUPABASE_SERVICE_KEY=<your-supabase-service-key>
+   ```
+
+   **⚠️ IMPORTANT**: These are DEVELOPMENT secrets only. Never use these in production. Production secrets must be different and stored securely in environment variables.
+
+4. **Test account created** in Optio database (contact Optio team if needed)
+
 ### Test Account Setup
 
 **Contact Optio team to create test account:**
@@ -404,15 +428,77 @@ Email: spark-test@yourdomain.com
 Spark User ID: test_student_001
 ```
 
+### Test Data Setup
+
+**Before testing SSO or webhooks, run the setup script to create test quest data:**
+
+```bash
+# Set your Supabase service key
+export SUPABASE_SERVICE_KEY=<your-key-here>
+
+# Run setup script
+node setup_spark_test_data.js
+```
+
+This script will:
+- Create a test quest with `lms_assignment_id = 'test_assignment_001'`
+- Create tasks for the quest
+- Enroll the test student in the quest
+- Verify the test student exists in the database
+
+**Expected output:**
+```
+✓ Test student found: test_student_001
+✓ Test quest created successfully
+✓ Student enrolled in quest
+Setup complete! You can now run test_spark_sso.js and test_spark_webhook.js
+```
+
 ### SSO Testing
 
-**Step 1: Generate test token**
+**Option 1: Use the test script (recommended)**
+
+```bash
+# Run the SSO test script
+node test_spark_sso.js
+```
+
+**Expected output:**
+```
+Generating Spark SSO token for test student...
+
+Test Student Details:
+  Spark User ID: test_student_001
+  Email: spark-test@optioeducation.com
+  Name: Spark TestStudent
+
+SSO URL (valid for 10 minutes):
+https://optio-dev-backend.onrender.com/spark/sso?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+Testing Instructions:
+1. Copy the URL above
+2. Open it in your browser
+3. You should be redirected to the Optio dashboard
+4. Verify you're logged in as "Spark TestStudent"
+```
+
+**What to verify:**
+- [ ] URL opens without errors
+- [ ] Redirects to `/auth/callback?code=...`
+- [ ] Then automatically redirects to `/dashboard`
+- [ ] Dashboard shows "Spark TestStudent" as logged-in user
+- [ ] No console errors in browser developer tools
+
+**Option 2: Manual testing**
+
+If you want to generate tokens manually for your own test accounts:
+
 ```javascript
 const jwt = require('jsonwebtoken');
 
 const testToken = jwt.sign({
-  sub: 'test_student_001',
-  email: 'spark-test@yourdomain.com',
+  sub: 'your_spark_user_id',
+  email: 'your-test@yourdomain.com',
   given_name: 'Test',
   family_name: 'Student',
   role: 'student',
@@ -423,32 +509,66 @@ const testToken = jwt.sign({
 console.log('SSO URL:', `https://optio-dev-backend.onrender.com/spark/sso?token=${testToken}`);
 ```
 
-**Step 2: Test in browser**
-- Copy URL from output
-- Open in browser
-- Verify redirect to Optio dashboard
-- Verify student name displayed correctly
-
 ### Webhook Testing
 
-**Step 1: Create test payload**
-```javascript
-const testPayload = {
-  spark_user_id: 'test_student_001',
-  spark_assignment_id: 'test_assignment_001',
-  spark_course_id: 'test_course_001',
-  submission_text: 'This is a test submission from Spark.',
-  submission_files: [],
-  submitted_at: new Date().toISOString(),
-  grade: 100
-};
+**Option 1: Use the test script (recommended)**
+
+```bash
+# Run the webhook test script
+node test_spark_webhook.js
 ```
 
-**Step 2: Send test webhook**
+**Expected output:**
+```
+Sending test Spark webhook submission...
+
+Webhook Details:
+  User ID: test_student_001
+  Assignment ID: test_assignment_001
+  Submission Text: This is a test assignment submission from Spark LMS...
+
+Response Status: 200
+✓ Webhook processed successfully!
+
+Response:
+{
+  "status": "success",
+  "completion_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "xp_awarded": 150,
+  "user_id": "64633ccc-d0ac-4ba4-8ff0-6ad2ecfbbae8"
+}
+
+Next Steps:
+1. Visit the portfolio: https://optio-dev-frontend.onrender.com/diploma/64633ccc-d0ac-4ba4-8ff0-6ad2ecfbbae8
+2. Verify the evidence appears on the diploma page
+3. Check that XP was awarded correctly
+```
+
+**What to verify:**
+- [ ] HTTP 200 response received
+- [ ] Response includes `completion_id`
+- [ ] Navigate to portfolio URL from output
+- [ ] Evidence appears with submission text
+- [ ] XP was awarded (check user dashboard)
+- [ ] Task shows as completed in quest progress
+
+**Option 2: Manual testing**
+
+If you want to send custom webhook payloads:
+
 ```javascript
-sendOptioWebhook(testPayload)
-  .then(result => console.log('Success:', result))
-  .catch(error => console.error('Error:', error));
+const testPayload = {
+  spark_user_id: 'your_test_user_id',
+  spark_assignment_id: 'your_assignment_id',
+  spark_course_id: 'your_course_id',
+  submission_text: 'Your test submission text...',
+  submission_files: [],
+  submitted_at: new Date().toISOString(),
+  grade: 95
+};
+
+// Calculate HMAC signature and send POST request
+// (See test_spark_webhook.js for complete implementation)
 ```
 
 **Step 3: Verify in Optio**

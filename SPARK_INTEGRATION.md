@@ -220,6 +220,16 @@ navigate('/dashboard', { replace: true })  // Preserves in-memory tokens
 - file_url (Supabase storage URL)
 ```
 
+**spark_auth_codes table:** (OAuth 2.0 authorization code flow)
+```sql
+- code (TEXT, PK) - One-time authorization code (32-byte URL-safe string)
+- user_id (UUID, FK to users) - User this code was issued to
+- expires_at (TIMESTAMP) - Expiration timestamp (60 seconds from creation)
+- used (BOOLEAN) - Whether code has been exchanged for tokens (prevents replay)
+- created_at (TIMESTAMP) - Timestamp when code was created
+```
+Note: Authorization codes are short-lived (60 seconds) and single-use to prevent replay attacks and ensure secure token exchange.
+
 ### Code Fixes Applied
 
 **Fix #1: Schema Mismatch (Commit 60b500c - January 2025)**
@@ -271,6 +281,22 @@ navigate('/dashboard', { replace: true })  // Preserves in-memory tokens
 - Frontend exchanges code for tokens via `POST /spark/token`
 - Returns `access_token` and `refresh_token`
 - Frontend stores tokens and navigates to `/dashboard`
+
+**Why Use Authorization Code Flow Instead of Direct httpOnly Cookies?**
+
+The OAuth 2.0 authorization code flow is used instead of setting httpOnly cookies directly because:
+
+1. **Cross-Origin Cookie Restrictions**: Modern browsers block third-party cookies in incognito/private mode and are increasingly restricting cross-site cookies for privacy. When Spark redirects to Optio, cookies may be blocked.
+
+2. **Token Accessibility**: The frontend needs access to tokens for API authentication. httpOnly cookies (while more secure against XSS) cannot be read by JavaScript, making them unsuitable when the frontend needs to include tokens in API requests.
+
+3. **Authorization Code Security**: By using short-lived authorization codes (60 seconds, single-use) in the URL and immediately exchanging them for tokens:
+   - The sensitive token never appears in the URL (only the temporary code does)
+   - The code is useless after one exchange (prevents replay attacks)
+   - The code expires quickly (60 seconds)
+   - Even if the URL is logged, the code cannot be reused
+
+4. **Standard OAuth Pattern**: This follows the OAuth 2.0 authorization code flow, which is the industry-standard secure pattern for SSO integrations.
 
 **Error Responses:**
 | Status | Error | Description |
