@@ -80,7 +80,9 @@ class AdvisorService(BaseService):
             return students
 
         except Exception as e:
+            import traceback
             print(f"Error fetching advisor students: {str(e)}", file=sys.stderr, flush=True)
+            print(f"Traceback: {traceback.format_exc()}", file=sys.stderr, flush=True)
             raise
 
     def assign_student_to_advisor(self, student_id: str, advisor_id: str) -> bool:
@@ -146,7 +148,8 @@ class AdvisorService(BaseService):
                 .eq('earned', True)\
                 .execute()
             return response.count if response.count else 0
-        except:
+        except Exception as e:
+            print(f"Error getting badge count for student {student_id}: {str(e)}", file=sys.stderr, flush=True)
             return 0
 
     def _get_student_active_badges(self, student_id: str) -> List[Dict[str, Any]]:
@@ -160,7 +163,8 @@ class AdvisorService(BaseService):
                 .limit(3)\
                 .execute()
             return response.data if response.data else []
-        except:
+        except Exception as e:
+            print(f"Error getting active badges for student {student_id}: {str(e)}", file=sys.stderr, flush=True)
             return []
 
     # ==================== Custom Badge Creation ====================
