@@ -116,7 +116,7 @@ export default function AdvisorDashboard() {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'overview' && (
-          <OverviewTab dashboardData={dashboardData} students={students} advisorName={user?.display_name} />
+          <OverviewTab dashboardData={dashboardData} students={students} />
         )}
         {activeTab === 'students' && <StudentsTab students={students} onRefresh={fetchDashboardData} />}
         {activeTab === 'quests' && <QuestsTab onRefresh={fetchDashboardData} />}
@@ -125,7 +125,7 @@ export default function AdvisorDashboard() {
   );
 }
 
-function OverviewTab({ dashboardData, students, advisorName }) {
+function OverviewTab({ dashboardData, students }) {
   const stats = dashboardData?.stats || {};
 
   return (
@@ -149,7 +149,7 @@ function OverviewTab({ dashboardData, students, advisorName }) {
       {/* Students List */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">{advisorName}'s Students</h2>
+          <h2 className="text-lg font-semibold text-gray-900">My Students</h2>
         </div>
         <div className="divide-y divide-gray-200">
           {students.length === 0 ? (
@@ -315,45 +315,21 @@ function QuestsTab({ onRefresh }) {
 
   return (
     <div className="space-y-6">
-      {/* Forms */}
+      {/* Forms - These are modals that render their own containers */}
       {showOptioForm && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Create Optio Quest</h3>
-            <button
-              onClick={() => setShowOptioForm(false)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <UnifiedQuestForm
-            onSave={handleQuestSave}
-            onCancel={() => setShowOptioForm(false)}
-          />
-        </div>
+        <UnifiedQuestForm
+          mode="create"
+          onClose={() => setShowOptioForm(false)}
+          onSuccess={handleQuestSave}
+        />
       )}
 
       {showCourseForm && (
-        <div className="bg-white rounded-lg shadow p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-900">Create Course Quest</h3>
-            <button
-              onClick={() => setShowCourseForm(false)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <CourseQuestForm
-            onSave={handleQuestSave}
-            onCancel={() => setShowCourseForm(false)}
-          />
-        </div>
+        <CourseQuestForm
+          mode="create"
+          onClose={() => setShowCourseForm(false)}
+          onSuccess={handleQuestSave}
+        />
       )}
 
       {!showOptioForm && !showCourseForm && (
