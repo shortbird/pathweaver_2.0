@@ -53,9 +53,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
     setLoading(true);
     setError(null);
     try {
-      const response = await api.post(`/api/quests/${questId}/start-personalization`, {
-        creation_method: method
-      });
+      const response = await api.post(`/api/quests/${questId}/start-personalization`, {});
       const newSessionId = response.data.session_id;
       if (!newSessionId) {
         throw new Error('No session ID returned from server');

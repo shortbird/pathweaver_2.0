@@ -3,7 +3,9 @@
     "allow": [
       "Bash(git revert:*)",
       "Bash(nul)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nDebug: Add detailed error logging to advisor service\n\nChanges:\n- Added traceback logging to get_advisor_students exception handler\n- Added error logging to _get_student_badge_count helper\n- Added error logging to _get_student_active_badges helper\n- This will help identify the exact cause of 500 errors in advisor dashboard\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
