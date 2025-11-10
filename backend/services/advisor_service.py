@@ -153,7 +153,7 @@ class AdvisorService(BaseService):
         """Get active (in-progress) badges for student"""
         try:
             response = self.supabase.table('user_badges')\
-                .select('badge_id, progress, badges(name, primary_pillar)')\
+                .select('badge_id, progress, badges(name, pillar_primary)')\
                 .eq('user_id', student_id)\
                 .eq('earned', False)\
                 .gt('progress', 0)\
@@ -414,7 +414,7 @@ class AdvisorService(BaseService):
 
             # Get badge progress
             badges = self.supabase.table('user_badges')\
-                .select('badge_id, progress, earned, earned_at, badges(name, primary_pillar, min_quests)')\
+                .select('badge_id, progress, earned, earned_at, badges(name, pillar_primary, min_quests)')\
                 .eq('user_id', student_id)\
                 .execute()
 
