@@ -18,7 +18,7 @@ from backend.repositories import (
     LMSRepository,
     AnalyticsRepository
 )
-from utils.auth.decorators import require_admin
+from utils.auth.decorators import require_admin, require_advisor, get_advisor_assigned_students
 from utils.pillar_utils import is_valid_pillar
 from utils.pillar_mapping import normalize_pillar_name
 from utils.school_subjects import validate_school_subjects, normalize_subject_key
@@ -59,13 +59,14 @@ def get_school_subjects_v3():
 # Using repository pattern for database access
 @bp.route('/quests/create', methods=['POST'])
 @bp.route('/quests/create-v3', methods=['POST'])  # Legacy alias
-@require_admin
+@require_advisor
 def create_quest_v3_clean(user_id):
     """
     Create a new Optio quest (title + idea only).
     Tasks are now created individually per student by advisors or AI.
+    Advisors create unpublished drafts; admins can publish immediately.
     """
-    logger.info(f"CREATE OPTIO QUEST: admin_user_id={user_id}")
+    logger.info(f"CREATE OPTIO QUEST: user_id={user_id}")
     supabase = get_supabase_admin_client()
 
     try:
@@ -76,6 +77,10 @@ def create_quest_v3_clean(user_id):
         if not data.get('title'):
             return jsonify({'success': False, 'error': 'Title is required'}), 400
 
+        # Get user role to determine default is_active value
+        user = supabase.table('users').select('role').eq('id', user_id).execute()
+        user_role = user.data[0].get('role') if user.data else 'advisor'
+
         # Auto-fetch image if not provided
         image_url = data.get('header_image_url')
         if not image_url:
@@ -84,16 +89,25 @@ def create_quest_v3_clean(user_id):
             image_url = search_quest_image(data['title'].strip(), quest_desc)
             print(f"Auto-fetched image for quest '{data['title']}': {image_url}")
 
+        # Determine is_active value based on role
+        # Admins can set is_active=True (publish immediately)
+        # Advisors always create drafts (is_active=False)
+        if user_role == 'admin':
+            is_active = data.get('is_active', False)
+        else:
+            is_active = False  # Advisors always create unpublished drafts
+
         # Create quest record
         quest_data = {
             'title': data['title'].strip(),
             'big_idea': data.get('big_idea', '').strip() or data.get('description', '').strip(),
             'description': data.get('big_idea', '').strip() or data.get('description', '').strip(),
             'is_v3': True,
-            'is_active': data.get('is_active', False),
+            'is_active': is_active,
             'quest_type': 'optio',  # Optio quest (self-directed, personalized)
             'header_image_url': image_url,
             'image_url': image_url,  # Add to new image_url column
+            'created_by': user_id,  # Track who created the quest
             'created_at': datetime.utcnow().isoformat()
         }
 
@@ -121,18 +135,36 @@ def create_quest_v3_clean(user_id):
         }), 500
 
 @bp.route('/quests/<quest_id>', methods=['PUT'])
-@require_admin
+@require_advisor
 def update_quest(user_id, quest_id):
-    """Update an existing quest"""
+    """
+    Update an existing quest.
+    Advisors can only edit their own unpublished quests.
+    Admins can edit any quest and toggle is_active.
+    """
     supabase = get_supabase_admin_client()
 
     try:
         data = request.json
 
-        # Validate quest exists
+        # Validate quest exists and get ownership info
         quest = supabase.table('quests').select('*').eq('id', quest_id).single().execute()
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
+        # Get user role
+        user = supabase.table('users').select('role').eq('id', user_id).execute()
+        user_role = user.data[0].get('role') if user.data else 'advisor'
+
+        # Check ownership for advisors
+        if user_role == 'advisor':
+            # Advisors can only edit their own quests
+            if quest.data.get('created_by') != user_id:
+                return jsonify({'success': False, 'error': 'Not authorized to edit this quest'}), 403
+
+            # Advisors cannot edit published quests
+            if quest.data.get('is_active'):
+                return jsonify({'success': False, 'error': 'Cannot edit published quests'}), 403
 
         # Update quest data
         update_data = {}
@@ -147,8 +179,12 @@ def update_quest(user_id, quest_id):
 
         if 'header_image_url' in data:
             update_data['header_image_url'] = data['header_image_url']
+
+        # Only admins can change is_active (publish/unpublish quests)
         if 'is_active' in data:
-            update_data['is_active'] = data['is_active']
+            if user_role == 'admin':
+                update_data['is_active'] = data['is_active']
+            # Silently ignore is_active changes from advisors
 
         if update_data:
             update_data['updated_at'] = datetime.utcnow().isoformat()
@@ -310,16 +346,34 @@ def refresh_quest_image(user_id, quest_id):
         }), 500
 
 @bp.route('/quests/<quest_id>', methods=['DELETE'])
-@require_admin
+@require_advisor
 def delete_quest(user_id, quest_id):
-    """Delete a quest and all its associated data"""
+    """
+    Delete a quest and all its associated data.
+    Advisors can only delete their own unpublished quests.
+    Admins can delete any quest.
+    """
     supabase = get_supabase_admin_client()
 
     try:
-        # Check if quest exists
+        # Check if quest exists and get ownership info
         quest = supabase.table('quests').select('*').eq('id', quest_id).single().execute()
         if not quest.data:
             return jsonify({'success': False, 'error': 'Quest not found'}), 404
+
+        # Get user role
+        user = supabase.table('users').select('role').eq('id', user_id).execute()
+        user_role = user.data[0].get('role') if user.data else 'advisor'
+
+        # Check ownership for advisors
+        if user_role == 'advisor':
+            # Advisors can only delete their own quests
+            if quest.data.get('created_by') != user_id:
+                return jsonify({'success': False, 'error': 'Not authorized to delete this quest'}), 403
+
+            # Advisors cannot delete published quests
+            if quest.data.get('is_active'):
+                return jsonify({'success': False, 'error': 'Cannot delete published quests'}), 403
 
         # Step 1: Clear quest_submissions references (NO ACTION constraint)
         submissions = supabase.table('quest_submissions')\
@@ -383,9 +437,13 @@ def delete_quest(user_id, quest_id):
         }), 500
 
 @bp.route('/quests', methods=['GET'])
-@require_admin
+@require_advisor
 def get_admin_quests(user_id):
-    """Get all quests for admin management"""
+    """
+    Get quests for admin/advisor management.
+    Admins see all quests.
+    Advisors see only their own quests.
+    """
     supabase = get_supabase_admin_client()
 
     try:
@@ -394,11 +452,21 @@ def get_admin_quests(user_id):
         per_page = min(int(request.args.get('per_page', 20)), 100)
         offset = (page - 1) * per_page
 
-        # Get quests
+        # Get user role
+        user = supabase.table('users').select('role').eq('id', user_id).execute()
+        user_role = user.data[0].get('role') if user.data else 'advisor'
+
+        # Build query based on role
+        query = supabase.table('quests').select('*', count='exact')
+
+        # Advisors see only their own quests
+        if user_role == 'advisor':
+            query = query.eq('created_by', user_id)
+
+        # Get quests with pagination
         # Note: In V3 personalized system, quests don't have quest_tasks (that table is archived)
         # Task counts would need to be calculated from user_quest_tasks if needed
-        quests = supabase.table('quests')\
-            .select('*', count='exact')\
+        quests = query\
             .order('created_at', desc=True)\
             .range(offset, offset + per_page - 1)\
             .execute()
