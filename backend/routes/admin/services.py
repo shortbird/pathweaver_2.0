@@ -7,7 +7,7 @@ Requires admin authentication
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from middleware.error_handler import AppError, ValidationError, NotFoundError
-from utils.auth.decorators import require_auth
+from utils.auth.decorators import require_admin
 import logging
 
 logger = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ admin_services_bp = Blueprint('admin_services', __name__)
 
 
 @admin_services_bp.route('/api/admin/services', methods=['GET'])
-@require_auth(role='admin')
+@require_admin
 def get_all_services(user_id):
     """
     Get all services (including inactive)
@@ -43,7 +43,7 @@ def get_all_services(user_id):
 
 
 @admin_services_bp.route('/api/admin/services', methods=['POST'])
-@require_auth(role='admin')
+@require_admin
 def create_service(user_id):
     """
     Create a new service
@@ -98,7 +98,7 @@ def create_service(user_id):
 
 
 @admin_services_bp.route('/api/admin/services/<service_id>', methods=['PUT'])
-@require_auth(role='admin')
+@require_admin
 def update_service(user_id, service_id):
     """
     Update an existing service
@@ -162,7 +162,7 @@ def update_service(user_id, service_id):
 
 
 @admin_services_bp.route('/api/admin/services/<service_id>', methods=['DELETE'])
-@require_auth(role='admin')
+@require_admin
 def delete_service(user_id, service_id):
     """
     Soft delete a service (set is_active to false)
@@ -202,7 +202,7 @@ def delete_service(user_id, service_id):
 
 
 @admin_services_bp.route('/api/admin/service-inquiries', methods=['GET'])
-@require_auth(role='admin')
+@require_admin
 def get_service_inquiries(user_id):
     """
     Get all service inquiries with optional filtering
@@ -240,7 +240,7 @@ def get_service_inquiries(user_id):
 
 
 @admin_services_bp.route('/api/admin/service-inquiries/<inquiry_id>', methods=['PUT'])
-@require_auth(role='admin')
+@require_admin
 def update_inquiry_status(user_id, inquiry_id):
     """
     Update service inquiry status
