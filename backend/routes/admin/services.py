@@ -6,7 +6,7 @@ Requires admin authentication
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from middleware.error_handler import APIError
+from middleware.error_handler import AppError, ValidationError, NotFoundError
 from utils.auth.decorators import require_auth
 import logging
 
@@ -39,7 +39,7 @@ def get_all_services(user_id):
 
     except Exception as e:
         logger.error(f"Error fetching services: {str(e)}")
-        raise APIError('Failed to fetch services', 500)
+        raise AppError('Failed to fetch services', 500)
 
 
 @admin_services_bp.route('/api/admin/services', methods=['POST'])
@@ -56,12 +56,12 @@ def create_service(user_id):
         required_fields = ['name', 'description', 'category', 'price', 'price_type']
         for field in required_fields:
             if field not in data:
-                raise APIError(f'Missing required field: {field}', 400)
+                raise ValidationError(f'Missing required field: {field}')
 
         # Validate price_type
         valid_price_types = ['one-time', 'monthly', 'per-credit', 'per-session']
         if data['price_type'] not in valid_price_types:
-            raise APIError(f'Invalid price_type. Must be one of: {", ".join(valid_price_types)}', 400)
+            raise ValidationError(f'Invalid price_type. Must be one of: {", ".join(valid_price_types)}')
 
         supabase = get_supabase_admin_client()
 
@@ -82,7 +82,7 @@ def create_service(user_id):
             .execute()
 
         if not result.data:
-            raise APIError('Failed to create service', 500)
+            raise AppError('Failed to create service', 500)
 
         return jsonify({
             'success': True,
@@ -90,11 +90,11 @@ def create_service(user_id):
             'service': result.data[0]
         }), 201
 
-    except APIError:
+    except AppError:
         raise
     except Exception as e:
         logger.error(f"Error creating service: {str(e)}")
-        raise APIError('Failed to create service', 500)
+        raise AppError('Failed to create service', 500)
 
 
 @admin_services_bp.route('/api/admin/services/<service_id>', methods=['PUT'])
@@ -115,7 +115,7 @@ def update_service(user_id, service_id):
             .execute()
 
         if not existing.data:
-            raise APIError('Service not found', 404)
+            raise AppError('Service not found', 404)
 
         # Build update data
         update_data = {}
@@ -134,10 +134,10 @@ def update_service(user_id, service_id):
         if 'price_type' in update_data:
             valid_price_types = ['one-time', 'monthly', 'per-credit', 'per-session']
             if update_data['price_type'] not in valid_price_types:
-                raise APIError(f'Invalid price_type. Must be one of: {", ".join(valid_price_types)}', 400)
+                raise ValidationError(f'Invalid price_type. Must be one of: {", ".join(valid_price_types)}')
 
         if not update_data:
-            raise APIError('No valid fields to update', 400)
+            raise ValidationError('No valid fields to update')
 
         # Update service
         result = supabase.table('services')\
@@ -146,7 +146,7 @@ def update_service(user_id, service_id):
             .execute()
 
         if not result.data:
-            raise APIError('Failed to update service', 500)
+            raise AppError('Failed to update service', 500)
 
         return jsonify({
             'success': True,
@@ -154,11 +154,11 @@ def update_service(user_id, service_id):
             'service': result.data[0]
         }), 200
 
-    except APIError:
+    except AppError:
         raise
     except Exception as e:
         logger.error(f"Error updating service: {str(e)}")
-        raise APIError('Failed to update service', 500)
+        raise AppError('Failed to update service', 500)
 
 
 @admin_services_bp.route('/api/admin/services/<service_id>', methods=['DELETE'])
@@ -178,7 +178,7 @@ def delete_service(user_id, service_id):
             .execute()
 
         if not existing.data:
-            raise APIError('Service not found', 404)
+            raise AppError('Service not found', 404)
 
         # Soft delete by setting is_active to false
         result = supabase.table('services')\
@@ -187,18 +187,18 @@ def delete_service(user_id, service_id):
             .execute()
 
         if not result.data:
-            raise APIError('Failed to delete service', 500)
+            raise AppError('Failed to delete service', 500)
 
         return jsonify({
             'success': True,
             'message': 'Service deleted successfully'
         }), 200
 
-    except APIError:
+    except AppError:
         raise
     except Exception as e:
         logger.error(f"Error deleting service: {str(e)}")
-        raise APIError('Failed to delete service', 500)
+        raise AppError('Failed to delete service', 500)
 
 
 @admin_services_bp.route('/api/admin/service-inquiries', methods=['GET'])
@@ -236,7 +236,7 @@ def get_service_inquiries(user_id):
 
     except Exception as e:
         logger.error(f"Error fetching inquiries: {str(e)}")
-        raise APIError('Failed to fetch inquiries', 500)
+        raise AppError('Failed to fetch inquiries', 500)
 
 
 @admin_services_bp.route('/api/admin/service-inquiries/<inquiry_id>', methods=['PUT'])
@@ -250,11 +250,11 @@ def update_inquiry_status(user_id, inquiry_id):
         data = request.get_json()
 
         if 'status' not in data:
-            raise APIError('Missing status field', 400)
+            raise ValidationError('Missing status field')
 
         valid_statuses = ['pending', 'contacted', 'completed']
         if data['status'] not in valid_statuses:
-            raise APIError(f'Invalid status. Must be one of: {", ".join(valid_statuses)}', 400)
+            raise ValidationError(f'Invalid status. Must be one of: {", ".join(valid_statuses)}')
 
         supabase = get_supabase_admin_client()
 
@@ -265,7 +265,7 @@ def update_inquiry_status(user_id, inquiry_id):
             .execute()
 
         if not existing.data:
-            raise APIError('Inquiry not found', 404)
+            raise AppError('Inquiry not found', 404)
 
         # Update status
         result = supabase.table('service_inquiries')\
@@ -274,7 +274,7 @@ def update_inquiry_status(user_id, inquiry_id):
             .execute()
 
         if not result.data:
-            raise APIError('Failed to update inquiry', 500)
+            raise AppError('Failed to update inquiry', 500)
 
         return jsonify({
             'success': True,
@@ -282,8 +282,8 @@ def update_inquiry_status(user_id, inquiry_id):
             'inquiry': result.data[0]
         }), 200
 
-    except APIError:
+    except AppError:
         raise
     except Exception as e:
         logger.error(f"Error updating inquiry: {str(e)}")
-        raise APIError('Failed to update inquiry', 500)
+        raise AppError('Failed to update inquiry', 500)

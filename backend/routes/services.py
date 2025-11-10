@@ -5,7 +5,7 @@ Handles public-facing service listing and inquiry submissions
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from middleware.error_handler import APIError
+from middleware.error_handler import AppError, ValidationError, NotFoundError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ def get_services():
 
     except Exception as e:
         logger.error(f"Error fetching services: {str(e)}")
-        raise APIError('Failed to fetch services', 500)
+        raise AppError('Failed to fetch services', 500)
 
 
 @services_bp.route('/api/services/inquiry', methods=['POST'])
@@ -65,12 +65,12 @@ def submit_inquiry():
         required_fields = ['service_id', 'name', 'email', 'message']
         for field in required_fields:
             if not data.get(field):
-                raise APIError(f'Missing required field: {field}', 400)
+                raise ValidationError(f'Missing required field: {field}')
 
         # Validate email format
         email = data.get('email', '').strip()
         if not email or '@' not in email:
-            raise APIError('Invalid email address', 400)
+            raise ValidationError('Invalid email address')
 
         supabase = get_supabase_admin_client()
 
@@ -82,7 +82,7 @@ def submit_inquiry():
             .execute()
 
         if not service_result.data:
-            raise APIError('Service not found', 404)
+            raise NotFoundError('Service')
 
         service_name = service_result.data[0]['name']
 
@@ -102,7 +102,7 @@ def submit_inquiry():
             .execute()
 
         if not result.data:
-            raise APIError('Failed to submit inquiry', 500)
+            raise AppError('Failed to submit inquiry', 500)
 
         inquiry_id = result.data[0]['id']
 
@@ -117,8 +117,8 @@ def submit_inquiry():
             'inquiry_id': inquiry_id
         }), 201
 
-    except APIError:
+    except AppError:
         raise
     except Exception as e:
         logger.error(f"Error submitting inquiry: {str(e)}")
-        raise APIError('Failed to submit inquiry', 500)
+        raise AppError('Failed to submit inquiry', 500)
