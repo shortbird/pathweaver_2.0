@@ -46,7 +46,7 @@ class AdvisorService(BaseService):
             students = []
 
             if is_admin:
-                # Admin sees ALL students
+                # Admin sees ALL students (without badge data to avoid timeout)
                 response = self.supabase.table('users')\
                     .select('id, display_name, first_name, last_name, email, level, total_xp, avatar_url, last_active')\
                     .eq('role', 'student')\
@@ -54,8 +54,9 @@ class AdvisorService(BaseService):
 
                 if response.data:
                     for student in response.data:
-                        student['badge_count'] = self._get_student_badge_count(student['id'])
-                        student['active_badges'] = self._get_student_active_badges(student['id'])
+                        # Set badge counts to 0 for now - can be loaded on-demand
+                        student['badge_count'] = 0
+                        student['active_badges'] = []
                         students.append(student)
             else:
                 # Regular advisor sees only assigned students
