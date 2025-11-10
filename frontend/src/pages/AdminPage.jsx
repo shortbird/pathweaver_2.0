@@ -5,6 +5,7 @@ import AdminQuests from '../components/admin/AdminQuests'
 import AdminBadges from '../components/admin/AdminBadges'
 import AdminUsers from '../components/admin/AdminUsers'
 import AdminQuestSuggestions from '../components/admin/AdminQuestSuggestions'
+import AdvisorAssignments from '../components/admin/AdvisorAssignments'
 import AdminKhanAcademySync from '../components/admin/AdminKhanAcademySync'
 import AIContentPipeline from './admin/AIContentPipeline'
 import AIQuestReview from '../components/admin/AIQuestReview'
@@ -54,6 +55,12 @@ const AdminPage = () => {
               Users
             </Link>
             <Link
+              to="/admin/advisor-assignments"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'advisor-assignments' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Advisor Assignments
+            </Link>
+            <Link
               to="/admin/quest-suggestions"
               className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quest-suggestions' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
@@ -86,6 +93,7 @@ const AdminPage = () => {
         <Route path="quests" element={<AdminQuests />} />
         <Route path="badges" element={<AdminBadges />} />
         <Route path="users" element={<AdminUsers />} />
+        <Route path="advisor-assignments" element={<AdvisorAssignments />} />
         <Route path="quest-suggestions" element={<AdminQuestSuggestions />} />
         <Route path="flagged-tasks" element={<FlaggedTasksPanel />} />
         <Route path="khan-academy" element={<AdminKhanAcademySync />} />
