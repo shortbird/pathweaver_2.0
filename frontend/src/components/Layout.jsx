@@ -17,9 +17,12 @@ const Layout = () => {
 
   const fetchSiteSettings = async () => {
     try {
-      const response = await api.get('/api/settings')
-      if (response.data) {
-        setSiteSettings(response.data)
+      // Use fetch instead of api client to avoid auth interceptors for public endpoint
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+      const response = await fetch(`${apiUrl}/api/settings`)
+      if (response.ok) {
+        const data = await response.json()
+        setSiteSettings(data)
       }
     } catch (error) {
       // Silent fail - use defaults
