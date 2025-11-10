@@ -180,7 +180,8 @@ function App() {
               </Route>
 
               <Route element={<PrivateRoute requiredRole="advisor" />}>
-                <Route path="advisor" element={<AdvisorDashboard />} />
+                <Route path="advisor" element={<Navigate to="/advisor/dashboard" replace />} />
+                <Route path="advisor/dashboard" element={<AdvisorDashboard />} />
                 <Route path="advisor/badges/create" element={<AdvisorBadgeForm />} />
                 <Route path="advisor/badges/:badgeId/edit" element={<AdvisorBadgeForm />} />
               </Route>

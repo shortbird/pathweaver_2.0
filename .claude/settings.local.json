@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(git revert:*)"
+      "Bash(git revert:*)",
+      "Bash(nul)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

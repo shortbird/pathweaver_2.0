@@ -98,6 +98,16 @@ export default function AdvisorDashboard() {
               Students ({students.length})
             </button>
             <button
+              onClick={() => setActiveTab('quests')}
+              className={`py-4 px-1 border-b-2 font-medium text-sm ${
+                activeTab === 'quests'
+                  ? 'border-optio-pink text-optio-pink'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Quests
+            </button>
+            <button
               onClick={() => setActiveTab('badges')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'badges'
@@ -117,6 +127,7 @@ export default function AdvisorDashboard() {
           <OverviewTab dashboardData={dashboardData} students={students} badges={customBadges} />
         )}
         {activeTab === 'students' && <StudentsTab students={students} onRefresh={fetchDashboardData} />}
+        {activeTab === 'quests' && <QuestsTab onRefresh={fetchDashboardData} />}
         {activeTab === 'badges' && <BadgesTab badges={customBadges} onRefresh={fetchDashboardData} />}
       </div>
     </div>
@@ -292,6 +303,179 @@ function StudentsTab({ students, onRefresh }) {
             setProgressReport(null);
           }}
         />
+      )}
+    </div>
+  );
+}
+
+function QuestsTab({ onRefresh }) {
+  const [quests, setQuests] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [formData, setFormData] = useState({ title: '', big_idea: '' });
+
+  useEffect(() => {
+    fetchQuests();
+  }, []);
+
+  const fetchQuests = async () => {
+    try {
+      setLoading(true);
+      // Fetch all quests - advisors can see both published and their own drafts
+      const response = await api.get('/api/admin/quests');
+      setQuests(response.data.quests || []);
+    } catch (err) {
+      console.error('Error fetching quests:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateQuest = async (e) => {
+    e.preventDefault();
+    try {
+      await api.post('/api/admin/quests/create', {
+        title: formData.title,
+        big_idea: formData.big_idea,
+        quest_type: 'optio',
+        is_active: false // Advisors create unpublished drafts
+      });
+      setShowCreateForm(false);
+      setFormData({ title: '', big_idea: '' });
+      fetchQuests();
+      alert('Quest created successfully as a draft. An admin will review and publish it.');
+    } catch (err) {
+      console.error('Error creating quest:', err);
+      alert(err.response?.data?.error || 'Failed to create quest');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-900">Quests</h2>
+          <p className="text-sm text-gray-600 mt-1">Create quest drafts for admin review and publication</p>
+        </div>
+        <button
+          onClick={() => setShowCreateForm(!showCreateForm)}
+          className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90"
+        >
+          {showCreateForm ? 'Cancel' : 'Create New Quest'}
+        </button>
+      </div>
+
+      {/* Create Quest Form */}
+      {showCreateForm && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Quest</h3>
+          <form onSubmit={handleCreateQuest} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Quest Title</label>
+              <input
+                type="text"
+                value={formData.title}
+                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-pink focus:border-transparent"
+                placeholder="Enter quest title"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Big Idea (Optional)</label>
+              <textarea
+                value={formData.big_idea}
+                onChange={(e) => setFormData({ ...formData, big_idea: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-pink focus:border-transparent"
+                placeholder="Describe the learning goal or concept"
+                rows={3}
+              />
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <p className="text-sm text-blue-800">
+                <strong>Note:</strong> Quests created by advisors are saved as unpublished drafts.
+                An admin will review and publish your quest before it becomes available to students.
+              </p>
+            </div>
+            <div className="flex justify-end space-x-3">
+              <button
+                type="button"
+                onClick={() => setShowCreateForm(false)}
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90"
+              >
+                Create Quest Draft
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Quests List */}
+      {loading ? (
+        <div className="bg-white rounded-lg shadow p-12 text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-pink mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading quests...</p>
+        </div>
+      ) : quests.length === 0 ? (
+        <div className="bg-white rounded-lg shadow p-12 text-center">
+          <p className="text-gray-600">No quests created yet</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Quest Title
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Created
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {quests.map((quest) => (
+                <tr key={quest.id}>
+                  <td className="px-6 py-4">
+                    <div className="text-sm font-medium text-gray-900">{quest.title}</div>
+                    {quest.big_idea && (
+                      <div className="text-sm text-gray-500 mt-1 line-clamp-1">{quest.big_idea}</div>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="text-sm text-gray-900">{quest.quest_type}</span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {quest.is_active ? (
+                      <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded">
+                        Published
+                      </span>
+                    ) : (
+                      <span className="px-2 py-1 text-xs font-medium bg-yellow-100 text-yellow-800 rounded">
+                        Draft
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(quest.created_at).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
