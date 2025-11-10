@@ -179,7 +179,7 @@ function App() {
                 <Route path="admin/*" element={<AdminPage />} />
               </Route>
 
-              <Route element={<PrivateRoute requiredRole="advisor" />}>
+              <Route element={<PrivateRoute requiredRole={["advisor", "admin"]} />}>
                 <Route path="advisor" element={<Navigate to="/advisor/dashboard" replace />} />
                 <Route path="advisor/dashboard" element={<AdvisorDashboard />} />
                 <Route path="advisor/badges/create" element={<AdvisorBadgeForm />} />

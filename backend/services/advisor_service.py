@@ -25,6 +25,7 @@ class AdvisorService(BaseService):
     def get_advisor_students(self, advisor_id: str) -> List[Dict[str, Any]]:
         """
         Get all students assigned to this advisor
+        If advisor is admin, returns ALL students in the system
 
         Args:
             advisor_id: UUID of the advisor
@@ -33,22 +34,45 @@ class AdvisorService(BaseService):
             List of student records with progress data
         """
         try:
-            # Query advisor_student_assignments table for assigned students
-            response = self.supabase.table('advisor_student_assignments')\
-                .select('student_id, users!advisor_student_assignments_student_id_fkey(id, display_name, first_name, last_name, email, level, total_xp, avatar_url, last_active)')\
-                .eq('advisor_id', advisor_id)\
-                .eq('is_active', True)\
+            # Check if user is admin
+            advisor_check = self.supabase.table('users')\
+                .select('role')\
+                .eq('id', advisor_id)\
+                .single()\
                 .execute()
 
-            # Flatten the nested user data
+            is_admin = advisor_check.data and advisor_check.data['role'] == 'admin'
+
             students = []
-            if response.data:
-                for assignment in response.data:
-                    if assignment.get('users'):
-                        student = assignment['users']
+
+            if is_admin:
+                # Admin sees ALL students
+                response = self.supabase.table('users')\
+                    .select('id, display_name, first_name, last_name, email, level, total_xp, avatar_url, last_active')\
+                    .eq('role', 'student')\
+                    .execute()
+
+                if response.data:
+                    for student in response.data:
                         student['badge_count'] = self._get_student_badge_count(student['id'])
                         student['active_badges'] = self._get_student_active_badges(student['id'])
                         students.append(student)
+            else:
+                # Regular advisor sees only assigned students
+                response = self.supabase.table('advisor_student_assignments')\
+                    .select('student_id, users!advisor_student_assignments_student_id_fkey(id, display_name, first_name, last_name, email, level, total_xp, avatar_url, last_active)')\
+                    .eq('advisor_id', advisor_id)\
+                    .eq('is_active', True)\
+                    .execute()
+
+                # Flatten the nested user data
+                if response.data:
+                    for assignment in response.data:
+                        if assignment.get('users'):
+                            student = assignment['users']
+                            student['badge_count'] = self._get_student_badge_count(student['id'])
+                            student['active_badges'] = self._get_student_active_badges(student['id'])
+                            students.append(student)
 
             # Sort by display name
             students.sort(key=lambda x: x.get('display_name', ''))

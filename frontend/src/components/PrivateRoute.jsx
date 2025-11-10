@@ -20,8 +20,13 @@ const PrivateRoute = ({ requiredRole }) => {
   }
 
 
-  if (requiredRole && user?.role !== requiredRole && user?.role !== 'admin') {
-    return <Navigate to="/dashboard" replace />
+  if (requiredRole) {
+    const allowedRoles = Array.isArray(requiredRole) ? requiredRole : [requiredRole]
+    const hasAccess = allowedRoles.includes(user?.role) || user?.role === 'admin'
+
+    if (!hasAccess) {
+      return <Navigate to="/dashboard" replace />
+    }
   }
 
   return <Outlet />
