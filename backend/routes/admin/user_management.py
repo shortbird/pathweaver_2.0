@@ -462,6 +462,54 @@ def admin_reset_password(user_id, target_user_id):
             'error': f'Failed to reset password: {str(e)}'
         }), 500
 
+@bp.route('/users/<target_user_id>/verify-email', methods=['POST'])
+@require_admin
+def admin_verify_email(user_id, target_user_id):
+    """Manually verify a user's email (admin only)"""
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Check if user exists
+        user = supabase.table('users').select('email, first_name, last_name').eq('id', target_user_id).single().execute()
+
+        if not user.data:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+
+        user_email = user.data['email']
+        user_name = f"{user.data.get('first_name', '')} {user.data.get('last_name', '')}".strip()
+
+        # Update user's email_confirmed_at in Supabase Auth
+        try:
+            # Use Supabase Admin API to confirm the user's email
+            auth_response = supabase.auth.admin.update_user_by_id(
+                target_user_id,
+                {'email_confirm': True}
+            )
+
+            if not auth_response:
+                return jsonify({'success': False, 'error': 'Failed to verify email'}), 500
+
+            logger.info(f"Admin {user_id} manually verified email for user {target_user_id} ({user_email})")
+
+            return jsonify({
+                'success': True,
+                'message': f'Email verified for {user_name or user_email}'
+            })
+
+        except Exception as auth_error:
+            logger.error(f"Error verifying email via Supabase Auth: {str(auth_error)}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to verify email in authentication system'
+            }), 500
+
+    except Exception as e:
+        logger.error(f"Error verifying email: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to verify email: {str(e)}'
+        }), 500
+
 @bp.route('/users/<user_id>/conversations', methods=['GET'])
 @require_admin
 def get_user_conversations(admin_user_id, user_id):

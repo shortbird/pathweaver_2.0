@@ -134,6 +134,18 @@ const AdminUsers = () => {
     setShowResetPasswordModal(true)
   }
 
+  const handleVerifyEmail = async (user) => {
+    if (window.confirm(`Manually verify email for ${user.first_name} ${user.last_name} (${user.email})?\n\nThis will allow them to login without email verification.`)) {
+      try {
+        await api.post(`/api/admin/users/${user.id}/verify-email`, {})
+        toast.success(`Email verified for ${user.first_name} ${user.last_name}`)
+        fetchUsers()
+      } catch (error) {
+        toast.error(error.response?.data?.error || 'Failed to verify email')
+      }
+    }
+  }
+
   const getRoleBadge = (role) => {
     const badges = {
       student: 'bg-blue-100 text-blue-700',
@@ -324,6 +336,13 @@ const AdminUsers = () => {
                       title="Reset Password"
                     >
                       Reset Password
+                    </button>
+                    <button
+                      onClick={() => handleVerifyEmail(user)}
+                      className="text-teal-600 hover:text-teal-900"
+                      title="Verify Email"
+                    >
+                      Verify Email
                     </button>
                     <button
                       onClick={() => handleDeleteUser(user.id)}
