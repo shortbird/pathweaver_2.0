@@ -89,10 +89,10 @@ const Sidebar = ({ isOpen, onClose }) => {
   // Use parent nav items if user is a parent, otherwise use student nav items
   const navItems = user?.role === 'parent' ? parentNavItems : studentNavItems
 
-  // Add Advisor Dashboard link if user is advisor
+  // Add Advisor link if user is advisor
   if (user?.role === 'advisor') {
     navItems.push({
-      name: 'Advisor Dashboard',
+      name: 'Advisor',
       path: '/advisor/dashboard',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

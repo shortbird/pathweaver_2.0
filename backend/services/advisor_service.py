@@ -33,21 +33,25 @@ class AdvisorService(BaseService):
             List of student records with progress data
         """
         try:
-            # Query users table for students with this advisor_id
-            # Note: advisor_id field needs to be added to users table
-            response = self.supabase.table('users')\
-                .select('id, display_name, first_name, last_name, email, level, total_xp, avatar_url, last_active')\
+            # Query advisor_student_assignments table for assigned students
+            response = self.supabase.table('advisor_student_assignments')\
+                .select('student_id, users!advisor_student_assignments_student_id_fkey(id, display_name, first_name, last_name, email, level, total_xp, avatar_url, last_active)')\
                 .eq('advisor_id', advisor_id)\
-                .eq('role', 'student')\
-                .order('display_name')\
+                .eq('is_active', True)\
                 .execute()
 
-            students = response.data if response.data else []
+            # Flatten the nested user data
+            students = []
+            if response.data:
+                for assignment in response.data:
+                    if assignment.get('users'):
+                        student = assignment['users']
+                        student['badge_count'] = self._get_student_badge_count(student['id'])
+                        student['active_badges'] = self._get_student_active_badges(student['id'])
+                        students.append(student)
 
-            # Enrich with badge progress for each student
-            for student in students:
-                student['badge_count'] = self._get_student_badge_count(student['id'])
-                student['active_badges'] = self._get_student_active_badges(student['id'])
+            # Sort by display name
+            students.sort(key=lambda x: x.get('display_name', ''))
 
             return students
 
@@ -77,11 +81,31 @@ class AdvisorService(BaseService):
             if not advisor_check.data or advisor_check.data['role'] not in ['advisor', 'admin']:
                 raise ValueError("User is not an advisor")
 
-            # Update student's advisor_id
-            self.supabase.table('users')\
-                .update({'advisor_id': advisor_id})\
-                .eq('id', student_id)\
+            # Check if assignment already exists
+            existing = self.supabase.table('advisor_student_assignments')\
+                .select('id, is_active')\
+                .eq('advisor_id', advisor_id)\
+                .eq('student_id', student_id)\
                 .execute()
+
+            if existing.data:
+                # Reactivate if inactive
+                if not existing.data[0]['is_active']:
+                    self.supabase.table('advisor_student_assignments')\
+                        .update({'is_active': True, 'assigned_at': datetime.utcnow().isoformat()})\
+                        .eq('id', existing.data[0]['id'])\
+                        .execute()
+            else:
+                # Create new assignment
+                self.supabase.table('advisor_student_assignments')\
+                    .insert({
+                        'advisor_id': advisor_id,
+                        'student_id': student_id,
+                        'assigned_by': advisor_id,
+                        'assigned_at': datetime.utcnow().isoformat(),
+                        'is_active': True
+                    })\
+                    .execute()
 
             return True
 
@@ -133,6 +157,10 @@ class AdvisorService(BaseService):
         """
         Create a custom badge by an advisor
 
+        NOTE: Custom badges are currently not supported in the database schema.
+        This method creates regular badges. Track custom badges via a separate
+        advisor_badges table or metadata field in the future.
+
         Args:
             advisor_id: UUID of the advisor creating the badge
             name: Badge name
@@ -159,19 +187,15 @@ class AdvisorService(BaseService):
             if not advisor_check.data or advisor_check.data['role'] not in ['advisor', 'admin']:
                 raise ValueError("User is not an advisor")
 
-            # Create badge with advisor attribution
+            # Create badge (without created_by/is_custom fields that don't exist)
             badge_data = {
                 'name': name,
                 'description': description,
                 'identity_statement': identity_statement,
-                'primary_pillar': primary_pillar,
+                'pillar_primary': primary_pillar,  # Use pillar_primary not primary_pillar
                 'min_quests': min_quests,
-                'xp_requirement': xp_requirement,
-                'icon': icon,
-                'color': color,
-                'is_public': is_public,
-                'created_by': advisor_id,  # Track advisor who created it
-                'is_custom': True,  # Mark as custom badge
+                'min_xp': xp_requirement,  # Use min_xp not xp_requirement
+                'status': 'active',  # Use status field
                 'created_at': datetime.utcnow().isoformat(),
                 'updated_at': datetime.utcnow().isoformat()
             }
@@ -193,21 +217,19 @@ class AdvisorService(BaseService):
         """
         Get all custom badges created by an advisor
 
+        NOTE: Since created_by column doesn't exist, return empty list for now.
+        In the future, implement an advisor_badges tracking table.
+
         Args:
             advisor_id: UUID of the advisor
 
         Returns:
-            List of custom badge records
+            List of custom badge records (currently always empty)
         """
         try:
-            response = self.supabase.table('badges')\
-                .select('*')\
-                .eq('created_by', advisor_id)\
-                .eq('is_custom', True)\
-                .order('created_at', desc=True)\
-                .execute()
-
-            return response.data if response.data else []
+            # Return empty list since we can't track which badges were created by advisors
+            # TODO: Add advisor_badges table or created_by column to badges table
+            return []
 
         except Exception as e:
             print(f"Error fetching advisor badges: {str(e)}", file=sys.stderr, flush=True)
@@ -222,6 +244,8 @@ class AdvisorService(BaseService):
         """
         Update a custom badge (only by creator)
 
+        NOTE: Disabled until created_by tracking is implemented
+
         Args:
             badge_id: UUID of the badge
             advisor_id: UUID of the advisor
@@ -231,35 +255,7 @@ class AdvisorService(BaseService):
             Updated badge record
         """
         try:
-            # Verify ownership
-            badge = self.supabase.table('badges')\
-                .select('created_by, is_custom')\
-                .eq('id', badge_id)\
-                .single()\
-                .execute()
-
-            if not badge.data:
-                raise ValueError("Badge not found")
-
-            if badge.data['created_by'] != advisor_id:
-                raise ValueError("Not authorized to edit this badge")
-
-            if not badge.data.get('is_custom', False):
-                raise ValueError("Cannot edit system badges")
-
-            # Add updated_at timestamp
-            updates['updated_at'] = datetime.utcnow().isoformat()
-
-            # Update badge
-            response = self.supabase.table('badges')\
-                .update(updates)\
-                .eq('id', badge_id)\
-                .execute()
-
-            if not response.data:
-                raise Exception("Failed to update badge")
-
-            return response.data[0]
+            raise ValueError("Badge editing is currently disabled. Custom badge tracking not yet implemented.")
 
         except Exception as e:
             print(f"Error updating custom badge: {str(e)}", file=sys.stderr, flush=True)
@@ -269,6 +265,8 @@ class AdvisorService(BaseService):
         """
         Delete a custom badge (only by creator, only if no students have earned it)
 
+        NOTE: Disabled until created_by tracking is implemented
+
         Args:
             badge_id: UUID of the badge
             advisor_id: UUID of the advisor
@@ -277,39 +275,7 @@ class AdvisorService(BaseService):
             Success boolean
         """
         try:
-            # Verify ownership
-            badge = self.supabase.table('badges')\
-                .select('created_by, is_custom')\
-                .eq('id', badge_id)\
-                .single()\
-                .execute()
-
-            if not badge.data:
-                raise ValueError("Badge not found")
-
-            if badge.data['created_by'] != advisor_id:
-                raise ValueError("Not authorized to delete this badge")
-
-            if not badge.data.get('is_custom', False):
-                raise ValueError("Cannot delete system badges")
-
-            # Check if any students have earned this badge
-            earned_count = self.supabase.table('user_badges')\
-                .select('id', count='exact')\
-                .eq('badge_id', badge_id)\
-                .eq('earned', True)\
-                .execute()
-
-            if earned_count.count and earned_count.count > 0:
-                raise ValueError("Cannot delete badge that students have earned")
-
-            # Delete badge
-            self.supabase.table('badges')\
-                .delete()\
-                .eq('id', badge_id)\
-                .execute()
-
-            return True
+            raise ValueError("Badge deletion is currently disabled. Custom badge tracking not yet implemented.")
 
         except Exception as e:
             print(f"Error deleting custom badge: {str(e)}", file=sys.stderr, flush=True)
@@ -390,9 +356,9 @@ class AdvisorService(BaseService):
             Progress report dictionary
         """
         try:
-            # Verify advisor relationship
+            # Verify advisor relationship using advisor_student_assignments table
             student = self.supabase.table('users')\
-                .select('id, display_name, advisor_id, total_xp, level, last_active')\
+                .select('id, display_name, total_xp, level, last_active')\
                 .eq('id', student_id)\
                 .single()\
                 .execute()
@@ -400,7 +366,7 @@ class AdvisorService(BaseService):
             if not student.data:
                 raise ValueError("Student not found")
 
-            # Allow if advisor is assigned or has admin role
+            # Check if advisor has permission
             advisor_check = self.supabase.table('users')\
                 .select('role')\
                 .eq('id', advisor_id)\
@@ -408,7 +374,16 @@ class AdvisorService(BaseService):
                 .execute()
 
             is_admin = advisor_check.data and advisor_check.data['role'] == 'admin'
-            is_assigned_advisor = student.data.get('advisor_id') == advisor_id
+
+            # Check advisor-student assignment
+            assignment_check = self.supabase.table('advisor_student_assignments')\
+                .select('id')\
+                .eq('advisor_id', advisor_id)\
+                .eq('student_id', student_id)\
+                .eq('is_active', True)\
+                .execute()
+
+            is_assigned_advisor = bool(assignment_check.data)
 
             if not (is_admin or is_assigned_advisor):
                 raise ValueError("Not authorized to view this student's progress")
