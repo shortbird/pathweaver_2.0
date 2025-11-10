@@ -121,10 +121,24 @@ def generate_tasks(user_id: str, quest_id: str):
         logger.error(f"Error generating tasks: {str(e)}")
         import traceback
         traceback.print_exc()
-        return jsonify({
-            'success': False,
-            'error': 'Failed to generate tasks'
-        }), 500
+
+        # Check for rate limiting errors from Gemini API
+        error_str = str(e).lower()
+        if '429' in error_str or 'too many requests' in error_str or 'quota' in error_str or 'rate limit' in error_str:
+            return jsonify({
+                'success': False,
+                'error': 'AI service rate limit reached. Please wait 30 seconds and try again.'
+            }), 429
+        elif '403' in error_str or 'api key' in error_str or 'leaked' in error_str:
+            return jsonify({
+                'success': False,
+                'error': 'AI service configuration error. Please contact support.'
+            }), 500
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to generate tasks. Please try again.'
+            }), 500
 
 @bp.route('/<quest_id>/refine-tasks', methods=['POST'])
 @require_auth

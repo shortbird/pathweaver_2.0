@@ -53,9 +53,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
     setLoading(true);
     setError(null);
     try {
-      const response = await api.post(`/api/quests/${questId}/start-personalization`, {
-        creation_method: method
-      });
+      const response = await api.post(`/api/quests/${questId}/start-personalization`, {});
       const newSessionId = response.data.session_id;
       if (!newSessionId) {
         throw new Error('No session ID returned from server');
@@ -88,6 +86,11 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       return;
     }
 
+    // Prevent duplicate submissions if already loading
+    if (loading) {
+      return;
+    }
+
     setLoading(true);
     setError(null);
     try {
@@ -110,7 +113,16 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
       setStep(4); // Move to one-at-a-time review for AI path
     } catch (err) {
       console.error('Failed to generate tasks:', err);
-      setError(err.response?.data?.error || err.message || 'Failed to generate tasks');
+
+      // Handle rate limiting errors with user-friendly message
+      const errorMessage = err.response?.data?.error || err.message || 'Failed to generate tasks';
+      if (errorMessage.includes('429') || errorMessage.includes('too many requests') || errorMessage.includes('quota')) {
+        setError('AI service is temporarily busy. Please wait 30 seconds and try again.');
+      } else if (errorMessage.includes('403') || errorMessage.includes('API key')) {
+        setError('AI service configuration error. Please contact support.');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setLoading(false);
     }

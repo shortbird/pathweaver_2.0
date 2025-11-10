@@ -94,8 +94,7 @@ class PersonalizationService(BaseService):
     def start_personalization_session(
         self,
         user_id: str,
-        quest_id: str,
-        creation_method: str = 'ai'
+        quest_id: str
     ) -> Dict[str, Any]:
         """
         Initialize a new personalization session.
@@ -103,7 +102,6 @@ class PersonalizationService(BaseService):
         Args:
             user_id: User ID
             quest_id: Quest ID
-            creation_method: 'ai' for AI-generated tasks, 'manual' for student-created tasks
         """
         try:
             # Get quest details
@@ -140,7 +138,6 @@ class PersonalizationService(BaseService):
                 .insert({
                     'user_id': user_id,
                     'quest_id': quest_id,
-                    'creation_method': creation_method,
                     'created_at': datetime.utcnow().isoformat()
                 })\
                 .execute()

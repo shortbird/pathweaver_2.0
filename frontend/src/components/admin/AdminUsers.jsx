@@ -22,9 +22,11 @@ const AdminUsers = () => {
   const [showBulkEmailModal, setShowBulkEmailModal] = useState(false)
   const [showChatLogsModal, setShowChatLogsModal] = useState(false)
   const [showQuestSelectionModal, setShowQuestSelectionModal] = useState(false)
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
   const [chatLogsUser, setChatLogsUser] = useState(null)
   const [taskManagementUser, setTaskManagementUser] = useState(null)
+  const [resetPasswordUser, setResetPasswordUser] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const usersPerPage = 20
@@ -127,13 +129,19 @@ const AdminUsers = () => {
     setShowQuestSelectionModal(true)
   }
 
-  const handleResetPassword = async (userId, userEmail) => {
-    if (window.confirm(`Send password reset email to ${userEmail}?`)) {
+  const handleResetPassword = (user) => {
+    setResetPasswordUser(user)
+    setShowResetPasswordModal(true)
+  }
+
+  const handleVerifyEmail = async (user) => {
+    if (window.confirm(`Manually verify email for ${user.first_name} ${user.last_name} (${user.email})?\n\nThis will allow them to login without email verification.`)) {
       try {
-        await api.post(`/api/admin/users/${userId}/reset-password`)
-        toast.success('Password reset email sent')
+        await api.post(`/api/admin/users/${user.id}/verify-email`, {})
+        toast.success(`Email verified for ${user.first_name} ${user.last_name}`)
+        fetchUsers()
       } catch (error) {
-        toast.error('Failed to send password reset email')
+        toast.error(error.response?.data?.error || 'Failed to verify email')
       }
     }
   }
@@ -321,6 +329,20 @@ const AdminUsers = () => {
                       title="View Chat Logs"
                     >
                       Chats
+                    </button>
+                    <button
+                      onClick={() => handleResetPassword(user)}
+                      className="text-orange-600 hover:text-orange-900"
+                      title="Reset Password"
+                    >
+                      Reset Password
+                    </button>
+                    <button
+                      onClick={() => handleVerifyEmail(user)}
+                      className="text-teal-600 hover:text-teal-900"
+                      title="Verify Email"
+                    >
+                      Verify Email
                     </button>
                     <button
                       onClick={() => handleDeleteUser(user.id)}
@@ -522,6 +544,171 @@ const AdminUsers = () => {
           }}
         />
       )}
+
+      {/* Reset Password Modal */}
+      {showResetPasswordModal && resetPasswordUser && (
+        <ResetPasswordModal
+          user={resetPasswordUser}
+          onClose={() => {
+            setShowResetPasswordModal(false)
+            setResetPasswordUser(null)
+          }}
+          onSuccess={() => {
+            setShowResetPasswordModal(false)
+            setResetPasswordUser(null)
+            toast.success('Password reset successfully')
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+// Reset Password Modal Component
+const ResetPasswordModal = ({ user, onClose, onSuccess }) => {
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [passwordStrength, setPasswordStrength] = useState(null)
+
+  const validatePassword = (password) => {
+    const errors = []
+    if (password.length < 12) {
+      errors.push('At least 12 characters')
+    }
+    if (!/[A-Z]/.test(password)) {
+      errors.push('One uppercase letter')
+    }
+    if (!/[a-z]/.test(password)) {
+      errors.push('One lowercase letter')
+    }
+    if (!/[0-9]/.test(password)) {
+      errors.push('One number')
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      errors.push('One special character')
+    }
+    return errors
+  }
+
+  const handlePasswordChange = (password) => {
+    setNewPassword(password)
+    const errors = validatePassword(password)
+    if (errors.length === 0) {
+      setPasswordStrength('strong')
+    } else if (errors.length <= 2) {
+      setPasswordStrength('medium')
+    } else {
+      setPasswordStrength('weak')
+    }
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match')
+      return
+    }
+
+    const errors = validatePassword(newPassword)
+    if (errors.length > 0) {
+      toast.error(`Password requirements not met: ${errors.join(', ')}`)
+      return
+    }
+
+    setLoading(true)
+    try {
+      await api.post(`/api/admin/users/${user.id}/reset-password`, {
+        new_password: newPassword
+      })
+      onSuccess()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to reset password')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+        <h3 className="text-xl font-bold mb-4">Reset Password</h3>
+        <p className="text-gray-600 mb-4">
+          Set a new password for <strong>{user.first_name} {user.last_name}</strong> ({user.email})
+        </p>
+
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              New Password
+            </label>
+            <input
+              type="password"
+              value={newPassword}
+              onChange={(e) => handlePasswordChange(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+            {newPassword && (
+              <div className="mt-2">
+                <div className="flex gap-1">
+                  <div className={`h-1 flex-1 rounded ${passwordStrength === 'weak' ? 'bg-red-500' : passwordStrength === 'medium' ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
+                  <div className={`h-1 flex-1 rounded ${passwordStrength === 'medium' || passwordStrength === 'strong' ? 'bg-yellow-500' : 'bg-gray-200'}`}></div>
+                  <div className={`h-1 flex-1 rounded ${passwordStrength === 'strong' ? 'bg-green-500' : 'bg-gray-200'}`}></div>
+                </div>
+                <p className="text-xs text-gray-600 mt-1">
+                  {passwordStrength === 'strong' && 'Strong password'}
+                  {passwordStrength === 'medium' && 'Medium strength - consider adding more characters'}
+                  {passwordStrength === 'weak' && 'Weak password - please strengthen'}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Confirm Password
+            </label>
+            <input
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+            <p className="text-sm text-blue-800 font-medium mb-1">Password Requirements:</p>
+            <ul className="text-xs text-blue-700 space-y-1">
+              <li>• At least 12 characters long</li>
+              <li>• One uppercase letter (A-Z)</li>
+              <li>• One lowercase letter (a-z)</li>
+              <li>• One number (0-9)</li>
+              <li>• One special character (!@#$%^&*...)</li>
+            </ul>
+          </div>
+
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              disabled={loading || !newPassword || !confirmPassword}
+            >
+              {loading ? 'Resetting...' : 'Reset Password'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }
