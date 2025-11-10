@@ -1,10 +1,12 @@
 import React, { useState, useEffect, memo } from 'react'
+import { useAuth } from '../../contexts/AuthContext'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import UnifiedQuestForm from './UnifiedQuestForm'
 import CourseQuestForm from './CourseQuestForm'
 
 const AdminQuests = () => {
+  const { user } = useAuth()
   const [quests, setQuests] = useState([])
   const [loading, setLoading] = useState(true)
   const [showManager, setShowManager] = useState(false)
@@ -13,6 +15,10 @@ const AdminQuests = () => {
   const [showCourseQuestForm, setShowCourseQuestForm] = useState(false)
   const [editingCourseQuest, setEditingCourseQuest] = useState(null)
   const [activeFilter, setActiveFilter] = useState('all') // all, active, inactive
+
+  // Determine user role
+  const isAdmin = user?.role === 'admin'
+  const isAdvisor = user?.role === 'advisor'
 
   useEffect(() => {
     fetchQuests()
@@ -294,14 +300,20 @@ const AdminQuests = () => {
                       {quest.description || quest.big_idea || 'No description available'}
                     </p>
 
-                    {/* Active Toggle */}
+                    {/* Active Toggle - Disabled for advisors */}
                     <div className="flex items-center justify-between mb-4 p-3 bg-gray-50 rounded-lg">
-                      <span className="text-sm font-medium text-gray-700">Active</span>
+                      <span className="text-sm font-medium text-gray-700">
+                        Active
+                        {isAdvisor && <span className="text-xs text-gray-500 ml-1">(Admin only)</span>}
+                      </span>
                       <button
-                        onClick={() => handleToggleActive(quest.id, quest.is_active)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
-                          quest.is_active ? 'bg-green-500' : 'bg-gray-300'
-                        }`}
+                        onClick={() => isAdmin && handleToggleActive(quest.id, quest.is_active)}
+                        disabled={isAdvisor}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          isAdvisor
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2'
+                        } ${quest.is_active ? 'bg-green-500' : 'bg-gray-300'}`}
                       >
                         <span
                           className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
