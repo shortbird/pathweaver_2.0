@@ -35,23 +35,27 @@ class AdvisorService(BaseService):
         """
         try:
             # Check if user is admin
+            print(f"Checking if user {advisor_id} is admin...", file=sys.stderr, flush=True)
             advisor_check = self.supabase.table('users')\
                 .select('role')\
                 .eq('id', advisor_id)\
-                .single()\
                 .execute()
 
-            is_admin = advisor_check.data and advisor_check.data['role'] == 'admin'
+            print(f"Admin check response: {advisor_check.data}", file=sys.stderr, flush=True)
+            is_admin = advisor_check.data and len(advisor_check.data) > 0 and advisor_check.data[0]['role'] == 'admin'
+            print(f"Is admin: {is_admin}", file=sys.stderr, flush=True)
 
             students = []
 
             if is_admin:
                 # Admin sees ALL students (without badge data to avoid timeout)
+                print("Fetching all students for admin...", file=sys.stderr, flush=True)
                 response = self.supabase.table('users')\
                     .select('id, display_name, first_name, last_name, email, level, total_xp, avatar_url, last_active')\
                     .eq('role', 'student')\
                     .execute()
 
+                print(f"Student query returned {len(response.data) if response.data else 0} students", file=sys.stderr, flush=True)
                 if response.data:
                     for student in response.data:
                         # Set badge counts to 0 for now - can be loaded on-demand
