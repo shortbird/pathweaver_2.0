@@ -14,6 +14,8 @@ import AIPromptOptimizer from '../components/admin/AIPromptOptimizer'
 import BatchContentGenerator from '../components/admin/BatchContentGenerator'
 import SiteSettings from '../components/admin/SiteSettings'
 import FlaggedTasksPanel from '../components/admin/FlaggedTasksPanel'
+import AdminServices from '../components/admin/AdminServices'
+import ServiceInquiries from '../components/admin/ServiceInquiries'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -84,6 +86,18 @@ const AdminPage = () => {
             >
               Site Settings
             </Link>
+            <Link
+              to="/admin/services"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'services' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Services
+            </Link>
+            <Link
+              to="/admin/service-inquiries"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'service-inquiries' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Inquiries
+            </Link>
           </>
         )}
       </div>
@@ -98,6 +112,8 @@ const AdminPage = () => {
         <Route path="flagged-tasks" element={<FlaggedTasksPanel />} />
         <Route path="khan-academy" element={<AdminKhanAcademySync />} />
         <Route path="site-settings" element={<SiteSettings />} />
+        <Route path="services" element={<AdminServices />} />
+        <Route path="service-inquiries" element={<ServiceInquiries />} />
         <Route path="ai-pipeline" element={<AIContentPipeline />} />
         <Route path="ai-quest-review" element={<AIQuestReview />} />
         <Route path="ai-performance" element={<AIPerformanceAnalytics />} />
