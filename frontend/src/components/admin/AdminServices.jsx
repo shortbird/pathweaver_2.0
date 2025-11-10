@@ -76,15 +76,6 @@ const AdminServices = () => {
     }
   };
 
-  const formatPrice = (price, priceType) => {
-    const formatted = `$${price.toFixed(0)}`;
-    switch (priceType) {
-      case 'monthly': return `${formatted}/mo`;
-      case 'per-session': return `${formatted}/session`;
-      case 'per-credit': return `${formatted}/credit`;
-      default: return formatted;
-    }
-  };
 
   if (loading) {
     return (
@@ -164,7 +155,7 @@ const AdminServices = () => {
                       <div className="text-sm text-gray-600">{service.category}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="text-sm text-gray-900">{formatPrice(service.price, service.price_type)}</div>
+                      <div className="text-sm text-gray-900">{service.price_display || `$${service.price}`}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm text-gray-600">{service.sort_order}</div>

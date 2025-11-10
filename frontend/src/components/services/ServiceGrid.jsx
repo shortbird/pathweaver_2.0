@@ -2,9 +2,12 @@ import React from 'react';
 import ServiceCard from './ServiceCard';
 
 const ServiceGrid = ({ categories, onInquire }) => {
-  // Define category order for consistent display
+  // Extract Optio Pro from Featured category
+  const optioPro = categories['Featured']?.find(s => s.name === 'Optio Pro') ||
+                   categories['Subscriptions']?.find(s => s.name === 'Optio Pro');
+
+  // Define category order for consistent display (excluding Featured/Subscriptions)
   const categoryOrder = [
-    'Subscriptions',
     'Educational Consultations',
     'Transcript Services',
     'Portfolio Services',
@@ -22,6 +25,26 @@ const ServiceGrid = ({ categories, onInquire }) => {
 
   return (
     <div className="space-y-16">
+      {/* Featured Optio Pro Card */}
+      {optioPro && (
+        <div className="mb-16">
+          <div className="text-center mb-8">
+            <h2 className="text-4xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+              Best Value for Families
+            </h2>
+            <div className="w-24 h-1 bg-gradient-to-r from-[#6D469B] to-[#EF597B] mx-auto rounded-full"></div>
+          </div>
+          <div className="max-w-2xl mx-auto">
+            <ServiceCard
+              service={optioPro}
+              onInquire={onInquire}
+              isFeatured={true}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Regular category sections */}
       {sortedCategories.map(({ name, services }) => (
         <div key={name} className="space-y-6">
           {/* Category Header */}

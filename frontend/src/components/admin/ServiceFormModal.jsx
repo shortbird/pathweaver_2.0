@@ -8,7 +8,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
     description: '',
     category: '',
     price: '',
-    price_type: 'one-time',
+    price_display: '',
     features: [],
     is_active: true,
     sort_order: 0
@@ -24,7 +24,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
         description: service.description || '',
         category: service.category || '',
         price: service.price || '',
-        price_type: service.price_type || 'one-time',
+        price_display: service.price_display || '',
         features: service.features || [],
         is_active: service.is_active !== undefined ? service.is_active : true,
         sort_order: service.sort_order || 0
@@ -152,49 +152,28 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
             />
           </div>
 
-          {/* Category and Price Type (row) */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label htmlFor="category" className="block text-sm font-semibold text-gray-700 mb-1">
-                Category <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="category"
-                name="category"
-                value={formData.category}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
-                placeholder="e.g., Parent Support"
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="price_type" className="block text-sm font-semibold text-gray-700 mb-1">
-                Price Type <span className="text-red-500">*</span>
-              </label>
-              <select
-                id="price_type"
-                name="price_type"
-                value={formData.price_type}
-                onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
-                required
-              >
-                <option value="one-time">One-Time</option>
-                <option value="monthly">Monthly</option>
-                <option value="per-session">Per Session</option>
-                <option value="per-credit">Per Credit</option>
-              </select>
-            </div>
+          {/* Category */}
+          <div>
+            <label htmlFor="category" className="block text-sm font-semibold text-gray-700 mb-1">
+              Category <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              id="category"
+              name="category"
+              value={formData.category}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+              placeholder="e.g., Educational Consultations"
+              required
+            />
           </div>
 
-          {/* Price and Sort Order (row) */}
+          {/* Price (numeric) and Price Display (row) */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label htmlFor="price" className="block text-sm font-semibold text-gray-700 mb-1">
-                Price ($) <span className="text-red-500">*</span>
+                Price (numeric) <span className="text-red-500">*</span>
               </label>
               <input
                 type="number"
@@ -205,23 +184,45 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
                 min="0"
                 step="0.01"
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                placeholder="19.00"
                 required
               />
+              <p className="text-xs text-gray-500 mt-1">Internal price value (not shown to public)</p>
             </div>
 
             <div>
-              <label htmlFor="sort_order" className="block text-sm font-semibold text-gray-700 mb-1">
-                Sort Order
+              <label htmlFor="price_display" className="block text-sm font-semibold text-gray-700 mb-1">
+                Price Display <span className="text-red-500">*</span>
               </label>
               <input
-                type="number"
-                id="sort_order"
-                name="sort_order"
-                value={formData.sort_order}
+                type="text"
+                id="price_display"
+                name="price_display"
+                value={formData.price_display}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                placeholder="e.g., $49/session (first FREE)"
+                required
               />
+              <p className="text-xs text-gray-500 mt-1">How price appears to users</p>
             </div>
+          </div>
+
+          {/* Sort Order */}
+          <div>
+            <label htmlFor="sort_order" className="block text-sm font-semibold text-gray-700 mb-1">
+              Sort Order
+            </label>
+            <input
+              type="number"
+              id="sort_order"
+              name="sort_order"
+              value={formData.sort_order}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+              placeholder="0"
+            />
+            <p className="text-xs text-gray-500 mt-1">Lower numbers appear first</p>
           </div>
 
           {/* Features */}

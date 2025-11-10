@@ -1,55 +1,30 @@
 import React from 'react';
-import { CheckCircle, Star } from 'lucide-react';
+import { CheckCircle, Star, Sparkles } from 'lucide-react';
 
-const ServiceCard = ({ service, onInquire }) => {
-  const formatPrice = (price, priceType) => {
-    // Handle free/contact us services
-    if (price === 0 || price === '0' || price === '0.00') {
-      return 'Contact us';
-    }
-
-    const formattedPrice = `$${parseFloat(price).toFixed(0)}`;
-
-    switch (priceType) {
-      case 'monthly':
-        return `${formattedPrice}/month`;
-      case 'per-session':
-        return `${formattedPrice}/session`;
-      case 'per-credit':
-        return `${formattedPrice}/credit`;
-      case 'one-time':
-      default:
-        return formattedPrice;
-    }
-  };
-
-  const getPriceLabel = (priceType) => {
-    switch (priceType) {
-      case 'monthly':
-        return 'Monthly Subscription';
-      case 'per-session':
-        return 'Per Session';
-      case 'per-credit':
-        return 'Per Credit';
-      case 'one-time':
-      default:
-        return 'One-Time';
-    }
-  };
-
+const ServiceCard = ({ service, onInquire, isFeatured = false }) => {
   return (
-    <div className="bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 p-6 flex flex-col h-full border border-gray-100">
+    <div className={`bg-white rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 hover:scale-105 p-6 flex flex-col h-full ${
+      isFeatured ? 'border-4 border-gradient-to-r from-[#6D469B] to-[#EF597B] bg-gradient-to-br from-purple-50 to-pink-50' : 'border border-gray-100'
+    }`}>
+      {/* Featured Badge */}
+      {isFeatured && (
+        <div className="flex items-center justify-center gap-2 mb-4 py-2 px-4 bg-gradient-to-r from-[#6D469B] to-[#EF597B] text-white rounded-lg">
+          <Sparkles className="w-5 h-5" />
+          <span className="font-bold text-sm" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            BEST VALUE
+          </span>
+          <Sparkles className="w-5 h-5" />
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-4">
-        <h3 className="text-xl font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+        <h3 className={`${isFeatured ? 'text-2xl' : 'text-xl'} font-bold text-gray-900 mb-2`} style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
           {service.name}
         </h3>
-        <div className="flex items-baseline gap-2 mb-3">
-          <span className="text-3xl font-bold bg-gradient-to-r from-[#6D469B] to-[#EF597B] bg-clip-text text-transparent" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-            {formatPrice(service.price, service.price_type)}
-          </span>
-          <span className="text-sm text-gray-500" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-            {getPriceLabel(service.price_type)}
+        <div className="mb-3">
+          <span className={`${isFeatured ? 'text-4xl' : 'text-3xl'} font-bold bg-gradient-to-r from-[#6D469B] to-[#EF597B] bg-clip-text text-transparent`} style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            {service.price_display || service.price}
           </span>
         </div>
       </div>
