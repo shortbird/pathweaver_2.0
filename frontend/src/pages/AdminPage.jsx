@@ -1,5 +1,6 @@
 import React, { memo } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
+import { useAuth } from '../contexts/AuthContext'
 import AdminQuests from '../components/admin/AdminQuests'
 import AdminBadges from '../components/admin/AdminBadges'
 import AdminUsers from '../components/admin/AdminUsers'
@@ -16,54 +17,68 @@ import FlaggedTasksPanel from '../components/admin/FlaggedTasksPanel'
 const AdminPage = () => {
   const location = useLocation()
   const currentPath = location.pathname.split('/').pop()
+  const { user } = useAuth()
+
+  // Determine if user is admin or advisor
+  const isAdmin = user?.role === 'admin'
+  const isAdvisor = user?.role === 'advisor'
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-8">Admin Panel</h1>
+      <h1 className="text-2xl sm:text-3xl font-bold mb-8">
+        {isAdvisor ? 'Advisor Panel' : 'Admin Panel'}
+      </h1>
 
       <div className="flex gap-4 mb-8 border-b overflow-x-auto">
+        {/* Quests tab - visible to all */}
         <Link
           to="/admin/quests"
           className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' || currentPath === 'quests' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
         >
           Quests
         </Link>
-        <Link
-          to="/admin/badges"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'badges' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-        >
-          Badges
-        </Link>
-        <Link
-          to="/admin/users"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'users' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-        >
-          Users
-        </Link>
-        <Link
-          to="/admin/quest-suggestions"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quest-suggestions' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-        >
-          Quest Suggestions
-        </Link>
-        <Link
-          to="/admin/khan-academy"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'khan-academy' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-        >
-          Khan Academy Sync
-        </Link>
-        <Link
-          to="/admin/batch-generator"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'batch-generator' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-        >
-          Batch Generator
-        </Link>
-        <Link
-          to="/admin/site-settings"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'site-settings' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-        >
-          Site Settings
-        </Link>
+
+        {/* Admin-only tabs */}
+        {isAdmin && (
+          <>
+            <Link
+              to="/admin/badges"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'badges' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Badges
+            </Link>
+            <Link
+              to="/admin/users"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'users' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Users
+            </Link>
+            <Link
+              to="/admin/quest-suggestions"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quest-suggestions' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Quest Suggestions
+            </Link>
+            <Link
+              to="/admin/khan-academy"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'khan-academy' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Khan Academy Sync
+            </Link>
+            <Link
+              to="/admin/batch-generator"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'batch-generator' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Batch Generator
+            </Link>
+            <Link
+              to="/admin/site-settings"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'site-settings' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Site Settings
+            </Link>
+          </>
+        )}
       </div>
 
       <Routes>
