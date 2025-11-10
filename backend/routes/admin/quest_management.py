@@ -90,7 +90,7 @@ def create_quest_v3_clean(user_id):
             'big_idea': data.get('big_idea', '').strip() or data.get('description', '').strip(),
             'description': data.get('big_idea', '').strip() or data.get('description', '').strip(),
             'is_v3': True,
-            'is_active': data.get('is_active', True),
+            'is_active': data.get('is_active', False),
             'quest_type': 'optio',  # Optio quest (self-directed, personalized)
             'header_image_url': image_url,
             'image_url': image_url,  # Add to new image_url column

@@ -15,7 +15,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
     lms_platform: quest?.lms_platform || '',
     lms_course_id: quest?.lms_course_id || '',
     lms_assignment_id: quest?.lms_assignment_id || '',
-    is_active: quest?.is_active !== undefined ? quest.is_active : true,
+    is_active: quest?.is_active !== undefined ? quest.is_active : false,
     tasks: [
       {
         title: '',
@@ -300,6 +300,21 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
                   placeholder="Optional"
                 />
               </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2 text-gray-600">Status</label>
+              <select
+                value={formData.is_active.toString()}
+                onChange={(e) => setFormData({ ...formData, is_active: e.target.value === 'true' })}
+                className="w-full px-3 py-2 border rounded-lg"
+              >
+                <option value="true">Active</option>
+                <option value="false">Inactive</option>
+              </select>
+              <p className="text-xs text-gray-500 mt-1">
+                Only active quests will be visible to students
+              </p>
             </div>
           </div>
 

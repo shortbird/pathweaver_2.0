@@ -76,7 +76,7 @@ def create_course_quest(user_id):
             'description': data.get('description', '').strip(),
             'big_idea': data.get('description', '').strip(),
             'quest_type': 'course',  # Important: mark as course quest
-            'is_active': data.get('is_active', True),
+            'is_active': data.get('is_active', False),
             'lms_platform': data.get('lms_platform'),
             'lms_course_id': data.get('lms_course_id'),
             'lms_assignment_id': data.get('lms_assignment_id'),

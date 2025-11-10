@@ -12,6 +12,7 @@ const AdminQuests = () => {
   const [showCreationForm, setShowCreationForm] = useState(false)
   const [showCourseQuestForm, setShowCourseQuestForm] = useState(false)
   const [editingCourseQuest, setEditingCourseQuest] = useState(null)
+  const [activeFilter, setActiveFilter] = useState('all') // all, active, inactive
 
   useEffect(() => {
     fetchQuests()
@@ -112,6 +113,27 @@ const AdminQuests = () => {
     fileInput.click()
   }
 
+  const handleToggleActive = async (questId, currentStatus) => {
+    try {
+      const newStatus = !currentStatus
+      await api.put(`/api/admin/quests/${questId}`, {
+        is_active: newStatus
+      })
+      toast.success(`Quest ${newStatus ? 'activated' : 'deactivated'} successfully`)
+      fetchQuests()
+    } catch (error) {
+      toast.error('Failed to update quest status')
+    }
+  }
+
+  // Filter quests based on active filter
+  const filteredQuests = quests.filter(quest => {
+    if (activeFilter === 'all') return true
+    if (activeFilter === 'active') return quest.is_active === true
+    if (activeFilter === 'inactive') return quest.is_active === false
+    return true
+  })
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -130,6 +152,40 @@ const AdminQuests = () => {
             Create Optio Quest
           </button>
         </div>
+      </div>
+
+      {/* Filter Tabs */}
+      <div className="flex gap-2 mb-6">
+        <button
+          onClick={() => setActiveFilter('all')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            activeFilter === 'all'
+              ? 'bg-gradient-primary text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          All Quests ({quests.length})
+        </button>
+        <button
+          onClick={() => setActiveFilter('active')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            activeFilter === 'active'
+              ? 'bg-green-600 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          Active ({quests.filter(q => q.is_active === true).length})
+        </button>
+        <button
+          onClick={() => setActiveFilter('inactive')}
+          className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+            activeFilter === 'inactive'
+              ? 'bg-gray-600 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          Inactive ({quests.filter(q => q.is_active === false).length})
+        </button>
       </div>
 
       {showManager && (
@@ -177,17 +233,22 @@ const AdminQuests = () => {
         </div>
       ) : (
         <div>
-          {quests.length === 0 ? (
+          {filteredQuests.length === 0 ? (
             <div className="text-center py-16 text-gray-500 bg-gray-50 rounded-xl">
               <svg className="mx-auto h-16 w-16 text-gray-300 mb-4" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8zm-1-13h2v6h-2zm0 8h2v2h-2z"/>
               </svg>
               <p className="text-lg font-semibold">No quests found</p>
-              <p className="text-sm mt-2">Create your first quest using the button above</p>
+              <p className="text-sm mt-2">
+                {activeFilter === 'all'
+                  ? 'Create your first quest using the button above'
+                  : `No ${activeFilter} quests found`
+                }
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {quests.map(quest => (
+              {filteredQuests.map(quest => (
                 <div
                   key={quest.id}
                   className="group bg-white rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100"
@@ -208,6 +269,17 @@ const AdminQuests = () => {
                     {/* Gradient Overlay for Text Readability */}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/30 to-transparent" />
 
+                    {/* Active/Inactive Badge */}
+                    <div className="absolute top-4 right-4">
+                      <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        quest.is_active
+                          ? 'bg-green-500 text-white'
+                          : 'bg-gray-500 text-white'
+                      }`}>
+                        {quest.is_active ? 'Active' : 'Inactive'}
+                      </span>
+                    </div>
+
                     {/* Title Overlay */}
                     <div className="absolute inset-x-0 bottom-0 p-6">
                       <h3 className="text-white text-xl font-bold leading-tight drop-shadow-lg line-clamp-2">
@@ -221,6 +293,23 @@ const AdminQuests = () => {
                     <p className="text-gray-600 text-sm leading-relaxed line-clamp-3 mb-4">
                       {quest.description || quest.big_idea || 'No description available'}
                     </p>
+
+                    {/* Active Toggle */}
+                    <div className="flex items-center justify-between mb-4 p-3 bg-gray-50 rounded-lg">
+                      <span className="text-sm font-medium text-gray-700">Active</span>
+                      <button
+                        onClick={() => handleToggleActive(quest.id, quest.is_active)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                          quest.is_active ? 'bg-green-500' : 'bg-gray-300'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            quest.is_active ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
 
                     {/* Admin Action Buttons */}
                     <div className="grid grid-cols-2 gap-2">

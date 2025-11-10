@@ -11,7 +11,7 @@ const UnifiedQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess })
   const [formData, setFormData] = useState({
     title: '',
     big_idea: '',
-    is_active: true
+    is_active: false
   })
 
   // Initialize form data for edit mode
