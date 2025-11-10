@@ -7,7 +7,7 @@ Handles CRUD operations for course quests and their preset tasks.
 
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
-from utils.auth.decorators import require_admin
+from utils.auth.decorators import require_admin, require_advisor
 from services.image_service import search_quest_image
 from datetime import datetime
 import json
@@ -20,10 +20,11 @@ bp = Blueprint('admin_course_quest_management', __name__, url_prefix='/api/admin
 
 
 @bp.route('/quests/create-course-quest', methods=['POST'])
-@require_admin
+@require_advisor
 def create_course_quest(user_id):
     """
     Create a new course quest with preset tasks.
+    Advisors create unpublished drafts; admins can publish immediately.
 
     Request body:
     {
@@ -63,6 +64,10 @@ def create_course_quest(user_id):
                 'error': 'At least one task is required for course quests'
             }), 400
 
+        # Get user role to determine default is_active value
+        user = supabase.table('users').select('role').eq('id', user_id).execute()
+        user_role = user.data[0].get('role') if user.data else 'advisor'
+
         # Auto-fetch image if not provided
         image_url = data.get('header_image_url')
         if not image_url:
@@ -70,18 +75,27 @@ def create_course_quest(user_id):
             image_url = search_quest_image(data['title'].strip(), quest_desc)
             logger.info(f"Auto-fetched image for course quest '{data['title']}': {image_url}")
 
+        # Determine is_active value based on role
+        # Admins can set is_active=True (publish immediately)
+        # Advisors always create drafts (is_active=False)
+        if user_role == 'admin':
+            is_active = data.get('is_active', False)
+        else:
+            is_active = False  # Advisors always create unpublished drafts
+
         # Create quest record
         quest_data = {
             'title': data['title'].strip(),
             'description': data.get('description', '').strip(),
             'big_idea': data.get('description', '').strip(),
             'quest_type': 'course',  # Important: mark as course quest
-            'is_active': data.get('is_active', False),
+            'is_active': is_active,
             'lms_platform': data.get('lms_platform'),
             'lms_course_id': data.get('lms_course_id'),
             'lms_assignment_id': data.get('lms_assignment_id'),
             'header_image_url': image_url,
             'image_url': image_url,
+            'created_by': user_id,  # Track who created the quest
             'created_at': datetime.utcnow().isoformat()
         }
 

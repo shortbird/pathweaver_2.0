@@ -18,7 +18,7 @@ from backend.repositories import (
     LMSRepository,
     AnalyticsRepository
 )
-from utils.auth.decorators import require_admin
+from utils.auth.decorators import require_admin, require_advisor, get_advisor_assigned_students
 from utils.api_response import success_response, error_response
 from datetime import datetime, timedelta
 import json
@@ -31,9 +31,12 @@ bp = Blueprint('admin_user_management', __name__, url_prefix='/api/admin')
 
 # Using repository pattern for database access
 @bp.route('/users', methods=['GET'])
-@require_admin
+@require_advisor
 def get_users(user_id):
-    """Get all users with filtering and pagination for admin dashboard"""
+    """
+    Get all users with filtering and pagination for admin dashboard.
+    Advisors see only their assigned students; admins see all users.
+    """
     supabase = get_supabase_admin_client()
 
     try:
@@ -50,14 +53,35 @@ def get_users(user_id):
         per_page = min(int(request.args.get('per_page', 20)), 100)
         offset = (page - 1) * per_page
 
+        # Get assigned students for advisor filtering
+        # Returns None for admins (all students), list of student IDs for advisors
+        assigned_student_ids = get_advisor_assigned_students(user_id)
+
         # Build query
         query = supabase.table('users').select('*', count='exact')
 
-        # Apply filters
+        # Advisors can only see their assigned students
+        if assigned_student_ids is not None:  # None means admin (all access)
+            if len(assigned_student_ids) == 0:
+                # Advisor with no assigned students - return empty list
+                return jsonify({
+                    'success': True,
+                    'users': [],
+                    'total': 0,
+                    'page': page,
+                    'per_page': per_page,
+                    'total_pages': 0
+                })
+            # Filter to only assigned students
+            query = query.in_('id', assigned_student_ids)
+            # Force role filter to 'student' for advisors
+            query = query.eq('role', 'student')
+
+        # Apply filters (skip role filter if advisor already applied it)
         if subscription_filter != 'all':
             query = query.eq('subscription_tier', subscription_filter)
 
-        if role_filter != 'all':
+        if role_filter != 'all' and assigned_student_ids is None:  # Only admins can filter by role
             query = query.eq('role', role_filter)
 
         if activity_filter == 'active':
@@ -455,15 +479,26 @@ def get_conversation_details(admin_user_id, conversation_id):
         return error_response(f"Failed to fetch conversation details: {str(e)}", status_code=500, error_code="internal_error")
 
 @bp.route('/users/<target_user_id>/quest-enrollments', methods=['GET'])
-@require_admin
+@require_advisor
 def get_user_quest_enrollments(user_id, target_user_id):
     """
     Get all quests for a student - both enrolled and available.
     Used by advisors to add tasks to student quests.
+    Advisors can only access their assigned students; admins see all.
     """
     supabase = get_supabase_admin_client()
 
     try:
+        # Check if advisor is allowed to access this student
+        assigned_student_ids = get_advisor_assigned_students(user_id)
+
+        # If advisor (not admin) and student is not assigned, deny access
+        if assigned_student_ids is not None and target_user_id not in assigned_student_ids:
+            return jsonify({
+                'success': False,
+                'error': 'Not authorized to access this student'
+            }), 403
+
         # Get all active quests
         all_quests = supabase.table('quests')\
             .select('id, title, big_idea, description, quest_type')\
