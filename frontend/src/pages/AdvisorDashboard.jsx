@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
+import UnifiedQuestForm from '../components/admin/UnifiedQuestForm';
+import CourseQuestForm from '../components/admin/CourseQuestForm';
+import toast from 'react-hot-toast';
 
 export default function AdvisorDashboard() {
+  const { user } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
   const [students, setStudents] = useState([]);
-  const [customBadges, setCustomBadges] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
@@ -19,15 +23,13 @@ export default function AdvisorDashboard() {
       setLoading(true);
       setError(null);
 
-      const [dashboardRes, studentsRes, badgesRes] = await Promise.all([
+      const [dashboardRes, studentsRes] = await Promise.all([
         api.get('/api/advisor/dashboard'),
-        api.get('/api/advisor/students'),
-        api.get('/api/advisor/badges')
+        api.get('/api/advisor/students')
       ]);
 
       setDashboardData(dashboardRes.data);
       setStudents(studentsRes.data.students || []);
-      setCustomBadges(badgesRes.data.badges || []);
     } catch (err) {
       console.error('Error fetching advisor dashboard:', err);
       setError(err.response?.data?.error || 'Failed to load dashboard');
@@ -69,7 +71,7 @@ export default function AdvisorDashboard() {
       <div className="bg-gradient-primary text-white py-8">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <h1 className="text-3xl font-bold">Advisor Dashboard</h1>
-          <p className="mt-2 text-white/90">Manage students and create custom learning paths</p>
+          <p className="mt-2 text-white/90">Manage students</p>
         </div>
       </div>
 
@@ -107,16 +109,6 @@ export default function AdvisorDashboard() {
             >
               Quests
             </button>
-            <button
-              onClick={() => setActiveTab('badges')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'badges'
-                  ? 'border-optio-pink text-optio-pink'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Custom Badges ({customBadges.length})
-            </button>
           </div>
         </div>
       </div>
@@ -124,23 +116,22 @@ export default function AdvisorDashboard() {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'overview' && (
-          <OverviewTab dashboardData={dashboardData} students={students} badges={customBadges} />
+          <OverviewTab dashboardData={dashboardData} students={students} advisorName={user?.display_name} />
         )}
         {activeTab === 'students' && <StudentsTab students={students} onRefresh={fetchDashboardData} />}
         {activeTab === 'quests' && <QuestsTab onRefresh={fetchDashboardData} />}
-        {activeTab === 'badges' && <BadgesTab badges={customBadges} onRefresh={fetchDashboardData} />}
       </div>
     </div>
   );
 }
 
-function OverviewTab({ dashboardData, students, badges }) {
+function OverviewTab({ dashboardData, students, advisorName }) {
   const stats = dashboardData?.stats || {};
 
   return (
     <div className="space-y-6">
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="text-sm font-medium text-gray-500">Total Students</div>
           <div className="mt-2 text-3xl font-bold text-gray-900">{stats.total_students || 0}</div>
@@ -150,56 +141,40 @@ function OverviewTab({ dashboardData, students, badges }) {
           <div className="mt-2 text-3xl font-bold text-green-600">{stats.active_students || 0}</div>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="text-sm font-medium text-gray-500">Custom Badges</div>
-          <div className="mt-2 text-3xl font-bold text-optio-pink">{stats.total_custom_badges || 0}</div>
-        </div>
-        <div className="bg-white rounded-lg shadow p-6">
           <div className="text-sm font-medium text-gray-500">Badges Earned</div>
           <div className="mt-2 text-3xl font-bold text-optio-purple">{stats.total_badges_earned || 0}</div>
         </div>
       </div>
 
-      {/* Recent Students */}
+      {/* Students List */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b border-gray-200">
-          <h2 className="text-lg font-semibold text-gray-900">Recent Students</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{advisorName}'s Students</h2>
         </div>
         <div className="divide-y divide-gray-200">
-          {students.slice(0, 5).map((student) => (
-            <div key={student.id} className="p-6 flex items-center justify-between">
-              <div className="flex items-center">
-                <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold">
-                  {student.display_name?.charAt(0) || 'S'}
-                </div>
-                <div className="ml-4">
-                  <div className="text-sm font-medium text-gray-900">{student.display_name}</div>
-                  <div className="text-sm text-gray-500">Level {student.level} • {student.total_xp || 0} XP</div>
-                </div>
-              </div>
-              <div className="text-sm text-gray-500">
-                {student.badge_count || 0} badges earned
-              </div>
+          {students.length === 0 ? (
+            <div className="p-12 text-center text-gray-500">
+              No students assigned yet
             </div>
-          ))}
+          ) : (
+            students.slice(0, 5).map((student) => (
+              <div key={student.id} className="p-6 flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold">
+                    {student.display_name?.charAt(0) || 'S'}
+                  </div>
+                  <div className="ml-4">
+                    <div className="text-sm font-medium text-gray-900">{student.display_name}</div>
+                    <div className="text-sm text-gray-500">Level {student.level} • {student.total_xp || 0} XP</div>
+                  </div>
+                </div>
+                <div className="text-sm text-gray-500">
+                  {student.badge_count || 0} badges earned
+                </div>
+              </div>
+            ))
+          )}
         </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <Link
-          to="/advisor/badges/create"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-        >
-          <div className="text-lg font-semibold text-gray-900">Create Custom Badge</div>
-          <p className="mt-2 text-sm text-gray-600">Design learning paths tailored to your students</p>
-        </Link>
-        <Link
-          to="/advisor/students"
-          className="bg-white rounded-lg shadow p-6 hover:shadow-lg transition-shadow"
-        >
-          <div className="text-lg font-semibold text-gray-900">View All Students</div>
-          <p className="mt-2 text-sm text-gray-600">Monitor progress and assign badges</p>
-        </Link>
       </div>
     </div>
   );
@@ -311,8 +286,8 @@ function StudentsTab({ students, onRefresh }) {
 function QuestsTab({ onRefresh }) {
   const [quests, setQuests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showCreateForm, setShowCreateForm] = useState(false);
-  const [formData, setFormData] = useState({ title: '', big_idea: '' });
+  const [showOptioForm, setShowOptioForm] = useState(false);
+  const [showCourseForm, setShowCourseForm] = useState(false);
 
   useEffect(() => {
     fetchQuests();
@@ -321,100 +296,88 @@ function QuestsTab({ onRefresh }) {
   const fetchQuests = async () => {
     try {
       setLoading(true);
-      // Fetch all quests - advisors can see both published and their own drafts
       const response = await api.get('/api/admin/quests');
       setQuests(response.data.quests || []);
     } catch (err) {
       console.error('Error fetching quests:', err);
+      toast.error('Failed to load quests');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCreateQuest = async (e) => {
-    e.preventDefault();
-    try {
-      await api.post('/api/admin/quests/create', {
-        title: formData.title,
-        big_idea: formData.big_idea,
-        quest_type: 'optio',
-        is_active: false // Advisors create unpublished drafts
-      });
-      setShowCreateForm(false);
-      setFormData({ title: '', big_idea: '' });
-      fetchQuests();
-      alert('Quest created successfully as a draft. An admin will review and publish it.');
-    } catch (err) {
-      console.error('Error creating quest:', err);
-      alert(err.response?.data?.error || 'Failed to create quest');
-    }
+  const handleQuestSave = () => {
+    setShowOptioForm(false);
+    setShowCourseForm(false);
+    fetchQuests();
+    toast.success('Quest created successfully as a draft. An admin will review and publish it.');
   };
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Quests</h2>
-          <p className="text-sm text-gray-600 mt-1">Create quest drafts for admin review and publication</p>
-        </div>
-        <button
-          onClick={() => setShowCreateForm(!showCreateForm)}
-          className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90"
-        >
-          {showCreateForm ? 'Cancel' : 'Create New Quest'}
-        </button>
-      </div>
-
-      {/* Create Quest Form */}
-      {showCreateForm && (
+      {/* Forms */}
+      {showOptioForm && (
         <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-4">Create New Quest</h3>
-          <form onSubmit={handleCreateQuest} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Quest Title</label>
-              <input
-                type="text"
-                value={formData.title}
-                onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-pink focus:border-transparent"
-                placeholder="Enter quest title"
-                required
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Big Idea (Optional)</label>
-              <textarea
-                value={formData.big_idea}
-                onChange={(e) => setFormData({ ...formData, big_idea: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-pink focus:border-transparent"
-                placeholder="Describe the learning goal or concept"
-                rows={3}
-              />
-            </div>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <p className="text-sm text-blue-800">
-                <strong>Note:</strong> Quests created by advisors are saved as unpublished drafts.
-                An admin will review and publish your quest before it becomes available to students.
-              </p>
-            </div>
-            <div className="flex justify-end space-x-3">
-              <button
-                type="button"
-                onClick={() => setShowCreateForm(false)}
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90"
-              >
-                Create Quest Draft
-              </button>
-            </div>
-          </form>
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Create Optio Quest</h3>
+            <button
+              onClick={() => setShowOptioForm(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <UnifiedQuestForm
+            onSave={handleQuestSave}
+            onCancel={() => setShowOptioForm(false)}
+          />
         </div>
       )}
+
+      {showCourseForm && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-900">Create Course Quest</h3>
+            <button
+              onClick={() => setShowCourseForm(false)}
+              className="text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <CourseQuestForm
+            onSave={handleQuestSave}
+            onCancel={() => setShowCourseForm(false)}
+          />
+        </div>
+      )}
+
+      {!showOptioForm && !showCourseForm && (
+        <>
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Quests</h2>
+              <p className="text-sm text-gray-600 mt-1">Create quest drafts for admin review and publication</p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowOptioForm(true)}
+                className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90"
+              >
+                Create Optio Quest
+              </button>
+              <button
+                onClick={() => setShowCourseForm(true)}
+                className="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              >
+                Create Course Quest
+              </button>
+            </div>
+          </div>
 
       {/* Quests List */}
       {loading ? (
@@ -477,64 +440,7 @@ function QuestsTab({ onRefresh }) {
           </table>
         </div>
       )}
-    </div>
-  );
-}
-
-function BadgesTab({ badges, onRefresh }) {
-  return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold text-gray-900">Custom Badges</h2>
-        <Link
-          to="/advisor/badges/create"
-          className="px-4 py-2 bg-gradient-primary text-white rounded-lg hover:opacity-90"
-        >
-          Create New Badge
-        </Link>
-      </div>
-
-      {badges.length === 0 ? (
-        <div className="bg-white rounded-lg shadow p-12 text-center">
-          <p className="text-gray-600">No custom badges created yet</p>
-          <Link
-            to="/advisor/badges/create"
-            className="inline-block mt-4 px-6 py-3 bg-gradient-primary text-white rounded-lg hover:opacity-90"
-          >
-            Create Your First Badge
-          </Link>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {badges.map((badge) => (
-            <div key={badge.id} className="bg-white rounded-lg shadow p-6">
-              <div className="flex items-center justify-between">
-                <div className="text-4xl">{badge.icon || '🎯'}</div>
-                <span className="text-xs px-2 py-1 bg-gray-100 rounded">{badge.primary_pillar}</span>
-              </div>
-              <h3 className="mt-4 text-lg font-semibold text-gray-900">{badge.name}</h3>
-              <p className="mt-2 text-sm text-gray-600 line-clamp-2">{badge.description}</p>
-              <div className="mt-4 flex items-center justify-between text-sm text-gray-500">
-                <span>{badge.min_quests} quests</span>
-                <span>{badge.xp_requirement} XP</span>
-              </div>
-              <div className="mt-4 flex space-x-2">
-                <Link
-                  to={`/advisor/badges/${badge.id}/edit`}
-                  className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded text-center text-sm hover:bg-gray-200"
-                >
-                  Edit
-                </Link>
-                <Link
-                  to={`/badges/${badge.id}`}
-                  className="flex-1 px-3 py-2 bg-gradient-primary text-white rounded text-center text-sm hover:opacity-90"
-                >
-                  View
-                </Link>
-              </div>
-            </div>
-          ))}
-        </div>
+      </>
       )}
     </div>
   );
