@@ -450,43 +450,64 @@ def update_user_role(admin_id, user_id):
 @bp.route('/users/<user_id>/reset-password', methods=['POST'])
 @require_admin
 def reset_user_password(admin_id, user_id):
-    """Send password reset email to user"""
+    """Reset a user's password (admin only)"""
     supabase = get_supabase_admin_client()
-    
+
     try:
-        # Get user email
-        user_response = supabase.table('users').select('*').eq('id', user_id).execute()
-        if not user_response.data:
-            return jsonify({'error': 'User not found'}), 404
-        
-        # Get email from auth.users
+        data = request.json
+        new_password = data.get('new_password')
+
+        if not new_password:
+            return jsonify({'success': False, 'error': 'New password is required'}), 400
+
+        # Validate password strength
+        from utils.validation import validate_password
+        is_valid, error_message = validate_password(new_password)
+        if not is_valid:
+            return jsonify({'success': False, 'error': error_message}), 400
+
+        # Check if user exists
+        user = supabase.table('users').select('email').eq('id', user_id).single().execute()
+
+        if not user.data:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+
+        user_email = user.data['email']
+
+        # Update password using Supabase Admin API
         try:
-            auth_users = supabase.auth.admin.list_users()
-            user_email = None
-            if auth_users:
-                for auth_user in auth_users:
-                    if auth_user.id == user_id:
-                        user_email = getattr(auth_user, 'email', None)
-                        break
-            
-            if not user_email:
-                return jsonify({'error': 'User email not found'}), 404
-            
-            # Send password reset email
-            supabase.auth.admin.generate_link(
-                type='recovery',
-                email=user_email
+            auth_response = supabase.auth.admin.update_user_by_id(
+                user_id,
+                {'password': new_password}
             )
-            
-            return jsonify({'message': 'Password reset email sent'}), 200
-            
-        except Exception as e:
-            logger.error(f"Error sending reset email: {str(e)}")
-            return jsonify({'error': 'Failed to send reset email'}), 500
-        
+
+            if not auth_response:
+                return jsonify({'success': False, 'error': 'Failed to update password'}), 500
+
+            # Clear any account lockouts for this user
+            from backend.routes.auth import reset_login_attempts
+            reset_login_attempts(user_email)
+
+            logger.info(f"Admin {admin_id} reset password for user {user_id}")
+
+            return jsonify({
+                'success': True,
+                'message': 'Password reset successfully'
+            })
+
+        except Exception as auth_error:
+            logger.error(f"Error updating password via Supabase Auth: {str(auth_error)}")
+            return jsonify({
+                'success': False,
+                'error': 'Failed to update password in authentication system'
+            }), 500
+
     except Exception as e:
         logger.error(f"Error in password reset: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': f'Failed to reset password: {str(e)}'
+        }), 500
 
 @bp.route('/users/<user_id>/toggle-status', methods=['POST'])
 @require_admin
