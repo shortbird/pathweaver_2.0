@@ -1,9 +1,14 @@
 import React from 'react';
-import { CheckCircle } from 'lucide-react';
+import { CheckCircle, Star } from 'lucide-react';
 
 const ServiceCard = ({ service, onInquire }) => {
   const formatPrice = (price, priceType) => {
-    const formattedPrice = `$${price.toFixed(0)}`;
+    // Handle free/contact us services
+    if (price === 0 || price === '0' || price === '0.00') {
+      return 'Contact us';
+    }
+
+    const formattedPrice = `$${parseFloat(price).toFixed(0)}`;
 
     switch (priceType) {
       case 'monthly':
@@ -58,14 +63,26 @@ const ServiceCard = ({ service, onInquire }) => {
       {service.features && service.features.length > 0 && (
         <div className="mb-6">
           <ul className="space-y-2">
-            {service.features.map((feature, index) => (
-              <li key={index} className="flex items-start gap-2">
-                <CheckCircle className="w-5 h-5 text-[#6D469B] flex-shrink-0 mt-0.5" />
-                <span className="text-sm text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                  {feature}
-                </span>
-              </li>
-            ))}
+            {service.features.map((feature, index) => {
+              // Check if this is a Pro member benefit
+              const isProBenefit = feature.toLowerCase().includes('pro member');
+
+              return (
+                <li key={index} className="flex items-start gap-2">
+                  {isProBenefit ? (
+                    <Star className="w-5 h-5 text-[#EF597B] flex-shrink-0 mt-0.5 fill-current" />
+                  ) : (
+                    <CheckCircle className="w-5 h-5 text-[#6D469B] flex-shrink-0 mt-0.5" />
+                  )}
+                  <span
+                    className={`text-sm ${isProBenefit ? 'text-[#EF597B] font-semibold' : 'text-gray-700'}`}
+                    style={{ fontFamily: 'Poppins', fontWeight: isProBenefit ? 600 : 500 }}
+                  >
+                    {feature}
+                  </span>
+                </li>
+              );
+            })}
           </ul>
         </div>
       )}

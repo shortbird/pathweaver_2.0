@@ -4,11 +4,10 @@ import ServiceCard from './ServiceCard';
 const ServiceGrid = ({ categories, onInquire }) => {
   // Define category order for consistent display
   const categoryOrder = [
-    'Parent Support',
+    'Subscriptions',
     'Educational Consultations',
     'Transcript Services',
     'Portfolio Services',
-    'Custom Learning',
     'Community Services',
     'Documentation Services'
   ];
