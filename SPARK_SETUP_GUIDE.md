@@ -416,9 +416,9 @@ Before running any tests, ensure you have:
    export SUPABASE_SERVICE_KEY=[obtain from Optio team]
    ```
 
-   **⚠️ IMPORTANT**: Secret values are NOT documented for security reasons. Contact Optio team lead to obtain values. Production secrets must be different from development secrets and stored securely in environment variables.
+   **⚠️ IMPORTANT**: Secret values are NOT documented for security reasons. Contact Tanner to obtain values. Production secrets must be different from development secrets and stored securely in environment variables.
 
-4. **Test account created** in Optio database (contact Optio team if needed)
+4. **Test account created** in Optio database (contact Tanner)
 
 ### Test Account Setup
 
@@ -428,70 +428,7 @@ Email: spark-test@yourdomain.com
 Spark User ID: test_student_001
 ```
 
-### Test Data Setup
-
-**Before testing SSO or webhooks, run the setup script to create test quest data:**
-
-```bash
-# Set your Supabase service key
-export SUPABASE_SERVICE_KEY=<your-key-here>
-
-# Run setup script
-node setup_spark_test_data.js
-```
-
-This script will:
-- Create a test quest with `lms_assignment_id = 'test_assignment_001'`
-- Create tasks for the quest
-- Enroll the test student in the quest
-- Verify the test student exists in the database
-
-**Expected output:**
-```
-✓ Test student found: test_student_001
-✓ Test quest created successfully
-✓ Student enrolled in quest
-Setup complete! You can now run test_spark_sso.js and test_spark_webhook.js
-```
-
-### SSO Testing
-
-**Option 1: Use the test script (recommended)**
-
-```bash
-# Run the SSO test script
-node test_spark_sso.js
-```
-
-**Expected output:**
-```
-Generating Spark SSO token for test student...
-
-Test Student Details:
-  Spark User ID: test_student_001
-  Email: spark-test@optioeducation.com
-  Name: Spark TestStudent
-
-SSO URL (valid for 10 minutes):
-https://optio-dev-backend.onrender.com/spark/sso?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-
-Testing Instructions:
-1. Copy the URL above
-2. Open it in your browser
-3. You should be redirected to the Optio dashboard
-4. Verify you're logged in as "Spark TestStudent"
-```
-
-**What to verify:**
-- [ ] URL opens without errors
-- [ ] Redirects to `/auth/callback?code=...`
-- [ ] Then automatically redirects to `/dashboard`
-- [ ] Dashboard shows "Spark TestStudent" as logged-in user
-- [ ] No console errors in browser developer tools
-
-**Option 2: Manual testing**
-
-If you want to generate tokens manually for your own test accounts:
+**Testing**
 
 ```javascript
 const jwt = require('jsonwebtoken');
@@ -511,51 +448,6 @@ console.log('SSO URL:', `https://optio-dev-backend.onrender.com/spark/sso?token=
 
 ### Webhook Testing
 
-**Option 1: Use the test script (recommended)**
-
-```bash
-# Run the webhook test script
-node test_spark_webhook.js
-```
-
-**Expected output:**
-```
-Sending test Spark webhook submission...
-
-Webhook Details:
-  User ID: test_student_001
-  Assignment ID: test_assignment_001
-  Submission Text: This is a test assignment submission from Spark LMS...
-
-Response Status: 200
-✓ Webhook processed successfully!
-
-Response:
-{
-  "status": "success",
-  "completion_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "xp_awarded": 150,
-  "user_id": "64633ccc-d0ac-4ba4-8ff0-6ad2ecfbbae8"
-}
-
-Next Steps:
-1. Visit the portfolio: https://optio-dev-frontend.onrender.com/diploma/64633ccc-d0ac-4ba4-8ff0-6ad2ecfbbae8
-2. Verify the evidence appears on the diploma page
-3. Check that XP was awarded correctly
-```
-
-**What to verify:**
-- [ ] HTTP 200 response received
-- [ ] Response includes `completion_id`
-- [ ] Navigate to portfolio URL from output
-- [ ] Evidence appears with submission text
-- [ ] XP was awarded (check user dashboard)
-- [ ] Task shows as completed in quest progress
-
-**Option 2: Manual testing**
-
-If you want to send custom webhook payloads:
-
 ```javascript
 const testPayload = {
   spark_user_id: 'your_test_user_id',
@@ -571,7 +463,7 @@ const testPayload = {
 // (See test_spark_webhook.js for complete implementation)
 ```
 
-**Step 3: Verify in Optio**
+**Verify in Optio**
 - Log in as test student
 - Navigate to portfolio
 - Verify submission appears with evidence
@@ -602,132 +494,6 @@ const signature = crypto.createHmac('sha256', wrongSecret)
   .digest('hex');
 // Should return 401: "Invalid signature"
 ```
-
----
-
-## Production Checklist
-
-### Pre-Launch Checklist
-
-**Environment Configuration:**
-- [ ] `OPTIO_SHARED_SECRET` set in production environment
-- [ ] `OPTIO_WEBHOOK_SECRET` set in production environment
-- [ ] Production URLs configured (not dev URLs)
-- [ ] Secrets not committed to version control
-
-**SSO Feature:**
-- [ ] "View Portfolio" button visible to all students
-- [ ] JWT token generation tested with real users
-- [ ] Token expiry (10 minutes) working correctly
-- [ ] Redirect to production Optio URL
-
-**Webhook Feature:**
-- [ ] Webhook triggered on every assignment submission
-- [ ] File URLs publicly accessible (tested with curl/browser)
-- [ ] File URLs valid for 24+ hours
-- [ ] HMAC signature calculated correctly
-- [ ] Retry logic implemented (3 attempts with backoff)
-- [ ] Error logging and monitoring in place
-
-**Testing:**
-- [ ] End-to-end test with real assignment submission
-- [ ] Verified evidence appears in portfolio
-- [ ] Verified XP awarded correctly
-- [ ] Verified file attachments download successfully
-
-### Launch Process
-
-**Step 1: Soft launch (10% of users)**
-- Enable for small user group
-- Monitor error rates and logs
-- Verify no performance degradation
-
-**Step 2: Monitor metrics**
-- SSO success rate (target: >99%)
-- Webhook delivery success rate (target: >95%)
-- Average webhook latency (target: <2 seconds)
-
-**Step 3: Full rollout**
-- Enable for all users
-- Monitor for 24 hours
-- Address any issues immediately
-
-### Monitoring
-
-**Key Metrics to Track:**
-- SSO attempts per hour
-- SSO failures per hour (alert if >5)
-- Webhook deliveries per hour
-- Webhook failures per hour (alert if >10)
-- Webhook retry rate (alert if >20%)
-- Average file download time
-
-**Alert Conditions:**
-| Condition | Threshold | Action |
-|-----------|-----------|--------|
-| SSO failures | >5 per minute | Check secret configuration |
-| Webhook signature failures | >10 per minute | Check webhook secret |
-| File download failures | >10% of requests | Check file URL generation |
-| Webhook retry rate | >20% | Check Optio uptime status |
-
----
-
-## Support
-
-### Getting Help
-
-**For integration questions:**
-- Email: support@optioeducation.com
-- Subject: "Spark Integration - [Your Question]"
-
-**For technical issues:**
-1. Check troubleshooting section in SPARK_INTEGRATION.md
-2. Review error logs from Optio responses
-3. Contact Optio team with:
-   - Error message
-   - Request timestamp
-   - Test payload (sanitized)
-   - Expected vs actual behavior
-
-### Documentation
-
-**Complete technical documentation:**
-- File: `SPARK_INTEGRATION.md`
-- Location: Optio repository root
-
-**API endpoint reference:**
-- SSO: Section 4.1 in SPARK_INTEGRATION.md
-- Webhook: Section 4.2 in SPARK_INTEGRATION.md
-
-### Secret Rotation
-
-**If secrets are compromised:**
-1. Contact Optio team immediately
-2. Optio will generate new secrets
-3. Update secrets in your environment
-4. Optio will deploy new secrets
-5. Coordinate deployment timing to minimize downtime
-
-### Best Practices
-
-**Security:**
-- Never log secrets or tokens
-- Use environment variables for all secrets
-- Rotate secrets annually (even if not compromised)
-- Use HTTPS for all requests
-
-**Performance:**
-- Generate file URLs asynchronously
-- Send webhooks in background jobs (don't block user response)
-- Implement retry logic with exponential backoff
-- Monitor webhook delivery latency
-
-**User Experience:**
-- Show loading state on "View Portfolio" button
-- Handle SSO errors gracefully (show error message, retry button)
-- Queue webhook deliveries (don't lose submissions on failure)
-- Log all webhook attempts for debugging
-
 ---
 
 ## Appendix: Complete Code Examples
@@ -869,7 +635,3 @@ app.post('/assignments/:id/submit', async (req, res) => {
 
 module.exports = OptioWebhook;
 ```
-
----
-
-**Questions?** Contact support@optioeducation.com
