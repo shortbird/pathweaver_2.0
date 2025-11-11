@@ -213,7 +213,7 @@ const AdvisorCheckinPage = () => {
               onChange={(e) => setStudentVoice(e.target.value)}
               rows={3}
               className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-none font-medium"
-              placeholder="\"I finally understood how...\" or \"I'm proud that I...\""
+              placeholder={`"I finally understood how..." or "I'm proud that I..."`}
             />
           </div>
 
