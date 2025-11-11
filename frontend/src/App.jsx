@@ -1,5 +1,5 @@
-import React, { useEffect, lazy, Suspense } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import React, { useEffect, useState, lazy, Suspense } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { HelmetProvider } from 'react-helmet-async'
@@ -9,6 +9,10 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { warmupBackend } from './utils/retryHelper'
 import { tokenStore } from './services/api'
 import { useActivityTracking } from './hooks/useActivityTracking'
+import MasqueradeBanner from './components/admin/MasqueradeBanner'
+import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
+import api from './services/api'
+import toast from 'react-hot-toast'
 
 // Always-loaded components (Layout, Auth, Landing pages)
 import Layout from './components/Layout'
@@ -82,13 +86,58 @@ const queryClient = new QueryClient({
   },
 })
 
-// Inner component that uses activity tracking (must be inside Router)
+// Inner component that uses activity tracking and masquerade banner (must be inside Router)
 function AppContent() {
+  const navigate = useNavigate();
+  const [masqueradeState, setMasqueradeState] = useState(null);
+
   // Initialize activity tracking
   useActivityTracking();
 
+  // Check masquerade state on mount and periodically
+  useEffect(() => {
+    const checkMasquerade = () => {
+      const state = getMasqueradeState();
+      setMasqueradeState(state);
+    };
+
+    checkMasquerade();
+
+    // Check every 5 seconds in case state changes
+    const interval = setInterval(checkMasquerade, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleExitMasquerade = async () => {
+    try {
+      const result = await exitMasquerade(api);
+
+      if (result.success) {
+        setMasqueradeState(null);
+        toast.success('Exited masquerade session');
+        // Redirect to admin users page
+        navigate('/admin/users');
+        window.location.reload(); // Force reload to apply admin token
+      } else {
+        toast.error(result.error || 'Failed to exit masquerade');
+      }
+    } catch (error) {
+      console.error('Exit masquerade error:', error);
+      toast.error('Failed to exit masquerade session');
+    }
+  };
+
   return (
-    <ScrollToTop />
+    <>
+      <ScrollToTop />
+      {masqueradeState && (
+        <MasqueradeBanner
+          targetUser={masqueradeState.target_user}
+          onExit={handleExitMasquerade}
+        />
+      )}
+    </>
   );
 }
 

@@ -25,6 +25,8 @@ def require_auth(f):
     Uses httpOnly cookies exclusively for enhanced security.
     Tokens stored in localStorage are vulnerable to XSS attacks.
 
+    When masquerading, this returns the effective user ID (masquerade target).
+
     Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
     """
     @wraps(f)
@@ -33,8 +35,8 @@ def require_auth(f):
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # Get user ID from secure httpOnly cookies only
-        user_id = session_manager.get_current_user_id()
+        # Get effective user ID (masquerade target if masquerading, else actual user)
+        user_id = session_manager.get_effective_user_id()
 
         if not user_id:
             raise AuthenticationError('Authentication required')
@@ -53,6 +55,8 @@ def require_admin(f):
     Uses httpOnly cookies exclusively for enhanced security.
     Verifies user has 'admin' or 'educator' role.
 
+    When masquerading, this checks the ACTUAL admin identity, not the masquerade target.
+
     Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
     """
     @wraps(f)
@@ -61,8 +65,8 @@ def require_admin(f):
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # Get user ID from secure httpOnly cookies only
-        user_id = session_manager.get_current_user_id()
+        # Get actual admin user ID (not masquerade target)
+        user_id = session_manager.get_actual_admin_id()
 
         if not user_id:
             raise AuthenticationError('Authentication required')
@@ -96,6 +100,8 @@ def require_role(*allowed_roles):
     Uses httpOnly cookies exclusively for enhanced security.
     Verifies user has one of the specified roles.
 
+    When masquerading, this checks the masquerade target's role.
+
     Args:
         *allowed_roles: One or more role names (e.g., 'student', 'parent', 'admin')
 
@@ -108,8 +114,8 @@ def require_role(*allowed_roles):
             if request.method == 'OPTIONS':
                 return ('', 200)
 
-            # Get user ID from secure httpOnly cookies only
-            user_id = session_manager.get_current_user_id()
+            # Get effective user ID (masquerade target if masquerading)
+            user_id = session_manager.get_effective_user_id()
 
             if not user_id:
                 raise AuthenticationError('Authentication required')
@@ -169,6 +175,8 @@ def require_advisor(f):
     Uses httpOnly cookies exclusively for enhanced security.
     Verifies user has 'advisor' or 'admin' role.
     Advisors can create quest drafts but need admin approval to publish.
+
+    When masquerading, this checks the actual admin identity, not the masquerade target.
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -176,8 +184,8 @@ def require_advisor(f):
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # Get user ID from secure httpOnly cookies only
-        user_id = session_manager.get_current_user_id()
+        # Get actual user ID (not masquerade target for advisor routes)
+        user_id = session_manager.get_actual_admin_id()
 
         if not user_id:
             raise AuthenticationError('Authentication required')
@@ -212,6 +220,8 @@ def require_advisor_for_student(f):
     Checks advisor_student_assignments table to verify advisor is assigned to student.
     Admins always have access.
 
+    When masquerading, this checks the actual admin identity, not the masquerade target.
+
     Usage: Decorate routes that access student-specific data.
     The decorated function must have 'target_user_id' or 'student_id' as a parameter.
     """
@@ -221,8 +231,8 @@ def require_advisor_for_student(f):
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # Get user ID from secure httpOnly cookies only
-        user_id = session_manager.get_current_user_id()
+        # Get actual user ID (not masquerade target for advisor routes)
+        user_id = session_manager.get_actual_admin_id()
 
         if not user_id:
             raise AuthenticationError('Authentication required')
