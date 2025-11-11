@@ -12,7 +12,7 @@ checkins_bp = Blueprint('advisor_checkins', __name__)
 checkin_service = CheckinService()
 
 
-@checkins_bp.route('/api/advisor/checkins', methods=['POST'])
+@checkins_bp.route('/api/advisor/checkins', methods=['POST', 'OPTIONS'])
 @require_auth
 def create_checkin(current_user):
     """
@@ -73,7 +73,7 @@ def create_checkin(current_user):
         return jsonify({'error': f'Failed to create check-in: {str(e)}'}), 500
 
 
-@checkins_bp.route('/api/advisor/checkins', methods=['GET'])
+@checkins_bp.route('/api/advisor/checkins', methods=['GET', 'OPTIONS'])
 @require_auth
 def get_advisor_checkins(current_user):
     """
@@ -99,7 +99,7 @@ def get_advisor_checkins(current_user):
         return jsonify({'error': f'Failed to fetch check-ins: {str(e)}'}), 500
 
 
-@checkins_bp.route('/api/advisor/students/<student_id>/checkins', methods=['GET'])
+@checkins_bp.route('/api/advisor/students/<student_id>/checkins', methods=['GET', 'OPTIONS'])
 @require_auth
 def get_student_checkins(current_user, student_id):
     """
@@ -122,7 +122,7 @@ def get_student_checkins(current_user, student_id):
         return jsonify({'error': f'Failed to fetch student check-ins: {str(e)}'}), 500
 
 
-@checkins_bp.route('/api/advisor/students/<student_id>/checkin-data', methods=['GET'])
+@checkins_bp.route('/api/advisor/students/<student_id>/checkin-data', methods=['GET', 'OPTIONS'])
 @require_auth
 def get_checkin_data(current_user, student_id):
     """
@@ -152,7 +152,7 @@ def get_checkin_data(current_user, student_id):
         return jsonify({'error': f'Failed to fetch check-in data: {str(e)}'}), 500
 
 
-@checkins_bp.route('/api/advisor/checkins/<checkin_id>', methods=['GET'])
+@checkins_bp.route('/api/advisor/checkins/<checkin_id>', methods=['GET', 'OPTIONS'])
 @require_auth
 def get_checkin_by_id(current_user, checkin_id):
     """
@@ -179,7 +179,7 @@ def get_checkin_by_id(current_user, checkin_id):
         return jsonify({'error': f'Failed to fetch check-in: {str(e)}'}), 500
 
 
-@checkins_bp.route('/api/advisor/checkins/analytics', methods=['GET'])
+@checkins_bp.route('/api/advisor/checkins/analytics', methods=['GET', 'OPTIONS'])
 @require_auth
 def get_checkin_analytics(current_user):
     """
@@ -201,7 +201,7 @@ def get_checkin_analytics(current_user):
         return jsonify({'error': f'Failed to fetch analytics: {str(e)}'}), 500
 
 
-@checkins_bp.route('/api/admin/checkins', methods=['GET'])
+@checkins_bp.route('/api/admin/checkins', methods=['GET', 'OPTIONS'])
 @require_auth
 def get_all_checkins_admin(current_user):
     """
@@ -229,7 +229,7 @@ def get_all_checkins_admin(current_user):
         return jsonify({'error': f'Failed to fetch check-ins: {str(e)}'}), 500
 
 
-@checkins_bp.route('/api/admin/checkins/analytics', methods=['GET'])
+@checkins_bp.route('/api/admin/checkins/analytics', methods=['GET', 'OPTIONS'])
 @require_auth
 def get_admin_analytics(current_user):
     """
