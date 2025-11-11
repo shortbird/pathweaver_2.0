@@ -130,7 +130,6 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
             role,
             parent_student_links!parent_student_links_parent_user_id_fkey(
                 id,
-                status,
                 student_user_id
             )
         ''').eq('id', parent_user_id).single().execute()
@@ -145,11 +144,10 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
         if user_role != 'parent':
             raise AuthorizationError("Only parent accounts can access this endpoint")
 
-        # Check for active link to this specific student
+        # Check for link to this specific student (all links are permanent once created)
         links = user.get('parent_student_links', [])
         has_active_link = any(
-            link.get('student_user_id') == student_user_id and
-            link.get('status') == 'active'
+            link.get('student_user_id') == student_user_id
             for link in links
         )
 

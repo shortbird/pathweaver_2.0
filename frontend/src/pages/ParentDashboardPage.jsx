@@ -1142,23 +1142,6 @@ const ParentDashboardPage = () => {
             </div>
           )}
 
-          {/* Add Children Modal (January 2025 Redesign) */}
-          <AddChildrenModal
-            isOpen={showAddChildModal}
-            onClose={() => setShowAddChildModal(false)}
-            onSuccess={({ message, submitted_count, auto_matched_count }) => {
-              toast.success(message);
-              // Reload children list to show updated requests
-              parentAPI.getMyChildren().then(response => {
-                setChildren(response.data.children || []);
-              });
-              // Reload connection requests
-              parentAPI.getMyConnectionRequests().then(response => {
-                // Could display these in a separate UI if needed
-                console.log('Updated requests:', response.data.requests);
-              });
-            }}
-          />
         </>
       )}
     </div>
