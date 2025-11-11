@@ -5,7 +5,7 @@ API endpoints for advisor check-in functionality.
 
 from flask import Blueprint, request, jsonify
 from datetime import datetime
-from utils.auth.decorators import require_auth
+from utils.auth.decorators import require_role, require_admin
 from services.checkin_service import CheckinService
 
 checkins_bp = Blueprint('advisor_checkins', __name__)
@@ -13,8 +13,8 @@ checkin_service = CheckinService()
 
 
 @checkins_bp.route('/api/advisor/checkins', methods=['POST', 'OPTIONS'])
-@require_auth
-def create_checkin(current_user):
+@require_role('advisor', 'admin')
+def create_checkin(user_id):
     """
     Create a new advisor check-in.
 
@@ -31,10 +31,6 @@ def create_checkin(current_user):
     }
     """
     try:
-        # Verify user is advisor or admin
-        if current_user['role'] not in ['advisor', 'admin']:
-            return jsonify({'error': 'Only advisors and admins can create check-ins'}), 403
-
         data = request.get_json()
 
         # Validate required fields
@@ -51,7 +47,7 @@ def create_checkin(current_user):
 
         # Create check-in
         checkin = checkin_service.create_checkin(
-            advisor_id=current_user['id'],
+            advisor_id=user_id,
             student_id=data['student_id'],
             checkin_date=checkin_date,
             growth_moments=data.get('growth_moments', ''),
@@ -74,21 +70,17 @@ def create_checkin(current_user):
 
 
 @checkins_bp.route('/api/advisor/checkins', methods=['GET', 'OPTIONS'])
-@require_auth
-def get_advisor_checkins(current_user):
+@require_role('advisor', 'admin')
+def get_advisor_checkins(user_id):
     """
     Get all check-ins created by the current advisor.
     """
     try:
-        # Verify user is advisor or admin
-        if current_user['role'] not in ['advisor', 'admin']:
-            return jsonify({'error': 'Only advisors and admins can view check-ins'}), 403
-
         from repositories.checkin_repository import CheckinRepository
         repository = CheckinRepository()
 
         limit = request.args.get('limit', 100, type=int)
-        checkins = repository.get_advisor_checkins(current_user['id'], limit)
+        checkins = repository.get_advisor_checkins(user_id, limit)
 
         return jsonify({
             'success': True,
@@ -100,18 +92,13 @@ def get_advisor_checkins(current_user):
 
 
 @checkins_bp.route('/api/advisor/students/<student_id>/checkins', methods=['GET', 'OPTIONS'])
-@require_auth
-def get_student_checkins(current_user, student_id):
+@require_role('advisor', 'admin')
+def get_student_checkins(user_id, student_id):
     """
     Get all check-ins for a specific student.
     """
     try:
-        # Verify user is advisor or admin
-        if current_user['role'] not in ['advisor', 'admin']:
-            return jsonify({'error': 'Only advisors and admins can view check-ins'}), 403
-
-        advisor_id = current_user['id'] if current_user['role'] == 'advisor' else None
-        checkins = checkin_service.get_checkin_history(student_id, advisor_id)
+        checkins = checkin_service.get_checkin_history(student_id, user_id)
 
         return jsonify({
             'success': True,
@@ -123,24 +110,17 @@ def get_student_checkins(current_user, student_id):
 
 
 @checkins_bp.route('/api/advisor/students/<student_id>/checkin-data', methods=['GET', 'OPTIONS'])
-@require_auth
-def get_checkin_data(current_user, student_id):
+@require_role('advisor', 'admin')
+def get_checkin_data(user_id, student_id):
     """
     Get pre-populated data for check-in form (active quests, etc.).
     """
     try:
-        # Verify user is advisor or admin
-        if current_user['role'] not in ['advisor', 'admin']:
-            return jsonify({'error': 'Only advisors and admins can access check-in data'}), 403
-
         # Get active quests data
         quests_data = checkin_service.get_student_active_quests_data(student_id)
 
         # Get last check-in info
-        last_checkin_info = checkin_service.get_last_checkin_info(
-            student_id,
-            advisor_id=current_user['id'] if current_user['role'] == 'advisor' else None
-        )
+        last_checkin_info = checkin_service.get_last_checkin_info(student_id, user_id)
 
         return jsonify({
             'success': True,
@@ -153,17 +133,13 @@ def get_checkin_data(current_user, student_id):
 
 
 @checkins_bp.route('/api/advisor/checkins/<checkin_id>', methods=['GET', 'OPTIONS'])
-@require_auth
-def get_checkin_by_id(current_user, checkin_id):
+@require_role('advisor', 'admin')
+def get_checkin_by_id(user_id, checkin_id):
     """
     Get a specific check-in by ID.
     """
     try:
-        # Verify user is advisor or admin
-        if current_user['role'] not in ['advisor', 'admin']:
-            return jsonify({'error': 'Only advisors and admins can view check-ins'}), 403
-
-        checkin = checkin_service.get_checkin_by_id(checkin_id, current_user['id'])
+        checkin = checkin_service.get_checkin_by_id(checkin_id, user_id)
 
         if not checkin:
             return jsonify({'error': 'Check-in not found'}), 404
@@ -180,17 +156,13 @@ def get_checkin_by_id(current_user, checkin_id):
 
 
 @checkins_bp.route('/api/advisor/checkins/analytics', methods=['GET', 'OPTIONS'])
-@require_auth
-def get_checkin_analytics(current_user):
+@require_role('advisor', 'admin')
+def get_checkin_analytics(user_id):
     """
     Get analytics for advisor's check-ins.
     """
     try:
-        # Verify user is advisor or admin
-        if current_user['role'] not in ['advisor', 'admin']:
-            return jsonify({'error': 'Only advisors and admins can view analytics'}), 403
-
-        analytics = checkin_service.get_checkin_analytics(current_user['id'])
+        analytics = checkin_service.get_checkin_analytics(user_id)
 
         return jsonify({
             'success': True,
@@ -202,22 +174,17 @@ def get_checkin_analytics(current_user):
 
 
 @checkins_bp.route('/api/admin/checkins', methods=['GET', 'OPTIONS'])
-@require_auth
-def get_all_checkins_admin(current_user):
+@require_admin
+def get_all_checkins_admin(user_id):
     """
     Get all check-ins with pagination (admin only).
     """
     try:
-        # Verify user is admin
-        if current_user['role'] != 'admin':
-            return jsonify({'error': 'Admin access required'}), 403
-
-        from repositories.checkin_repository import CheckinRepository
-        repository = CheckinRepository()
-
         page = request.args.get('page', 1, type=int)
         limit = request.args.get('limit', 50, type=int)
 
+        from repositories.checkin_repository import CheckinRepository
+        repository = CheckinRepository()
         result = repository.get_all_checkins(page, limit)
 
         return jsonify({
@@ -230,20 +197,15 @@ def get_all_checkins_admin(current_user):
 
 
 @checkins_bp.route('/api/admin/checkins/analytics', methods=['GET', 'OPTIONS'])
-@require_auth
-def get_admin_analytics(current_user):
+@require_admin
+def get_admin_analytics(user_id):
     """
     Get system-wide check-in analytics (admin only).
     """
     try:
-        # Verify user is admin
-        if current_user['role'] != 'admin':
-            return jsonify({'error': 'Admin access required'}), 403
-
         from repositories.checkin_repository import CheckinRepository
         repository = CheckinRepository()
-
-        analytics = repository.get_checkin_analytics()
+        analytics = repository.get_checkin_analytics(advisor_id=None)
 
         return jsonify({
             'success': True,
@@ -251,4 +213,4 @@ def get_admin_analytics(current_user):
         }), 200
 
     except Exception as e:
-        return jsonify({'error': f'Failed to fetch admin analytics: {str(e)}'}), 500
+        return jsonify({'error': f'Failed to fetch analytics: {str(e)}'}), 500
