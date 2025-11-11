@@ -19,8 +19,8 @@ from routes.services import services_bp
 from routes.admin.services import admin_services_bp
 
 # Import routes
-from routes import quests, tasks, admin_core, evidence_documents
-from routes.admin import user_management, quest_management, quest_ideas, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management
+from routes import quests, tasks, admin_core, evidence_documents, tutorial
+from routes.admin import user_management, quest_management, quest_ideas, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -121,6 +121,7 @@ except Exception as e:
 app.register_blueprint(quests.bp)  # /api/quests (blueprint has url_prefix='/api/quests')
 app.register_blueprint(tasks.bp)      # /api/tasks (blueprint has url_prefix='/api/tasks')
 app.register_blueprint(evidence_documents.bp)  # /api/evidence (blueprint has url_prefix='/api/evidence')
+app.register_blueprint(tutorial.tutorial_bp, url_prefix='/api/tutorial')  # /api/tutorial
 app.register_blueprint(admin_core.bp)   # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(user_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(quest_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
@@ -132,6 +133,7 @@ app.register_blueprint(sample_task_management.bp)  # /api/admin (blueprint has u
 app.register_blueprint(course_quest_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(task_flags.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(advisor_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
+app.register_blueprint(parent_connections.bp)  # /api/admin/parent-connections (blueprint has url_prefix='/api/admin/parent-connections')
 # Register quest types routes (sample tasks, course tasks)
 try:
     from routes import quest_types

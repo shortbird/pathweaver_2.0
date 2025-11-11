@@ -1116,3 +1116,85 @@ def decline_invitation(user_id, invitation_id):
     except Exception as e:
         logger.error(f"Error declining invitation: {str(e)}")
         return jsonify({'error': 'Failed to decline invitation'}), 500
+
+
+# ============================================================================
+# NEW ADMIN-VERIFICATION WORKFLOW ENDPOINTS (January 2025 Redesign)
+# ============================================================================
+
+@bp.route('/submit-connection-requests', methods=['POST'])
+@require_auth
+def submit_connection_requests(user_id):
+    """
+    Parent submits connection requests for multiple children.
+    Auto-matches emails to existing students.
+    """
+    try:
+        data = request.get_json()
+        children = data.get('children', [])
+
+        if not children:
+            raise ValidationError("At least one child must be provided")
+
+        supabase = get_supabase_admin_client()
+
+        # Verify parent role
+        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        if not user_response.data or user_response.data.get('role') != 'parent':
+            raise AuthorizationError("Only parent accounts can submit connection requests")
+
+        # Validate children data
+        for child in children:
+            if not all(k in child for k in ['first_name', 'last_name', 'email']):
+                raise ValidationError("Each child must have first_name, last_name, and email")
+
+        # Use repository to create requests
+        parent_repo = ParentRepository(supabase)
+        result = parent_repo.create_connection_requests(user_id, children)
+
+        logger.info(f"Parent {user_id} submitted {result['submitted_count']} connection requests")
+
+        return jsonify({
+            'message': f"Submitted {result['submitted_count']} connection request(s)",
+            'submitted_count': result['submitted_count'],
+            'auto_matched_count': result['auto_matched_count']
+        }), 201
+
+    except ValidationError as e:
+        return jsonify({'error': str(e)}), 400
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error submitting connection requests: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to submit connection requests'}), 500
+
+
+@bp.route('/my-connection-requests', methods=['GET'])
+@require_auth
+def get_my_connection_requests(user_id):
+    """
+    Parent views their submitted connection requests with status.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+
+        # Verify parent role
+        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        if not user_response.data or user_response.data.get('role') != 'parent':
+            raise AuthorizationError("Only parent accounts can access this endpoint")
+
+        # Use repository to get requests
+        parent_repo = ParentRepository(supabase)
+        requests = parent_repo.get_connection_requests(user_id)
+
+        return jsonify({'requests': requests}), 200
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error getting connection requests: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to get connection requests'}), 500
