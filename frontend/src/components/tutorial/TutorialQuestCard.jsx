@@ -86,28 +86,10 @@ const TutorialQuestCard = () => {
     );
   }
 
-  // Not started - show CTA
+  // Tutorial is auto-started on registration - no manual start button needed
+  // If not started, don't show anything (tutorial should auto-start)
   if (!tutorialStatus.started) {
-    return (
-      <div className="bg-gradient-to-br from-purple-600 to-pink-600 rounded-lg shadow-lg p-6 text-white mb-6">
-        <div className="flex items-start justify-between">
-          <div className="flex-1">
-            <h2 className="text-2xl font-bold mb-2">Welcome to Optio!</h2>
-            <p className="text-purple-100 mb-4">
-              Start the platform tutorial to learn how everything works. Your progress will be automatically tracked as you explore!
-            </p>
-            <button
-              onClick={handleStart}
-              disabled={isStarting}
-              className="bg-white text-purple-600 font-semibold px-6 py-3 rounded-lg hover:bg-purple-50 transition-colors disabled:opacity-50"
-            >
-              {isStarting ? 'Starting Tutorial...' : 'Start Tutorial Quest'}
-            </button>
-          </div>
-          <div className="text-6xl ml-4">🚀</div>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   // Tutorial completed - show celebration

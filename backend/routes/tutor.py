@@ -221,6 +221,14 @@ def send_message(user_id: str):
         logger.info(f"Tutor response content: '{tutor_response.get('response', 'NO RESPONSE KEY')}'")
         logger.info(f"Tutor response keys: {list(tutor_response.keys()) if isinstance(tutor_response, dict) else 'NOT A DICT'}")
 
+        # Trigger tutorial verification after AI tutor usage
+        try:
+            from services.tutorial_verification_service import TutorialVerificationService
+            verification_service = TutorialVerificationService()
+            verification_service.verify_user_tutorial_progress(user_id)
+        except Exception as tutorial_error:
+            logger.error(f"Tutorial verification failed after AI tutor usage: {tutorial_error}")
+
         response_data = {
             'conversation_id': conversation_id,
             'message_id': ai_message['id'],

@@ -76,6 +76,13 @@ def complete_task(user_id: str, task_id: str):
         quest_id = task_data['quest_id']
         user_quest_id = task_data['user_quest_id']
 
+        # Block manual completion of tutorial tasks (they auto-complete)
+        if task_data.get('auto_complete'):
+            return jsonify({
+                'success': False,
+                'error': 'Tutorial tasks complete automatically when you perform the action. No need to submit evidence!'
+            }), 400
+
         # Verify task is approved (for manual tasks)
         if task_data.get('approval_status') != 'approved':
             return jsonify({
@@ -369,7 +376,15 @@ def complete_task(user_id: str, task_id: str):
             # Users now only receive XP from individual task completions
         else:
             quest_completed = False
-        
+
+        # Trigger tutorial verification after task completion
+        try:
+            from services.tutorial_verification_service import TutorialVerificationService
+            verification_service = TutorialVerificationService()
+            verification_service.verify_user_tutorial_progress(user_id)
+        except Exception as tutorial_error:
+            logger.error(f"Tutorial verification failed after task completion: {tutorial_error}")
+
         return jsonify({
             'success': True,
             'message': f'Task completed! Earned {final_xp} XP',
@@ -378,7 +393,7 @@ def complete_task(user_id: str, task_id: str):
             'quest_completed': quest_completed,
             'completion': completion.data[0]
         })
-        
+
     except Exception as e:
         logger.error(f"Error completing task: {str(e)}")
         return jsonify({

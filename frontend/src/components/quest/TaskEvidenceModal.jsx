@@ -11,6 +11,12 @@ const TaskEvidenceModal = ({ task, onComplete, onClose }) => {
   // Check if task is already completed
   const isTaskCompleted = task.is_completed || false;
 
+  // Block tutorial tasks from opening modal (safety measure)
+  if (task.auto_complete) {
+    // Don't render modal for tutorial tasks
+    return null;
+  }
+
   const handleComplete = (data) => {
     // Immediately call onComplete to close modal and update quest state
     onComplete({

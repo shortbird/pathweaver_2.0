@@ -1046,6 +1046,14 @@ def approve_invitation(user_id, invitation_id):
 
         logger.info(f"Parent {user_id} approved invitation {invitation_id} from student {invitation['invited_by_student_id']}")
 
+        # Trigger tutorial verification for the STUDENT after parent approval
+        try:
+            from services.tutorial_verification_service import TutorialVerificationService
+            verification_service = TutorialVerificationService()
+            verification_service.verify_user_tutorial_progress(invitation['invited_by_student_id'])
+        except Exception as tutorial_error:
+            logger.error(f"Tutorial verification failed after parent linking: {tutorial_error}")
+
         return jsonify({
             'message': 'Invitation approved. You are now connected to this student.',
             'status': 'active',

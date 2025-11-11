@@ -286,7 +286,15 @@ def send_friend_request(user_id):
             }).execute()
         except Exception as log_error:
             logger.error(f"[FRIEND_REQUEST] Failed to log activity: {log_error}")
-        
+
+        # Trigger tutorial verification after connection request
+        try:
+            from services.tutorial_verification_service import TutorialVerificationService
+            verification_service = TutorialVerificationService()
+            verification_service.verify_user_tutorial_progress(user_id)
+        except Exception as tutorial_error:
+            logger.error(f"Tutorial verification failed after connection request: {tutorial_error}")
+
         return jsonify(response.data[0]), 201
         
     except Exception as e:

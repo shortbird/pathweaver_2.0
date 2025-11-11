@@ -786,8 +786,17 @@ def update_portfolio_privacy(authenticated_user_id, user_id):
         result = supabase.table('diplomas').update({
             'is_public': is_public
         }).eq('user_id', user_id).execute()
-        
+
         if result.data:
+            # Trigger tutorial verification if portfolio was made public
+            if is_public:
+                try:
+                    from services.tutorial_verification_service import TutorialVerificationService
+                    verification_service = TutorialVerificationService()
+                    verification_service.verify_user_tutorial_progress(user_id)
+                except Exception as tutorial_error:
+                    logger.error(f"Tutorial verification failed after portfolio privacy update: {tutorial_error}")
+
             return jsonify({
                 'message': 'Privacy setting updated',
                 'is_public': is_public

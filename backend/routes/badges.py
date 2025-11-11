@@ -113,6 +113,14 @@ def select_badge(user_id, badge_id):
 
         user_badge = BadgeService.select_badge(user_id, badge_id)
 
+        # Trigger tutorial verification after badge selection
+        try:
+            from services.tutorial_verification_service import TutorialVerificationService
+            verification_service = TutorialVerificationService()
+            verification_service.verify_user_tutorial_progress(user_id)
+        except Exception as tutorial_error:
+            logger.error(f"Tutorial verification failed after badge selection: {tutorial_error}")
+
         return jsonify({
             'success': True,
             'message': 'Badge selected successfully',

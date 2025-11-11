@@ -669,6 +669,10 @@ const QuestDetail = () => {
                         {/* Task Content */}
                         <div
                           onClick={() => {
+                            // Don't open modal for tutorial tasks - they auto-complete
+                            if (task.auto_complete) {
+                              return;
+                            }
                             if (quest.user_enrollment) {
                               setSelectedTask(task);
                               setShowTaskModal(true);
@@ -677,7 +681,7 @@ const QuestDetail = () => {
                               setShowTaskDetailModal(true);
                             }
                           }}
-                          className="absolute inset-0 p-3 flex flex-col justify-between"
+                          className={`absolute inset-0 p-3 flex flex-col justify-between ${task.auto_complete ? 'cursor-default' : ''}`}
                         >
                           {/* Top Section - Pillar Name Pill */}
                           <div>
@@ -722,8 +726,8 @@ const QuestDetail = () => {
                           </div>
                         </div>
 
-                        {/* Continue Button for Incomplete Tasks */}
-                        {!task.is_completed && quest.user_enrollment && (
+                        {/* Continue Button for Incomplete Tasks (hide for auto-complete tasks) */}
+                        {!task.is_completed && quest.user_enrollment && !task.auto_complete && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -737,8 +741,18 @@ const QuestDetail = () => {
                           </button>
                         )}
 
-                        {/* Edit Evidence Button for Completed Tasks */}
-                        {task.is_completed && (
+                        {/* Auto-verified badge for tutorial tasks */}
+                        {!task.is_completed && quest.user_enrollment && task.auto_complete && (
+                          <div
+                            className="absolute bottom-2 left-2 right-2 py-1.5 rounded-full font-bold text-xs uppercase tracking-wide text-white text-center"
+                            style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins', opacity: 0.9 }}
+                          >
+                            ✓ Auto-Verified
+                          </div>
+                        )}
+
+                        {/* Edit Evidence Button for Completed Tasks (hide for tutorial tasks) */}
+                        {task.is_completed && !task.auto_complete && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -752,8 +766,18 @@ const QuestDetail = () => {
                           </button>
                         )}
 
-                        {/* Drop Task Button - top right corner */}
-                        {quest.user_enrollment && !isQuestCompleted && (
+                        {/* Completed badge for auto-verified tasks */}
+                        {task.is_completed && task.auto_complete && (
+                          <div
+                            className="absolute bottom-2 left-2 right-2 py-1.5 bg-white/90 text-gray-800 rounded-full font-bold text-xs uppercase tracking-wide text-center"
+                            style={{ fontFamily: 'Poppins' }}
+                          >
+                            ✅ Completed!
+                          </div>
+                        )}
+
+                        {/* Drop Task Button - top right corner (hide for tutorial tasks) */}
+                        {quest.user_enrollment && !isQuestCompleted && !task.auto_complete && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
