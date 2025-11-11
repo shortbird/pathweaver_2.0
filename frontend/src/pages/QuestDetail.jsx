@@ -9,6 +9,7 @@ import { getPillarData, normalizePillarKey } from '../utils/pillarMappings';
 import { queryKeys } from '../utils/queryKeys';
 import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import TaskDetailModal from '../components/quest/TaskDetailModal';
+import TutorialTaskInstructionsModal from '../components/quest/TutorialTaskInstructionsModal';
 import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
 import SampleTaskCard from '../components/quest/SampleTaskCard';
 import TaskLibraryView from '../components/quest-library/TaskLibraryView';
@@ -669,10 +670,7 @@ const QuestDetail = () => {
                         {/* Task Content */}
                         <div
                           onClick={() => {
-                            // Don't open modal for tutorial tasks - they auto-complete
-                            if (task.auto_complete) {
-                              return;
-                            }
+                            // Allow opening modal for tutorial tasks to show instructions
                             if (quest.user_enrollment) {
                               setSelectedTask(task);
                               setShowTaskModal(true);
@@ -681,7 +679,7 @@ const QuestDetail = () => {
                               setShowTaskDetailModal(true);
                             }
                           }}
-                          className={`absolute inset-0 p-3 flex flex-col justify-between ${task.auto_complete ? 'cursor-default' : ''}`}
+                          className="absolute inset-0 p-3 flex flex-col justify-between cursor-pointer"
                         >
                           {/* Top Section - Pillar Name Pill */}
                           <div>
@@ -741,14 +739,19 @@ const QuestDetail = () => {
                           </button>
                         )}
 
-                        {/* Auto-verified badge for tutorial tasks */}
+                        {/* View Instructions button for incomplete tutorial tasks */}
                         {!task.is_completed && quest.user_enrollment && task.auto_complete && (
-                          <div
-                            className="absolute bottom-2 left-2 right-2 py-1.5 rounded-full font-bold text-xs uppercase tracking-wide text-white text-center"
-                            style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins', opacity: 0.9 }}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTask(task);
+                              setShowTaskModal(true);
+                            }}
+                            className="absolute bottom-2 left-2 right-2 py-1.5 rounded-full font-bold text-xs uppercase tracking-wide text-white transition-all hover:shadow-lg"
+                            style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
                           >
-                            ✓ Auto-Verified
-                          </div>
+                            View Instructions
+                          </button>
                         )}
 
                         {/* Edit Evidence Button for Completed Tasks (hide for tutorial tasks) */}
@@ -1066,12 +1069,23 @@ const QuestDetail = () => {
 
       {/* Modals */}
       {showTaskModal && selectedTask && (
-        <TaskEvidenceModal
-          task={selectedTask}
-          questId={quest.id}
-          onComplete={handleTaskCompletion}
-          onClose={() => setShowTaskModal(false)}
-        />
+        <>
+          {/* Show tutorial instructions modal for tutorial tasks */}
+          {selectedTask.auto_complete && !selectedTask.is_completed ? (
+            <TutorialTaskInstructionsModal
+              task={selectedTask}
+              onClose={() => setShowTaskModal(false)}
+            />
+          ) : (
+            /* Show regular evidence modal for non-tutorial tasks */
+            <TaskEvidenceModal
+              task={selectedTask}
+              questId={quest.id}
+              onComplete={handleTaskCompletion}
+              onClose={() => setShowTaskModal(false)}
+            />
+          )}
+        </>
       )}
 
       {showTaskDetailModal && (
