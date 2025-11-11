@@ -91,17 +91,13 @@ def send_parent_invitation(user_id):
                     'error': 'An account with this email already exists but is not a parent account'
                 }), 400
 
-            # Check if already linked
-            existing_link = supabase.table('parent_student_links').select('id, status').eq(
+            # Check if already linked (links are permanent once created)
+            existing_link = supabase.table('parent_student_links').select('id').eq(
                 'parent_user_id', parent_user['id']
             ).eq('student_user_id', user_id).execute()
 
             if existing_link.data:
-                link_status = existing_link.data[0]['status']
-                if link_status == 'active':
-                    return jsonify({'error': 'This parent is already linked to your account'}), 400
-                elif link_status == 'pending_approval':
-                    return jsonify({'error': 'A link request is already pending approval'}), 400
+                return jsonify({'error': 'This parent is already linked to your account'}), 400
 
             # Create pending approval link (parent already registered)
             link_data = {
@@ -446,10 +442,10 @@ def get_linked_children(user_id):
             raise AuthorizationError("Only parent accounts can access this endpoint")
 
         # Single optimized query with JOIN to get links AND student details
+        # Note: No status filter needed - once approved, parent links are permanent
         links_response = supabase.table('parent_student_links').select('''
             id,
             student_user_id,
-            status,
             approved_at,
             created_at,
             users!parent_student_links_student_user_id_fkey(
@@ -460,7 +456,7 @@ def get_linked_children(user_id):
                 level,
                 total_xp
             )
-        ''').eq('parent_user_id', user_id).eq('status', 'active').execute()
+        ''').eq('parent_user_id', user_id).execute()
 
         if not links_response.data:
             return jsonify({'children': []}), 200

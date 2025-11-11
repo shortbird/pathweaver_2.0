@@ -5,12 +5,12 @@ import { AlertTriangle, LogOut } from 'lucide-react';
  * MasqueradeBanner - Sticky banner shown during admin masquerade sessions
  *
  * Displays when admin is viewing platform as another user
- * Always visible at top of screen with high z-index
+ * Sticks to top of screen when scrolling
  * Provides quick exit button to return to admin session
  */
 const MasqueradeBanner = ({ targetUser, onExit }) => {
   return (
-    <div className="fixed top-0 left-0 right-0 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-4 py-3 shadow-lg z-50">
+    <div className="sticky top-0 left-0 right-0 bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-4 py-3 shadow-lg z-50">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <div className="flex items-center gap-3">
           <AlertTriangle className="w-5 h-5 flex-shrink-0" />
