@@ -246,8 +246,8 @@ def get_integration_status():
         JSON with integration details
     """
     try:
-        # Get user ID from session
-        user_id = session_manager.get_current_user_id()
+        # Get user ID from session (use effective user for masquerade support)
+        user_id = session_manager.get_effective_user_id()
 
         if not user_id:
             return jsonify({'integrated': False}), 200

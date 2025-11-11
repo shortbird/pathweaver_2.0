@@ -69,7 +69,7 @@ def get_badge_detail(badge_id):
     from utils.session_manager import session_manager
     user_id = None
     try:
-        user_id = session_manager.get_current_user_id()
+        user_id = session_manager.get_effective_user_id()  # Use effective user for masquerade support
     except:
         pass  # Not logged in, continue without user context
 

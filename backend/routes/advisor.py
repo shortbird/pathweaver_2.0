@@ -25,6 +25,18 @@ def get_students(user_id):
         # Create service instance per-request with user context
         advisor_service = AdvisorService(user_id=user_id)
         students = advisor_service.get_advisor_students(user_id)
+
+        # Add last check-in date for each student
+        from services.checkin_service import CheckinService
+        checkin_service = CheckinService()
+
+        for student in students:
+            last_checkin_info = checkin_service.get_last_checkin_info(
+                student['id'],
+                advisor_id=user_id
+            )
+            student['last_checkin'] = last_checkin_info
+
         return jsonify({
             'success': True,
             'students': students,

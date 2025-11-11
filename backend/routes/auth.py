@@ -481,9 +481,9 @@ def register():
 def get_current_user():
     """Get current user profile with fresh data"""
     try:
-        # ✅ INCOGNITO MODE FIX: Prioritize Authorization header (works in incognito)
-        # session_manager.get_current_user_id() already checks Authorization header first
-        user_id = session_manager.get_current_user_id()
+        # ✅ MASQUERADE FIX: Use get_effective_user_id() to return masquerade target if masquerading
+        # This ensures frontend sees the masqueraded user's role and data
+        user_id = session_manager.get_effective_user_id()
 
         if not user_id:
             return jsonify({'error': 'Authentication required'}), 401

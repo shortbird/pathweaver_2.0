@@ -250,6 +250,14 @@ try:
 except Exception as e:
     logger.warning(f"Warning: Advisor routes not available: {e}")
 
+# Register Advisor Check-ins blueprint
+try:
+    from routes.advisor_checkins import checkins_bp
+    app.register_blueprint(checkins_bp)  # /api/advisor/checkins (blueprint has url_prefix in routes)
+    logger.info("Advisor Check-ins routes registered successfully")
+except Exception as e:
+    logger.warning(f"Warning: Advisor Check-ins routes not available: {e}")
+
 # Register Direct Messages blueprint
 try:
     from routes import direct_messages
