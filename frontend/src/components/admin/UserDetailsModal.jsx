@@ -23,6 +23,8 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const [loading, setLoading] = useState(false)
   const [showChatLogsModal, setShowChatLogsModal] = useState(false)
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
+  const [currentAvatarUrl, setCurrentAvatarUrl] = useState(user.avatar_url || '')
 
   useEffect(() => {
     fetchUserDetails()
@@ -43,6 +45,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
         country: response.data.country || '',
         date_of_birth: response.data.date_of_birth || ''
       }))
+      setCurrentAvatarUrl(response.data.avatar_url || '')
     } catch (error) {
       toast.error('Failed to load user details')
     }
@@ -134,6 +137,51 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
     }
   }
 
+  const handleUploadAvatar = () => {
+    // Create file input element
+    const fileInput = document.createElement('input')
+    fileInput.type = 'file'
+    fileInput.accept = 'image/jpeg,image/jpg,image/png,image/gif,image/webp'
+
+    fileInput.onchange = async (e) => {
+      const file = e.target.files[0]
+      if (!file) return
+
+      // Validate file size (5MB max)
+      const maxSize = 5 * 1024 * 1024
+      if (file.size > maxSize) {
+        toast.error('Image size must be less than 5MB')
+        return
+      }
+
+      // Create FormData for file upload
+      const formData = new FormData()
+      formData.append('file', file)
+
+      try {
+        setUploadingAvatar(true)
+        const loadingToast = toast.loading('Uploading profile picture...')
+
+        const response = await api.post(
+          `/api/admin/users/${user.id}/upload-avatar`,
+          formData
+        )
+
+        toast.dismiss(loadingToast)
+        toast.success('Profile picture uploaded successfully')
+        setCurrentAvatarUrl(response.data.avatar_url)
+        onSave()
+      } catch (error) {
+        toast.error(error.response?.data?.error || 'Failed to upload profile picture')
+      } finally {
+        setUploadingAvatar(false)
+      }
+    }
+
+    // Trigger file selection dialog
+    fileInput.click()
+  }
+
   const getRoleDisplayName = (role) => {
     const roleNames = {
       student: 'Student',
@@ -191,6 +239,41 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
         <div className="p-6 overflow-y-auto max-h-[60vh]">
           {activeTab === 'profile' && (
             <div className="space-y-4">
+              {/* Profile Picture Section */}
+              <div className="flex flex-col items-center py-4 border-b border-gray-200">
+                <div className="relative mb-4">
+                  {currentAvatarUrl ? (
+                    <img
+                      src={currentAvatarUrl}
+                      alt="Profile"
+                      className="w-24 h-24 rounded-full object-cover border-4 border-gray-200"
+                    />
+                  ) : (
+                    <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center border-4 border-gray-200">
+                      <span className="text-white text-3xl font-bold">
+                        {(formData.first_name?.[0] || user.email[0]).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  {uploadingAvatar && (
+                    <div className="absolute inset-0 bg-black bg-opacity-50 rounded-full flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={handleUploadAvatar}
+                  disabled={uploadingAvatar}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-medium flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  {uploadingAvatar ? 'Uploading...' : 'Upload Profile Picture'}
+                </button>
+                <p className="text-xs text-gray-500 mt-2">JPEG, PNG, GIF, or WEBP (max 5MB)</p>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">

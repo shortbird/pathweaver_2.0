@@ -260,11 +260,19 @@ const AdminUsers = () => {
                   <td className="px-6 py-4">
                     <div className="flex items-center">
                       <div className="flex-shrink-0 h-10 w-10">
-                        <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                          <span className="text-gray-600 font-medium">
-                            {(user.first_name?.[0] || user.email[0]).toUpperCase()}
-                          </span>
-                        </div>
+                        {user.avatar_url ? (
+                          <img
+                            src={user.avatar_url}
+                            alt={`${user.first_name} ${user.last_name}`}
+                            className="h-10 w-10 rounded-full object-cover"
+                          />
+                        ) : (
+                          <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
+                            <span className="text-gray-600 font-medium">
+                              {(user.first_name?.[0] || user.email[0]).toUpperCase()}
+                            </span>
+                          </div>
+                        )}
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">
@@ -374,11 +382,19 @@ const AdminUsers = () => {
 
                 {/* Avatar - Centered */}
                 <div className="absolute inset-x-0 bottom-0 translate-y-1/2 flex justify-center">
-                  <div className="h-20 w-20 rounded-full bg-white shadow-lg flex items-center justify-center border-4 border-white">
-                    <span className="text-gray-700 text-2xl font-bold">
-                      {(user.first_name?.[0] || user.email[0]).toUpperCase()}
-                    </span>
-                  </div>
+                  {user.avatar_url ? (
+                    <img
+                      src={user.avatar_url}
+                      alt={`${user.first_name} ${user.last_name}`}
+                      className="h-20 w-20 rounded-full object-cover shadow-lg border-4 border-white"
+                    />
+                  ) : (
+                    <div className="h-20 w-20 rounded-full bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                      <span className="text-gray-700 text-2xl font-bold">
+                        {(user.first_name?.[0] || user.email[0]).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 

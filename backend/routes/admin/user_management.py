@@ -22,6 +22,9 @@ from utils.auth.decorators import require_admin, require_advisor, get_advisor_as
 from utils.api_response import success_response, error_response
 from datetime import datetime, timedelta
 import json
+import uuid
+import magic
+from werkzeug.utils import secure_filename
 
 from utils.logger import get_logger
 
@@ -685,3 +688,89 @@ def get_user_quest_enrollments(user_id, target_user_id):
             'success': False,
             'error': 'Failed to retrieve quest enrollments'
         }), 500
+
+@bp.route('/users/<target_user_id>/upload-avatar', methods=['POST'])
+@require_admin
+def upload_user_avatar(user_id, target_user_id):
+    """Upload profile picture for a user (admin only)"""
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Check if file was provided
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
+
+        file = request.files['file']
+
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+
+        # Read file content
+        file_content = file.read()
+
+        # Validate file size (5MB max for profile pictures)
+        MAX_SIZE = 5 * 1024 * 1024
+        if len(file_content) > MAX_SIZE:
+            return jsonify({'error': 'Image size must be less than 5MB'}), 400
+
+        # Validate file type using magic bytes (images only)
+        try:
+            mime_type = magic.from_buffer(file_content[:2048], mime=True)
+        except Exception as e:
+            return jsonify({'error': 'Failed to detect file type'}), 400
+
+        ALLOWED_IMAGE_TYPES = {'image/jpeg', 'image/png', 'image/gif', 'image/webp'}
+        if mime_type not in ALLOWED_IMAGE_TYPES:
+            return jsonify({'error': 'Only image files (JPEG, PNG, GIF, WEBP) are allowed'}), 400
+
+        # Sanitize filename
+        safe_filename = secure_filename(file.filename)
+        if not safe_filename or '..' in safe_filename:
+            return jsonify({'error': 'Invalid filename'}), 400
+
+        # Generate unique filename
+        file_extension = safe_filename.rsplit('.', 1)[1].lower() if '.' in safe_filename else 'jpg'
+        unique_filename = f"avatars/{target_user_id}/{uuid.uuid4()}.{file_extension}"
+
+        # Create avatars bucket if it doesn't exist
+        try:
+            supabase.storage.create_bucket('avatars', {'public': True})
+        except:
+            pass  # Bucket might already exist
+
+        # Delete old avatar if exists
+        user_result = supabase.table('users').select('avatar_url').eq('id', target_user_id).single().execute()
+        if user_result.data and user_result.data.get('avatar_url'):
+            old_url = user_result.data['avatar_url']
+            # Extract path from URL if it's a Supabase storage URL
+            if '/storage/v1/object/public/avatars/' in old_url:
+                old_path = old_url.split('/storage/v1/object/public/avatars/')[1]
+                try:
+                    supabase.storage.from_('avatars').remove([old_path])
+                except:
+                    pass  # Ignore if old file doesn't exist
+
+        # Upload new avatar
+        upload_response = supabase.storage.from_('avatars').upload(
+            path=unique_filename,
+            file=file_content,
+            file_options={"content-type": mime_type}
+        )
+
+        # Get public URL
+        avatar_url = supabase.storage.from_('avatars').get_public_url(unique_filename)
+
+        # Update user's avatar_url
+        update_result = supabase.table('users').update({
+            'avatar_url': avatar_url
+        }).eq('id', target_user_id).execute()
+
+        return jsonify({
+            'success': True,
+            'avatar_url': avatar_url,
+            'message': 'Profile picture uploaded successfully'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error uploading avatar for user {target_user_id}: {str(e)}")
+        return jsonify({'error': 'Failed to upload profile picture'}), 500
