@@ -6,12 +6,24 @@ const TutorialTaskInstructionsModal = ({ task, onClose }) => {
   // Tutorial task instructions mapping
   const getTutorialInstructions = (taskTitle) => {
     const instructions = {
+      'Upload a profile picture': {
+        text: 'Add a profile picture to personalize your account and help others recognize you.',
+        link: '/profile',
+        linkText: 'Go to Your Profile',
+        steps: [
+          'Click the link below to go to your profile page',
+          'Click on the profile picture placeholder or edit icon',
+          'Upload an image from your computer',
+          'Save your changes',
+          'This task will complete automatically!'
+        ]
+      },
       'Complete your profile': {
         text: 'Add your first name and last name to your profile to help others recognize you.',
-        link: '/settings',
-        linkText: 'Go to Profile Settings',
+        link: '/profile',
+        linkText: 'Go to Your Profile',
         steps: [
-          'Click the link below to go to your profile settings',
+          'Click the link below to go to your profile page',
           'Fill in your first name and last name',
           'Save your changes',
           'This task will complete automatically!'
@@ -19,10 +31,10 @@ const TutorialTaskInstructionsModal = ({ task, onClose }) => {
       },
       'Write your bio': {
         text: 'Tell others about yourself! Write at least 20 characters in your bio.',
-        link: '/settings',
-        linkText: 'Go to Profile Settings',
+        link: '/profile',
+        linkText: 'Go to Your Profile',
         steps: [
-          'Click the link below to go to your profile settings',
+          'Click the link below to go to your profile page',
           'Scroll to the bio section',
           'Write a short description about yourself (at least 20 characters)',
           'Save your changes',
@@ -31,10 +43,10 @@ const TutorialTaskInstructionsModal = ({ task, onClose }) => {
       },
       'Make portfolio public': {
         text: 'Share your accomplishments with the world by making your portfolio public.',
-        link: '/settings',
-        linkText: 'Go to Privacy Settings',
+        link: '/profile',
+        linkText: 'Go to Your Profile',
         steps: [
-          'Click the link below to go to your settings',
+          'Click the link below to go to your profile page',
           'Find the portfolio privacy toggle',
           'Switch it to "Public"',
           'This task will complete automatically!'
