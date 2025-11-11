@@ -16,7 +16,6 @@ class CheckinService(BaseService):
     def __init__(self):
         super().__init__()
         self.repository = CheckinRepository()
-        self.supabase = get_supabase_admin_client()
 
     def create_checkin(
         self,
