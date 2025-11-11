@@ -368,7 +368,7 @@ def register():
 
             # Auto-start tutorial quest for new users
             try:
-                from services.tutorial_service import start_tutorial_for_user
+                from routes.tutorial import start_tutorial_for_user
                 start_tutorial_for_user(auth_response.user.id)
                 logger.info(f"Tutorial quest auto-started for user {auth_response.user.id}")
             except Exception as tutorial_error:
