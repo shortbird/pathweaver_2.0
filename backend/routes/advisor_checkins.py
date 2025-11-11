@@ -9,7 +9,6 @@ from utils.auth.decorators import require_role, require_admin
 from services.checkin_service import CheckinService
 
 checkins_bp = Blueprint('advisor_checkins', __name__)
-checkin_service = CheckinService()
 
 
 @checkins_bp.route('/api/advisor/checkins', methods=['POST', 'OPTIONS'])
@@ -31,6 +30,7 @@ def create_checkin(user_id):
     }
     """
     try:
+        checkin_service = CheckinService()
         data = request.get_json()
 
         # Validate required fields
@@ -98,6 +98,7 @@ def get_student_checkins(user_id, student_id):
     Get all check-ins for a specific student.
     """
     try:
+        checkin_service = CheckinService()
         checkins = checkin_service.get_checkin_history(student_id, user_id)
 
         return jsonify({
@@ -116,6 +117,7 @@ def get_checkin_data(user_id, student_id):
     Get pre-populated data for check-in form (active quests, etc.).
     """
     try:
+        checkin_service = CheckinService()
         # Get active quests data
         quests_data = checkin_service.get_student_active_quests_data(student_id)
 
@@ -139,6 +141,7 @@ def get_checkin_by_id(user_id, checkin_id):
     Get a specific check-in by ID.
     """
     try:
+        checkin_service = CheckinService()
         checkin = checkin_service.get_checkin_by_id(checkin_id, user_id)
 
         if not checkin:
@@ -162,6 +165,7 @@ def get_checkin_analytics(user_id):
     Get analytics for advisor's check-ins.
     """
     try:
+        checkin_service = CheckinService()
         analytics = checkin_service.get_checkin_analytics(user_id)
 
         return jsonify({
