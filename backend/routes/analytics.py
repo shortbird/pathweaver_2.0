@@ -28,7 +28,7 @@ analytics_service = AnalyticsService()
 
 @analytics_bp.route('/activity/track', methods=['POST'])
 @require_auth
-def track_activity():
+def track_activity(user_id):
     """
     Manual event tracking endpoint for frontend.
 

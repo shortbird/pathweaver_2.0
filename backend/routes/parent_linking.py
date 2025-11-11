@@ -500,8 +500,8 @@ def get_pending_approvals(user_id):
 
         # Get pending links for this student
         links_response = supabase.table('parent_student_links').select('''
-            id, parent_user_id, status, created_at
-        ''').eq('student_user_id', user_id).eq('status', 'pending_approval').execute()
+            id, parent_user_id, created_at
+        ''').eq('student_user_id', user_id).execute()
 
         if not links_response.data:
             return jsonify({'pending_approvals': []}), 200
@@ -712,7 +712,7 @@ def get_pending_requests(user_id):
                 email,
                 avatar_url
             )
-        ''').eq('parent_user_id', user_id).eq('status', 'pending_approval').execute()
+        ''').eq('parent_user_id', user_id).execute()
 
         if not links_response.data:
             return jsonify({'pending_requests': []}), 200
@@ -772,7 +772,7 @@ def get_my_links(user_id):
                 email,
                 avatar_url
             )
-        ''').eq('student_user_id', user_id).eq('status', 'active').execute()
+        ''').eq('student_user_id', user_id).execute()
 
         linked_parents = []
         if active_links_response.data:
