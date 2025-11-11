@@ -253,10 +253,12 @@ except Exception as e:
 # Register Advisor Check-ins blueprint
 try:
     from routes.advisor_checkins import checkins_bp
-    app.register_blueprint(checkins_bp)  # /api/advisor/checkins (blueprint has url_prefix in routes)
+    app.register_blueprint(checkins_bp)  # /api/advisor/checkins/* (full paths in route definitions)
     logger.info("Advisor Check-ins routes registered successfully")
 except Exception as e:
-    logger.warning(f"Warning: Advisor Check-ins routes not available: {e}")
+    logger.error(f"CRITICAL: Failed to register Advisor Check-ins routes: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
 
 # Register Direct Messages blueprint
 try:
