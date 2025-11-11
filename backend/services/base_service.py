@@ -89,8 +89,13 @@ class BaseService:
         """
         Get user-authenticated Supabase client (RLS enforced).
 
+        IMPORTANT: This method extracts the JWT token from the Flask request context.
+        Do NOT pass user_id to get_user_client() - it expects a JWT token, not a UUID.
+
         Args:
-            user_id: User ID (uses instance user_id if not provided)
+            user_id: User ID for validation (uses instance user_id if not provided)
+                     This is used to verify we have a user context, but the actual
+                     JWT token is extracted from the request headers by get_user_client()
 
         Returns:
             User-authenticated Supabase client
@@ -101,7 +106,10 @@ class BaseService:
         uid = user_id or self.user_id
         if not uid:
             raise ValueError("user_id required for RLS-enabled operations")
-        return get_user_client(uid)
+
+        # CRITICAL FIX: get_user_client() extracts JWT from Flask request headers
+        # It does NOT accept user_id as a parameter - that would be a UUID, not a token
+        return get_user_client()
 
     def execute(
         self,

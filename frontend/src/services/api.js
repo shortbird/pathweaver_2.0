@@ -328,6 +328,67 @@ export const parentAPI = {
 
   // Update parent monitoring settings
   updateSettings: (studentId, settings) => api.put(`/api/tutor/parent/settings/${studentId}`, settings),
+
+  // NEW: Submit connection requests for multiple children (January 2025 Redesign)
+  submitConnectionRequests: (children) => api.post('/api/parents/submit-connection-requests', { children }),
+
+  // NEW: Get parent's submitted connection requests with status (January 2025 Redesign)
+  getMyConnectionRequests: () => api.get('/api/parents/my-connection-requests'),
+}
+
+// Admin Parent Connections API methods (January 2025 Redesign)
+export const adminParentConnectionsAPI = {
+  // Get all connection requests with filters
+  getConnectionRequests: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.status) params.append('status', filters.status);
+    if (filters.parent_id) params.append('parent_id', filters.parent_id);
+    if (filters.start_date) params.append('start_date', filters.start_date);
+    if (filters.end_date) params.append('end_date', filters.end_date);
+    if (filters.page) params.append('page', filters.page);
+    if (filters.limit) params.append('limit', filters.limit);
+    return api.get(`/api/admin/parent-connections/requests?${params.toString()}`);
+  },
+
+  // Approve a connection request
+  approveConnectionRequest: (requestId, adminNotes = '') =>
+    api.post(`/api/admin/parent-connections/requests/${requestId}/approve`, { admin_notes: adminNotes }),
+
+  // Reject a connection request
+  rejectConnectionRequest: (requestId, adminNotes) =>
+    api.post(`/api/admin/parent-connections/requests/${requestId}/reject`, { admin_notes: adminNotes }),
+
+  // Get all active parent-student links
+  getActiveLinks: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.parent_id) params.append('parent_id', filters.parent_id);
+    if (filters.student_id) params.append('student_id', filters.student_id);
+    if (filters.admin_verified !== undefined) params.append('admin_verified', filters.admin_verified);
+    if (filters.page) params.append('page', filters.page);
+    if (filters.limit) params.append('limit', filters.limit);
+    return api.get(`/api/admin/parent-connections/links?${params.toString()}`);
+  },
+
+  // Disconnect a parent-student link
+  disconnectLink: (linkId) => api.delete(`/api/admin/parent-connections/links/${linkId}`),
+
+  // Manually create a parent-student link
+  createManualLink: (parentUserId, studentUserId, adminNotes = '') =>
+    api.post('/api/admin/parent-connections/manual-link', {
+      parent_user_id: parentUserId,
+      student_user_id: studentUserId,
+      admin_notes: adminNotes,
+    }),
+
+  // Get all users by role (for dropdown selections)
+  getAllUsers: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.role) params.append('role', filters.role);
+    if (filters.search) params.append('search', filters.search);
+    if (filters.page) params.append('page', filters.page);
+    if (filters.per_page) params.append('per_page', filters.per_page);
+    return api.get(`/api/admin/users?${params.toString()}`);
+  },
 }
 
 /**

@@ -636,74 +636,16 @@ def send_bulk_email(admin_id):
         logger.error(f"Error sending bulk email: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/quests', methods=['GET'])
-@require_admin
-def list_admin_quests(user_id):
-    """
-    List all quests for admin management.
-    Supports pagination, search, and filtering.
-    """
-    try:
-        supabase = get_supabase_admin_client()
-        
-        # Get pagination parameters
-        page = int(request.args.get('page', 1))
-        per_page = min(int(request.args.get('per_page', 20)), 100)
-        search = request.args.get('search', '').strip()
-        is_active = request.args.get('is_active')
-        source = request.args.get('source')
-        
-        # Calculate offset
-        offset = (page - 1) * per_page
-        
-        # Build query
-        # NOTE: quest_tasks table was renamed to user_quest_tasks (personalized per student)
-        # For admin quest list, we just show basic quest info without per-user tasks
-        query = supabase.table('quests')\
-            .select('*', count='exact')\
-            .order('created_at', desc=True)
-
-        # Apply filters
-        if search:
-            query = query.ilike('title', f'%{search}%')
-
-        if is_active is not None:
-            is_active_bool = is_active.lower() == 'true'
-            query = query.eq('is_active', is_active_bool)
-
-        if source:
-            query = query.eq('source', source)
-
-        # Apply pagination
-        query = query.range(offset, offset + per_page - 1)
-
-        result = query.execute()
-
-        # Process quest data to include task counts and total XP
-        # NOTE: Since tasks are now per-user (user_quest_tasks), we don't fetch them here
-        quests = []
-        for quest in result.data:
-            # Add placeholder fields for backward compatibility
-            quest['total_xp'] = 0  # Per-user tasks, can't calculate without user context
-            quest['task_count'] = 0  # Per-user tasks, can't calculate without user context
-
-            quests.append(quest)
-        
-        return jsonify({
-            'success': True,
-            'quests': quests,
-            'total': result.count,
-            'page': page,
-            'per_page': per_page,
-            'total_pages': (result.count + per_page - 1) // per_page if result.count else 0
-        })
-        
-    except Exception as e:
-        logger.error(f"Error listing admin quests: {str(e)}")
-        return jsonify({
-            'success': False,
-            'error': 'Failed to fetch quests'
-        }), 500
+# ============================================================================
+# REMOVED: Duplicate /quests endpoint (originally lines 639-706)
+# ============================================================================
+# This duplicate GET /api/admin/quests endpoint was removed because:
+# 1. It used @require_admin decorator (blocking advisors)
+# 2. It conflicts with the proper implementation in quest_management.py
+# 3. quest_management.py uses @require_advisor (allows both advisors and admins)
+# 4. Flask was routing to this duplicate first, causing authorization errors
+#
+# The proper endpoint is in routes/admin/quest_management.py (line 439)
 
 # Quest Ideas Management Endpoints
 

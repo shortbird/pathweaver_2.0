@@ -15,6 +15,7 @@ import SiteSettings from '../components/admin/SiteSettings'
 import FlaggedTasksPanel from '../components/admin/FlaggedTasksPanel'
 import AdminServices from '../components/admin/AdminServices'
 import ServiceInquiries from '../components/admin/ServiceInquiries'
+import ParentConnectionsPanel from '../components/admin/ParentConnectionsPanel'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -91,6 +92,12 @@ const AdminPage = () => {
             >
               Inquiries
             </Link>
+            <Link
+              to="/admin/parent-connections"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'parent-connections' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Parent Connections
+            </Link>
           </>
         )}
       </div>
@@ -111,6 +118,7 @@ const AdminPage = () => {
         <Route path="ai-performance" element={<AIPerformanceAnalytics />} />
         <Route path="ai-optimizer" element={<AIPromptOptimizer />} />
         <Route path="batch-generator" element={<BatchContentGenerator />} />
+        <Route path="parent-connections" element={<ParentConnectionsPanel />} />
       </Routes>
     </div>
   )

@@ -307,3 +307,367 @@ class ParentRepository(BaseRepository):
         except Exception as e:
             logger.error(f"Error fetching invitations for student {student_id}: {e}")
             return []
+
+    # ========================================================================
+    # NEW ADMIN-VERIFICATION WORKFLOW METHODS (January 2025 Redesign)
+    # ========================================================================
+
+    def create_connection_requests(self, parent_id: str, children_data: List[Dict[str, str]]) -> Dict[str, Any]:
+        """
+        Parent submits connection requests for multiple children.
+        Auto-matches emails to existing students.
+
+        Args:
+            parent_id: Parent user ID
+            children_data: List of dicts with keys: first_name, last_name, email
+
+        Returns:
+            Dict with submitted_count, auto_matched_count, requests list
+        """
+        try:
+            requests = []
+            auto_matched_count = 0
+
+            for child in children_data:
+                # Auto-match student by email
+                matched_student_id = None
+                student_result = self.client.rpc('match_student_by_email', {
+                    'p_email': child['email']
+                }).execute()
+
+                if student_result.data:
+                    matched_student_id = student_result.data
+                    auto_matched_count += 1
+
+                # Create connection request
+                request_data = {
+                    'parent_user_id': parent_id,
+                    'child_first_name': child['first_name'],
+                    'child_last_name': child['last_name'],
+                    'child_email': child['email'],
+                    'matched_student_id': matched_student_id,
+                    'status': 'pending'
+                }
+
+                result = self.client.table('parent_connection_requests')\
+                    .insert(request_data)\
+                    .execute()
+
+                if result.data:
+                    requests.append(result.data[0])
+
+            logger.info(f"Parent {parent_id} submitted {len(requests)} connection requests, {auto_matched_count} auto-matched")
+
+            return {
+                'submitted_count': len(requests),
+                'auto_matched_count': auto_matched_count,
+                'requests': requests
+            }
+        except Exception as e:
+            logger.error(f"Error creating connection requests for parent {parent_id}: {e}")
+            raise
+
+    def get_connection_requests(self, parent_id: str, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Get connection requests submitted by a parent.
+
+        Args:
+            parent_id: Parent user ID
+            status: Optional filter by status (pending/approved/rejected)
+
+        Returns:
+            List of connection requests with matched student details
+        """
+        try:
+            query = self.client.table('parent_connection_requests')\
+                .select('''
+                    *,
+                    matched_student:users!parent_connection_requests_matched_student_id_fkey(
+                        id, first_name, last_name, email
+                    )
+                ''')\
+                .eq('parent_user_id', parent_id)
+
+            if status:
+                query = query.eq('status', status)
+
+            result = query.order('created_at', desc=True).execute()
+
+            return result.data or []
+        except Exception as e:
+            logger.error(f"Error fetching connection requests for parent {parent_id}: {e}")
+            return []
+
+    def approve_connection_request(self, request_id: str, admin_id: str, notes: Optional[str] = None) -> str:
+        """
+        Admin approves a connection request.
+        Creates verified parent_student_links record.
+
+        Args:
+            request_id: Connection request ID
+            admin_id: Admin user ID
+            notes: Optional admin notes
+
+        Returns:
+            Created link ID
+
+        Raises:
+            NotFoundError: If request not found
+            ValueError: If request already processed or student not matched
+        """
+        try:
+            # Get request
+            request_result = self.client.table('parent_connection_requests')\
+                .select('*')\
+                .eq('id', request_id)\
+                .single()\
+                .execute()
+
+            if not request_result.data:
+                raise NotFoundError("Connection request not found")
+
+            request_data = request_result.data
+
+            if request_data['status'] != 'pending':
+                raise ValueError("Request has already been processed")
+
+            if not request_data['matched_student_id']:
+                raise ValueError("No student matched for this request")
+
+            # Create verified link using database function
+            link_result = self.client.rpc('create_verified_parent_link', {
+                'p_parent_id': request_data['parent_user_id'],
+                'p_student_id': request_data['matched_student_id'],
+                'p_admin_id': admin_id,
+                'p_notes': notes
+            }).execute()
+
+            # Update request status
+            self.client.table('parent_connection_requests')\
+                .update({
+                    'status': 'approved',
+                    'admin_notes': notes,
+                    'reviewed_by_admin_id': admin_id,
+                    'reviewed_at': datetime.utcnow().isoformat()
+                })\
+                .eq('id', request_id)\
+                .execute()
+
+            logger.info(f"Admin {admin_id} approved connection request {request_id}")
+            return link_result.data
+
+        except Exception as e:
+            logger.error(f"Error approving connection request {request_id}: {e}")
+            raise
+
+    def reject_connection_request(self, request_id: str, admin_id: str, notes: str) -> bool:
+        """
+        Admin rejects a connection request.
+
+        Args:
+            request_id: Connection request ID
+            admin_id: Admin user ID
+            notes: Rejection reason (required)
+
+        Returns:
+            True if rejected successfully
+
+        Raises:
+            NotFoundError: If request not found
+            ValueError: If request already processed or notes missing
+        """
+        try:
+            if not notes:
+                raise ValueError("Admin notes are required when rejecting a request")
+
+            # Get request
+            request_result = self.client.table('parent_connection_requests')\
+                .select('status')\
+                .eq('id', request_id)\
+                .single()\
+                .execute()
+
+            if not request_result.data:
+                raise NotFoundError("Connection request not found")
+
+            if request_result.data['status'] != 'pending':
+                raise ValueError("Request has already been processed")
+
+            # Update request status
+            self.client.table('parent_connection_requests')\
+                .update({
+                    'status': 'rejected',
+                    'admin_notes': notes,
+                    'reviewed_by_admin_id': admin_id,
+                    'reviewed_at': datetime.utcnow().isoformat()
+                })\
+                .eq('id', request_id)\
+                .execute()
+
+            logger.info(f"Admin {admin_id} rejected connection request {request_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error rejecting connection request {request_id}: {e}")
+            raise
+
+    def get_all_connection_requests(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Admin gets all connection requests with optional filters.
+
+        Args:
+            filters: Optional dict with keys: status, parent_id, start_date, end_date
+
+        Returns:
+            List of connection requests with parent and student details
+        """
+        try:
+            query = self.client.table('parent_connection_requests')\
+                .select('''
+                    *,
+                    parent_user:users!parent_connection_requests_parent_user_id_fkey(
+                        id, first_name, last_name, email
+                    ),
+                    matched_student:users!parent_connection_requests_matched_student_id_fkey(
+                        id, first_name, last_name, email
+                    ),
+                    reviewed_by:users!parent_connection_requests_reviewed_by_admin_id_fkey(
+                        id, first_name, last_name
+                    )
+                ''')
+
+            if filters:
+                if 'status' in filters:
+                    query = query.eq('status', filters['status'])
+                if 'parent_id' in filters:
+                    query = query.eq('parent_user_id', filters['parent_id'])
+                if 'start_date' in filters:
+                    query = query.gte('created_at', filters['start_date'])
+                if 'end_date' in filters:
+                    query = query.lte('created_at', filters['end_date'])
+
+            result = query.order('created_at', desc=True).execute()
+
+            return result.data or []
+        except Exception as e:
+            logger.error(f"Error fetching all connection requests: {e}")
+            return []
+
+    def get_all_active_links(self, filters: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+        """
+        Admin gets all active parent-student links with optional filters.
+
+        Args:
+            filters: Optional dict with keys: parent_id, student_id, admin_verified
+
+        Returns:
+            List of parent-student links with parent and student details
+        """
+        try:
+            query = self.client.table(self.table_name)\
+                .select('''
+                    *,
+                    parent:users!parent_student_links_parent_user_id_fkey(
+                        id, first_name, last_name, email
+                    ),
+                    student:users!parent_student_links_student_user_id_fkey(
+                        id, first_name, last_name, email
+                    ),
+                    verified_by:users!parent_student_links_verified_by_admin_id_fkey(
+                        id, first_name, last_name
+                    )
+                ''')
+
+            if filters:
+                if 'parent_id' in filters:
+                    query = query.eq('parent_user_id', filters['parent_id'])
+                if 'student_id' in filters:
+                    query = query.eq('student_user_id', filters['student_id'])
+                if 'admin_verified' in filters:
+                    query = query.eq('admin_verified', filters['admin_verified'])
+
+            result = query.order('created_at', desc=True).execute()
+
+            return result.data or []
+        except Exception as e:
+            logger.error(f"Error fetching all active links: {e}")
+            return []
+
+    def delete_link(self, link_id: str, admin_id: str) -> bool:
+        """
+        Admin disconnects a parent-student link.
+
+        Args:
+            link_id: Link ID
+            admin_id: Admin user ID (for logging)
+
+        Returns:
+            True if deleted successfully
+
+        Raises:
+            NotFoundError: If link not found
+        """
+        try:
+            # Verify link exists
+            link_result = self.client.table(self.table_name)\
+                .select('id')\
+                .eq('id', link_id)\
+                .execute()
+
+            if not link_result.data:
+                raise NotFoundError("Link not found")
+
+            # Delete link
+            self.client.table(self.table_name)\
+                .delete()\
+                .eq('id', link_id)\
+                .execute()
+
+            logger.info(f"Admin {admin_id} deleted parent-student link {link_id}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error deleting link {link_id}: {e}")
+            raise
+
+    def create_manual_link(self, parent_id: str, student_id: str, admin_id: str, notes: Optional[str] = None) -> str:
+        """
+        Admin manually creates a parent-student link (bypass request workflow).
+
+        Args:
+            parent_id: Parent user ID
+            student_id: Student user ID
+            admin_id: Admin user ID
+            notes: Optional admin notes
+
+        Returns:
+            Created link ID
+
+        Raises:
+            ValueError: If link already exists or invalid user IDs
+        """
+        try:
+            # Check if link already exists
+            existing = self.client.table(self.table_name)\
+                .select('id')\
+                .eq('parent_user_id', parent_id)\
+                .eq('student_user_id', student_id)\
+                .execute()
+
+            if existing.data:
+                raise ValueError("Link already exists between this parent and student")
+
+            # Create verified link using database function
+            link_result = self.client.rpc('create_verified_parent_link', {
+                'p_parent_id': parent_id,
+                'p_student_id': student_id,
+                'p_admin_id': admin_id,
+                'p_notes': notes
+            }).execute()
+
+            logger.info(f"Admin {admin_id} manually created link between parent {parent_id} and student {student_id}")
+            return link_result.data
+
+        except Exception as e:
+            logger.error(f"Error creating manual link: {e}")
+            raise
