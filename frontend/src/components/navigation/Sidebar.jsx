@@ -105,7 +105,7 @@ const Sidebar = ({ isOpen, onClose }) => {
   // Add Admin link if user is admin
   if (user?.role === 'admin') {
     navItems.push({
-      name: 'Parent Dashboard',
+      name: 'Parent',
       path: '/parent/dashboard',
       icon: (
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

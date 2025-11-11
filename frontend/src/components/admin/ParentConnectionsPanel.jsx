@@ -25,8 +25,10 @@ const ParentConnectionsPanel = () => {
   useEffect(() => {
     if (activeTab === 'requests') {
       loadRequests();
-    } else {
+    } else if (activeTab === 'links') {
       loadLinks();
+    } else if (activeTab === 'parents') {
+      loadParentsAndStudents();
     }
   }, [activeTab, statusFilter]);
 
@@ -50,6 +52,24 @@ const ParentConnectionsPanel = () => {
       setLinks(response.data.links || []);
     } catch (error) {
       toast.error('Failed to load active connections');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadParentsAndStudents = async () => {
+    setLoading(true);
+    try {
+      // Load all parent accounts
+      const parentsResponse = await adminParentConnectionsAPI.getAllUsers({ role: 'parent', per_page: 100 });
+      setParents(parentsResponse.data.users || []);
+
+      // Load all student accounts for dropdown
+      const studentsResponse = await adminParentConnectionsAPI.getAllUsers({ role: 'student', per_page: 100 });
+      setStudents(studentsResponse.data.users || []);
+    } catch (error) {
+      toast.error('Failed to load parent and student accounts');
       console.error(error);
     } finally {
       setLoading(false);
@@ -103,6 +123,25 @@ const ParentConnectionsPanel = () => {
     }
   };
 
+  const handleConnect = async () => {
+    if (!selectedParent || !selectedStudentId) {
+      toast.error('Please select both parent and student');
+      return;
+    }
+
+    try {
+      await adminParentConnectionsAPI.createManualLink(selectedParent.id, selectedStudentId, adminNotes);
+      toast.success('Parent-student connection created successfully');
+      setShowConnectModal(false);
+      setSelectedParent(null);
+      setSelectedStudentId('');
+      setAdminNotes('');
+      loadParentsAndStudents();
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to create connection');
+    }
+  };
+
   const filteredRequests = requests.filter(req => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
@@ -126,6 +165,16 @@ const ParentConnectionsPanel = () => {
       link.student?.first_name?.toLowerCase().includes(search) ||
       link.student?.last_name?.toLowerCase().includes(search) ||
       link.student?.email?.toLowerCase().includes(search)
+    );
+  });
+
+  const filteredParents = parents.filter(parent => {
+    if (!searchTerm) return true;
+    const search = searchTerm.toLowerCase();
+    return (
+      parent.first_name?.toLowerCase().includes(search) ||
+      parent.last_name?.toLowerCase().includes(search) ||
+      parent.email?.toLowerCase().includes(search)
     );
   });
 
@@ -169,6 +218,18 @@ const ParentConnectionsPanel = () => {
           >
             <UserPlus className="w-5 h-5 inline mr-2" />
             Active Connections
+          </button>
+          <button
+            onClick={() => setActiveTab('parents')}
+            className={`py-4 px-1 border-b-2 font-semibold text-sm transition-colors ${
+              activeTab === 'parents'
+                ? 'border-purple-600 text-purple-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+            }`}
+            style={{ fontFamily: 'Poppins, sans-serif' }}
+          >
+            <Users className="w-5 h-5 inline mr-2" />
+            All Parents
           </button>
         </nav>
       </div>
@@ -217,12 +278,20 @@ const ParentConnectionsPanel = () => {
             setShowRejectModal(true);
           }}
         />
-      ) : (
+      ) : activeTab === 'links' ? (
         <LinksTable
           links={filteredLinks}
           onDisconnect={(link) => {
             setSelectedLink(link);
             setShowDisconnectModal(true);
+          }}
+        />
+      ) : (
+        <ParentsTable
+          parents={filteredParents}
+          onConnect={(parent) => {
+            setSelectedParent(parent);
+            setShowConnectModal(true);
           }}
         />
       )}
@@ -326,6 +395,70 @@ const ParentConnectionsPanel = () => {
           <p className="text-sm text-red-600 mt-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
             This action cannot be undone. The parent will lose access to this student's data.
           </p>
+        </Modal>
+      )}
+
+      {/* Connect Student Modal */}
+      {showConnectModal && (
+        <Modal
+          title="Connect Student to Parent"
+          onClose={() => {
+            setShowConnectModal(false);
+            setSelectedParent(null);
+            setSelectedStudentId('');
+            setAdminNotes('');
+          }}
+          onConfirm={handleConnect}
+          confirmText="Create Connection"
+          confirmClass="bg-purple-600 hover:bg-purple-700"
+        >
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Parent
+              </label>
+              <div className="text-sm text-gray-900 font-semibold" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                {selectedParent?.first_name} {selectedParent?.last_name}
+              </div>
+              <div className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                {selectedParent?.email}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Select Student *
+              </label>
+              <select
+                value={selectedStudentId}
+                onChange={(e) => setSelectedStudentId(e.target.value)}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                style={{ fontFamily: 'Poppins, sans-serif' }}
+              >
+                <option value="">Choose a student...</option>
+                {students.map((student) => (
+                  <option key={student.id} value={student.id}>
+                    {student.first_name} {student.last_name} ({student.email})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Admin Notes (Optional)
+              </label>
+              <textarea
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                style={{ fontFamily: 'Poppins, sans-serif' }}
+                placeholder="Add any notes about this manual connection..."
+              />
+            </div>
+          </div>
         </Modal>
       )}
     </div>
@@ -505,6 +638,72 @@ const LinksTable = ({ links, onDisconnect }) => {
                 >
                   <Trash2 className="w-4 h-4 mr-1" />
                   Disconnect
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+// Parents Table Component
+const ParentsTable = ({ parents, onConnect }) => {
+  if (parents.length === 0) {
+    return (
+      <div className="text-center py-12 bg-gray-50 rounded-lg">
+        <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+        <p className="text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          No parent accounts found
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white shadow-md rounded-lg overflow-hidden">
+      <table className="min-w-full divide-y divide-gray-200">
+        <thead className="bg-gray-50">
+          <tr>
+            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Parent Name
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Email
+            </th>
+            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Joined
+            </th>
+            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Actions
+            </th>
+          </tr>
+        </thead>
+        <tbody className="bg-white divide-y divide-gray-200">
+          {parents.map((parent) => (
+            <tr key={parent.id} className="hover:bg-gray-50">
+              <td className="px-6 py-4">
+                <div className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  {parent.first_name} {parent.last_name}
+                </div>
+              </td>
+              <td className="px-6 py-4">
+                <div className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  {parent.email}
+                </div>
+              </td>
+              <td className="px-6 py-4 text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                {new Date(parent.created_at).toLocaleDateString()}
+              </td>
+              <td className="px-6 py-4 text-right">
+                <button
+                  onClick={() => onConnect(parent)}
+                  className="inline-flex items-center px-3 py-1 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                  style={{ fontFamily: 'Poppins, sans-serif' }}
+                >
+                  <UserPlus className="w-4 h-4 mr-1" />
+                  Connect Student
                 </button>
               </td>
             </tr>

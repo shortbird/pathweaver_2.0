@@ -379,6 +379,16 @@ export const adminParentConnectionsAPI = {
       student_user_id: studentUserId,
       admin_notes: adminNotes,
     }),
+
+  // Get all users by role (for dropdown selections)
+  getAllUsers: (filters = {}) => {
+    const params = new URLSearchParams();
+    if (filters.role) params.append('role', filters.role);
+    if (filters.search) params.append('search', filters.search);
+    if (filters.page) params.append('page', filters.page);
+    if (filters.per_page) params.append('per_page', filters.per_page);
+    return api.get(`/api/admin/users?${params.toString()}`);
+  },
 }
 
 /**
