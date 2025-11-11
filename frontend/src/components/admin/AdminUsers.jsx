@@ -109,9 +109,21 @@ const AdminUsers = () => {
 
       if (result.success) {
         toast.success(`Now masquerading as ${result.targetUser.display_name || result.targetUser.email}`)
-        // Redirect to user's dashboard
+
+        // Redirect based on user role
         setTimeout(() => {
-          navigate('/dashboard')
+          const role = result.targetUser.role
+
+          if (role === 'parent') {
+            navigate('/parent/dashboard')
+          } else if (role === 'advisor') {
+            navigate('/advisor/dashboard')
+          } else if (role === 'student') {
+            navigate('/dashboard')
+          } else {
+            navigate('/dashboard') // Default fallback
+          }
+
           window.location.reload() // Force reload to apply new token
         }, 500)
       } else {
