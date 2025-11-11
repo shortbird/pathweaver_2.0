@@ -4,18 +4,23 @@ import toast from 'react-hot-toast';
 import { CheckCircle, XCircle, Users, UserPlus, Trash2, Search } from 'lucide-react';
 
 const ParentConnectionsPanel = () => {
-  const [activeTab, setActiveTab] = useState('requests'); // 'requests' or 'links'
+  const [activeTab, setActiveTab] = useState('requests'); // 'requests', 'links', or 'parents'
   const [requests, setRequests] = useState([]);
   const [links, setLinks] = useState([]);
+  const [parents, setParents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('pending');
   const [searchTerm, setSearchTerm] = useState('');
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showDisconnectModal, setShowDisconnectModal] = useState(false);
+  const [showConnectModal, setShowConnectModal] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [selectedLink, setSelectedLink] = useState(null);
+  const [selectedParent, setSelectedParent] = useState(null);
+  const [selectedStudentId, setSelectedStudentId] = useState('');
   const [adminNotes, setAdminNotes] = useState('');
+  const [students, setStudents] = useState([]);
 
   useEffect(() => {
     if (activeTab === 'requests') {

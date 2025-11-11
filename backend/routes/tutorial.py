@@ -139,7 +139,7 @@ def start_tutorial(current_user):
     """
     Start the tutorial quest for the authenticated user
 
-    Creates user_quests record and user_quest_tasks records
+    Creates user_quests record and user_quest_tasks records with auto_complete enabled
     """
     try:
         user_id = current_user['id']
@@ -167,26 +167,62 @@ def start_tutorial(current_user):
                 'user_quest_id': existing_response.data[0]['id']
             }), 200
 
-        # Start the quest using the existing quest start logic
-        # Import here to avoid circular dependency
-        from routes.quests import start_quest_for_user
+        # Create user_quests record
+        from datetime import datetime
+        user_quest_data = {
+            'user_id': user_id,
+            'quest_id': tutorial_quest_id,
+            'started_at': datetime.utcnow().isoformat(),
+            'is_active': True
+        }
 
-        result = start_quest_for_user(user_id, tutorial_quest_id)
+        user_quest_response = supabase.table('user_quests').insert(user_quest_data).execute()
 
-        if result['success']:
-            return jsonify({
-                'success': True,
-                'message': 'Tutorial quest started successfully',
-                'user_quest_id': result.get('user_quest_id')
-            }), 201
-        else:
-            return jsonify({
-                'success': False,
-                'error': result.get('error', 'Failed to start tutorial')
-            }), 500
+        if not user_quest_response.data:
+            return jsonify({'error': 'Failed to create user_quests record'}), 500
+
+        user_quest_id = user_quest_response.data[0]['id']
+
+        # Create tutorial tasks from template
+        from services.tutorial_task_templates import get_tutorial_tasks
+        tutorial_tasks = get_tutorial_tasks()
+
+        task_records = []
+        for task_template in tutorial_tasks:
+            task_record = {
+                'user_id': user_id,
+                'quest_id': tutorial_quest_id,
+                'user_quest_id': user_quest_id,
+                'title': task_template['title'],
+                'description': task_template['description'],
+                'pillar': task_template['pillar'],
+                'xp_value': task_template['xp_value'],
+                'order_index': task_template['order_index'],
+                'is_required': task_template['is_required'],
+                'auto_complete': task_template['auto_complete'],
+                'verification_query': task_template['verification_query'],
+                'diploma_subjects': task_template['diploma_subjects'],
+                'is_manual': False
+            }
+            task_records.append(task_record)
+
+        # Insert all tasks
+        supabase.table('user_quest_tasks').insert(task_records).execute()
+
+        # Run initial verification check
+        tutorial_verification_service.verify_user_tutorial_progress(user_id)
+
+        return jsonify({
+            'success': True,
+            'message': 'Tutorial quest started successfully',
+            'user_quest_id': user_quest_id,
+            'task_count': len(task_records)
+        }), 201
 
     except Exception as e:
         logger.error(f"Error in start_tutorial: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
 
