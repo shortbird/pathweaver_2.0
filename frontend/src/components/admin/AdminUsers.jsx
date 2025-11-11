@@ -342,6 +342,7 @@ const AdminUsers = () => {
             </div>
           </div>
         )}
+        </div>
       )}
 
       {/* Users Cards - Card View */}
