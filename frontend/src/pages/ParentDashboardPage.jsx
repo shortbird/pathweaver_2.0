@@ -326,7 +326,7 @@ const ParentDashboardPage = () => {
           </h1>
           {selectedStudent && (
             <p className="text-gray-600 mt-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Supporting {selectedStudent.first_name}'s learning journey
+              Supporting {selectedStudent.student_first_name}'s learning journey
             </p>
           )}
         </div>
@@ -357,19 +357,11 @@ const ParentDashboardPage = () => {
             >
               {children.map((child) => (
                 <option key={child.student_id} value={child.student_id}>
-                  {child.first_name} {child.last_name}
+                  {child.student_first_name} {child.student_last_name}
                 </option>
               ))}
             </select>
           )}
-          <button
-            onClick={() => setShowAddChildModal(true)}
-            className="px-4 py-2 bg-gradient-primary text-white rounded-lg font-semibold hover:shadow-lg transition-shadow flex items-center gap-2"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
-          >
-            <UserGroupIcon className="w-5 h-5" />
-            Add Child
-          </button>
         </div>
       </div>
 
@@ -584,7 +576,7 @@ const ParentDashboardPage = () => {
                     {dashboardData.active_quests.map((quest) => (
                       <button
                         key={quest.quest_id}
-                        onClick={() => navigate(`/quests/${quest.quest_id}`)}
+                        onClick={() => navigate(`/parent/quest/${selectedStudentId}/${quest.quest_id}`)}
                         className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer text-left"
                       >
                         {quest.image_url && (

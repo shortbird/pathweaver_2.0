@@ -62,6 +62,7 @@ const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'))
 const AdvisorBadgeForm = lazy(() => import('./pages/AdvisorBadgeForm'))
 const AdvisorCheckinPage = lazy(() => import('./pages/AdvisorCheckinPage'))
 const ParentDashboardPage = lazy(() => import('./pages/ParentDashboardPage'))
+const ParentQuestView = lazy(() => import('./pages/ParentQuestView'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -251,6 +252,7 @@ function App() {
               <Route element={<PrivateRoute requiredRole="parent" />}>
                 <Route path="parent/dashboard" element={<ParentDashboardPage />} />
                 <Route path="parent/dashboard/:studentId" element={<ParentDashboardPage />} />
+                <Route path="parent/quest/:studentId/:questId" element={<ParentQuestView />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />

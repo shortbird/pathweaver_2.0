@@ -303,6 +303,9 @@ export const parentAPI = {
   // Get task details with evidence (for Calendar tab task detail modal)
   getTaskDetails: (studentId, taskId) => api.get(`/api/parent/task/${studentId}/${taskId}`),
 
+  // Get quest details with student's personalized tasks (read-only)
+  getQuestView: (studentId, questId) => api.get(`/api/parent/quest/${studentId}/${questId}`),
+
   // Get recent completions with evidence (for Insights tab)
   getRecentCompletions: (studentId) => api.get(`/api/parent/completions/${studentId}`),
 
