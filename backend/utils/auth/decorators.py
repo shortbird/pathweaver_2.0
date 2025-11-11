@@ -74,22 +74,29 @@ def require_admin(f):
         # Store user_id in request context
         request.user_id = user_id
 
-        # Verify admin status
-        supabase = get_authenticated_supabase_client()
+        # Verify admin status with retry logic
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                supabase = get_authenticated_supabase_client()
+                user = supabase.table('users').select('role').eq('id', user_id).execute()
 
-        try:
-            user = supabase.table('users').select('role').eq('id', user_id).execute()
+                if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['admin', 'educator']:
+                    raise AuthorizationError('Admin access required')
 
-            if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['admin', 'educator']:
-                raise AuthorizationError('Admin access required')
+                return f(user_id, *args, **kwargs)
 
-            return f(user_id, *args, **kwargs)
-
-        except (AuthenticationError, AuthorizationError):
-            raise
-        except Exception as e:
-            print(f"Error verifying admin status: {str(e)}", file=sys.stderr, flush=True)
-            raise AuthorizationError('Failed to verify admin status')
+            except (AuthenticationError, AuthorizationError):
+                raise
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    # Retry on connection errors
+                    print(f"Retrying admin verification (attempt {attempt + 1}/{max_retries}): {str(e)}", file=sys.stderr, flush=True)
+                    continue
+                else:
+                    # Final attempt failed
+                    print(f"Error verifying admin status: {str(e)}", file=sys.stderr, flush=True)
+                    raise AuthorizationError('Failed to verify admin status')
 
     return decorated_function
 
@@ -123,22 +130,29 @@ def require_role(*allowed_roles):
             # Store user_id in request context
             request.user_id = user_id
 
-            # Verify user role
-            supabase = get_authenticated_supabase_client()
+            # Verify user role with retry logic
+            max_retries = 2
+            for attempt in range(max_retries):
+                try:
+                    supabase = get_authenticated_supabase_client()
+                    user = supabase.table('users').select('role').eq('id', user_id).execute()
 
-            try:
-                user = supabase.table('users').select('role').eq('id', user_id).execute()
+                    if not user.data or len(user.data) == 0 or user.data[0].get('role') not in allowed_roles:
+                        raise AuthorizationError(f'Required role: {", ".join(allowed_roles)}')
 
-                if not user.data or len(user.data) == 0 or user.data[0].get('role') not in allowed_roles:
-                    raise AuthorizationError(f'Required role: {", ".join(allowed_roles)}')
+                    return f(user_id, *args, **kwargs)
 
-                return f(user_id, *args, **kwargs)
-
-            except (AuthenticationError, AuthorizationError):
-                raise
-            except Exception as e:
-                print(f"Error verifying user role: {str(e)}", file=sys.stderr, flush=True)
-                raise AuthorizationError('Failed to verify user role')
+                except (AuthenticationError, AuthorizationError):
+                    raise
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        # Retry on connection errors
+                        print(f"Retrying role verification (attempt {attempt + 1}/{max_retries}): {str(e)}", file=sys.stderr, flush=True)
+                        continue
+                    else:
+                        # Final attempt failed
+                        print(f"Error verifying user role: {str(e)}", file=sys.stderr, flush=True)
+                        raise AuthorizationError('Failed to verify user role')
 
         return decorated_function
     return decorator

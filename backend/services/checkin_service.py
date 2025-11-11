@@ -96,6 +96,35 @@ class CheckinService(BaseService):
             if not quests_response.data:
                 return []
 
+            # Extract quest IDs for bulk queries
+            quest_ids = [record['quest_id'] for record in quests_response.data]
+
+            # OPTIMIZATION: Bulk fetch all tasks for all quests at once (eliminates N+1 query)
+            all_tasks = self.supabase.table('user_quest_tasks')\
+                .select('quest_id')\
+                .eq('user_id', student_id)\
+                .in_('quest_id', quest_ids)\
+                .execute()
+
+            # OPTIMIZATION: Bulk fetch all completions for all quests at once (eliminates N+1 query)
+            all_completions = self.supabase.table('quest_task_completions')\
+                .select('quest_id')\
+                .eq('user_id', student_id)\
+                .in_('quest_id', quest_ids)\
+                .execute()
+
+            # Build lookup dictionaries for O(1) access
+            tasks_by_quest = {}
+            for task in (all_tasks.data or []):
+                qid = task['quest_id']
+                tasks_by_quest[qid] = tasks_by_quest.get(qid, 0) + 1
+
+            completions_by_quest = {}
+            for completion in (all_completions.data or []):
+                qid = completion['quest_id']
+                completions_by_quest[qid] = completions_by_quest.get(qid, 0) + 1
+
+            # Build quest data using pre-fetched counts (no additional queries)
             quests_data = []
             for record in quests_response.data:
                 quest = record.get('quests', {})
@@ -104,20 +133,9 @@ class CheckinService(BaseService):
                 if not quest_id:
                     continue
 
-                # Get task completion stats
-                total_tasks_response = self.supabase.table('user_quest_tasks')\
-                    .select('id', count='exact')\
-                    .eq('user_id', student_id)\
-                    .eq('quest_id', quest_id)\
-                    .execute()
-                total_tasks = total_tasks_response.count if hasattr(total_tasks_response, 'count') else 0
-
-                completed_tasks_response = self.supabase.table('quest_task_completions')\
-                    .select('id', count='exact')\
-                    .eq('user_id', student_id)\
-                    .eq('quest_id', quest_id)\
-                    .execute()
-                completed_tasks = completed_tasks_response.count if hasattr(completed_tasks_response, 'count') else 0
+                # Use pre-fetched counts
+                total_tasks = tasks_by_quest.get(quest_id, 0)
+                completed_tasks = completions_by_quest.get(quest_id, 0)
 
                 # Calculate completion percentage
                 completion_percent = round((completed_tasks / total_tasks * 100)) if total_tasks > 0 else 0

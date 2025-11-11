@@ -231,18 +231,39 @@ class CheckinRepository:
 
             all_students = assignments_response.data if assignments_response.data else []
 
-            # Check each student's last check-in
-            needs_checkin = []
-            for assignment in all_students:
-                student_id = assignment['student_id']
-                last_checkin = self.get_last_checkin_date(student_id, advisor_id)
+            if all_students:
+                # OPTIMIZATION: Bulk fetch last check-in dates for all students (eliminates N+1 query)
+                student_ids = [a['student_id'] for a in all_students]
 
-                if last_checkin is None or (now - last_checkin).days >= 30:
-                    needs_checkin.append({
-                        'student_id': student_id,
-                        'name': assignment.get('users', {}).get('display_name', 'Unknown'),
-                        'days_since_checkin': (now - last_checkin).days if last_checkin else 999
-                    })
+                last_checkins_query = self.supabase.table('advisor_checkins')\
+                    .select('student_id, checkin_date')\
+                    .in_('student_id', student_ids)\
+                    .eq('advisor_id', advisor_id)\
+                    .order('checkin_date', desc=True)\
+                    .execute()
+
+                # Build lookup: student_id -> last_checkin_date (only keep most recent per student)
+                last_checkin_map = {}
+                for checkin in (last_checkins_query.data or []):
+                    sid = checkin['student_id']
+                    if sid not in last_checkin_map:
+                        date_str = checkin['checkin_date']
+                        last_checkin_map[sid] = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+
+                # Check each student using pre-fetched data (no additional queries)
+                needs_checkin = []
+                for assignment in all_students:
+                    student_id = assignment['student_id']
+                    last_checkin = last_checkin_map.get(student_id)
+
+                    if last_checkin is None or (now - last_checkin).days >= 30:
+                        needs_checkin.append({
+                            'student_id': student_id,
+                            'name': assignment.get('users', {}).get('display_name', 'Unknown'),
+                            'days_since_checkin': (now - last_checkin).days if last_checkin else 999
+                        })
+            else:
+                needs_checkin = []
         else:
             needs_checkin = []
 
