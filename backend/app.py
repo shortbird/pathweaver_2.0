@@ -19,12 +19,13 @@ from routes.services import services_bp
 from routes.admin.services import admin_services_bp
 
 # Import routes
-from routes import quests, tasks, admin_core, evidence_documents, tutorial
+from routes import quests, tasks, admin_core, evidence_documents, tutorial, analytics as analytics_routes
 from routes.admin import user_management, quest_management, quest_ideas, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
 from middleware.memory_monitor import memory_monitor
+from middleware.activity_tracker import activity_tracker
 
 # Optional CSRF protection (not critical for JWT-based auth)
 try:
@@ -90,6 +91,10 @@ error_handler.init_app(app)
 
 # Configure memory monitoring
 memory_monitor.init_app(app)
+
+# Configure activity tracking middleware
+activity_tracker.init_app(app)
+logger.info("Activity tracking middleware enabled")
 
 # Register existing routes
 app.register_blueprint(auth.bp, url_prefix='/api/auth')
@@ -348,6 +353,13 @@ try:
     logger.info("Pillars Configuration API routes registered successfully")
 except Exception as e:
     logger.warning(f"Warning: Pillars Configuration API routes not available: {e}")
+
+# Register Activity Tracking & Analytics blueprint
+try:
+    app.register_blueprint(analytics_routes.analytics_bp, url_prefix='/api/analytics')  # /api/analytics/* and /api/activity/*
+    logger.info("Activity Tracking & Analytics routes registered successfully")
+except Exception as e:
+    logger.warning(f"Warning: Activity Tracking routes not available: {e}")
 
 
 @app.route('/', methods=['GET', 'HEAD'])

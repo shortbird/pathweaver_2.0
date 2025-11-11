@@ -8,6 +8,7 @@ import { DemoProvider } from './contexts/DemoContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { warmupBackend } from './utils/retryHelper'
 import { tokenStore } from './services/api'
+import { useActivityTracking } from './hooks/useActivityTracking'
 
 // Always-loaded components (Layout, Auth, Landing pages)
 import Layout from './components/Layout'
@@ -81,6 +82,16 @@ const queryClient = new QueryClient({
   },
 })
 
+// Inner component that uses activity tracking (must be inside Router)
+function AppContent() {
+  // Initialize activity tracking
+  useActivityTracking();
+
+  return (
+    <ScrollToTop />
+  );
+}
+
 function App() {
   // ✅ SSO TOKEN EXTRACTION: Extract tokens IMMEDIATELY on app load (before AuthContext)
   // This runs synchronously during App mount to ensure tokens are available for AuthContext
@@ -112,7 +123,7 @@ function App() {
       <HelmetProvider>
         <QueryClientProvider client={queryClient}>
           <Router>
-          <ScrollToTop />
+          <AppContent />
           <AuthProvider>
             <Toaster
             position="top-right"
