@@ -318,7 +318,7 @@ export const parentAPI = {
     }),
 
   // Get AI tutor conversations for monitoring (Communications tab)
-  getTutorConversations: (studentId) => api.get(`/api/tutor/parent/conversations/${studentId}`),
+  getTutorConversations: (studentId) => api.get(`/api/parent/communications/${studentId}`),
 
   // Get specific conversation messages
   getConversationMessages: (conversationId) => api.get(`/api/tutor/parent/conversations/${conversationId}/messages`),
