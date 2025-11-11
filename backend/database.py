@@ -101,6 +101,20 @@ def get_user_client(token: Optional[str] = None) -> Client:
         return getattr(g, cache_key)
 
     if token:
+        # CRITICAL: Validate that we received a JWT token, not a UUID
+        # UUIDs have 4 dashes (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+        # JWTs have 2 dots (format: header.payload.signature)
+        if '-' in token and '.' not in token:
+            _get_logger().error(
+                f"CRITICAL ERROR: get_user_client received a UUID instead of a JWT token. "
+                f"This is a code bug - check BaseService.get_user_supabase() callers. "
+                f"Token preview: {token[:8]}..."
+            )
+            # Return anonymous client as fallback
+            client = get_supabase_client()
+            setattr(g, cache_key, client)
+            return client
+
         # Validate JWT token format before using
         token_parts = token.split('.')
         if len(token_parts) != 3:
