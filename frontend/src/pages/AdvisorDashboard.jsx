@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import UnifiedQuestForm from '../components/admin/UnifiedQuestForm';
 import CourseQuestForm from '../components/admin/CourseQuestForm';
+import CheckinAnalytics from '../components/advisor/CheckinAnalytics';
+import CheckinHistoryModal from '../components/advisor/CheckinHistoryModal';
 import toast from 'react-hot-toast';
 
 export default function AdvisorDashboard() {
@@ -146,6 +148,9 @@ function OverviewTab({ dashboardData, students }) {
         </div>
       </div>
 
+      {/* Check-in Analytics Widget */}
+      <CheckinAnalytics />
+
       {/* Students List */}
       <div className="bg-white rounded-lg shadow">
         <div className="p-6 border-b border-gray-200">
@@ -181,9 +186,12 @@ function OverviewTab({ dashboardData, students }) {
 }
 
 function StudentsTab({ students, onRefresh }) {
+  const navigate = useNavigate();
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [progressReport, setProgressReport] = useState(null);
   const [loadingReport, setLoadingReport] = useState(false);
+  const [showCheckinHistory, setShowCheckinHistory] = useState(false);
+  const [checkinHistoryStudent, setCheckinHistoryStudent] = useState(null);
 
   const viewStudentProgress = async (studentId) => {
     try {
@@ -197,6 +205,15 @@ function StudentsTab({ students, onRefresh }) {
     } finally {
       setLoadingReport(false);
     }
+  };
+
+  const handleCheckin = (studentId) => {
+    navigate(`/advisor/checkin/${studentId}`);
+  };
+
+  const handleViewHistory = (student) => {
+    setCheckinHistoryStudent(student);
+    setShowCheckinHistory(true);
   };
 
   return (
@@ -233,6 +250,9 @@ function StudentsTab({ students, onRefresh }) {
                   Badges
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Check-in
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
                 </th>
               </tr>
@@ -255,11 +275,37 @@ function StudentsTab({ students, onRefresh }) {
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.total_xp || 0}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.badge_count || 0}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {student.last_checkin ? (
+                      <div>
+                        <div className="text-gray-900 font-medium">
+                          {student.last_checkin.last_checkin_date_formatted}
+                        </div>
+                        <div className="text-gray-500 text-xs">
+                          {student.last_checkin.days_since_checkin} days ago
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 italic">Never</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                    <button
+                      onClick={() => handleCheckin(student.id)}
+                      className="text-white bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1 rounded-lg hover:from-purple-700 hover:to-pink-700 font-medium"
+                    >
+                      Check-in
+                    </button>
+                    <button
+                      onClick={() => handleViewHistory(student)}
+                      className="text-purple-600 hover:text-purple-700 font-medium"
+                    >
+                      History
+                    </button>
                     <button
                       onClick={() => viewStudentProgress(student.id)}
                       className="text-optio-pink hover:text-optio-purple font-medium"
                     >
-                      View Progress
+                      Progress
                     </button>
                   </td>
                 </tr>
@@ -276,6 +322,18 @@ function StudentsTab({ students, onRefresh }) {
           onClose={() => {
             setSelectedStudent(null);
             setProgressReport(null);
+          }}
+        />
+      )}
+
+      {/* Check-in History Modal */}
+      {showCheckinHistory && checkinHistoryStudent && (
+        <CheckinHistoryModal
+          studentId={checkinHistoryStudent.id}
+          studentName={checkinHistoryStudent.display_name}
+          onClose={() => {
+            setShowCheckinHistory(false);
+            setCheckinHistoryStudent(null);
           }}
         />
       )}

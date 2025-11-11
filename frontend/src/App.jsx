@@ -60,6 +60,7 @@ const CalendarPage = lazy(() => import('./pages/CalendarPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'))
 const AdvisorBadgeForm = lazy(() => import('./pages/AdvisorBadgeForm'))
+const AdvisorCheckinPage = lazy(() => import('./pages/AdvisorCheckinPage'))
 const ParentDashboardPage = lazy(() => import('./pages/ParentDashboardPage'))
 
 // Loading fallback component
@@ -242,6 +243,7 @@ function App() {
               <Route element={<PrivateRoute requiredRole={["advisor", "admin"]} />}>
                 <Route path="advisor" element={<Navigate to="/advisor/dashboard" replace />} />
                 <Route path="advisor/dashboard" element={<AdvisorDashboard />} />
+                <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />
                 <Route path="advisor/badges/create" element={<AdvisorBadgeForm />} />
                 <Route path="advisor/badges/:badgeId/edit" element={<AdvisorBadgeForm />} />
               </Route>
