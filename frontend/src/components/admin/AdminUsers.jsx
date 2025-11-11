@@ -3,8 +3,6 @@ import api from '../../services/api'
 import toast from 'react-hot-toast'
 import UserDetailsModal from './UserDetailsModal'
 import BulkEmailModal from './BulkEmailModal'
-import ChatLogsModal from './ChatLogsModal'
-import QuestSelectionModal from './QuestSelectionModal'
 // import { useAdminSubscriptionTiers } from '../../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const AdminUsers = () => {
@@ -17,16 +15,11 @@ const AdminUsers = () => {
     sortBy: 'created_at',
     sortOrder: 'desc'
   })
+  const [viewMode, setViewMode] = useState('list') // 'list' or 'card'
   const [selectedUsers, setSelectedUsers] = useState(new Set())
   const [showUserModal, setShowUserModal] = useState(false)
   const [showBulkEmailModal, setShowBulkEmailModal] = useState(false)
-  const [showChatLogsModal, setShowChatLogsModal] = useState(false)
-  const [showQuestSelectionModal, setShowQuestSelectionModal] = useState(false)
-  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
   const [editingUser, setEditingUser] = useState(null)
-  const [chatLogsUser, setChatLogsUser] = useState(null)
-  const [taskManagementUser, setTaskManagementUser] = useState(null)
-  const [resetPasswordUser, setResetPasswordUser] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
   const usersPerPage = 20
@@ -94,58 +87,6 @@ const AdminUsers = () => {
     setShowUserModal(true)
   }
 
-  const handleDeleteUser = async (userId) => {
-    if (window.confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
-      try {
-        await api.delete(`/api/admin/users/${userId}`)
-        toast.success('User deleted successfully')
-        fetchUsers()
-      } catch (error) {
-        toast.error('Failed to delete user')
-      }
-    }
-  }
-
-  const handleToggleUserStatus = async (userId, currentStatus) => {
-    const action = currentStatus === 'active' ? 'disable' : 'enable'
-    if (window.confirm(`Are you sure you want to ${action} this user account?`)) {
-      try {
-        await api.post(`/api/admin/users/${userId}/toggle-status`)
-        toast.success(`User account ${action}d successfully`)
-        fetchUsers()
-      } catch (error) {
-        toast.error(`Failed to ${action} user account`)
-      }
-    }
-  }
-
-  const handleViewChatLogs = (user) => {
-    setChatLogsUser(user)
-    setShowChatLogsModal(true)
-  }
-
-  const handleAddTasks = (user) => {
-    setTaskManagementUser(user)
-    setShowQuestSelectionModal(true)
-  }
-
-  const handleResetPassword = (user) => {
-    setResetPasswordUser(user)
-    setShowResetPasswordModal(true)
-  }
-
-  const handleVerifyEmail = async (user) => {
-    if (window.confirm(`Manually verify email for ${user.first_name} ${user.last_name} (${user.email})?\n\nThis will allow them to login without email verification.`)) {
-      try {
-        await api.post(`/api/admin/users/${user.id}/verify-email`, {})
-        toast.success(`Email verified for ${user.first_name} ${user.last_name}`)
-        fetchUsers()
-      } catch (error) {
-        toast.error(error.response?.data?.error || 'Failed to verify email')
-      }
-    }
-  }
-
   const getRoleBadge = (role) => {
     const badges = {
       student: 'bg-blue-100 text-blue-700',
@@ -183,17 +124,50 @@ const AdminUsers = () => {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Manage Users</h2>
-        <button
-          onClick={() => setShowBulkEmailModal(true)}
-          disabled={selectedUsers.size === 0}
-          className={`px-4 py-2 rounded ${
-            selectedUsers.size > 0
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-          }`}
-        >
-          Email Selected ({selectedUsers.size})
-        </button>
+        <div className="flex gap-3">
+          {/* View Toggle */}
+          <div className="flex bg-gray-100 rounded-lg p-1">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-2 rounded-md transition-colors flex items-center gap-2 ${
+                viewMode === 'list'
+                  ? 'bg-white shadow-sm text-gray-900'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              title="List View"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+              List
+            </button>
+            <button
+              onClick={() => setViewMode('card')}
+              className={`px-3 py-2 rounded-md transition-colors flex items-center gap-2 ${
+                viewMode === 'card'
+                  ? 'bg-white shadow-sm text-gray-900'
+                  : 'text-gray-600 hover:text-gray-900'
+              }`}
+              title="Card View"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+              Cards
+            </button>
+          </div>
+          <button
+            onClick={() => setShowBulkEmailModal(true)}
+            disabled={selectedUsers.size === 0}
+            className={`px-4 py-2 rounded-lg ${
+              selectedUsers.size > 0
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            Email Selected ({selectedUsers.size})
+          </button>
+        </div>
       </div>
 
       {/* Search and Filters */}
@@ -244,119 +218,82 @@ const AdminUsers = () => {
         </div>
       </div>
 
-      {/* Users Table - Desktop */}
-      <div className="bg-white rounded-lg shadow overflow-hidden hidden md:block">
-        <table className="min-w-full">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left">
-                <input
-                  type="checkbox"
-                  checked={selectedUsers.size === users.length && users.length > 0}
-                  onChange={selectAllUsers}
-                  className="rounded"
-                />
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                User
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Role
-              </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Last Active
-              </th>
-              <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Actions
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {users.map((user) => (
-              <tr key={user.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4">
+      {/* Users Table - List View */}
+      {viewMode === 'list' && (
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          <table className="min-w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left">
                   <input
                     type="checkbox"
-                    checked={selectedUsers.has(user.id)}
-                    onChange={() => toggleUserSelection(user.id)}
+                    checked={selectedUsers.size === users.length && users.length > 0}
+                    onChange={selectAllUsers}
                     className="rounded"
                   />
-                </td>
-                <td className="px-6 py-4">
-                  <div className="flex items-center">
-                    <div className="flex-shrink-0 h-10 w-10">
-                      <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                        <span className="text-gray-600 font-medium">
-                          {(user.first_name?.[0] || user.email[0]).toUpperCase()}
-                        </span>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  User
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Role
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Active
+                </th>
+                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {users.map((user) => (
+                <tr key={user.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">
+                    <input
+                      type="checkbox"
+                      checked={selectedUsers.has(user.id)}
+                      onChange={() => toggleUserSelection(user.id)}
+                      className="rounded"
+                    />
+                  </td>
+                  <td className="px-6 py-4">
+                    <div className="flex items-center">
+                      <div className="flex-shrink-0 h-10 w-10">
+                        <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
+                          <span className="text-gray-600 font-medium">
+                            {(user.first_name?.[0] || user.email[0]).toUpperCase()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="ml-4">
+                        <div className="text-sm font-medium text-gray-900">
+                          {user.first_name} {user.last_name}
+                        </div>
+                        <div className="text-sm text-gray-500">{user.email}</div>
                       </div>
                     </div>
-                    <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900">
-                        {user.first_name} {user.last_name}
-                      </div>
-                      <div className="text-sm text-gray-500">{user.email}</div>
-                    </div>
-                  </div>
-                </td>
-                <td className="px-6 py-4">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadge(user.role || 'student')}`}>
-                    {getRoleDisplayName(user.role || 'student')}
-                  </span>
-                </td>
-                <td className="px-6 py-4 text-sm text-gray-500">
-                  {formatDate(user.last_active)}
-                </td>
-                <td className="px-6 py-4 text-right text-sm font-medium">
-                  <div className="flex justify-end gap-2">
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getRoleBadge(user.role || 'student')}`}>
+                      {getRoleDisplayName(user.role || 'student')}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-500">
+                    {formatDate(user.last_active)}
+                  </td>
+                  <td className="px-6 py-4 text-right">
                     <button
                       onClick={() => handleEditUser(user)}
-                      className="text-blue-600 hover:text-blue-900"
-                      title="Edit User Profile & Role"
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                     >
-                      Edit
+                      Edit Details
                     </button>
-                    <button
-                      onClick={() => handleAddTasks(user)}
-                      className="text-green-600 hover:text-green-900"
-                      title="Add Tasks to Quest"
-                    >
-                      Add Tasks
-                    </button>
-                    <button
-                      onClick={() => handleViewChatLogs(user)}
-                      className="text-purple-600 hover:text-purple-900"
-                      title="View Chat Logs"
-                    >
-                      Chats
-                    </button>
-                    <button
-                      onClick={() => handleResetPassword(user)}
-                      className="text-orange-600 hover:text-orange-900"
-                      title="Reset Password"
-                    >
-                      Reset Password
-                    </button>
-                    <button
-                      onClick={() => handleVerifyEmail(user)}
-                      className="text-teal-600 hover:text-teal-900"
-                      title="Verify Email"
-                    >
-                      Verify Email
-                    </button>
-                    <button
-                      onClick={() => handleDeleteUser(user.id)}
-                      className="text-red-600 hover:text-red-900"
-                      title="Delete User"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
         {/* Pagination - Desktop */}
         {totalPages > 1 && (
@@ -407,91 +344,100 @@ const AdminUsers = () => {
         )}
       </div>
 
-      {/* Users Cards - Mobile */}
-      <div className="md:hidden space-y-4">
-        {users.map((user) => (
-          <div key={user.id} className="bg-white rounded-lg shadow p-4">
-            <div className="flex items-start justify-between mb-3">
-              <div className="flex items-center flex-1">
-                <input
-                  type="checkbox"
-                  checked={selectedUsers.has(user.id)}
-                  onChange={() => toggleUserSelection(user.id)}
-                  className="rounded mr-3"
-                />
-                <div className="flex-shrink-0 h-10 w-10">
-                  <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                    <span className="text-gray-600 font-medium">
+      {/* Users Cards - Card View */}
+      {viewMode === 'card' && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {users.map((user) => (
+            <div
+              key={user.id}
+              className="group bg-white rounded-xl overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1 border border-gray-100"
+            >
+              {/* Avatar Section with Gradient Background */}
+              <div className="relative h-32 bg-gradient-to-br from-blue-500 to-purple-600">
+                {/* Checkbox - Top Left */}
+                <div className="absolute top-3 left-3">
+                  <input
+                    type="checkbox"
+                    checked={selectedUsers.has(user.id)}
+                    onChange={() => toggleUserSelection(user.id)}
+                    className="w-5 h-5 rounded cursor-pointer"
+                  />
+                </div>
+
+                {/* Role Badge - Top Right */}
+                <div className="absolute top-3 right-3">
+                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${getRoleBadge(user.role || 'student')}`}>
+                    {getRoleDisplayName(user.role || 'student')}
+                  </span>
+                </div>
+
+                {/* Avatar - Centered */}
+                <div className="absolute inset-x-0 bottom-0 translate-y-1/2 flex justify-center">
+                  <div className="h-20 w-20 rounded-full bg-white shadow-lg flex items-center justify-center border-4 border-white">
+                    <span className="text-gray-700 text-2xl font-bold">
                       {(user.first_name?.[0] || user.email[0]).toUpperCase()}
                     </span>
                   </div>
                 </div>
-                <div className="ml-3 flex-1 min-w-0">
-                  <div className="text-sm font-medium text-gray-900 truncate">
-                    {user.first_name} {user.last_name}
-                  </div>
-                  <div className="text-sm text-gray-500 truncate">{user.email}</div>
-                </div>
               </div>
-              <span className={`px-2 py-1 text-xs font-semibold rounded-full whitespace-nowrap ml-2 ${getRoleBadge(user.role || 'student')}`}>
-                {getRoleDisplayName(user.role || 'student')}
-              </span>
-            </div>
-            <div className="text-xs text-gray-500 mb-3">
-              Last active: {formatDate(user.last_active)}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => handleEditUser(user)}
-                className="px-3 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors"
-              >
-                Edit
-              </button>
-              <button
-                onClick={() => handleAddTasks(user)}
-                className="px-3 py-2 bg-green-50 text-green-700 rounded-lg text-sm font-medium hover:bg-green-100 transition-colors"
-              >
-                Add Tasks
-              </button>
-              <button
-                onClick={() => handleViewChatLogs(user)}
-                className="px-3 py-2 bg-purple-50 text-purple-700 rounded-lg text-sm font-medium hover:bg-purple-100 transition-colors"
-              >
-                Chats
-              </button>
-              <button
-                onClick={() => handleDeleteUser(user.id)}
-                className="px-3 py-2 bg-red-50 text-red-700 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        ))}
 
-        {/* Pagination - Mobile */}
-        {totalPages > 1 && (
-          <div className="flex justify-between items-center pt-4">
-            <button
-              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
-              disabled={currentPage === 1}
-              className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Previous
-            </button>
-            <span className="text-sm text-gray-700">
-              Page {currentPage} of {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
-              disabled={currentPage === totalPages}
-              className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Next
-            </button>
-          </div>
-        )}
-      </div>
+              {/* Content Section */}
+              <div className="pt-12 px-6 pb-6">
+                {/* User Info */}
+                <div className="text-center mb-4">
+                  <h3 className="text-lg font-bold text-gray-900">
+                    {user.first_name} {user.last_name}
+                  </h3>
+                  <p className="text-sm text-gray-500 truncate">{user.email}</p>
+                </div>
+
+                {/* Stats Row */}
+                <div className="grid grid-cols-2 gap-3 mb-4">
+                  <div className="bg-gray-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-gray-600 mb-1">Total XP</p>
+                    <p className="text-lg font-bold text-gray-900">{user.total_xp || 0}</p>
+                  </div>
+                  <div className="bg-gray-50 rounded-lg p-3 text-center">
+                    <p className="text-xs text-gray-600 mb-1">Last Active</p>
+                    <p className="text-xs font-medium text-gray-900">{formatDate(user.last_active)}</p>
+                  </div>
+                </div>
+
+                {/* Edit Details Button */}
+                <button
+                  onClick={() => handleEditUser(user)}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  Edit Details
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Pagination - Card View */}
+      {viewMode === 'card' && totalPages > 1 && (
+        <div className="flex justify-between items-center pt-6">
+          <button
+            onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+            disabled={currentPage === 1}
+            className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Previous
+          </button>
+          <span className="text-sm text-gray-700">
+            Page {currentPage} of {totalPages}
+          </span>
+          <button
+            onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+            disabled={currentPage === totalPages}
+            className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Next
+          </button>
+        </div>
+      )}
 
       {/* User Details Modal */}
       {showUserModal && editingUser && (
@@ -521,194 +467,6 @@ const AdminUsers = () => {
           }}
         />
       )}
-
-      {/* Chat Logs Modal */}
-      {showChatLogsModal && chatLogsUser && (
-        <ChatLogsModal
-          user={chatLogsUser}
-          onClose={() => {
-            setShowChatLogsModal(false)
-            setChatLogsUser(null)
-          }}
-        />
-      )}
-
-      {/* Quest Selection Modal */}
-      {showQuestSelectionModal && taskManagementUser && (
-        <QuestSelectionModal
-          student={taskManagementUser}
-          onClose={() => {
-            setShowQuestSelectionModal(false)
-            setTaskManagementUser(null)
-            fetchUsers() // Refresh to show updated task counts if needed
-          }}
-        />
-      )}
-
-      {/* Reset Password Modal */}
-      {showResetPasswordModal && resetPasswordUser && (
-        <ResetPasswordModal
-          user={resetPasswordUser}
-          onClose={() => {
-            setShowResetPasswordModal(false)
-            setResetPasswordUser(null)
-          }}
-          onSuccess={() => {
-            setShowResetPasswordModal(false)
-            setResetPasswordUser(null)
-            toast.success('Password reset successfully')
-          }}
-        />
-      )}
-    </div>
-  )
-}
-
-// Reset Password Modal Component
-const ResetPasswordModal = ({ user, onClose, onSuccess }) => {
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [passwordStrength, setPasswordStrength] = useState(null)
-
-  const validatePassword = (password) => {
-    const errors = []
-    if (password.length < 12) {
-      errors.push('At least 12 characters')
-    }
-    if (!/[A-Z]/.test(password)) {
-      errors.push('One uppercase letter')
-    }
-    if (!/[a-z]/.test(password)) {
-      errors.push('One lowercase letter')
-    }
-    if (!/[0-9]/.test(password)) {
-      errors.push('One number')
-    }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-      errors.push('One special character')
-    }
-    return errors
-  }
-
-  const handlePasswordChange = (password) => {
-    setNewPassword(password)
-    const errors = validatePassword(password)
-    if (errors.length === 0) {
-      setPasswordStrength('strong')
-    } else if (errors.length <= 2) {
-      setPasswordStrength('medium')
-    } else {
-      setPasswordStrength('weak')
-    }
-  }
-
-  const handleSubmit = async (e) => {
-    e.preventDefault()
-
-    if (newPassword !== confirmPassword) {
-      toast.error('Passwords do not match')
-      return
-    }
-
-    const errors = validatePassword(newPassword)
-    if (errors.length > 0) {
-      toast.error(`Password requirements not met: ${errors.join(', ')}`)
-      return
-    }
-
-    setLoading(true)
-    try {
-      await api.post(`/api/admin/users/${user.id}/reset-password`, {
-        new_password: newPassword
-      })
-      onSuccess()
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to reset password')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
-        <h3 className="text-xl font-bold mb-4">Reset Password</h3>
-        <p className="text-gray-600 mb-4">
-          Set a new password for <strong>{user.first_name} {user.last_name}</strong> ({user.email})
-        </p>
-
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              New Password
-            </label>
-            <input
-              type="password"
-              value={newPassword}
-              onChange={(e) => handlePasswordChange(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-            {newPassword && (
-              <div className="mt-2">
-                <div className="flex gap-1">
-                  <div className={`h-1 flex-1 rounded ${passwordStrength === 'weak' ? 'bg-red-500' : passwordStrength === 'medium' ? 'bg-yellow-500' : 'bg-green-500'}`}></div>
-                  <div className={`h-1 flex-1 rounded ${passwordStrength === 'medium' || passwordStrength === 'strong' ? 'bg-yellow-500' : 'bg-gray-200'}`}></div>
-                  <div className={`h-1 flex-1 rounded ${passwordStrength === 'strong' ? 'bg-green-500' : 'bg-gray-200'}`}></div>
-                </div>
-                <p className="text-xs text-gray-600 mt-1">
-                  {passwordStrength === 'strong' && 'Strong password'}
-                  {passwordStrength === 'medium' && 'Medium strength - consider adding more characters'}
-                  {passwordStrength === 'weak' && 'Weak password - please strengthen'}
-                </p>
-              </div>
-            )}
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Confirm Password
-            </label>
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              required
-            />
-          </div>
-
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-            <p className="text-sm text-blue-800 font-medium mb-1">Password Requirements:</p>
-            <ul className="text-xs text-blue-700 space-y-1">
-              <li>• At least 12 characters long</li>
-              <li>• One uppercase letter (A-Z)</li>
-              <li>• One lowercase letter (a-z)</li>
-              <li>• One number (0-9)</li>
-              <li>• One special character (!@#$%^&*...)</li>
-            </ul>
-          </div>
-
-          <div className="flex gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-              disabled={loading}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-              disabled={loading || !newPassword || !confirmPassword}
-            >
-              {loading ? 'Resetting...' : 'Reset Password'}
-            </button>
-          </div>
-        </form>
-      </div>
     </div>
   )
 }

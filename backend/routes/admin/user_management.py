@@ -191,7 +191,13 @@ def update_user(user_id, target_user_id):
 
         # Build update data
         update_data = {}
-        allowed_fields = ['first_name', 'last_name', 'subscription_tier', 'subscription_status']
+        allowed_fields = [
+            'first_name', 'last_name', 'email',
+            'phone_number', 'address_line1', 'address_line2',
+            'city', 'state', 'postal_code', 'country',
+            'date_of_birth',
+            'subscription_tier', 'subscription_status'
+        ]
 
         for field in allowed_fields:
             if field in data:
