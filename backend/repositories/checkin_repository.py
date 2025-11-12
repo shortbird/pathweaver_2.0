@@ -5,7 +5,7 @@ Handles all database operations for advisor check-ins.
 
 from typing import Dict, List, Optional
 from uuid import UUID
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from database import get_supabase_admin_client
 
 
@@ -180,7 +180,7 @@ class CheckinRepository:
         Returns:
             Dictionary with analytics data
         """
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         month_ago = now - timedelta(days=30)
         week_ago = now - timedelta(days=7)
 
