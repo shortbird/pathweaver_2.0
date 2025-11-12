@@ -254,7 +254,7 @@ class CheckinRepository:
                     student_id = assignment['student_id']
                     last_checkin = last_checkin_map.get(student_id)
 
-                    if last_checkin is None or (now - last_checkin).days >= 30:
+                    if last_checkin is None or (now - last_checkin).days >= 7:
                         # Get user data and construct name with fallback
                         user_data = assignment.get('users', {})
                         display_name = user_data.get('display_name')

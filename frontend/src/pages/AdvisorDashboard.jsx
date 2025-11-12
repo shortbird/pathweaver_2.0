@@ -6,6 +6,7 @@ import UnifiedQuestForm from '../components/admin/UnifiedQuestForm';
 import CourseQuestForm from '../components/admin/CourseQuestForm';
 import CheckinAnalytics from '../components/advisor/CheckinAnalytics';
 import CheckinHistoryModal from '../components/advisor/CheckinHistoryModal';
+import AdvisorNotesModal from '../components/advisor/AdvisorNotesModal';
 import toast from 'react-hot-toast';
 
 // Helper function to get student display name with fallback
@@ -195,24 +196,10 @@ function OverviewTab({ dashboardData, students }) {
 function StudentsTab({ students, onRefresh }) {
   const navigate = useNavigate();
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [progressReport, setProgressReport] = useState(null);
-  const [loadingReport, setLoadingReport] = useState(false);
   const [showCheckinHistory, setShowCheckinHistory] = useState(false);
   const [checkinHistoryStudent, setCheckinHistoryStudent] = useState(null);
-
-  const viewStudentProgress = async (studentId) => {
-    try {
-      setLoadingReport(true);
-      const response = await api.get(`/api/advisor/students/${studentId}/progress`);
-      setProgressReport(response.data.report);
-      setSelectedStudent(studentId);
-    } catch (err) {
-      console.error('Error fetching student progress:', err);
-      alert('Failed to load student progress');
-    } finally {
-      setLoadingReport(false);
-    }
-  };
+  const [showAdvisorNotes, setShowAdvisorNotes] = useState(false);
+  const [notesStudent, setNotesStudent] = useState(null);
 
   const handleCheckin = (studentId) => {
     navigate(`/advisor/checkin/${studentId}`);
@@ -221,6 +208,11 @@ function StudentsTab({ students, onRefresh }) {
   const handleViewHistory = (student) => {
     setCheckinHistoryStudent(student);
     setShowCheckinHistory(true);
+  };
+
+  const handleViewNotes = (student) => {
+    setNotesStudent(student);
+    setShowAdvisorNotes(true);
   };
 
   return (
@@ -305,10 +297,10 @@ function StudentsTab({ students, onRefresh }) {
                       History
                     </button>
                     <button
-                      onClick={() => viewStudentProgress(student.id)}
-                      className="text-optio-pink hover:text-optio-purple font-medium"
+                      onClick={() => handleViewNotes(student)}
+                      className="text-blue-600 hover:text-blue-700 font-medium"
                     >
-                      Progress
+                      Advisor Notes
                     </button>
                   </td>
                 </tr>
@@ -318,25 +310,26 @@ function StudentsTab({ students, onRefresh }) {
         </div>
       )}
 
-      {/* Progress Report Modal */}
-      {selectedStudent && progressReport && (
-        <StudentProgressModal
-          report={progressReport}
-          onClose={() => {
-            setSelectedStudent(null);
-            setProgressReport(null);
-          }}
-        />
-      )}
-
       {/* Check-in History Modal */}
       {showCheckinHistory && checkinHistoryStudent && (
         <CheckinHistoryModal
           studentId={checkinHistoryStudent.id}
-          studentName={checkinHistoryStudent.display_name}
+          studentName={getStudentName(checkinHistoryStudent)}
           onClose={() => {
             setShowCheckinHistory(false);
             setCheckinHistoryStudent(null);
+          }}
+        />
+      )}
+
+      {/* Advisor Notes Modal */}
+      {showAdvisorNotes && notesStudent && (
+        <AdvisorNotesModal
+          subjectId={notesStudent.id}
+          subjectName={getStudentName(notesStudent)}
+          onClose={() => {
+            setShowAdvisorNotes(false);
+            setNotesStudent(null);
           }}
         />
       )}
@@ -483,74 +476,3 @@ function QuestsTab({ onRefresh }) {
   );
 }
 
-function StudentProgressModal({ report, onClose }) {
-  const student = report.student;
-  const badges = report.badges;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-gray-900">Progress Report</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-6">
-          {/* Student Info */}
-          <div>
-            <h4 className="font-semibold text-gray-900">{student.display_name}</h4>
-            <div className="mt-2 text-sm text-gray-600">
-              <div>Level {student.level} • {student.total_xp} XP</div>
-            </div>
-          </div>
-
-          {/* Badge Stats */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-2xl font-bold text-gray-900">{badges.total}</div>
-              <div className="text-sm text-gray-600">Total Badges</div>
-            </div>
-            <div className="bg-green-50 rounded-lg p-4">
-              <div className="text-2xl font-bold text-green-600">{badges.earned}</div>
-              <div className="text-sm text-gray-600">Earned</div>
-            </div>
-            <div className="bg-blue-50 rounded-lg p-4">
-              <div className="text-2xl font-bold text-blue-600">{badges.in_progress}</div>
-              <div className="text-sm text-gray-600">In Progress</div>
-            </div>
-          </div>
-
-          {/* Badge Details */}
-          {badges.details && badges.details.length > 0 && (
-            <div>
-              <h5 className="font-semibold text-gray-900 mb-3">Badge Progress</h5>
-              <div className="space-y-2">
-                {badges.details.map((badge, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-gray-900">{badge.badges?.name}</div>
-                      <div className="text-xs text-gray-500">{badge.badges?.primary_pillar}</div>
-                    </div>
-                    <div className="text-sm">
-                      {badge.earned ? (
-                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded">Earned</span>
-                      ) : (
-                        <span className="text-gray-600">{Math.round(badge.progress)}%</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}

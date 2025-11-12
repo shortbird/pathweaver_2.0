@@ -260,6 +260,16 @@ except Exception as e:
     import traceback
     logger.error(traceback.format_exc())
 
+# Register Advisor Notes blueprint
+try:
+    from routes.advisor_notes import notes_bp
+    app.register_blueprint(notes_bp)  # /api/advisor/notes/* (full paths in route definitions)
+    logger.info("Advisor Notes routes registered successfully")
+except Exception as e:
+    logger.error(f"CRITICAL: Failed to register Advisor Notes routes: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
+
 # Register Direct Messages blueprint
 try:
     from routes import direct_messages

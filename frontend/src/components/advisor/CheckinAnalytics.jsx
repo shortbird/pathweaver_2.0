@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Calendar, TrendingUp, Users, AlertCircle } from 'lucide-react'
+import { Calendar, TrendingUp, AlertCircle, CheckCircle } from 'lucide-react'
 import { checkinAPI } from '../../services/api'
 
 const CheckinAnalytics = () => {
@@ -107,32 +107,12 @@ const CheckinAnalytics = () => {
           </div>
         </div>
 
-        {/* Recent Check-ins */}
-        {analytics.recent_checkins && analytics.recent_checkins.length > 0 && (
-          <div className="mb-6">
-            <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-              <Users size={20} />
-              Recent Check-ins (Last 7 Days)
-            </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-              {analytics.recent_checkins.map((student) => (
-                <div
-                  key={student.student_id}
-                  className="bg-green-50 border border-green-200 rounded-lg px-3 py-2"
-                >
-                  <p className="text-sm font-medium text-gray-800">{student.name}</p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
         {/* Students Needing Check-in */}
-        {analytics.students_needing_checkin && analytics.students_needing_checkin.length > 0 && (
+        {analytics.students_needing_checkin && analytics.students_needing_checkin.length > 0 ? (
           <div>
             <h4 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
               <AlertCircle size={20} className="text-orange-600" />
-              Students Needing Check-in (30+ Days)
+              Students Needing Check-in (7+ Days)
             </h4>
             <div className="space-y-2">
               {analytics.students_needing_checkin.map((student) => (
@@ -157,6 +137,14 @@ const CheckinAnalytics = () => {
                 </div>
               ))}
             </div>
+          </div>
+        ) : (
+          <div className="bg-gradient-to-br from-green-50 to-emerald-50 border-2 border-green-300 rounded-lg p-6 text-center">
+            <CheckCircle className="mx-auto text-green-600 mb-3" size={48} />
+            <h4 className="font-bold text-green-800 text-lg mb-2">All Students Up to Date!</h4>
+            <p className="text-green-700">
+              Great work! All your students have been checked in within the last 7 days.
+            </p>
           </div>
         )}
 
