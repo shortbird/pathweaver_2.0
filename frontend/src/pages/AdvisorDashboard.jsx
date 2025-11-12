@@ -173,7 +173,7 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
           <h2 className="text-lg font-semibold text-gray-900">My Students</h2>
           <button
             onClick={onRefresh}
-            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90"
+            className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90"
           >
             Refresh
           </button>
@@ -209,7 +209,7 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
                   <tr key={student.id}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
-                        <div className="h-10 w-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center text-white font-semibold">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center text-white font-semibold">
                           {getStudentName(student).charAt(0)}
                         </div>
                         <div className="ml-4">
@@ -237,19 +237,19 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
                     <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                       <button
                         onClick={() => handleCheckin(student.id)}
-                        className="text-white bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1 rounded-lg hover:from-purple-700 hover:to-pink-700 font-medium"
+                        className="text-white bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-1 rounded-lg hover:opacity-90 font-medium"
                       >
                         Check-in
                       </button>
                       <button
                         onClick={() => handleViewHistory(student)}
-                        className="text-purple-600 hover:text-purple-700 font-medium"
+                        className="text-optio-purple hover:text-optio-purple-dark font-medium"
                       >
                         History
                       </button>
                       <button
                         onClick={() => handleViewNotes(student)}
-                        className="text-blue-600 hover:text-blue-700 font-medium"
+                        className="text-optio-purple hover:text-optio-purple-dark font-medium"
                       >
                         Advisor Notes
                       </button>
