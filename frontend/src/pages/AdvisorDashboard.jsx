@@ -8,6 +8,13 @@ import CheckinAnalytics from '../components/advisor/CheckinAnalytics';
 import CheckinHistoryModal from '../components/advisor/CheckinHistoryModal';
 import toast from 'react-hot-toast';
 
+// Helper function to get student display name with fallback
+const getStudentName = (student) => {
+  return student.display_name ||
+         `${student.first_name || ''} ${student.last_name || ''}`.trim() ||
+         'Student';
+};
+
 export default function AdvisorDashboard() {
   const { user } = useAuth();
   const [dashboardData, setDashboardData] = useState(null);
@@ -166,10 +173,10 @@ function OverviewTab({ dashboardData, students }) {
               <div key={student.id} className="p-6 flex items-center justify-between">
                 <div className="flex items-center">
                   <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold">
-                    {student.display_name?.charAt(0) || 'S'}
+                    {getStudentName(student).charAt(0)}
                   </div>
                   <div className="ml-4">
-                    <div className="text-sm font-medium text-gray-900">{student.display_name}</div>
+                    <div className="text-sm font-medium text-gray-900">{getStudentName(student)}</div>
                     <div className="text-sm text-gray-500">Level {student.level} • {student.total_xp || 0} XP</div>
                   </div>
                 </div>
@@ -263,10 +270,10 @@ function StudentsTab({ students, onRefresh }) {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold">
-                        {student.display_name?.charAt(0) || 'S'}
+                        {getStudentName(student).charAt(0)}
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{student.display_name}</div>
+                        <div className="text-sm font-medium text-gray-900">{getStudentName(student)}</div>
                         <div className="text-sm text-gray-500">{student.email}</div>
                       </div>
                     </div>

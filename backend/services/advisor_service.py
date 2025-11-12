@@ -53,6 +53,9 @@ class AdvisorService(BaseService):
 
                 if response.data:
                     for student in response.data:
+                        # Provide fallback for display_name
+                        if not student.get('display_name'):
+                            student['display_name'] = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip()
                         # Set badge counts to 0 for now - can be loaded on-demand
                         student['badge_count'] = 0
                         student['active_badges'] = []
@@ -65,14 +68,24 @@ class AdvisorService(BaseService):
                     .eq('is_active', True)\
                     .execute()
 
-                # Flatten the nested user data
+                # Flatten the nested user data and collect student IDs for bulk badge query
+                student_ids = []
                 if response.data:
                     for assignment in response.data:
                         if assignment.get('users'):
                             student = assignment['users']
-                            student['badge_count'] = self._get_student_badge_count(student['id'])
-                            student['active_badges'] = self._get_student_active_badges(student['id'])
+                            # Provide fallback for display_name
+                            if not student.get('display_name'):
+                                student['display_name'] = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip()
+                            student_ids.append(student['id'])
                             students.append(student)
+
+                # Bulk fetch badge counts for all students (prevents N+1 queries)
+                if student_ids:
+                    badge_counts = self._get_bulk_student_badge_counts(student_ids)
+                    for student in students:
+                        student['badge_count'] = badge_counts.get(student['id'], 0)
+                        student['active_badges'] = []  # Can be loaded on-demand if needed
 
             # Sort by display name (handle null values)
             students.sort(key=lambda x: x.get('display_name') or '')
@@ -138,6 +151,43 @@ class AdvisorService(BaseService):
         except Exception as e:
             print(f"Error assigning student to advisor: {str(e)}", file=sys.stderr, flush=True)
             raise
+
+    def _get_bulk_student_badge_counts(self, student_ids: List[str]) -> Dict[str, int]:
+        """
+        Get badge counts for multiple students in a single query (prevents N+1 queries)
+
+        Args:
+            student_ids: List of student UUIDs
+
+        Returns:
+            Dictionary mapping student_id to badge count
+        """
+        try:
+            if not student_ids:
+                return {}
+
+            # Fetch all earned badges for all students in one query
+            response = self.supabase.table('user_badges')\
+                .select('user_id, id')\
+                .in_('user_id', student_ids)\
+                .eq('earned', True)\
+                .execute()
+
+            # Count badges per student
+            badge_counts = {}
+            for record in (response.data or []):
+                user_id = record['user_id']
+                badge_counts[user_id] = badge_counts.get(user_id, 0) + 1
+
+            # Ensure all student_ids have a count (even if 0)
+            for student_id in student_ids:
+                if student_id not in badge_counts:
+                    badge_counts[student_id] = 0
+
+            return badge_counts
+        except Exception as e:
+            print(f"Error getting bulk badge counts: {str(e)}", file=sys.stderr, flush=True)
+            return {student_id: 0 for student_id in student_ids}
 
     def _get_student_badge_count(self, student_id: str) -> int:
         """Get count of earned badges for student"""
