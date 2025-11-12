@@ -9,12 +9,32 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
   const [searchQuery, setSearchQuery] = React.useState('')
 
   // Fetch linked children if user is a parent
-  const { data: linkedChildren = [] } = useQuery({
+  const { data: linkedChildren = [], isLoading: childrenLoading, error: childrenError } = useQuery({
     queryKey: ['linkedChildren', user?.id],
-    queryFn: () => parentAPI.getMyChildren(),
+    queryFn: async () => {
+      console.log('[ConversationList] Fetching linked children for user:', user?.id)
+      const response = await parentAPI.getMyChildren()
+      console.log('[ConversationList] Raw API response:', response)
+      console.log('[ConversationList] Children data:', response.data?.children)
+      return response
+    },
     enabled: user?.role === 'parent',
-    select: (response) => response.children || []
+    select: (response) => {
+      const children = response.data?.children || []
+      console.log('[ConversationList] Selected children:', children)
+      return children
+    }
   })
+
+  // Log children state for debugging
+  React.useEffect(() => {
+    if (user?.role === 'parent') {
+      console.log('[ConversationList] Parent role detected')
+      console.log('[ConversationList] Linked children:', linkedChildren)
+      console.log('[ConversationList] Children loading:', childrenLoading)
+      console.log('[ConversationList] Children error:', childrenError)
+    }
+  }, [user?.role, linkedChildren, childrenLoading, childrenError])
 
   const formatTime = (timestamp) => {
     if (!timestamp) return ''
