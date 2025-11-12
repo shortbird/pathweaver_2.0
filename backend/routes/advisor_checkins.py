@@ -98,10 +98,22 @@ def get_advisor_checkins(user_id):
 def get_student_checkins(user_id, student_id):
     """
     Get all check-ins for a specific student.
+    Admins see ALL check-ins for the student, advisors see only their own.
     """
     try:
+        from database import get_supabase_admin_client
+
+        # Check if user is admin
+        supabase = get_supabase_admin_client()
+        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        is_admin = user_response.data and user_response.data.get('role') == 'admin'
+
+        # If admin, don't filter by advisor_id (pass None)
+        # If advisor, filter by their advisor_id (pass user_id)
+        advisor_filter = None if is_admin else user_id
+
         checkin_service = CheckinService()
-        checkins = checkin_service.get_checkin_history(student_id, user_id)
+        checkins = checkin_service.get_checkin_history(student_id, advisor_filter)
 
         return jsonify({
             'success': True,
@@ -117,14 +129,26 @@ def get_student_checkins(user_id, student_id):
 def get_checkin_data(user_id, student_id):
     """
     Get pre-populated data for check-in form (active quests, etc.).
+    Admins see ALL check-ins for the student, advisors see only their own.
     """
     try:
+        from database import get_supabase_admin_client
+
+        # Check if user is admin
+        supabase = get_supabase_admin_client()
+        user_response = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        is_admin = user_response.data and user_response.data.get('role') == 'admin'
+
+        # If admin, don't filter by advisor_id (pass None)
+        # If advisor, filter by their advisor_id (pass user_id)
+        advisor_filter = None if is_admin else user_id
+
         checkin_service = CheckinService()
         # Get active quests data
         quests_data = checkin_service.get_student_active_quests_data(student_id)
 
         # Get last check-in info
-        last_checkin_info = checkin_service.get_last_checkin_info(student_id, user_id)
+        last_checkin_info = checkin_service.get_last_checkin_info(student_id, advisor_filter)
 
         return jsonify({
             'success': True,
