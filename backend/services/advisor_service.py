@@ -167,10 +167,11 @@ class AdvisorService(BaseService):
                 return {}
 
             # Fetch all earned badges for all students in one query
+            # Note: Badges are earned when earned_at is NOT NULL
             response = self.supabase.table('user_badges')\
                 .select('user_id, id')\
                 .in_('user_id', student_ids)\
-                .eq('earned', True)\
+                .not_.is_('earned_at', 'null')\
                 .execute()
 
             # Count badges per student
@@ -192,10 +193,11 @@ class AdvisorService(BaseService):
     def _get_student_badge_count(self, student_id: str) -> int:
         """Get count of earned badges for student"""
         try:
+            # Note: Badges are earned when earned_at is NOT NULL
             response = self.supabase.table('user_badges')\
                 .select('id', count='exact')\
                 .eq('user_id', student_id)\
-                .eq('earned', True)\
+                .not_.is_('earned_at', 'null')\
                 .execute()
             return response.count if response.count else 0
         except Exception as e:
@@ -205,11 +207,12 @@ class AdvisorService(BaseService):
     def _get_student_active_badges(self, student_id: str) -> List[Dict[str, Any]]:
         """Get active (in-progress) badges for student"""
         try:
+            # Note: Active badges are those NOT YET earned (earned_at IS NULL) but with progress
             response = self.supabase.table('user_badges')\
-                .select('badge_id, progress, badges(name, pillar_primary)')\
+                .select('badge_id, progress_percentage, badges(name, pillar_primary)')\
                 .eq('user_id', student_id)\
-                .eq('earned', False)\
-                .gt('progress', 0)\
+                .is_('earned_at', 'null')\
+                .gt('progress_percentage', 0)\
                 .limit(3)\
                 .execute()
             return response.data if response.data else []

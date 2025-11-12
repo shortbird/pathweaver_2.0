@@ -255,9 +255,17 @@ class CheckinRepository:
                     last_checkin = last_checkin_map.get(student_id)
 
                     if last_checkin is None or (now - last_checkin).days >= 30:
+                        # Get user data and construct name with fallback
+                        user_data = assignment.get('users', {})
+                        display_name = user_data.get('display_name')
+                        if not display_name:
+                            first_name = user_data.get('first_name', '')
+                            last_name = user_data.get('last_name', '')
+                            display_name = f"{first_name} {last_name}".strip() or 'Unknown'
+
                         needs_checkin.append({
                             'student_id': student_id,
-                            'name': assignment.get('users', {}).get('display_name', 'Unknown'),
+                            'name': display_name,
                             'days_since_checkin': (now - last_checkin).days if last_checkin else 999
                         })
             else:

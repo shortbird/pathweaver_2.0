@@ -177,7 +177,7 @@ function OverviewTab({ dashboardData, students }) {
                   </div>
                   <div className="ml-4">
                     <div className="text-sm font-medium text-gray-900">{getStudentName(student)}</div>
-                    <div className="text-sm text-gray-500">Level {student.level} • {student.total_xp || 0} XP</div>
+                    <div className="text-sm text-gray-500">{student.total_xp || 0} XP</div>
                   </div>
                 </div>
                 <div className="text-sm text-gray-500">
@@ -248,9 +248,6 @@ function StudentsTab({ students, onRefresh }) {
                   Student
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Level
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total XP
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -278,7 +275,6 @@ function StudentsTab({ students, onRefresh }) {
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.level}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.total_xp || 0}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.badge_count || 0}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
