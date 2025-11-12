@@ -8,14 +8,14 @@ These templates include verification logic that will be applied when users start
 TUTORIAL_TASKS = [
     # PHASE 1: Profile Setup (Easy)
     {
-        "title": "Complete your profile",
-        "description": "Add your first and last name to your profile. This helps us personalize your learning experience. This task will be auto-verified when you update your profile!",
+        "title": "Upload a profile picture",
+        "description": "Add a profile picture to personalize your account. Click on your profile picture placeholder to upload an image. This task will be auto-verified when you upload your picture!",
         "pillar": "communication",
         "xp_value": 10,
         "order_index": 1,
         "is_required": True,
         "auto_complete": True,
-        "verification_query": {"type": "profile_complete"},
+        "verification_query": {"type": "profile_picture_uploaded"},
         "diploma_subjects": {}
     },
     {

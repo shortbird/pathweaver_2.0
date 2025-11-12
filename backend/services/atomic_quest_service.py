@@ -209,6 +209,14 @@ class AtomicQuestService(BaseService):
             completion_bonus_pillar = None
             total_quest_xp = sum(task['xp_amount'] for task in all_tasks)
 
+            # Trigger tutorial verification after quest completion
+            try:
+                from services.tutorial_verification_service import TutorialVerificationService
+                verification_service = TutorialVerificationService()
+                verification_service.verify_user_tutorial_progress(user_id)
+            except Exception as tutorial_error:
+                logger.error(f"Tutorial verification failed after quest completion: {tutorial_error}")
+
             return {
                 'quest_completed': quest_completed,
                 'completion_bonus_awarded': completion_bonus_awarded,

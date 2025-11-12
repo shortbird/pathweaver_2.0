@@ -567,6 +567,14 @@ def enroll_in_quest(user_id: str, quest_id: str):
                 # Don't fail the enrollment, but log the error
                 # User will still be enrolled but without tasks
 
+        # Trigger tutorial verification after quest enrollment
+        try:
+            from services.tutorial_verification_service import TutorialVerificationService
+            verification_service = TutorialVerificationService()
+            verification_service.verify_user_tutorial_progress(user_id)
+        except Exception as tutorial_error:
+            logger.error(f"Tutorial verification failed after quest enrollment: {tutorial_error}")
+
         return jsonify({
             'success': True,
             'message': f'Successfully enrolled in "{quest.get("title")}"',

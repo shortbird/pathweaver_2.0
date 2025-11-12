@@ -1,6 +1,6 @@
 """Authentication utilities module"""
 
-from .decorators import require_auth, require_admin
+from .decorators import require_auth, require_admin, require_role
 from .token_utils import verify_token, generate_token
 from .session import session_manager
 
@@ -11,6 +11,7 @@ logger = get_logger(__name__)
 __all__ = [
     'require_auth',
     'require_admin',
+    'require_role',
     'verify_token',
     'generate_token',
     'session_manager'

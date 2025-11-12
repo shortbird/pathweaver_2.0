@@ -130,7 +130,6 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
             role,
             parent_student_links!parent_student_links_parent_user_id_fkey(
                 id,
-                status,
                 student_user_id
             )
         ''').eq('id', parent_user_id).single().execute()
@@ -145,11 +144,10 @@ def verify_parent_access(supabase, parent_user_id, student_user_id):
         if user_role != 'parent':
             raise AuthorizationError("Only parent accounts can access this endpoint")
 
-        # Check for active link to this specific student
+        # Check for link to this specific student (all links are permanent once created)
         links = user.get('parent_student_links', [])
         has_active_link = any(
-            link.get('student_user_id') == student_user_id and
-            link.get('status') == 'active'
+            link.get('student_user_id') == student_user_id
             for link in links
         )
 
@@ -1078,3 +1076,119 @@ def get_encouragement_tips(user_id, student_id):
     except Exception as e:
         logger.error(f"Error getting encouragement tips: {str(e)}")
         return jsonify({'error': 'Failed to get encouragement tips'}), 500
+
+
+@bp.route('/quest/<student_id>/<quest_id>', methods=['GET'])
+@require_auth
+def get_student_quest_view(user_id, student_id, quest_id):
+    """
+    Get read-only quest view for parents.
+    Shows student's personalized tasks and completion status.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+        verify_parent_access(supabase, user_id, student_id)
+
+        # Get quest details
+        quest_response = supabase.table('quests').select('''
+            id, title, description, image_url, header_image_url, quest_type
+        ''').eq('id', quest_id).single().execute()
+
+        if not quest_response.data:
+            raise NotFoundError("Quest not found")
+
+        quest = quest_response.data
+
+        # Get student's personalized tasks for this quest
+        tasks_response = supabase.table('user_quest_tasks').select('''
+            id, title, description, pillar, xp_value, order_index, is_required
+        ''').eq('user_id', student_id).eq('quest_id', quest_id).order('order_index').execute()
+
+        # Get task completions
+        task_ids = [task['id'] for task in tasks_response.data]
+        completions_map = {}
+
+        if task_ids:
+            completions_response = supabase.table('quest_task_completions').select('''
+                user_quest_task_id, completed_at, evidence_text, evidence_url
+            ''').eq('user_id', student_id).in_('user_quest_task_id', task_ids).execute()
+
+            completions_map = {
+                comp['user_quest_task_id']: comp
+                for comp in completions_response.data
+            }
+
+        # Build tasks list with completion status
+        tasks = []
+        for task in tasks_response.data:
+            task_id = task['id']
+            completion = completions_map.get(task_id)
+
+            tasks.append({
+                'id': task_id,
+                'title': task['title'],
+                'description': task.get('description'),
+                'pillar': get_pillar_name(task['pillar']),
+                'xp_value': task.get('xp_value', 0),
+                'order_index': task.get('order_index', 0),
+                'is_required': task.get('is_required', False),
+                'is_completed': completion is not None,
+                'completed_at': completion['completed_at'] if completion else None,
+                'evidence_text': completion['evidence_text'] if completion else None,
+                'evidence_url': completion['evidence_url'] if completion else None
+            })
+
+        # Calculate progress
+        completed_count = len([t for t in tasks if t['is_completed']])
+        total_count = len(tasks)
+        progress_percentage = round((completed_count / total_count * 100)) if total_count > 0 else 0
+
+        # Check if student has started this quest
+        user_quest_response = supabase.table('user_quests').select('''
+            started_at, completed_at, is_active
+        ''').eq('user_id', student_id).eq('quest_id', quest_id).execute()
+
+        quest_status = 'not_started'
+        started_at = None
+        completed_at = None
+
+        if user_quest_response.data and len(user_quest_response.data) > 0:
+            user_quest = user_quest_response.data[0]
+            started_at = user_quest.get('started_at')
+            completed_at = user_quest.get('completed_at')
+
+            if completed_at:
+                quest_status = 'completed'
+            elif user_quest.get('is_active'):
+                quest_status = 'in_progress'
+            else:
+                quest_status = 'abandoned'
+
+        return jsonify({
+            'quest': {
+                'id': quest['id'],
+                'title': quest['title'],
+                'description': quest.get('description'),
+                'image_url': quest.get('image_url') or quest.get('header_image_url'),
+                'quest_type': quest.get('quest_type'),
+                'status': quest_status,
+                'started_at': started_at,
+                'completed_at': completed_at
+            },
+            'tasks': tasks,
+            'progress': {
+                'completed_tasks': completed_count,
+                'total_tasks': total_count,
+                'percentage': progress_percentage
+            }
+        }), 200
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except NotFoundError as e:
+        return jsonify({'error': str(e)}), 404
+    except Exception as e:
+        logger.error(f"Error getting student quest view: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to get quest details'}), 500

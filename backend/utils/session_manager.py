@@ -21,6 +21,7 @@ class SessionManager:
             raise ValueError("JWT_SECRET_KEY, SECRET_KEY, or FLASK_SECRET_KEY environment variable must be set")
         self.access_token_expiry = timedelta(minutes=15)  # Short-lived access token
         self.refresh_token_expiry = timedelta(days=7)  # Longer-lived refresh token
+        self.masquerade_token_expiry = timedelta(hours=1)  # Masquerade sessions expire faster
 
         # Detect cross-origin deployment (frontend and backend on different domains)
         frontend_url = os.getenv('FRONTEND_URL', '')
@@ -54,6 +55,17 @@ class SessionManager:
             'iat': datetime.now(timezone.utc)
         }
         return jwt.encode(payload, self.secret_key, algorithm='HS256')
+
+    def generate_masquerade_token(self, admin_id: str, target_user_id: str) -> str:
+        """Generate a JWT masquerade token (admin viewing as another user)"""
+        payload = {
+            'user_id': admin_id,
+            'masquerade_as': target_user_id,
+            'type': 'masquerade',
+            'exp': datetime.now(timezone.utc) + self.masquerade_token_expiry,
+            'iat': datetime.now(timezone.utc)
+        }
+        return jwt.encode(payload, self.secret_key, algorithm='HS256')
     
     def verify_access_token(self, token: str) -> Optional[Dict[str, Any]]:
         """Verify and decode an access token"""
@@ -70,6 +82,16 @@ class SessionManager:
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
             if payload.get('type') != 'refresh':
+                return None
+            return payload
+        except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+            return None
+
+    def verify_masquerade_token(self, token: str) -> Optional[Dict[str, Any]]:
+        """Verify and decode a masquerade token"""
+        try:
+            payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
+            if payload.get('type') != 'masquerade':
                 return None
             return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
@@ -144,6 +166,74 @@ class SessionManager:
 
         payload = self.verify_access_token(access_token)
         return payload.get('user_id') if payload else None
+
+    def get_effective_user_id(self) -> Optional[str]:
+        """Get the effective user ID (masquerade target if masquerading, else actual user)"""
+        # Check for masquerade token first
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header.replace('Bearer ', '')
+
+            # Try masquerade token first
+            masquerade_payload = self.verify_masquerade_token(token)
+            if masquerade_payload:
+                return masquerade_payload.get('masquerade_as')
+
+            # Fallback to regular access token
+            access_payload = self.verify_access_token(token)
+            if access_payload:
+                return access_payload.get('user_id')
+
+        # Cookie fallback for same-origin deployments
+        if not self.is_cross_origin:
+            access_token = request.cookies.get('access_token')
+            if access_token:
+                payload = self.verify_access_token(access_token)
+                if payload:
+                    return payload.get('user_id')
+
+        return None
+
+    def get_actual_admin_id(self) -> Optional[str]:
+        """Get the actual admin user ID (during masquerade, returns admin not target)"""
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header.replace('Bearer ', '')
+
+            # Check if this is a masquerade token
+            masquerade_payload = self.verify_masquerade_token(token)
+            if masquerade_payload:
+                return masquerade_payload.get('user_id')  # This is the admin ID
+
+            # Regular access token - return user_id
+            access_payload = self.verify_access_token(token)
+            if access_payload:
+                return access_payload.get('user_id')
+
+        return self.get_current_user_id()
+
+    def is_masquerading(self) -> bool:
+        """Check if the current session is a masquerade session"""
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header.replace('Bearer ', '')
+            masquerade_payload = self.verify_masquerade_token(token)
+            return masquerade_payload is not None
+        return False
+
+    def get_masquerade_info(self) -> Optional[Dict[str, str]]:
+        """Get masquerade session info (admin_id and target_user_id)"""
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            token = auth_header.replace('Bearer ', '')
+            masquerade_payload = self.verify_masquerade_token(token)
+            if masquerade_payload:
+                return {
+                    'admin_id': masquerade_payload.get('user_id'),
+                    'target_user_id': masquerade_payload.get('masquerade_as'),
+                    'is_masquerading': True
+                }
+        return None
     
     def refresh_session(self, refresh_token_override: Optional[str] = None) -> Optional[tuple]:
         """Refresh the session using refresh token from cookie or request body"""

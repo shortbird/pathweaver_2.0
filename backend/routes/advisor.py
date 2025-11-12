@@ -25,6 +25,18 @@ def get_students(user_id):
         # Create service instance per-request with user context
         advisor_service = AdvisorService(user_id=user_id)
         students = advisor_service.get_advisor_students(user_id)
+
+        # Add last check-in date for each student
+        from services.checkin_service import CheckinService
+        checkin_service = CheckinService()
+
+        for student in students:
+            last_checkin_info = checkin_service.get_last_checkin_info(
+                student['id'],
+                advisor_id=user_id
+            )
+            student['last_checkin'] = last_checkin_info
+
         return jsonify({
             'success': True,
             'students': students,
@@ -322,8 +334,8 @@ def get_advisor_dashboard(user_id):
         active_students = len([s for s in students if s.get('last_active')])
         total_custom_badges = len(custom_badges)
 
-        # Get total badges earned by all students
-        total_badges_earned = sum(s.get('badge_count', 0) for s in students)
+        # Get total quests completed by all students
+        total_quests_completed = sum(s.get('quest_count', 0) for s in students)
 
         return jsonify({
             'success': True,
@@ -331,7 +343,7 @@ def get_advisor_dashboard(user_id):
                 'total_students': total_students,
                 'active_students': active_students,
                 'total_custom_badges': total_custom_badges,
-                'total_badges_earned': total_badges_earned
+                'total_quests_completed': total_quests_completed
             },
             'recent_students': students[:5],  # Top 5 recent students
             'recent_badges': custom_badges[:5]  # Top 5 recent custom badges

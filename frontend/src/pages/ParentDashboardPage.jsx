@@ -13,12 +13,10 @@ import {
   ArrowPathIcon,
   UserGroupIcon,
   LightBulbIcon,
-  PaperAirplaneIcon,
   XMarkIcon,
   ChevronRightIcon
 } from '@heroicons/react/24/outline';
 import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
-import AddChildrenModal from '../components/parent/AddChildrenModal';
 
 const ParentDashboardPage = () => {
   const { user } = useAuth();
@@ -34,10 +32,6 @@ const ParentDashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [error, setError] = useState(null);
-  const [studentEmail, setStudentEmail] = useState('');
-  const [sending, setSending] = useState(false);
-  const [pendingRequests, setPendingRequests] = useState([]);
-  const [showAddChildModal, setShowAddChildModal] = useState(false);
   const [showRhythmModal, setShowRhythmModal] = useState(false);
   const [conversations, setConversations] = useState([]);
   const [loadingConversations, setLoadingConversations] = useState(false);
@@ -60,17 +54,12 @@ const ParentDashboardPage = () => {
     civics: 'Civics'
   };
 
-  // Load children list and pending requests
+  // Load children list (admin-only linking, no invitations)
   useEffect(() => {
     const loadChildren = async () => {
       try {
-        const [childrenResponse, requestsResponse] = await Promise.all([
-          parentAPI.getMyChildren(),
-          api.get('/api/parents/pending-requests')
-        ]);
-
+        const childrenResponse = await parentAPI.getMyChildren();
         setChildren(childrenResponse.data.children || []);
-        setPendingRequests(requestsResponse.data.pending_requests || []);
 
         // Auto-select first child if none selected
         if (!selectedStudentId && childrenResponse.data.children?.length > 0) {
@@ -87,30 +76,6 @@ const ParentDashboardPage = () => {
     }
   }, [user]);
 
-  const sendLinkRequest = async (e) => {
-    e.preventDefault();
-    if (!studentEmail.trim()) {
-      toast.error('Please enter a student email address');
-      return;
-    }
-
-    setSending(true);
-    try {
-      const response = await api.post('/api/parents/request-link', { student_email: studentEmail });
-      toast.success(response.data.message);
-      setStudentEmail('');
-      setShowAddChildModal(false); // Close modal if open
-      // Reload to show new pending request
-      const requestsResponse = await api.get('/api/parents/pending-requests');
-      setPendingRequests(requestsResponse.data.pending_requests || []);
-    } catch (error) {
-      console.error('Error sending link request:', error);
-      const message = error.response?.data?.error || 'Failed to send link request';
-      toast.error(message);
-    } finally {
-      setSending(false);
-    }
-  };
 
   // Load dashboard data when student selected and children are loaded
   useEffect(() => {
@@ -272,79 +237,18 @@ const ParentDashboardPage = () => {
             </p>
           </div>
 
-          {/* Send Connection Request Form */}
-          <div className="bg-white rounded-xl shadow-sm border-2 border-purple-200 p-6 mb-6">
+          {/* Admin-Only Linking Notice */}
+          <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6 mb-6">
             <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Send Connection Request
+              No Students Linked
             </h3>
-            <p className="text-gray-600 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Enter your student's email address to send them a connection request. They'll see it in their Connections page and can approve it.
+            <p className="text-gray-700 font-medium mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Student connections are managed by administrators. Please contact an administrator to link your parent account to a student.
             </p>
-            <form onSubmit={sendLinkRequest} className="flex gap-3">
-              <input
-                type="email"
-                value={studentEmail}
-                onChange={(e) => setStudentEmail(e.target.value)}
-                placeholder="student@example.com"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent font-medium"
-                style={{ fontFamily: 'Poppins, sans-serif' }}
-                disabled={sending}
-              />
-              <button
-                type="submit"
-                disabled={sending}
-                className="px-6 py-2 bg-gradient-primary text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                style={{ fontFamily: 'Poppins, sans-serif' }}
-              >
-                {sending ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <PaperAirplaneIcon className="w-5 h-5" />
-                    Send Request
-                  </>
-                )}
-              </button>
-            </form>
+            <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Once linked, you'll be able to view your student's learning progress, quests, and achievements here.
+            </p>
           </div>
-
-          {/* Pending Requests */}
-          {pendingRequests.length > 0 && (
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Pending Requests ({pendingRequests.length})
-              </h3>
-              <div className="space-y-3">
-                {pendingRequests.map((request) => (
-                  <div key={request.link_id} className="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center overflow-hidden">
-                        {request.student_avatar_url ? (
-                          <img src={request.student_avatar_url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" />
-                        ) : (
-                          <UserGroupIcon className="w-6 h-6 text-blue-600" />
-                        )}
-                      </div>
-                      <div>
-                        <p className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          {request.student_first_name} {request.student_last_name}
-                        </p>
-                        <p className="text-sm text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                          {request.student_email} • Sent {new Date(request.requested_at).toLocaleDateString()}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-semibold" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Awaiting Approval
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* Alternative Method */}
           <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6">
@@ -422,7 +326,7 @@ const ParentDashboardPage = () => {
           </h1>
           {selectedStudent && (
             <p className="text-gray-600 mt-1 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Supporting {selectedStudent.first_name}'s learning journey
+              Supporting {selectedStudent.student_first_name}'s learning journey
             </p>
           )}
         </div>
@@ -453,78 +357,14 @@ const ParentDashboardPage = () => {
             >
               {children.map((child) => (
                 <option key={child.student_id} value={child.student_id}>
-                  {child.first_name} {child.last_name}
+                  {child.student_first_name} {child.student_last_name}
                 </option>
               ))}
             </select>
           )}
-          <button
-            onClick={() => setShowAddChildModal(true)}
-            className="px-4 py-2 bg-gradient-primary text-white rounded-lg font-semibold hover:shadow-lg transition-shadow flex items-center gap-2"
-            style={{ fontFamily: 'Poppins, sans-serif' }}
-          >
-            <UserGroupIcon className="w-5 h-5" />
-            Add Child
-          </button>
         </div>
       </div>
 
-      {/* Add Child Modal */}
-      {showAddChildModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                Add Another Child
-              </h2>
-              <button
-                onClick={() => {
-                  setShowAddChildModal(false);
-                  setStudentEmail('');
-                }}
-                className="text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <XMarkIcon className="w-6 h-6" />
-              </button>
-            </div>
-
-            <p className="text-gray-600 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-              Enter your student's email address to send them a connection request. They'll see it in their Connections page and can approve it.
-            </p>
-
-            <form onSubmit={sendLinkRequest} className="space-y-4">
-              <input
-                type="email"
-                value={studentEmail}
-                onChange={(e) => setStudentEmail(e.target.value)}
-                placeholder="student@example.com"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent font-medium"
-                style={{ fontFamily: 'Poppins, sans-serif' }}
-                disabled={sending}
-                autoFocus
-              />
-              <button
-                type="submit"
-                disabled={sending}
-                className="w-full px-6 py-2 bg-gradient-primary text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                style={{ fontFamily: 'Poppins, sans-serif' }}
-              >
-                {sending ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                    Sending...
-                  </>
-                ) : (
-                  <>
-                    <PaperAirplaneIcon className="w-5 h-5" />
-                    Send Request
-                  </>
-                )}
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Learning Rhythm Modal */}
       {showRhythmModal && (
@@ -736,7 +576,7 @@ const ParentDashboardPage = () => {
                     {dashboardData.active_quests.map((quest) => (
                       <button
                         key={quest.quest_id}
-                        onClick={() => navigate(`/quests/${quest.quest_id}`)}
+                        onClick={() => navigate(`/parent/quest/${selectedStudentId}/${quest.quest_id}`)}
                         className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer text-left"
                       >
                         {quest.image_url && (
@@ -1294,23 +1134,6 @@ const ParentDashboardPage = () => {
             </div>
           )}
 
-          {/* Add Children Modal (January 2025 Redesign) */}
-          <AddChildrenModal
-            isOpen={showAddChildModal}
-            onClose={() => setShowAddChildModal(false)}
-            onSuccess={({ message, submitted_count, auto_matched_count }) => {
-              toast.success(message);
-              // Reload children list to show updated requests
-              parentAPI.getMyChildren().then(response => {
-                setChildren(response.data.children || []);
-              });
-              // Reload connection requests
-              parentAPI.getMyConnectionRequests().then(response => {
-                // Could display these in a separate UI if needed
-                console.log('Updated requests:', response.data.requests);
-              });
-            }}
-          />
         </>
       )}
     </div>

@@ -8,11 +8,103 @@ from flask import Blueprint, jsonify, request
 from utils.auth.decorators import require_auth
 from services.tutorial_verification_service import tutorial_verification_service
 from database import get_supabase_admin_client
+from datetime import datetime
 import logging
 
 logger = logging.getLogger(__name__)
 
 tutorial_bp = Blueprint('tutorial', __name__)
+
+
+def start_tutorial_for_user(user_id: str):
+    """
+    Helper function to start tutorial quest for a user (used during registration).
+
+    Args:
+        user_id: UUID of the user
+
+    Returns:
+        dict: Result with success status and user_quest_id
+
+    Raises:
+        Exception: If tutorial creation fails
+    """
+    supabase = get_supabase_admin_client()
+
+    # Get tutorial quest
+    tutorial_quest_response = supabase.table('quests').select('id').eq(
+        'is_tutorial', True
+    ).eq('is_active', True).execute()
+
+    if not tutorial_quest_response.data:
+        raise Exception('Tutorial quest not found or not active')
+
+    tutorial_quest_id = tutorial_quest_response.data[0]['id']
+
+    # Check if already started
+    existing_response = supabase.table('user_quests').select('id').eq(
+        'user_id', user_id
+    ).eq('quest_id', tutorial_quest_id).execute()
+
+    if existing_response.data:
+        logger.info(f"Tutorial already started for user {user_id}")
+        return {
+            'success': True,
+            'message': 'Tutorial already started',
+            'user_quest_id': existing_response.data[0]['id']
+        }
+
+    # Create user_quests record
+    user_quest_data = {
+        'user_id': user_id,
+        'quest_id': tutorial_quest_id,
+        'started_at': datetime.utcnow().isoformat(),
+        'is_active': True
+    }
+
+    user_quest_response = supabase.table('user_quests').insert(user_quest_data).execute()
+
+    if not user_quest_response.data:
+        raise Exception('Failed to create user_quests record')
+
+    user_quest_id = user_quest_response.data[0]['id']
+
+    # Create tutorial tasks from template
+    from services.tutorial_task_templates import get_tutorial_tasks
+    tutorial_tasks = get_tutorial_tasks()
+
+    task_records = []
+    for task_template in tutorial_tasks:
+        task_record = {
+            'user_id': user_id,
+            'quest_id': tutorial_quest_id,
+            'user_quest_id': user_quest_id,
+            'title': task_template['title'],
+            'description': task_template['description'],
+            'pillar': task_template['pillar'],
+            'xp_value': task_template['xp_value'],
+            'order_index': task_template['order_index'],
+            'is_required': task_template['is_required'],
+            'auto_complete': task_template['auto_complete'],
+            'verification_query': task_template['verification_query'],
+            'diploma_subjects': task_template['diploma_subjects'],
+            'is_manual': False
+        }
+        task_records.append(task_record)
+
+    # Insert all tasks
+    supabase.table('user_quest_tasks').insert(task_records).execute()
+
+    # Run initial verification check
+    tutorial_verification_service.verify_user_tutorial_progress(user_id)
+
+    logger.info(f"Tutorial quest started successfully for user {user_id}")
+
+    return {
+        'success': True,
+        'message': 'Tutorial quest started successfully',
+        'user_quest_id': user_quest_id
+    }
 
 
 @tutorial_bp.route('/check-progress', methods=['POST'])

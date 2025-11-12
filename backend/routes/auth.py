@@ -365,7 +365,16 @@ def register():
             # This is now optimized to use batch operations
             # Do this for ALL users, even those requiring email verification
             ensure_user_diploma_and_skills(supabase, auth_response.user.id, sanitized_first_name, sanitized_last_name)
-            
+
+            # Auto-start tutorial quest for new users
+            try:
+                from routes.tutorial import start_tutorial_for_user
+                start_tutorial_for_user(auth_response.user.id)
+                logger.info(f"Tutorial quest auto-started for user {auth_response.user.id}")
+            except Exception as tutorial_error:
+                # Log but don't fail registration if tutorial start fails
+                logger.error(f"Failed to auto-start tutorial for user {auth_response.user.id}: {tutorial_error}")
+
             # If no session, email verification is required
             if not auth_response.session:
                 response_data = {
@@ -472,9 +481,9 @@ def register():
 def get_current_user():
     """Get current user profile with fresh data"""
     try:
-        # ✅ INCOGNITO MODE FIX: Prioritize Authorization header (works in incognito)
-        # session_manager.get_current_user_id() already checks Authorization header first
-        user_id = session_manager.get_current_user_id()
+        # ✅ MASQUERADE FIX: Use get_effective_user_id() to return masquerade target if masquerading
+        # This ensures frontend sees the masqueraded user's role and data
+        user_id = session_manager.get_effective_user_id()
 
         if not user_id:
             return jsonify({'error': 'Authentication required'}), 401

@@ -303,6 +303,9 @@ export const parentAPI = {
   // Get task details with evidence (for Calendar tab task detail modal)
   getTaskDetails: (studentId, taskId) => api.get(`/api/parent/task/${studentId}/${taskId}`),
 
+  // Get quest details with student's personalized tasks (read-only)
+  getQuestView: (studentId, questId) => api.get(`/api/parent/quest/${studentId}/${questId}`),
+
   // Get recent completions with evidence (for Insights tab)
   getRecentCompletions: (studentId) => api.get(`/api/parent/completions/${studentId}`),
 
@@ -315,7 +318,7 @@ export const parentAPI = {
     }),
 
   // Get AI tutor conversations for monitoring (Communications tab)
-  getTutorConversations: (studentId) => api.get(`/api/tutor/parent/conversations/${studentId}`),
+  getTutorConversations: (studentId) => api.get(`/api/parent/communications/${studentId}`),
 
   // Get specific conversation messages
   getConversationMessages: (conversationId) => api.get(`/api/tutor/parent/conversations/${conversationId}/messages`),
@@ -432,6 +435,31 @@ export const badgeClaimingAPI = {
 
   // Mark claim notification as sent (prevent duplicates)
   markNotificationSent: (badgeId) => api.post(`/api/badges/${badgeId}/mark-notification-sent`, {}),
+}
+
+// Advisor Check-in API
+export const checkinAPI = {
+  // Create a new check-in
+  createCheckin: (data) => api.post('/api/advisor/checkins', data),
+
+  // Get all check-ins for the current advisor
+  getAdvisorCheckins: (limit = 100) => api.get('/api/advisor/checkins', { params: { limit } }),
+
+  // Get all check-ins for a specific student
+  getStudentCheckins: (studentId) => api.get(`/api/advisor/students/${studentId}/checkins`),
+
+  // Get pre-populated data for check-in form (active quests, last check-in info)
+  getCheckinData: (studentId) => api.get(`/api/advisor/students/${studentId}/checkin-data`),
+
+  // Get a specific check-in by ID
+  getCheckinById: (checkinId) => api.get(`/api/advisor/checkins/${checkinId}`),
+
+  // Get check-in analytics for advisor
+  getAnalytics: () => api.get('/api/advisor/checkins/analytics'),
+
+  // Admin endpoints
+  getAllCheckins: (page = 1, limit = 50) => api.get('/api/admin/checkins', { params: { page, limit } }),
+  getAdminAnalytics: () => api.get('/api/admin/checkins/analytics'),
 }
 
 export default api

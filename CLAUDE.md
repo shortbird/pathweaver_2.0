@@ -62,6 +62,49 @@
 - **Internal Motivation**: Focus on how learning FEELS, not how it LOOKS
 - **Process Celebration**: Every step, attempt, and mistake is valuable
 
+**COLOR SYSTEM & GRADIENTS (CRITICAL):**
+- **Optio Brand Colors** (defined in `tailwind.config.js`):
+  - `optio-purple`: #6D469B (primary brand purple)
+  - `optio-purple-dark`: #5A3A82 (hover states)
+  - `optio-pink`: #EF597B (primary brand pink)
+  - `optio-pink-dark`: #E73862 (hover states)
+- **Standard Gradient**: `bg-gradient-to-r from-optio-purple to-optio-pink`
+  - NEVER use Tailwind's default `purple-600` (#9333EA) or `pink-600` (#DB2777)
+  - These are DIFFERENT colors and create visual inconsistency
+- **Common Gradient Mistake**: Using `from-purple-600 to-pink-600` instead of Optio brand colors
+- **Check Gradients**: Always verify buttons, headers, and avatar circles use Optio colors
+
+**ADVISOR CHECK-IN SYSTEM (January 2025):**
+- **Quest-Specific Notes**: Stored in `advisor_checkins.quest_notes` JSONB column
+  - Structure: `[{ quest_id: 'uuid', notes: 'text' }, ...]`
+  - Displayed in check-in history modal under each quest
+  - Optional field in check-in form below each active quest
+- **Check-in Components**:
+  - `AdvisorCheckinPage.jsx` - Create new check-ins with quest notes
+  - `CheckinHistoryModal.jsx` - View past check-ins (reusable in admin panel)
+  - `CheckinAnalytics.jsx` - Dashboard analytics widget
+- **Admin Access**: Admins can view all check-in logs via User Details Modal → Actions tab
+- **Metrics Change**: Replaced "Badges Earned" with "Quests Completed" throughout advisor dashboard
+  - Backend: `_get_bulk_student_quest_counts()` queries `user_quests` WHERE `completed_at IS NOT NULL`
+  - Frontend: Displays `quest_count` instead of `badge_count`
+
+**ADVISOR DASHBOARD STRUCTURE (January 2025):**
+- **Two Tabs**: Overview (main student table) and Quests (quest creation)
+- **Removed**: "Students" tab - consolidated into Overview tab
+- **Overview Tab Shows**:
+  - Stats cards: Total Students, Active Students, Quests Completed
+  - Check-in Analytics widget
+  - Full student table: Student (avatar/name/email), Total XP, Quests, Last Check-in, Actions
+  - Action buttons: Check-in, History, Advisor Notes
+- **All Students Displayed**: No 5-student limit - shows complete roster
+
+**ADMIN PANEL USER MANAGEMENT:**
+- **User Details Modal**: Three tabs (Profile, Role, Actions)
+- **Actions Tab**: Chat Logs, Advisor Check-ins, Set Password, Verify Email, Delete Account
+- **Button Text**: "Details" (not "Edit Details") for user detail access
+- **Reusable Components**: Admin panel reuses CheckinHistoryModal from advisor components
+- **Color Coding**: Each action has distinct color (purple=chat, blue=checkins, orange=password, teal=email, red=delete)
+
 ## Project Overview
 
 Optio is an educational platform where students create self-validated diplomas through completing quests. Students build impressive portfolios by documenting their learning journey with public evidence.

@@ -9,6 +9,7 @@ import { getPillarData, normalizePillarKey } from '../utils/pillarMappings';
 import { queryKeys } from '../utils/queryKeys';
 import TaskEvidenceModal from '../components/quest/TaskEvidenceModal';
 import TaskDetailModal from '../components/quest/TaskDetailModal';
+import TutorialTaskInstructionsModal from '../components/quest/TutorialTaskInstructionsModal';
 import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
 import SampleTaskCard from '../components/quest/SampleTaskCard';
 import TaskLibraryView from '../components/quest-library/TaskLibraryView';
@@ -669,6 +670,7 @@ const QuestDetail = () => {
                         {/* Task Content */}
                         <div
                           onClick={() => {
+                            // Allow opening modal for tutorial tasks to show instructions
                             if (quest.user_enrollment) {
                               setSelectedTask(task);
                               setShowTaskModal(true);
@@ -677,7 +679,7 @@ const QuestDetail = () => {
                               setShowTaskDetailModal(true);
                             }
                           }}
-                          className="absolute inset-0 p-3 flex flex-col justify-between"
+                          className="absolute inset-0 p-3 flex flex-col justify-between cursor-pointer"
                         >
                           {/* Top Section - Pillar Name Pill */}
                           <div>
@@ -722,8 +724,8 @@ const QuestDetail = () => {
                           </div>
                         </div>
 
-                        {/* Continue Button for Incomplete Tasks */}
-                        {!task.is_completed && quest.user_enrollment && (
+                        {/* Continue Button for Incomplete Tasks (hide for auto-complete tasks) */}
+                        {!task.is_completed && quest.user_enrollment && !task.auto_complete && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -737,8 +739,23 @@ const QuestDetail = () => {
                           </button>
                         )}
 
-                        {/* Edit Evidence Button for Completed Tasks */}
-                        {task.is_completed && (
+                        {/* View Instructions button for incomplete tutorial tasks */}
+                        {!task.is_completed && quest.user_enrollment && task.auto_complete && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTask(task);
+                              setShowTaskModal(true);
+                            }}
+                            className="absolute bottom-2 left-2 right-2 py-1.5 rounded-full font-bold text-xs uppercase tracking-wide text-white transition-all hover:shadow-lg"
+                            style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
+                          >
+                            View Instructions
+                          </button>
+                        )}
+
+                        {/* Edit Evidence Button for Completed Tasks (hide for tutorial tasks) */}
+                        {task.is_completed && !task.auto_complete && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -752,8 +769,18 @@ const QuestDetail = () => {
                           </button>
                         )}
 
-                        {/* Drop Task Button - top right corner */}
-                        {quest.user_enrollment && !isQuestCompleted && (
+                        {/* Completed badge for auto-verified tasks */}
+                        {task.is_completed && task.auto_complete && (
+                          <div
+                            className="absolute bottom-2 left-2 right-2 py-1.5 bg-white/90 text-gray-800 rounded-full font-bold text-xs uppercase tracking-wide text-center"
+                            style={{ fontFamily: 'Poppins' }}
+                          >
+                            ✅ Completed!
+                          </div>
+                        )}
+
+                        {/* Drop Task Button - top right corner (hide for tutorial tasks) */}
+                        {quest.user_enrollment && !isQuestCompleted && !task.auto_complete && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -1042,12 +1069,23 @@ const QuestDetail = () => {
 
       {/* Modals */}
       {showTaskModal && selectedTask && (
-        <TaskEvidenceModal
-          task={selectedTask}
-          questId={quest.id}
-          onComplete={handleTaskCompletion}
-          onClose={() => setShowTaskModal(false)}
-        />
+        <>
+          {/* Show tutorial instructions modal for tutorial tasks */}
+          {selectedTask.auto_complete && !selectedTask.is_completed ? (
+            <TutorialTaskInstructionsModal
+              task={selectedTask}
+              onClose={() => setShowTaskModal(false)}
+            />
+          ) : (
+            /* Show regular evidence modal for non-tutorial tasks */
+            <TaskEvidenceModal
+              task={selectedTask}
+              questId={quest.id}
+              onComplete={handleTaskCompletion}
+              onClose={() => setShowTaskModal(false)}
+            />
+          )}
+        </>
       )}
 
       {showTaskDetailModal && (

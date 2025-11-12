@@ -1,5 +1,5 @@
-import React, { useEffect, lazy, Suspense } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import React, { useEffect, useState, lazy, Suspense } from 'react'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { HelmetProvider } from 'react-helmet-async'
@@ -8,6 +8,11 @@ import { DemoProvider } from './contexts/DemoContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { warmupBackend } from './utils/retryHelper'
 import { tokenStore } from './services/api'
+import { useActivityTracking } from './hooks/useActivityTracking'
+import MasqueradeBanner from './components/admin/MasqueradeBanner'
+import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
+import api from './services/api'
+import toast from 'react-hot-toast'
 
 // Always-loaded components (Layout, Auth, Landing pages)
 import Layout from './components/Layout'
@@ -55,7 +60,9 @@ const CalendarPage = lazy(() => import('./pages/CalendarPage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const AdvisorDashboard = lazy(() => import('./pages/AdvisorDashboard'))
 const AdvisorBadgeForm = lazy(() => import('./pages/AdvisorBadgeForm'))
+const AdvisorCheckinPage = lazy(() => import('./pages/AdvisorCheckinPage'))
 const ParentDashboardPage = lazy(() => import('./pages/ParentDashboardPage'))
+const ParentQuestView = lazy(() => import('./pages/ParentQuestView'))
 
 // Loading fallback component
 const PageLoader = () => (
@@ -80,6 +87,61 @@ const queryClient = new QueryClient({
     },
   },
 })
+
+// Inner component that uses activity tracking and masquerade banner (must be inside Router)
+function AppContent() {
+  const navigate = useNavigate();
+  const [masqueradeState, setMasqueradeState] = useState(null);
+
+  // Initialize activity tracking
+  useActivityTracking();
+
+  // Check masquerade state on mount and periodically
+  useEffect(() => {
+    const checkMasquerade = () => {
+      const state = getMasqueradeState();
+      setMasqueradeState(state);
+    };
+
+    checkMasquerade();
+
+    // Check every 5 seconds in case state changes
+    const interval = setInterval(checkMasquerade, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleExitMasquerade = async () => {
+    try {
+      const result = await exitMasquerade(api);
+
+      if (result.success) {
+        setMasqueradeState(null);
+        toast.success('Exited masquerade session');
+        // Redirect to admin users page
+        navigate('/admin/users');
+        window.location.reload(); // Force reload to apply admin token
+      } else {
+        toast.error(result.error || 'Failed to exit masquerade');
+      }
+    } catch (error) {
+      console.error('Exit masquerade error:', error);
+      toast.error('Failed to exit masquerade session');
+    }
+  };
+
+  return (
+    <>
+      <ScrollToTop />
+      {masqueradeState && (
+        <MasqueradeBanner
+          targetUser={masqueradeState.target_user}
+          onExit={handleExitMasquerade}
+        />
+      )}
+    </>
+  );
+}
 
 function App() {
   // ✅ SSO TOKEN EXTRACTION: Extract tokens IMMEDIATELY on app load (before AuthContext)
@@ -112,7 +174,7 @@ function App() {
       <HelmetProvider>
         <QueryClientProvider client={queryClient}>
           <Router>
-          <ScrollToTop />
+          <AppContent />
           <AuthProvider>
             <Toaster
             position="top-right"
@@ -182,6 +244,7 @@ function App() {
               <Route element={<PrivateRoute requiredRole={["advisor", "admin"]} />}>
                 <Route path="advisor" element={<Navigate to="/advisor/dashboard" replace />} />
                 <Route path="advisor/dashboard" element={<AdvisorDashboard />} />
+                <Route path="advisor/checkin/:studentId" element={<AdvisorCheckinPage />} />
                 <Route path="advisor/badges/create" element={<AdvisorBadgeForm />} />
                 <Route path="advisor/badges/:badgeId/edit" element={<AdvisorBadgeForm />} />
               </Route>
@@ -189,6 +252,7 @@ function App() {
               <Route element={<PrivateRoute requiredRole="parent" />}>
                 <Route path="parent/dashboard" element={<ParentDashboardPage />} />
                 <Route path="parent/dashboard/:studentId" element={<ParentDashboardPage />} />
+                <Route path="parent/quest/:studentId/:questId" element={<ParentQuestView />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />

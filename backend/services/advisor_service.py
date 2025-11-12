@@ -47,32 +47,55 @@ class AdvisorService(BaseService):
             if is_admin:
                 # Admin sees ALL students (without badge data to avoid timeout)
                 response = self.supabase.table('users')\
-                    .select('id, display_name, first_name, last_name, email, level, total_xp, avatar_url, last_active')\
+                    .select('id, display_name, first_name, last_name, email, level, avatar_url, last_active')\
                     .eq('role', 'student')\
                     .execute()
 
                 if response.data:
+                    # Collect student IDs for bulk queries
+                    student_ids = [s['id'] for s in response.data]
+
+                    # Bulk fetch XP totals
+                    xp_totals = self._get_bulk_student_xp_totals(student_ids)
+
                     for student in response.data:
-                        # Set badge counts to 0 for now - can be loaded on-demand
-                        student['badge_count'] = 0
+                        # Provide fallback for display_name
+                        if not student.get('display_name'):
+                            student['display_name'] = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip()
+                        # Calculate total_xp from user_skill_xp table
+                        student['total_xp'] = xp_totals.get(student['id'], 0)
+                        # Set quest counts to 0 for now - can be loaded on-demand
+                        student['quest_count'] = 0
                         student['active_badges'] = []
                         students.append(student)
             else:
                 # Regular advisor sees only assigned students
                 response = self.supabase.table('advisor_student_assignments')\
-                    .select('student_id, users!advisor_student_assignments_student_id_fkey(id, display_name, first_name, last_name, email, level, total_xp, avatar_url, last_active)')\
+                    .select('student_id, users!advisor_student_assignments_student_id_fkey(id, display_name, first_name, last_name, email, level, avatar_url, last_active)')\
                     .eq('advisor_id', advisor_id)\
                     .eq('is_active', True)\
                     .execute()
 
-                # Flatten the nested user data
+                # Flatten the nested user data and collect student IDs for bulk queries
+                student_ids = []
                 if response.data:
                     for assignment in response.data:
                         if assignment.get('users'):
                             student = assignment['users']
-                            student['badge_count'] = self._get_student_badge_count(student['id'])
-                            student['active_badges'] = self._get_student_active_badges(student['id'])
+                            # Provide fallback for display_name
+                            if not student.get('display_name'):
+                                student['display_name'] = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip()
+                            student_ids.append(student['id'])
                             students.append(student)
+
+                # Bulk fetch quest counts and XP totals for all students (prevents N+1 queries)
+                if student_ids:
+                    quest_counts = self._get_bulk_student_quest_counts(student_ids)
+                    xp_totals = self._get_bulk_student_xp_totals(student_ids)
+                    for student in students:
+                        student['quest_count'] = quest_counts.get(student['id'], 0)
+                        student['total_xp'] = xp_totals.get(student['id'], 0)
+                        student['active_badges'] = []  # Can be loaded on-demand if needed
 
             # Sort by display name (handle null values)
             students.sort(key=lambda x: x.get('display_name') or '')
@@ -139,27 +162,104 @@ class AdvisorService(BaseService):
             print(f"Error assigning student to advisor: {str(e)}", file=sys.stderr, flush=True)
             raise
 
-    def _get_student_badge_count(self, student_id: str) -> int:
-        """Get count of earned badges for student"""
+    def _get_bulk_student_xp_totals(self, student_ids: List[str]) -> Dict[str, int]:
+        """
+        Get total XP for multiple students in a single query (prevents N+1 queries)
+
+        Args:
+            student_ids: List of student UUIDs
+
+        Returns:
+            Dictionary mapping student_id to total XP
+        """
         try:
-            response = self.supabase.table('user_badges')\
+            if not student_ids:
+                return {}
+
+            # Fetch all XP records for all students in one query
+            response = self.supabase.table('user_skill_xp')\
+                .select('user_id, xp_amount')\
+                .in_('user_id', student_ids)\
+                .execute()
+
+            # Sum XP per student
+            xp_totals = {}
+            for record in (response.data or []):
+                user_id = record['user_id']
+                xp_amount = record.get('xp_amount', 0)
+                xp_totals[user_id] = xp_totals.get(user_id, 0) + xp_amount
+
+            # Ensure all student_ids have a total (even if 0)
+            for student_id in student_ids:
+                if student_id not in xp_totals:
+                    xp_totals[student_id] = 0
+
+            return xp_totals
+        except Exception as e:
+            print(f"Error getting bulk XP totals: {str(e)}", file=sys.stderr, flush=True)
+            return {student_id: 0 for student_id in student_ids}
+
+    def _get_bulk_student_quest_counts(self, student_ids: List[str]) -> Dict[str, int]:
+        """
+        Get completed quest counts for multiple students in a single query (prevents N+1 queries)
+
+        Args:
+            student_ids: List of student UUIDs
+
+        Returns:
+            Dictionary mapping student_id to completed quest count
+        """
+        try:
+            if not student_ids:
+                return {}
+
+            # Fetch all completed quests for all students in one query
+            # Note: Quests are completed when completed_at is NOT NULL
+            response = self.supabase.table('user_quests')\
+                .select('user_id, id')\
+                .in_('user_id', student_ids)\
+                .not_.is_('completed_at', 'null')\
+                .execute()
+
+            # Count quests per student
+            quest_counts = {}
+            for record in (response.data or []):
+                user_id = record['user_id']
+                quest_counts[user_id] = quest_counts.get(user_id, 0) + 1
+
+            # Ensure all student_ids have a count (even if 0)
+            for student_id in student_ids:
+                if student_id not in quest_counts:
+                    quest_counts[student_id] = 0
+
+            return quest_counts
+        except Exception as e:
+            print(f"Error getting bulk quest counts: {str(e)}", file=sys.stderr, flush=True)
+            return {student_id: 0 for student_id in student_ids}
+
+    def _get_student_quest_count(self, student_id: str) -> int:
+        """Get count of completed quests for student"""
+        try:
+            # Note: Quests are completed when completed_at is NOT NULL
+            response = self.supabase.table('user_quests')\
                 .select('id', count='exact')\
                 .eq('user_id', student_id)\
-                .eq('earned', True)\
+                .not_.is_('completed_at', 'null')\
                 .execute()
             return response.count if response.count else 0
         except Exception as e:
-            print(f"Error getting badge count for student {student_id}: {str(e)}", file=sys.stderr, flush=True)
+            print(f"Error getting quest count for student {student_id}: {str(e)}", file=sys.stderr, flush=True)
             return 0
 
     def _get_student_active_badges(self, student_id: str) -> List[Dict[str, Any]]:
         """Get active (in-progress) badges for student"""
         try:
+            # Note: Active badges are those NOT YET earned (earned_at IS NULL) but with progress
             response = self.supabase.table('user_badges')\
-                .select('badge_id, progress, badges(name, pillar_primary)')\
+                .select('badge_id, progress_percentage, badges(name, pillar_primary)')\
                 .eq('user_id', student_id)\
-                .eq('earned', False)\
-                .gt('progress', 0)\
+                .is_('earned_at', 'null')\
+                .gt('progress_percentage', 0)\
                 .limit(3)\
                 .execute()
             return response.data if response.data else []

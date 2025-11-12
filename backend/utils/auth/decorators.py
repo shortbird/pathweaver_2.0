@@ -25,6 +25,8 @@ def require_auth(f):
     Uses httpOnly cookies exclusively for enhanced security.
     Tokens stored in localStorage are vulnerable to XSS attacks.
 
+    When masquerading, this returns the effective user ID (masquerade target).
+
     Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
     """
     @wraps(f)
@@ -33,8 +35,8 @@ def require_auth(f):
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # Get user ID from secure httpOnly cookies only
-        user_id = session_manager.get_current_user_id()
+        # Get effective user ID (masquerade target if masquerading, else actual user)
+        user_id = session_manager.get_effective_user_id()
 
         if not user_id:
             raise AuthenticationError('Authentication required')
@@ -53,6 +55,8 @@ def require_admin(f):
     Uses httpOnly cookies exclusively for enhanced security.
     Verifies user has 'admin' or 'educator' role.
 
+    When masquerading, this checks the ACTUAL admin identity, not the masquerade target.
+
     Sprint 2 - Task 4.2: Authentication Standardization (2025-01-22)
     """
     @wraps(f)
@@ -61,8 +65,8 @@ def require_admin(f):
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # Get user ID from secure httpOnly cookies only
-        user_id = session_manager.get_current_user_id()
+        # Get actual admin user ID (not masquerade target)
+        user_id = session_manager.get_actual_admin_id()
 
         if not user_id:
             raise AuthenticationError('Authentication required')
@@ -70,22 +74,29 @@ def require_admin(f):
         # Store user_id in request context
         request.user_id = user_id
 
-        # Verify admin status
-        supabase = get_authenticated_supabase_client()
+        # Verify admin status with retry logic
+        max_retries = 2
+        for attempt in range(max_retries):
+            try:
+                supabase = get_authenticated_supabase_client()
+                user = supabase.table('users').select('role').eq('id', user_id).execute()
 
-        try:
-            user = supabase.table('users').select('role').eq('id', user_id).execute()
+                if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['admin', 'educator']:
+                    raise AuthorizationError('Admin access required')
 
-            if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['admin', 'educator']:
-                raise AuthorizationError('Admin access required')
+                return f(user_id, *args, **kwargs)
 
-            return f(user_id, *args, **kwargs)
-
-        except (AuthenticationError, AuthorizationError):
-            raise
-        except Exception as e:
-            print(f"Error verifying admin status: {str(e)}", file=sys.stderr, flush=True)
-            raise AuthorizationError('Failed to verify admin status')
+            except (AuthenticationError, AuthorizationError):
+                raise
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    # Retry on connection errors
+                    print(f"Retrying admin verification (attempt {attempt + 1}/{max_retries}): {str(e)}", file=sys.stderr, flush=True)
+                    continue
+                else:
+                    # Final attempt failed
+                    print(f"Error verifying admin status: {str(e)}", file=sys.stderr, flush=True)
+                    raise AuthorizationError('Failed to verify admin status')
 
     return decorated_function
 
@@ -95,6 +106,8 @@ def require_role(*allowed_roles):
 
     Uses httpOnly cookies exclusively for enhanced security.
     Verifies user has one of the specified roles.
+
+    When masquerading, this checks the masquerade target's role.
 
     Args:
         *allowed_roles: One or more role names (e.g., 'student', 'parent', 'admin')
@@ -108,8 +121,8 @@ def require_role(*allowed_roles):
             if request.method == 'OPTIONS':
                 return ('', 200)
 
-            # Get user ID from secure httpOnly cookies only
-            user_id = session_manager.get_current_user_id()
+            # Get effective user ID (masquerade target if masquerading)
+            user_id = session_manager.get_effective_user_id()
 
             if not user_id:
                 raise AuthenticationError('Authentication required')
@@ -117,22 +130,29 @@ def require_role(*allowed_roles):
             # Store user_id in request context
             request.user_id = user_id
 
-            # Verify user role
-            supabase = get_authenticated_supabase_client()
+            # Verify user role with retry logic
+            max_retries = 2
+            for attempt in range(max_retries):
+                try:
+                    supabase = get_authenticated_supabase_client()
+                    user = supabase.table('users').select('role').eq('id', user_id).execute()
 
-            try:
-                user = supabase.table('users').select('role').eq('id', user_id).execute()
+                    if not user.data or len(user.data) == 0 or user.data[0].get('role') not in allowed_roles:
+                        raise AuthorizationError(f'Required role: {", ".join(allowed_roles)}')
 
-                if not user.data or len(user.data) == 0 or user.data[0].get('role') not in allowed_roles:
-                    raise AuthorizationError(f'Required role: {", ".join(allowed_roles)}')
+                    return f(user_id, *args, **kwargs)
 
-                return f(user_id, *args, **kwargs)
-
-            except (AuthenticationError, AuthorizationError):
-                raise
-            except Exception as e:
-                print(f"Error verifying user role: {str(e)}", file=sys.stderr, flush=True)
-                raise AuthorizationError('Failed to verify user role')
+                except (AuthenticationError, AuthorizationError):
+                    raise
+                except Exception as e:
+                    if attempt < max_retries - 1:
+                        # Retry on connection errors
+                        print(f"Retrying role verification (attempt {attempt + 1}/{max_retries}): {str(e)}", file=sys.stderr, flush=True)
+                        continue
+                    else:
+                        # Final attempt failed
+                        print(f"Error verifying user role: {str(e)}", file=sys.stderr, flush=True)
+                        raise AuthorizationError('Failed to verify user role')
 
         return decorated_function
     return decorator
@@ -169,6 +189,8 @@ def require_advisor(f):
     Uses httpOnly cookies exclusively for enhanced security.
     Verifies user has 'advisor' or 'admin' role.
     Advisors can create quest drafts but need admin approval to publish.
+
+    When masquerading, this checks the actual admin identity, not the masquerade target.
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -176,8 +198,8 @@ def require_advisor(f):
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # Get user ID from secure httpOnly cookies only
-        user_id = session_manager.get_current_user_id()
+        # Get actual user ID (not masquerade target for advisor routes)
+        user_id = session_manager.get_actual_admin_id()
 
         if not user_id:
             raise AuthenticationError('Authentication required')
@@ -212,6 +234,8 @@ def require_advisor_for_student(f):
     Checks advisor_student_assignments table to verify advisor is assigned to student.
     Admins always have access.
 
+    When masquerading, this checks the actual admin identity, not the masquerade target.
+
     Usage: Decorate routes that access student-specific data.
     The decorated function must have 'target_user_id' or 'student_id' as a parameter.
     """
@@ -221,8 +245,8 @@ def require_advisor_for_student(f):
         if request.method == 'OPTIONS':
             return ('', 200)
 
-        # Get user ID from secure httpOnly cookies only
-        user_id = session_manager.get_current_user_id()
+        # Get actual user ID (not masquerade target for advisor routes)
+        user_id = session_manager.get_actual_admin_id()
 
         if not user_id:
             raise AuthenticationError('Authentication required')

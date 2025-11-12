@@ -84,6 +84,15 @@ def update_profile(user_id):
         # Update profile using repository
         updated_user = user_repo.update(user_id, update_data)
 
+        # Trigger tutorial verification if profile fields were updated
+        if 'first_name' in update_data or 'last_name' in update_data or 'bio' in update_data:
+            try:
+                from services.tutorial_verification_service import TutorialVerificationService
+                verification_service = TutorialVerificationService()
+                verification_service.verify_user_tutorial_progress(user_id)
+            except Exception as tutorial_error:
+                logger.error(f"Tutorial verification failed after profile update: {tutorial_error}")
+
         return jsonify(updated_user), 200
     except NotFoundError:
         raise

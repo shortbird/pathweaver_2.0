@@ -19,12 +19,13 @@ from routes.services import services_bp
 from routes.admin.services import admin_services_bp
 
 # Import routes
-from routes import quests, tasks, admin_core, evidence_documents, tutorial
-from routes.admin import user_management, quest_management, quest_ideas, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections
+from routes import quests, tasks, admin_core, evidence_documents, tutorial, analytics as analytics_routes
+from routes.admin import user_management, quest_management, quest_ideas, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections, masquerade
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
 from middleware.memory_monitor import memory_monitor
+from middleware.activity_tracker import activity_tracker
 
 # Optional CSRF protection (not critical for JWT-based auth)
 try:
@@ -91,6 +92,10 @@ error_handler.init_app(app)
 # Configure memory monitoring
 memory_monitor.init_app(app)
 
+# Configure activity tracking middleware
+activity_tracker.init_app(app)
+logger.info("Activity tracking middleware enabled")
+
 # Register existing routes
 app.register_blueprint(auth.bp, url_prefix='/api/auth')
 # subscription_requests.bp removed in Phase 1 refactoring (January 2025)
@@ -134,6 +139,7 @@ app.register_blueprint(course_quest_management.bp)  # /api/admin (blueprint has 
 app.register_blueprint(task_flags.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(advisor_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(parent_connections.bp)  # /api/admin/parent-connections (blueprint has url_prefix='/api/admin/parent-connections')
+app.register_blueprint(masquerade.masquerade_bp)  # /api/admin/masquerade (blueprint has url_prefix='/api/admin/masquerade')
 # Register quest types routes (sample tasks, course tasks)
 try:
     from routes import quest_types
@@ -244,6 +250,26 @@ try:
 except Exception as e:
     logger.warning(f"Warning: Advisor routes not available: {e}")
 
+# Register Advisor Check-ins blueprint
+try:
+    from routes.advisor_checkins import checkins_bp
+    app.register_blueprint(checkins_bp)  # /api/advisor/checkins/* (full paths in route definitions)
+    logger.info("Advisor Check-ins routes registered successfully")
+except Exception as e:
+    logger.error(f"CRITICAL: Failed to register Advisor Check-ins routes: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
+
+# Register Advisor Notes blueprint
+try:
+    from routes.advisor_notes import notes_bp
+    app.register_blueprint(notes_bp)  # /api/advisor/notes/* (full paths in route definitions)
+    logger.info("Advisor Notes routes registered successfully")
+except Exception as e:
+    logger.error(f"CRITICAL: Failed to register Advisor Notes routes: {e}")
+    import traceback
+    logger.error(traceback.format_exc())
+
 # Register Direct Messages blueprint
 try:
     from routes import direct_messages
@@ -348,6 +374,13 @@ try:
     logger.info("Pillars Configuration API routes registered successfully")
 except Exception as e:
     logger.warning(f"Warning: Pillars Configuration API routes not available: {e}")
+
+# Register Activity Tracking & Analytics blueprint
+try:
+    app.register_blueprint(analytics_routes.analytics_bp, url_prefix='/api/analytics')  # /api/analytics/* and /api/activity/*
+    logger.info("Activity Tracking & Analytics routes registered successfully")
+except Exception as e:
+    logger.warning(f"Warning: Activity Tracking routes not available: {e}")
 
 
 @app.route('/', methods=['GET', 'HEAD'])

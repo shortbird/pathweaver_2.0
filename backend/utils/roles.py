@@ -38,7 +38,7 @@ ROLE_DISPLAY_NAMES = {
 # Role descriptions
 ROLE_DESCRIPTIONS = {
     UserRole.STUDENT.value: 'Can complete quests, earn XP, and build their diploma',
-    UserRole.PARENT.value: 'Can view linked children\'s progress and diplomas',
+    UserRole.PARENT.value: 'Full platform access plus ability to view linked children\'s progress',
     UserRole.ADVISOR.value: 'Can manage student groups and view progress',
     UserRole.ADMIN.value: 'Full system access including user and quest management'
 }
@@ -55,10 +55,10 @@ class RolePermissions:
             'admin_panel': []
         },
         UserRole.PARENT.value: {
-            'quests': ['view'],
-            'diploma': ['view_children'],
-            'collaborations': [],
-            'profile': ['view_children', 'edit_own'],
+            'quests': ['view', 'start', 'complete'],
+            'diploma': ['view_own', 'edit_own', 'view_children'],
+            'collaborations': ['send', 'receive'],
+            'profile': ['view_others', 'edit_own', 'view_children'],
             'admin_panel': []
         },
         UserRole.ADVISOR.value: {

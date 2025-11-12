@@ -1,10 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import api from '../services/api';
 import UnifiedQuestForm from '../components/admin/UnifiedQuestForm';
 import CourseQuestForm from '../components/admin/CourseQuestForm';
+import CheckinAnalytics from '../components/advisor/CheckinAnalytics';
+import CheckinHistoryModal from '../components/advisor/CheckinHistoryModal';
+import AdvisorNotesModal from '../components/advisor/AdvisorNotesModal';
 import toast from 'react-hot-toast';
+
+// Helper function to get student display name with fallback
+const getStudentName = (student) => {
+  return student.display_name ||
+         `${student.first_name || ''} ${student.last_name || ''}`.trim() ||
+         'Student';
+};
 
 export default function AdvisorDashboard() {
   const { user } = useAuth();
@@ -90,16 +100,6 @@ export default function AdvisorDashboard() {
               Overview
             </button>
             <button
-              onClick={() => setActiveTab('students')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'students'
-                  ? 'border-optio-pink text-optio-pink'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Students ({students.length})
-            </button>
-            <button
               onClick={() => setActiveTab('quests')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'quests'
@@ -116,17 +116,35 @@ export default function AdvisorDashboard() {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'overview' && (
-          <OverviewTab dashboardData={dashboardData} students={students} />
+          <OverviewTab dashboardData={dashboardData} students={students} onRefresh={fetchDashboardData} />
         )}
-        {activeTab === 'students' && <StudentsTab students={students} onRefresh={fetchDashboardData} />}
         {activeTab === 'quests' && <QuestsTab onRefresh={fetchDashboardData} />}
       </div>
     </div>
   );
 }
 
-function OverviewTab({ dashboardData, students }) {
+function OverviewTab({ dashboardData, students, onRefresh }) {
   const stats = dashboardData?.stats || {};
+  const navigate = useNavigate();
+  const [showCheckinHistory, setShowCheckinHistory] = useState(false);
+  const [checkinHistoryStudent, setCheckinHistoryStudent] = useState(null);
+  const [showAdvisorNotes, setShowAdvisorNotes] = useState(false);
+  const [notesStudent, setNotesStudent] = useState(null);
+
+  const handleCheckin = (studentId) => {
+    navigate(`/advisor/checkin/${studentId}`);
+  };
+
+  const handleViewHistory = (student) => {
+    setCheckinHistoryStudent(student);
+    setShowCheckinHistory(true);
+  };
+
+  const handleViewNotes = (student) => {
+    setNotesStudent(student);
+    setShowAdvisorNotes(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -141,62 +159,156 @@ function OverviewTab({ dashboardData, students }) {
           <div className="mt-2 text-3xl font-bold text-green-600">{stats.active_students || 0}</div>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="text-sm font-medium text-gray-500">Badges Earned</div>
-          <div className="mt-2 text-3xl font-bold text-optio-purple">{stats.total_badges_earned || 0}</div>
+          <div className="text-sm font-medium text-gray-500">Quests Completed</div>
+          <div className="mt-2 text-3xl font-bold text-optio-purple">{stats.total_quests_completed || 0}</div>
         </div>
       </div>
 
-      {/* Students List */}
+      {/* Check-in Analytics Widget */}
+      <CheckinAnalytics />
+
+      {/* Students Table */}
       <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-900">My Students</h2>
+          <button
+            onClick={onRefresh}
+            className="px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90"
+          >
+            Refresh
+          </button>
         </div>
-        <div className="divide-y divide-gray-200">
-          {students.length === 0 ? (
-            <div className="p-12 text-center text-gray-500">
-              No students assigned yet
-            </div>
-          ) : (
-            students.slice(0, 5).map((student) => (
-              <div key={student.id} className="p-6 flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold">
-                    {student.display_name?.charAt(0) || 'S'}
-                  </div>
-                  <div className="ml-4">
-                    <div className="text-sm font-medium text-gray-900">{student.display_name}</div>
-                    <div className="text-sm text-gray-500">Level {student.level} • {student.total_xp || 0} XP</div>
-                  </div>
-                </div>
-                <div className="text-sm text-gray-500">
-                  {student.badge_count || 0} badges earned
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        {students.length === 0 ? (
+          <div className="p-12 text-center text-gray-500">
+            No students assigned yet
+          </div>
+        ) : (
+          <div className="overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Student
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total XP
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Quests
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Last Check-in
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {students.map((student) => (
+                  <tr key={student.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-r from-optio-purple to-optio-pink flex items-center justify-center text-white font-semibold">
+                          {getStudentName(student).charAt(0)}
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{getStudentName(student)}</div>
+                          <div className="text-sm text-gray-500">{student.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.total_xp || 0}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.quest_count || 0}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {student.last_checkin ? (
+                        <div>
+                          <div className="text-gray-900 font-medium">
+                            {student.last_checkin.last_checkin_date_formatted}
+                          </div>
+                          <div className="text-gray-500 text-xs">
+                            {student.last_checkin.days_since_checkin} days ago
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 italic">Never</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                      <button
+                        onClick={() => handleCheckin(student.id)}
+                        className="text-white bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-1 rounded-lg hover:opacity-90 font-medium"
+                      >
+                        Check-in
+                      </button>
+                      <button
+                        onClick={() => handleViewHistory(student)}
+                        className="text-optio-purple hover:text-optio-purple-dark font-medium"
+                      >
+                        History
+                      </button>
+                      <button
+                        onClick={() => handleViewNotes(student)}
+                        className="text-optio-purple hover:text-optio-purple-dark font-medium"
+                      >
+                        Advisor Notes
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      {/* Check-in History Modal */}
+      {showCheckinHistory && checkinHistoryStudent && (
+        <CheckinHistoryModal
+          studentId={checkinHistoryStudent.id}
+          studentName={getStudentName(checkinHistoryStudent)}
+          onClose={() => {
+            setShowCheckinHistory(false);
+            setCheckinHistoryStudent(null);
+          }}
+        />
+      )}
+
+      {/* Advisor Notes Modal */}
+      {showAdvisorNotes && notesStudent && (
+        <AdvisorNotesModal
+          subjectId={notesStudent.id}
+          subjectName={getStudentName(notesStudent)}
+          onClose={() => {
+            setShowAdvisorNotes(false);
+            setNotesStudent(null);
+          }}
+        />
+      )}
     </div>
   );
 }
 
 function StudentsTab({ students, onRefresh }) {
+  const navigate = useNavigate();
   const [selectedStudent, setSelectedStudent] = useState(null);
-  const [progressReport, setProgressReport] = useState(null);
-  const [loadingReport, setLoadingReport] = useState(false);
+  const [showCheckinHistory, setShowCheckinHistory] = useState(false);
+  const [checkinHistoryStudent, setCheckinHistoryStudent] = useState(null);
+  const [showAdvisorNotes, setShowAdvisorNotes] = useState(false);
+  const [notesStudent, setNotesStudent] = useState(null);
 
-  const viewStudentProgress = async (studentId) => {
-    try {
-      setLoadingReport(true);
-      const response = await api.get(`/api/advisor/students/${studentId}/progress`);
-      setProgressReport(response.data.report);
-      setSelectedStudent(studentId);
-    } catch (err) {
-      console.error('Error fetching student progress:', err);
-      alert('Failed to load student progress');
-    } finally {
-      setLoadingReport(false);
-    }
+  const handleCheckin = (studentId) => {
+    navigate(`/advisor/checkin/${studentId}`);
+  };
+
+  const handleViewHistory = (student) => {
+    setCheckinHistoryStudent(student);
+    setShowCheckinHistory(true);
+  };
+
+  const handleViewNotes = (student) => {
+    setNotesStudent(student);
+    setShowAdvisorNotes(true);
   };
 
   return (
@@ -224,13 +336,13 @@ function StudentsTab({ students, onRefresh }) {
                   Student
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Level
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Total XP
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Badges
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Last Check-in
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Actions
@@ -243,23 +355,48 @@ function StudentsTab({ students, onRefresh }) {
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div className="flex items-center">
                       <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold">
-                        {student.display_name?.charAt(0) || 'S'}
+                        {getStudentName(student).charAt(0)}
                       </div>
                       <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">{student.display_name}</div>
+                        <div className="text-sm font-medium text-gray-900">{getStudentName(student)}</div>
                         <div className="text-sm text-gray-500">{student.email}</div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.level}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.total_xp || 0}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.badge_count || 0}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm">
+                    {student.last_checkin ? (
+                      <div>
+                        <div className="text-gray-900 font-medium">
+                          {student.last_checkin.last_checkin_date_formatted}
+                        </div>
+                        <div className="text-gray-500 text-xs">
+                          {student.last_checkin.days_since_checkin} days ago
+                        </div>
+                      </div>
+                    ) : (
+                      <span className="text-gray-400 italic">Never</span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                     <button
-                      onClick={() => viewStudentProgress(student.id)}
-                      className="text-optio-pink hover:text-optio-purple font-medium"
+                      onClick={() => handleCheckin(student.id)}
+                      className="text-white bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1 rounded-lg hover:from-purple-700 hover:to-pink-700 font-medium"
                     >
-                      View Progress
+                      Check-in
+                    </button>
+                    <button
+                      onClick={() => handleViewHistory(student)}
+                      className="text-purple-600 hover:text-purple-700 font-medium"
+                    >
+                      History
+                    </button>
+                    <button
+                      onClick={() => handleViewNotes(student)}
+                      className="text-blue-600 hover:text-blue-700 font-medium"
+                    >
+                      Advisor Notes
                     </button>
                   </td>
                 </tr>
@@ -269,13 +406,26 @@ function StudentsTab({ students, onRefresh }) {
         </div>
       )}
 
-      {/* Progress Report Modal */}
-      {selectedStudent && progressReport && (
-        <StudentProgressModal
-          report={progressReport}
+      {/* Check-in History Modal */}
+      {showCheckinHistory && checkinHistoryStudent && (
+        <CheckinHistoryModal
+          studentId={checkinHistoryStudent.id}
+          studentName={getStudentName(checkinHistoryStudent)}
           onClose={() => {
-            setSelectedStudent(null);
-            setProgressReport(null);
+            setShowCheckinHistory(false);
+            setCheckinHistoryStudent(null);
+          }}
+        />
+      )}
+
+      {/* Advisor Notes Modal */}
+      {showAdvisorNotes && notesStudent && (
+        <AdvisorNotesModal
+          subjectId={notesStudent.id}
+          subjectName={getStudentName(notesStudent)}
+          onClose={() => {
+            setShowAdvisorNotes(false);
+            setNotesStudent(null);
           }}
         />
       )}
@@ -422,74 +572,3 @@ function QuestsTab({ onRefresh }) {
   );
 }
 
-function StudentProgressModal({ report, onClose }) {
-  const student = report.student;
-  const badges = report.badges;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-        <div className="p-6 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xl font-bold text-gray-900">Progress Report</h3>
-            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-        </div>
-
-        <div className="p-6 space-y-6">
-          {/* Student Info */}
-          <div>
-            <h4 className="font-semibold text-gray-900">{student.display_name}</h4>
-            <div className="mt-2 text-sm text-gray-600">
-              <div>Level {student.level} • {student.total_xp} XP</div>
-            </div>
-          </div>
-
-          {/* Badge Stats */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-2xl font-bold text-gray-900">{badges.total}</div>
-              <div className="text-sm text-gray-600">Total Badges</div>
-            </div>
-            <div className="bg-green-50 rounded-lg p-4">
-              <div className="text-2xl font-bold text-green-600">{badges.earned}</div>
-              <div className="text-sm text-gray-600">Earned</div>
-            </div>
-            <div className="bg-blue-50 rounded-lg p-4">
-              <div className="text-2xl font-bold text-blue-600">{badges.in_progress}</div>
-              <div className="text-sm text-gray-600">In Progress</div>
-            </div>
-          </div>
-
-          {/* Badge Details */}
-          {badges.details && badges.details.length > 0 && (
-            <div>
-              <h5 className="font-semibold text-gray-900 mb-3">Badge Progress</h5>
-              <div className="space-y-2">
-                {badges.details.map((badge, idx) => (
-                  <div key={idx} className="flex items-center justify-between p-3 bg-gray-50 rounded">
-                    <div className="flex-1">
-                      <div className="text-sm font-medium text-gray-900">{badge.badges?.name}</div>
-                      <div className="text-xs text-gray-500">{badge.badges?.primary_pillar}</div>
-                    </div>
-                    <div className="text-sm">
-                      {badge.earned ? (
-                        <span className="px-2 py-1 bg-green-100 text-green-800 rounded">Earned</span>
-                      ) : (
-                        <span className="text-gray-600">{Math.round(badge.progress)}%</span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
