@@ -18,18 +18,39 @@ def _get_logger():
 # Create singleton client for anonymous operations only
 # Admin client is per-request (cached in Flask's g) to prevent HTTP/2 exhaustion
 _supabase_client = None
+_supabase_admin_singleton = None
 
 def get_supabase_client() -> Client:
     """Get anonymous Supabase client - only for public operations"""
     global _supabase_client
     if not Config.SUPABASE_URL or not Config.SUPABASE_ANON_KEY:
         raise ValueError("Missing Supabase configuration. Check SUPABASE_URL and SUPABASE_ANON_KEY environment variables.")
-    
+
     # Create singleton client - supabase-py handles connection pooling internally
     if _supabase_client is None:
         _supabase_client = create_client(Config.SUPABASE_URL, Config.SUPABASE_ANON_KEY)
-    
+
     return _supabase_client
+
+def get_supabase_admin_singleton() -> Client:
+    """
+    Get thread-safe singleton admin client for background tasks.
+
+    Use this ONLY for:
+    - Background tasks (ThreadPoolExecutor, celery, etc.)
+    - Activity tracking middleware
+    - Scheduled jobs
+
+    For request-scoped operations, use get_supabase_admin_client() instead.
+    """
+    global _supabase_admin_singleton
+    if not Config.SUPABASE_URL or not Config.SUPABASE_SERVICE_ROLE_KEY:
+        raise ValueError("Missing Supabase admin configuration. Check SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY environment variables.")
+
+    if _supabase_admin_singleton is None:
+        _supabase_admin_singleton = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_ROLE_KEY)
+
+    return _supabase_admin_singleton
 
 def get_supabase_admin_client() -> Client:
     """

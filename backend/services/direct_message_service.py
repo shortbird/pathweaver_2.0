@@ -43,26 +43,35 @@ class DirectMessageService(BaseService):
             supabase = self._get_client()
             print(f"[can_message_user] Checking permission: {user_id} -> {target_id}", file=sys.stderr, flush=True)
 
-            # Check if they are friends (accepted status)
-            friendship = supabase.table('friendships').select('status').or_(
-                f'and(requester_id.eq.{user_id},addressee_id.eq.{target_id})',
-                f'and(requester_id.eq.{target_id},addressee_id.eq.{user_id})'
-            ).execute()
+            # Check if they are friends (accepted status) - check both directions
+            friendship1 = supabase.table('friendships').select('status').eq(
+                'requester_id', user_id
+            ).eq('addressee_id', target_id).execute()
 
-            print(f"[can_message_user] Friendship check: {friendship.data}", file=sys.stderr, flush=True)
-            if friendship.data and len(friendship.data) > 0:
-                if friendship.data[0]['status'] == 'accepted':
-                    print(f"[can_message_user] ALLOWED: Accepted friendship", file=sys.stderr, flush=True)
-                    return True
+            friendship2 = supabase.table('friendships').select('status').eq(
+                'requester_id', target_id
+            ).eq('addressee_id', user_id).execute()
+
+            print(f"[can_message_user] Friendship check: f1={friendship1.data}, f2={friendship2.data}", file=sys.stderr, flush=True)
+
+            if (friendship1.data and len(friendship1.data) > 0 and friendship1.data[0]['status'] == 'accepted') or \
+               (friendship2.data and len(friendship2.data) > 0 and friendship2.data[0]['status'] == 'accepted'):
+                print(f"[can_message_user] ALLOWED: Accepted friendship", file=sys.stderr, flush=True)
+                return True
 
             # Check if they have a parent-student link (bidirectional)
-            parent_link = supabase.table('parent_student_links').select('id').or_(
-                f'and(parent_user_id.eq.{user_id},student_user_id.eq.{target_id})',
-                f'and(parent_user_id.eq.{target_id},student_user_id.eq.{user_id})'
-            ).execute()
+            parent_link1 = supabase.table('parent_student_links').select('id').eq(
+                'parent_user_id', user_id
+            ).eq('student_user_id', target_id).execute()
 
-            print(f"[can_message_user] Parent link check: {parent_link.data}", file=sys.stderr, flush=True)
-            if parent_link.data and len(parent_link.data) > 0:
+            parent_link2 = supabase.table('parent_student_links').select('id').eq(
+                'parent_user_id', target_id
+            ).eq('student_user_id', user_id).execute()
+
+            print(f"[can_message_user] Parent link check: pl1={parent_link1.data}, pl2={parent_link2.data}", file=sys.stderr, flush=True)
+
+            if (parent_link1.data and len(parent_link1.data) > 0) or \
+               (parent_link2.data and len(parent_link2.data) > 0):
                 print(f"[can_message_user] ALLOWED: Parent-student link exists", file=sys.stderr, flush=True)
                 return True
 

@@ -13,7 +13,7 @@ Features:
 from flask import request, g, make_response
 import uuid
 from datetime import datetime
-from database import get_supabase_admin_client
+from database import get_supabase_admin_singleton
 from utils.logger import get_logger
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Any
@@ -279,7 +279,8 @@ class ActivityTracker:
         Never raises exceptions to prevent disrupting main request.
         """
         try:
-            supabase = get_supabase_admin_client()
+            # Use singleton admin client for background thread (thread-safe)
+            supabase = get_supabase_admin_singleton()
 
             event_category = self._categorize_event(event_type)
 
@@ -356,7 +357,8 @@ def track_custom_event(
     session_id = getattr(g, 'session_id', str(uuid.uuid4()))
 
     try:
-        supabase = get_supabase_admin_client()
+        # Use singleton admin client (works in request context and background threads)
+        supabase = get_supabase_admin_singleton()
 
         event_category = activity_tracker._categorize_event(event_type)
 
