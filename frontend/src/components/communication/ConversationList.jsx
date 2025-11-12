@@ -85,9 +85,17 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
     }
   }
 
-  // Add friend conversations
+  // Create set of child user IDs for filtering
+  const childUserIds = new Set(linkedChildren.map(child => child.student_id))
+
+  // Add friend conversations (excluding children for parent accounts)
   conversations?.forEach(convo => {
     if (convo.other_user?.role !== 'advisor' && convo.type !== 'bot') {
+      // Skip if this is a child user (for parent accounts)
+      if (user?.role === 'parent' && childUserIds.has(convo.other_user?.id)) {
+        return // Don't add to friends list - they're in Children section
+      }
+
       friendConversations.push({
         ...convo,
         type: 'friend'

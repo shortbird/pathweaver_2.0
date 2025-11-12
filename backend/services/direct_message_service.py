@@ -41,15 +41,18 @@ class DirectMessageService(BaseService):
         """
         try:
             supabase = self._get_client()
+            print(f"[can_message_user] Checking permission: {user_id} -> {target_id}", file=sys.stderr, flush=True)
 
             # Check if target is user's advisor
             user = supabase.table('users').select('advisor_id').eq('id', user_id).single().execute()
             if user.data and user.data.get('advisor_id') == target_id:
+                print(f"[can_message_user] ALLOWED: Target is user's advisor", file=sys.stderr, flush=True)
                 return True
 
             # Check if user is target's advisor
             target = supabase.table('users').select('advisor_id').eq('id', target_id).single().execute()
             if target.data and target.data.get('advisor_id') == user_id:
+                print(f"[can_message_user] ALLOWED: User is target's advisor", file=sys.stderr, flush=True)
                 return True
 
             # Check if they are friends (accepted status)
@@ -58,8 +61,10 @@ class DirectMessageService(BaseService):
                 f'and(requester_id.eq.{target_id},addressee_id.eq.{user_id})'
             ).execute()
 
+            print(f"[can_message_user] Friendship check: {friendship.data}", file=sys.stderr, flush=True)
             if friendship.data and len(friendship.data) > 0:
                 if friendship.data[0]['status'] == 'accepted':
+                    print(f"[can_message_user] ALLOWED: Accepted friendship", file=sys.stderr, flush=True)
                     return True
 
             # Check if they have a parent-student link (bidirectional)
@@ -68,13 +73,16 @@ class DirectMessageService(BaseService):
                 f'and(parent_user_id.eq.{target_id},student_user_id.eq.{user_id})'
             ).execute()
 
+            print(f"[can_message_user] Parent link check: {parent_link.data}", file=sys.stderr, flush=True)
             if parent_link.data and len(parent_link.data) > 0:
+                print(f"[can_message_user] ALLOWED: Parent-student link exists", file=sys.stderr, flush=True)
                 return True
 
+            print(f"[can_message_user] DENIED: No valid relationship found", file=sys.stderr, flush=True)
             return False
 
         except Exception as e:
-            print(f"Error checking message permission: {str(e)}", file=sys.stderr, flush=True)
+            print(f"[can_message_user] ERROR: {str(e)}", file=sys.stderr, flush=True)
             return False
 
     # ==================== Conversation Management ====================
