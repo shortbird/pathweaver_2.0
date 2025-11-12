@@ -64,8 +64,10 @@ const Sidebar = ({ isOpen, onClose }) => {
     }
   ]
 
-  // Start with base navigation items for all users
-  const navItems = [...baseNavItems]
+  // Start with base navigation items, filtering out Connections for parents
+  const navItems = user?.role === 'parent'
+    ? baseNavItems.filter(item => item.path !== '/connections')
+    : [...baseNavItems]
 
   // Add Parent link if user is a parent
   if (user?.role === 'parent') {
