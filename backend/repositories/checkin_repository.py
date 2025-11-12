@@ -184,16 +184,14 @@ class CheckinRepository:
         month_ago = now - timedelta(days=30)
         week_ago = now - timedelta(days=7)
 
-        # Base query
-        base_query = self.supabase.table('advisor_checkins')
+        # Total check-ins - Build fresh query for each metric
+        total_query = self.supabase.table('advisor_checkins').select('id', count='exact')
         if advisor_id:
-            base_query = base_query.eq('advisor_id', advisor_id)
-
-        # Total check-ins
-        total_response = base_query.select('id', count='exact').execute()
+            total_query = total_query.eq('advisor_id', advisor_id)
+        total_response = total_query.execute()
         total_checkins = total_response.count if hasattr(total_response, 'count') else 0
 
-        # Check-ins this month
+        # Check-ins this month - Build fresh query
         month_query = self.supabase.table('advisor_checkins')\
             .select('id', count='exact')\
             .gte('checkin_date', month_ago.isoformat())
@@ -202,7 +200,7 @@ class CheckinRepository:
         month_response = month_query.execute()
         month_checkins = month_response.count if hasattr(month_response, 'count') else 0
 
-        # Recent check-ins (last 7 days) with student names
+        # Recent check-ins (last 7 days) with student names - Build fresh query
         recent_query = self.supabase.table('advisor_checkins')\
             .select('student_id, users!student_id(display_name, first_name, last_name)')\
             .gte('checkin_date', week_ago.isoformat())
