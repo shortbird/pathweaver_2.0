@@ -22,6 +22,7 @@ const AdvisorCheckinPage = () => {
   const [obstacles, setObstacles] = useState('')
   const [solutions, setSolutions] = useState('')
   const [advisorNotes, setAdvisorNotes] = useState('')
+  const [questNotes, setQuestNotes] = useState({}) // { quest_id: 'notes text' }
 
   useEffect(() => {
     fetchCheckinData()
@@ -66,6 +67,11 @@ const AdvisorCheckinPage = () => {
       setSaving(true)
       setError(null)
 
+      // Convert quest notes object to array format for backend
+      const questNotesArray = Object.entries(questNotes)
+        .filter(([questId, notes]) => notes.trim())
+        .map(([questId, notes]) => ({ quest_id: questId, notes }))
+
       const checkinData = {
         student_id: studentId,
         checkin_date: new Date(checkinDate).toISOString(),
@@ -74,7 +80,8 @@ const AdvisorCheckinPage = () => {
         obstacles: obstacles,
         solutions: solutions,
         advisor_notes: advisorNotes,
-        active_quests_snapshot: activeQuests
+        active_quests_snapshot: activeQuests,
+        quest_notes: questNotesArray
       }
 
       const response = await checkinAPI.createCheckin(checkinData)
@@ -166,7 +173,7 @@ const AdvisorCheckinPage = () => {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 mb-3">
                       <div className="flex-1 bg-white rounded-full h-3 overflow-hidden border border-purple-200">
                         <div
                           className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-300"
@@ -176,6 +183,23 @@ const AdvisorCheckinPage = () => {
                       <span className="font-bold text-purple-700 text-sm whitespace-nowrap">
                         {quest.completed_tasks}/{quest.total_tasks} tasks ({quest.completion_percent}%)
                       </span>
+                    </div>
+
+                    {/* Quest-specific notes */}
+                    <div className="mt-3 pt-3 border-t border-purple-200">
+                      <label className="block text-gray-700 font-semibold text-sm mb-2">
+                        Quest-Specific Notes (optional)
+                      </label>
+                      <textarea
+                        value={questNotes[quest.quest_id] || ''}
+                        onChange={(e) => setQuestNotes(prev => ({
+                          ...prev,
+                          [quest.quest_id]: e.target.value
+                        }))}
+                        rows={2}
+                        className="w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:border-purple-500 focus:outline-none transition-colors resize-none text-sm"
+                        placeholder="Add specific notes about this quest's progress, challenges, or observations..."
+                      />
                     </div>
                   </div>
                 ))}

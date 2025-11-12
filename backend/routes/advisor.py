@@ -334,8 +334,8 @@ def get_advisor_dashboard(user_id):
         active_students = len([s for s in students if s.get('last_active')])
         total_custom_badges = len(custom_badges)
 
-        # Get total badges earned by all students
-        total_badges_earned = sum(s.get('badge_count', 0) for s in students)
+        # Get total quests completed by all students
+        total_quests_completed = sum(s.get('quest_count', 0) for s in students)
 
         return jsonify({
             'success': True,
@@ -343,7 +343,7 @@ def get_advisor_dashboard(user_id):
                 'total_students': total_students,
                 'active_students': active_students,
                 'total_custom_badges': total_custom_badges,
-                'total_badges_earned': total_badges_earned
+                'total_quests_completed': total_quests_completed
             },
             'recent_students': students[:5],  # Top 5 recent students
             'recent_badges': custom_badges[:5]  # Top 5 recent custom badges

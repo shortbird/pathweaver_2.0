@@ -100,16 +100,6 @@ export default function AdvisorDashboard() {
               Overview
             </button>
             <button
-              onClick={() => setActiveTab('students')}
-              className={`py-4 px-1 border-b-2 font-medium text-sm ${
-                activeTab === 'students'
-                  ? 'border-optio-pink text-optio-pink'
-                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-              }`}
-            >
-              Students ({students.length})
-            </button>
-            <button
               onClick={() => setActiveTab('quests')}
               className={`py-4 px-1 border-b-2 font-medium text-sm ${
                 activeTab === 'quests'
@@ -126,17 +116,35 @@ export default function AdvisorDashboard() {
       {/* Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {activeTab === 'overview' && (
-          <OverviewTab dashboardData={dashboardData} students={students} />
+          <OverviewTab dashboardData={dashboardData} students={students} onRefresh={fetchDashboardData} />
         )}
-        {activeTab === 'students' && <StudentsTab students={students} onRefresh={fetchDashboardData} />}
         {activeTab === 'quests' && <QuestsTab onRefresh={fetchDashboardData} />}
       </div>
     </div>
   );
 }
 
-function OverviewTab({ dashboardData, students }) {
+function OverviewTab({ dashboardData, students, onRefresh }) {
   const stats = dashboardData?.stats || {};
+  const navigate = useNavigate();
+  const [showCheckinHistory, setShowCheckinHistory] = useState(false);
+  const [checkinHistoryStudent, setCheckinHistoryStudent] = useState(null);
+  const [showAdvisorNotes, setShowAdvisorNotes] = useState(false);
+  const [notesStudent, setNotesStudent] = useState(null);
+
+  const handleCheckin = (studentId) => {
+    navigate(`/advisor/checkin/${studentId}`);
+  };
+
+  const handleViewHistory = (student) => {
+    setCheckinHistoryStudent(student);
+    setShowCheckinHistory(true);
+  };
+
+  const handleViewNotes = (student) => {
+    setNotesStudent(student);
+    setShowAdvisorNotes(true);
+  };
 
   return (
     <div className="space-y-6">
@@ -151,44 +159,132 @@ function OverviewTab({ dashboardData, students }) {
           <div className="mt-2 text-3xl font-bold text-green-600">{stats.active_students || 0}</div>
         </div>
         <div className="bg-white rounded-lg shadow p-6">
-          <div className="text-sm font-medium text-gray-500">Badges Earned</div>
-          <div className="mt-2 text-3xl font-bold text-optio-purple">{stats.total_badges_earned || 0}</div>
+          <div className="text-sm font-medium text-gray-500">Quests Completed</div>
+          <div className="mt-2 text-3xl font-bold text-optio-purple">{stats.total_quests_completed || 0}</div>
         </div>
       </div>
 
       {/* Check-in Analytics Widget */}
       <CheckinAnalytics />
 
-      {/* Students List */}
+      {/* Students Table */}
       <div className="bg-white rounded-lg shadow">
-        <div className="p-6 border-b border-gray-200">
+        <div className="p-6 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-900">My Students</h2>
+          <button
+            onClick={onRefresh}
+            className="px-4 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:opacity-90"
+          >
+            Refresh
+          </button>
         </div>
-        <div className="divide-y divide-gray-200">
-          {students.length === 0 ? (
-            <div className="p-12 text-center text-gray-500">
-              No students assigned yet
-            </div>
-          ) : (
-            students.slice(0, 5).map((student) => (
-              <div key={student.id} className="p-6 flex items-center justify-between">
-                <div className="flex items-center">
-                  <div className="h-10 w-10 rounded-full bg-gradient-primary flex items-center justify-center text-white font-semibold">
-                    {getStudentName(student).charAt(0)}
-                  </div>
-                  <div className="ml-4">
-                    <div className="text-sm font-medium text-gray-900">{getStudentName(student)}</div>
-                    <div className="text-sm text-gray-500">{student.total_xp || 0} XP</div>
-                  </div>
-                </div>
-                <div className="text-sm text-gray-500">
-                  {student.badge_count || 0} badges earned
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+        {students.length === 0 ? (
+          <div className="p-12 text-center text-gray-500">
+            No students assigned yet
+          </div>
+        ) : (
+          <div className="overflow-hidden">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Student
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Total XP
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Quests
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Last Check-in
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {students.map((student) => (
+                  <tr key={student.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="flex items-center">
+                        <div className="h-10 w-10 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 flex items-center justify-center text-white font-semibold">
+                          {getStudentName(student).charAt(0)}
+                        </div>
+                        <div className="ml-4">
+                          <div className="text-sm font-medium text-gray-900">{getStudentName(student)}</div>
+                          <div className="text-sm text-gray-500">{student.email}</div>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.total_xp || 0}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{student.quest_count || 0}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {student.last_checkin ? (
+                        <div>
+                          <div className="text-gray-900 font-medium">
+                            {student.last_checkin.last_checkin_date_formatted}
+                          </div>
+                          <div className="text-gray-500 text-xs">
+                            {student.last_checkin.days_since_checkin} days ago
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 italic">Never</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+                      <button
+                        onClick={() => handleCheckin(student.id)}
+                        className="text-white bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1 rounded-lg hover:from-purple-700 hover:to-pink-700 font-medium"
+                      >
+                        Check-in
+                      </button>
+                      <button
+                        onClick={() => handleViewHistory(student)}
+                        className="text-purple-600 hover:text-purple-700 font-medium"
+                      >
+                        History
+                      </button>
+                      <button
+                        onClick={() => handleViewNotes(student)}
+                        className="text-blue-600 hover:text-blue-700 font-medium"
+                      >
+                        Advisor Notes
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
+
+      {/* Check-in History Modal */}
+      {showCheckinHistory && checkinHistoryStudent && (
+        <CheckinHistoryModal
+          studentId={checkinHistoryStudent.id}
+          studentName={getStudentName(checkinHistoryStudent)}
+          onClose={() => {
+            setShowCheckinHistory(false);
+            setCheckinHistoryStudent(null);
+          }}
+        />
+      )}
+
+      {/* Advisor Notes Modal */}
+      {showAdvisorNotes && notesStudent && (
+        <AdvisorNotesModal
+          subjectId={notesStudent.id}
+          subjectName={getStudentName(notesStudent)}
+          onClose={() => {
+            setShowAdvisorNotes(false);
+            setNotesStudent(null);
+          }}
+        />
+      )}
     </div>
   );
 }

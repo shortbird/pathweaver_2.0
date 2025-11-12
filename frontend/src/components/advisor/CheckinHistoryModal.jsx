@@ -119,22 +119,37 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
                         <div>
                           <h4 className="font-bold text-gray-800 mb-2">Active Quests at Time of Check-in</h4>
                           <div className="space-y-2">
-                            {checkin.active_quests_snapshot.map((quest, idx) => (
-                              <div key={idx} className="bg-white border border-gray-200 rounded-lg p-3">
-                                <p className="font-semibold text-gray-800">{quest.title}</p>
-                                <div className="flex items-center gap-3 mt-2">
-                                  <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
-                                    <div
-                                      className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
-                                      style={{ width: `${quest.completion_percent}%` }}
-                                    />
+                            {checkin.active_quests_snapshot.map((quest, idx) => {
+                              // Find quest-specific notes for this quest
+                              const questNote = checkin.quest_notes?.find(note => note.quest_id === quest.quest_id)
+
+                              return (
+                                <div key={idx} className="bg-white border border-gray-200 rounded-lg p-3">
+                                  <p className="font-semibold text-gray-800">{quest.title}</p>
+                                  <div className="flex items-center gap-3 mt-2">
+                                    <div className="flex-1 bg-gray-200 rounded-full h-2 overflow-hidden">
+                                      <div
+                                        className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
+                                        style={{ width: `${quest.completion_percent}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs font-medium text-gray-600">
+                                      {quest.completion_percent}%
+                                    </span>
                                   </div>
-                                  <span className="text-xs font-medium text-gray-600">
-                                    {quest.completion_percent}%
-                                  </span>
+
+                                  {/* Quest-specific notes */}
+                                  {questNote && questNote.notes && (
+                                    <div className="mt-3 pt-3 border-t border-gray-200">
+                                      <p className="text-xs font-semibold text-purple-700 mb-1">Quest Notes:</p>
+                                      <p className="text-sm text-gray-700 bg-purple-50 p-2 rounded">
+                                        {questNote.notes}
+                                      </p>
+                                    </div>
+                                  )}
                                 </div>
-                              </div>
-                            ))}
+                              )
+                            })}
                           </div>
                         </div>
                       )}

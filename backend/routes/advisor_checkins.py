@@ -26,7 +26,8 @@ def create_checkin(user_id):
         "obstacles": "text",
         "solutions": "text",
         "advisor_notes": "text",
-        "active_quests_snapshot": [...]
+        "active_quests_snapshot": [...],
+        "quest_notes": [{ "quest_id": "uuid", "notes": "text" }, ...]
     }
     """
     try:
@@ -55,7 +56,8 @@ def create_checkin(user_id):
             obstacles=data.get('obstacles', ''),
             solutions=data.get('solutions', ''),
             advisor_notes=data.get('advisor_notes', ''),
-            active_quests_snapshot=data.get('active_quests_snapshot', [])
+            active_quests_snapshot=data.get('active_quests_snapshot', []),
+            quest_notes=data.get('quest_notes', [])
         )
 
         return jsonify({

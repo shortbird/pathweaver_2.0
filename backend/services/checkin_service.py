@@ -32,7 +32,8 @@ class CheckinService(BaseService):
         obstacles: str,
         solutions: str,
         advisor_notes: str,
-        active_quests_snapshot: List[Dict]
+        active_quests_snapshot: List[Dict],
+        quest_notes: Optional[List[Dict]] = None
     ) -> Dict:
         """
         Create a new advisor check-in.
@@ -47,6 +48,7 @@ class CheckinService(BaseService):
             solutions: Strategies discussed
             advisor_notes: Private advisor notes
             active_quests_snapshot: Quest data at time of check-in
+            quest_notes: Optional list of quest-specific notes [{ quest_id: 'uuid', notes: 'text' }]
 
         Returns:
             Created check-in record
@@ -68,7 +70,8 @@ class CheckinService(BaseService):
                 'obstacles': obstacles,
                 'solutions': solutions,
                 'advisor_notes': advisor_notes,
-                'active_quests_snapshot': active_quests_snapshot
+                'active_quests_snapshot': active_quests_snapshot,
+                'quest_notes': quest_notes or []
             }
 
             checkin = self.repository.create_checkin(checkin_data)
