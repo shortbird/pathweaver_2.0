@@ -354,7 +354,7 @@ const AdminUsers = () => {
                         onClick={() => handleEditUser(user)}
                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                       >
-                        Edit Details
+                        Details
                       </button>
                     </div>
                   </td>
@@ -494,7 +494,7 @@ const AdminUsers = () => {
                     onClick={() => handleEditUser(user)}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
                   >
-                    Edit Details
+                    Details
                   </button>
                 </div>
               </div>

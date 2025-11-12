@@ -2,6 +2,7 @@ import React, { useState, useEffect, memo } from 'react'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import ChatLogsModal from './ChatLogsModal'
+import CheckinHistoryModal from '../advisor/CheckinHistoryModal'
 // import { useAdminSubscriptionTiers, formatPrice } from '../../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const UserDetailsModal = ({ user, onClose, onSave }) => {
@@ -23,6 +24,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const [loading, setLoading] = useState(false)
   const [showChatLogsModal, setShowChatLogsModal] = useState(false)
   const [showResetPasswordModal, setShowResetPasswordModal] = useState(false)
+  const [showAdvisorCheckinsModal, setShowAdvisorCheckinsModal] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState(user.avatar_url || '')
 
@@ -110,6 +112,10 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
   const handleResetPassword = () => {
     setShowResetPasswordModal(true)
+  }
+
+  const handleViewAdvisorCheckins = () => {
+    setShowAdvisorCheckinsModal(true)
   }
 
   const handleVerifyEmail = async () => {
@@ -527,6 +533,20 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 </div>
               </button>
 
+              {/* View Advisor Check-ins */}
+              <button
+                onClick={handleViewAdvisorCheckins}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-blue-50 text-blue-700 rounded-lg hover:bg-blue-100 transition-colors font-medium text-left"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+                <div>
+                  <p className="font-semibold">View Advisor Check-ins</p>
+                  <p className="text-sm text-blue-600">View confidential advisor check-in logs</p>
+                </div>
+              </button>
+
               {/* Set Password */}
               <button
                 onClick={handleResetPassword}
@@ -591,6 +611,15 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
             toast.success('Password reset successfully')
             onSave()
           }}
+        />
+      )}
+
+      {/* Advisor Check-ins Modal */}
+      {showAdvisorCheckinsModal && (
+        <CheckinHistoryModal
+          studentId={user.id}
+          studentName={`${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email}
+          onClose={() => setShowAdvisorCheckinsModal(false)}
         />
       )}
     </div>
