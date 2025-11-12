@@ -256,8 +256,10 @@ class DirectMessageService(BaseService):
         """
         Get messages for a conversation
 
+        Handles both actual conversation IDs and user IDs (for new conversations)
+
         Args:
-            conversation_id: UUID of the conversation
+            conversation_id: UUID of the conversation OR target user ID
             user_id: UUID of the requesting user (for permission check)
             limit: Number of messages to return
             offset: Offset for pagination
@@ -268,20 +270,28 @@ class DirectMessageService(BaseService):
         try:
             supabase = self._get_client()
 
-            # Verify user is a participant
-            conversation = supabase.table('message_conversations').select('*').eq(
+            # Try to fetch conversation by ID first
+            conversation_result = supabase.table('message_conversations').select('*').eq(
                 'id', conversation_id
-            ).single().execute()
+            ).execute()
 
-            if not conversation.data:
-                raise ValueError("Conversation not found")
+            # If no conversation found, try to find/create by user IDs
+            if not conversation_result.data or len(conversation_result.data) == 0:
+                # conversation_id might actually be a target_user_id
+                # Try to find existing conversation between these users
+                conversation = self.get_or_create_conversation(user_id, conversation_id)
+                actual_conversation_id = conversation['id']
+            else:
+                conversation = conversation_result.data[0]
+                actual_conversation_id = conversation_id
 
-            if user_id not in [conversation.data['participant_1_id'], conversation.data['participant_2_id']]:
-                raise ValueError("You are not a participant in this conversation")
+                # Verify user is a participant
+                if user_id not in [conversation['participant_1_id'], conversation['participant_2_id']]:
+                    raise ValueError("You are not a participant in this conversation")
 
             # Get messages
             messages = supabase.table('direct_messages').select('*').eq(
-                'conversation_id', conversation_id
+                'conversation_id', actual_conversation_id
             ).order('created_at', desc=False).range(offset, offset + limit - 1).execute()
 
             return messages.data if messages.data else []
