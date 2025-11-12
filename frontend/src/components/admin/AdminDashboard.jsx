@@ -254,7 +254,7 @@ const AdminDashboard = () => {
         </div>
 
         {/* Secondary Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-gray-900">User Growth</h3>
@@ -273,28 +273,6 @@ const AdminDashboard = () => {
                 <span className="text-sm text-gray-600">Engagement Rate</span>
                 <span className="font-semibold text-gray-900">{formatMetricValue(overviewData?.engagement_rate, 'percentage')}</span>
               </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Subscription Tiers</h3>
-            </div>
-            <div className="space-y-3">
-              {overviewData?.subscription_distribution?.map((tier, index) => (
-                <div key={index} className="flex justify-between items-center">
-                  <span className="text-sm text-gray-600 capitalize">{tier.tier}</span>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-semibold text-gray-900">{tier.count}</span>
-                    <div className={`w-12 h-2 rounded-full ${
-                      tier.tier === 'explorer' ? 'bg-gray-300' :
-                      tier.tier === 'creator' ? 'bg-blue-300' : 'bg-purple-300'
-                    }`}></div>
-                  </div>
-                </div>
-              )) || (
-                <div className="text-sm text-gray-500 text-center py-4">No subscription data available</div>
-              )}
             </div>
           </div>
 
@@ -339,34 +317,18 @@ const AdminDashboard = () => {
           </div>
 
           {/* Distribution Charts */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Learning Focus Areas</h3>
-                <div className="text-sm text-gray-500">XP by skill pillar</div>
-              </div>
-              <BarChart
-                data={trendsData?.xp_by_pillar}
-                title=""
-                xLabel=""
-                yLabel="Total XP"
-                loading={loading}
-              />
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Learning Focus Areas</h3>
+              <div className="text-sm text-gray-500">XP by skill pillar</div>
             </div>
-
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-900">Revenue Distribution</h3>
-                <div className="text-sm text-gray-500">Users by tier</div>
-              </div>
-              <BarChart
-                data={overviewData?.subscription_distribution}
-                title=""
-                xLabel=""
-                yLabel="Number of Users"
-                loading={loading}
-              />
-            </div>
+            <BarChart
+              data={trendsData?.xp_by_pillar}
+              title=""
+              xLabel=""
+              yLabel="Total XP"
+              loading={loading}
+            />
           </div>
         </div>
 

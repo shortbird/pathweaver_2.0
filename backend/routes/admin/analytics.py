@@ -119,15 +119,22 @@ def get_overview_metrics(user_id):
             print(f"Error getting quest completions today: {e}", file=sys.stderr, flush=True)
             completions_today = 0
 
-        # Get total XP earned (use PostgreSQL SUM aggregation instead of client-side)
+        # Get total XP earned from task completions this week
         try:
-            # Use RPC function or aggregation if available, otherwise estimate from completions
-            # For now, use XP from quest completions this week as proxy
             xp_completions = supabase.table('quest_task_completions')\
                 .select('xp_awarded')\
                 .gte('completed_at', week_ago.isoformat())\
                 .execute()
-            total_xp_week = sum([record.get('xp_awarded', 0) for record in xp_completions.data]) if xp_completions.data else 0
+
+            # Sum XP from completions (handles None values)
+            total_xp_week = 0
+            if xp_completions.data:
+                for record in xp_completions.data:
+                    xp_value = record.get('xp_awarded', 0)
+                    if xp_value:
+                        total_xp_week += xp_value
+
+            print(f"DEBUG: Found {len(xp_completions.data) if xp_completions.data else 0} completions with total XP: {total_xp_week}", file=sys.stderr, flush=True)
         except Exception as e:
             print(f"Error getting XP week data: {e}", file=sys.stderr, flush=True)
             total_xp_week = 0
@@ -237,12 +244,22 @@ def get_recent_activity(user_id):
 
     try:
         now = datetime.utcnow()
-        # Get recent quest completions (simplified query to avoid foreign key issues)
+
+        # Get all user IDs we'll need and fetch names in bulk
+        user_ids_needed = set()
+
+        # Get recent quest completions
         try:
             recent_completions = supabase.table('quest_task_completions')\
                 .select('user_id, task_id, quest_id, completed_at')\
                 .order('completed_at', desc=True)\
                 .limit(10).execute()
+
+            # Collect user IDs
+            if recent_completions.data:
+                for completion in recent_completions.data:
+                    if completion.get('user_id'):
+                        user_ids_needed.add(completion['user_id'])
         except Exception as e:
             print(f"Error getting recent completions: {e}", file=sys.stderr, flush=True)
             recent_completions = type('obj', (object,), {'data': []})()
@@ -250,50 +267,97 @@ def get_recent_activity(user_id):
         # Get recent user signups
         try:
             recent_users = supabase.table('users')\
-                .select('first_name, last_name, created_at, subscription_tier')\
+                .select('id, first_name, last_name, created_at')\
                 .order('created_at', desc=True)\
                 .limit(5).execute()
+
+            # Collect user IDs
+            if recent_users.data:
+                for user in recent_users.data:
+                    if user.get('id'):
+                        user_ids_needed.add(user['id'])
         except Exception as e:
             print(f"Error getting recent users: {e}", file=sys.stderr, flush=True)
             recent_users = type('obj', (object,), {'data': []})()
 
-        # Get recent quest submissions with proper timestamp
+        # Get recent quest submissions
         try:
             recent_submissions = supabase.table('quest_submissions')\
-                .select('user_id, title, submitted_at')\
-                .order('submitted_at', desc=True)\
+                .select('user_id, title, created_at')\
+                .order('created_at', desc=True)\
                 .limit(5).execute()
+
+            # Collect user IDs
+            if recent_submissions.data:
+                for submission in recent_submissions.data:
+                    if submission.get('user_id'):
+                        user_ids_needed.add(submission['user_id'])
         except Exception as e:
             print(f"Error getting recent submissions: {e}", file=sys.stderr, flush=True)
             recent_submissions = type('obj', (object,), {'data': []})()
 
-        # Format activity feed (simplified without foreign key lookups)
+        # Fetch all user names in one query
+        user_names = {}
+        if user_ids_needed:
+            try:
+                users_result = supabase.table('users')\
+                    .select('id, first_name, last_name, display_name')\
+                    .in_('id', list(user_ids_needed))\
+                    .execute()
+
+                if users_result.data:
+                    for user in users_result.data:
+                        user_id = user.get('id')
+                        display_name = user.get('display_name')
+                        first_name = user.get('first_name', '')
+                        last_name = user.get('last_name', '')
+
+                        # Prefer display_name, fall back to first + last
+                        if display_name:
+                            user_names[user_id] = display_name
+                        elif first_name or last_name:
+                            user_names[user_id] = f"{first_name} {last_name}".strip()
+                        else:
+                            user_names[user_id] = 'Student'
+            except Exception as e:
+                print(f"Error fetching user names: {e}", file=sys.stderr, flush=True)
+
+        # Format activity feed with proper user names
         activities = []
 
-        # Add completions (simplified)
+        # Add completions
         for completion in recent_completions.data or []:
+            user_id = completion.get('user_id')
+            user_name = user_names.get(user_id, 'Student')
+
             activities.append({
                 'type': 'quest_completion',
                 'timestamp': completion['completed_at'],
-                'user_name': 'Student',  # Simplified - would need separate lookup for names
+                'user_name': user_name,
                 'description': f"completed a quest task"
             })
 
         # Add new users
         for user in recent_users.data or []:
+            user_id = user.get('id')
+            user_name = user_names.get(user_id, 'Student')
+
             activities.append({
                 'type': 'user_signup',
                 'timestamp': user['created_at'],
-                'user_name': f"{user['first_name']} {user['last_name']}",
-                'description': f"joined Optio with {user['subscription_tier']} subscription"
+                'user_name': user_name,
+                'description': f"joined Optio"
             })
 
-        # Add quest submissions with proper timestamp
+        # Add quest submissions
         for submission in recent_submissions.data or []:
+            user_id = submission.get('user_id')
+            user_name = user_names.get(user_id, 'Student')
+
             activities.append({
                 'type': 'quest_submission',
-                'timestamp': submission.get('submitted_at', now.isoformat()),
-                'user_name': 'Student',  # Simplified - would need separate lookup for names
+                'timestamp': submission.get('created_at', now.isoformat()),
+                'user_name': user_name,
                 'description': f"submitted custom quest: '{submission['title']}'"
             })
 
@@ -371,16 +435,16 @@ def get_trends_data(user_id):
             if completion_date >= start_date:
                 daily_completions[completion_date.isoformat()] = daily_completions.get(completion_date.isoformat(), 0) + 1
 
-        # Get XP distribution by pillar (aggregated approach)
+        # Get XP distribution by pillar (using correct lowercase pillar names)
         pillar_totals = {
-            'STEM & Logic': 0,
-            'Life & Wellness': 0,
-            'Language & Communication': 0,
-            'Society & Culture': 0,
-            'Arts & Creativity': 0
+            'stem': 0,
+            'wellness': 0,
+            'communication': 0,
+            'civics': 0,
+            'art': 0
         }
 
-        # Get all XP records and aggregate them client-side to avoid URL encoding issues
+        # Get all XP records and aggregate them client-side
         try:
             all_xp_result = supabase.table('user_skill_xp')\
                 .select('pillar, xp_amount')\
@@ -390,8 +454,23 @@ def get_trends_data(user_id):
             for record in all_xp_result.data or []:
                 pillar = record.get('pillar')
                 xp_amount = record.get('xp_amount', 0)
+
+                # Handle both old and new pillar names for backward compatibility
                 if pillar in pillar_totals:
                     pillar_totals[pillar] += xp_amount
+                # Map old format to new format if needed
+                elif pillar == 'STEM & Logic':
+                    pillar_totals['stem'] += xp_amount
+                elif pillar == 'Life & Wellness':
+                    pillar_totals['wellness'] += xp_amount
+                elif pillar == 'Language & Communication':
+                    pillar_totals['communication'] += xp_amount
+                elif pillar == 'Society & Culture':
+                    pillar_totals['civics'] += xp_amount
+                elif pillar == 'Arts & Creativity':
+                    pillar_totals['art'] += xp_amount
+
+            print(f"DEBUG: XP by pillar: {pillar_totals}", file=sys.stderr, flush=True)
 
         except Exception as e:
             print(f"Error getting XP data: {e}", file=sys.stderr, flush=True)
