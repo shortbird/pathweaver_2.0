@@ -62,6 +62,15 @@ class DirectMessageService(BaseService):
                 if friendship.data[0]['status'] == 'accepted':
                     return True
 
+            # Check if they have a parent-student link (bidirectional)
+            parent_link = supabase.table('parent_student_links').select('id').or_(
+                f'and(parent_user_id.eq.{user_id},student_user_id.eq.{target_id})',
+                f'and(parent_user_id.eq.{target_id},student_user_id.eq.{user_id})'
+            ).execute()
+
+            if parent_link.data and len(parent_link.data) > 0:
+                return True
+
             return False
 
         except Exception as e:

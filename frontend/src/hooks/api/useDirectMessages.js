@@ -11,8 +11,9 @@ export const useConversations = (userId, options = {}) => {
       return response.data.data || response.data
     },
     enabled: !!userId,
-    refetchInterval: 10000, // Refetch every 10 seconds for real-time feel
-    staleTime: 5000,
+    refetchInterval: 30000, // Refetch every 30 seconds (reduced from 10s)
+    staleTime: 20000, // Consider data fresh for 20 seconds
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
     ...options
   })
 }
@@ -26,8 +27,9 @@ export const useConversationMessages = (conversationId, userId, options = {}) =>
       return response.data.data || response.data
     },
     enabled: !!conversationId && !!userId,
-    refetchInterval: 5000, // Refetch every 5 seconds for messages
-    staleTime: 2000,
+    refetchInterval: 15000, // Refetch every 15 seconds (reduced from 5s)
+    staleTime: 10000, // Consider data fresh for 10 seconds
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
     ...options
   })
 }

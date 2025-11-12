@@ -8,33 +8,20 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
   const { user } = useAuth()
   const [searchQuery, setSearchQuery] = React.useState('')
 
-  // Fetch linked children if user is a parent
-  const { data: linkedChildren = [], isLoading: childrenLoading, error: childrenError } = useQuery({
+  // Fetch linked children if user is a parent (with optimized caching)
+  const { data: linkedChildren = [] } = useQuery({
     queryKey: ['linkedChildren', user?.id],
     queryFn: async () => {
-      console.log('[ConversationList] Fetching linked children for user:', user?.id)
       const response = await parentAPI.getMyChildren()
-      console.log('[ConversationList] Raw API response:', response)
-      console.log('[ConversationList] Children data:', response.data?.children)
       return response
     },
     enabled: user?.role === 'parent',
-    select: (response) => {
-      const children = response.data?.children || []
-      console.log('[ConversationList] Selected children:', children)
-      return children
-    }
+    select: (response) => response.data?.children || [],
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes (children list doesn't change often)
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (renamed from cacheTime in React Query v5)
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    refetchOnMount: false // Don't refetch on component remount if data exists
   })
-
-  // Log children state for debugging
-  React.useEffect(() => {
-    if (user?.role === 'parent') {
-      console.log('[ConversationList] Parent role detected')
-      console.log('[ConversationList] Linked children:', linkedChildren)
-      console.log('[ConversationList] Children loading:', childrenLoading)
-      console.log('[ConversationList] Children error:', childrenError)
-    }
-  }, [user?.role, linkedChildren, childrenLoading, childrenError])
 
   const formatTime = (timestamp) => {
     if (!timestamp) return ''
@@ -245,8 +232,9 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
             </div>
             {linkedChildren.map(child => {
               // Create conversation object for child
+              // Use student_id directly as the conversation ID (no prefix)
               const childConvo = {
-                id: `child-${child.student_id}`,
+                id: child.student_id,
                 type: 'child',
                 other_user: {
                   id: child.student_id,
