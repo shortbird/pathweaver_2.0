@@ -6,6 +6,7 @@ import AdminBadges from '../components/admin/AdminBadges'
 import AdminUsers from '../components/admin/AdminUsers'
 import AdminQuestSuggestions from '../components/admin/AdminQuestSuggestions'
 import AdvisorAssignments from '../components/admin/AdvisorAssignments'
+import AdminDashboard from '../components/admin/AdminDashboard'
 import AIContentPipeline from './admin/AIContentPipeline'
 import AIQuestReview from '../components/admin/AIQuestReview'
 import AIPerformanceAnalytics from '../components/admin/AIPerformanceAnalytics'
@@ -44,6 +45,12 @@ const AdminPage = () => {
         {/* Admin-only tabs */}
         {isAdmin && (
           <>
+            <Link
+              to="/admin/analytics"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'analytics' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Analytics
+            </Link>
             <Link
               to="/admin/badges"
               className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'badges' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
@@ -105,6 +112,7 @@ const AdminPage = () => {
       <Routes>
         <Route index element={<AdminQuests />} />
         <Route path="quests" element={<AdminQuests />} />
+        <Route path="analytics" element={<AdminDashboard />} />
         <Route path="badges" element={<AdminBadges />} />
         <Route path="users" element={<AdminUsers />} />
         <Route path="advisor-assignments" element={<AdvisorAssignments />} />
