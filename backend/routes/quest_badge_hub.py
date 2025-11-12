@@ -58,19 +58,11 @@ def get_badges_for_hub():
         filters = {}
         if pillar_filter and pillar_filter != 'ALL':
             filters['pillar'] = pillar_filter
-
-        # Get badges from service (already includes user progress if user_id provided)
-        badges = BadgeService.get_available_badges(user_id=user_id, filters=filters if filters else None)
-
-        # Apply search filter if provided (client-side style for consistency)
         if search_term:
-            search_lower = search_term.lower()
-            badges = [
-                b for b in badges
-                if search_lower in b.get('name', '').lower()
-                or search_lower in b.get('identity_statement', '').lower()
-                or search_lower in b.get('description', '').lower()
-            ]
+            filters['search'] = search_term
+
+        # Get badges from service with database-level search (optimized)
+        badges = BadgeService.get_available_badges(user_id=user_id, filters=filters if filters else None)
 
         # Group badges by pillar for carousel display (using new single-word pillar names)
         pillar_groups = {

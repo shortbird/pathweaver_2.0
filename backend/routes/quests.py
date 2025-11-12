@@ -111,9 +111,9 @@ def list_quests():
                     'has_more': False
                 })
 
-        # Apply search filter if provided
+        # Apply search filter if provided (search in both title and description)
         if search:
-            query = query.ilike('title', f'%{search}%')
+            query = query.or_(f'title.ilike.%{search}%,description.ilike.%{search}%')
 
         # Apply ordering
         query = query.order('created_at', desc=True)

@@ -24,7 +24,7 @@ class BadgeService(BaseService):
 
         Args:
             user_id: Optional user ID for personalized filtering
-            filters: Optional filters (pillar, status, complexity)
+            filters: Optional filters (pillar, status, complexity, search)
 
         Returns:
             List of badge dictionaries with metadata
@@ -40,6 +40,10 @@ class BadgeService(BaseService):
                 query = query.eq('pillar_primary', filters['pillar'])
             if 'status' in filters:
                 query = query.eq('status', filters['status'])
+            if 'search' in filters and filters['search']:
+                # Search in name, identity_statement, and description fields
+                search_term = filters['search']
+                query = query.or_(f'name.ilike.%{search_term}%,identity_statement.ilike.%{search_term}%,description.ilike.%{search_term}%')
 
         # Order by created date (newest first)
         query = query.order('created_at', desc=True)

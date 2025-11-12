@@ -12,6 +12,7 @@ const AdminUsers = () => {
   const [users, setUsers] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [filters, setFilters] = useState({
     role: 'all',
     activity: 'all',
@@ -28,16 +29,30 @@ const AdminUsers = () => {
   const [masquerading, setMasquerading] = useState(false)
   const usersPerPage = 20
 
+  // Debounce search term to avoid excessive API calls
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, 500)
+    return () => clearTimeout(timer)
+  }, [searchTerm])
+
+  // Reset to page 1 when search term changes
+  useEffect(() => {
+    if (debouncedSearchTerm !== searchTerm) return // Only reset when debounced value changes
+    setCurrentPage(1)
+  }, [debouncedSearchTerm])
+
   useEffect(() => {
     fetchUsers()
-  }, [currentPage, filters])
+  }, [currentPage, filters, debouncedSearchTerm])
 
   const fetchUsers = async () => {
     try {
       const queryParams = new URLSearchParams({
         page: currentPage,
         limit: usersPerPage,
-        search: searchTerm,
+        search: debouncedSearchTerm,
         role: filters.role,
         activity: filters.activity,
         sort_by: filters.sortBy,
