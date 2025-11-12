@@ -43,18 +43,6 @@ class DirectMessageService(BaseService):
             supabase = self._get_client()
             print(f"[can_message_user] Checking permission: {user_id} -> {target_id}", file=sys.stderr, flush=True)
 
-            # Check if target is user's advisor
-            user = supabase.table('users').select('advisor_id').eq('id', user_id).single().execute()
-            if user.data and user.data.get('advisor_id') == target_id:
-                print(f"[can_message_user] ALLOWED: Target is user's advisor", file=sys.stderr, flush=True)
-                return True
-
-            # Check if user is target's advisor
-            target = supabase.table('users').select('advisor_id').eq('id', target_id).single().execute()
-            if target.data and target.data.get('advisor_id') == user_id:
-                print(f"[can_message_user] ALLOWED: User is target's advisor", file=sys.stderr, flush=True)
-                return True
-
             # Check if they are friends (accepted status)
             friendship = supabase.table('friendships').select('status').or_(
                 f'and(requester_id.eq.{user_id},addressee_id.eq.{target_id})',
