@@ -73,11 +73,6 @@ const DashboardPage = () => {
   const { user } = useAuth()
   const [showLearningEventModal, setShowLearningEventModal] = useState(false)
 
-  // Redirect parents to their dedicated dashboard
-  if (user?.role === 'parent') {
-    return <Navigate to="/parent/dashboard" replace />
-  }
-
   // Use React Query hooks for data fetching
   const {
     data: dashboardData,
