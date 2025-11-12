@@ -62,6 +62,10 @@ def list_quests():
         search = sanitize_search_input(request.args.get('search', ''))
         pillar_filter = sanitize_search_input(request.args.get('pillar', ''), max_length=50)
         subject_filter = sanitize_search_input(request.args.get('subject', ''), max_length=50)
+
+        # Log search parameter for debugging
+        if search:
+            logger.info(f"[SEARCH DEBUG] Search term received: '{search}'")
         
         # Calculate offset
         offset = (page - 1) * per_page
@@ -113,7 +117,10 @@ def list_quests():
 
         # Apply search filter if provided (search in both title and description)
         if search:
+            logger.info(f"[SEARCH DEBUG] Applying search filter: '{search}'")
+            # Use proper Supabase filter syntax with or_
             query = query.or_(f'title.ilike.%{search}%,description.ilike.%{search}%')
+            logger.info(f"[SEARCH DEBUG] Query after filter applied")
 
         # Apply ordering
         query = query.order('created_at', desc=True)
