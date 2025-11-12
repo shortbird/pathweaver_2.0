@@ -5,9 +5,13 @@ Handles validation, data aggregation, and check-in operations.
 
 from typing import Dict, List, Optional
 from datetime import datetime
+import logging
 from services.base_service import BaseService
 from repositories.checkin_repository import CheckinRepository
 from database import get_supabase_admin_client
+
+# Set up logger
+logger = logging.getLogger(__name__)
 
 
 class CheckinService(BaseService):
@@ -16,6 +20,7 @@ class CheckinService(BaseService):
     def __init__(self):
         super().__init__()
         self.repository = CheckinRepository()
+        self.logger = logger  # Use module-level logger
 
     def create_checkin(
         self,
