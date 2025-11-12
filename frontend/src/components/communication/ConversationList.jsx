@@ -13,7 +13,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
     queryKey: ['linkedChildren', user?.id],
     queryFn: () => parentAPI.getMyChildren(),
     enabled: user?.role === 'parent',
-    select: (response) => response.data || []
+    select: (response) => response.children || []
   })
 
   const formatTime = (timestamp) => {
