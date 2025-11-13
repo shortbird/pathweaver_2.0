@@ -51,6 +51,11 @@ const ConnectionsPage = () => {
   // Loading state
   const loading = loadingFriends
 
+  // Scroll to top on mount
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
+
   // Check if we should return to a quest after adding friends
   useEffect(() => {
     const questId = sessionStorage.getItem('returnToQuest')
