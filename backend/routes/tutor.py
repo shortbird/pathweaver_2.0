@@ -127,7 +127,7 @@ def send_message(user_id: str):
             conversation_id = conversation['id']
 
         # Build context for AI tutor
-        context = _build_tutor_context(supabase, user_id, conversation)
+        context = _build_tutor_context(supabase, user_id, conversation, conversation_mode)
 
         # Get user's current quest/task context if available
         current_quest_data = data.get('current_quest')
@@ -732,7 +732,7 @@ def _update_conversation_metadata(supabase, conversation_id: str):
         logger.error(f"Failed to update conversation metadata: {e}")
         # Don't raise - this is not critical enough to fail the message storage
 
-def _build_tutor_context(supabase, user_id: str, conversation: Optional[Dict] = None) -> TutorContext:
+def _build_tutor_context(supabase, user_id: str, conversation: Optional[Dict] = None, conversation_mode: Optional[str] = None) -> TutorContext:
     """Build tutor context from user data"""
     context = TutorContext(user_id=user_id)
 
@@ -745,6 +745,13 @@ def _build_tutor_context(supabase, user_id: str, conversation: Optional[Dict] = 
             context.learning_style = settings_data.get('learning_style')
             if settings_data.get('preferred_mode'):
                 context.conversation_mode = ConversationMode(settings_data['preferred_mode'])
+
+        # Override with conversation_mode from request if provided (highest priority)
+        if conversation_mode:
+            try:
+                context.conversation_mode = ConversationMode(conversation_mode)
+            except ValueError:
+                logger.warning(f"Invalid conversation mode '{conversation_mode}', using default")
 
         # Get recent messages for context
         if conversation:
