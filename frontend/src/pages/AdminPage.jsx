@@ -17,6 +17,7 @@ import FlaggedTasksPanel from '../components/admin/FlaggedTasksPanel'
 import AdminServices from '../components/admin/AdminServices'
 import ServiceInquiries from '../components/admin/ServiceInquiries'
 import ParentConnectionsPanel from '../components/admin/ParentConnectionsPanel'
+import UserActivityLogPage from './admin/UserActivityLogPage'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -127,6 +128,7 @@ const AdminPage = () => {
         <Route path="ai-optimizer" element={<AIPromptOptimizer />} />
         <Route path="batch-generator" element={<BatchContentGenerator />} />
         <Route path="parent-connections" element={<ParentConnectionsPanel />} />
+        <Route path="user/:userId/activity" element={<UserActivityLogPage />} />
       </Routes>
     </div>
   )

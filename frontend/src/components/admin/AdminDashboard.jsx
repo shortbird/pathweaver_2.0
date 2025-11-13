@@ -5,7 +5,6 @@ import MetricCard from './charts/MetricCard'
 import ActivityFeed from './charts/ActivityFeed'
 import BarChart from './charts/BarChart'
 import LineChart from './charts/LineChart'
-import HealthScore from './charts/HealthScore'
 
 // Icon components for better consistency
 const RefreshIcon = () => (
@@ -30,7 +29,6 @@ const AdminDashboard = () => {
   const [overviewData, setOverviewData] = useState(null)
   const [activityData, setActivityData] = useState(null)
   const [trendsData, setTrendsData] = useState(null)
-  const [healthData, setHealthData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [lastUpdated, setLastUpdated] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
@@ -48,18 +46,16 @@ const AdminDashboard = () => {
       if (!loading) setRefreshing(true)
       setLoading(true)
 
-      // Fetch all analytics data in parallel
-      const [overviewRes, activityRes, trendsRes, healthRes] = await Promise.all([
+      // Fetch all analytics data in parallel (simplified - no health endpoint)
+      const [overviewRes, activityRes, trendsRes] = await Promise.all([
         api.get('/api/admin/analytics/overview'),
         api.get('/api/admin/analytics/activity'),
-        api.get('/api/admin/analytics/trends'),
-        api.get('/api/admin/analytics/health')
+        api.get('/api/admin/analytics/trends')
       ])
 
       setOverviewData(overviewRes.data.data)
       setActivityData(activityRes.data.data)
       setTrendsData(trendsRes.data.data)
-      setHealthData(healthRes.data.data)
       setLastUpdated(new Date())
 
     } catch (error) {
@@ -79,14 +75,14 @@ const AdminDashboard = () => {
     })
   }
 
-  // Helper function to get priority level for alerts
+  // Helper function to get priority level for alerts (simplified)
   const getPriorityLevel = () => {
     if (!overviewData) return 'normal'
 
-    const { pending_submissions = 0, health_score = 100 } = overviewData
+    const { pending_submissions = 0 } = overviewData
 
-    if (pending_submissions > 10 || health_score < 70) return 'high'
-    if (pending_submissions > 5 || health_score < 85) return 'medium'
+    if (pending_submissions > 10) return 'high'
+    if (pending_submissions > 5) return 'medium'
     return 'normal'
   }
 
@@ -154,27 +150,6 @@ const AdminDashboard = () => {
       {/* Main Dashboard Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
 
-        {/* Platform Health Status */}
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-semibold text-gray-900">Platform Health</h2>
-            <div className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-              (healthData?.health_score || 100) >= 85
-                ? 'bg-green-100 text-green-800'
-                : (healthData?.health_score || 100) >= 70
-                ? 'bg-yellow-100 text-yellow-800'
-                : 'bg-red-100 text-red-800'
-            }`}>
-              {(healthData?.health_score || 100) >= 85 ? 'Healthy' :
-               (healthData?.health_score || 100) >= 70 ? 'Warning' : 'Critical'}
-            </div>
-          </div>
-          <HealthScore
-            score={healthData?.health_score}
-            alerts={healthData?.alerts}
-            loading={loading}
-          />
-        </div>
 
         {/* Key Performance Indicators */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">

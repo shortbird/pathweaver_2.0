@@ -8,7 +8,6 @@ import { DemoProvider } from './contexts/DemoContext'
 import ErrorBoundary from './components/ErrorBoundary'
 import { warmupBackend } from './utils/retryHelper'
 import { tokenStore } from './services/api'
-import { useActivityTracking } from './hooks/useActivityTracking'
 import MasqueradeBanner from './components/admin/MasqueradeBanner'
 import { getMasqueradeState, exitMasquerade } from './services/masqueradeService'
 import api from './services/api'
@@ -88,13 +87,10 @@ const queryClient = new QueryClient({
   },
 })
 
-// Inner component that uses activity tracking and masquerade banner (must be inside Router)
+// Inner component that uses masquerade banner (must be inside Router)
 function AppContent() {
   const navigate = useNavigate();
   const [masqueradeState, setMasqueradeState] = useState(null);
-
-  // Initialize activity tracking
-  useActivityTracking();
 
   // Check masquerade state on mount and periodically
   useEffect(() => {

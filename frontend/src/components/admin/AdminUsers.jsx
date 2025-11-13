@@ -358,6 +358,13 @@ const AdminUsers = () => {
                   <td className="px-6 py-4 text-right">
                     <div className="flex gap-2 justify-end">
                       <button
+                        onClick={() => navigate(`/admin/user/${user.id}/activity`)}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                        title="View activity logs"
+                      >
+                        Activity
+                      </button>
+                      <button
                         onClick={() => handleMasquerade(user)}
                         disabled={masquerading}
                         className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
@@ -496,7 +503,14 @@ const AdminUsers = () => {
                 </div>
 
                 {/* Action Buttons */}
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    onClick={() => navigate(`/admin/user/${user.id}/activity`)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
+                    title="View activity logs"
+                  >
+                    Activity
+                  </button>
                   <button
                     onClick={() => handleMasquerade(user)}
                     disabled={masquerading}
