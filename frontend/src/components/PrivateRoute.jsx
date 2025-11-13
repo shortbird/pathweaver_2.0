@@ -25,7 +25,9 @@ const PrivateRoute = ({ requiredRole }) => {
     const hasAccess = allowedRoles.includes(user?.role) || user?.role === 'admin'
 
     if (!hasAccess) {
-      return <Navigate to="/dashboard" replace />
+      // Redirect parents to their parent dashboard instead of the regular dashboard
+      const redirectPath = user?.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+      return <Navigate to={redirectPath} replace />
     }
   }
 
