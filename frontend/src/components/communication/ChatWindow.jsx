@@ -52,7 +52,8 @@ const ChatWindow = ({ conversation, onConversationCreate }) => {
     try {
       await sendMessageMutation.mutateAsync({
         targetUserId: otherUser.id,
-        content
+        content,
+        currentUserId: user?.id // Pass current user ID for optimistic update
       })
     } catch (error) {
       // Error handling is done in the mutation

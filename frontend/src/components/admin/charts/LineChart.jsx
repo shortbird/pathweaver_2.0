@@ -68,7 +68,7 @@ const LineChart = ({ data, title, height = 200, loading = false }) => {
             d={pathData}
             fill="none"
             stroke="url(#lineGradient)"
-            strokeWidth="2"
+            strokeWidth="0.5"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -79,11 +79,11 @@ const LineChart = ({ data, title, height = 200, loading = false }) => {
               key={index}
               cx={point.x}
               cy={point.y}
-              r="3"
+              r="1"
               fill="#6d469b"
               stroke="white"
-              strokeWidth="2"
-              className="hover:r-4 transition-all duration-200"
+              strokeWidth="0.5"
+              className="hover:r-1.5 transition-all duration-200"
             />
           ))}
 

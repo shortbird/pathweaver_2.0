@@ -71,7 +71,7 @@ const MessageThread = ({ messages, otherUser, isLoading }) => {
               <p className="whitespace-pre-wrap break-words">
                 {message.message_content}
               </p>
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-opacity-20 border-current">
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-opacity-20 border-current gap-2">
                 <span className={`text-xs ${isSender ? 'text-white/80' : 'text-gray-500'}`}>
                   {formatTime(message.created_at)}
                 </span>

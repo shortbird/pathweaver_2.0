@@ -13,7 +13,7 @@ Features:
 from flask import request, g, make_response
 import uuid
 from datetime import datetime
-from database import get_supabase_admin_client
+from database import get_supabase_admin_singleton
 from utils.logger import get_logger
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Dict, Any
@@ -41,8 +41,11 @@ class ActivityTracker:
     def before_request(self):
         """Track request start time and session."""
         # Generate or reuse session ID from cookie
-        g.session_id = request.cookies.get('session_id')
-        if not g.session_id:
+        session_id_cookie = request.cookies.get('session_id')
+        if session_id_cookie:
+            g.session_id = session_id_cookie
+        else:
+            # Generate new UUID (keep as string for cookie, will cast to UUID for DB)
             g.session_id = str(uuid.uuid4())
 
         g.request_start_time = datetime.utcnow()
@@ -276,13 +279,15 @@ class ActivityTracker:
         Never raises exceptions to prevent disrupting main request.
         """
         try:
-            supabase = get_supabase_admin_client()
+            # Use singleton admin client for background thread (thread-safe)
+            supabase = get_supabase_admin_singleton()
 
             event_category = self._categorize_event(event_type)
 
-            supabase.table('user_activity_events').insert({
-                'user_id': user_id,
-                'session_id': session_id,
+            # Cast session_id string to UUID for database
+            # Database expects UUID type, but we use string for cookies
+            insert_data = {
+                'session_id': session_id,  # Supabase Python client handles UUID casting
                 'event_type': event_type,
                 'event_category': event_category,
                 'event_data': event_data,
@@ -290,14 +295,20 @@ class ActivityTracker:
                 'referrer_url': referrer_url,
                 'user_agent': user_agent,
                 'duration_ms': duration_ms
-            }).execute()
+            }
+
+            # Only include user_id if present (NULL for anonymous)
+            if user_id:
+                insert_data['user_id'] = user_id
+
+            supabase.table('user_activity_events').insert(insert_data).execute()
 
             logger.debug(f"Activity tracked: {event_type} for user {user_id or 'anonymous'}")
 
         except Exception as e:
             # Never crash the main request if logging fails
             # Log error but continue silently
-            logger.error(f"Activity tracking error for event {event_type}: {str(e)}")
+            logger.error(f"Activity tracking error for event {event_type}: {str(e)}", exc_info=True)
 
     def _categorize_event(self, event_type: str) -> str:
         """Map event type to high-level category."""
@@ -346,22 +357,28 @@ def track_custom_event(
     session_id = getattr(g, 'session_id', str(uuid.uuid4()))
 
     try:
-        supabase = get_supabase_admin_client()
+        # Use singleton admin client (works in request context and background threads)
+        supabase = get_supabase_admin_singleton()
 
         event_category = activity_tracker._categorize_event(event_type)
 
-        supabase.table('user_activity_events').insert({
-            'user_id': user_id,
-            'session_id': session_id,
+        insert_data = {
+            'session_id': session_id,  # Supabase Python client handles UUID casting
             'event_type': event_type,
             'event_category': event_category,
             'event_data': event_data or {},
             'page_url': request.path if request else None,
             'referrer_url': request.referrer if request else None,
             'user_agent': request.headers.get('User-Agent') if request else None
-        }).execute()
+        }
+
+        # Only include user_id if present (NULL for anonymous)
+        if user_id:
+            insert_data['user_id'] = user_id
+
+        supabase.table('user_activity_events').insert(insert_data).execute()
 
         logger.debug(f"Custom event tracked: {event_type}")
 
     except Exception as e:
-        logger.error(f"Failed to track custom event {event_type}: {str(e)}")
+        logger.error(f"Failed to track custom event {event_type}: {str(e)}", exc_info=True)

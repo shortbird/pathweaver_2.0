@@ -11,8 +11,9 @@ export const useConversations = (userId, options = {}) => {
       return response.data.data || response.data
     },
     enabled: !!userId,
-    refetchInterval: 10000, // Refetch every 10 seconds for real-time feel
-    staleTime: 5000,
+    refetchInterval: 30000, // Refetch every 30 seconds (reduced from 10s)
+    staleTime: 20000, // Consider data fresh for 20 seconds
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
     ...options
   })
 }
@@ -26,8 +27,9 @@ export const useConversationMessages = (conversationId, userId, options = {}) =>
       return response.data.data || response.data
     },
     enabled: !!conversationId && !!userId,
-    refetchInterval: 5000, // Refetch every 5 seconds for messages
-    staleTime: 2000,
+    refetchInterval: 15000, // Refetch every 15 seconds (reduced from 5s)
+    staleTime: 10000, // Consider data fresh for 10 seconds
+    refetchOnWindowFocus: true, // Refetch when user returns to tab
     ...options
   })
 }
@@ -37,27 +39,65 @@ export const useSendMessage = () => {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ targetUserId, content }) => {
+    mutationFn: async ({ targetUserId, content, currentUserId }) => {
       const response = await api.post(`/api/messages/conversations/${targetUserId}/send`, {
         content
       })
       return response.data.data || response.data
     },
+    // Optimistic update - show message immediately
+    onMutate: async ({ targetUserId, content, currentUserId }) => {
+      // Cancel outgoing refetches
+      await queryClient.cancelQueries({ queryKey: ['conversation-messages', targetUserId] })
+
+      // Snapshot previous value
+      const previousMessages = queryClient.getQueryData(['conversation-messages', targetUserId])
+
+      // Optimistically update with new message
+      const optimisticMessage = {
+        id: `temp-${Date.now()}`, // Temporary ID
+        sender_id: currentUserId,
+        recipient_id: targetUserId,
+        message_content: content,
+        created_at: new Date().toISOString(),
+        read_at: null,
+        isOptimistic: true // Flag to identify optimistic messages
+      }
+
+      queryClient.setQueryData(['conversation-messages', targetUserId], (old) => {
+        const messages = old?.messages || old || []
+        return {
+          ...old,
+          messages: [...messages, optimisticMessage]
+        }
+      })
+
+      // Return context for rollback
+      return { previousMessages, targetUserId }
+    },
     onSuccess: (data, variables) => {
       // Invalidate conversations list to update last message preview
       queryClient.invalidateQueries({ queryKey: ['conversations'] })
 
-      // Invalidate messages for this conversation
+      // Refetch messages to get server-side data (replaces optimistic message)
       queryClient.invalidateQueries({
-        queryKey: ['conversation-messages', data.conversation_id]
+        queryKey: ['conversation-messages', variables.targetUserId]
       })
 
       // Invalidate unread count
       queryClient.invalidateQueries({ queryKey: ['unread-count'] })
     },
-    onError: (error) => {
+    onError: (error, variables, context) => {
       const message = error.response?.data?.error || 'Failed to send message'
       toast.error(message)
+
+      // Rollback optimistic update on error
+      if (context?.previousMessages) {
+        queryClient.setQueryData(
+          ['conversation-messages', context.targetUserId],
+          context.previousMessages
+        )
+      }
     }
   })
 }

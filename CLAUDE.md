@@ -455,6 +455,93 @@ frontend/src/
 - last_attempt_at (nullable)
 - created_at
 
+### Activity Tracking & Analytics Tables (January 2025)
+
+**user_activity_events** (Main event tracking table)
+- id (UUID, PK)
+- user_id (UUID, FK to users, nullable) - NULL for anonymous tracking
+- session_id (UUID, NOT NULL) - Session identifier from cookie
+- event_type (varchar, NOT NULL) - Specific event (quest_started, task_completed, etc.)
+- event_category (varchar, NOT NULL) - High-level category (quest, badge, tutor, auth, etc.)
+- event_data (JSONB) - Event-specific metadata (quest_id, task_id, etc.)
+- page_url (text) - URL where event occurred
+- referrer_url (text) - Previous page URL
+- user_agent (text) - Browser user agent string
+- duration_ms (integer) - Request duration in milliseconds
+- created_at (timestamptz) - Event timestamp
+- anonymized_at (timestamptz) - When PII was anonymized (90-day policy)
+- Indexes: 6 indexes including GIN for JSONB queries, BRIN for time-series data
+- RLS: Users can view own events, admins can view all
+
+**user_sessions** (Session tracking)
+- id (UUID, PK)
+- user_id (UUID, FK to users, nullable)
+- started_at (timestamptz)
+- ended_at (timestamptz, nullable)
+- duration_minutes (integer)
+- user_agent (text)
+- ip_address (text) - Anonymized after 90 days
+- device_type (varchar)
+- page_views (integer)
+- actions_count (integer)
+- last_activity_at (timestamptz)
+- anonymized_at (timestamptz)
+
+**page_view_analytics** (Aggregated daily page views)
+- id (UUID, PK)
+- page_path (varchar)
+- view_date (date)
+- total_views (integer)
+- unique_users (integer)
+- avg_duration_seconds (numeric)
+- bounce_rate (numeric)
+- avg_load_time_ms (integer)
+- created_at (timestamptz)
+- Purpose: Pre-aggregated metrics for dashboard performance
+
+**learning_journey_events** (Educational milestones)
+- id (UUID, PK)
+- user_id (UUID, FK to users)
+- event_type (varchar) - first_quest, first_completion, first_badge, etc.
+- risk_score (numeric) - Dropout prediction score (0-100)
+- engagement_level (varchar) - high/medium/low/at_risk
+- event_data (JSONB) - Milestone-specific data
+- created_at (timestamptz)
+- Purpose: Dropout prediction and learning journey tracking
+
+**error_events** (Error tracking)
+- id (UUID, PK)
+- user_id (UUID, FK to users, nullable)
+- session_id (UUID)
+- error_type (varchar) - javascript_error, api_error, network_error
+- error_message (text)
+- error_stack (text)
+- page_url (text)
+- component_name (varchar) - React component name
+- api_endpoint (varchar, nullable)
+- api_status_code (integer, nullable)
+- created_at (timestamptz)
+- Purpose: Frontend/backend error debugging
+
+**Privacy & Compliance:**
+- **90-Day Anonymization**: PII (IP address, user agent details) removed after 90 days
+- **2-Year Deletion**: Events deleted entirely after 2 years
+- **GDPR/COPPA Compliant**: Privacy-first design with automated data lifecycle
+- **Anonymization Script**: `backend/scripts/anonymize_activity_data.py` (run daily via cron)
+- **RLS Policies**: Row-level security ensures users see only their own data
+
+**Event Taxonomy (40+ Event Types):**
+- **Authentication**: login_success, login_failed, logout, registration_success, registration_failed
+- **Quests**: quest_started, quest_completed, quest_abandoned, quest_viewed, quest_progress_checked
+- **Tasks**: task_completed, task_viewed
+- **Badges**: badge_claimed, badge_viewed
+- **Evidence**: evidence_uploaded
+- **AI Tutor**: tutor_message_sent, tutor_conversation_started, tutor_opened
+- **Community**: connection_request_sent, connection_accepted, connection_declined
+- **Profile**: profile_viewed, profile_updated
+- **Navigation**: dashboard_viewed, portfolio_viewed, page_view
+- **Parent**: parent_dashboard_opened, parent_evidence_uploaded
+
 ## Key API Endpoints
 
 **API Versioning Strategy** (Updated January 2025):
@@ -537,6 +624,21 @@ frontend/src/
 - POST /api/lms/sync/assignments - Import LMS assignments as quests (admin)
 - GET /api/lms/grade-sync/status - Monitor grade passback queue (admin)
 - GET /api/lms/integration/status - Get user's LMS integration status
+
+### Activity Tracking & Analytics API (January 2025)
+- **Manual Tracking**: POST /api/analytics/activity/track - Track custom events from frontend
+- **User Metrics**: GET /api/analytics/engagement/:userId - User engagement metrics (admin/parent)
+- **At-Risk Students**: GET /api/analytics/at-risk-students - Dropout predictions (admin only)
+- **Page Analytics**: GET /api/analytics/page-views - Page view aggregations (admin only)
+- **Popular Content**: GET /api/analytics/popular-quests - Quest popularity metrics (admin only)
+- **Learning Journey**: GET /api/analytics/journey/:userId - Learning journey summary (admin/parent)
+- **Error Summary**: GET /api/analytics/errors - Error debugging data (admin only)
+- **Event Counts**: GET /api/analytics/event-counts - Event totals by category (admin only)
+- **Admin Dashboard Endpoints**:
+  - GET /api/admin/analytics/overview - Key platform metrics
+  - GET /api/admin/analytics/activity - Recent activity feed
+  - GET /api/admin/analytics/trends - Historical trends (30 days)
+  - GET /api/admin/analytics/health - System health indicators
 
 ### Additional Features
 - POST /api/uploads - File upload handling
@@ -688,6 +790,41 @@ frontend/src/
 - **Documentation**: Complete setup guides at `docs/LMS_INTEGRATION.md`
 - **Frontend route**: `/admin/lms-integration` (admin only)
 
+### Activity Tracking & Analytics System (NEW - January 2025)
+- **Automatic Tracking**: Middleware automatically logs 40+ event types (auth, quests, tasks, badges, etc.)
+- **Manual Tracking**: Frontend hook `useActivityTracking()` for custom events
+- **Admin Dashboard**: Real-time analytics at `/admin/analytics` with:
+  - Platform metrics (active users, completions, XP, pending reviews)
+  - Activity feed (recent quest completions, signups, badges)
+  - Trend charts (user growth, quest completions, XP by pillar)
+  - Health score indicator with alerts
+  - Auto-refresh every 5 minutes
+- **Dropout Prediction**: Risk scoring algorithm identifies at-risk students
+  - Weighted factors: days inactive (40%), login frequency (25%), completion rate (20%)
+  - Engagement levels: high/medium/low/at_risk
+  - Admin can view at-risk students via `/api/analytics/at-risk-students`
+- **Event Taxonomy**: 8 categories (auth, quest, badge, tutor, community, parent, navigation, other)
+- **Privacy-First Design**:
+  - 90-day PII anonymization (IP addresses, detailed user agent data)
+  - 2-year event deletion policy
+  - GDPR/COPPA compliant with RLS policies
+  - Daily anonymization cron job: `backend/scripts/anonymize_activity_data.py`
+- **Performance Optimized**:
+  - Async logging via ThreadPoolExecutor (non-blocking)
+  - BRIN indexes for time-series queries
+  - GIN indexes for JSONB event data
+  - Pre-aggregated page view analytics table
+- **Frontend Integration**:
+  - Hook: `frontend/src/hooks/useActivityTracking.js`
+  - Automatic page view tracking on route changes
+  - Time-on-page measurement
+  - Manual event tracking: `trackEvent(eventType, eventData)`
+- **Backend Architecture**:
+  - Middleware: `backend/middleware/activity_tracker.py` (Flask hooks)
+  - Service: `backend/services/analytics_service.py` (business logic)
+  - Routes: `backend/routes/analytics.py` & `backend/routes/admin/analytics.py`
+- **Critical Fix (January 2025)**: UUID type casting for session_id (was causing silent failures)
+
 ### Additional Features
 - **Quest ratings**: 1-5 star rating system with optional feedback
 - **Evidence documents**: File upload system for rich evidence submission
@@ -808,12 +945,42 @@ claude mcp add supabase npx -- -y @supabase/mcp-server-supabase@latest --access-
 This enables direct read-only SQL queries against the production database for debugging and analysis.
 
 **CRITICAL: ALWAYS USE SUPABASE MCP TO CHECK SCHEMA BEFORE WRITING QUERIES**
-- Before writing ANY database query, ALWAYS use `mcp__supabase__list_tables` to verify table names exist
-- Use `mcp__supabase__execute_sql` with `DESCRIBE` or `SELECT * FROM table LIMIT 0` to check table schemas, column names, and relationships
-- Check foreign key relationships with SQL queries to understand how tables join
+- Before writing ANY database query, ALWAYS verify table/column names with Supabase MCP
 - NEVER rely on documentation alone - the database is the source of truth and may have different table/column names
-- The schema documentation in this file may be outdated - always verify with MCP tools first
 - Example: If documentation says `quest_tasks` but database has `user_quest_tasks`, the database wins
+
+**EFFICIENT SCHEMA CHECKING (AVOID TOKEN LIMIT ERRORS):**
+- **DO NOT USE** `mcp__supabase__list_tables` without filters - it returns ALL tables and exceeds token limits
+- **ALWAYS USE** `mcp__supabase__execute_sql` with targeted queries instead:
+  ```sql
+  -- Check if specific table exists
+  SELECT table_name FROM information_schema.tables
+  WHERE table_schema = 'public' AND table_name = 'your_table_name';
+
+  -- Get columns for a specific table
+  SELECT column_name, data_type, is_nullable
+  FROM information_schema.columns
+  WHERE table_schema = 'public' AND table_name = 'your_table_name';
+
+  -- Check foreign key relationships for a table
+  SELECT
+    tc.table_name,
+    kcu.column_name,
+    ccu.table_name AS foreign_table_name,
+    ccu.column_name AS foreign_column_name
+  FROM information_schema.table_constraints AS tc
+  JOIN information_schema.key_column_usage AS kcu
+    ON tc.constraint_name = kcu.constraint_name
+  JOIN information_schema.constraint_column_usage AS ccu
+    ON ccu.constraint_name = tc.constraint_name
+  WHERE tc.constraint_type = 'FOREIGN KEY'
+    AND tc.table_name = 'your_table_name';
+
+  -- Search for tables matching a pattern (e.g., tables with 'activity' in name)
+  SELECT table_name FROM information_schema.tables
+  WHERE table_schema = 'public' AND table_name LIKE '%activity%';
+  ```
+- Use these SQL queries to efficiently check schema without hitting token limits
 **Service IDs (Clean Architecture):**
 - **Dev Backend**: `srv-d2tnvlvfte5s73ae8npg` (optio-dev-backend)
 - **Dev Frontend**: `srv-d2tnvrffte5s73ae8s4g` (optio-dev-frontend)

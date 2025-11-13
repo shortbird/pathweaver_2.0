@@ -1,10 +1,27 @@
 import React from 'react'
-import { Bot, User, Pin, Search } from 'lucide-react'
+import { Bot, User, Pin, Search, Users } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
+import { useQuery } from '@tanstack/react-query'
+import { parentAPI } from '../../services/api'
 
 const ConversationList = ({ conversations, selectedConversation, onSelectConversation, isLoading }) => {
   const { user } = useAuth()
   const [searchQuery, setSearchQuery] = React.useState('')
+
+  // Fetch linked children if user is a parent (with optimized caching)
+  const { data: linkedChildren = [] } = useQuery({
+    queryKey: ['linkedChildren', user?.id],
+    queryFn: async () => {
+      const response = await parentAPI.getMyChildren()
+      return response
+    },
+    enabled: user?.role === 'parent',
+    select: (response) => response.data?.children || [],
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes (children list doesn't change often)
+    gcTime: 10 * 60 * 1000, // Keep in cache for 10 minutes (renamed from cacheTime in React Query v5)
+    refetchOnWindowFocus: false, // Don't refetch when window regains focus
+    refetchOnMount: false // Don't refetch on component remount if data exists
+  })
 
   const formatTime = (timestamp) => {
     if (!timestamp) return ''
@@ -68,9 +85,17 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
     }
   }
 
-  // Add friend conversations
+  // Create set of child user IDs for filtering
+  const childUserIds = new Set(linkedChildren.map(child => child.student_id))
+
+  // Add friend conversations (excluding children for parent accounts)
   conversations?.forEach(convo => {
     if (convo.other_user?.role !== 'advisor' && convo.type !== 'bot') {
+      // Skip if this is a child user (for parent accounts)
+      if (user?.role === 'parent' && childUserIds.has(convo.other_user?.id)) {
+        return // Don't add to friends list - they're in Children section
+      }
+
       friendConversations.push({
         ...convo,
         type: 'friend'
@@ -201,6 +226,38 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
             {pinnedConversations.map(convo => (
               <ConversationItem key={convo.id} conversation={convo} />
             ))}
+          </div>
+        )}
+
+        {/* Children Section (Parents Only) */}
+        {user?.role === 'parent' && linkedChildren.length > 0 && (
+          <div>
+            <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center">
+                <Users className="w-3 h-3 mr-1" />
+                Children
+              </h4>
+            </div>
+            {linkedChildren.map(child => {
+              // Create conversation object for child
+              // Use student_id directly as the conversation ID (no prefix)
+              const childConvo = {
+                id: child.student_id,
+                type: 'child',
+                other_user: {
+                  id: child.student_id,
+                  display_name: child.student_display_name || `${child.student_first_name} ${child.student_last_name}`,
+                  first_name: child.student_first_name,
+                  last_name: child.student_last_name,
+                  avatar_url: child.student_avatar_url,
+                  role: 'student'
+                },
+                last_message_at: null,
+                last_message_preview: 'Send a message',
+                unread_count: 0
+              }
+              return <ConversationItem key={childConvo.id} conversation={childConvo} />
+            })}
           </div>
         )}
 

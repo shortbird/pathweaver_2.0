@@ -3,6 +3,11 @@ Admin Analytics Routes
 
 Provides comprehensive analytics data for the admin dashboard including
 real-time metrics, user engagement, quest completion rates, and system health.
+
+Performance optimizations:
+- In-memory caching with 2-minute TTL
+- Reduced subscription tier queries from 8 to 1
+- XP calculation from quest completions (indexed query)
 """
 
 from flask import Blueprint, jsonify
@@ -29,11 +34,39 @@ logger = get_logger(__name__)
 
 bp = Blueprint('admin_analytics', __name__, url_prefix='/api/admin/analytics')
 
+# Simple in-memory cache for analytics data (2-minute TTL)
+_analytics_cache = {
+    'overview': {'data': None, 'expires_at': None},
+    'activity': {'data': None, 'expires_at': None},
+    'trends': {'data': None, 'expires_at': None},
+    'health': {'data': None, 'expires_at': None}
+}
+
+def get_cached_data(cache_key, ttl_seconds=120):
+    """Get cached data if not expired"""
+    cache_entry = _analytics_cache.get(cache_key, {})
+    if cache_entry.get('data') and cache_entry.get('expires_at'):
+        if datetime.utcnow() < cache_entry['expires_at']:
+            return cache_entry['data']
+    return None
+
+def set_cached_data(cache_key, data, ttl_seconds=120):
+    """Set cached data with expiration"""
+    _analytics_cache[cache_key] = {
+        'data': data,
+        'expires_at': datetime.utcnow() + timedelta(seconds=ttl_seconds)
+    }
+
 # Using repository pattern for database access
 @bp.route('/overview', methods=['GET'])
 @require_admin
 def get_overview_metrics(user_id):
     """Get key dashboard metrics including active users, quest completions, and XP stats"""
+    # Check cache first
+    cached_data = get_cached_data('overview')
+    if cached_data:
+        return jsonify({'success': True, 'data': cached_data, 'cached': True})
+
     supabase = get_supabase_admin_client()
 
     try:
@@ -86,63 +119,88 @@ def get_overview_metrics(user_id):
             print(f"Error getting quest completions today: {e}", file=sys.stderr, flush=True)
             completions_today = 0
 
-        # Get total XP earned this week (simplified - get all XP records and sum)
+        # Get total XP earned from task completions this week
         try:
-            xp_week = supabase.table('user_skill_xp')\
-                .select('xp_amount')\
+            xp_completions = supabase.table('quest_task_completions')\
+                .select('xp_awarded')\
+                .gte('completed_at', week_ago.isoformat())\
                 .execute()
-            total_xp_week = sum([record['xp_amount'] for record in xp_week.data]) if xp_week.data else 0
+
+            # Sum XP from completions (handles None values)
+            total_xp_week = 0
+            if xp_completions.data:
+                for record in xp_completions.data:
+                    xp_value = record.get('xp_awarded', 0)
+                    if xp_value:
+                        total_xp_week += xp_value
+
+            print(f"DEBUG: Found {len(xp_completions.data) if xp_completions.data else 0} completions with total XP: {total_xp_week}", file=sys.stderr, flush=True)
         except Exception as e:
             print(f"Error getting XP week data: {e}", file=sys.stderr, flush=True)
             total_xp_week = 0
 
         # Get pending quest submissions
-        pending_submissions = supabase.table('quest_submissions').select('id', count='exact')\
-            .eq('status', 'pending').execute()
-        pending_count = pending_submissions.count or 0
+        try:
+            pending_submissions = supabase.table('quest_submissions').select('id', count='exact')\
+                .eq('status', 'pending').execute()
+            pending_count = pending_submissions.count or 0
+        except Exception as e:
+            print(f"Error getting pending submissions: {e}", file=sys.stderr, flush=True)
+            pending_count = 0
 
         # Get flagged tasks count
-        flagged_tasks = supabase.table('quest_sample_tasks').select('id', count='exact')\
-            .eq('is_flagged', True).execute()
-        flagged_tasks_count = flagged_tasks.count or 0
+        try:
+            flagged_tasks = supabase.table('quest_sample_tasks').select('id', count='exact')\
+                .eq('is_flagged', True).execute()
+            flagged_tasks_count = flagged_tasks.count or 0
+        except Exception as e:
+            print(f"Error getting flagged tasks: {e}", file=sys.stderr, flush=True)
+            flagged_tasks_count = 0
 
-        # Get subscription distribution (return as array for frontend)
+        # Get subscription distribution (OPTIMIZED: single query with group by)
         subscription_stats = []
-        # Use all valid subscription tiers from database schema
-        for tier in ['free', 'explorer', 'supported', 'creator', 'premium', 'academy', 'visionary', 'enterprise']:
-            try:
-                tier_count = supabase.table('users').select('id', count='exact')\
-                    .eq('subscription_tier', tier).execute()
+        try:
+            # Fetch all users' subscription tiers in one query
+            all_tiers = supabase.table('users').select('subscription_tier').execute()
+
+            # Count tiers client-side (faster than 8 separate queries)
+            tier_counts = {}
+            for user in all_tiers.data or []:
+                tier = user.get('subscription_tier', 'free')
+                tier_counts[tier] = tier_counts.get(tier, 0) + 1
+
+            # Format as array for frontend
+            for tier in ['free', 'explorer', 'supported', 'creator', 'premium', 'academy', 'visionary', 'enterprise']:
                 subscription_stats.append({
                     'tier': tier,
-                    'count': tier_count.count or 0
+                    'count': tier_counts.get(tier, 0)
                 })
-            except Exception as e:
-                print(f"Error getting {tier} tier count: {e}", file=sys.stderr, flush=True)
-                subscription_stats.append({
-                    'tier': tier,
-                    'count': 0
-                })
+        except Exception as e:
+            print(f"Error getting subscription distribution: {e}", file=sys.stderr, flush=True)
+            for tier in ['free', 'explorer', 'supported', 'creator', 'premium', 'academy', 'visionary', 'enterprise']:
+                subscription_stats.append({'tier': tier, 'count': 0})
 
         # Calculate engagement rate (active users / total users)
         engagement_rate = round((active_users / total_users * 100) if total_users > 0 else 0, 1)
 
-        return jsonify({
-            'success': True,
-            'data': {
-                'total_users': total_users,
-                'active_users': active_users,
-                'new_users_week': new_users_count,
-                'quest_completions_today': completions_today,
-                'quest_completions_week': completions_week,
-                'total_xp_week': total_xp_week,
-                'pending_submissions': pending_count,
-                'flagged_tasks_count': flagged_tasks_count,
-                'engagement_rate': engagement_rate,
-                'subscription_distribution': subscription_stats,
-                'last_updated': now.isoformat()
-            }
-        })
+        result_data = {
+            'total_users': total_users,
+            'active_users': active_users,
+            'new_users_week': new_users_count,
+            'quest_completions_today': completions_today,
+            'quest_completions_week': completions_week,
+            'total_xp_week': total_xp_week,
+            'pending_submissions': pending_count,
+            'flagged_tasks_count': flagged_tasks_count,
+            'engagement_rate': engagement_rate,
+            'subscription_distribution': subscription_stats,
+            'last_updated': now.isoformat()
+        }
+
+        # Cache the result for 2 minutes
+        set_cached_data('overview', result_data, ttl_seconds=120)
+
+        return jsonify({'success': True, 'data': result_data})
 
     except Exception as e:
         print(f"Error getting overview metrics: {str(e)}", file=sys.stderr, flush=True)
@@ -177,16 +235,31 @@ def get_overview_metrics(user_id):
 @require_admin
 def get_recent_activity(user_id):
     """Get recent platform activity for real-time feed"""
+    # Check cache first (shorter TTL for activity feed)
+    cached_data = get_cached_data('activity', ttl_seconds=60)
+    if cached_data:
+        return jsonify({'success': True, 'data': cached_data, 'cached': True})
+
     supabase = get_supabase_admin_client()
 
     try:
         now = datetime.utcnow()
-        # Get recent quest completions (simplified query to avoid foreign key issues)
+
+        # Get all user IDs we'll need and fetch names in bulk
+        user_ids_needed = set()
+
+        # Get recent quest completions
         try:
             recent_completions = supabase.table('quest_task_completions')\
                 .select('user_id, task_id, quest_id, completed_at')\
                 .order('completed_at', desc=True)\
                 .limit(10).execute()
+
+            # Collect user IDs
+            if recent_completions.data:
+                for completion in recent_completions.data:
+                    if completion.get('user_id'):
+                        user_ids_needed.add(completion['user_id'])
         except Exception as e:
             print(f"Error getting recent completions: {e}", file=sys.stderr, flush=True)
             recent_completions = type('obj', (object,), {'data': []})()
@@ -194,60 +267,109 @@ def get_recent_activity(user_id):
         # Get recent user signups
         try:
             recent_users = supabase.table('users')\
-                .select('first_name, last_name, created_at, subscription_tier')\
+                .select('id, first_name, last_name, created_at')\
                 .order('created_at', desc=True)\
                 .limit(5).execute()
+
+            # Collect user IDs
+            if recent_users.data:
+                for user in recent_users.data:
+                    if user.get('id'):
+                        user_ids_needed.add(user['id'])
         except Exception as e:
             print(f"Error getting recent users: {e}", file=sys.stderr, flush=True)
             recent_users = type('obj', (object,), {'data': []})()
 
-        # Get recent quest submissions with proper timestamp
+        # Get recent quest submissions
         try:
             recent_submissions = supabase.table('quest_submissions')\
-                .select('user_id, title, submitted_at')\
-                .order('submitted_at', desc=True)\
+                .select('user_id, title, created_at')\
+                .order('created_at', desc=True)\
                 .limit(5).execute()
+
+            # Collect user IDs
+            if recent_submissions.data:
+                for submission in recent_submissions.data:
+                    if submission.get('user_id'):
+                        user_ids_needed.add(submission['user_id'])
         except Exception as e:
             print(f"Error getting recent submissions: {e}", file=sys.stderr, flush=True)
             recent_submissions = type('obj', (object,), {'data': []})()
 
-        # Format activity feed (simplified without foreign key lookups)
+        # Fetch all user names in one query
+        user_names = {}
+        if user_ids_needed:
+            try:
+                users_result = supabase.table('users')\
+                    .select('id, first_name, last_name, display_name')\
+                    .in_('id', list(user_ids_needed))\
+                    .execute()
+
+                if users_result.data:
+                    for user in users_result.data:
+                        user_id = user.get('id')
+                        display_name = user.get('display_name')
+                        first_name = user.get('first_name', '')
+                        last_name = user.get('last_name', '')
+
+                        # Prefer display_name, fall back to first + last
+                        if display_name:
+                            user_names[user_id] = display_name
+                        elif first_name or last_name:
+                            user_names[user_id] = f"{first_name} {last_name}".strip()
+                        else:
+                            user_names[user_id] = 'Student'
+            except Exception as e:
+                print(f"Error fetching user names: {e}", file=sys.stderr, flush=True)
+
+        # Format activity feed with proper user names
         activities = []
 
-        # Add completions (simplified)
+        # Add completions
         for completion in recent_completions.data or []:
+            user_id = completion.get('user_id')
+            user_name = user_names.get(user_id, 'Student')
+
             activities.append({
                 'type': 'quest_completion',
                 'timestamp': completion['completed_at'],
-                'user_name': 'Student',  # Simplified - would need separate lookup for names
+                'user_name': user_name,
                 'description': f"completed a quest task"
             })
 
         # Add new users
         for user in recent_users.data or []:
+            user_id = user.get('id')
+            user_name = user_names.get(user_id, 'Student')
+
             activities.append({
                 'type': 'user_signup',
                 'timestamp': user['created_at'],
-                'user_name': f"{user['first_name']} {user['last_name']}",
-                'description': f"joined Optio with {user['subscription_tier']} subscription"
+                'user_name': user_name,
+                'description': f"joined Optio"
             })
 
-        # Add quest submissions with proper timestamp
+        # Add quest submissions
         for submission in recent_submissions.data or []:
+            user_id = submission.get('user_id')
+            user_name = user_names.get(user_id, 'Student')
+
             activities.append({
                 'type': 'quest_submission',
-                'timestamp': submission.get('submitted_at', now.isoformat()),
-                'user_name': 'Student',  # Simplified - would need separate lookup for names
+                'timestamp': submission.get('created_at', now.isoformat()),
+                'user_name': user_name,
                 'description': f"submitted custom quest: '{submission['title']}'"
             })
 
         # Sort by timestamp
         activities.sort(key=lambda x: x['timestamp'], reverse=True)
 
-        return jsonify({
-            'success': True,
-            'data': activities[:20]  # Return top 20 recent activities
-        })
+        result_data = activities[:20]  # Return top 20 recent activities
+
+        # Cache for 1 minute (activity feed should be fresher)
+        set_cached_data('activity', result_data, ttl_seconds=60)
+
+        return jsonify({'success': True, 'data': result_data})
 
     except Exception as e:
         print(f"Error getting recent activity: {str(e)}", file=sys.stderr, flush=True)
@@ -261,6 +383,11 @@ def get_recent_activity(user_id):
 @require_admin
 def get_trends_data(user_id):
     """Get historical trends data for charts"""
+    # Check cache first (trends can be cached longer)
+    cached_data = get_cached_data('trends', ttl_seconds=300)
+    if cached_data:
+        return jsonify({'success': True, 'data': cached_data, 'cached': True})
+
     supabase = get_supabase_admin_client()
 
     try:
@@ -308,16 +435,16 @@ def get_trends_data(user_id):
             if completion_date >= start_date:
                 daily_completions[completion_date.isoformat()] = daily_completions.get(completion_date.isoformat(), 0) + 1
 
-        # Get XP distribution by pillar (aggregated approach)
+        # Get XP distribution by pillar (using correct lowercase pillar names)
         pillar_totals = {
-            'STEM & Logic': 0,
-            'Life & Wellness': 0,
-            'Language & Communication': 0,
-            'Society & Culture': 0,
-            'Arts & Creativity': 0
+            'stem': 0,
+            'wellness': 0,
+            'communication': 0,
+            'civics': 0,
+            'art': 0
         }
 
-        # Get all XP records and aggregate them client-side to avoid URL encoding issues
+        # Get all XP records and aggregate them client-side
         try:
             all_xp_result = supabase.table('user_skill_xp')\
                 .select('pillar, xp_amount')\
@@ -327,8 +454,23 @@ def get_trends_data(user_id):
             for record in all_xp_result.data or []:
                 pillar = record.get('pillar')
                 xp_amount = record.get('xp_amount', 0)
+
+                # Handle both old and new pillar names for backward compatibility
                 if pillar in pillar_totals:
                     pillar_totals[pillar] += xp_amount
+                # Map old format to new format if needed
+                elif pillar == 'STEM & Logic':
+                    pillar_totals['stem'] += xp_amount
+                elif pillar == 'Life & Wellness':
+                    pillar_totals['wellness'] += xp_amount
+                elif pillar == 'Language & Communication':
+                    pillar_totals['communication'] += xp_amount
+                elif pillar == 'Society & Culture':
+                    pillar_totals['civics'] += xp_amount
+                elif pillar == 'Arts & Creativity':
+                    pillar_totals['art'] += xp_amount
+
+            print(f"DEBUG: XP by pillar: {pillar_totals}", file=sys.stderr, flush=True)
 
         except Exception as e:
             print(f"Error getting XP data: {e}", file=sys.stderr, flush=True)
@@ -337,19 +479,21 @@ def get_trends_data(user_id):
         # Get most popular quests (simplified - just return empty for now to avoid foreign key issues)
         popular_quests_data = []
 
-        return jsonify({
-            'success': True,
-            'data': {
-                'daily_signups': daily_signups,
-                'daily_completions': daily_completions,
-                'xp_by_pillar': pillar_totals,
-                'popular_quests': popular_quests_data,
-                'date_range': {
-                    'start': start_date.isoformat(),
-                    'end': end_date.isoformat()
-                }
+        result_data = {
+            'daily_signups': daily_signups,
+            'daily_completions': daily_completions,
+            'xp_by_pillar': pillar_totals,
+            'popular_quests': popular_quests_data,
+            'date_range': {
+                'start': start_date.isoformat(),
+                'end': end_date.isoformat()
             }
-        })
+        }
+
+        # Cache for 5 minutes (trends change slowly)
+        set_cached_data('trends', result_data, ttl_seconds=300)
+
+        return jsonify({'success': True, 'data': result_data})
 
     except Exception as e:
         print(f"Error getting trends data: {str(e)}", file=sys.stderr, flush=True)
@@ -378,6 +522,11 @@ def get_trends_data(user_id):
 @require_admin
 def get_system_health(user_id):
     """Get system health indicators and alerts"""
+    # Check cache first
+    cached_data = get_cached_data('health', ttl_seconds=120)
+    if cached_data:
+        return jsonify({'success': True, 'data': cached_data, 'cached': True})
+
     supabase = get_supabase_admin_client()
 
     try:
@@ -440,18 +589,23 @@ def get_system_health(user_id):
                 'action': 'Review pending submissions immediately'
             })
 
+        result_data = {
+            'health_score': health_score,
+            'alerts': alerts,
+            'metrics': {
+                'inactive_users': inactive_users.count or 0,
+                'stalled_quests': stalled_quests.count or 0,
+                'old_submissions': old_submissions.count or 0
+            },
+            'last_checked': now.isoformat()
+        }
+
+        # Cache the result for 2 minutes
+        set_cached_data('health', result_data, ttl_seconds=120)
+
         return jsonify({
             'success': True,
-            'data': {
-                'health_score': health_score,
-                'alerts': alerts,
-                'metrics': {
-                    'inactive_users': inactive_users.count or 0,
-                    'stalled_quests': stalled_quests.count or 0,
-                    'old_submissions': old_submissions.count or 0
-                },
-                'last_checked': now.isoformat()
-            }
+            'data': result_data
         })
 
     except Exception as e:

@@ -41,31 +41,45 @@ class DirectMessageService(BaseService):
         """
         try:
             supabase = self._get_client()
+            print(f"[can_message_user] Checking permission: {user_id} -> {target_id}", file=sys.stderr, flush=True)
 
-            # Check if target is user's advisor
-            user = supabase.table('users').select('advisor_id').eq('id', user_id).single().execute()
-            if user.data and user.data.get('advisor_id') == target_id:
+            # Check if they are friends (accepted status) - check both directions
+            friendship1 = supabase.table('friendships').select('status').eq(
+                'requester_id', user_id
+            ).eq('addressee_id', target_id).execute()
+
+            friendship2 = supabase.table('friendships').select('status').eq(
+                'requester_id', target_id
+            ).eq('addressee_id', user_id).execute()
+
+            print(f"[can_message_user] Friendship check: f1={friendship1.data}, f2={friendship2.data}", file=sys.stderr, flush=True)
+
+            if (friendship1.data and len(friendship1.data) > 0 and friendship1.data[0]['status'] == 'accepted') or \
+               (friendship2.data and len(friendship2.data) > 0 and friendship2.data[0]['status'] == 'accepted'):
+                print(f"[can_message_user] ALLOWED: Accepted friendship", file=sys.stderr, flush=True)
                 return True
 
-            # Check if user is target's advisor
-            target = supabase.table('users').select('advisor_id').eq('id', target_id).single().execute()
-            if target.data and target.data.get('advisor_id') == user_id:
+            # Check if they have a parent-student link (bidirectional)
+            parent_link1 = supabase.table('parent_student_links').select('id').eq(
+                'parent_user_id', user_id
+            ).eq('student_user_id', target_id).execute()
+
+            parent_link2 = supabase.table('parent_student_links').select('id').eq(
+                'parent_user_id', target_id
+            ).eq('student_user_id', user_id).execute()
+
+            print(f"[can_message_user] Parent link check: pl1={parent_link1.data}, pl2={parent_link2.data}", file=sys.stderr, flush=True)
+
+            if (parent_link1.data and len(parent_link1.data) > 0) or \
+               (parent_link2.data and len(parent_link2.data) > 0):
+                print(f"[can_message_user] ALLOWED: Parent-student link exists", file=sys.stderr, flush=True)
                 return True
 
-            # Check if they are friends (accepted status)
-            friendship = supabase.table('friendships').select('status').or_(
-                f'and(requester_id.eq.{user_id},addressee_id.eq.{target_id})',
-                f'and(requester_id.eq.{target_id},addressee_id.eq.{user_id})'
-            ).execute()
-
-            if friendship.data and len(friendship.data) > 0:
-                if friendship.data[0]['status'] == 'accepted':
-                    return True
-
+            print(f"[can_message_user] DENIED: No valid relationship found", file=sys.stderr, flush=True)
             return False
 
         except Exception as e:
-            print(f"Error checking message permission: {str(e)}", file=sys.stderr, flush=True)
+            print(f"[can_message_user] ERROR: {str(e)}", file=sys.stderr, flush=True)
             return False
 
     # ==================== Conversation Management ====================
@@ -247,8 +261,10 @@ class DirectMessageService(BaseService):
         """
         Get messages for a conversation
 
+        Handles both actual conversation IDs and user IDs (for new conversations)
+
         Args:
-            conversation_id: UUID of the conversation
+            conversation_id: UUID of the conversation OR target user ID
             user_id: UUID of the requesting user (for permission check)
             limit: Number of messages to return
             offset: Offset for pagination
@@ -259,20 +275,28 @@ class DirectMessageService(BaseService):
         try:
             supabase = self._get_client()
 
-            # Verify user is a participant
-            conversation = supabase.table('message_conversations').select('*').eq(
+            # Try to fetch conversation by ID first
+            conversation_result = supabase.table('message_conversations').select('*').eq(
                 'id', conversation_id
-            ).single().execute()
+            ).execute()
 
-            if not conversation.data:
-                raise ValueError("Conversation not found")
+            # If no conversation found, try to find/create by user IDs
+            if not conversation_result.data or len(conversation_result.data) == 0:
+                # conversation_id might actually be a target_user_id
+                # Try to find existing conversation between these users
+                conversation = self.get_or_create_conversation(user_id, conversation_id)
+                actual_conversation_id = conversation['id']
+            else:
+                conversation = conversation_result.data[0]
+                actual_conversation_id = conversation_id
 
-            if user_id not in [conversation.data['participant_1_id'], conversation.data['participant_2_id']]:
-                raise ValueError("You are not a participant in this conversation")
+                # Verify user is a participant
+                if user_id not in [conversation['participant_1_id'], conversation['participant_2_id']]:
+                    raise ValueError("You are not a participant in this conversation")
 
             # Get messages
             messages = supabase.table('direct_messages').select('*').eq(
-                'conversation_id', conversation_id
+                'conversation_id', actual_conversation_id
             ).order('created_at', desc=False).range(offset, offset + limit - 1).execute()
 
             return messages.data if messages.data else []
