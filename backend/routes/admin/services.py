@@ -71,6 +71,7 @@ def create_service(user_id):
             'description': data['description'].strip(),
             'category': data['category'].strip(),
             'price': float(data['price']),
+            'price_display': data.get('price_display', '').strip(),
             'price_type': data['price_type'],
             'features': data.get('features', []),
             'is_active': data.get('is_active', True),
@@ -119,13 +120,13 @@ def update_service(user_id, service_id):
 
         # Build update data
         update_data = {}
-        allowed_fields = ['name', 'description', 'category', 'price', 'price_type', 'features', 'is_active', 'sort_order']
+        allowed_fields = ['name', 'description', 'category', 'price', 'price_display', 'price_type', 'features', 'is_active', 'sort_order']
 
         for field in allowed_fields:
             if field in data:
                 if field == 'price':
                     update_data[field] = float(data[field])
-                elif field in ['name', 'description', 'category']:
+                elif field in ['name', 'description', 'category', 'price_display']:
                     update_data[field] = data[field].strip()
                 else:
                     update_data[field] = data[field]
