@@ -9,6 +9,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
     category: '',
     price: '',
     price_display: '',
+    price_type: 'one-time',
     features: [],
     is_active: true,
     sort_order: 0
@@ -25,6 +26,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
         category: service.category || '',
         price: service.price || '',
         price_display: service.price_display || '',
+        price_type: service.price_type || 'one-time',
         features: service.features || [],
         is_active: service.is_active !== undefined ? service.is_active : true,
         sort_order: service.sort_order || 0
@@ -206,6 +208,27 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
               />
               <p className="text-xs text-gray-500 mt-1">How price appears to users</p>
             </div>
+          </div>
+
+          {/* Price Type */}
+          <div>
+            <label htmlFor="price_type" className="block text-sm font-semibold text-gray-700 mb-1">
+              Price Type <span className="text-red-500">*</span>
+            </label>
+            <select
+              id="price_type"
+              name="price_type"
+              value={formData.price_type}
+              onChange={handleChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+              required
+            >
+              <option value="one-time">One-time Payment</option>
+              <option value="monthly">Monthly Subscription</option>
+              <option value="per-session">Per Session</option>
+              <option value="per-credit">Per Credit</option>
+            </select>
+            <p className="text-xs text-gray-500 mt-1">How the service is billed</p>
           </div>
 
           {/* Sort Order */}
