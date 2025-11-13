@@ -375,34 +375,7 @@ class EmailService(BaseService):
             }
         )
 
-    def send_service_inquiry_user_email(
-        self,
-        user_email: str,
-        user_name: str,
-        service_name: str
-    ) -> bool:
-        """
-        Send confirmation email to user after service inquiry submission
-
-        Args:
-            user_email: User's email address
-            user_name: User's name
-            service_name: Name of the service they inquired about
-
-        Returns:
-            True if email sent successfully, False otherwise
-        """
-        return self.send_templated_email(
-            to_email=user_email,
-            subject=f"We Received Your Inquiry About {service_name}",
-            template_name='service_inquiry_user',
-            context={
-                'name': user_name,
-                'service_name': service_name
-            }
-        )
-
-    def send_service_inquiry_admin_email(
+    def send_service_inquiry_notification(
         self,
         user_name: str,
         user_email: str,
@@ -411,7 +384,10 @@ class EmailService(BaseService):
         message: str
     ) -> bool:
         """
-        Send notification email to admin about new service inquiry
+        Send service inquiry confirmation to user with Optio support CC'd
+
+        This sends ONE email TO the user/parent with support@optioeducation.com CC'd,
+        so the client gets confirmation and Optio receives the notification.
 
         Args:
             user_name: Name of the person who submitted inquiry
@@ -423,15 +399,15 @@ class EmailService(BaseService):
         Returns:
             True if email sent successfully, False otherwise
         """
-        admin_email = os.getenv('ADMIN_EMAIL', 'support@optioeducation.com')
+        support_email = 'support@optioeducation.com'
 
         # Format phone display
         phone_display = user_phone if user_phone else 'Not provided'
 
         return self.send_templated_email(
-            to_email=admin_email,
-            subject=f"New Service Inquiry: {service_name}",
-            template_name='service_inquiry_admin',
+            to_email=user_email,  # Send TO the client/parent
+            subject=f"We Received Your Inquiry About {service_name}",
+            template_name='service_inquiry_notification',
             context={
                 'name': user_name,
                 'email': user_email,
@@ -439,7 +415,7 @@ class EmailService(BaseService):
                 'service_name': service_name,
                 'message': message
             },
-            cc=[user_email]  # Copy the parent/user on the admin notification
+            cc=[support_email]  # CC Optio support for notification
         )
 
 # Create singleton instance

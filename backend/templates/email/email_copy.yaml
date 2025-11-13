@@ -248,7 +248,7 @@ emails:
     closing_paragraph: "If you didn't request a password reset, please contact us immediately at support@optioeducation.com to secure your account."
     signature: "support"
 
-  service_inquiry_user:
+  service_inquiry_notification:
     subject: "We Received Your Inquiry About {service_name}"
     title: "We Received Your Inquiry"
     salutation: "Hi {name},"
@@ -262,21 +262,4 @@ emails:
       title: "What Happens Next?"
       content: "Our team typically responds within 24-48 hours. We'll reach out to discuss how we can best support your learning journey and answer any questions you have."
     closing_paragraph: "If you have additional questions or need immediate assistance, feel free to reply to this email."
-    signature: "support"
-
-  service_inquiry_admin:
-    subject: "New Service Inquiry: {service_name}"
-    title: "New Service Inquiry"
-    salutation: "New inquiry received for <strong>{service_name}</strong>"
-    paragraphs:
-      - "<strong>From:</strong> {name} ({email})"
-      - "<strong>Phone:</strong> {phone}"
-      - "<strong>Message:</strong>"
-      - "{message}"
-    cta:
-      text: "View Inquiry in Dashboard"
-      url: "https://www.optioeducation.com/admin"
-    highlight_box:
-      title: "Next Steps"
-      content: "Review the inquiry in the admin dashboard and respond to the customer within 24-48 hours."
     signature: "support"

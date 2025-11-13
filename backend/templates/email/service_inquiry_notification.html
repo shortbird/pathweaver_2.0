@@ -1,0 +1,45 @@
+{% extends "email/base.html" %}
+{% from "email/signatures.html" import signature_team, signature_tanner, signature_support %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+{% if salutation %}
+<p class="text">{{ salutation }}</p>
+{% endif %}
+
+{% for paragraph in paragraphs %}
+<p class="text">{{ paragraph|safe }}</p>
+{% endfor %}
+
+{% if cta %}
+<div class="cta-container">
+    <a href="{{ cta.url }}" class="cta-button" style="background-color: #6D469B; color: #ffffff; text-decoration: none; display: inline-block; padding: 16px 48px; border-radius: 6px; font-size: 16px; font-weight: 600;">
+        {{ cta.text }}
+    </a>
+</div>
+{% endif %}
+
+{% if highlight_box %}
+<div class="highlight-box">
+    <h3>{{ highlight_box.title }}</h3>
+    <p>{{ highlight_box.content }}</p>
+</div>
+{% endif %}
+
+{% if closing_paragraph %}
+<p class="text" style="margin-top: 30px;">
+    {{ closing_paragraph }}
+</p>
+{% endif %}
+{% endblock %}
+
+{% block signature %}
+{% if signature == 'tanner' %}
+{{ signature_tanner() }}
+{% elif signature == 'team' %}
+{{ signature_team() }}
+{% else %}
+{{ signature_support() }}
+{% endif %}
+{% endblock %}
