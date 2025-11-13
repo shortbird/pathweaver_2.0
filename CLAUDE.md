@@ -769,6 +769,54 @@ frontend/src/
 - **Conversation history**: Persistent chat sessions for continuity
 - **Feedback system**: Quality assurance and improvement tracking
 
+### Email System (Enhanced January 2025)
+- **Architecture**: SendGrid SMTP integration with Jinja2 templating engine
+- **Service layer**: `EmailService` class in `backend/services/email_service.py` extending `BaseService`
+- **Copy management**: Centralized YAML configuration in `backend/templates/email/email_copy.yaml`
+  - Single source of truth for all email content
+  - Non-technical team members can edit copy
+  - Variable substitution with `{variable_name}` syntax
+- **Email types** (10 total):
+  - Welcome email, Email confirmation, Quest completion, Password reset
+  - Promo welcome, Consultation confirmation, Parental consent
+  - Parent invitation, Subscription requests (user + admin), Service inquiry
+- **Enhanced styling** (January 2025):
+  - **Logo**: Optio logo image hosted on Supabase storage (`site-assets/email/optio-logo.png`)
+  - **Gradients**: Purple (#6D469B) → Pink (#EF597B) gradient on header and buttons
+  - **Outlook fallback**: Solid purple background for clients that don't support gradients
+  - **Brand consistency**: All templates use consistent Optio brand colors
+- **Template architecture**:
+  - **Base template**: `base.html` with logo, gradient header, CTA buttons, footer
+  - **Template inheritance**: 10 templates extend base.html for consistency
+  - **Standalone**: `parent_invitation.html` (custom table-based layout)
+  - **Signatures**: Reusable signature macros (team, tanner, support)
+- **Styling constraints**:
+  - **System fonts only**: Email clients block web fonts (Poppins not available)
+  - **Inline CSS**: Email client compatibility requires inline styles
+  - **Gradients**: Limited support (Outlook shows solid fallback)
+  - **Images**: Hosted on Supabase storage for reliability
+- **SMTP configuration**:
+  - Host: `smtp.sendgrid.net:587`
+  - Authentication: SendGrid API key
+  - Sender: `support@optioeducation.com`
+  - Auto-BCC: All emails BCC to support email
+  - Click tracking: Disabled via X-SMTPAPI header
+- **Email features**:
+  - Dual-format: HTML + plain text fallback
+  - Mobile-responsive: Optimized for all screen sizes
+  - Accessibility: Proper alt text and semantic HTML
+  - CC/BCC support: Flexible recipient management
+- **File locations**:
+  - Service: `backend/services/email_service.py`
+  - Copy loader: `backend/services/email_copy_loader.py`
+  - Templates: `backend/templates/email/*.html`
+  - Copy config: `backend/templates/email/email_copy.yaml`
+  - Upload script: `backend/scripts/upload_email_assets.py`
+- **Asset hosting**:
+  - Bucket: `site-assets` (public Supabase storage bucket)
+  - Logo URL: `https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/email/optio-logo.png`
+  - Upload assets to this bucket for use in email templates
+
 ### LMS Integration (NEW - January 2025)
 - **Multi-platform support**: Canvas, Google Classroom, Schoology, Moodle
 - **LTI 1.3**: Standards-based integration with SSO for Canvas and Moodle
