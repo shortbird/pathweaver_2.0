@@ -1,7 +1,43 @@
 import React, { useState, useEffect } from 'react'
 import api from '../../services/api'
-import { FiClock, FiList, FiCalendar, FiFilter, FiX, FiChevronRight } from 'react-icons/fi'
 import toast from 'react-hot-toast'
+
+// Icon components
+const ClockIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+)
+
+const ListIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+  </svg>
+)
+
+const CalendarIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+  </svg>
+)
+
+const FilterIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+  </svg>
+)
+
+const XIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+  </svg>
+)
+
+const ChevronRightIcon = () => (
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+  </svg>
+)
 
 /**
  * User Activity Log Component
@@ -166,7 +202,7 @@ const UserActivityLog = ({ userId, userName }) => {
           {/* Timeline connector */}
           <div className="flex flex-col items-center">
             <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getEventCategoryColor(event.event_category)}`}>
-              <FiClock className="w-5 h-5" />
+              <ClockIcon />
             </div>
             {index < events.length - 1 && (
               <div className="w-0.5 h-full bg-gray-200 flex-grow my-1"></div>
@@ -193,15 +229,15 @@ const UserActivityLog = ({ userId, userName }) => {
                 {event.referrer_url && event.page_url && (
                   <div className="flex items-center gap-2 text-xs text-gray-600 bg-gray-50 p-2 rounded">
                     <span className="truncate max-w-xs">{event.referrer_url}</span>
-                    <FiChevronRight className="flex-shrink-0" />
+                    <ChevronRightIcon />
                     <span className="truncate max-w-xs font-medium">{event.page_url}</span>
                   </div>
                 )}
 
                 {/* Time on page */}
                 {event.duration_ms && (
-                  <div className="mt-2 text-xs text-gray-500">
-                    <FiClock className="inline mr-1" />
+                  <div className="mt-2 text-xs text-gray-500 flex items-center gap-1">
+                    <ClockIcon />
                     Time on page: {formatDuration(event.duration_ms)}
                   </div>
                 )}
@@ -257,7 +293,7 @@ const UserActivityLog = ({ userId, userName }) => {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              <FiList /> Table
+              <ListIcon /> Table
             </button>
             <button
               onClick={() => setViewMode('timeline')}
@@ -267,7 +303,7 @@ const UserActivityLog = ({ userId, userName }) => {
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
-              <FiCalendar /> Timeline
+              <CalendarIcon /> Timeline
             </button>
           </div>
         </div>
@@ -278,7 +314,7 @@ const UserActivityLog = ({ userId, userName }) => {
             onClick={() => setShowFilters(!showFilters)}
             className="flex items-center gap-2 text-sm font-medium text-gray-700 hover:text-optio-purple"
           >
-            <FiFilter /> {showFilters ? 'Hide' : 'Show'} Filters
+            <FilterIcon /> {showFilters ? 'Hide' : 'Show'} Filters
           </button>
 
           {showFilters && (
@@ -344,7 +380,7 @@ const UserActivityLog = ({ userId, userName }) => {
                   onClick={resetFilters}
                   className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center gap-2"
                 >
-                  <FiX /> Reset Filters
+                  <XIcon /> Reset Filters
                 </button>
               </div>
             </div>
