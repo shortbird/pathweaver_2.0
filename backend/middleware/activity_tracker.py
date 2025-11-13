@@ -71,7 +71,8 @@ class ActivityTracker:
         duration_ms = self._calculate_duration()
 
         # Extract user ID from JWT token (if authenticated)
-        user_id = getattr(g, 'user_id', None)  # Set by @require_auth decorator
+        # Check both g.user_id (old pattern) and request.user_id (new pattern from decorators)
+        user_id = getattr(g, 'user_id', None) or getattr(request, 'user_id', None)
 
         # Determine event type and category
         event_type = self._classify_request(request, response)
@@ -349,10 +350,11 @@ def track_custom_event(
     Args:
         event_type: The type of event to track
         event_data: Optional dictionary of event-specific data
-        user_id: Optional user ID (defaults to current user from g)
+        user_id: Optional user ID (defaults to current user from g or request)
     """
     if not user_id:
-        user_id = getattr(g, 'user_id', None)
+        # Check both g.user_id (old pattern) and request.user_id (new pattern from decorators)
+        user_id = getattr(g, 'user_id', None) or getattr(request, 'user_id', None)
 
     session_id = getattr(g, 'session_id', str(uuid.uuid4()))
 
