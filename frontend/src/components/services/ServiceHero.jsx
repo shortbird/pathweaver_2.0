@@ -11,7 +11,7 @@ const ServiceHero = ({ onScrollToServices }) => {
       <div className="max-w-4xl mx-auto text-center relative z-10">
         {/* Main headline */}
         <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-          Support Your Learning{' '}
+          Support for your Learning{' '}
           <span className="bg-gradient-to-r from-[#6D469B] to-[#EF597B] bg-clip-text text-transparent">
             Journey
           </span>
@@ -19,7 +19,7 @@ const ServiceHero = ({ onScrollToServices }) => {
 
         {/* Subheading */}
         <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-          Optio offers optional services to enhance your educational experience. From parent tools to expert consultations, transcripts to portfolio development—we're here to support your unique path.
+          Optio services are designed enhance your educational experience. From parent tools to expert consultations, transcripts to portfolio development, we're here to support your unique path.
         </p>
 
         {/* Key message */}
@@ -28,7 +28,7 @@ const ServiceHero = ({ onScrollToServices }) => {
             All student learning features are completely free.
           </p>
           <p className="text-gray-600 mt-2" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-            These services are optional add-ons for those who want extra support, documentation, or accountability tools.
+            The services listed below are optional add-ons for those who want extra support, documentation, or accountability tools.
           </p>
         </div>
 
