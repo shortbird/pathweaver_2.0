@@ -6,6 +6,7 @@ Handles public-facing service listing and inquiry submissions
 from flask import Blueprint, request, jsonify
 from database import get_supabase_admin_client
 from middleware.error_handler import AppError, ValidationError, NotFoundError
+from services.email_service import email_service
 import logging
 
 logger = logging.getLogger(__name__)
@@ -106,9 +107,32 @@ def submit_inquiry():
 
         inquiry_id = result.data[0]['id']
 
-        # TODO: Send confirmation email to user
-        # TODO: Send notification email to admin
-        # Use existing email service pattern from other routes
+        # Send confirmation email to user
+        try:
+            email_service.send_service_inquiry_user_email(
+                user_email=email,
+                user_name=data['name'].strip(),
+                service_name=service_name
+            )
+            logger.info(f"Confirmation email sent to user: {email}")
+        except Exception as e:
+            logger.error(f"Failed to send user confirmation email: {str(e)}")
+            # Don't fail the request if email fails
+
+        # Send notification email to admin (with copy to parent/user)
+        try:
+            email_service.send_service_inquiry_admin_email(
+                user_name=data['name'].strip(),
+                user_email=email,
+                user_phone=data.get('phone', '').strip() if data.get('phone') else None,
+                service_name=service_name,
+                message=data['message'].strip()
+            )
+            logger.info(f"Admin notification email sent for inquiry: {inquiry_id}")
+        except Exception as e:
+            logger.error(f"Failed to send admin notification email: {str(e)}")
+            # Don't fail the request if email fails
+
         logger.info(f"Service inquiry submitted: {inquiry_id} for service: {service_name}")
 
         return jsonify({

@@ -375,5 +375,72 @@ class EmailService(BaseService):
             }
         )
 
+    def send_service_inquiry_user_email(
+        self,
+        user_email: str,
+        user_name: str,
+        service_name: str
+    ) -> bool:
+        """
+        Send confirmation email to user after service inquiry submission
+
+        Args:
+            user_email: User's email address
+            user_name: User's name
+            service_name: Name of the service they inquired about
+
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        return self.send_templated_email(
+            to_email=user_email,
+            subject=f"We Received Your Inquiry About {service_name}",
+            template_name='service_inquiry_user',
+            context={
+                'name': user_name,
+                'service_name': service_name
+            }
+        )
+
+    def send_service_inquiry_admin_email(
+        self,
+        user_name: str,
+        user_email: str,
+        user_phone: str,
+        service_name: str,
+        message: str
+    ) -> bool:
+        """
+        Send notification email to admin about new service inquiry
+
+        Args:
+            user_name: Name of the person who submitted inquiry
+            user_email: Email of the person who submitted inquiry
+            user_phone: Phone number (optional)
+            service_name: Name of the service
+            message: Inquiry message
+
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        admin_email = os.getenv('ADMIN_EMAIL', 'support@optioeducation.com')
+
+        # Format phone display
+        phone_display = user_phone if user_phone else 'Not provided'
+
+        return self.send_templated_email(
+            to_email=admin_email,
+            subject=f"New Service Inquiry: {service_name}",
+            template_name='service_inquiry_admin',
+            context={
+                'name': user_name,
+                'email': user_email,
+                'phone': phone_display,
+                'service_name': service_name,
+                'message': message
+            },
+            cc=[user_email]  # Copy the parent/user on the admin notification
+        )
+
 # Create singleton instance
 email_service = EmailService()
