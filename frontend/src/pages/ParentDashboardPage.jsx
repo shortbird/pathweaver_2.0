@@ -453,8 +453,8 @@ const ParentDashboardPage = () => {
                     : `${selectedStudent?.student_first_name} hasn't checked in recently. Here are some conversation starters:`}
                 </p>
 
-                <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6">
-                  <h3 className="text-lg font-bold text-yellow-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <div className="bg-green-50 border-2 border-green-300 rounded-lg p-6">
+                  <h3 className="text-lg font-bold text-green-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
                     Conversation Starters
                   </h3>
                   <ul className="space-y-2 text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
@@ -476,12 +476,25 @@ const ParentDashboardPage = () => {
 
                 {dashboardData?.learning_rhythm?.has_overdue_tasks && (
                   <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-orange-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <h4 className="font-semibold text-orange-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
                       Overdue Tasks: {dashboardData.learning_rhythm.overdue_task_count}
                     </h4>
-                    <p className="text-sm font-medium text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <p className="text-sm font-medium text-gray-700 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
                       Deadlines are tools, not rules. Help them understand what got in the way.
                     </p>
+                    {calendarData?.items && (
+                      <ul className="space-y-2 mt-3">
+                        {calendarData.items
+                          .filter(item => item.status === 'wandering')
+                          .slice(0, 5)
+                          .map((item) => (
+                            <li key={item.id} className="text-sm font-medium text-gray-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              <span className="font-semibold">{item.task_title}</span>
+                              <span className="text-gray-600"> • {item.quest_title}</span>
+                            </li>
+                          ))}
+                      </ul>
+                    )}
                   </div>
                 )}
               </div>
