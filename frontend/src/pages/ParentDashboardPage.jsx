@@ -479,11 +479,8 @@ const ParentDashboardPage = () => {
                     <h4 className="font-semibold text-orange-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
                       Overdue Tasks: {dashboardData.learning_rhythm.overdue_task_count}
                     </h4>
-                    <p className="text-sm font-medium text-gray-700 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Deadlines are tools, not rules. Help them understand what got in the way.
-                    </p>
                     {calendarData?.items && (
-                      <ul className="space-y-2 mt-3">
+                      <ul className="space-y-2 mb-3">
                         {calendarData.items
                           .filter(item => item.status === 'wandering')
                           .slice(0, 5)
@@ -495,6 +492,9 @@ const ParentDashboardPage = () => {
                           ))}
                       </ul>
                     )}
+                    <p className="text-sm font-medium text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      Deadlines are tools, not rules. Help them understand what got in the way.
+                    </p>
                   </div>
                 )}
               </div>
