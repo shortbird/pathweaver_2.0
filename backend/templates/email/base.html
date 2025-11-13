@@ -27,25 +27,18 @@
             background-color: #ffffff;
         }
 
-        /* Header with gradient (Outlook fallback to solid purple) */
+        /* Header with white background */
         .header {
-            padding: 30px 30px 20px 30px;
+            padding: 40px 30px 30px 30px;
             text-align: center;
-            background: linear-gradient(135deg, #6D469B 0%, #EF597B 100%);
-            background-color: #6D469B; /* Fallback for Outlook */
+            background-color: #ffffff;
+            border-bottom: 1px solid #e5e5e5;
         }
-
-        /* Outlook-specific gradient using VML */
-        <!--[if gte mso 9]>
-        <v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="width:600px;height:150px;">
-            <v:fill type="gradient" color="#6D469B" color2="#EF597B" angle="135" />
-        </v:rect>
-        <![endif]-->
 
         .logo-image {
             max-width: 200px;
             height: auto;
-            margin-bottom: 12px;
+            margin: 0 auto;
         }
 
         .logo {
@@ -53,15 +46,7 @@
             font-weight: 700;
             letter-spacing: -0.5px;
             margin-bottom: 8px;
-            color: #ffffff;
-        }
-
-        .tagline {
-            font-size: 13px;
-            color: #ffffff;
-            font-weight: 500;
-            line-height: 1.5;
-            opacity: 0.95;
+            color: #6D469B;
         }
 
         /* Main content */
@@ -254,7 +239,7 @@
 <body>
     <div class="email-container">
         <!-- Header -->
-        <div class="header">
+        <div class="header" style="padding: 40px 30px 30px 30px; text-align: center; background-color: #ffffff; border-bottom: 1px solid #e5e5e5;">
             <!-- Logo image with fallback text -->
             <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
@@ -263,7 +248,7 @@
                              alt="Optio"
                              class="logo-image"
                              width="200"
-                             style="display: block; max-width: 200px; height: auto; margin: 0 auto 12px auto;" />
+                             style="display: block; max-width: 200px; height: auto; margin: 0 auto;" />
                     </td>
                 </tr>
             </table>
