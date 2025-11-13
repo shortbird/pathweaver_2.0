@@ -30,7 +30,7 @@ const ServiceGrid = ({ categories, onInquire }) => {
         <div className="mb-16">
           <div className="text-center mb-8">
             <h2 className="text-4xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-              Best Value for Families
+              Optio Pro Subscription
             </h2>
             <div className="w-24 h-1 bg-gradient-to-r from-[#6D469B] to-[#EF597B] mx-auto rounded-full"></div>
           </div>
