@@ -684,6 +684,28 @@ def get_user_activity(admin_id, user_id):
         user_info = user_response.data if user_response.data else {}
         user_name = user_info.get('display_name') or f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip() or 'Unknown User'
 
+        # Bulk fetch quest and badge names for enrichment
+        quest_ids = set()
+        badge_ids = set()
+        for event in events:
+            event_data = event.get('event_data', {})
+            if quest_id := event_data.get('quest_id'):
+                quest_ids.add(quest_id)
+            if badge_id := event_data.get('badge_id'):
+                badge_ids.add(badge_id)
+
+        # Fetch quest names
+        quest_names = {}
+        if quest_ids:
+            quests_response = supabase.table('quests').select('id, title').in_('id', list(quest_ids)).execute()
+            quest_names = {q['id']: q['title'] for q in (quests_response.data or [])}
+
+        # Fetch badge names
+        badge_names = {}
+        if badge_ids:
+            badges_response = supabase.table('badges').select('id, name').in_('id', list(badge_ids)).execute()
+            badge_names = {b['id']: b['name'] for b in (badges_response.data or [])}
+
         # Format events for display
         formatted_events = []
         for event in events:
@@ -696,8 +718,8 @@ def get_user_activity(admin_id, user_id):
                 'referrer_url': event.get('referrer_url'),
                 'duration_ms': event.get('duration_ms'),
                 'event_data': event.get('event_data', {}),
-                # Human-readable description
-                'description': _format_event_description(event)
+                # Human-readable description with enriched data
+                'description': _format_event_description(event, quest_names, badge_names)
             })
 
         return jsonify({
@@ -728,11 +750,18 @@ def get_user_activity(admin_id, user_id):
         }), 500
 
 
-def _format_event_description(event: dict) -> str:
-    """Format event into human-readable description."""
+def _format_event_description(event: dict, quest_names: dict, badge_names: dict) -> str:
+    """Format event into human-readable description with enriched quest/badge names."""
     event_type = event.get('event_type', '')
     event_data = event.get('event_data', {})
     page_url = event.get('page_url', '')
+
+    # Get quest/badge names from lookup dictionaries
+    quest_id = event_data.get('quest_id')
+    quest_name = quest_names.get(quest_id, 'Unknown Quest') if quest_id else 'Unknown Quest'
+
+    badge_id = event_data.get('badge_id')
+    badge_name = badge_names.get(badge_id, 'Unknown Badge') if badge_id else 'Unknown Badge'
 
     # Map event types to readable descriptions
     descriptions = {
@@ -741,14 +770,14 @@ def _format_event_description(event: dict) -> str:
         'logout': 'Logged out',
         'registration_success': 'Registered account',
         'dashboard_viewed': 'Viewed dashboard',
-        'quest_viewed': f"Viewed quest: {event_data.get('quest_title', 'Unknown')}",
-        'quest_started': f"Started quest: {event_data.get('quest_title', 'Unknown')}",
-        'quest_completed': f"Completed quest: {event_data.get('quest_title', 'Unknown')}",
-        'quest_abandoned': f"Abandoned quest: {event_data.get('quest_title', 'Unknown')}",
+        'quest_viewed': f"Viewed quest: {quest_name}",
+        'quest_started': f"Started quest: {quest_name}",
+        'quest_completed': f"Completed quest: {quest_name}",
+        'quest_abandoned': f"Abandoned quest: {quest_name}",
         'task_completed': 'Completed a task',
         'task_viewed': 'Viewed task details',
-        'badge_claimed': f"Claimed badge: {event_data.get('badge_name', 'Unknown')}",
-        'badge_viewed': f"Viewed badge: {event_data.get('badge_name', 'Unknown')}",
+        'badge_claimed': f"Claimed badge: {badge_name}",
+        'badge_viewed': f"Viewed badge: {badge_name}",
         'evidence_uploaded': 'Uploaded evidence file',
         'tutor_opened': 'Opened AI tutor',
         'tutor_message_sent': 'Sent message to AI tutor',
