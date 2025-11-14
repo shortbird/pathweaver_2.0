@@ -16,12 +16,26 @@ class SessionManager:
     """Manages secure session tokens using httpOnly cookies"""
     
     def __init__(self):
+        # Primary secret key for token signing
         self.secret_key = os.getenv('JWT_SECRET_KEY') or os.getenv('SECRET_KEY') or os.getenv('FLASK_SECRET_KEY')
         if not self.secret_key:
             raise ValueError("JWT_SECRET_KEY, SECRET_KEY, or FLASK_SECRET_KEY environment variable must be set")
+
+        # Previous secret key for graceful rotation (optional)
+        self.previous_secret_key = os.getenv('FLASK_SECRET_KEY_OLD')
+
+        # Token version for tracking rotations
+        self.token_version = os.getenv('TOKEN_VERSION', 'v1')
+
         self.access_token_expiry = timedelta(minutes=15)  # Short-lived access token
         self.refresh_token_expiry = timedelta(days=7)  # Longer-lived refresh token
         self.masquerade_token_expiry = timedelta(hours=1)  # Masquerade sessions expire faster
+
+        # Log token versioning status
+        if self.previous_secret_key:
+            logger.info(f"[SessionManager] Token versioning enabled (version: {self.token_version}, supports old keys)")
+        else:
+            logger.info(f"[SessionManager] Token versioning enabled (version: {self.token_version})")
 
         # Detect cross-origin deployment (frontend and backend on different domains)
         frontend_url = os.getenv('FRONTEND_URL', '')
@@ -41,6 +55,7 @@ class SessionManager:
         payload = {
             'user_id': user_id,
             'type': 'access',
+            'version': self.token_version,  # Add version for rotation tracking
             'exp': datetime.now(timezone.utc) + self.access_token_expiry,
             'iat': datetime.now(timezone.utc)
         }
@@ -51,6 +66,7 @@ class SessionManager:
         payload = {
             'user_id': user_id,
             'type': 'refresh',
+            'version': self.token_version,  # Add version for rotation tracking
             'exp': datetime.now(timezone.utc) + self.refresh_token_expiry,
             'iat': datetime.now(timezone.utc)
         }
@@ -62,48 +78,80 @@ class SessionManager:
             'user_id': admin_id,
             'masquerade_as': target_user_id,
             'type': 'masquerade',
+            'version': self.token_version,  # Add version for rotation tracking
             'exp': datetime.now(timezone.utc) + self.masquerade_token_expiry,
             'iat': datetime.now(timezone.utc)
         }
         return jwt.encode(payload, self.secret_key, algorithm='HS256')
     
     def verify_access_token(self, token: str) -> Optional[Dict[str, Any]]:
-        """Verify and decode an access token"""
+        """Verify and decode an access token (supports graceful key rotation)"""
+        # Try current secret key first
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
-            if payload.get('type') != 'access':
-                return None
-            return payload
+            if payload.get('type') == 'access':
+                return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-            return None
+            pass
+
+        # Fallback to previous secret key during rotation period
+        if self.previous_secret_key:
+            try:
+                payload = jwt.decode(token, self.previous_secret_key, algorithms=['HS256'])
+                if payload.get('type') == 'access':
+                    logger.info(f"[SessionManager] Token validated with previous secret (version: {payload.get('version', 'unknown')})")
+                    return payload
+            except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+                pass
+
+        return None
     
     def verify_refresh_token(self, token: str) -> Optional[Dict[str, Any]]:
-        """Verify and decode a refresh token"""
+        """Verify and decode a refresh token (supports graceful key rotation)"""
+        # Try current secret key first
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
-            if payload.get('type') != 'refresh':
-                return None
-            return payload
+            if payload.get('type') == 'refresh':
+                return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-            return None
+            pass
+
+        # Fallback to previous secret key during rotation period
+        if self.previous_secret_key:
+            try:
+                payload = jwt.decode(token, self.previous_secret_key, algorithms=['HS256'])
+                if payload.get('type') == 'refresh':
+                    logger.info(f"[SessionManager] Refresh token validated with previous secret (version: {payload.get('version', 'unknown')})")
+                    return payload
+            except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+                pass
+
+        return None
 
     def verify_masquerade_token(self, token: str) -> Optional[Dict[str, Any]]:
-        """Verify and decode a masquerade token"""
+        """Verify and decode a masquerade token (supports graceful key rotation)"""
+        # Try current secret key first
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=['HS256'])
-            if payload.get('type') != 'masquerade':
-                return None
-            return payload
+            if payload.get('type') == 'masquerade':
+                return payload
         except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
-            return None
+            pass
+
+        # Fallback to previous secret key during rotation period
+        if self.previous_secret_key:
+            try:
+                payload = jwt.decode(token, self.previous_secret_key, algorithms=['HS256'])
+                if payload.get('type') == 'masquerade':
+                    logger.info(f"[SessionManager] Masquerade token validated with previous secret (version: {payload.get('version', 'unknown')})")
+                    return payload
+            except (jwt.ExpiredSignatureError, jwt.InvalidTokenError):
+                pass
+
+        return None
     
     def set_auth_cookies(self, response, user_id: str):
-        """Set secure httpOnly cookies for authentication (same-origin only)"""
-        # ✅ INCOGNITO FIX: Skip cookies in cross-origin mode (they'll be blocked anyway)
-        if self.is_cross_origin:
-            logger.info("[SessionManager] Skipping cookie set (cross-origin mode)")
-            return response
-
+        """Set secure httpOnly cookies for authentication (works for both same-origin and cross-origin)"""
         access_token = self.generate_access_token(user_id)
         refresh_token = self.generate_refresh_token(user_id)
 
@@ -129,19 +177,17 @@ class SessionManager:
             path='/'  # Available to all paths
         )
 
-        logger.info("[SessionManager] Auth cookies set (same-origin mode)")
+        mode = "cross-origin" if self.is_cross_origin else "same-origin"
+        logger.info(f"[SessionManager] Auth cookies set ({mode} mode, SameSite={self.cookie_samesite}, Secure={self.cookie_secure})")
         return response
     
     def clear_auth_cookies(self, response):
-        """Clear authentication cookies (same-origin only)"""
-        # ✅ INCOGNITO FIX: Skip cookie clearing in cross-origin mode
-        if self.is_cross_origin:
-            logger.info("[SessionManager] Skipping cookie clear (cross-origin mode)")
-            return response
-
+        """Clear authentication cookies (works for both same-origin and cross-origin)"""
         response.set_cookie('access_token', '', expires=0, httponly=True, secure=self.cookie_secure, samesite=self.cookie_samesite)
         response.set_cookie('refresh_token', '', expires=0, httponly=True, secure=self.cookie_secure, samesite=self.cookie_samesite)
-        logger.info("[SessionManager] Auth cookies cleared (same-origin mode)")
+
+        mode = "cross-origin" if self.is_cross_origin else "same-origin"
+        logger.info(f"[SessionManager] Auth cookies cleared ({mode} mode)")
         return response
     
     def get_current_user_id(self) -> Optional[str]:
@@ -154,18 +200,13 @@ class SessionManager:
             if payload:
                 return payload.get('user_id')
 
-        # ✅ INCOGNITO FIX: In cross-origin mode, only use Authorization header
-        if self.is_cross_origin:
-            logger.debug("[SessionManager] No Authorization header in cross-origin mode")
-            return None
-
-        # Fallback to cookie for same-origin deployments only
+        # Fallback to cookie (works in both same-origin and cross-origin with SameSite=None)
         access_token = request.cookies.get('access_token')
-        if not access_token:
-            return None
+        if access_token:
+            payload = self.verify_access_token(access_token)
+            return payload.get('user_id') if payload else None
 
-        payload = self.verify_access_token(access_token)
-        return payload.get('user_id') if payload else None
+        return None
 
     def get_effective_user_id(self) -> Optional[str]:
         """Get the effective user ID (masquerade target if masquerading, else actual user)"""
@@ -184,13 +225,12 @@ class SessionManager:
             if access_payload:
                 return access_payload.get('user_id')
 
-        # Cookie fallback for same-origin deployments
-        if not self.is_cross_origin:
-            access_token = request.cookies.get('access_token')
-            if access_token:
-                payload = self.verify_access_token(access_token)
-                if payload:
-                    return payload.get('user_id')
+        # Cookie fallback (works in both same-origin and cross-origin)
+        access_token = request.cookies.get('access_token')
+        if access_token:
+            payload = self.verify_access_token(access_token)
+            if payload:
+                return payload.get('user_id')
 
         return None
 

@@ -1182,3 +1182,54 @@ def reset_password():
         return jsonify({'error': 'An error occurred while resetting your password'}), 500
 
 
+@bp.route('/token-health', methods=['GET'])
+def token_health():
+    """
+    Check if current tokens are compatible with server secret.
+    Used by frontend to detect token incompatibility after deployments.
+    """
+    try:
+        # Check for Authorization header
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            # No token provided - not an error, just not authenticated
+            return jsonify({
+                'compatible': False,
+                'reason': 'No token provided',
+                'authenticated': False
+            }), 200
+
+        # Extract token
+        token = auth_header.replace('Bearer ', '')
+
+        # Verify token with current and previous keys
+        payload = session_manager.verify_access_token(token)
+
+        if payload:
+            # Token is valid
+            token_version = payload.get('version', 'unknown')
+            return jsonify({
+                'compatible': True,
+                'authenticated': True,
+                'token_version': token_version,
+                'server_version': session_manager.token_version,
+                'using_old_key': False  # If we got here, current key worked
+            }), 200
+        else:
+            # Token is invalid (expired or wrong secret)
+            return jsonify({
+                'compatible': False,
+                'reason': 'Token invalid or expired',
+                'authenticated': False,
+                'server_version': session_manager.token_version
+            }), 200
+
+    except Exception as e:
+        logger.error(f"[TOKEN_HEALTH] Error checking token health: {str(e)}")
+        return jsonify({
+            'compatible': False,
+            'reason': 'Server error',
+            'authenticated': False
+        }), 200  # Return 200 even on error so frontend can handle gracefully
+
+
