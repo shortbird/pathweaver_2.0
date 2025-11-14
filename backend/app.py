@@ -8,7 +8,7 @@ load_dotenv()
 from utils.logger import setup_logging, get_logger
 setup_logging()
 logger = get_logger(__name__)
-logger.info("Starting Optio Backend API")
+logger.info("Starting Optio Backend API - Session persistence enabled")
 
 from routes import auth, users, community, portfolio
 from routes.quest_ideas import quest_ideas_bp
