@@ -207,8 +207,9 @@ def require_advisor(f):
         # Store user_id in request context
         request.user_id = user_id
 
-        # Verify advisor or admin status
-        supabase = get_authenticated_supabase_client()
+        # Verify advisor or admin status (use admin client to bypass RLS)
+        from database import get_supabase_admin_client
+        supabase = get_supabase_admin_client()
 
         try:
             user = supabase.table('users').select('role').eq('id', user_id).execute()
