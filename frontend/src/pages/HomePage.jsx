@@ -6,21 +6,22 @@ import { PhilosophySection } from '../components/ui/PhilosophyCard'
 // import { useSubscriptionTiers, formatPrice } from '../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const HomePage = () => {
-  const { isAuthenticated, user } = useAuth()
+  const { isAuthenticated, user, loading } = useAuth()
   const navigate = useNavigate()
   // const { data: tiers, isLoading: tiersLoading } = useSubscriptionTiers() // REMOVED - Phase 3 refactoring (January 2025)
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
 
   // Redirect authenticated users to their appropriate dashboard
+  // Wait for auth loading to complete to avoid race conditions with AuthCallback
   useEffect(() => {
-    if (isAuthenticated && user) {
+    if (!loading && isAuthenticated && user) {
       if (user.role === 'parent') {
         navigate('/parent/dashboard')
       } else if (user.role === 'student' || user.role === 'advisor' || user.role === 'admin') {
         navigate('/dashboard')
       }
     }
-  }, [isAuthenticated, user, navigate])
+  }, [isAuthenticated, user, navigate, loading])
 
   return (
     <div className="min-h-screen">
