@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import api from '../../services/api'
+import AdminServices from './AdminServices'
 
 const SiteSettings = () => {
+  const [activeTab, setActiveTab] = useState('site') // 'site' or 'services'
   const [settings, setSettings] = useState(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -85,13 +87,45 @@ const SiteSettings = () => {
     }
   }
 
-  if (loading) {
+  if (loading && activeTab === 'site') {
     return <div className="p-6">Loading settings...</div>
   }
 
   return (
-    <div className="p-6 max-w-4xl">
-      <h2 className="text-2xl font-bold mb-6">Site Settings</h2>
+    <div className="max-w-7xl mx-auto">
+      <h2 className="text-2xl font-bold mb-6" style={{ fontFamily: 'Poppins, sans-serif' }}>Settings</h2>
+
+      {/* Tab Navigation */}
+      <div className="flex gap-2 mb-6 border-b">
+        <button
+          onClick={() => setActiveTab('site')}
+          className={`px-4 py-2 font-semibold transition-colors ${
+            activeTab === 'site'
+              ? 'border-b-2 border-purple-600 text-purple-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+          style={{ fontFamily: 'Poppins, sans-serif' }}
+        >
+          Site Settings
+        </button>
+        <button
+          onClick={() => setActiveTab('services')}
+          className={`px-4 py-2 font-semibold transition-colors ${
+            activeTab === 'services'
+              ? 'border-b-2 border-purple-600 text-purple-600'
+              : 'text-gray-600 hover:text-gray-900'
+          }`}
+          style={{ fontFamily: 'Poppins, sans-serif' }}
+        >
+          Services
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'services' ? (
+        <AdminServices />
+      ) : (
+        <div className="max-w-4xl">
 
       {message && (
         <div className={`mb-4 p-3 rounded ${
@@ -212,7 +246,8 @@ const SiteSettings = () => {
             </button>
           </div>
         </form>
-      </div>
+        </div>
+      )}
     </div>
   )
 }

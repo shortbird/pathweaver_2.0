@@ -9,8 +9,6 @@ import AdminConnections from '../components/admin/AdminConnections'
 import AdminDashboard from '../components/admin/AdminDashboard'
 import SiteSettings from '../components/admin/SiteSettings'
 import FlaggedTasksPanel from '../components/admin/FlaggedTasksPanel'
-import AdminServices from '../components/admin/AdminServices'
-import ServiceInquiries from '../components/admin/ServiceInquiries'
 import UserActivityLogPage from './admin/UserActivityLogPage'
 
 const AdminPage = () => {
