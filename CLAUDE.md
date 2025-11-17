@@ -706,6 +706,19 @@ frontend/src/
 - **XSS prevention**: NO JavaScript-accessible token storage (Phase 1 security fix complete)
 - **IMPORTANT**: Tokens are NEVER returned in API response bodies - only in httpOnly cookies
 - **IMPORTANT**: Frontend NEVER stores tokens in localStorage - this was a critical XSS vulnerability (fixed January 2025)
+- **Session Persistence** (November 2025):
+  - **Persistent FLASK_SECRET_KEY**: JWT secret key set in Render environment variables, persists across deployments
+  - **Token Versioning**: All tokens include `version` field for graceful secret key rotation
+  - **Dual-Key Verification**: Supports both current and previous secret keys during rotation period
+  - **Token Health Monitoring**: Frontend checks token compatibility every 5 minutes, gracefully prompts re-login if needed
+  - **httpOnly Cookie Support**: Always sets secure httpOnly cookies with `SameSite=None` for cross-origin compatibility
+  - **Environment Variables**: `FLASK_SECRET_KEY` (required), `FLASK_SECRET_KEY_OLD` (optional), `TOKEN_VERSION` (default: 'v1')
+  - **Documentation**: See `docs/SESSION_PERSISTENCE.md` for implementation details
+- **Auth Decorators** (November 2025):
+  - **CRITICAL**: All auth decorators use `get_supabase_admin_client()` for role verification to bypass RLS restrictions
+  - **Fixed decorators**: `@require_admin`, `@require_role`, `@require_advisor`, `@require_advisor_for_student`
+  - **Reason**: Role verification with `get_authenticated_supabase_client()` can fail due to RLS policies blocking role lookups
+  - **Pattern**: Always use admin client for authorization checks, user client for user data operations
 - **Strong Password Policy** (Phase 1 Security Fix - January 2025):
   - Minimum 12 characters (increased from 6)
   - At least 1 uppercase letter (A-Z)
