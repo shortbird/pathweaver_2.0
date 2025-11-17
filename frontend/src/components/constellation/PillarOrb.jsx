@@ -32,13 +32,13 @@ const PillarOrb = ({
   const size = calculateSize(xp);
   const brightness = calculateBrightness(xp);
 
-  // Pillar-specific colors
+  // Pillar-specific colors (NEW simplified system - January 2025)
   const pillarColors = {
-    'stem_logic': '#3b82f6',
-    'society_culture': '#a855f7',
-    'arts_creativity': '#EF597B',
-    'language_communication': '#f59e0b',
-    'life_wellness': '#10b981'
+    'stem': '#3b82f6',           // Blue
+    'civics': '#a855f7',         // Purple
+    'art': '#EF597B',            // Pink
+    'communication': '#f59e0b',  // Orange
+    'wellness': '#10b981'        // Green
   };
 
   const color = pillarColors[pillar.id] || '#ffffff';

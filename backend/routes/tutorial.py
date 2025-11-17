@@ -109,14 +109,13 @@ def start_tutorial_for_user(user_id: str):
 
 @tutorial_bp.route('/check-progress', methods=['POST'])
 @require_auth
-def check_tutorial_progress(current_user):
+def check_tutorial_progress(user_id):
     """
     Check and update tutorial progress for the authenticated user
 
     Returns verification results and auto-completes any verified tasks
     """
     try:
-        user_id = current_user['id']
 
         # Run verification service
         result = tutorial_verification_service.verify_user_tutorial_progress(user_id)
@@ -142,7 +141,7 @@ def check_tutorial_progress(current_user):
 
 @tutorial_bp.route('/status', methods=['GET'])
 @require_auth
-def get_tutorial_status(current_user):
+def get_tutorial_status(user_id):
     """
     Get the current status of the tutorial quest for the authenticated user
 
@@ -154,7 +153,6 @@ def get_tutorial_status(current_user):
         - tutorial_quest_id: UUID (if exists)
     """
     try:
-        user_id = current_user['id']
         supabase = get_supabase_admin_client()
 
         # Get tutorial quest
@@ -227,14 +225,13 @@ def get_tutorial_status(current_user):
 
 @tutorial_bp.route('/start', methods=['POST'])
 @require_auth
-def start_tutorial(current_user):
+def start_tutorial(user_id):
     """
     Start the tutorial quest for the authenticated user
 
     Creates user_quests record and user_quest_tasks records with auto_complete enabled
     """
     try:
-        user_id = current_user['id']
         supabase = get_supabase_admin_client()
 
         # Get tutorial quest
@@ -320,14 +317,13 @@ def start_tutorial(current_user):
 
 @tutorial_bp.route('/tasks', methods=['GET'])
 @require_auth
-def get_tutorial_tasks(current_user):
+def get_tutorial_tasks(user_id):
     """
     Get all tutorial tasks with completion status for the authenticated user
 
     Returns list of tasks with verification status
     """
     try:
-        user_id = current_user['id']
         supabase = get_supabase_admin_client()
 
         # Get tutorial quest

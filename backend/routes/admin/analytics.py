@@ -120,21 +120,35 @@ def get_overview_metrics(user_id):
             completions_today = 0
 
         # Get total XP earned from task completions this week
+        # Join quest_task_completions with user_quest_tasks to get xp_value
         try:
-            xp_completions = supabase.table('quest_task_completions')\
-                .select('xp_awarded')\
+            # Get task completions with their task IDs
+            completions = supabase.table('quest_task_completions')\
+                .select('task_id')\
                 .gte('completed_at', week_ago.isoformat())\
                 .execute()
 
-            # Sum XP from completions (handles None values)
             total_xp_week = 0
-            if xp_completions.data:
-                for record in xp_completions.data:
-                    xp_value = record.get('xp_awarded', 0)
-                    if xp_value:
-                        total_xp_week += xp_value
+            if completions.data:
+                # Get unique task IDs
+                task_ids = list(set([c['task_id'] for c in completions.data]))
 
-            print(f"DEBUG: Found {len(xp_completions.data) if xp_completions.data else 0} completions with total XP: {total_xp_week}", file=sys.stderr, flush=True)
+                if task_ids:
+                    # Fetch xp_value for these tasks
+                    tasks = supabase.table('user_quest_tasks')\
+                        .select('id, xp_value')\
+                        .in_('id', task_ids)\
+                        .execute()
+
+                    # Create task_id -> xp_value mapping
+                    xp_map = {task['id']: task.get('xp_value', 0) for task in (tasks.data or [])}
+
+                    # Sum XP for all completions
+                    for completion in completions.data:
+                        task_id = completion['task_id']
+                        total_xp_week += xp_map.get(task_id, 0)
+
+            print(f"DEBUG: Found {len(completions.data) if completions.data else 0} completions with total XP: {total_xp_week}", file=sys.stderr, flush=True)
         except Exception as e:
             print(f"Error getting XP week data: {e}", file=sys.stderr, flush=True)
             total_xp_week = 0
@@ -157,28 +171,9 @@ def get_overview_metrics(user_id):
             print(f"Error getting flagged tasks: {e}", file=sys.stderr, flush=True)
             flagged_tasks_count = 0
 
-        # Get subscription distribution (OPTIMIZED: single query with group by)
+        # Subscription tiers removed in Phase 1 refactoring (January 2025)
+        # Keeping empty array for backward compatibility with frontend
         subscription_stats = []
-        try:
-            # Fetch all users' subscription tiers in one query
-            all_tiers = supabase.table('users').select('subscription_tier').execute()
-
-            # Count tiers client-side (faster than 8 separate queries)
-            tier_counts = {}
-            for user in all_tiers.data or []:
-                tier = user.get('subscription_tier', 'free')
-                tier_counts[tier] = tier_counts.get(tier, 0) + 1
-
-            # Format as array for frontend
-            for tier in ['free', 'explorer', 'supported', 'creator', 'premium', 'academy', 'visionary', 'enterprise']:
-                subscription_stats.append({
-                    'tier': tier,
-                    'count': tier_counts.get(tier, 0)
-                })
-        except Exception as e:
-            print(f"Error getting subscription distribution: {e}", file=sys.stderr, flush=True)
-            for tier in ['free', 'explorer', 'supported', 'creator', 'premium', 'academy', 'visionary', 'enterprise']:
-                subscription_stats.append({'tier': tier, 'count': 0})
 
         # Calculate engagement rate (active users / total users)
         engagement_rate = round((active_users / total_users * 100) if total_users > 0 else 0, 1)
@@ -217,16 +212,7 @@ def get_overview_metrics(user_id):
                 'pending_submissions': 0,
                 'flagged_tasks_count': 0,
                 'engagement_rate': 0,
-                'subscription_distribution': [
-                    {'tier': 'free', 'count': 0},
-                    {'tier': 'explorer', 'count': 0},
-                    {'tier': 'supported', 'count': 0},
-                    {'tier': 'creator', 'count': 0},
-                    {'tier': 'premium', 'count': 0},
-                    {'tier': 'academy', 'count': 0},
-                    {'tier': 'visionary', 'count': 0},
-                    {'tier': 'enterprise', 'count': 0}
-                ],
+                'subscription_distribution': [],  # Phase 1 refactoring: subscription tiers removed
                 'last_updated': datetime.utcnow().isoformat()
             }
         })
@@ -283,8 +269,8 @@ def get_recent_activity(user_id):
         # Get recent quest submissions
         try:
             recent_submissions = supabase.table('quest_submissions')\
-                .select('user_id, title, created_at')\
-                .order('created_at', desc=True)\
+                .select('user_id, title, submitted_at')\
+                .order('submitted_at', desc=True)\
                 .limit(5).execute()
 
             # Collect user IDs
@@ -356,7 +342,7 @@ def get_recent_activity(user_id):
 
             activities.append({
                 'type': 'quest_submission',
-                'timestamp': submission.get('created_at', now.isoformat()),
+                'timestamp': submission.get('submitted_at', now.isoformat()),
                 'user_name': user_name,
                 'description': f"submitted custom quest: '{submission['title']}'"
             })
@@ -649,6 +635,16 @@ def get_user_activity(admin_id, user_id):
 
     Access: Admin only
     """
+    # Validate UUID format before querying database
+    import uuid
+    try:
+        uuid.UUID(user_id)
+    except (ValueError, AttributeError):
+        return jsonify({
+            'success': False,
+            'error': f'Invalid user_id format: "{user_id}" is not a valid UUID'
+        }), 400
+
     supabase = get_supabase_admin_client()
 
     try:

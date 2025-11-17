@@ -160,8 +160,16 @@ def get_user_client(token: Optional[str] = None) -> Client:
             # Cache in Flask g context for this request
             setattr(g, cache_key, client)
             return client
+        except AttributeError as e:
+            # This can occur if options dict is mishandled by supabase-py library
+            _get_logger().error(f"ERROR: AttributeError creating client (supabase-py version issue?): {e}")
+            _get_logger().error(f"Token format: {len(token.split('.'))} parts, first 10 chars: {token[:10]}")
+            # Return anonymous client if token setup fails
+            client = get_supabase_client()
+            setattr(g, cache_key, client)
+            return client
         except Exception as e:
-            _get_logger().error(f"ERROR: Failed to create client with auth token: {e}")
+            _get_logger().error(f"ERROR: Failed to create client with auth token: {type(e).__name__}: {e}")
             # Return anonymous client if token setup fails
             client = get_supabase_client()
             setattr(g, cache_key, client)
