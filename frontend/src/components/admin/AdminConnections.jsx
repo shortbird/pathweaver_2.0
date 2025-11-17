@@ -1,0 +1,824 @@
+import React, { useState, useEffect } from 'react'
+import api, { adminParentConnectionsAPI } from '../../services/api'
+import toast from 'react-hot-toast'
+import { X, UserPlus, Users, Search, CheckCircle, XCircle, Trash2, ChevronDown, ChevronUp } from 'lucide-react'
+
+const AdminConnections = () => {
+  const [loading, setLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+
+  // Advisor-Student state
+  const [advisors, setAdvisors] = useState([])
+  const [selectedAdvisor, setSelectedAdvisor] = useState(null)
+  const [assignedStudents, setAssignedStudents] = useState([])
+  const [unassignedStudents, setUnassignedStudents] = useState([])
+  const [showAssignModal, setShowAssignModal] = useState(false)
+  const [assignLoading, setAssignLoading] = useState(false)
+  const [expandedAdvisorId, setExpandedAdvisorId] = useState(null)
+
+  // Parent-Student state
+  const [parentRequests, setParentRequests] = useState([])
+  const [parentLinks, setParentLinks] = useState([])
+  const [parents, setParents] = useState([])
+  const [students, setStudents] = useState([])
+  const [statusFilter, setStatusFilter] = useState('pending')
+  const [showApproveModal, setShowApproveModal] = useState(false)
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [showDisconnectModal, setShowDisconnectModal] = useState(false)
+  const [showConnectModal, setShowConnectModal] = useState(false)
+  const [selectedRequest, setSelectedRequest] = useState(null)
+  const [selectedLink, setSelectedLink] = useState(null)
+  const [selectedParent, setSelectedParent] = useState(null)
+  const [selectedStudentId, setSelectedStudentId] = useState('')
+  const [adminNotes, setAdminNotes] = useState('')
+
+  useEffect(() => {
+    loadAllData()
+  }, [statusFilter])
+
+  const loadAllData = async () => {
+    setLoading(true)
+    try {
+      await Promise.all([
+        fetchAdvisors(),
+        fetchUnassignedStudents(),
+        loadParentRequests(),
+        loadParentLinks(),
+        loadParentsAndStudents()
+      ])
+    } catch (error) {
+      console.error('Error loading data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Advisor-Student functions
+  const fetchAdvisors = async () => {
+    try {
+      const response = await api.get('/api/admin/advisors')
+      setAdvisors(response.data.advisors || [])
+    } catch (error) {
+      toast.error('Failed to load advisors')
+      console.error('Error fetching advisors:', error)
+    }
+  }
+
+  const fetchUnassignedStudents = async () => {
+    try {
+      const response = await api.get('/api/admin/students/unassigned')
+      setUnassignedStudents(response.data.students || [])
+    } catch (error) {
+      console.error('Error fetching unassigned students:', error)
+    }
+  }
+
+  const fetchAdvisorStudents = async (advisorId) => {
+    try {
+      const response = await api.get(`/api/admin/advisors/${advisorId}/students`)
+      setAssignedStudents(response.data.students || [])
+    } catch (error) {
+      toast.error('Failed to load assigned students')
+      console.error('Error fetching advisor students:', error)
+    }
+  }
+
+  const handleSelectAdvisor = (advisor) => {
+    setSelectedAdvisor(advisor)
+    fetchAdvisorStudents(advisor.id)
+    setExpandedAdvisorId(advisor.id)
+  }
+
+  const handleAssignStudent = async (studentId) => {
+    if (!selectedAdvisor) return
+
+    setAssignLoading(true)
+    try {
+      await api.post(`/api/admin/advisors/${selectedAdvisor.id}/students`, {
+        student_id: studentId
+      })
+      toast.success('Student assigned successfully')
+
+      fetchAdvisorStudents(selectedAdvisor.id)
+      fetchUnassignedStudents()
+      fetchAdvisors()
+      setShowAssignModal(false)
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || 'Failed to assign student'
+      toast.error(errorMessage)
+    } finally {
+      setAssignLoading(false)
+    }
+  }
+
+  const handleUnassignStudent = async (studentId) => {
+    if (!selectedAdvisor) return
+    if (!window.confirm('Are you sure you want to unassign this student?')) return
+
+    try {
+      await api.delete(`/api/admin/advisors/${selectedAdvisor.id}/students/${studentId}`)
+      toast.success('Student unassigned successfully')
+
+      fetchAdvisorStudents(selectedAdvisor.id)
+      fetchUnassignedStudents()
+      fetchAdvisors()
+    } catch (error) {
+      toast.error('Failed to unassign student')
+      console.error('Error unassigning student:', error)
+    }
+  }
+
+  // Parent-Student functions
+  const loadParentRequests = async () => {
+    try {
+      const response = await adminParentConnectionsAPI.getConnectionRequests({ status: statusFilter })
+      setParentRequests(response.data.requests || [])
+    } catch (error) {
+      console.error('Error loading parent requests:', error)
+    }
+  }
+
+  const loadParentLinks = async () => {
+    try {
+      const response = await adminParentConnectionsAPI.getActiveLinks({ admin_verified: true })
+      setParentLinks(response.data.links || [])
+    } catch (error) {
+      console.error('Error loading parent links:', error)
+    }
+  }
+
+  const loadParentsAndStudents = async () => {
+    try {
+      const [parentsResponse, studentsResponse] = await Promise.all([
+        adminParentConnectionsAPI.getAllUsers({ role: 'parent', per_page: 100 }),
+        adminParentConnectionsAPI.getAllUsers({ role: 'student', per_page: 100 })
+      ])
+      setParents(parentsResponse.data.users || [])
+      setStudents(studentsResponse.data.users || [])
+    } catch (error) {
+      console.error('Error loading parents and students:', error)
+    }
+  }
+
+  const handleApproveParentRequest = async () => {
+    if (!selectedRequest) return
+
+    try {
+      await adminParentConnectionsAPI.approveConnectionRequest(selectedRequest.id, adminNotes)
+      toast.success('Connection request approved')
+      setShowApproveModal(false)
+      setAdminNotes('')
+      setSelectedRequest(null)
+      loadParentRequests()
+      loadParentLinks()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to approve request')
+    }
+  }
+
+  const handleRejectParentRequest = async () => {
+    if (!selectedRequest || !adminNotes.trim()) {
+      toast.error('Rejection reason is required')
+      return
+    }
+
+    try {
+      await adminParentConnectionsAPI.rejectConnectionRequest(selectedRequest.id, adminNotes)
+      toast.success('Connection request rejected')
+      setShowRejectModal(false)
+      setAdminNotes('')
+      setSelectedRequest(null)
+      loadParentRequests()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to reject request')
+    }
+  }
+
+  const handleDisconnectParentLink = async () => {
+    if (!selectedLink) return
+
+    try {
+      await adminParentConnectionsAPI.disconnectLink(selectedLink.id)
+      toast.success('Connection disconnected')
+      setShowDisconnectModal(false)
+      setSelectedLink(null)
+      loadParentLinks()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to disconnect')
+    }
+  }
+
+  const handleConnectParent = async () => {
+    if (!selectedParent || !selectedStudentId) {
+      toast.error('Please select both parent and student')
+      return
+    }
+
+    try {
+      await adminParentConnectionsAPI.createManualLink(selectedParent.id, selectedStudentId, adminNotes)
+      toast.success('Parent-student connection created successfully')
+      setShowConnectModal(false)
+      setSelectedParent(null)
+      setSelectedStudentId('')
+      setAdminNotes('')
+      loadParentLinks()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to create connection')
+    }
+  }
+
+  // Filtering
+  const filteredUnassignedStudents = unassignedStudents.filter(student => {
+    const searchLower = searchTerm.toLowerCase()
+    const displayName = student.display_name || ''
+    const email = student.email || ''
+    const firstName = student.first_name || ''
+    const lastName = student.last_name || ''
+
+    return (
+      displayName.toLowerCase().includes(searchLower) ||
+      email.toLowerCase().includes(searchLower) ||
+      firstName.toLowerCase().includes(searchLower) ||
+      lastName.toLowerCase().includes(searchLower)
+    )
+  })
+
+  const filteredParentRequests = parentRequests.filter(req => {
+    if (!searchTerm) return true
+    const search = searchTerm.toLowerCase()
+    return (
+      req.parent_user?.first_name?.toLowerCase().includes(search) ||
+      req.parent_user?.last_name?.toLowerCase().includes(search) ||
+      req.parent_user?.email?.toLowerCase().includes(search) ||
+      req.child_first_name?.toLowerCase().includes(search) ||
+      req.child_last_name?.toLowerCase().includes(search) ||
+      req.child_email?.toLowerCase().includes(search)
+    )
+  })
+
+  const filteredParentLinks = parentLinks.filter(link => {
+    if (!searchTerm) return true
+    const search = searchTerm.toLowerCase()
+    return (
+      link.parent?.first_name?.toLowerCase().includes(search) ||
+      link.parent?.last_name?.toLowerCase().includes(search) ||
+      link.parent?.email?.toLowerCase().includes(search) ||
+      link.student?.first_name?.toLowerCase().includes(search) ||
+      link.student?.last_name?.toLowerCase().includes(search) ||
+      link.student?.email?.toLowerCase().includes(search)
+    )
+  })
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-7xl mx-auto space-y-8">
+      {/* Header */}
+      <div className="mb-6">
+        <h2 className="text-2xl font-bold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>Connections</h2>
+        <p className="text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>Manage advisor-student assignments and parent-student connections</p>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 rounded-lg text-white shadow-md">
+          <div className="flex items-center gap-3">
+            <Users className="w-10 h-10" />
+            <div>
+              <p className="text-sm opacity-90" style={{ fontFamily: 'Poppins, sans-serif' }}>Advisor-Student</p>
+              <p className="text-3xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>{advisors.length}</p>
+              <p className="text-sm opacity-90" style={{ fontFamily: 'Poppins, sans-serif' }}>Active Advisors</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-optio-pink to-optio-purple p-6 rounded-lg text-white shadow-md">
+          <div className="flex items-center gap-3">
+            <UserPlus className="w-10 h-10" />
+            <div>
+              <p className="text-sm opacity-90" style={{ fontFamily: 'Poppins, sans-serif' }}>Parent-Student</p>
+              <p className="text-3xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>{parentLinks.length}</p>
+              <p className="text-sm opacity-90" style={{ fontFamily: 'Poppins, sans-serif' }}>Active Connections</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Advisor-Student Connections Section */}
+      <section className="bg-white rounded-lg shadow p-6">
+        <div className="mb-6">
+          <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>Advisor-Student Connections</h3>
+          <p className="text-gray-600 text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>Assign students to advisors for check-ins and support</p>
+        </div>
+
+        {advisors.length === 0 ? (
+          <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
+            <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <p style={{ fontFamily: 'Poppins, sans-serif' }}>No advisors found</p>
+            <p className="text-sm mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>Create users with the "advisor" role first</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {advisors.map(advisor => (
+              <div key={advisor.id} className="border-2 border-gray-200 rounded-lg overflow-hidden hover:border-purple-300 transition-colors">
+                {/* Advisor Header */}
+                <button
+                  onClick={() => handleSelectAdvisor(advisor)}
+                  className="w-full p-4 text-left flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition-colors"
+                >
+                  <div className="flex-1">
+                    <p className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      {advisor.display_name || `${advisor.first_name} ${advisor.last_name}`}
+                    </p>
+                    <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>{advisor.email}</p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-sm font-medium text-purple-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      {advisor.assigned_students_count || 0} students
+                    </span>
+                    {expandedAdvisorId === advisor.id ? (
+                      <ChevronUp className="w-5 h-5 text-gray-400" />
+                    ) : (
+                      <ChevronDown className="w-5 h-5 text-gray-400" />
+                    )}
+                  </div>
+                </button>
+
+                {/* Expanded Student List */}
+                {expandedAdvisorId === advisor.id && selectedAdvisor?.id === advisor.id && (
+                  <div className="p-4 bg-white border-t border-gray-200">
+                    <div className="flex justify-between items-center mb-4">
+                      <h4 className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        Assigned Students ({assignedStudents.length})
+                      </h4>
+                      <button
+                        onClick={() => setShowAssignModal(true)}
+                        className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 font-medium text-sm"
+                        style={{ fontFamily: 'Poppins, sans-serif' }}
+                      >
+                        <UserPlus className="w-4 h-4" />
+                        Assign Student
+                      </button>
+                    </div>
+
+                    {assignedStudents.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500 bg-gray-50 rounded-lg">
+                        <p style={{ fontFamily: 'Poppins, sans-serif' }}>No students assigned yet</p>
+                        <p className="text-sm mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>Click "Assign Student" to get started</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {assignedStudents.map(student => (
+                          <div
+                            key={student.id}
+                            className="p-3 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors"
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium text-gray-900 text-sm truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                  {student.display_name || `${student.first_name} ${student.last_name}`}
+                                </p>
+                                <p className="text-xs text-gray-500 truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>{student.email}</p>
+                                <p className="text-xs text-gray-400 mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                                  Assigned {new Date(student.assigned_at).toLocaleDateString()}
+                                </p>
+                              </div>
+                              <button
+                                onClick={() => handleUnassignStudent(student.id)}
+                                className="ml-2 px-2 py-1 text-xs text-red-600 hover:bg-red-50 rounded transition-colors"
+                                style={{ fontFamily: 'Poppins, sans-serif' }}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* Parent-Student Connections Section */}
+      <section className="bg-white rounded-lg shadow p-6">
+        <div className="mb-6">
+          <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>Parent-Student Connections</h3>
+          <p className="text-gray-600 text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>Manage parent connection requests and active links</p>
+        </div>
+
+        {/* Filters and Search */}
+        <div className="flex gap-4 items-center mb-6">
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="px-4 py-2 border border-gray-300 rounded-lg font-medium focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+            style={{ fontFamily: 'Poppins, sans-serif' }}
+          >
+            <option value="pending">Pending Requests</option>
+            <option value="approved">Approved Requests</option>
+            <option value="rejected">Rejected Requests</option>
+          </select>
+          <div className="flex-1 relative">
+            <Search className="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Search by name or email..."
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+              style={{ fontFamily: 'Poppins, sans-serif' }}
+            />
+          </div>
+        </div>
+
+        {/* Connection Requests Table */}
+        <div className="mb-8">
+          <h4 className="font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>Connection Requests</h4>
+          {filteredParentRequests.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 rounded-lg">
+              <Users className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>No connection requests found</p>
+            </div>
+          ) : (
+            <div className="bg-white shadow-md rounded-lg overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Parent</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Child</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Submitted</th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredParentRequests.map((request) => (
+                    <tr key={request.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {request.parent_user?.first_name} {request.parent_user?.last_name}
+                          </div>
+                          <div className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {request.parent_user?.email}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {request.child_first_name} {request.child_last_name}
+                          </div>
+                          <div className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {request.child_email}
+                          </div>
+                          {request.matched_student_id && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800 mt-1">
+                              Matched
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <StatusBadge status={request.status} />
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        {new Date(request.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-right space-x-2">
+                        {request.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => {
+                                setSelectedRequest(request)
+                                setShowApproveModal(true)
+                              }}
+                              disabled={!request.matched_student_id}
+                              className="inline-flex items-center px-3 py-1 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                              style={{ fontFamily: 'Poppins, sans-serif' }}
+                              title={!request.matched_student_id ? 'No student matched yet' : 'Approve request'}
+                            >
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => {
+                                setSelectedRequest(request)
+                                setShowRejectModal(true)
+                              }}
+                              className="inline-flex items-center px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                              style={{ fontFamily: 'Poppins, sans-serif' }}
+                            >
+                              <XCircle className="w-4 h-4 mr-1" />
+                              Reject
+                            </button>
+                          </>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        {/* Active Connections Table */}
+        <div>
+          <h4 className="font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>Active Connections</h4>
+          {filteredParentLinks.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 rounded-lg">
+              <UserPlus className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+              <p className="text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>No active connections found</p>
+            </div>
+          ) : (
+            <div className="bg-white shadow-md rounded-lg overflow-hidden">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Parent</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Student</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Connected Since</th>
+                    <th className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Verified By</th>
+                    <th className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider" style={{ fontFamily: 'Poppins, sans-serif' }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {filteredParentLinks.map((link) => (
+                    <tr key={link.id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {link.parent?.first_name} {link.parent?.last_name}
+                          </div>
+                          <div className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {link.parent?.email}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {link.student?.first_name} {link.student?.last_name}
+                          </div>
+                          <div className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {link.student?.email}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        {new Date(link.created_at).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        {link.verified_by ? `${link.verified_by.first_name} ${link.verified_by.last_name}` : 'System'}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => {
+                            setSelectedLink(link)
+                            setShowDisconnectModal(true)
+                          }}
+                          className="inline-flex items-center px-3 py-1 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                          style={{ fontFamily: 'Poppins, sans-serif' }}
+                        >
+                          <Trash2 className="w-4 h-4 mr-1" />
+                          Disconnect
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* Assign Student Modal */}
+      {showAssignModal && (
+        <Modal
+          title={`Assign Student to ${selectedAdvisor?.display_name}`}
+          onClose={() => setShowAssignModal(false)}
+        >
+          <div className="px-6 py-4 border-b">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search students by name or email..."
+                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                style={{ fontFamily: 'Poppins, sans-serif' }}
+              />
+            </div>
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-6 py-4 max-h-96">
+            {filteredUnassignedStudents.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <p style={{ fontFamily: 'Poppins, sans-serif' }}>No unassigned students found</p>
+                {searchTerm && (
+                  <p className="text-sm mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>Try adjusting your search</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {filteredUnassignedStudents.map(student => (
+                  <button
+                    key={student.id}
+                    onClick={() => handleAssignStudent(student.id)}
+                    disabled={assignLoading}
+                    className="w-full text-left p-4 rounded-lg border border-gray-200 hover:border-purple-300 hover:bg-purple-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <p className="font-medium text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      {student.display_name || `${student.first_name} ${student.last_name}`}
+                    </p>
+                    <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>{student.email}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="px-6 py-4 border-t bg-gray-50">
+            <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              {filteredUnassignedStudents.length} unassigned student{filteredUnassignedStudents.length !== 1 ? 's' : ''} available
+            </p>
+          </div>
+        </Modal>
+      )}
+
+      {/* Approve Parent Request Modal */}
+      {showApproveModal && (
+        <Modal
+          title="Approve Connection Request"
+          onClose={() => {
+            setShowApproveModal(false)
+            setAdminNotes('')
+            setSelectedRequest(null)
+          }}
+          onConfirm={handleApproveParentRequest}
+          confirmText="Approve"
+          confirmClass="bg-green-600 hover:bg-green-700"
+        >
+          <div className="space-y-4">
+            <p className="text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Approve connection between <strong>{selectedRequest?.parent_user?.first_name} {selectedRequest?.parent_user?.last_name}</strong> and{' '}
+              <strong>{selectedRequest?.child_first_name} {selectedRequest?.child_last_name}</strong>?
+            </p>
+            {selectedRequest?.matched_student_id ? (
+              <p className="text-sm text-green-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Student account matched: {selectedRequest?.matched_student?.email}
+              </p>
+            ) : (
+              <p className="text-sm text-yellow-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                No student account matched yet
+              </p>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Admin Notes (Optional)
+              </label>
+              <textarea
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                style={{ fontFamily: 'Poppins, sans-serif' }}
+                placeholder="Add any notes about this approval..."
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Reject Parent Request Modal */}
+      {showRejectModal && (
+        <Modal
+          title="Reject Connection Request"
+          onClose={() => {
+            setShowRejectModal(false)
+            setAdminNotes('')
+            setSelectedRequest(null)
+          }}
+          onConfirm={handleRejectParentRequest}
+          confirmText="Reject"
+          confirmClass="bg-red-600 hover:bg-red-700"
+        >
+          <div className="space-y-4">
+            <p className="text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+              Reject connection between <strong>{selectedRequest?.parent_user?.first_name} {selectedRequest?.parent_user?.last_name}</strong> and{' '}
+              <strong>{selectedRequest?.child_first_name} {selectedRequest?.child_last_name}</strong>?
+            </p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                Rejection Reason (Required) *
+              </label>
+              <textarea
+                value={adminNotes}
+                onChange={(e) => setAdminNotes(e.target.value)}
+                rows={3}
+                required
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                style={{ fontFamily: 'Poppins, sans-serif' }}
+                placeholder="Explain why this request is being rejected..."
+              />
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* Disconnect Parent Link Modal */}
+      {showDisconnectModal && (
+        <Modal
+          title="Disconnect Parent-Student Link"
+          onClose={() => {
+            setShowDisconnectModal(false)
+            setSelectedLink(null)
+          }}
+          onConfirm={handleDisconnectParentLink}
+          confirmText="Disconnect"
+          confirmClass="bg-red-600 hover:bg-red-700"
+        >
+          <p className="text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            Are you sure you want to disconnect <strong>{selectedLink?.parent?.first_name} {selectedLink?.parent?.last_name}</strong> from{' '}
+            <strong>{selectedLink?.student?.first_name} {selectedLink?.student?.last_name}</strong>?
+          </p>
+          <p className="text-sm text-red-600 mt-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            This action cannot be undone. The parent will lose access to this student's data.
+          </p>
+        </Modal>
+      )}
+    </div>
+  )
+}
+
+// Status Badge Component
+const StatusBadge = ({ status }) => {
+  const colors = {
+    pending: 'bg-yellow-100 text-yellow-800',
+    approved: 'bg-green-100 text-green-800',
+    rejected: 'bg-red-100 text-red-800',
+  }
+
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colors[status]}`} style={{ fontFamily: 'Poppins, sans-serif' }}>
+      {status.charAt(0).toUpperCase() + status.slice(1)}
+    </span>
+  )
+}
+
+// Modal Component
+const Modal = ({ title, children, onClose, onConfirm, confirmText, confirmClass }) => {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-6 py-4 border-b flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+            {title}
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {children}
+        </div>
+        {onConfirm && (
+          <div className="px-6 py-4 border-t border-gray-200 flex justify-end gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors font-medium"
+              style={{ fontFamily: 'Poppins, sans-serif' }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              className={`px-4 py-2 text-white rounded-lg transition-colors font-semibold ${confirmClass}`}
+              style={{ fontFamily: 'Poppins, sans-serif' }}
+            >
+              {confirmText}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default AdminConnections
