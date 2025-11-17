@@ -694,17 +694,34 @@ def get_user_activity(admin_id, user_id):
             if badge_id := event_data.get('badge_id'):
                 badge_ids.add(badge_id)
 
+        # Filter out non-UUID values (e.g., "my-badges" from URL params)
+        def is_valid_uuid(value):
+            if not isinstance(value, str):
+                return False
+            try:
+                import uuid
+                uuid.UUID(value)
+                return True
+            except (ValueError, AttributeError):
+                return False
+
+        quest_ids = {qid for qid in quest_ids if is_valid_uuid(qid)}
+        badge_ids = {bid for bid in badge_ids if is_valid_uuid(bid)}
+
         # Fetch quest names
         quest_names = {}
         if quest_ids:
             quests_response = supabase.table('quests').select('id, title').in_('id', list(quest_ids)).execute()
             quest_names = {q['id']: q['title'] for q in (quests_response.data or [])}
 
-        # Fetch badge names
+        # Fetch badge names (only valid UUIDs)
         badge_names = {}
         if badge_ids:
-            badges_response = supabase.table('badges').select('id, name').in_('id', list(badge_ids)).execute()
-            badge_names = {b['id']: b['name'] for b in (badges_response.data or [])}
+            # Filter to only valid UUIDs before querying
+            valid_badge_ids = [bid for bid in badge_ids if is_valid_uuid(bid)]
+            if valid_badge_ids:
+                badges_response = supabase.table('badges').select('id, name').in_('id', valid_badge_ids).execute()
+                badge_names = {b['id']: b['name'] for b in (badges_response.data or [])}
 
         # Format events for display
         formatted_events = []
