@@ -1,11 +1,14 @@
 import React, { useState, useEffect, memo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import api from '../../services/api'
 import toast from 'react-hot-toast'
 import ChatLogsModal from './ChatLogsModal'
 import CheckinHistoryModal from '../advisor/CheckinHistoryModal'
+import { startMasquerade } from '../../services/masqueradeService'
 // import { useAdminSubscriptionTiers, formatPrice } from '../../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const UserDetailsModal = ({ user, onClose, onSave }) => {
+  const navigate = useNavigate()
   const [activeTab, setActiveTab] = useState('profile')
   const [formData, setFormData] = useState({
     first_name: user.first_name || '',
@@ -27,6 +30,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
   const [showAdvisorCheckinsModal, setShowAdvisorCheckinsModal] = useState(false)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
   const [currentAvatarUrl, setCurrentAvatarUrl] = useState(user.avatar_url || '')
+  const [masquerading, setMasquerading] = useState(false)
 
   useEffect(() => {
     fetchUserDetails()
@@ -116,6 +120,55 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
 
   const handleViewAdvisorCheckins = () => {
     setShowAdvisorCheckinsModal(true)
+  }
+
+  const handleMasquerade = async () => {
+    if (masquerading) {
+      toast.error('Please exit current masquerade session first')
+      return
+    }
+
+    // Confirm masquerade action
+    if (!window.confirm(`Masquerade as ${user.display_name || user.email}?\n\nYou will be viewing the platform as this user.`)) {
+      return
+    }
+
+    setMasquerading(true)
+
+    try {
+      const result = await startMasquerade(user.id, '', api)
+
+      if (result.success) {
+        toast.success(`Now masquerading as ${result.targetUser.display_name || result.targetUser.email}`)
+
+        // Close modal
+        onClose()
+
+        // Redirect based on user role
+        setTimeout(() => {
+          const role = result.targetUser.role
+
+          if (role === 'parent') {
+            navigate('/parent/dashboard')
+          } else if (role === 'advisor') {
+            navigate('/advisor/dashboard')
+          } else if (role === 'student') {
+            navigate('/dashboard')
+          } else {
+            navigate('/dashboard') // Default fallback
+          }
+
+          window.location.reload() // Force reload to apply new token
+        }, 500)
+      } else {
+        toast.error(result.error || 'Failed to start masquerade')
+        setMasquerading(false)
+      }
+    } catch (error) {
+      console.error('Masquerade error:', error)
+      toast.error('Failed to start masquerade session')
+      setMasquerading(false)
+    }
   }
 
   const handleVerifyEmail = async () => {
@@ -547,17 +600,33 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 </div>
               </button>
 
+              {/* Masquerade */}
+              <button
+                onClick={handleMasquerade}
+                disabled={masquerading}
+                className="w-full flex items-center gap-3 px-4 py-3 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors font-medium text-left disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+                <div>
+                  <p className="font-semibold">Masquerade as User</p>
+                  <p className="text-sm text-orange-600">View platform as this user</p>
+                </div>
+              </button>
+
               {/* Set Password */}
               <button
                 onClick={handleResetPassword}
-                className="w-full flex items-center gap-3 px-4 py-3 bg-orange-50 text-orange-700 rounded-lg hover:bg-orange-100 transition-colors font-medium text-left"
+                className="w-full flex items-center gap-3 px-4 py-3 bg-yellow-50 text-yellow-700 rounded-lg hover:bg-yellow-100 transition-colors font-medium text-left"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                 </svg>
                 <div>
                   <p className="font-semibold">Set Password</p>
-                  <p className="text-sm text-orange-600">Reset user's password</p>
+                  <p className="text-sm text-yellow-600">Reset user's password</p>
                 </div>
               </button>
 
