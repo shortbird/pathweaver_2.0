@@ -1,21 +1,8 @@
 """User profile routes"""
 
 from flask import Blueprint, request, jsonify
-from database import get_user_client
-from backend.repositories import (
-    UserRepository,
-    QuestRepository,
-    BadgeRepository,
-    EvidenceRepository,
-    FriendshipRepository,
-    ParentRepository,
-    TutorRepository,
-    LMSRepository,
-    AnalyticsRepository
-)
 from utils.auth.decorators import require_auth
 from middleware.error_handler import NotFoundError, ValidationError
-from repositories.user_repository import UserRepository
 from .helpers import calculate_user_xp, get_user_skills
 
 from utils.logger import get_logger
@@ -28,13 +15,22 @@ profile_bp = Blueprint('profile', __name__)
 @require_auth
 def get_profile(user_id):
     """Get user profile with XP breakdown"""
-    # Use repository pattern with RLS enforcement
-    supabase = get_user_client()
-    user_repo = UserRepository(user_id=user_id)
+    # Use admin client - user authentication enforced by @require_auth
+    from database import get_supabase_admin_client
+    supabase = get_supabase_admin_client()
 
     try:
-        # Get user profile using repository
-        user = user_repo.get_profile(user_id)
+        # Get user profile directly with admin client
+        user_response = supabase.table('users')\
+            .select('*')\
+            .eq('id', user_id)\
+            .single()\
+            .execute()
+
+        if not user_response.data:
+            raise NotFoundError('User', user_id)
+
+        user = user_response.data
 
         # Calculate total XP and get skill breakdown
         total_xp, skill_breakdown = calculate_user_xp(supabase, user_id)
@@ -67,6 +63,10 @@ def get_profile(user_id):
 @require_auth
 def update_profile(user_id):
     """Update user profile"""
+    # Use admin client - user authentication enforced by @require_auth
+    from database import get_supabase_admin_client
+    supabase = get_supabase_admin_client()
+
     data = request.json
 
     # Validate allowed fields
@@ -76,13 +76,17 @@ def update_profile(user_id):
     if not update_data:
         raise ValidationError('No valid fields to update')
 
-    # Use repository pattern with RLS enforcement
-    supabase = get_user_client()
-    user_repo = UserRepository(user_id=user_id)
-
     try:
-        # Update profile using repository
-        updated_user = user_repo.update(user_id, update_data)
+        # Update profile using admin client
+        updated_user_response = supabase.table('users')\
+            .update(update_data)\
+            .eq('id', user_id)\
+            .execute()
+
+        if not updated_user_response.data:
+            raise NotFoundError('User', user_id)
+
+        updated_user = updated_user_response.data[0]
 
         # Trigger tutorial verification if profile fields were updated
         if 'first_name' in update_data or 'last_name' in update_data or 'bio' in update_data:

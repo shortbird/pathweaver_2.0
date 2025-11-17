@@ -131,6 +131,9 @@ class AuthService {
         localStorage.setItem('user', JSON.stringify(this.user))
       }
 
+      // Start token health monitoring
+      this.startTokenHealthMonitoring()
+
       this.notifyListeners()
       return { success: true, user: this.user }
 
@@ -195,6 +198,9 @@ class AuthService {
     } catch (error) {
       console.warn('Logout API call failed:', error)
     } finally {
+      // Stop token health monitoring
+      this.stopTokenHealthMonitoring()
+
       // Always clear local state regardless of API success
       this.user = null
       this.isAuthenticated = false
@@ -322,6 +328,66 @@ class AuthService {
   }
 
   /**
+   * Check token health (compatibility with server secret)
+   */
+  async checkTokenHealth() {
+    try {
+      const response = await api.get('/api/auth/token-health')
+      return response.data
+    } catch (error) {
+      console.error('Token health check failed:', error)
+      return { compatible: false, reason: 'Network error', authenticated: false }
+    }
+  }
+
+  /**
+   * Start token health monitoring (polls every 5 minutes)
+   */
+  startTokenHealthMonitoring() {
+    // Only monitor if user is authenticated
+    if (!this.isAuthenticated) {
+      return
+    }
+
+    // Check immediately on start
+    this.checkTokenHealth().then(health => {
+      if (!health.compatible && health.authenticated === false && this.isAuthenticated) {
+        console.warn('Token incompatibility detected - logging out user')
+        this.logout()
+        window.location.href = '/login?session_expired=true'
+      }
+    })
+
+    // Set up interval (5 minutes)
+    this.healthCheckInterval = setInterval(async () => {
+      if (!this.isAuthenticated) {
+        this.stopTokenHealthMonitoring()
+        return
+      }
+
+      const health = await this.checkTokenHealth()
+
+      if (!health.compatible && health.authenticated === false) {
+        // Token is incompatible with server - force re-login
+        console.warn('Token incompatibility detected during health check - logging out user')
+        this.stopTokenHealthMonitoring()
+        this.logout()
+        window.location.href = '/login?session_expired=true'
+      }
+    }, 5 * 60 * 1000) // 5 minutes
+  }
+
+  /**
+   * Stop token health monitoring
+   */
+  stopTokenHealthMonitoring() {
+    if (this.healthCheckInterval) {
+      clearInterval(this.healthCheckInterval)
+      this.healthCheckInterval = null
+    }
+  }
+
+  /**
    * Initialize auth service and check current session
    */
   async initialize() {
@@ -330,6 +396,11 @@ class AuthService {
 
     // Then verify with server
     await this.checkAuthStatus()
+
+    // Start token health monitoring if authenticated
+    if (this.isAuthenticated) {
+      this.startTokenHealthMonitoring()
+    }
 
     return this.isAuthenticated
   }

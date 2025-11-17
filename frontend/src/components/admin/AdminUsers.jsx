@@ -4,7 +4,6 @@ import api from '../../services/api'
 import toast from 'react-hot-toast'
 import UserDetailsModal from './UserDetailsModal'
 import BulkEmailModal from './BulkEmailModal'
-import { startMasquerade } from '../../services/masqueradeService'
 // import { useAdminSubscriptionTiers } from '../../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const AdminUsers = () => {
@@ -16,7 +15,7 @@ const AdminUsers = () => {
   const [filters, setFilters] = useState({
     role: 'all',
     activity: 'all',
-    sortBy: 'created_at',
+    sortBy: 'last_active',
     sortOrder: 'desc'
   })
   const [viewMode, setViewMode] = useState('list') // 'list' or 'card'
@@ -26,7 +25,6 @@ const AdminUsers = () => {
   const [editingUser, setEditingUser] = useState(null)
   const [currentPage, setCurrentPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
-  const [masquerading, setMasquerading] = useState(false)
   const usersPerPage = 20
 
   // Debounce search term to avoid excessive API calls
@@ -104,52 +102,6 @@ const AdminUsers = () => {
   const handleEditUser = (user) => {
     setEditingUser(user)
     setShowUserModal(true)
-  }
-
-  const handleMasquerade = async (user) => {
-    if (masquerading) {
-      toast.error('Please exit current masquerade session first')
-      return
-    }
-
-    // Confirm masquerade action
-    if (!window.confirm(`Masquerade as ${user.display_name || user.email}?\n\nYou will be viewing the platform as this user.`)) {
-      return
-    }
-
-    setMasquerading(true)
-
-    try {
-      const result = await startMasquerade(user.id, '', api)
-
-      if (result.success) {
-        toast.success(`Now masquerading as ${result.targetUser.display_name || result.targetUser.email}`)
-
-        // Redirect based on user role
-        setTimeout(() => {
-          const role = result.targetUser.role
-
-          if (role === 'parent') {
-            navigate('/parent/dashboard')
-          } else if (role === 'advisor') {
-            navigate('/advisor/dashboard')
-          } else if (role === 'student') {
-            navigate('/dashboard')
-          } else {
-            navigate('/dashboard') // Default fallback
-          }
-
-          window.location.reload() // Force reload to apply new token
-        }, 500)
-      } else {
-        toast.error(result.error || 'Failed to start masquerade')
-        setMasquerading(false)
-      }
-    } catch (error) {
-      console.error('Masquerade error:', error)
-      toast.error('Failed to start masquerade session')
-      setMasquerading(false)
-    }
   }
 
   const getRoleBadge = (role) => {
@@ -358,12 +310,11 @@ const AdminUsers = () => {
                   <td className="px-6 py-4 text-right">
                     <div className="flex gap-2 justify-end">
                       <button
-                        onClick={() => handleMasquerade(user)}
-                        disabled={masquerading}
-                        className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="View platform as this user"
+                        onClick={() => navigate(`/admin/user/${user.id}/activity`)}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                        title="View activity logs"
                       >
-                        Masquerade
+                        Activity
                       </button>
                       <button
                         onClick={() => handleEditUser(user)}
@@ -498,12 +449,11 @@ const AdminUsers = () => {
                 {/* Action Buttons */}
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => handleMasquerade(user)}
-                    disabled={masquerading}
-                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                    title="View platform as this user"
+                    onClick={() => navigate(`/admin/user/${user.id}/activity`)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm"
+                    title="View activity logs"
                   >
-                    Masquerade
+                    Activity
                   </button>
                   <button
                     onClick={() => handleEditUser(user)}

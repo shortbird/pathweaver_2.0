@@ -1,22 +1,15 @@
 import React, { memo } from 'react'
 import { Routes, Route, Link, useLocation } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
+import AdminOverview from '../components/admin/AdminOverview'
 import AdminQuests from '../components/admin/AdminQuests'
 import AdminBadges from '../components/admin/AdminBadges'
 import AdminUsers from '../components/admin/AdminUsers'
-import AdminQuestSuggestions from '../components/admin/AdminQuestSuggestions'
-import AdvisorAssignments from '../components/admin/AdvisorAssignments'
+import AdminConnections from '../components/admin/AdminConnections'
 import AdminDashboard from '../components/admin/AdminDashboard'
-import AIContentPipeline from './admin/AIContentPipeline'
-import AIQuestReview from '../components/admin/AIQuestReview'
-import AIPerformanceAnalytics from '../components/admin/AIPerformanceAnalytics'
-import AIPromptOptimizer from '../components/admin/AIPromptOptimizer'
-import BatchContentGenerator from '../components/admin/BatchContentGenerator'
 import SiteSettings from '../components/admin/SiteSettings'
 import FlaggedTasksPanel from '../components/admin/FlaggedTasksPanel'
-import AdminServices from '../components/admin/AdminServices'
-import ServiceInquiries from '../components/admin/ServiceInquiries'
-import ParentConnectionsPanel from '../components/admin/ParentConnectionsPanel'
+import UserActivityLogPage from './admin/UserActivityLogPage'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -34,17 +27,21 @@ const AdminPage = () => {
       </h1>
 
       <div className="flex gap-4 mb-8 border-b overflow-x-auto">
-        {/* Quests tab - visible to all */}
-        <Link
-          to="/admin/quests"
-          className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' || currentPath === 'quests' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-        >
-          Quests
-        </Link>
-
         {/* Admin-only tabs */}
         {isAdmin && (
           <>
+            <Link
+              to="/admin"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Overview
+            </Link>
+            <Link
+              to="/admin/quests"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quests' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              Quests
+            </Link>
             <Link
               to="/admin/analytics"
               className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'analytics' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
@@ -64,69 +61,41 @@ const AdminPage = () => {
               Users
             </Link>
             <Link
-              to="/admin/advisor-assignments"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'advisor-assignments' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              to="/admin/connections"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'connections' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
-              Advisor Assignments
+              Connections
             </Link>
             <Link
-              to="/admin/quest-suggestions"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quest-suggestions' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              to="/admin/settings"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'settings' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
-              Quest Suggestions
-            </Link>
-            <Link
-              to="/admin/batch-generator"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'batch-generator' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              Batch Generator
-            </Link>
-            <Link
-              to="/admin/site-settings"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'site-settings' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              Site Settings
-            </Link>
-            <Link
-              to="/admin/services"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'services' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              Services
-            </Link>
-            <Link
-              to="/admin/service-inquiries"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'service-inquiries' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              Inquiries
-            </Link>
-            <Link
-              to="/admin/parent-connections"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'parent-connections' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
-            >
-              Parent Connections
+              Settings
             </Link>
           </>
+        )}
+
+        {/* Quests tab - visible to advisors */}
+        {isAdvisor && !isAdmin && (
+          <Link
+            to="/admin/quests"
+            className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' || currentPath === 'quests' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+          >
+            Quests
+          </Link>
         )}
       </div>
 
       <Routes>
-        <Route index element={<AdminQuests />} />
+        <Route index element={<AdminOverview />} />
         <Route path="quests" element={<AdminQuests />} />
         <Route path="analytics" element={<AdminDashboard />} />
         <Route path="badges" element={<AdminBadges />} />
         <Route path="users" element={<AdminUsers />} />
-        <Route path="advisor-assignments" element={<AdvisorAssignments />} />
-        <Route path="quest-suggestions" element={<AdminQuestSuggestions />} />
+        <Route path="connections" element={<AdminConnections />} />
+        <Route path="settings" element={<SiteSettings />} />
         <Route path="flagged-tasks" element={<FlaggedTasksPanel />} />
-        <Route path="site-settings" element={<SiteSettings />} />
-        <Route path="services" element={<AdminServices />} />
-        <Route path="service-inquiries" element={<ServiceInquiries />} />
-        <Route path="ai-pipeline" element={<AIContentPipeline />} />
-        <Route path="ai-quest-review" element={<AIQuestReview />} />
-        <Route path="ai-performance" element={<AIPerformanceAnalytics />} />
-        <Route path="ai-optimizer" element={<AIPromptOptimizer />} />
-        <Route path="batch-generator" element={<BatchContentGenerator />} />
-        <Route path="parent-connections" element={<ParentConnectionsPanel />} />
+        <Route path="user/:userId/activity" element={<UserActivityLogPage />} />
       </Routes>
     </div>
   )

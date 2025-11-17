@@ -118,7 +118,9 @@ export const AuthProvider = ({ children }) => {
         toast.success('Welcome back!')
       }
 
-      navigate('/dashboard')
+      // Redirect based on user role
+      const redirectPath = loginUser.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+      navigate(redirectPath)
 
       return { success: true }
     } catch (error) {
@@ -195,9 +197,12 @@ export const AuthProvider = ({ children }) => {
         } catch (error) {
           console.error('Meta Pixel tracking error:', error);
         }
-        
+
         toast.success('Account created successfully!')
-        navigate('/dashboard')
+
+        // Redirect based on user role
+        const redirectPath = user.role === 'parent' ? '/parent/dashboard' : '/dashboard'
+        navigate(redirectPath)
       } else {
         // Email verification required - redirect to verification page
         navigate('/email-verification', { state: { email: userData.email } })

@@ -449,63 +449,51 @@ const ParentDashboardPage = () => {
               <div className="space-y-4">
                 <p className="text-gray-700 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
                   {dashboardData?.learning_rhythm?.has_overdue_tasks
-                    ? `Some tasks are wandering past their deadlines. Here are some gentle ways to help ${selectedStudent?.first_name} reconnect with their learning:`
-                    : `${selectedStudent?.first_name} hasn't checked in recently. Here are some process-focused ways to explore together:`}
+                    ? `Some tasks are wandering past their deadlines. Here are some ways to help ${selectedStudent?.student_first_name} reconnect with their learning:`
+                    : `${selectedStudent?.student_first_name} hasn't checked in recently. Here are some conversation starters:`}
                 </p>
 
-                <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-6">
-                  <h3 className="text-lg font-bold text-yellow-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                <div className="bg-green-50 border-2 border-green-300 rounded-lg p-6">
+                  <h3 className="text-lg font-bold text-green-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
                     Conversation Starters
                   </h3>
-                  <ul className="space-y-3 text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    <li className="flex items-start gap-3">
-                      <span className="text-2xl">💬</span>
-                      <div>
-                        <strong>"I'd love to see what you're working on!"</strong>
-                        <p className="text-sm text-gray-600 mt-1">Curiosity without pressure - let them share what excites them</p>
-                      </div>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <span className="text-2xl">🤔</span>
-                      <div>
-                        <strong>"What's the most interesting thing you learned today?"</strong>
-                        <p className="text-sm text-gray-600 mt-1">Focus on the discovery process, not completion</p>
-                      </div>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <span className="text-2xl">🗓️</span>
-                      <div>
-                        <strong>"Would you like help thinking through your schedule?"</strong>
-                        <p className="text-sm text-gray-600 mt-1">Offer support without taking over their agency</p>
-                      </div>
-                    </li>
-                    <li className="flex items-start gap-3">
-                      <span className="text-2xl">🎯</span>
-                      <div>
-                        <strong>"What feels most important to focus on right now?"</strong>
-                        <p className="text-sm text-gray-600 mt-1">Help them reconnect with their own priorities</p>
-                      </div>
-                    </li>
+                  <ul className="space-y-2 text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <li><strong>"I'd love to see what you're working on!"</strong></li>
+                    <li><strong>"What's the most interesting thing you learned today?"</strong></li>
+                    <li><strong>"Would you like help thinking through your schedule?"</strong></li>
+                    <li><strong>"What feels most important to focus on right now?"</strong></li>
                   </ul>
                 </div>
 
                 <div className="bg-white border-2 border-purple-300 rounded-lg p-4">
                   <h4 className="font-semibold text-purple-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    🌱 Remember: The Process Is The Goal
+                    Remember: The Process Is The Goal
                   </h4>
                   <p className="text-sm font-medium text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                    Learning isn't linear. Sometimes students need space to wander, struggle, and find their own way back.
-                    Your role is to be a supportive presence, not a manager. Trust the process - and trust them.
+                    Learning isn't linear. Your role is to be a supportive presence, not a manager.
                   </p>
                 </div>
 
                 {dashboardData?.learning_rhythm?.has_overdue_tasks && (
                   <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-                    <h4 className="font-semibold text-orange-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      ⚠️ Overdue Tasks: {dashboardData.learning_rhythm.overdue_task_count}
+                    <h4 className="font-semibold text-orange-900 mb-3" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                      Overdue Tasks: {dashboardData.learning_rhythm.overdue_task_count}
                     </h4>
+                    {calendarData?.items && (
+                      <ul className="space-y-2 mb-3">
+                        {calendarData.items
+                          .filter(item => item.status === 'wandering')
+                          .slice(0, 5)
+                          .map((item) => (
+                            <li key={item.id} className="text-sm font-medium text-gray-800" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              <span className="font-semibold">{item.task_title}</span>
+                              <span className="text-gray-600"> • {item.quest_title}</span>
+                            </li>
+                          ))}
+                      </ul>
+                    )}
                     <p className="text-sm font-medium text-gray-700" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      Deadlines are tools, not rules. Help them understand what got in the way and what they learned from the experience.
+                      Deadlines are tools, not rules. Help them understand what got in the way.
                     </p>
                   </div>
                 )}

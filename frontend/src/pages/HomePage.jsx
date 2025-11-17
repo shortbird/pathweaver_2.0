@@ -1,14 +1,22 @@
-import React, { useState } from 'react'
-import { Link } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Play, X, BookOpen, Users, CheckCircle, Heart } from 'lucide-react'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
 // import { useSubscriptionTiers, formatPrice } from '../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const HomePage = () => {
-  const { isAuthenticated } = useAuth()
+  const { isAuthenticated, user } = useAuth()
+  const navigate = useNavigate()
   // const { data: tiers, isLoading: tiersLoading } = useSubscriptionTiers() // REMOVED - Phase 3 refactoring (January 2025)
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
+
+  // Redirect authenticated parents to their parent dashboard
+  useEffect(() => {
+    if (isAuthenticated && user?.role === 'parent') {
+      navigate('/parent/dashboard')
+    }
+  }, [isAuthenticated, user, navigate])
 
   return (
     <div className="min-h-screen">

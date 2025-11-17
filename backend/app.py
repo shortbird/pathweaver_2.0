@@ -8,7 +8,7 @@ load_dotenv()
 from utils.logger import setup_logging, get_logger
 setup_logging()
 logger = get_logger(__name__)
-logger.info("Starting Optio Backend API")
+logger.info("Starting Optio Backend API - Session persistence test #2")
 
 from routes import auth, users, community, portfolio
 from routes.quest_ideas import quest_ideas_bp
@@ -198,10 +198,9 @@ except Exception as e:
 
 # Register Badge System blueprints
 try:
-    from routes import badges, credits, ai_content, admin_badge_seed, quest_badge_hub
+    from routes import badges, credits, admin_badge_seed, quest_badge_hub
     app.register_blueprint(badges.bp)  # /api/badges
     app.register_blueprint(credits.bp)  # /api/credits
-    app.register_blueprint(ai_content.bp)  # /api/ai-generation
     app.register_blueprint(admin_badge_seed.bp)  # /api/admin/seed
     app.register_blueprint(quest_badge_hub.bp)  # /api/hub
     logger.info("Badge system routes registered successfully")
@@ -278,13 +277,8 @@ try:
 except Exception as e:
     logger.warning(f"Warning: Direct Messages routes not available: {e}")
 
-# Register AI Quest Review blueprint (admin)
-try:
-    from routes.admin import ai_quest_review
-    app.register_blueprint(ai_quest_review.bp)  # /api/admin/ai-quest-review
-    logger.info("AI Quest Review routes registered successfully")
-except Exception as e:
-    logger.warning(f"Warning: AI Quest Review routes not available: {e}")
+# AI Quest Review routes removed in admin cleanup (January 2025)
+# Batch generation and AI tools have been removed from the admin panel
 
 # Register Khan Academy Sync blueprint (admin)
 try:
@@ -301,21 +295,8 @@ except Exception as e:
 # Personalized Quest System blueprints moved earlier in registration order (above line 103)
 # This ensures personalization routes are registered before main quests.bp to avoid route conflicts
 
-# Register AI Performance Analytics blueprint (admin)
-try:
-    from routes.admin import ai_performance_analytics
-    app.register_blueprint(ai_performance_analytics.bp)  # /api/admin/ai-analytics
-    logger.info("AI Performance Analytics routes registered successfully")
-except Exception as e:
-    logger.warning(f"Warning: AI Performance Analytics routes not available: {e}")
-
-# Register AI Prompt Optimizer blueprint (admin)
-try:
-    from routes.admin import ai_prompt_optimizer
-    app.register_blueprint(ai_prompt_optimizer.ai_prompt_optimizer_bp, url_prefix='/api/admin/ai-optimizer')
-    logger.info("AI Prompt Optimizer routes registered successfully")
-except Exception as e:
-    logger.warning(f"Warning: AI Prompt Optimizer routes not available: {e}")
+# AI Performance Analytics and AI Prompt Optimizer routes removed in admin cleanup (January 2025)
+# Batch generation and AI tools have been removed from the admin panel
 
 # Register Student AI Assistance blueprint
 try:

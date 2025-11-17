@@ -4,6 +4,7 @@ import api from '../../services/api'
 import toast from 'react-hot-toast'
 import UnifiedQuestForm from './UnifiedQuestForm'
 import CourseQuestForm from './CourseQuestForm'
+import QuestSuggestionsModal from './QuestSuggestionsModal'
 
 const AdminQuests = () => {
   const { user } = useAuth()
@@ -15,6 +16,7 @@ const AdminQuests = () => {
   const [showCourseQuestForm, setShowCourseQuestForm] = useState(false)
   const [editingCourseQuest, setEditingCourseQuest] = useState(null)
   const [activeFilter, setActiveFilter] = useState('all') // all, active, inactive
+  const [showQuestSuggestionsModal, setShowQuestSuggestionsModal] = useState(false)
 
   // Determine user role
   const isAdmin = user?.role === 'admin'
@@ -145,6 +147,12 @@ const AdminQuests = () => {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Manage Quests</h2>
         <div className="flex gap-3">
+          <button
+            onClick={() => setShowQuestSuggestionsModal(true)}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-semibold"
+          >
+            Quest Suggestions
+          </button>
           <button
             onClick={() => setShowCourseQuestForm(true)}
             className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
@@ -369,6 +377,12 @@ const AdminQuests = () => {
           )}
         </div>
       )}
+
+      {/* Quest Suggestions Modal */}
+      <QuestSuggestionsModal
+        isOpen={showQuestSuggestionsModal}
+        onClose={() => setShowQuestSuggestionsModal(false)}
+      />
     </div>
   )
 }

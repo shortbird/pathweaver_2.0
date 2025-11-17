@@ -455,9 +455,9 @@ frontend/src/
 - last_attempt_at (nullable)
 - created_at
 
-### Activity Tracking & Analytics Tables (January 2025)
+### Activity Tracking & Analytics Tables (SIMPLIFIED - January 2025)
 
-**user_activity_events** (Main event tracking table)
+**user_activity_events** (Single source of truth for all activity tracking)
 - id (UUID, PK)
 - user_id (UUID, FK to users, nullable) - NULL for anonymous tracking
 - session_id (UUID, NOT NULL) - Session identifier from cookie
@@ -469,66 +469,15 @@ frontend/src/
 - user_agent (text) - Browser user agent string
 - duration_ms (integer) - Request duration in milliseconds
 - created_at (timestamptz) - Event timestamp
-- anonymized_at (timestamptz) - When PII was anonymized (90-day policy)
 - Indexes: 6 indexes including GIN for JSONB queries, BRIN for time-series data
-- RLS: Users can view own events, admins can view all
+- RLS: Admins can view all (users cannot view own logs)
 
-**user_sessions** (Session tracking)
-- id (UUID, PK)
-- user_id (UUID, FK to users, nullable)
-- started_at (timestamptz)
-- ended_at (timestamptz, nullable)
-- duration_minutes (integer)
-- user_agent (text)
-- ip_address (text) - Anonymized after 90 days
-- device_type (varchar)
-- page_views (integer)
-- actions_count (integer)
-- last_activity_at (timestamptz)
-- anonymized_at (timestamptz)
-
-**page_view_analytics** (Aggregated daily page views)
-- id (UUID, PK)
-- page_path (varchar)
-- view_date (date)
-- total_views (integer)
-- unique_users (integer)
-- avg_duration_seconds (numeric)
-- bounce_rate (numeric)
-- avg_load_time_ms (integer)
-- created_at (timestamptz)
-- Purpose: Pre-aggregated metrics for dashboard performance
-
-**learning_journey_events** (Educational milestones)
-- id (UUID, PK)
-- user_id (UUID, FK to users)
-- event_type (varchar) - first_quest, first_completion, first_badge, etc.
-- risk_score (numeric) - Dropout prediction score (0-100)
-- engagement_level (varchar) - high/medium/low/at_risk
-- event_data (JSONB) - Milestone-specific data
-- created_at (timestamptz)
-- Purpose: Dropout prediction and learning journey tracking
-
-**error_events** (Error tracking)
-- id (UUID, PK)
-- user_id (UUID, FK to users, nullable)
-- session_id (UUID)
-- error_type (varchar) - javascript_error, api_error, network_error
-- error_message (text)
-- error_stack (text)
-- page_url (text)
-- component_name (varchar) - React component name
-- api_endpoint (varchar, nullable)
-- api_status_code (integer, nullable)
-- created_at (timestamptz)
-- Purpose: Frontend/backend error debugging
-
-**Privacy & Compliance:**
-- **90-Day Anonymization**: PII (IP address, user agent details) removed after 90 days
-- **2-Year Deletion**: Events deleted entirely after 2 years
-- **GDPR/COPPA Compliant**: Privacy-first design with automated data lifecycle
-- **Anonymization Script**: `backend/scripts/anonymize_activity_data.py` (run daily via cron)
-- **RLS Policies**: Row-level security ensures users see only their own data
+**Removed Tables (January 2025 Simplification):**
+- ~~user_sessions~~ - Never populated (0 records)
+- ~~page_view_analytics~~ - No aggregation job existed (0 records)
+- ~~learning_journey_events~~ - Never used (0 records)
+- ~~error_events~~ - Never implemented (0 records)
+- ~~activity_log~~ - Legacy duplicate system (migrated to user_activity_events)
 
 **Event Taxonomy (40+ Event Types):**
 - **Authentication**: login_success, login_failed, logout, registration_success, registration_failed
@@ -625,20 +574,25 @@ frontend/src/
 - GET /api/lms/grade-sync/status - Monitor grade passback queue (admin)
 - GET /api/lms/integration/status - Get user's LMS integration status
 
-### Activity Tracking & Analytics API (January 2025)
-- **Manual Tracking**: POST /api/analytics/activity/track - Track custom events from frontend
-- **User Metrics**: GET /api/analytics/engagement/:userId - User engagement metrics (admin/parent)
-- **At-Risk Students**: GET /api/analytics/at-risk-students - Dropout predictions (admin only)
-- **Page Analytics**: GET /api/analytics/page-views - Page view aggregations (admin only)
+### Activity Tracking & Analytics API (SIMPLIFIED - January 2025)
 - **Popular Content**: GET /api/analytics/popular-quests - Quest popularity metrics (admin only)
-- **Learning Journey**: GET /api/analytics/journey/:userId - Learning journey summary (admin/parent)
-- **Error Summary**: GET /api/analytics/errors - Error debugging data (admin only)
 - **Event Counts**: GET /api/analytics/event-counts - Event totals by category (admin only)
 - **Admin Dashboard Endpoints**:
   - GET /api/admin/analytics/overview - Key platform metrics
   - GET /api/admin/analytics/activity - Recent activity feed
   - GET /api/admin/analytics/trends - Historical trends (30 days)
-  - GET /api/admin/analytics/health - System health indicators
+  - GET /api/admin/analytics/user/:userId/activity - Individual user activity logs (NEW)
+    - Query params: start_date, end_date, event_type, limit
+    - Returns: Chronological list of events with page URLs, navigation flow, time on page
+
+**Removed Endpoints (January 2025 Simplification):**
+- ~~POST /api/analytics/activity/track~~ - Middleware handles tracking automatically
+- ~~GET /api/analytics/engagement/:userId~~ - Unused engagement metrics
+- ~~GET /api/analytics/at-risk-students~~ - Dropout prediction removed
+- ~~GET /api/analytics/page-views~~ - Aggregation table didn't exist
+- ~~GET /api/analytics/journey/:userId~~ - Learning journey table empty
+- ~~GET /api/analytics/errors~~ - Error tracking table empty
+- ~~GET /api/admin/analytics/health~~ - Health score feature removed
 
 ### Additional Features
 - POST /api/uploads - File upload handling
@@ -752,6 +706,19 @@ frontend/src/
 - **XSS prevention**: NO JavaScript-accessible token storage (Phase 1 security fix complete)
 - **IMPORTANT**: Tokens are NEVER returned in API response bodies - only in httpOnly cookies
 - **IMPORTANT**: Frontend NEVER stores tokens in localStorage - this was a critical XSS vulnerability (fixed January 2025)
+- **Session Persistence** (November 2025):
+  - **Persistent FLASK_SECRET_KEY**: JWT secret key set in Render environment variables, persists across deployments
+  - **Token Versioning**: All tokens include `version` field for graceful secret key rotation
+  - **Dual-Key Verification**: Supports both current and previous secret keys during rotation period
+  - **Token Health Monitoring**: Frontend checks token compatibility every 5 minutes, gracefully prompts re-login if needed
+  - **httpOnly Cookie Support**: Always sets secure httpOnly cookies with `SameSite=None` for cross-origin compatibility
+  - **Environment Variables**: `FLASK_SECRET_KEY` (required), `FLASK_SECRET_KEY_OLD` (optional), `TOKEN_VERSION` (default: 'v1')
+  - **Documentation**: See `docs/SESSION_PERSISTENCE.md` for implementation details
+- **Auth Decorators** (November 2025):
+  - **CRITICAL**: All auth decorators use `get_supabase_admin_client()` for role verification to bypass RLS restrictions
+  - **Fixed decorators**: `@require_admin`, `@require_role`, `@require_advisor`, `@require_advisor_for_student`
+  - **Reason**: Role verification with `get_authenticated_supabase_client()` can fail due to RLS policies blocking role lookups
+  - **Pattern**: Always use admin client for authorization checks, user client for user data operations
 - **Strong Password Policy** (Phase 1 Security Fix - January 2025):
   - Minimum 12 characters (increased from 6)
   - At least 1 uppercase letter (A-Z)
@@ -838,40 +805,44 @@ frontend/src/
 - **Documentation**: Complete setup guides at `docs/LMS_INTEGRATION.md`
 - **Frontend route**: `/admin/lms-integration` (admin only)
 
-### Activity Tracking & Analytics System (NEW - January 2025)
+### Activity Tracking & Analytics System (SIMPLIFIED - January 2025)
+**Focus**: Individual user activity logs + high-level platform trends (scope creep removed)
+
+**Core Features**:
 - **Automatic Tracking**: Middleware automatically logs 40+ event types (auth, quests, tasks, badges, etc.)
-- **Manual Tracking**: Frontend hook `useActivityTracking()` for custom events
-- **Admin Dashboard**: Real-time analytics at `/admin/analytics` with:
+- **Individual User Activity Logs**: Admin can view detailed activity for any user
+  - Accessible via Users tab → "Activity" button per user
+  - Route: `/admin/user/:userId/activity`
+  - Two views: Table (default) and Timeline
+  - Shows: Page visits, time on page, navigation flow, event descriptions
+  - Filters: Date range, event type, result limit
+  - Component: `UserActivityLog.jsx` with both table and timeline views
+- **Admin Dashboard**: High-level analytics at `/admin/analytics` with:
   - Platform metrics (active users, completions, XP, pending reviews)
   - Activity feed (recent quest completions, signups, badges)
   - Trend charts (user growth, quest completions, XP by pillar)
-  - Health score indicator with alerts
   - Auto-refresh every 5 minutes
-- **Dropout Prediction**: Risk scoring algorithm identifies at-risk students
-  - Weighted factors: days inactive (40%), login frequency (25%), completion rate (20%)
-  - Engagement levels: high/medium/low/at_risk
-  - Admin can view at-risk students via `/api/analytics/at-risk-students`
 - **Event Taxonomy**: 8 categories (auth, quest, badge, tutor, community, parent, navigation, other)
-- **Privacy-First Design**:
-  - 90-day PII anonymization (IP addresses, detailed user agent data)
-  - 2-year event deletion policy
-  - GDPR/COPPA compliant with RLS policies
-  - Daily anonymization cron job: `backend/scripts/anonymize_activity_data.py`
 - **Performance Optimized**:
   - Async logging via ThreadPoolExecutor (non-blocking)
   - BRIN indexes for time-series queries
   - GIN indexes for JSONB event data
-  - Pre-aggregated page view analytics table
-- **Frontend Integration**:
-  - Hook: `frontend/src/hooks/useActivityTracking.js`
-  - Automatic page view tracking on route changes
-  - Time-on-page measurement
-  - Manual event tracking: `trackEvent(eventType, eventData)`
 - **Backend Architecture**:
-  - Middleware: `backend/middleware/activity_tracker.py` (Flask hooks)
-  - Service: `backend/services/analytics_service.py` (business logic)
-  - Routes: `backend/routes/analytics.py` & `backend/routes/admin/analytics.py`
-- **Critical Fix (January 2025)**: UUID type casting for session_id (was causing silent failures)
+  - Middleware: `backend/middleware/activity_tracker.py` (Flask auto-tracking)
+  - Service: `backend/services/analytics_service.py` (simplified - 2 methods only)
+  - Routes: `backend/routes/analytics.py` (2 endpoints) & `backend/routes/admin/analytics.py` (5 endpoints)
+  - User activity endpoint: `GET /api/admin/analytics/user/:userId/activity`
+
+**What Was Removed (January 2025 Simplification)**:
+- ~~Frontend tracking hook~~ - Middleware handles all tracking automatically
+- ~~Health score & alerts~~ - Over-engineered for needs
+- ~~Dropout prediction & risk scoring~~ - Unused complex algorithms
+- ~~Session tracking table~~ - Never populated (0 records)
+- ~~Page view analytics aggregation~~ - No aggregation job existed
+- ~~Learning journey events~~ - Never used (0 records)
+- ~~Error tracking table~~ - Never implemented (0 records)
+- ~~Privacy anonymization scripts~~ - Unnecessary for student data
+- ~~Manual event tracking endpoint~~ - Redundant with middleware
 
 ### Additional Features
 - **Quest ratings**: 1-5 star rating system with optional feedback

@@ -10,7 +10,7 @@ Performance optimizations:
 - XP calculation from quest completions (indexed query)
 """
 
-from flask import Blueprint, jsonify
+from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
 from backend.repositories import (
     UserRepository,
@@ -628,3 +628,168 @@ def get_system_health(user_id):
                 'last_checked': datetime.utcnow().isoformat()
             }
         })
+
+
+@bp.route('/user/<user_id>/activity', methods=['GET'])
+@require_admin
+def get_user_activity(admin_id, user_id):
+    """
+    Get individual user's activity logs for admin review.
+
+    Shows chronological list of user actions including:
+    - Page visits with time on page
+    - Navigation patterns (which button/link they clicked)
+    - Event types and categories
+
+    Query params:
+    - start_date: Start date (ISO format, optional)
+    - end_date: End date (ISO format, optional)
+    - event_type: Filter by specific event type (optional)
+    - limit: Max results (default: 100, max: 500)
+
+    Access: Admin only
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Parse query parameters
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+        event_type_filter = request.args.get('event_type')
+        limit = min(int(request.args.get('limit', 100)), 500)  # Cap at 500
+
+        # Build query
+        query = supabase.table('user_activity_events').select(
+            'id, event_type, event_category, event_data, page_url, referrer_url, duration_ms, created_at'
+        ).eq('user_id', user_id)
+
+        # Apply filters
+        if start_date_str:
+            query = query.gte('created_at', start_date_str)
+        if end_date_str:
+            query = query.lte('created_at', end_date_str)
+        if event_type_filter:
+            query = query.eq('event_type', event_type_filter)
+
+        # Execute query with limit and sort by most recent first
+        response = query.order('created_at', desc=True).limit(limit).execute()
+
+        events = response.data or []
+
+        # Get user info for context
+        user_response = supabase.table('users').select(
+            'display_name, first_name, last_name, email, role'
+        ).eq('id', user_id).single().execute()
+
+        user_info = user_response.data if user_response.data else {}
+        user_name = user_info.get('display_name') or f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip() or 'Unknown User'
+
+        # Bulk fetch quest and badge names for enrichment
+        quest_ids = set()
+        badge_ids = set()
+        for event in events:
+            event_data = event.get('event_data', {})
+            if quest_id := event_data.get('quest_id'):
+                quest_ids.add(quest_id)
+            if badge_id := event_data.get('badge_id'):
+                badge_ids.add(badge_id)
+
+        # Fetch quest names
+        quest_names = {}
+        if quest_ids:
+            quests_response = supabase.table('quests').select('id, title').in_('id', list(quest_ids)).execute()
+            quest_names = {q['id']: q['title'] for q in (quests_response.data or [])}
+
+        # Fetch badge names
+        badge_names = {}
+        if badge_ids:
+            badges_response = supabase.table('badges').select('id, name').in_('id', list(badge_ids)).execute()
+            badge_names = {b['id']: b['name'] for b in (badges_response.data or [])}
+
+        # Format events for display
+        formatted_events = []
+        for event in events:
+            formatted_events.append({
+                'id': event['id'],
+                'timestamp': event['created_at'],
+                'event_type': event['event_type'],
+                'event_category': event['event_category'],
+                'page_url': event.get('page_url'),
+                'referrer_url': event.get('referrer_url'),
+                'duration_ms': event.get('duration_ms'),
+                'event_data': event.get('event_data', {}),
+                # Human-readable description with enriched data
+                'description': _format_event_description(event, quest_names, badge_names)
+            })
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'user': {
+                    'id': user_id,
+                    'name': user_name,
+                    'email': user_info.get('email'),
+                    'role': user_info.get('role')
+                },
+                'events': formatted_events,
+                'total_count': len(formatted_events),
+                'filters_applied': {
+                    'start_date': start_date_str,
+                    'end_date': end_date_str,
+                    'event_type': event_type_filter,
+                    'limit': limit
+                }
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching user activity for {user_id}: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch user activity'
+        }), 500
+
+
+def _format_event_description(event: dict, quest_names: dict, badge_names: dict) -> str:
+    """Format event into human-readable description with enriched quest/badge names."""
+    event_type = event.get('event_type', '')
+    event_data = event.get('event_data', {})
+    page_url = event.get('page_url', '')
+
+    # Get quest/badge names from lookup dictionaries
+    quest_id = event_data.get('quest_id')
+    quest_name = quest_names.get(quest_id, 'Unknown Quest') if quest_id else 'Unknown Quest'
+
+    badge_id = event_data.get('badge_id')
+    badge_name = badge_names.get(badge_id, 'Unknown Badge') if badge_id else 'Unknown Badge'
+
+    # Map event types to readable descriptions
+    descriptions = {
+        'login_success': 'Logged in',
+        'login_failed': 'Failed login attempt',
+        'logout': 'Logged out',
+        'registration_success': 'Registered account',
+        'dashboard_viewed': 'Viewed dashboard',
+        'quest_viewed': f"Viewed quest: {quest_name}",
+        'quest_started': f"Started quest: {quest_name}",
+        'quest_completed': f"Completed quest: {quest_name}",
+        'quest_abandoned': f"Abandoned quest: {quest_name}",
+        'task_completed': 'Completed a task',
+        'task_viewed': 'Viewed task details',
+        'badge_claimed': f"Claimed badge: {badge_name}",
+        'badge_viewed': f"Viewed badge: {badge_name}",
+        'evidence_uploaded': 'Uploaded evidence file',
+        'tutor_opened': 'Opened AI tutor',
+        'tutor_message_sent': 'Sent message to AI tutor',
+        'tutor_conversation_started': 'Started new tutor conversation',
+        'connection_request_sent': 'Sent connection request',
+        'connection_accepted': 'Accepted connection request',
+        'connection_declined': 'Declined connection request',
+        'profile_viewed': 'Viewed user profile',
+        'profile_updated': 'Updated profile',
+        'portfolio_viewed': 'Viewed portfolio page',
+        'parent_dashboard_opened': 'Opened parent dashboard',
+        'page_view': f"Viewed page: {page_url}"
+    }
+
+    return descriptions.get(event_type, event_type.replace('_', ' ').title())
