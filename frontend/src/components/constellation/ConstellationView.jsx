@@ -137,8 +137,10 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
         const distance = Math.sqrt(dx * dx + dy * dy);
 
         if (distance < MIN_DISTANCE_BETWEEN_ORBS) {
-          // Push away from other orb with slight randomization to prevent clustering
-          const pushAngle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.3;
+          // Push away from other orb with deterministic angle variation based on quest ID
+          // This prevents clustering without introducing randomness that causes jitter
+          const angleVariation = (hash % 100) / 100 * 0.3 - 0.15; // -0.15 to +0.15 radians
+          const pushAngle = Math.atan2(dy, dx) + angleVariation;
           const pushDistance = MIN_DISTANCE_BETWEEN_ORBS - distance;
           finalX += Math.cos(pushAngle) * pushDistance;
           finalY += Math.sin(pushAngle) * pushDistance;
