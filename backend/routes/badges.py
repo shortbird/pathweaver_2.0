@@ -93,24 +93,7 @@ def select_badge(user_id, badge_id):
     from database import get_user_client
 
     try:
-        # Check if user is on paid tier (using user client for RLS enforcement)
-        supabase = get_user_client(user_id)
-        user = supabase.table('users').select('subscription_tier').eq('id', user_id).single().execute()
-
-        if not user.data:
-            return jsonify({
-                'success': False,
-                'error': 'User not found'
-            }), 404
-
-        # Free tier users cannot start badges
-        if user.data.get('subscription_tier') == 'Free':
-            return jsonify({
-                'success': False,
-                'error': 'Badges are a paid feature. Upgrade to start pursuing badges and unlock your full potential!',
-                'requires_upgrade': True
-            }), 403
-
+        # Tier check removed - all users can select badges (Phase 2 refactoring)
         user_badge = BadgeService.select_badge(user_id, badge_id)
 
         # Trigger tutorial verification after badge selection

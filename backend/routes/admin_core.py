@@ -99,12 +99,7 @@ def get_users_list(user_id):
             # Build search query safely
             query = query.or_(f"first_name.ilike.%{search}%,last_name.ilike.%{search}%,username.ilike.%{search}%")
         
-        # Apply subscription filter
-        if subscription != 'all':
-            if subscription == 'free':
-                query = query.or_('subscription_tier.eq.free,subscription_tier.is.null')
-            else:
-                query = query.eq('subscription_tier', subscription)
+        # Subscription filter removed - no subscription tiers in Phase 2
         
         # Apply role filter
         if role != 'all':
@@ -139,14 +134,7 @@ def get_users_list(user_id):
         
         # Enhance user data
         users = response.data if response.data else []
-        
-        # Reverse tier mapping: convert database tier names to frontend tier names
-        reverse_tier_mapping = {
-            'explorer': 'free',
-            'creator': 'supported', 
-            'enterprise': 'academy'  # Updated: Academy tier uses 'enterprise' in database
-        }
-        
+
         # Get emails from auth.users table
         try:
             auth_users = supabase.auth.admin.list_users()
@@ -161,13 +149,7 @@ def get_users_list(user_id):
         for user in users:
             # Add email from auth.users
             user['email'] = email_map.get(user['id'], '')
-            
-            # Convert database tier to frontend tier for consistency
-            db_tier = user.get('subscription_tier', 'explorer')
-            frontend_tier = reverse_tier_mapping.get(db_tier, db_tier)
-            user['subscription_tier'] = frontend_tier
-            print(f"User {user.get('id', 'unknown')}: DB tier '{db_tier}' -> Frontend tier '{frontend_tier}'")
-            
+
             # Calculate total XP across all pillars
             try:
                 xp_response = supabase.table('user_skill_xp')\
@@ -207,18 +189,7 @@ def get_user_details(admin_id, user_id):
             return jsonify({'error': 'User not found'}), 404
         
         user = user_response.data[0]
-        
-        # Convert database tier to frontend tier for consistency
-        reverse_tier_mapping = {
-            'explorer': 'free',
-            'creator': 'supported', 
-            'enterprise': 'academy'  # Updated: Academy tier uses 'enterprise' in database
-        }
-        db_tier = user.get('subscription_tier', 'explorer')
-        frontend_tier = reverse_tier_mapping.get(db_tier, db_tier)
-        user['subscription_tier'] = frontend_tier
-        print(f"User details: DB tier '{db_tier}' -> Frontend tier '{frontend_tier}'")
-        
+
         # Get XP by pillar
         xp_response = supabase.table('user_skill_xp')\
             .select('pillar, xp_amount')\
@@ -301,109 +272,8 @@ def update_user_profile(admin_id, user_id):
         logger.error(f"Error updating user: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
-@bp.route('/users/<user_id>/subscription', methods=['POST'])
-@require_admin
-def update_user_subscription(admin_id, user_id):
-    """Update user subscription tier and expiration"""
-    supabase = get_supabase_admin_client()
-    data = request.json
-    
-    try:
-        # Valid frontend tier values (what the admin panel sends)
-        valid_frontend_tiers = ['free', 'supported', 'academy']
-        
-        requested_tier = data.get('tier', 'free')
-        
-        # Validate tier
-        if requested_tier not in valid_frontend_tiers:
-            return jsonify({'error': f'Invalid tier: {requested_tier}. Must be one of: {valid_frontend_tiers}'}), 400
-        
-        # Primary tier mapping based on actual database enum values (discovered via testing)
-        tier_mapping = {
-            'free': 'explorer',      # Assuming this maps correctly
-            'supported': 'creator',  # Assuming this maps correctly
-            'academy': 'enterprise'  # Confirmed: Academy tier uses 'enterprise' in database
-        }
-        
-        db_tier = tier_mapping.get(requested_tier, 'explorer')
-        
-        update_data = {
-            'subscription_tier': db_tier
-        }
-        
-        # Note: subscription_expires field is not used in database schema
-        
-        logger.info(f"TIER UPDATE: User {user_id}, Frontend tier: {requested_tier} -> DB tier: {db_tier}")
-        logger.info(f"Update data being sent to Supabase: {update_data}")
-        
-        # Try primary tier mapping first
-        def try_tier_update(tier_value):
-            try:
-                update_data = {'subscription_tier': tier_value}
-                logger.info(f"ATTEMPTING TIER UPDATE: User {user_id}, Trying tier value: {tier_value}")
-                
-                response = supabase.table('users')\
-                    .update(update_data)\
-                    .eq('id', user_id)\
-                    .execute()
-                
-                logger.info(f"Supabase update response: {response}")
-                logger.info(f"Supabase response data: {response.data}")
-                
-                if response.data:
-                    updated_user = response.data[0]
-                    actual_db_tier = updated_user.get('subscription_tier')
-                    logger.info(f"SUCCESS: User {user_id} tier updated to: {actual_db_tier}")
-                    return response.data[0]
-                else:
-                    logger.error(f"ERROR: No data returned from Supabase")
-                    return None
-                    
-            except Exception as e:
-                print(f"TIER UPDATE FAILED for value '{tier_value}': {str(e)}")
-                return None
-        
-        # Try the primary mapping first
-        result = try_tier_update(db_tier)
-        
-        # If primary mapping failed, try alternative values
-        if result is None:
-            print(f"Primary mapping failed for tier '{requested_tier}' -> '{db_tier}'. Trying alternatives...")
-            
-            # Try direct frontend value
-            result = try_tier_update(requested_tier)
-            
-            # If that failed too, try some common alternatives
-            if result is None:
-                alternative_mappings = {
-                    'free': ['basic', 'starter', 'free'],
-                    'supported': ['premium', 'standard', 'supported'],
-                    'academy': ['visionary', 'pro', 'academy']  # Try visionary (schema), then alternatives
-                }
-                
-                alternatives = alternative_mappings.get(requested_tier, [])
-                for alt_value in alternatives:
-                    if alt_value != db_tier and alt_value != requested_tier:  # Skip already tried values
-                        result = try_tier_update(alt_value)
-                        if result is not None:
-                            break
-        
-        # Check final result
-        if result is None:
-            return jsonify({
-                'error': f'Failed to update subscription tier to {requested_tier}',
-                'details': 'Database enum constraints do not allow this value',
-                'attempted_values': [db_tier, requested_tier] + alternative_mappings.get(requested_tier, [])
-            }), 500
-        
-        # Success case - the tier update worked with one of our attempted values
-        logger.info(f"FINAL SUCCESS: User {user_id} subscription tier updated successfully")
-        
-        return jsonify({'message': 'Subscription updated successfully'}), 200
-        
-    except Exception as e:
-        logger.error(f"Error updating subscription: {str(e)}")
-        return jsonify({'error': str(e)}), 500
+# REMOVED: update_user_subscription endpoint (Phase 2 refactoring - January 2025)
+# Subscription tier functionality removed - all users have equal access
 
 @bp.route('/users/<user_id>/role', methods=['PUT'])
 @require_admin

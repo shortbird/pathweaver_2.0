@@ -125,30 +125,42 @@ export const AuthProvider = ({ children }) => {
       return { success: true }
     } catch (error) {
       // Handle nested error structure from backend
-      let message = 'Login failed. Please try again.'
-      
+      let message = 'Login failed. Please check your email and password and try again.'
+
+      // First priority: Use the exact error message from backend
       if (error.response?.data?.error) {
         if (typeof error.response.data.error === 'string') {
           message = error.response.data.error
         } else if (error.response.data.error.message) {
           message = error.response.data.error.message
         }
-      } else if (error.response?.status === 429) {
-        message = 'Too many login attempts. Please wait a moment and try again.'
+      }
+      // Fallback messages for specific status codes without detailed error
+      else if (error.response?.status === 429) {
+        message = 'Too many login attempts. Please wait a moment before trying again.'
+      } else if (error.response?.status === 401) {
+        message = 'Incorrect email or password. Please check your credentials and try again.'
       } else if (error.response?.status === 503) {
         message = 'Service temporarily unavailable. Please try again in a few moments.'
       } else if (error.response?.status === 500) {
         message = 'Server error. Please contact support if this continues.'
       } else if (!error.response) {
-        message = 'Connection error. Please check your internet connection.'
+        message = 'Connection error. Please check your internet connection and try again.'
       }
-      
-      // Don't show toast for expected errors - let the form handle display
-      // Only show toast for unexpected errors
+
+      // Log the error for debugging
+      console.error('Login error:', {
+        status: error.response?.status,
+        message: message,
+        originalError: error.response?.data
+      })
+
+      // Don't show toast for expected errors (4xx) - let the form handle display
+      // Only show toast for unexpected server errors (5xx)
       if (error.response?.status >= 500) {
         toast.error(message)
       }
-      
+
       return { success: false, error: message }
     }
   }

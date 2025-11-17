@@ -1079,10 +1079,22 @@ This enables direct read-only SQL queries against the production database for de
 - ✅ **LMS Integration Columns**: Added lms_course_id, lms_assignment_id, lms_platform to quests table
 - ✅ **Backup Schema Created**: All deleted data preserved in backup_schema for rollback safety
 
-**Still Active (Phase 2 Pending):**
-- ⚠️ Backend routes still exist: collaborations.py, ratings.py, tiers.py, subscription_requests.py (to be deleted)
+### Phase 2 Backend Tier Cleanup Complete (January 2025)
+**Subscription Tier Code Removal - ALL CODE DELETED:**
+- ✅ **Tier Mapping Removed**: Deleted reverse_tier_mapping logic from admin_core.py
+- ✅ **Tier Logging Removed**: Deleted print statements logging tier conversions
+- ✅ **Subscription Filter Removed**: Removed subscription_tier filter from user_management.py
+- ✅ **Badge Tier Check Removed**: All users can now select badges (removed from badges.py)
+- ✅ **Tier Fields Removed**: Deleted subscription_tier from transcript.py and account_deletion.py
+- ✅ **Tier Management Deleted**: Removed backend/routes/admin/tier_management.py (193 lines)
+- ✅ **Subscription Endpoint Removed**: Deleted update_user_subscription from admin_core.py (~103 lines)
+
+**Total cleanup: ~400 lines of dead code removed across 6 files**
+
+**Still Active (Phase 2 Pending - Non-Tier Items):**
+- ⚠️ Backend routes still exist: collaborations.py, ratings.py, subscription_requests.py (to be deleted)
 - ⚠️ XP bonuses still active: 2x collaboration, 50% completion, 500 XP badge bonus (to be removed)
-- ⚠️ @require_paid_tier decorator still active (to be removed)
+- ⚠️ @require_paid_tier decorator - already removed (Phase 2 complete)
 - ⚠️ Connections page still shows "Team-up invitations" (frontend cleanup needed)
 
 ### Phase 3 Architecture Consolidation Complete (January 2025)

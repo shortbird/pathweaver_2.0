@@ -70,7 +70,6 @@ LMS_PLATFORMS = {
         'webhook_secret': 'ENV:SPARK_WEBHOOK_SECRET',
         'api_url': 'ENV:SPARK_API_URL',
         'api_key': 'ENV:SPARK_API_KEY',
-        'storage_domains': 'ENV:SPARK_STORAGE_DOMAINS',
         'supports_grade_passback': True,
         'supports_deep_linking': False,
         'supports_roster_sync': True,

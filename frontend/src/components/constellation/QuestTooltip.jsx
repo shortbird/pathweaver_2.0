@@ -42,22 +42,22 @@ const QuestTooltip = ({ quest, position, containerDimensions }) => {
   };
 
   const pillarColors = {
-    'stem_logic': { primary: '#3b82f6', accent: '#60a5fa' },
-    'society_culture': { primary: '#a855f7', accent: '#c084fc' },
-    'arts_creativity': { primary: '#EF597B', accent: '#f8b3c5' },
-    'language_communication': { primary: '#f59e0b', accent: '#fbbf24' },
-    'life_wellness': { primary: '#10b981', accent: '#34d399' }
+    'stem': { primary: '#3b82f6', accent: '#60a5fa' },           // Blue
+    'civics': { primary: '#a855f7', accent: '#c084fc' },         // Purple
+    'art': { primary: '#EF597B', accent: '#f8b3c5' },            // Pink
+    'communication': { primary: '#f59e0b', accent: '#fbbf24' },  // Orange
+    'wellness': { primary: '#10b981', accent: '#34d399' }        // Green
   };
 
   const dominant = getDominantPillar();
   const colors = dominant ? pillarColors[dominant] : { primary: '#ffffff', accent: '#cccccc' };
 
   const pillarNames = {
-    'stem_logic': 'STEM & Logic',
-    'society_culture': 'Society & Culture',
-    'arts_creativity': 'Arts & Creativity',
-    'language_communication': 'Language & Communication',
-    'life_wellness': 'Life & Wellness'
+    'stem': 'STEM',
+    'civics': 'Civics',
+    'art': 'Art',
+    'communication': 'Communication',
+    'wellness': 'Wellness'
   };
 
   return (

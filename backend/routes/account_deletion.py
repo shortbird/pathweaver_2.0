@@ -73,7 +73,6 @@ def request_account_deletion(current_user):
             'email': user.get('email'),
             'first_name': user.get('first_name'),
             'last_name': user.get('last_name'),
-            'subscription_tier': user.get('subscription_tier'),
             'total_xp': user.get('total_xp'),
             'created_at': user.get('created_at'),
             'deletion_requested_reason': reason

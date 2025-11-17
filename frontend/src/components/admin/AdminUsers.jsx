@@ -230,7 +230,7 @@ const AdminUsers = () => {
             <option value="created_at">Join Date</option>
             <option value="last_active">Last Active</option>
             <option value="total_xp">Total XP</option>
-            <option value="name">Name</option>
+            <option value="first_name">Name</option>
           </select>
         </div>
       </div>

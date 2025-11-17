@@ -18,13 +18,13 @@ const QuestPillarLines = ({ questOrbs, pillarPositions }) => {
           const percentage = xp / quest.totalXP;
           const opacity = Math.max(0.1, percentage * 0.5); // 10-50% opacity
 
-          // Pillar colors for line gradient
+          // Pillar colors for line gradient (NEW simplified system - January 2025)
           const pillarColors = {
-            'stem_logic': '#3b82f6',
-            'society_culture': '#a855f7',
-            'arts_creativity': '#EF597B',
-            'language_communication': '#f59e0b',
-            'life_wellness': '#10b981'
+            'stem': '#3b82f6',           // Blue
+            'civics': '#a855f7',         // Purple
+            'art': '#EF597B',            // Pink
+            'communication': '#f59e0b',  // Orange
+            'wellness': '#10b981'        // Green
           };
 
           const color = pillarColors[pillarId] || '#ffffff';

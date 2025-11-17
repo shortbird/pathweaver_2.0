@@ -53,23 +53,14 @@ def get_completed_quests(user_id):
         total_count = count_result.count if count_result else 0
         
         # Get paginated completed quests with details
-        try:
-            completed = supabase.table('user_quests')\
-                .select('*, quests(*, quest_skill_xp(*), quest_xp_awards(*))')\
-                .eq('user_id', user_id)\
-                .not_.is_('completed_at', 'null')\
-                .order('completed_at', desc=True)\
-                .range(offset, offset + per_page - 1)\
-                .execute()
-        except:
-            # Fallback without skill XP
-            completed = supabase.table('user_quests')\
-                .select('*, quests(*)')\
-                .eq('user_id', user_id)\
-                .not_.is_('completed_at', 'null')\
-                .order('completed_at', desc=True)\
-                .range(offset, offset + per_page - 1)\
-                .execute()
+        # Note: XP is calculated from quest_task_completions and user_quest_tasks tables
+        completed = supabase.table('user_quests')\
+            .select('*, quests(*)')\
+            .eq('user_id', user_id)\
+            .not_.is_('completed_at', 'null')\
+            .order('completed_at', desc=True)\
+            .range(offset, offset + per_page - 1)\
+            .execute()
         
         # Format quest data
         formatted_quests = []
@@ -84,7 +75,7 @@ def get_completed_quests(user_id):
                         'difficulty': quest.get('difficulty'),
                         'category': quest.get('category'),
                         'completed_at': quest_record.get('completed_at'),
-                        'xp_earned': calculate_quest_xp(quest),
+                        'xp_earned': calculate_quest_xp(quest, user_id),
                         'submission': {
                             'content': quest_record.get('submission_content'),
                             'submitted_at': quest_record.get('submitted_at'),
@@ -114,42 +105,57 @@ def get_completed_quests(user_id):
         logger.error(f"Error fetching completed quests: {str(e)}")
         return jsonify({'error': 'Failed to fetch completed quests'}), 500
 
-def calculate_quest_xp(quest: dict) -> dict:
-    """Calculate total XP earned from a quest"""
+def calculate_quest_xp(quest: dict, user_id: str = None) -> dict:
+    """Calculate total XP earned from a quest by aggregating completed task XP"""
     xp_breakdown = {}
     total_xp = 0
-    
-    # Try skill-based XP first
-    if 'quest_skill_xp' in quest and quest['quest_skill_xp']:
-        for award in quest['quest_skill_xp']:
-            category = award.get('skill_category')
-            amount = award.get('xp_amount', 0)
-            if category:
-                xp_breakdown[category] = amount
-                total_xp += amount
-    
-    # Fallback to subject-based XP
-    elif 'quest_xp_awards' in quest and quest['quest_xp_awards']:
-        from .helpers import SUBJECT_TO_SKILL_MAP
-        for award in quest['quest_xp_awards']:
-            subject = award.get('subject')
-            amount = award.get('xp_amount', 0)
-            if subject:
-                skill_cat = SUBJECT_TO_SKILL_MAP.get(subject, 'thinking_skills')
-                xp_breakdown[skill_cat] = xp_breakdown.get(skill_cat, 0) + amount
-                total_xp += amount
-    
-    # If no XP data found, estimate based on difficulty
-    if total_xp == 0:
-        difficulty = quest.get('difficulty', 'beginner')
-        difficulty_xp = {
-            'beginner': 10,
-            'intermediate': 25,
-            'advanced': 50
-        }
-        total_xp = difficulty_xp.get(difficulty, 10)
-        xp_breakdown['general'] = total_xp
-    
+
+    if not quest.get('id') or not user_id:
+        return {'total': 0, 'breakdown': {}}
+
+    try:
+        supabase = get_user_client()
+        quest_id = quest.get('id')
+
+        # Get all completed tasks for this quest
+        completed_tasks = supabase.table('quest_task_completions')\
+            .select('xp_awarded, task_id')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .execute()
+
+        if completed_tasks.data:
+            # Get task details to find pillar assignments
+            task_ids = [task['task_id'] for task in completed_tasks.data]
+
+            if task_ids:
+                tasks = supabase.table('user_quest_tasks')\
+                    .select('id, pillar, xp_value')\
+                    .in_('id', task_ids)\
+                    .eq('user_id', user_id)\
+                    .execute()
+
+                # Create a map of task_id to pillar
+                task_pillar_map = {}
+                if tasks.data:
+                    for task in tasks.data:
+                        task_pillar_map[task['id']] = task.get('pillar', 'stem')
+
+                # Aggregate XP by pillar
+                for completion in completed_tasks.data:
+                    xp = completion.get('xp_awarded', 0)
+                    task_id = completion.get('task_id')
+                    pillar = task_pillar_map.get(task_id, 'stem')
+
+                    # Use NEW simplified pillar names (stem, wellness, communication, civics, art)
+                    xp_breakdown[pillar] = xp_breakdown.get(pillar, 0) + xp
+                    total_xp += xp
+
+    except Exception as e:
+        logger.error(f"Error calculating quest XP: {str(e)}")
+        # Return empty breakdown on error
+        return {'total': 0, 'breakdown': {}}
+
     return {
         'total': total_xp,
         'breakdown': xp_breakdown

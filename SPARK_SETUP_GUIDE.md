@@ -192,84 +192,84 @@ app.get('/optio/redirect', async (req, res) => {
 ### What You Need to Build
 
 When a student submits an assignment:
-1. Generate temporary public URLs for submitted files (24+ hour expiry)
-2. Build webhook payload with submission data
-3. Calculate HMAC signature
-4. POST to Optio webhook endpoint
+1. Build webhook payload with submission data (JSON metadata)
+2. If files are attached, prepare multipart/form-data request
+3. Calculate HMAC signature (on metadata only for multipart requests)
+4. POST to Optio webhook endpoint (JSON or multipart)
 5. Retry on failure (exponential backoff)
 
-### Step 1: Generate Temporary File URLs
+**IMPORTANT:** Files are uploaded DIRECTLY to Optio - you do NOT need to generate temporary URLs.
 
-**Requirements:**
-- URLs must be publicly accessible (no authentication required)
-- URLs must be valid for at least 24 hours
-- URLs must return actual file content (not HTML pages)
-- URLs must use HTTPS (not HTTP)
-- URLs must include correct Content-Type headers
+### Step 1: Build Webhook Payload
 
-**Example Implementation:**
+**Option 1: Text-Only Submission (JSON)**
 
-```javascript
-// Using AWS S3 pre-signed URLs
-const AWS = require('aws-sdk');
-const s3 = new AWS.S3();
+For submissions with only text (no file attachments):
 
-function generateTemporaryFileUrl(fileKey) {
-  const params = {
-    Bucket: 'spark-submissions',
-    Key: fileKey,
-    Expires: 86400  // 24 hours in seconds
-  };
-
-  return s3.getSignedUrl('getObject', params);
-}
-```
-
-### Step 2: Build Webhook Payload
-
-**Payload Structure:**
 ```javascript
 {
   "spark_user_id": "user_123",              // Your user ID (required)
   "spark_assignment_id": "assignment_456",  // Your assignment ID (required)
   "spark_course_id": "course_789",          // Your course ID (required)
-  "submission_text": "Student essay...",    // Text response (required)
-  "submission_files": [                     // File attachments (optional)
-    {
-      "url": "https://...",                 // Temporary public URL
-      "type": "application/pdf",            // MIME type
-      "filename": "essay.pdf"               // Original filename
-    }
-  ],
+  "submission_text": "Student essay...",    // Text response (required if no files)
   "submitted_at": "2025-01-15T14:30:00Z",  // ISO 8601 timestamp (required)
   "grade": 95.5                             // Numeric grade (optional)
 }
 ```
 
+**Option 2: Submission with Files (Multipart)**
+
+For submissions with file attachments:
+
+```javascript
+// Metadata field (JSON string)
+metadata: {
+  "spark_user_id": "user_123",
+  "spark_assignment_id": "assignment_456",
+  "spark_course_id": "course_789",
+  "submission_text": "Optional description...",
+  "submitted_at": "2025-01-15T14:30:00Z",
+  "grade": 95.5
+}
+
+// File fields (binary data)
+file1: <File object>
+file2: <File object>
+// ... up to 200MB total
+```
+
+**Validation Requirements:**
+- At least one of `submission_text` OR files must be present
+- File size limits: 50MB per file, 200MB total
+- Allowed file types: Images (JPG, PNG, GIF, WEBP), Videos (MP4, MOV, AVI), Documents (PDF, DOCX, TXT)
+
 **Implementation Example:**
 
 ```javascript
-function buildWebhookPayload(submission) {
+function buildWebhookMetadata(submission) {
   return {
     spark_user_id: submission.userId,
     spark_assignment_id: submission.assignmentId,
     spark_course_id: submission.courseId,
     submission_text: submission.text || '',
-    submission_files: submission.files.map(file => ({
-      url: generateTemporaryFileUrl(file.key),
-      type: file.mimeType,
-      filename: file.originalName
-    })),
     submitted_at: submission.timestamp.toISOString(),
     grade: submission.grade
   };
 }
 ```
 
-### Step 3: Calculate HMAC Signature
+### Step 2: Calculate HMAC Signature
 
 **HMAC Signature Algorithm:**
-1. Serialize payload to JSON string
+
+**For JSON requests (text-only):**
+1. Serialize entire payload to JSON string
+2. Calculate HMAC-SHA256 using webhook secret
+3. Convert to hexadecimal string
+4. Include in `X-Spark-Signature` header
+
+**For multipart requests (with files):**
+1. Serialize ONLY the metadata field to JSON string (NOT the entire multipart body)
 2. Calculate HMAC-SHA256 using webhook secret
 3. Convert to hexadecimal string
 4. Include in `X-Spark-Signature` header
@@ -279,27 +279,37 @@ function buildWebhookPayload(submission) {
 ```javascript
 const crypto = require('crypto');
 
-function calculateHMAC(payload) {
+// For JSON requests (text-only)
+function calculateHMAC_JSON(payload) {
   const payloadString = JSON.stringify(payload);
   const secret = process.env.OPTIO_WEBHOOK_SECRET;
 
-  const hmac = crypto
+  return crypto
     .createHmac('sha256', secret)
     .update(payloadString)
     .digest('hex');
+}
 
-  return hmac;
+// For multipart requests (with files)
+function calculateHMAC_Multipart(metadata) {
+  const metadataString = JSON.stringify(metadata);
+  const secret = process.env.OPTIO_WEBHOOK_SECRET;
+
+  return crypto
+    .createHmac('sha256', secret)
+    .update(metadataString)
+    .digest('hex');
 }
 ```
 
-### Step 4: Send Webhook with Retry Logic
+### Step 3: Send Webhook with Retry Logic
 
-**Implementation Example:**
+**Option 1: Text-Only Submission (JSON)**
 
 ```javascript
-async function sendOptioWebhook(submission, maxAttempts = 3) {
-  const payload = buildWebhookPayload(submission);
-  const signature = calculateHMAC(payload);
+async function sendTextOnlyWebhook(submission, maxAttempts = 3) {
+  const payload = buildWebhookMetadata(submission);
+  const signature = calculateHMAC_JSON(payload);
 
   const optioWebhookUrl = process.env.OPTIO_WEBHOOK_URL ||
     'https://optio-prod-backend.onrender.com/spark/webhook/submission';
@@ -346,7 +356,76 @@ async function sendOptioWebhook(submission, maxAttempts = 3) {
 }
 ```
 
-### Step 5: Integrate with Submission Flow
+**Option 2: Submission with Files (Multipart)**
+
+```javascript
+const FormData = require('form-data');
+const fs = require('fs');
+
+async function sendMultipartWebhook(submission, maxAttempts = 3) {
+  const metadata = buildWebhookMetadata(submission);
+  const signature = calculateHMAC_Multipart(metadata);
+
+  const optioWebhookUrl = process.env.OPTIO_WEBHOOK_URL ||
+    'https://optio-prod-backend.onrender.com/spark/webhook/submission';
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      // Build multipart form data
+      const formData = new FormData();
+
+      // Add metadata field (JSON string)
+      formData.append('metadata', JSON.stringify(metadata));
+
+      // Add file attachments
+      submission.files.forEach((file, index) => {
+        formData.append(`file${index + 1}`, fs.createReadStream(file.path), {
+          filename: file.originalName,
+          contentType: file.mimeType
+        });
+      });
+
+      const response = await fetch(optioWebhookUrl, {
+        method: 'POST',
+        headers: {
+          'X-Spark-Signature': signature,
+          ...formData.getHeaders()  // Automatically sets Content-Type: multipart/form-data
+        },
+        body: formData
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('Webhook success:', result.completion_id);
+        return result;
+      }
+
+      // Don't retry 4xx errors (client errors)
+      if (response.status >= 400 && response.status < 500) {
+        const error = await response.json();
+        console.error('Webhook failed:', error);
+        throw new Error(`Client error: ${error.error}`);
+      }
+
+      // Retry 5xx errors (server errors)
+      console.warn(`Webhook attempt ${attempt} failed with ${response.status}`);
+
+    } catch (error) {
+      console.error(`Webhook attempt ${attempt} error:`, error.message);
+
+      if (attempt === maxAttempts) {
+        throw error;
+      }
+
+      // Exponential backoff: 2s, 4s, 8s
+      const delay = Math.pow(2, attempt) * 1000;
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+}
+```
+
+### Step 4: Integrate with Submission Flow
 
 **Example Integration:**
 
@@ -354,31 +433,43 @@ async function sendOptioWebhook(submission, maxAttempts = 3) {
 // In your assignment submission handler
 app.post('/assignments/:id/submit', async (req, res) => {
   const { userId, assignmentId } = req.params;
-  const { text, files } = req.body;
+  const { text } = req.body;
+  const files = req.files;  // Assuming you're using multer or similar
 
   // 1. Save submission to your database
   const submission = await saveSubmission({
     userId,
     assignmentId,
     text,
-    files
+    files: files ? Object.values(files) : []
   });
 
   // 2. Send webhook to Optio (async - don't block response)
-  sendOptioWebhook(submission).catch(error => {
-    console.error('Failed to send Optio webhook:', error);
-    // Queue for retry or alert admin
-  });
+  if (files && files.length > 0) {
+    // Send multipart webhook with files
+    sendMultipartWebhook(submission).catch(error => {
+      console.error('Failed to send Optio webhook:', error);
+      // Queue for retry or alert admin
+    });
+  } else {
+    // Send JSON webhook (text-only)
+    sendTextOnlyWebhook(submission).catch(error => {
+      console.error('Failed to send Optio webhook:', error);
+      // Queue for retry or alert admin
+    });
+  }
 
   // 3. Return success to student immediately
   res.json({ success: true, submissionId: submission.id });
 });
 ```
 
-### Step 6: Test Webhooks
+### Step 5: Test Webhooks
 
 **Test Checklist:**
-- [ ] Submit test assignment
+- [ ] Submit text-only assignment (JSON webhook)
+- [ ] Submit assignment with single file (multipart webhook)
+- [ ] Submit assignment with multiple files (multipart webhook)
 - [ ] Webhook received by Optio (check response is 200)
 - [ ] Evidence appears in Optio portfolio within 5 minutes
 - [ ] Student XP increased correctly
@@ -387,10 +478,12 @@ app.post('/assignments/:id/submit', async (req, res) => {
 **Common Issues:**
 | Error | Cause | Solution |
 |-------|-------|----------|
-| "Invalid signature" | Wrong secret or payload format | Verify OPTIO_WEBHOOK_SECRET and sign raw JSON |
+| "Invalid signature" | Wrong secret or signature calculation | For multipart: sign metadata field only (not entire body) |
 | "User not found" | Student hasn't used SSO yet | Student must log in via SSO first |
 | "Quest not found" | Assignment not in Optio | Create quest in Optio with matching assignment ID |
-| "Failed to download file" | File URL not accessible | Verify URL works in browser, check expiry |
+| "Must provide either submission_text or files" | Empty submission | Include text OR files (or both) |
+| "File exceeds 50MB limit" | File too large | Split large files or compress before upload |
+| "File type not allowed" | Unsupported MIME type | Use allowed types (images, videos, PDFs, DOCX, TXT) |
 
 ---
 
@@ -448,25 +541,69 @@ console.log('SSO URL:', `https://optio-dev-backend.onrender.com/spark/sso?token=
 
 ### Webhook Testing
 
+**Test 1: Text-Only Submission**
 ```javascript
 const testPayload = {
   spark_user_id: 'your_test_user_id',
   spark_assignment_id: 'your_assignment_id',
   spark_course_id: 'your_course_id',
-  submission_text: 'Your test submission text...',
-  submission_files: [],
+  submission_text: 'This is my test essay response...',
   submitted_at: new Date().toISOString(),
   grade: 95
 };
 
-// Calculate HMAC signature and send POST request
-// (See test_spark_webhook.js for complete implementation)
+const signature = calculateHMAC_JSON(testPayload);
+
+// Send JSON POST request
+fetch('https://optio-dev-backend.onrender.com/spark/webhook/submission', {
+  method: 'POST',
+  headers: {
+    'Content-Type': 'application/json',
+    'X-Spark-Signature': signature
+  },
+  body: JSON.stringify(testPayload)
+});
+```
+
+**Test 2: Submission with Files**
+```javascript
+const FormData = require('form-data');
+const fs = require('fs');
+
+const metadata = {
+  spark_user_id: 'your_test_user_id',
+  spark_assignment_id: 'your_assignment_id',
+  spark_course_id: 'your_course_id',
+  submission_text: 'See attached files for my project.',
+  submitted_at: new Date().toISOString(),
+  grade: 95
+};
+
+const signature = calculateHMAC_Multipart(metadata);
+
+const formData = new FormData();
+formData.append('metadata', JSON.stringify(metadata));
+formData.append('file1', fs.createReadStream('/path/to/test.pdf'), {
+  filename: 'project.pdf',
+  contentType: 'application/pdf'
+});
+
+// Send multipart POST request
+fetch('https://optio-dev-backend.onrender.com/spark/webhook/submission', {
+  method: 'POST',
+  headers: {
+    'X-Spark-Signature': signature,
+    ...formData.getHeaders()
+  },
+  body: formData
+});
 ```
 
 **Verify in Optio**
 - Log in as test student
 - Navigate to portfolio
 - Verify submission appears with evidence
+- Verify uploaded files are accessible
 
 ### Edge Case Testing
 
@@ -550,8 +687,10 @@ module.exports = OptioSSO;
 ### Complete Webhook Implementation
 
 ```javascript
-// webhook.js - Complete webhook implementation
+// webhook.js - Complete webhook implementation with direct file upload
 const crypto = require('crypto');
+const FormData = require('form-data');
+const fs = require('fs');
 
 class OptioWebhook {
   constructor(webhookSecret, webhookUrl) {
@@ -559,25 +698,20 @@ class OptioWebhook {
     this.webhookUrl = webhookUrl;
   }
 
-  calculateSignature(payload) {
-    const payloadString = JSON.stringify(payload);
+  calculateSignature(metadata) {
+    const metadataString = JSON.stringify(metadata);
     return crypto
       .createHmac('sha256', this.webhookSecret)
-      .update(payloadString)
+      .update(metadataString)
       .digest('hex');
   }
 
-  async send(submission, maxAttempts = 3) {
+  async sendTextOnly(submission, maxAttempts = 3) {
     const payload = {
       spark_user_id: submission.userId,
       spark_assignment_id: submission.assignmentId,
       spark_course_id: submission.courseId,
       submission_text: submission.text || '',
-      submission_files: submission.files.map(f => ({
-        url: f.temporaryUrl,
-        type: f.mimeType,
-        filename: f.originalName
-      })),
       submitted_at: submission.timestamp.toISOString(),
       grade: submission.grade
     };
@@ -614,6 +748,68 @@ class OptioWebhook {
       }
     }
   }
+
+  async sendWithFiles(submission, maxAttempts = 3) {
+    const metadata = {
+      spark_user_id: submission.userId,
+      spark_assignment_id: submission.assignmentId,
+      spark_course_id: submission.courseId,
+      submission_text: submission.text || '',
+      submitted_at: submission.timestamp.toISOString(),
+      grade: submission.grade
+    };
+
+    const signature = this.calculateSignature(metadata);
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const formData = new FormData();
+        formData.append('metadata', JSON.stringify(metadata));
+
+        // Attach files
+        submission.files.forEach((file, index) => {
+          formData.append(`file${index + 1}`, fs.createReadStream(file.path), {
+            filename: file.originalName,
+            contentType: file.mimeType
+          });
+        });
+
+        const response = await fetch(this.webhookUrl, {
+          method: 'POST',
+          headers: {
+            'X-Spark-Signature': signature,
+            ...formData.getHeaders()
+          },
+          body: formData
+        });
+
+        if (response.ok) {
+          return await response.json();
+        }
+
+        if (response.status >= 400 && response.status < 500) {
+          const error = await response.json();
+          throw new Error(`Client error: ${error.error}`);
+        }
+
+        console.warn(`Attempt ${attempt} failed with ${response.status}`);
+
+      } catch (error) {
+        if (attempt === maxAttempts) throw error;
+
+        const delay = Math.pow(2, attempt) * 1000;
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+  }
+
+  async send(submission) {
+    if (submission.files && submission.files.length > 0) {
+      return this.sendWithFiles(submission);
+    } else {
+      return this.sendTextOnly(submission);
+    }
+  }
 }
 
 // Usage
@@ -623,7 +819,10 @@ const webhook = new OptioWebhook(
 );
 
 app.post('/assignments/:id/submit', async (req, res) => {
-  const submission = await saveSubmission(req.body);
+  const submission = await saveSubmission({
+    ...req.body,
+    files: req.files ? Object.values(req.files) : []
+  });
 
   webhook.send(submission).catch(error => {
     console.error('Webhook failed:', error);

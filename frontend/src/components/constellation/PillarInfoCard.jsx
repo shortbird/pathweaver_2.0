@@ -1,16 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 
 const PillarInfoCard = ({ pillar, position, containerDimensions }) => {
-  const navigate = useNavigate();
-
   if (!pillar || !position) return null;
 
   // Calculate smart positioning to avoid viewport edges
   const getCardPosition = () => {
-    const cardHeight = 180; // Reduced from 320 (simpler card)
-    const cardWidth = 280; // Slightly narrower
+    const cardHeight = 140; // Reduced height without button
+    const cardWidth = 280;
     const spacing = 20;
 
     let top = position.y + 80; // Default: below orb
@@ -29,20 +26,16 @@ const PillarInfoCard = ({ pillar, position, containerDimensions }) => {
 
   const cardPosition = getCardPosition();
 
-  // Pillar colors
+  // Pillar colors (NEW simplified system - January 2025)
   const pillarColors = {
-    'stem_logic': { primary: '#3b82f6', accent: '#60a5fa' },
-    'society_culture': { primary: '#a855f7', accent: '#c084fc' },
-    'arts_creativity': { primary: '#EF597B', accent: '#f8b3c5' },
-    'language_communication': { primary: '#f59e0b', accent: '#fbbf24' },
-    'life_wellness': { primary: '#10b981', accent: '#34d399' }
+    'stem': { primary: '#3b82f6', accent: '#60a5fa' },           // Blue
+    'civics': { primary: '#a855f7', accent: '#c084fc' },         // Purple
+    'art': { primary: '#EF597B', accent: '#f8b3c5' },            // Pink
+    'communication': { primary: '#f59e0b', accent: '#fbbf24' },  // Orange
+    'wellness': { primary: '#10b981', accent: '#34d399' }        // Green
   };
 
   const colors = pillarColors[pillar.id] || { primary: '#ffffff', accent: '#cccccc' };
-
-  const handleExploreClick = () => {
-    navigate(`/quests?pillar=${pillar.id}`);
-  };
 
   return (
     <motion.div
@@ -72,24 +65,12 @@ const PillarInfoCard = ({ pillar, position, containerDimensions }) => {
         </h3>
 
         {/* Total XP */}
-        <div className="mb-5">
+        <div>
           <div className="flex justify-between items-center">
             <span className="text-gray-400 text-base">Total XP</span>
             <span className="text-white font-bold text-2xl">{pillar.xp}</span>
           </div>
         </div>
-
-        {/* CTA Button */}
-        <button
-          onClick={handleExploreClick}
-          className="w-full py-3 rounded-lg text-white font-medium pointer-events-auto
-                     transition-all transform hover:scale-105 hover:shadow-lg"
-          style={{
-            backgroundImage: `linear-gradient(90deg, ${colors.primary}, ${colors.accent})`
-          }}
-        >
-          Explore Quests
-        </button>
       </div>
     </motion.div>
   );

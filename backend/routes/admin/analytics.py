@@ -120,21 +120,35 @@ def get_overview_metrics(user_id):
             completions_today = 0
 
         # Get total XP earned from task completions this week
+        # Join quest_task_completions with user_quest_tasks to get xp_value
         try:
-            xp_completions = supabase.table('quest_task_completions')\
-                .select('xp_awarded')\
+            # Get task completions with their task IDs
+            completions = supabase.table('quest_task_completions')\
+                .select('task_id')\
                 .gte('completed_at', week_ago.isoformat())\
                 .execute()
 
-            # Sum XP from completions (handles None values)
             total_xp_week = 0
-            if xp_completions.data:
-                for record in xp_completions.data:
-                    xp_value = record.get('xp_awarded', 0)
-                    if xp_value:
-                        total_xp_week += xp_value
+            if completions.data:
+                # Get unique task IDs
+                task_ids = list(set([c['task_id'] for c in completions.data]))
 
-            print(f"DEBUG: Found {len(xp_completions.data) if xp_completions.data else 0} completions with total XP: {total_xp_week}", file=sys.stderr, flush=True)
+                if task_ids:
+                    # Fetch xp_value for these tasks
+                    tasks = supabase.table('user_quest_tasks')\
+                        .select('id, xp_value')\
+                        .in_('id', task_ids)\
+                        .execute()
+
+                    # Create task_id -> xp_value mapping
+                    xp_map = {task['id']: task.get('xp_value', 0) for task in (tasks.data or [])}
+
+                    # Sum XP for all completions
+                    for completion in completions.data:
+                        task_id = completion['task_id']
+                        total_xp_week += xp_map.get(task_id, 0)
+
+            print(f"DEBUG: Found {len(completions.data) if completions.data else 0} completions with total XP: {total_xp_week}", file=sys.stderr, flush=True)
         except Exception as e:
             print(f"Error getting XP week data: {e}", file=sys.stderr, flush=True)
             total_xp_week = 0
@@ -157,28 +171,9 @@ def get_overview_metrics(user_id):
             print(f"Error getting flagged tasks: {e}", file=sys.stderr, flush=True)
             flagged_tasks_count = 0
 
-        # Get subscription distribution (OPTIMIZED: single query with group by)
+        # Subscription tiers removed in Phase 1 refactoring (January 2025)
+        # Keeping empty array for backward compatibility with frontend
         subscription_stats = []
-        try:
-            # Fetch all users' subscription tiers in one query
-            all_tiers = supabase.table('users').select('subscription_tier').execute()
-
-            # Count tiers client-side (faster than 8 separate queries)
-            tier_counts = {}
-            for user in all_tiers.data or []:
-                tier = user.get('subscription_tier', 'free')
-                tier_counts[tier] = tier_counts.get(tier, 0) + 1
-
-            # Format as array for frontend
-            for tier in ['free', 'explorer', 'supported', 'creator', 'premium', 'academy', 'visionary', 'enterprise']:
-                subscription_stats.append({
-                    'tier': tier,
-                    'count': tier_counts.get(tier, 0)
-                })
-        except Exception as e:
-            print(f"Error getting subscription distribution: {e}", file=sys.stderr, flush=True)
-            for tier in ['free', 'explorer', 'supported', 'creator', 'premium', 'academy', 'visionary', 'enterprise']:
-                subscription_stats.append({'tier': tier, 'count': 0})
 
         # Calculate engagement rate (active users / total users)
         engagement_rate = round((active_users / total_users * 100) if total_users > 0 else 0, 1)
@@ -217,16 +212,7 @@ def get_overview_metrics(user_id):
                 'pending_submissions': 0,
                 'flagged_tasks_count': 0,
                 'engagement_rate': 0,
-                'subscription_distribution': [
-                    {'tier': 'free', 'count': 0},
-                    {'tier': 'explorer', 'count': 0},
-                    {'tier': 'supported', 'count': 0},
-                    {'tier': 'creator', 'count': 0},
-                    {'tier': 'premium', 'count': 0},
-                    {'tier': 'academy', 'count': 0},
-                    {'tier': 'visionary', 'count': 0},
-                    {'tier': 'enterprise', 'count': 0}
-                ],
+                'subscription_distribution': [],  # Phase 1 refactoring: subscription tiers removed
                 'last_updated': datetime.utcnow().isoformat()
             }
         })
@@ -283,8 +269,8 @@ def get_recent_activity(user_id):
         # Get recent quest submissions
         try:
             recent_submissions = supabase.table('quest_submissions')\
-                .select('user_id, title, created_at')\
-                .order('created_at', desc=True)\
+                .select('user_id, title, submitted_at')\
+                .order('submitted_at', desc=True)\
                 .limit(5).execute()
 
             # Collect user IDs
@@ -356,7 +342,7 @@ def get_recent_activity(user_id):
 
             activities.append({
                 'type': 'quest_submission',
-                'timestamp': submission.get('created_at', now.isoformat()),
+                'timestamp': submission.get('submitted_at', now.isoformat()),
                 'user_name': user_name,
                 'description': f"submitted custom quest: '{submission['title']}'"
             })
@@ -649,6 +635,16 @@ def get_user_activity(admin_id, user_id):
 
     Access: Admin only
     """
+    # Validate UUID format before querying database
+    import uuid
+    try:
+        uuid.UUID(user_id)
+    except (ValueError, AttributeError):
+        return jsonify({
+            'success': False,
+            'error': f'Invalid user_id format: "{user_id}" is not a valid UUID'
+        }), 400
+
     supabase = get_supabase_admin_client()
 
     try:
@@ -679,9 +675,13 @@ def get_user_activity(admin_id, user_id):
         # Get user info for context
         user_response = supabase.table('users').select(
             'display_name, first_name, last_name, email, role'
-        ).eq('id', user_id).single().execute()
+        ).eq('id', user_id).execute()
 
-        user_info = user_response.data if user_response.data else {}
+        # Handle case where user might not exist
+        user_info = {}
+        if user_response.data and len(user_response.data) > 0:
+            user_info = user_response.data[0]
+
         user_name = user_info.get('display_name') or f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip() or 'Unknown User'
 
         # Bulk fetch quest and badge names for enrichment
@@ -694,17 +694,34 @@ def get_user_activity(admin_id, user_id):
             if badge_id := event_data.get('badge_id'):
                 badge_ids.add(badge_id)
 
+        # Filter out non-UUID values (e.g., "my-badges" from URL params)
+        def is_valid_uuid(value):
+            if not isinstance(value, str):
+                return False
+            try:
+                import uuid
+                uuid.UUID(value)
+                return True
+            except (ValueError, AttributeError):
+                return False
+
+        quest_ids = {qid for qid in quest_ids if is_valid_uuid(qid)}
+        badge_ids = {bid for bid in badge_ids if is_valid_uuid(bid)}
+
         # Fetch quest names
         quest_names = {}
         if quest_ids:
             quests_response = supabase.table('quests').select('id, title').in_('id', list(quest_ids)).execute()
             quest_names = {q['id']: q['title'] for q in (quests_response.data or [])}
 
-        # Fetch badge names
+        # Fetch badge names (only valid UUIDs)
         badge_names = {}
         if badge_ids:
-            badges_response = supabase.table('badges').select('id, name').in_('id', list(badge_ids)).execute()
-            badge_names = {b['id']: b['name'] for b in (badges_response.data or [])}
+            # Filter to only valid UUIDs before querying
+            valid_badge_ids = [bid for bid in badge_ids if is_valid_uuid(bid)]
+            if valid_badge_ids:
+                badges_response = supabase.table('badges').select('id, name').in_('id', valid_badge_ids).execute()
+                badge_names = {b['id']: b['name'] for b in (badges_response.data or [])}
 
         # Format events for display
         formatted_events = []
@@ -748,6 +765,179 @@ def get_user_activity(admin_id, user_id):
             'success': False,
             'error': 'Failed to fetch user activity'
         }), 500
+
+
+@bp.route('/spark-logs', methods=['GET'])
+@require_admin
+def get_spark_communication_logs(admin_id):
+    """
+    Get chronological Spark integration communication logs for admin review.
+
+    Shows all Spark platform communications including:
+    - SSO login attempts/successes/failures
+    - OAuth token exchanges
+    - Webhook submissions
+    - File downloads
+
+    Query params:
+    - start_date: Start date (ISO format, default: 7 days ago)
+    - end_date: End date (ISO format, default: now)
+    - event_type: Filter by specific Spark event type (optional)
+    - status: Filter by success/failed (optional)
+    - limit: Max results (default: 100, max: 500)
+
+    Access: Admin only
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Parse query parameters
+        start_date_str = request.args.get('start_date')
+        end_date_str = request.args.get('end_date')
+        event_type_filter = request.args.get('event_type')
+        status_filter = request.args.get('status')  # 'success' or 'failed'
+        limit = min(int(request.args.get('limit', 100)), 500)  # Cap at 500
+
+        # Default date range: 7 days ago to now
+        if not start_date_str:
+            start_date_str = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        if not end_date_str:
+            end_date_str = datetime.utcnow().isoformat()
+
+        # Build query - filter by LMS category (includes all spark_* events)
+        query = supabase.table('user_activity_events').select(
+            'id, user_id, event_type, event_category, event_data, page_url, duration_ms, created_at'
+        ).eq('event_category', 'lms')
+
+        # Apply date filters
+        query = query.gte('created_at', start_date_str)
+        query = query.lte('created_at', end_date_str)
+
+        # Apply event type filter
+        if event_type_filter:
+            query = query.eq('event_type', event_type_filter)
+
+        # Execute query with limit and sort by most recent first
+        response = query.order('created_at', desc=True).limit(limit).execute()
+
+        events = response.data or []
+
+        # Filter by status if requested
+        if status_filter:
+            if status_filter == 'success':
+                events = [e for e in events if 'success' in e['event_type'] or 'sso_success' in e['event_type']]
+            elif status_filter == 'failed':
+                events = [e for e in events if 'failed' in e['event_type'] or 'invalid' in e['event_type'] or 'expired' in e['event_type'] or 'replay' in e['event_type']]
+
+        # Collect user IDs for bulk name lookup
+        user_ids = set()
+        for event in events:
+            if event.get('user_id'):
+                user_ids.add(event['user_id'])
+
+        # Bulk fetch user names
+        user_names = {}
+        if user_ids:
+            users_response = supabase.table('users').select(
+                'id, display_name, first_name, last_name, email'
+            ).in_('id', list(user_ids)).execute()
+
+            for user in users_response.data or []:
+                user_id = user.get('id')
+                display_name = user.get('display_name')
+                first_name = user.get('first_name', '')
+                last_name = user.get('last_name', '')
+
+                if display_name:
+                    user_names[user_id] = display_name
+                elif first_name or last_name:
+                    user_names[user_id] = f"{first_name} {last_name}".strip()
+                else:
+                    user_names[user_id] = user.get('email', 'Unknown User')
+
+        # Format events for display
+        formatted_events = []
+        for event in events:
+            user_id = event.get('user_id')
+            event_data = event.get('event_data', {})
+
+            formatted_events.append({
+                'id': event['id'],
+                'timestamp': event['created_at'],
+                'event_type': event['event_type'],
+                'event_category': event['event_category'],
+                'user_id': user_id,
+                'user_name': user_names.get(user_id, 'Anonymous'),
+                'duration_ms': event.get('duration_ms'),
+                'event_data': event_data,
+                'description': _format_spark_event_description(event),
+                'status': 'success' if 'success' in event['event_type'] else 'failed'
+            })
+
+        # Calculate summary stats
+        total_events = len(formatted_events)
+        success_count = len([e for e in formatted_events if e['status'] == 'success'])
+        failed_count = total_events - success_count
+
+        # Count by event type
+        event_type_counts = {}
+        for event in formatted_events:
+            event_type = event['event_type']
+            event_type_counts[event_type] = event_type_counts.get(event_type, 0) + 1
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'events': formatted_events,
+                'total_count': total_events,
+                'summary': {
+                    'success_count': success_count,
+                    'failed_count': failed_count,
+                    'success_rate': round((success_count / total_events * 100) if total_events > 0 else 0, 1),
+                    'event_type_counts': event_type_counts
+                },
+                'filters_applied': {
+                    'start_date': start_date_str,
+                    'end_date': end_date_str,
+                    'event_type': event_type_filter,
+                    'status': status_filter,
+                    'limit': limit
+                }
+            }
+        })
+
+    except Exception as e:
+        logger.error(f"Error fetching Spark communication logs: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch Spark communication logs'
+        }), 500
+
+
+def _format_spark_event_description(event: dict) -> str:
+    """Format Spark event into human-readable description."""
+    event_type = event.get('event_type', '')
+    event_data = event.get('event_data', {})
+
+    # Map Spark event types to readable descriptions
+    descriptions = {
+        'spark_sso_success': f"Spark SSO login successful for {event_data.get('email', 'unknown user')}",
+        'spark_sso_failed': f"Spark SSO login failed: {event_data.get('error_type', 'unknown error')}",
+        'spark_sso_token_expired': "Spark SSO token expired",
+        'spark_sso_invalid_token': "Spark SSO invalid token signature",
+        'spark_token_exchange_success': f"OAuth token exchange successful (code age: {event_data.get('code_age_seconds', 'unknown')}s)",
+        'spark_token_exchange_failed': f"OAuth token exchange failed: {event_data.get('error_type', 'unknown error')}",
+        'spark_token_code_expired': "OAuth authorization code expired",
+        'spark_token_code_reuse': "OAuth authorization code reuse attempt blocked",
+        'spark_webhook_success': f"Webhook submission processed (assignment: {event_data.get('spark_assignment_id', 'unknown')}, {event_data.get('file_count', 0)} files, {event_data.get('processing_time_ms', 0)}ms)",
+        'spark_webhook_failed': f"Webhook submission failed: {event_data.get('error_type', 'unknown error')}",
+        'spark_webhook_invalid_signature': "Webhook HMAC signature validation failed",
+        'spark_webhook_replay_attack': f"Webhook replay attack blocked (old timestamp: {event_data.get('submitted_at', 'unknown')})",
+        'spark_file_download_success': f"File downloaded successfully: {event_data.get('filename', 'unknown')} ({event_data.get('file_type', 'unknown type')})",
+        'spark_file_download_failed': f"File download failed: {event_data.get('filename', 'unknown')} - {event_data.get('error_message', 'unknown error')}"
+    }
+
+    return descriptions.get(event_type, event_type.replace('_', ' ').title())
 
 
 def _format_event_description(event: dict, quest_names: dict, badge_names: dict) -> str:

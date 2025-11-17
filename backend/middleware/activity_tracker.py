@@ -331,6 +331,8 @@ class ActivityTracker:
             return 'navigation'
         elif event_type.startswith('evidence_'):
             return 'quest'
+        elif event_type.startswith('spark_') or event_type.startswith('lms_'):
+            return 'lms'
         else:
             return 'other'
 

@@ -10,6 +10,7 @@ import AdminDashboard from '../components/admin/AdminDashboard'
 import SiteSettings from '../components/admin/SiteSettings'
 import FlaggedTasksPanel from '../components/admin/FlaggedTasksPanel'
 import UserActivityLogPage from './admin/UserActivityLogPage'
+import SparkLogsPanel from '../components/admin/SparkLogsPanel'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -72,6 +73,12 @@ const AdminPage = () => {
             >
               Settings
             </Link>
+            <Link
+              to="/admin/lms-logs"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'lms-logs' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              LMS Logs
+            </Link>
           </>
         )}
 
@@ -96,6 +103,7 @@ const AdminPage = () => {
         <Route path="settings" element={<SiteSettings />} />
         <Route path="flagged-tasks" element={<FlaggedTasksPanel />} />
         <Route path="user/:userId/activity" element={<UserActivityLogPage />} />
+        <Route path="lms-logs" element={<SparkLogsPanel />} />
       </Routes>
     </div>
   )

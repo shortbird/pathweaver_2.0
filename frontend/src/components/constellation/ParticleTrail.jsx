@@ -63,14 +63,14 @@ const ParticleTrail = ({ questOrbs, pillarPositions }) => {
         // Only generate particles occasionally (probability-based)
         if (Math.random() > 0.05) return; // 5% chance per frame
 
-        // Get blended color from quest
+        // Get blended color from quest (NEW simplified system - January 2025)
         const getBlendedColor = () => {
           const pillarColors = {
-            'stem_logic': { r: 59, g: 130, b: 246 },
-            'society_culture': { r: 168, g: 85, b: 247 },
-            'arts_creativity': { r: 239, g: 89, b: 123 },
-            'language_communication': { r: 245, g: 158, b: 11 },
-            'life_wellness': { r: 16, g: 185, b: 129 }
+            'stem': { r: 59, g: 130, b: 246 },           // Blue
+            'civics': { r: 168, g: 85, b: 247 },         // Purple
+            'art': { r: 239, g: 89, b: 123 },            // Pink
+            'communication': { r: 245, g: 158, b: 11 },  // Orange
+            'wellness': { r: 16, g: 185, b: 129 }        // Green
           };
 
           let r = 255, g = 255, b = 255;

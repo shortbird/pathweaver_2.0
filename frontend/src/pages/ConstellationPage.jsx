@@ -15,21 +15,36 @@ const ConstellationPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Map pillar display names (from API) to pillar IDs (for positioning)
+  // NEW pillar system (January 2025) - simplified single-word keys
+  const PILLAR_DISPLAY_NAMES = {
+    'stem': 'STEM',
+    'wellness': 'Wellness',
+    'communication': 'Communication',
+    'civics': 'Civics',
+    'art': 'Art'
+  };
+
+  // Map pillar keys (from API) - new system uses lowercase single-word keys
   const mapPillarNameToId = (pillarName) => {
-    const mapping = {
-      'STEM & Logic': 'stem_logic',
-      'Language & Communication': 'language_communication',
-      'Arts & Creativity': 'arts_creativity',
-      'Life & Wellness': 'life_wellness',
-      'Society & Culture': 'society_culture',
-      // Legacy mappings for old data
-      'thinking_skills': 'stem_logic',
-      'creativity': 'arts_creativity',
-      'practical_skills': 'life_wellness',
-      'general': 'stem_logic' // Default fallback
+    // If already in new format (stem, wellness, etc.), return as-is
+    if (['stem', 'wellness', 'communication', 'civics', 'art'].includes(pillarName)) {
+      return pillarName;
+    }
+
+    // Legacy fallback for any old data
+    const legacyMapping = {
+      'stem_logic': 'stem',
+      'language_communication': 'communication',
+      'arts_creativity': 'art',
+      'life_wellness': 'wellness',
+      'society_culture': 'civics',
+      'thinking_skills': 'stem',
+      'creativity': 'art',
+      'practical_skills': 'wellness',
+      'general': 'stem'
     };
-    return mapping[pillarName] || pillarName.toLowerCase().replace(/\s+/g, '_').replace(/&/g, '');
+
+    return legacyMapping[pillarName] || 'stem'; // Default to stem if unknown
   };
 
   useEffect(() => {
@@ -51,32 +66,32 @@ const ConstellationPage = () => {
       const xpByCategory = data.xp_by_category || {};
       const recentCompletions = data.recent_completions || [];
 
-      // Define pillars in specific order for pentagon formation
+      // Define pillars in specific order for pentagon formation (NEW simplified system)
       const pillarDefinitions = [
         {
-          id: 'stem_logic',
-          name: 'STEM & Logic',
-          description: 'Problem-solving, coding, robotics, and data analysis',
+          id: 'stem',
+          name: 'STEM',
+          description: 'Science, technology, engineering, and mathematics',
         },
         {
-          id: 'language_communication',
-          name: 'Language & Communication',
-          description: 'Writing, storytelling, debate, and journalism',
+          id: 'communication',
+          name: 'Communication',
+          description: 'Writing, speaking, storytelling, and presentation',
         },
         {
-          id: 'arts_creativity',
-          name: 'Arts & Creativity',
-          description: 'Visual arts, music, design, and creative innovation',
+          id: 'art',
+          name: 'Art',
+          description: 'Visual arts, music, design, and creative expression',
         },
         {
-          id: 'life_wellness',
-          name: 'Life & Wellness',
-          description: 'Health, fitness, nutrition, and mental wellness',
+          id: 'wellness',
+          name: 'Wellness',
+          description: 'Health, fitness, mindfulness, and personal growth',
         },
         {
-          id: 'society_culture',
-          name: 'Society & Culture',
-          description: 'History, social research, and civic engagement',
+          id: 'civics',
+          name: 'Civics',
+          description: 'Citizenship, community, social impact, and leadership',
         },
       ];
 
@@ -148,7 +163,7 @@ const ConstellationPage = () => {
         userQuests.forEach((questData) => {
           // API returns quest data directly (not enrollment wrapper)
           const quest = questData;
-          if (!quest) return;
+          if (!quest || !quest.id) return;
 
           // Calculate XP distribution from xp_earned breakdown
           const xpDistribution = {};
@@ -163,16 +178,25 @@ const ConstellationPage = () => {
             });
           }
 
-          if (totalXP > 0) {
-            processedQuests.push({
-              id: quest.id,
-              title: quest.title,
-              totalXP,
-              xpDistribution,
-              status: 'completed',
-              completedAt: quest.completed_at
-            });
+          // Also try the total if breakdown is empty but total exists
+          if (totalXP === 0 && quest.xp_earned && quest.xp_earned.total) {
+            totalXP = quest.xp_earned.total;
+            // If we have a total but no breakdown, assign to a default pillar
+            // This is a fallback to ensure quests still appear
+            if (Object.keys(xpDistribution).length === 0) {
+              xpDistribution['stem'] = totalXP;
+            }
           }
+
+          // Always add completed quests, even if XP is 0 (they still completed it!)
+          processedQuests.push({
+            id: quest.id,
+            title: quest.title,
+            totalXP: totalXP || 50, // Use 50 as default if no XP calculated
+            xpDistribution: Object.keys(xpDistribution).length > 0 ? xpDistribution : { 'stem': 50 },
+            status: 'completed',
+            completedAt: quest.completed_at
+          });
         });
 
         // Process in-progress quests from dashboard
