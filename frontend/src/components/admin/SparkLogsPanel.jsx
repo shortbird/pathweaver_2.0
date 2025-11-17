@@ -73,7 +73,6 @@ const SparkLogsPanel = () => {
     if (eventType.includes('sso')) return 'bg-green-100 text-green-800 border-green-300'
     if (eventType.includes('token')) return 'bg-blue-100 text-blue-800 border-blue-300'
     if (eventType.includes('webhook')) return 'bg-purple-100 text-purple-800 border-purple-300'
-    if (eventType.includes('file')) return 'bg-yellow-100 text-yellow-800 border-yellow-300'
     return 'bg-gray-100 text-gray-800 border-gray-300'
   }
 
@@ -177,8 +176,6 @@ const SparkLogsPanel = () => {
               <option value="spark_token_exchange_failed">Token Exchange Failed</option>
               <option value="spark_webhook_success">Webhook Success</option>
               <option value="spark_webhook_failed">Webhook Failed</option>
-              <option value="spark_file_download_success">File Download Success</option>
-              <option value="spark_file_download_failed">File Download Failed</option>
             </select>
           </div>
           <div>
