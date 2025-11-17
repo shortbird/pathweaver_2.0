@@ -81,8 +81,7 @@ def get_users(user_id):
             query = query.eq('role', 'student')
 
         # Apply filters (skip role filter if advisor already applied it)
-        if subscription_filter != 'all':
-            query = query.eq('subscription_tier', subscription_filter)
+        # Subscription filter removed - no subscription tiers in Phase 2
 
         if role_filter != 'all' and assigned_student_ids is None:  # Only admins can filter by role
             query = query.eq('role', role_filter)
