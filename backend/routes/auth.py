@@ -713,7 +713,9 @@ def login():
 
             return response
         else:
-            return jsonify({'error': 'Invalid email or password. Please check your credentials and try again.'}), 401
+            # Success = False but no exception thrown (shouldn't happen with Supabase)
+            logger.warning(f"Login failed for {email} without exception - auth_response.user is None")
+            return jsonify({'error': 'Incorrect email or password. Please check your credentials and try again.'}), 401
             
     except Exception as e:
         error_message = str(e)
@@ -728,13 +730,13 @@ def login():
 
             if is_now_locked:
                 return jsonify({
-                    'error': f'Too many failed login attempts. Your account has been temporarily locked for {lockout_minutes} minutes.',
+                    'error': f'Too many failed login attempts. Your account has been temporarily locked for {lockout_minutes} minutes. Please try again later or reset your password.',
                     'locked': True,
                     'lockout_duration': lockout_minutes
                 }), 429
             else:
                 return jsonify({
-                    'error': f'Invalid email or password. {attempts_remaining} attempts remaining before account lockout.',
+                    'error': f'Incorrect email or password. You have {attempts_remaining} {"attempt" if attempts_remaining == 1 else "attempts"} remaining before your account is temporarily locked.',
                     'attempts_remaining': attempts_remaining
                 }), 401
         elif "email not confirmed" in error_lower:
@@ -742,7 +744,7 @@ def login():
         elif "user not found" in error_lower:
             # Record failed login attempt even for non-existent users (prevent username enumeration)
             record_failed_login(email)
-            return jsonify({'error': 'No account found with this email. Please register first or check your email address.'}), 401
+            return jsonify({'error': 'No account found with this email address. Please check your email or create a new account.'}), 401
         elif "rate limit" in error_lower or "too many requests" in error_lower:
             import re
             wait_match = re.search(r'after (\d+) seconds', error_message)
@@ -756,10 +758,11 @@ def login():
         elif "connection" in error_lower or "timeout" in error_lower:
             return jsonify({'error': 'Connection error. Please check your internet connection and try again.'}), 503
         elif "password" in error_lower:
-            return jsonify({'error': 'Invalid password. Please check your password and try again.'}), 401
+            return jsonify({'error': 'Incorrect password. Please check your password and try again, or click "Forgot Password?" to reset it.'}), 401
         else:
             # Generic error but still informative
-            return jsonify({'error': 'Login failed. Please try again or contact support if the problem persists.'}), 400
+            logger.warning(f"Unhandled login error for {email}: {error_message}")
+            return jsonify({'error': 'Login failed. Please check your email and password, or contact support if the problem persists.'}), 400
 
 @bp.route('/logout', methods=['POST'])
 def logout():
@@ -799,7 +802,8 @@ def refresh_token():
     refresh_result = session_manager.refresh_session(refresh_token_override=refresh_token_input)
 
     if not refresh_result:
-        return jsonify({'error': 'Invalid or expired refresh token'}), 401
+        logger.warning("Refresh token validation failed - token may be expired or invalid")
+        return jsonify({'error': 'Your session has expired. Please log in again to continue.'}), 401
 
     new_access_token, new_refresh_token, user_id = refresh_result
 
