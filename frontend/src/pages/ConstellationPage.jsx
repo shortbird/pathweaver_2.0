@@ -163,7 +163,7 @@ const ConstellationPage = () => {
         userQuests.forEach((questData) => {
           // API returns quest data directly (not enrollment wrapper)
           const quest = questData;
-          if (!quest) return;
+          if (!quest || !quest.id) return;
 
           // Calculate XP distribution from xp_earned breakdown
           const xpDistribution = {};
@@ -178,16 +178,25 @@ const ConstellationPage = () => {
             });
           }
 
-          if (totalXP > 0) {
-            processedQuests.push({
-              id: quest.id,
-              title: quest.title,
-              totalXP,
-              xpDistribution,
-              status: 'completed',
-              completedAt: quest.completed_at
-            });
+          // Also try the total if breakdown is empty but total exists
+          if (totalXP === 0 && quest.xp_earned && quest.xp_earned.total) {
+            totalXP = quest.xp_earned.total;
+            // If we have a total but no breakdown, assign to a default pillar
+            // This is a fallback to ensure quests still appear
+            if (Object.keys(xpDistribution).length === 0) {
+              xpDistribution['stem'] = totalXP;
+            }
           }
+
+          // Always add completed quests, even if XP is 0 (they still completed it!)
+          processedQuests.push({
+            id: quest.id,
+            title: quest.title,
+            totalXP: totalXP || 50, // Use 50 as default if no XP calculated
+            xpDistribution: Object.keys(xpDistribution).length > 0 ? xpDistribution : { 'stem': 50 },
+            status: 'completed',
+            completedAt: quest.completed_at
+          });
         });
 
         // Process in-progress quests from dashboard

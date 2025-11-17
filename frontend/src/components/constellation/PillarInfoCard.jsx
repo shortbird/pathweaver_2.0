@@ -1,16 +1,13 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { useNavigate } from 'react-router-dom';
 
 const PillarInfoCard = ({ pillar, position, containerDimensions }) => {
-  const navigate = useNavigate();
-
   if (!pillar || !position) return null;
 
   // Calculate smart positioning to avoid viewport edges
   const getCardPosition = () => {
-    const cardHeight = 180; // Reduced from 320 (simpler card)
-    const cardWidth = 280; // Slightly narrower
+    const cardHeight = 140; // Reduced height without button
+    const cardWidth = 280;
     const spacing = 20;
 
     let top = position.y + 80; // Default: below orb
@@ -40,10 +37,6 @@ const PillarInfoCard = ({ pillar, position, containerDimensions }) => {
 
   const colors = pillarColors[pillar.id] || { primary: '#ffffff', accent: '#cccccc' };
 
-  const handleExploreClick = () => {
-    navigate(`/quests?pillar=${pillar.id}`);
-  };
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -72,24 +65,12 @@ const PillarInfoCard = ({ pillar, position, containerDimensions }) => {
         </h3>
 
         {/* Total XP */}
-        <div className="mb-5">
+        <div>
           <div className="flex justify-between items-center">
             <span className="text-gray-400 text-base">Total XP</span>
             <span className="text-white font-bold text-2xl">{pillar.xp}</span>
           </div>
         </div>
-
-        {/* CTA Button */}
-        <button
-          onClick={handleExploreClick}
-          className="w-full py-3 rounded-lg text-white font-medium pointer-events-auto
-                     transition-all transform hover:scale-105 hover:shadow-lg"
-          style={{
-            backgroundImage: `linear-gradient(90deg, ${colors.primary}, ${colors.accent})`
-          }}
-        >
-          Explore Quests
-        </button>
       </div>
     </motion.div>
   );
