@@ -74,11 +74,12 @@ def require_admin(f):
         # Store user_id in request context
         request.user_id = user_id
 
-        # Verify admin status with retry logic
+        # Verify admin status with retry logic (use admin client to bypass RLS)
+        from database import get_supabase_admin_client
         max_retries = 2
         for attempt in range(max_retries):
             try:
-                supabase = get_authenticated_supabase_client()
+                supabase = get_supabase_admin_client()
                 user = supabase.table('users').select('role').eq('id', user_id).execute()
 
                 if not user.data or len(user.data) == 0 or user.data[0].get('role') not in ['admin', 'educator']:
@@ -130,11 +131,12 @@ def require_role(*allowed_roles):
             # Store user_id in request context
             request.user_id = user_id
 
-            # Verify user role with retry logic
+            # Verify user role with retry logic (use admin client to bypass RLS)
+            from database import get_supabase_admin_client
             max_retries = 2
             for attempt in range(max_retries):
                 try:
-                    supabase = get_authenticated_supabase_client()
+                    supabase = get_supabase_admin_client()
                     user = supabase.table('users').select('role').eq('id', user_id).execute()
 
                     if not user.data or len(user.data) == 0 or user.data[0].get('role') not in allowed_roles:
@@ -261,8 +263,9 @@ def require_advisor_for_student(f):
         if not student_id:
             raise ValidationError('Student ID required')
 
-        # Verify permissions
-        supabase = get_authenticated_supabase_client()
+        # Verify permissions (use admin client to bypass RLS)
+        from database import get_supabase_admin_client
+        supabase = get_supabase_admin_client()
 
         try:
             # Check user role
@@ -314,7 +317,8 @@ def get_advisor_assigned_students(advisor_id):
         List of student UUIDs if user is advisor
         Empty list if advisor has no assigned students
     """
-    supabase = get_authenticated_supabase_client()
+    from database import get_supabase_admin_client
+    supabase = get_supabase_admin_client()
 
     try:
         # Check if user is admin
