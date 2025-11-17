@@ -99,12 +99,7 @@ def get_users_list(user_id):
             # Build search query safely
             query = query.or_(f"first_name.ilike.%{search}%,last_name.ilike.%{search}%,username.ilike.%{search}%")
         
-        # Apply subscription filter
-        if subscription != 'all':
-            if subscription == 'free':
-                query = query.or_('subscription_tier.eq.free,subscription_tier.is.null')
-            else:
-                query = query.eq('subscription_tier', subscription)
+        # Subscription filter removed - no subscription tiers in Phase 2
         
         # Apply role filter
         if role != 'all':
@@ -139,14 +134,7 @@ def get_users_list(user_id):
         
         # Enhance user data
         users = response.data if response.data else []
-        
-        # Reverse tier mapping: convert database tier names to frontend tier names
-        reverse_tier_mapping = {
-            'explorer': 'free',
-            'creator': 'supported', 
-            'enterprise': 'academy'  # Updated: Academy tier uses 'enterprise' in database
-        }
-        
+
         # Get emails from auth.users table
         try:
             auth_users = supabase.auth.admin.list_users()
@@ -161,13 +149,7 @@ def get_users_list(user_id):
         for user in users:
             # Add email from auth.users
             user['email'] = email_map.get(user['id'], '')
-            
-            # Convert database tier to frontend tier for consistency
-            db_tier = user.get('subscription_tier', 'explorer')
-            frontend_tier = reverse_tier_mapping.get(db_tier, db_tier)
-            user['subscription_tier'] = frontend_tier
-            print(f"User {user.get('id', 'unknown')}: DB tier '{db_tier}' -> Frontend tier '{frontend_tier}'")
-            
+
             # Calculate total XP across all pillars
             try:
                 xp_response = supabase.table('user_skill_xp')\
@@ -207,18 +189,7 @@ def get_user_details(admin_id, user_id):
             return jsonify({'error': 'User not found'}), 404
         
         user = user_response.data[0]
-        
-        # Convert database tier to frontend tier for consistency
-        reverse_tier_mapping = {
-            'explorer': 'free',
-            'creator': 'supported', 
-            'enterprise': 'academy'  # Updated: Academy tier uses 'enterprise' in database
-        }
-        db_tier = user.get('subscription_tier', 'explorer')
-        frontend_tier = reverse_tier_mapping.get(db_tier, db_tier)
-        user['subscription_tier'] = frontend_tier
-        print(f"User details: DB tier '{db_tier}' -> Frontend tier '{frontend_tier}'")
-        
+
         # Get XP by pillar
         xp_response = supabase.table('user_skill_xp')\
             .select('pillar, xp_amount')\
