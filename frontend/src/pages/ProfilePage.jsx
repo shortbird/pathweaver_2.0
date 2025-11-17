@@ -8,9 +8,6 @@ import ParentInvitationSection from '../components/parent/ParentInvitationSectio
 import {
   DocumentTextIcon,
   StarIcon,
-  CreditCardIcon,
-  AcademicCapIcon,
-  ArrowDownTrayIcon,
   PencilIcon,
   ExclamationTriangleIcon,
   SparklesIcon,
@@ -56,26 +53,6 @@ const ProfilePage = () => {
     }
   }
 
-  const downloadAllData = async () => {
-    try {
-      const response = await api.get('/api/users/export-data')
-      const allData = response.data
-
-      const blob = new Blob([JSON.stringify(allData, null, 2)], { type: 'application/json' })
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `optio_data_export_${user?.first_name || 'user'}_${new Date().toISOString().split('T')[0]}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      window.URL.revokeObjectURL(url)
-
-      toast.success('All data exported successfully!')
-    } catch (error) {
-      toast.error(error.response?.data?.error || 'Failed to export data')
-    }
-  }
 
   const requestAccountDeletion = async () => {
     const confirmed = window.confirm(
@@ -314,7 +291,7 @@ const ProfilePage = () => {
             <h2 className="text-2xl font-bold text-gray-900 mb-6" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
               My Learning
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
               {/* Portfolio/Diploma Link */}
               <Link
@@ -351,60 +328,6 @@ const ProfilePage = () => {
                   </div>
                 </div>
               </Link>
-
-              {/* Credit Tracker Link */}
-              <Link
-                to="/credits"
-                className="group flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-optio-purple hover:shadow-md transition-all"
-              >
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-[#6d469b] group-hover:to-[#ef597b] transition-all flex-shrink-0">
-                  <CreditCardIcon className="w-6 h-6 text-optio-purple group-hover:text-white transition-colors" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-gray-900 text-base" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                    Credit Tracker
-                  </div>
-                  <div className="text-sm text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                    Academic credits
-                  </div>
-                </div>
-              </Link>
-
-              {/* Transcript Link */}
-              <Link
-                to="/transcript"
-                className="group flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-optio-purple hover:shadow-md transition-all"
-              >
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-[#6d469b] group-hover:to-[#ef597b] transition-all flex-shrink-0">
-                  <AcademicCapIcon className="w-6 h-6 text-optio-purple group-hover:text-white transition-colors" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-gray-900 text-base" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                    Transcript
-                  </div>
-                  <div className="text-sm text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                    Full record
-                  </div>
-                </div>
-              </Link>
-
-              {/* Download All Data */}
-              <button
-                onClick={downloadAllData}
-                className="group flex items-center gap-4 p-4 bg-white border-2 border-gray-200 rounded-xl hover:border-optio-purple hover:shadow-md transition-all text-left"
-              >
-                <div className="w-12 h-12 rounded-full bg-purple-100 flex items-center justify-center group-hover:bg-gradient-to-r group-hover:from-[#6d469b] group-hover:to-[#ef597b] transition-all flex-shrink-0">
-                  <ArrowDownTrayIcon className="w-6 h-6 text-optio-purple group-hover:text-white transition-colors" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-bold text-gray-900 text-base" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                    Download Data
-                  </div>
-                  <div className="text-sm text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                    Export everything
-                  </div>
-                </div>
-              </button>
             </div>
           </div>
 
