@@ -75,9 +75,10 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
     pillarPositions[star.id] = star.position;
   });
 
-  // Calculate gravitational position for quest orbs
-  const calculateQuestPosition = useCallback((quest, pillarPositions) => {
+  // Calculate gravitational position for quest orbs with collision detection
+  const calculateQuestPosition = useCallback((quest, pillarPositions, existingOrbs = []) => {
     const MIN_DISTANCE_FROM_PILLAR = 80; // Minimum 80px from any pillar
+    const MIN_DISTANCE_BETWEEN_ORBS = 25; // Minimum 25px between quest orbs
     let x = 0, y = 0;
     let totalWeight = 0;
 
@@ -107,12 +108,13 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
     let finalX = x + Math.cos(angle) * orbitRadius;
     let finalY = y + Math.sin(angle) * orbitRadius;
 
-    // Check distance from all pillars and push away if too close
+    // Check distance from all pillars and other quest orbs, push away if too close
     let attempts = 0;
-    const maxAttempts = 20;
+    const maxAttempts = 30; // Increased attempts for collision resolution
     while (attempts < maxAttempts) {
       let tooClose = false;
 
+      // Check distance from pillars
       for (const pillarPos of Object.values(pillarPositions)) {
         const dx = finalX - pillarPos.x;
         const dy = finalY - pillarPos.y;
@@ -128,12 +130,28 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
         }
       }
 
+      // Check distance from other quest orbs
+      for (const existingOrb of existingOrbs) {
+        const dx = finalX - existingOrb.x;
+        const dy = finalY - existingOrb.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+
+        if (distance < MIN_DISTANCE_BETWEEN_ORBS) {
+          // Push away from other orb with slight randomization to prevent clustering
+          const pushAngle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.3;
+          const pushDistance = MIN_DISTANCE_BETWEEN_ORBS - distance;
+          finalX += Math.cos(pushAngle) * pushDistance;
+          finalY += Math.sin(pushAngle) * pushDistance;
+          tooClose = true;
+        }
+      }
+
       if (!tooClose) break;
       attempts++;
     }
 
     return { x: finalX, y: finalY };
-  }, []);
+  }, [dimensions]);
 
   // Calculate time range from quest data
   const { minTime, maxTime } = useMemo(() => {
@@ -173,12 +191,27 @@ const ConstellationView = ({ pillarsData, questOrbs, badgeOrbs = [], onExit }) =
     });
   }, [questOrbs, currentTime]);
 
-  // Prepare quest orbs with positions
-  const questOrbsWithPositions = filteredQuestOrbs.map((quest, index) => ({
-    ...quest,
-    position: calculateQuestPosition(quest, pillarPositions),
-    index
-  }));
+  // Prepare quest orbs with positions (with collision detection)
+  const questOrbsWithPositions = useMemo(() => {
+    const orbsWithPositions = [];
+    const existingPositions = [];
+
+    filteredQuestOrbs.forEach((quest, index) => {
+      // Calculate position, avoiding collisions with already-placed orbs
+      const position = calculateQuestPosition(quest, pillarPositions, existingPositions);
+
+      const orbWithPosition = {
+        ...quest,
+        position,
+        index
+      };
+
+      orbsWithPositions.push(orbWithPosition);
+      existingPositions.push(position); // Track this position for next orb
+    });
+
+    return orbsWithPositions;
+  }, [filteredQuestOrbs, pillarPositions, calculateQuestPosition]);
 
   // Handle orb hover - clear quest hover when entering pillar
   const handleOrbHover = (pillar, position) => {

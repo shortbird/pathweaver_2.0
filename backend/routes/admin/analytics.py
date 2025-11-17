@@ -675,9 +675,13 @@ def get_user_activity(admin_id, user_id):
         # Get user info for context
         user_response = supabase.table('users').select(
             'display_name, first_name, last_name, email, role'
-        ).eq('id', user_id).single().execute()
+        ).eq('id', user_id).execute()
 
-        user_info = user_response.data if user_response.data else {}
+        # Handle case where user might not exist
+        user_info = {}
+        if user_response.data and len(user_response.data) > 0:
+            user_info = user_response.data[0]
+
         user_name = user_info.get('display_name') or f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip() or 'Unknown User'
 
         # Bulk fetch quest and badge names for enrichment
