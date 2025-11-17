@@ -163,9 +163,11 @@ api.interceptors.response.use(
     const originalRequest = error.config
 
     // Handle 401 responses by attempting token refresh
+    // BUT: Don't refresh on login failures - those are genuine wrong credentials
     if (error.response?.status === 401 &&
         !originalRequest._retry &&
-        !originalRequest.url?.includes('/auth/refresh')) {
+        !originalRequest.url?.includes('/auth/refresh') &&
+        !originalRequest.url?.includes('/auth/login')) {
       originalRequest._retry = true
 
       try {
