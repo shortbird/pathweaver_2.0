@@ -645,21 +645,12 @@ def login():
                 # Don't fail login if welcome email fails
                 logger.error(f"Warning: Failed to send welcome email on first login: {welcome_error}")
 
-            # Try to log activity, but don't fail login if it doesn't work
-            try:
-                admin_client.table('activity_log').insert({
-                    'user_id': auth_response.user.id,
-                    'event_type': 'user_login',
-                    'event_details': {'ip': request.remote_addr}
-                }).execute()
-            except Exception as log_error:
-                logger.error(f"Failed to log activity: {log_error}")
-
             # Reset login attempts after successful login
             reset_login_attempts(email)
 
             # Update last_active timestamp
             try:
+                from datetime import datetime
                 admin_client.table('users').update({
                     'last_active': datetime.utcnow().isoformat()
                 }).eq('id', auth_response.user.id).execute()
