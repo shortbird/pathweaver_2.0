@@ -7,7 +7,6 @@ import { Info } from 'lucide-react';
 
 // Import hub components
 import TabToggle from '../components/hub/TabToggle';
-import HubFilters from '../components/hub/HubFilters';
 import HubSearch from '../components/hub/HubSearch';
 import BadgeCarousel from '../components/hub/BadgeCarousel';
 import QuestBadgeInfoModal from '../components/hub/QuestBadgeInfoModal';
@@ -23,7 +22,6 @@ import { SkeletonCard } from '../components/ui/Skeleton';
  * Combines the badge explorer and quest hub into a single, cohesive interface
  * Features:
  * - Tab toggle between BADGES and QUESTS views
- * - Pillar-based filtering
  * - Search across both badges and quests
  * - Horizontal scrolling badge carousels by pillar
  * - Infinite scroll quest grid
@@ -48,7 +46,6 @@ const QuestBadgeHub = () => {
   });
 
   // Filter state
-  const [selectedPillar, setSelectedPillar] = useState('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
@@ -101,7 +98,7 @@ const QuestBadgeHub = () => {
     if (activeTab === 'badges' && user !== undefined) {
       fetchBadges();
     }
-  }, [activeTab, selectedPillar, debouncedSearchTerm, user, loginTimestamp]);
+  }, [activeTab, debouncedSearchTerm, user, loginTimestamp]);
 
   // Reset quest pagination when filters change (must run before fetch)
   useEffect(() => {
@@ -111,7 +108,7 @@ const QuestBadgeHub = () => {
       setHasMoreQuests(true);
       isLoadingRef.current = false; // Reset loading ref
     }
-  }, [selectedPillar, debouncedSearchTerm]);
+  }, [debouncedSearchTerm]);
 
   // Fetch quests when in quests tab
   useEffect(() => {
@@ -133,9 +130,6 @@ const QuestBadgeHub = () => {
 
     const result = await safeAsync(async (signal) => {
       const params = new URLSearchParams();
-      if (selectedPillar !== 'ALL') {
-        params.append('pillar', selectedPillar);
-      }
       if (debouncedSearchTerm.trim()) {
         params.append('search', debouncedSearchTerm.trim());
       }
@@ -157,7 +151,7 @@ const QuestBadgeHub = () => {
     if (isMounted()) {
       setBadgesLoading(false);
     }
-  }, [badgesLoading, selectedPillar, debouncedSearchTerm, safeAsync, isMounted]);
+  }, [badgesLoading, debouncedSearchTerm, safeAsync, isMounted]);
 
   // Fetch quests from API - memoized to prevent recreation
   const fetchQuests = useCallback(async (isInitial = true) => {
@@ -187,9 +181,6 @@ const QuestBadgeHub = () => {
 
       if (debouncedSearchTerm.trim()) {
         params.append('search', debouncedSearchTerm.trim());
-      }
-      if (selectedPillar !== 'ALL') {
-        params.append('pillar', selectedPillar);
       }
 
       console.log(`[HUB] Fetching: /api/quests?${params}`);
@@ -225,7 +216,7 @@ const QuestBadgeHub = () => {
       setQuestsLoading(false);
       setIsLoadingMoreQuests(false);
     }
-  }, [questPage, selectedPillar, debouncedSearchTerm, safeAsync, isMounted]);
+  }, [questPage, debouncedSearchTerm, safeAsync, isMounted]);
 
   // Debounced page increment for infinite scroll
   const { debouncedFn: debouncedPageIncrement } = useDebounceWithCleanup(() => {
@@ -306,10 +297,8 @@ const QuestBadgeHub = () => {
       );
     }
 
-    // Filter badge groups based on selected pillar
-    const pillarsToShow = selectedPillar === 'ALL'
-      ? Object.keys(badgesByPillar)
-      : [selectedPillar];
+    // Show all pillars
+    const pillarsToShow = Object.keys(badgesByPillar);
 
     const hasBadges = pillarsToShow.some(pillar => badgesByPillar[pillar]?.length > 0);
 
@@ -516,12 +505,6 @@ const QuestBadgeHub = () => {
               )}
             </div>
           </div>
-
-          {/* Filters */}
-          <HubFilters
-            selectedPillar={selectedPillar}
-            onPillarChange={setSelectedPillar}
-          />
         </div>
 
         {/* Content area with gradient text header */}
