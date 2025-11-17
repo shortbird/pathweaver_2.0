@@ -246,6 +246,7 @@ const SiteSettings = () => {
             </button>
           </div>
         </form>
+      </div>
         </div>
       )}
     </div>
