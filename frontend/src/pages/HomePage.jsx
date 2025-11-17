@@ -11,10 +11,14 @@ const HomePage = () => {
   // const { data: tiers, isLoading: tiersLoading } = useSubscriptionTiers() // REMOVED - Phase 3 refactoring (January 2025)
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
 
-  // Redirect authenticated parents to their parent dashboard
+  // Redirect authenticated users to their appropriate dashboard
   useEffect(() => {
-    if (isAuthenticated && user?.role === 'parent') {
-      navigate('/parent/dashboard')
+    if (isAuthenticated && user) {
+      if (user.role === 'parent') {
+        navigate('/parent/dashboard')
+      } else if (user.role === 'student' || user.role === 'advisor' || user.role === 'admin') {
+        navigate('/dashboard')
+      }
     }
   }, [isAuthenticated, user, navigate])
 
