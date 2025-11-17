@@ -333,16 +333,19 @@ def submission_webhook():
     Receive assignment submissions from Spark
 
     Headers:
-        X-Spark-Signature: HMAC-SHA256 signature of request body
+        X-Spark-Signature: HMAC-SHA256 signature of metadata field (for multipart) or request body (for JSON)
 
-    Body:
+    Body (JSON - text-only submission):
         spark_user_id: Spark's user ID
         spark_assignment_id: Spark's assignment ID
         spark_course_id: Spark's course ID
         submission_text: Student's text submission
-        submission_files: Array of file objects with url, type, filename
         submitted_at: ISO timestamp
         grade: Numeric grade (optional)
+
+    Body (multipart/form-data - with files):
+        metadata: JSON string with all fields above
+        file1, file2, ...: File attachments (50MB per file, 200MB total)
 
     Returns:
         200: Success
@@ -364,19 +367,50 @@ def submission_webhook():
         )
         return jsonify({'error': 'Missing signature'}), 401
 
-    if not validate_spark_signature(request.data, signature):
-        logger.warning("Spark webhook invalid signature")
-        track_custom_event(
-            event_type='spark_webhook_invalid_signature',
-            event_data={
-                'error_type': 'invalid_signature',
-                'error_message': 'HMAC signature validation failed'
-            }
-        )
-        return jsonify({'error': 'Invalid signature'}), 401
-
     try:
-        data = request.json
+        # Parse request based on content type
+        content_type = request.content_type or ''
+
+        if 'multipart/form-data' in content_type:
+            # Multipart request with files
+            if 'metadata' not in request.form:
+                return jsonify({'error': 'Missing metadata field in multipart request'}), 400
+
+            metadata_json = request.form['metadata']
+
+            # Validate signature on metadata field only
+            if not validate_spark_signature(metadata_json.encode('utf-8'), signature):
+                logger.warning("Spark webhook invalid signature")
+                track_custom_event(
+                    event_type='spark_webhook_invalid_signature',
+                    event_data={
+                        'error_type': 'invalid_signature',
+                        'error_message': 'HMAC signature validation failed'
+                    }
+                )
+                return jsonify({'error': 'Invalid signature'}), 401
+
+            data = json.loads(metadata_json)
+            files = request.files
+        else:
+            # JSON request (text-only)
+            if not validate_spark_signature(request.data, signature):
+                logger.warning("Spark webhook invalid signature")
+                track_custom_event(
+                    event_type='spark_webhook_invalid_signature',
+                    event_data={
+                        'error_type': 'invalid_signature',
+                        'error_message': 'HMAC signature validation failed'
+                    }
+                )
+                return jsonify({'error': 'Invalid signature'}), 401
+
+            data = request.json
+            files = None
+
+        # Validate required fields
+        if not data.get('submission_text') and not files:
+            return jsonify({'error': 'Must provide either submission_text or files'}), 400
 
         # Check for replay attacks (timestamp freshness)
         submitted_at = datetime.fromisoformat(data['submitted_at'].replace('Z', '+00:00'))
@@ -397,7 +431,7 @@ def submission_webhook():
         processing_start = datetime.utcnow()
 
         # Process submission
-        result = process_spark_submission(data)
+        result = process_spark_submission(data, files)
 
         # Track successful webhook processing
         processing_time_ms = int((datetime.utcnow() - processing_start).total_seconds() * 1000)
@@ -408,7 +442,7 @@ def submission_webhook():
                 'spark_assignment_id': data['spark_assignment_id'],
                 'spark_course_id': data.get('spark_course_id'),
                 'quest_id': result.get('quest_id'),
-                'file_count': len(data.get('submission_files', [])),
+                'file_count': len(files) if files else 0,
                 'processing_time_ms': processing_time_ms
             },
             user_id=result['user_id']
@@ -572,18 +606,19 @@ def create_or_update_spark_user(claims: dict) -> dict:
     return {'id': user_id}
 
 
-def process_spark_submission(data: dict) -> dict:
+def process_spark_submission(data: dict, files=None) -> dict:
     """
-    Process Spark assignment submission
+    Process Spark assignment submission with direct file uploads
 
     Args:
-        data: Webhook payload from Spark
+        data: Webhook payload from Spark (JSON metadata)
+        files: Flask request.files object (multipart uploads) or None (text-only)
 
     Returns:
         Dict with user_id and completion_id
 
     Raises:
-        ValueError: If user or task not found
+        ValueError: If user or task not found, or file validation fails
         Exception: For other processing errors
     """
     supabase = get_supabase_admin_client()
@@ -702,42 +737,68 @@ def process_spark_submission(data: dict) -> dict:
             'completion_id': existing.data[0]['id']
         }
 
-    # Download and upload files (returns list of {url, filename, type})
+    # Process uploaded files directly (no URL downloads)
     evidence_files = []
-    for file_data in data.get('submission_files', []):
-        try:
-            file_url = download_and_upload_file(file_data['url'], user_id)
-            evidence_files.append({
-                'url': file_url,
-                'filename': file_data.get('filename', 'attachment'),
-                'type': file_data.get('type', 'application/octet-stream')
-            })
-            # Track successful file download
-            track_custom_event(
-                event_type='spark_file_download_success',
-                event_data={
-                    'filename': file_data.get('filename', 'unknown'),
-                    'file_type': file_data.get('type', 'application/octet-stream'),
-                    'source_url': file_data['url']
-                },
-                user_id=user_id
-            )
-        except Exception as e:
-            logger.error(f"Failed to download file {file_data.get('filename', 'unknown')}: {str(e)}")
-            # Track file download failure
-            track_custom_event(
-                event_type='spark_file_download_failed',
-                event_data={
-                    'error_type': 'download_error',
-                    'error_message': str(e),
-                    'filename': file_data.get('filename', 'unknown'),
-                    'source_url': file_data.get('url', 'unknown')
-                },
-                user_id=user_id
-            )
-            # Continue processing, just log the error
+    if files:
+        # File size limits
+        MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB per file
+        MAX_TOTAL_SIZE = 200 * 1024 * 1024  # 200MB total
+        total_size = 0
 
-    # ✅ BLOCK-BASED EVIDENCE: Create evidence document with blocks (Option 1 implementation)
+        # Allowed MIME types
+        ALLOWED_TYPES = [
+            'image/jpeg', 'image/png', 'image/gif', 'image/webp',
+            'video/mp4', 'video/quicktime', 'video/x-msvideo',
+            'application/pdf', 'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'text/plain'
+        ]
+
+        for file_key in files:
+            file = files[file_key]
+            if not file or file.filename == '':
+                continue
+
+            # Read file content
+            file_content = file.read()
+            file_size = len(file_content)
+
+            # Validate file size
+            if file_size > MAX_FILE_SIZE:
+                raise ValueError(f"File {file.filename} exceeds 50MB limit")
+
+            total_size += file_size
+            if total_size > MAX_TOTAL_SIZE:
+                raise ValueError("Total file size exceeds 200MB limit")
+
+            # Validate MIME type
+            mime_type = file.content_type or 'application/octet-stream'
+            if mime_type not in ALLOWED_TYPES:
+                raise ValueError(f"File type {mime_type} not allowed")
+
+            # Generate unique filename
+            file_extension = file.filename.rsplit('.', 1)[-1] if '.' in file.filename else 'bin'
+            unique_filename = f"{user_id}/{uuid.uuid4()}.{file_extension}"
+
+            # Upload to Supabase storage
+            supabase.storage.from_('evidence-files').upload(
+                unique_filename,
+                file_content,
+                file_options={"content-type": mime_type}
+            )
+
+            # Get public URL
+            public_url = supabase.storage.from_('evidence-files').get_public_url(unique_filename)
+
+            evidence_files.append({
+                'url': public_url,
+                'filename': file.filename,
+                'type': mime_type
+            })
+
+            logger.info(f"Uploaded Spark file {file.filename} to {unique_filename}")
+
+    # ✅ BLOCK-BASED EVIDENCE: Create evidence document with blocks
     # This allows UI editing after webhook submission and unifies evidence system
     document_id = create_block_based_evidence(
         supabase=supabase,
@@ -909,49 +970,3 @@ def create_block_based_evidence(supabase, user_id: str, quest_id: str, task_id: 
     return document_id
 
 
-def download_and_upload_file(temp_url: str, user_id: str) -> str:
-    """
-    Download file from Spark and upload to Supabase storage
-
-    Args:
-        temp_url: Temporary public URL from Spark
-        user_id: Optio user ID for folder organization
-
-    Returns:
-        Public URL in Supabase storage
-
-    Raises:
-        ValueError: If URL is invalid or from untrusted domain
-        requests.RequestException: If download fails
-    """
-    # SSRF protection: Validate URL domain
-    parsed = urlparse(temp_url)
-    allowed_domains = os.getenv('SPARK_STORAGE_DOMAINS', 'spark-storage.com,spark-cdn.com').split(',')
-
-    if parsed.netloc not in allowed_domains:
-        raise ValueError(f"Invalid file URL domain: {parsed.netloc}")
-
-    if parsed.scheme != 'https':
-        raise ValueError("File URLs must use HTTPS")
-
-    # Download file with timeout
-    response = requests.get(temp_url, timeout=30, allow_redirects=False)
-    response.raise_for_status()
-
-    # Generate unique filename
-    file_extension = temp_url.split('.')[-1].split('?')[0]  # Handle query params
-    filename = f"{user_id}/{uuid.uuid4()}.{file_extension}"
-
-    # Upload to Supabase storage
-    supabase = get_supabase_admin_client()
-    supabase.storage.from_('evidence-files').upload(
-        filename,
-        response.content,
-        file_options={"content-type": response.headers.get('content-type', 'application/octet-stream')}
-    )
-
-    # Return public URL
-    public_url = supabase.storage.from_('evidence-files').get_public_url(filename)
-    logger.info(f"Uploaded Spark file to {filename}")
-
-    return public_url
