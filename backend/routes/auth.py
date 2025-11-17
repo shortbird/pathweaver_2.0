@@ -658,6 +658,14 @@ def login():
             # Reset login attempts after successful login
             reset_login_attempts(email)
 
+            # Update last_active timestamp
+            try:
+                admin_client.table('users').update({
+                    'last_active': datetime.utcnow().isoformat()
+                }).eq('id', auth_response.user.id).execute()
+            except Exception as update_error:
+                logger.error(f"Warning: Failed to update last_active timestamp: {update_error}")
+
             # Create response with user data
 
             # Extract session data
@@ -806,6 +814,16 @@ def refresh_token():
         return jsonify({'error': 'Your session has expired. Please log in again to continue.'}), 401
 
     new_access_token, new_refresh_token, user_id = refresh_result
+
+    # Update last_active timestamp on token refresh
+    try:
+        from database import get_supabase_admin_client
+        admin_client = get_supabase_admin_client()
+        admin_client.table('users').update({
+            'last_active': datetime.utcnow().isoformat()
+        }).eq('id', user_id).execute()
+    except Exception as update_error:
+        logger.error(f"Warning: Failed to update last_active on token refresh: {update_error}")
 
     # CRITICAL: Also refresh Supabase session to get new Supabase access token
     # Get Supabase refresh token from cookie
