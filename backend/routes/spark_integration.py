@@ -26,6 +26,7 @@ from database import get_supabase_admin_client
 from utils.session_manager import session_manager
 from services.xp_service import XPService
 from middleware.rate_limiter import rate_limit
+from middleware.activity_tracker import track_custom_event
 import logging
 
 logger = logging.getLogger(__name__)
@@ -59,6 +60,13 @@ def spark_sso():
     token = request.args.get('token')
     if not token:
         logger.warning("Spark SSO attempt without token")
+        track_custom_event(
+            event_type='spark_sso_failed',
+            event_data={
+                'error_type': 'missing_token',
+                'error_message': 'Missing token parameter'
+            }
+        )
         return jsonify({'error': 'Missing token parameter'}), 400
 
     # Validate JWT signature and claims
@@ -79,12 +87,33 @@ def spark_sso():
 
     except jwt.ExpiredSignatureError:
         logger.warning("Spark SSO token expired")
+        track_custom_event(
+            event_type='spark_sso_token_expired',
+            event_data={
+                'error_type': 'token_expired',
+                'error_message': 'Token expired. Please try again.'
+            }
+        )
         return jsonify({'error': 'Token expired. Please try again.'}), 401
     except jwt.InvalidTokenError as e:
         logger.warning(f"Spark SSO invalid token: {str(e)}")
+        track_custom_event(
+            event_type='spark_sso_invalid_token',
+            event_data={
+                'error_type': 'invalid_signature',
+                'error_message': str(e)
+            }
+        )
         return jsonify({'error': 'Invalid token'}), 401
     except Exception as e:
         logger.error(f"Spark SSO validation error: {str(e)}", exc_info=True)
+        track_custom_event(
+            event_type='spark_sso_failed',
+            event_data={
+                'error_type': 'validation_error',
+                'error_message': str(e)
+            }
+        )
         return jsonify({'error': 'Token validation failed'}), 401
 
     # Create or update user
@@ -111,10 +140,30 @@ def spark_sso():
         response = redirect(redirect_url)
 
         logger.info(f"Spark SSO successful: user_id={user['id']}, code issued")
+
+        # Track successful SSO
+        track_custom_event(
+            event_type='spark_sso_success',
+            event_data={
+                'spark_user_id': claims['sub'],
+                'email': claims['email'],
+                'jwt_issued_at': claims.get('iat'),
+                'user_created': user.get('created', False)
+            },
+            user_id=user['id']
+        )
+
         return response
 
     except Exception as e:
         logger.error(f"Failed to create Spark user: {str(e)}", exc_info=True)
+        track_custom_event(
+            event_type='spark_sso_failed',
+            event_data={
+                'error_type': 'user_creation_error',
+                'error_message': str(e)
+            }
+        )
         return jsonify({'error': 'Failed to create user account'}), 500
 
 
@@ -163,6 +212,13 @@ def exchange_auth_code():
 
         if not code_record.data:
             logger.warning(f"Invalid auth code attempted: {code[:10]}...")
+            track_custom_event(
+                event_type='spark_token_exchange_failed',
+                event_data={
+                    'error_type': 'invalid_code',
+                    'error_message': 'Invalid authorization code'
+                }
+            )
             return jsonify({'error': 'Invalid authorization code'}), 401
 
         record = code_record.data
@@ -170,12 +226,30 @@ def exchange_auth_code():
         # Check if already used
         if record['used']:
             logger.warning(f"Auth code reuse attempted: {code[:10]}...")
+            track_custom_event(
+                event_type='spark_token_code_reuse',
+                event_data={
+                    'error_type': 'code_reused',
+                    'error_message': 'Authorization code already used',
+                    'user_id': record['user_id']
+                },
+                user_id=record['user_id']
+            )
             return jsonify({'error': 'Authorization code already used'}), 401
 
         # Check if expired
         expires_at = datetime.fromisoformat(record['expires_at'].replace('Z', '+00:00'))
         if datetime.now(expires_at.tzinfo) > expires_at:
             logger.warning(f"Expired auth code attempted: {code[:10]}...")
+            track_custom_event(
+                event_type='spark_token_code_expired',
+                event_data={
+                    'error_type': 'code_expired',
+                    'error_message': 'Authorization code expired',
+                    'user_id': record['user_id']
+                },
+                user_id=record['user_id']
+            )
             return jsonify({'error': 'Authorization code expired'}), 401
 
         # Mark code as used (one-time use)
@@ -190,6 +264,19 @@ def exchange_auth_code():
         refresh_token = session_manager.generate_refresh_token(user_id)
 
         logger.info(f"Token exchange successful: user_id={user_id}")
+
+        # Track successful token exchange
+        code_created_at = datetime.fromisoformat(record['created_at'].replace('Z', '+00:00'))
+        code_age_seconds = (datetime.now(code_created_at.tzinfo) - code_created_at).total_seconds()
+
+        track_custom_event(
+            event_type='spark_token_exchange_success',
+            event_data={
+                'code_age_seconds': code_age_seconds,
+                'user_id': user_id
+            },
+            user_id=user_id
+        )
 
         # ✅ SECURITY FIX: Set httpOnly cookies (like /api/auth/login does)
         # Tokens should NEVER be in response body to prevent XSS attacks
@@ -225,6 +312,13 @@ def exchange_auth_code():
 
     except Exception as e:
         logger.error(f"Token exchange error: {str(e)}", exc_info=True)
+        track_custom_event(
+            event_type='spark_token_exchange_failed',
+            event_data={
+                'error_type': 'exchange_error',
+                'error_message': str(e)
+            }
+        )
         return jsonify({'error': 'Token exchange failed'}), 500
 
 
@@ -261,10 +355,24 @@ def submission_webhook():
     signature = request.headers.get('X-Spark-Signature')
     if not signature:
         logger.warning("Spark webhook missing signature")
+        track_custom_event(
+            event_type='spark_webhook_failed',
+            event_data={
+                'error_type': 'missing_signature',
+                'error_message': 'Missing signature'
+            }
+        )
         return jsonify({'error': 'Missing signature'}), 401
 
     if not validate_spark_signature(request.data, signature):
         logger.warning("Spark webhook invalid signature")
+        track_custom_event(
+            event_type='spark_webhook_invalid_signature',
+            event_data={
+                'error_type': 'invalid_signature',
+                'error_message': 'HMAC signature validation failed'
+            }
+        )
         return jsonify({'error': 'Invalid signature'}), 401
 
     try:
@@ -274,22 +382,74 @@ def submission_webhook():
         submitted_at = datetime.fromisoformat(data['submitted_at'].replace('Z', '+00:00'))
         if datetime.utcnow() - submitted_at.replace(tzinfo=None) > timedelta(minutes=5):
             logger.warning(f"Rejected old Spark webhook: {submitted_at}")
+            track_custom_event(
+                event_type='spark_webhook_replay_attack',
+                event_data={
+                    'error_type': 'old_timestamp',
+                    'error_message': 'Submission timestamp too old',
+                    'submitted_at': data['submitted_at'],
+                    'spark_assignment_id': data.get('spark_assignment_id')
+                }
+            )
             return jsonify({'error': 'Submission timestamp too old'}), 400
+
+        # Track webhook received (before processing)
+        processing_start = datetime.utcnow()
 
         # Process submission
         result = process_spark_submission(data)
+
+        # Track successful webhook processing
+        processing_time_ms = int((datetime.utcnow() - processing_start).total_seconds() * 1000)
+
+        track_custom_event(
+            event_type='spark_webhook_success',
+            event_data={
+                'spark_assignment_id': data['spark_assignment_id'],
+                'spark_course_id': data.get('spark_course_id'),
+                'quest_id': result.get('quest_id'),
+                'file_count': len(data.get('submission_files', [])),
+                'processing_time_ms': processing_time_ms
+            },
+            user_id=result['user_id']
+        )
 
         logger.info(f"Spark submission processed: assignment_id={data['spark_assignment_id']}, user_id={result['user_id']}")
         return jsonify({'status': 'success', 'completion_id': result['completion_id']}), 200
 
     except KeyError as e:
         logger.warning(f"Spark webhook missing field: {str(e)}")
+        track_custom_event(
+            event_type='spark_webhook_failed',
+            event_data={
+                'error_type': 'missing_field',
+                'error_message': f'Missing required field: {str(e)}',
+                'spark_assignment_id': data.get('spark_assignment_id') if 'data' in locals() else None
+            }
+        )
         return jsonify({'error': f'Missing required field: {str(e)}'}), 400
     except ValueError as e:
         logger.warning(f"Spark webhook invalid data: {str(e)}")
+        error_message = str(e)
+        track_custom_event(
+            event_type='spark_webhook_failed',
+            event_data={
+                'error_type': 'user_not_found' if 'User not found' in error_message else 'quest_not_found' if 'Quest not found' in error_message else 'invalid_data',
+                'error_message': error_message,
+                'spark_assignment_id': data.get('spark_assignment_id') if 'data' in locals() else None
+            }
+        )
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Failed to process Spark webhook: {str(e)}", exc_info=True)
+        track_custom_event(
+            event_type='spark_webhook_failed',
+            event_data={
+                'error_type': 'processing_error',
+                'error_message': str(e),
+                'spark_assignment_id': data.get('spark_assignment_id') if 'data' in locals() else None
+            }
+        )
         return jsonify({'error': 'Failed to process submission'}), 500
 
 
@@ -552,8 +712,29 @@ def process_spark_submission(data: dict) -> dict:
                 'filename': file_data.get('filename', 'attachment'),
                 'type': file_data.get('type', 'application/octet-stream')
             })
+            # Track successful file download
+            track_custom_event(
+                event_type='spark_file_download_success',
+                event_data={
+                    'filename': file_data.get('filename', 'unknown'),
+                    'file_type': file_data.get('type', 'application/octet-stream'),
+                    'source_url': file_data['url']
+                },
+                user_id=user_id
+            )
         except Exception as e:
             logger.error(f"Failed to download file {file_data.get('filename', 'unknown')}: {str(e)}")
+            # Track file download failure
+            track_custom_event(
+                event_type='spark_file_download_failed',
+                event_data={
+                    'error_type': 'download_error',
+                    'error_message': str(e),
+                    'filename': file_data.get('filename', 'unknown'),
+                    'source_url': file_data.get('url', 'unknown')
+                },
+                user_id=user_id
+            )
             # Continue processing, just log the error
 
     # ✅ BLOCK-BASED EVIDENCE: Create evidence document with blocks (Option 1 implementation)
@@ -593,6 +774,7 @@ def process_spark_submission(data: dict) -> dict:
 
     return {
         'user_id': user_id,
+        'quest_id': quest_id,
         'completion_id': completion_id
     }
 
