@@ -37,12 +37,13 @@ export default function AuthCallback() {
       }
 
       try {
-        console.log('[AuthCallback DEBUG] Starting token exchange with code:', code?.substring(0, 10) + '...')
+        console.log('[SPARK SSO] AuthCallback: Starting token exchange')
+        console.log('[SPARK SSO] Auth code (first 10 chars):', code?.substring(0, 10) + '...')
 
         // Exchange code for tokens (OAuth 2.0 token endpoint)
         // Note: Spark endpoints are at root level, not under /api
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-        console.log('[AuthCallback DEBUG] API URL:', apiUrl)
+        console.log('[SPARK SSO] API URL:', apiUrl)
 
         const response = await fetch(`${apiUrl}/spark/token`, {
           method: 'POST',
@@ -53,8 +54,8 @@ export default function AuthCallback() {
           body: JSON.stringify({ code }),
         })
 
-        console.log('[AuthCallback DEBUG] Token exchange response status:', response.status)
-        console.log('[AuthCallback DEBUG] Response headers:', Object.fromEntries(response.headers.entries()))
+        console.log('[SPARK SSO] Token exchange response status:', response.status)
+        console.log('[SPARK SSO] Response headers:', Object.fromEntries(response.headers.entries()))
 
         if (!response.ok) {
           const errorData = await response.json()
@@ -63,49 +64,74 @@ export default function AuthCallback() {
 
         const data = await response.json()
         const { user_id, app_access_token, app_refresh_token } = data
-        console.log('[AuthCallback DEBUG] Token exchange successful, user_id:', user_id)
+        console.log('[SPARK SSO] Token exchange successful, user_id:', user_id)
 
         // ✅ CROSS-ORIGIN FIX: Store tokens from response body
         // httpOnly cookies don't work cross-origin, so backend returns tokens in body
         // This matches the regular login flow
         if (app_access_token && app_refresh_token) {
           tokenStore.setTokens(app_access_token, app_refresh_token)
-          console.log('[AuthCallback DEBUG] Tokens stored in memory and localStorage')
+          console.log('[SPARK SSO] Tokens stored in tokenStore and localStorage')
         } else {
-          console.warn('[AuthCallback DEBUG] No tokens in response body - relying on httpOnly cookies')
+          console.warn('[SPARK SSO] No tokens in response body - relying on httpOnly cookies')
         }
 
         // ✅ CRITICAL FIX: Fetch user data immediately and update React Query cache
         // This ensures AuthContext sees the authenticated state before navigation
-        // Small delay allows browser to process cookies from /spark/token response
-        console.log('[AuthCallback DEBUG] Waiting 100ms for cookies to propagate...')
-        await new Promise(resolve => setTimeout(resolve, 100))
+        console.log('[SPARK SSO] Fetching user data from /api/auth/me...')
 
         try {
-          console.log('[AuthCallback DEBUG] Fetching /api/auth/me...')
           const userResponse = await api.get('/api/auth/me')
-          console.log('[AuthCallback DEBUG] /api/auth/me response:', userResponse.status, userResponse.data)
+          console.log('[SPARK SSO] User data fetched successfully:', userResponse.data.id)
 
           if (userResponse.data) {
             // Update React Query cache with user data
             queryClient.setQueryData(queryKeys.user.profile('current'), userResponse.data)
-            console.log('[AuthCallback DEBUG] User data cached, authentication complete')
+            console.log('[SPARK SSO] Cache updated with user data')
+
+            // Invalidate queries to force refetch and propagate changes
+            await queryClient.invalidateQueries(queryKeys.user.profile('current'))
+            console.log('[SPARK SSO] Cache invalidated to trigger AuthContext update')
           }
         } catch (err) {
-          console.error('[AuthCallback DEBUG] Failed to fetch user data:', err.response?.status, err.response?.data)
-          // Continue anyway - AuthContext will fetch on next mount
+          console.error('[SPARK SSO] Failed to fetch user data:', err.response?.status, err.response?.data)
+          throw new Error('Failed to fetch user profile after authentication')
+        }
+
+        // ✅ NEW: Verify cache has propagated before navigation
+        // Replace hard-coded delay with cache verification loop
+        console.log('[SPARK SSO] Verifying cache propagation...')
+        const maxAttempts = 20 // 20 attempts × 100ms = 2 second timeout
+        let attempts = 0
+        let cacheVerified = false
+
+        while (attempts < maxAttempts && !cacheVerified) {
+          const cachedUser = queryClient.getQueryData(queryKeys.user.profile('current'))
+          console.log(`[SPARK SSO] Cache verification attempt ${attempts + 1}/${maxAttempts}:`, {
+            hasCachedUser: !!cachedUser,
+            cachedUserId: cachedUser?.id,
+            expectedUserId: user_id
+          })
+
+          if (cachedUser && cachedUser.id === user_id) {
+            cacheVerified = true
+            console.log('[SPARK SSO] Cache verified successfully!')
+            break
+          }
+
+          await new Promise(resolve => setTimeout(resolve, 100))
+          attempts++
+        }
+
+        if (!cacheVerified) {
+          console.warn('[SPARK SSO] Cache verification timeout - proceeding anyway')
         }
 
         setStatus('success')
 
-        // Use React Router navigate to preserve in-memory state
-        // CRITICAL: Longer delay ensures React Query cache fully propagates to AuthContext
-        // This prevents PrivateRoute from redirecting to /login before seeing authenticated state
-        console.log('[AuthCallback DEBUG] Navigating to /dashboard in 500ms...')
-        setTimeout(() => {
-          console.log('[AuthCallback DEBUG] Executing navigation to /dashboard now')
-          navigate('/dashboard', { replace: true })
-        }, 500)
+        // Navigate immediately since cache is verified
+        console.log('[SPARK SSO] Cache verified, navigating to /dashboard now')
+        navigate('/dashboard?sso_pending=true', { replace: true })
       } catch (err) {
         console.error('Token exchange failed:', err)
         setError(err.response?.data?.error || 'Authentication failed')

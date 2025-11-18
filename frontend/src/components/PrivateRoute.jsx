@@ -6,10 +6,29 @@ const PrivateRoute = ({ requiredRole }) => {
   const { isAuthenticated, user, loading } = useAuth()
   const location = useLocation()
 
-  console.log('[PrivateRoute DEBUG] Path:', location.pathname, '| Auth:', { loading, isAuthenticated, userId: user?.id })
+  // ✅ SSO FIX: Detect if user is in SSO authentication flow
+  const searchParams = new URLSearchParams(location.search)
+  const isSSOPending = searchParams.has('sso_pending') || searchParams.has('code')
 
-  if (loading) {
-    console.log('[PrivateRoute DEBUG] Still loading, showing spinner')
+  console.log('[SPARK SSO] PrivateRoute check:', {
+    path: location.pathname,
+    loading,
+    isAuthenticated,
+    userId: user?.id,
+    isSSOPending,
+    hasCodeParam: searchParams.has('code'),
+    hasSSOPendingParam: searchParams.has('sso_pending')
+  })
+
+  // Show loading spinner if:
+  // 1. Auth is still loading, OR
+  // 2. SSO authentication is in progress (to prevent premature redirect to /login)
+  if (loading || isSSOPending) {
+    if (isSSOPending) {
+      console.log('[SPARK SSO] SSO flow in progress - showing loading spinner')
+    } else {
+      console.log('[SPARK SSO] Auth loading - showing spinner')
+    }
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -18,7 +37,8 @@ const PrivateRoute = ({ requiredRole }) => {
   }
 
   if (!isAuthenticated) {
-    console.log('[PrivateRoute DEBUG] Not authenticated, redirecting to /login')
+    console.log('[SPARK SSO] Not authenticated - redirecting to /login')
+    console.log('[SPARK SSO] Auth state at redirect:', { loading, user: !!user, isSSOPending })
     return <Navigate to="/login" replace />
   }
 
