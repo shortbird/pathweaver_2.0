@@ -68,8 +68,16 @@ export default function AuthCallback() {
         // ✅ SECURITY FIX: Tokens are now in httpOnly cookies (set by backend)
         // No need to call tokenStore.setTokens() - cookies are automatically included in future requests
 
+        // DEBUG: Check what cookies are actually set
+        console.log('[AuthCallback DEBUG] Current cookies:', document.cookie)
+        console.log('[AuthCallback DEBUG] Note: httpOnly cookies will NOT appear in document.cookie')
+
         // ✅ CRITICAL FIX: Fetch user data immediately and update React Query cache
         // This ensures AuthContext sees the authenticated state before navigation
+        // Small delay allows browser to process cookies from /spark/token response
+        console.log('[AuthCallback DEBUG] Waiting 100ms for cookies to propagate...')
+        await new Promise(resolve => setTimeout(resolve, 100))
+
         try {
           console.log('[AuthCallback DEBUG] Fetching /api/auth/me...')
           const userResponse = await api.get('/api/auth/me')
