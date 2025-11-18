@@ -137,11 +137,13 @@ def spark_sso():
         frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:5173')
         redirect_url = f"{frontend_url}/auth/callback?code={auth_code}"
 
-        logger.info(f"[SPARK SSO DEBUG] Redirecting to: {redirect_url}")
         logger.info(f"[SPARK SSO DEBUG] FRONTEND_URL env var: {frontend_url}")
+        logger.info(f"[SPARK SSO DEBUG] Issuing HTTP 302 redirect to: {redirect_url}")
+        logger.info(f"[SPARK SSO DEBUG] Auth code: {auth_code[:10]}... (60 second expiry)")
 
         response = redirect(redirect_url)
 
+        logger.info(f"[SPARK SSO DEBUG] Redirect response created, sending to browser")
         logger.info(f"Spark SSO successful: user_id={user['id']}, code issued")
 
         # Track successful SSO
