@@ -37,9 +37,13 @@ export default function AuthCallback() {
       }
 
       try {
+        console.log('[AuthCallback DEBUG] Starting token exchange with code:', code?.substring(0, 10) + '...')
+
         // Exchange code for tokens (OAuth 2.0 token endpoint)
         // Note: Spark endpoints are at root level, not under /api
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+        console.log('[AuthCallback DEBUG] API URL:', apiUrl)
+
         const response = await fetch(`${apiUrl}/spark/token`, {
           method: 'POST',
           headers: {
@@ -49,6 +53,9 @@ export default function AuthCallback() {
           body: JSON.stringify({ code }),
         })
 
+        console.log('[AuthCallback DEBUG] Token exchange response status:', response.status)
+        console.log('[AuthCallback DEBUG] Response headers:', Object.fromEntries(response.headers.entries()))
+
         if (!response.ok) {
           const errorData = await response.json()
           throw new Error(errorData.error || 'Token exchange failed')
@@ -56,6 +63,7 @@ export default function AuthCallback() {
 
         const data = await response.json()
         const { user_id } = data
+        console.log('[AuthCallback DEBUG] Token exchange successful, user_id:', user_id)
 
         // ✅ SECURITY FIX: Tokens are now in httpOnly cookies (set by backend)
         // No need to call tokenStore.setTokens() - cookies are automatically included in future requests
@@ -63,14 +71,17 @@ export default function AuthCallback() {
         // ✅ CRITICAL FIX: Fetch user data immediately and update React Query cache
         // This ensures AuthContext sees the authenticated state before navigation
         try {
+          console.log('[AuthCallback DEBUG] Fetching /api/auth/me...')
           const userResponse = await api.get('/api/auth/me')
+          console.log('[AuthCallback DEBUG] /api/auth/me response:', userResponse.status, userResponse.data)
+
           if (userResponse.data) {
             // Update React Query cache with user data
             queryClient.setQueryData(queryKeys.user.profile('current'), userResponse.data)
-            console.log('[AuthCallback] User data cached, authentication complete')
+            console.log('[AuthCallback DEBUG] User data cached, authentication complete')
           }
         } catch (err) {
-          console.error('[AuthCallback] Failed to fetch user data:', err)
+          console.error('[AuthCallback DEBUG] Failed to fetch user data:', err.response?.status, err.response?.data)
           // Continue anyway - AuthContext will fetch on next mount
         }
 
@@ -78,6 +89,7 @@ export default function AuthCallback() {
 
         // Use React Router navigate to preserve in-memory state
         // Small delay allows React Query cache update to propagate
+        console.log('[AuthCallback DEBUG] Navigating to /dashboard in 100ms...')
         setTimeout(() => {
           navigate('/dashboard', { replace: true })
         }, 100)
