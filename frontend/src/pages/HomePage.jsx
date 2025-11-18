@@ -14,10 +14,14 @@ const HomePage = () => {
   // Redirect authenticated users to their appropriate dashboard
   // Wait for auth loading to complete to avoid race conditions with AuthCallback
   useEffect(() => {
+    console.log('[HomePage DEBUG] Auth state:', { loading, isAuthenticated, userRole: user?.role })
     if (!loading && isAuthenticated && user) {
+      console.log('[HomePage DEBUG] User is authenticated, redirecting...')
       if (user.role === 'parent') {
+        console.log('[HomePage DEBUG] Redirecting parent to /parent/dashboard')
         navigate('/parent/dashboard')
       } else if (user.role === 'student' || user.role === 'advisor' || user.role === 'admin') {
+        console.log('[HomePage DEBUG] Redirecting user to /dashboard')
         navigate('/dashboard')
       }
     }

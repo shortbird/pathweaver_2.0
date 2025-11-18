@@ -88,11 +88,13 @@ export default function AuthCallback() {
         setStatus('success')
 
         // Use React Router navigate to preserve in-memory state
-        // Small delay allows React Query cache update to propagate
-        console.log('[AuthCallback DEBUG] Navigating to /dashboard in 100ms...')
+        // CRITICAL: Longer delay ensures React Query cache fully propagates to AuthContext
+        // This prevents PrivateRoute from redirecting to /login before seeing authenticated state
+        console.log('[AuthCallback DEBUG] Navigating to /dashboard in 500ms...')
         setTimeout(() => {
+          console.log('[AuthCallback DEBUG] Executing navigation to /dashboard now')
           navigate('/dashboard', { replace: true })
-        }, 100)
+        }, 500)
       } catch (err) {
         console.error('Token exchange failed:', err)
         setError(err.response?.data?.error || 'Authentication failed')
