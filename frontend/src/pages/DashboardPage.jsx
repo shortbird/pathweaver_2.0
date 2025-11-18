@@ -73,6 +73,18 @@ const DashboardPage = () => {
   const { user } = useAuth()
   const [showLearningEventModal, setShowLearningEventModal] = useState(false)
 
+  // ✅ SSO FIX: Clear sso_pending flag from URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    if (params.has('sso_pending')) {
+      console.log('[SPARK SSO] DashboardPage: Clearing sso_pending flag from URL')
+      params.delete('sso_pending')
+      const newUrl = window.location.pathname + (params.toString() ? '?' + params.toString() : '')
+      window.history.replaceState({}, '', newUrl)
+      console.log('[SPARK SSO] DashboardPage: SSO flow complete, user on dashboard')
+    }
+  }, [])
+
   // Use React Query hooks for data fetching
   const {
     data: dashboardData,

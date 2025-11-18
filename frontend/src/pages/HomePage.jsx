@@ -14,12 +14,34 @@ const HomePage = () => {
   // Redirect authenticated users to their appropriate dashboard
   // Wait for auth loading to complete to avoid race conditions with AuthCallback
   useEffect(() => {
+    const currentPath = window.location.pathname
+    const searchParams = new URLSearchParams(window.location.search)
+    const hasAuthCode = searchParams.has('code')
+
+    console.log('[SPARK SSO] HomePage useEffect triggered')
+    console.log('[SPARK SSO] Current path:', currentPath)
+    console.log('[SPARK SSO] Has auth code param:', hasAuthCode)
+    console.log('[SPARK SSO] Auth state:', { loading, isAuthenticated, userRole: user?.role })
+
+    // CRITICAL: Don't redirect if SSO flow is in progress
+    // Check both path AND URL params to catch all SSO scenarios
+    if (currentPath === '/auth/callback' || hasAuthCode) {
+      console.log('[SPARK SSO] SSO flow detected - skipping all redirect logic')
+      console.log('[SPARK SSO] Reason:', currentPath === '/auth/callback' ? 'on auth/callback path' : 'auth code param present')
+      return
+    }
+
     if (!loading && isAuthenticated && user) {
+      console.log('[SPARK SSO] User is authenticated, redirecting to dashboard...')
       if (user.role === 'parent') {
+        console.log('[SPARK SSO] Redirecting parent to /parent/dashboard')
         navigate('/parent/dashboard')
       } else if (user.role === 'student' || user.role === 'advisor' || user.role === 'admin') {
+        console.log('[SPARK SSO] Redirecting user to /dashboard')
         navigate('/dashboard')
       }
+    } else {
+      console.log('[SPARK SSO] Not redirecting:', { loading, isAuthenticated, hasUser: !!user })
     }
   }, [isAuthenticated, user, navigate, loading])
 

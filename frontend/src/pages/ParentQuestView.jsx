@@ -8,6 +8,7 @@ import {
   ClockIcon,
   BookOpenIcon
 } from '@heroicons/react/24/outline';
+import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
 
 /**
  * ParentQuestView - Read-only quest view for parents
@@ -218,23 +219,19 @@ const ParentQuestView = () => {
                       <p className="text-sm text-green-700 font-semibold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
                         ✓ Completed {new Date(task.completed_at).toLocaleDateString()}
                       </p>
-                      {task.evidence_text && (
-                        <div className="bg-white rounded-lg p-3 border border-green-200">
-                          <p className="text-sm text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                            {task.evidence_text}
-                          </p>
+                      {/* Enhanced Evidence Display */}
+                      {(task.evidence_blocks?.length > 0 || task.evidence_text || task.evidence_url) && (
+                        <div className="mt-2">
+                          <UnifiedEvidenceDisplay
+                            evidence={{
+                              evidence_type: task.evidence_type || 'legacy_text',
+                              evidence_blocks: task.evidence_blocks || [],
+                              evidence_text: task.evidence_text,
+                              evidence_url: task.evidence_url
+                            }}
+                            displayMode="full"
+                          />
                         </div>
-                      )}
-                      {task.evidence_url && (
-                        <a
-                          href={task.evidence_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-purple-600 hover:text-purple-800 font-semibold mt-2 inline-block"
-                          style={{ fontFamily: 'Poppins, sans-serif' }}
-                        >
-                          View Evidence →
-                        </a>
                       )}
                     </div>
                   ) : (
