@@ -62,15 +62,18 @@ export default function AuthCallback() {
         }
 
         const data = await response.json()
-        const { user_id } = data
+        const { user_id, app_access_token, app_refresh_token } = data
         console.log('[AuthCallback DEBUG] Token exchange successful, user_id:', user_id)
 
-        // ✅ SECURITY FIX: Tokens are now in httpOnly cookies (set by backend)
-        // No need to call tokenStore.setTokens() - cookies are automatically included in future requests
-
-        // DEBUG: Check what cookies are actually set
-        console.log('[AuthCallback DEBUG] Current cookies:', document.cookie)
-        console.log('[AuthCallback DEBUG] Note: httpOnly cookies will NOT appear in document.cookie')
+        // ✅ CROSS-ORIGIN FIX: Store tokens from response body
+        // httpOnly cookies don't work cross-origin, so backend returns tokens in body
+        // This matches the regular login flow
+        if (app_access_token && app_refresh_token) {
+          tokenStore.setTokens(app_access_token, app_refresh_token)
+          console.log('[AuthCallback DEBUG] Tokens stored in memory and localStorage')
+        } else {
+          console.warn('[AuthCallback DEBUG] No tokens in response body - relying on httpOnly cookies')
+        }
 
         // ✅ CRITICAL FIX: Fetch user data immediately and update React Query cache
         // This ensures AuthContext sees the authenticated state before navigation
