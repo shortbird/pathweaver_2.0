@@ -6,8 +6,10 @@ const PrivateRoute = ({ requiredRole }) => {
   const { isAuthenticated, user, loading } = useAuth()
   const location = useLocation()
 
+  console.log('[PrivateRoute DEBUG] Path:', location.pathname, '| Auth:', { loading, isAuthenticated, userId: user?.id })
 
   if (loading) {
+    console.log('[PrivateRoute DEBUG] Still loading, showing spinner')
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -16,6 +18,7 @@ const PrivateRoute = ({ requiredRole }) => {
   }
 
   if (!isAuthenticated) {
+    console.log('[PrivateRoute DEBUG] Not authenticated, redirecting to /login')
     return <Navigate to="/login" replace />
   }
 
