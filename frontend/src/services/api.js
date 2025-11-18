@@ -308,6 +308,9 @@ export const parentAPI = {
   // Get quest details with student's personalized tasks (read-only)
   getQuestView: (studentId, questId) => api.get(`/api/parent/quest/${studentId}/${questId}`),
 
+  // Get all completed quests for a student
+  getCompletedQuests: (studentId) => api.get(`/api/parent/completed-quests/${studentId}`),
+
   // Get recent completions with evidence (for Insights tab)
   getRecentCompletions: (studentId) => api.get(`/api/parent/completions/${studentId}`),
 

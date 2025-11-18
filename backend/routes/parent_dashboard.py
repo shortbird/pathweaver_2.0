@@ -1078,6 +1078,101 @@ def get_encouragement_tips(user_id, student_id):
         return jsonify({'error': 'Failed to get encouragement tips'}), 500
 
 
+@bp.route('/completed-quests/<student_id>', methods=['GET'])
+@require_auth
+def get_completed_quests(user_id, student_id):
+    """
+    Get all completed quests for a student.
+    Returns quest details with completion stats for parent viewing.
+    """
+    try:
+        supabase = get_supabase_admin_client()
+        verify_parent_access(supabase, user_id, student_id)
+
+        # Get completed quests with quest details
+        completed_quests_response = supabase.table('user_quests').select('''
+            quest_id, started_at, completed_at,
+            quests!inner(id, title, description, image_url, header_image_url)
+        ''').eq('user_id', student_id).not_.is_('completed_at', 'null').order('completed_at', desc=True).execute()
+
+        completed_quest_ids = [uq['quest_id'] for uq in completed_quests_response.data]
+
+        # DEBUG: Log quest counts
+        logger.info(f"DEBUG - Student {student_id} has {len(completed_quest_ids)} completed quests: {completed_quest_ids}")
+
+        # Batch fetch all tasks and completions for completed quests
+        tasks_map = {}
+        completions_map = {}
+
+        if completed_quest_ids:
+            # Get all user tasks for completed quests
+            all_tasks_response = supabase.table('user_quest_tasks').select('id, quest_id').eq(
+                'user_id', student_id
+            ).in_('quest_id', completed_quest_ids).execute()
+
+            for task in all_tasks_response.data:
+                qid = task['quest_id']
+                if qid not in tasks_map:
+                    tasks_map[qid] = []
+                tasks_map[qid].append(task['id'])
+
+            # DEBUG: Log task counts per quest
+            logger.info(f"DEBUG - Task counts by quest: {[(qid, len(tasks)) for qid, tasks in tasks_map.items()]}")
+
+            # Get all completions for completed quests in one query
+            all_completions_response = supabase.table('quest_task_completions').select('task_id, quest_id, user_quest_task_id').eq(
+                'user_id', student_id
+            ).in_('quest_id', completed_quest_ids).execute()
+
+            for comp in all_completions_response.data:
+                qid = comp['quest_id']
+                # Use user_quest_task_id as the canonical task identifier
+                task_id = comp.get('user_quest_task_id') or comp.get('task_id')
+                if qid not in completions_map:
+                    completions_map[qid] = []
+                if task_id:
+                    completions_map[qid].append(task_id)
+
+        # Build completed quests list
+        completed_quests = []
+        for uq in completed_quests_response.data:
+            quest = uq['quests']
+            quest_id = quest['id']
+
+            total_tasks = len(tasks_map.get(quest_id, []))
+            completed_tasks = len(completions_map.get(quest_id, []))
+
+            completed_quests.append({
+                'quest_id': quest_id,
+                'title': quest['title'],
+                'description': quest.get('description'),
+                'image_url': quest.get('image_url') or quest.get('header_image_url'),
+                'started_at': uq['started_at'],
+                'completed_at': uq['completed_at'],
+                'progress': {
+                    'completed_tasks': completed_tasks,
+                    'total_tasks': total_tasks,
+                    'percentage': 100  # Always 100% for completed quests
+                }
+            })
+
+        # DEBUG: Log final completed quests
+        logger.info(f"DEBUG - Returning {len(completed_quests)} completed quests: {[(q['quest_id'], q['title'], q['completed_at']) for q in completed_quests]}")
+
+        return jsonify({
+            'quests': completed_quests,
+            'total_count': len(completed_quests)
+        }), 200
+
+    except AuthorizationError as e:
+        return jsonify({'error': str(e)}), 403
+    except Exception as e:
+        logger.error(f"Error getting completed quests: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': 'Failed to get completed quests'}), 500
+
+
 @bp.route('/quest/<student_id>/<quest_id>', methods=['GET'])
 @require_auth
 def get_student_quest_view(user_id, student_id, quest_id):

@@ -44,6 +44,7 @@ const ParentDashboardPage = () => {
   const [recentCompletions, setRecentCompletions] = useState([]);
   const [loadingCompletions, setLoadingCompletions] = useState(false);
   const [selectedCompletion, setSelectedCompletion] = useState(null);
+  const [completedQuests, setCompletedQuests] = useState([]);
 
   // Pillar display names mapping
   const pillarDisplayNames = {
@@ -93,12 +94,13 @@ const ParentDashboardPage = () => {
       setLoading(true);
       try {
         // Load all data in parallel
-        const [dashboard, calendar, progress, insights, credits] = await Promise.all([
+        const [dashboard, calendar, progress, insights, credits, completed] = await Promise.all([
           parentAPI.getDashboard(selectedStudentId),
           parentAPI.getCalendar(selectedStudentId),
           parentAPI.getProgress(selectedStudentId),
           parentAPI.getInsights(selectedStudentId),
-          api.get(`/api/credits/transcript/${selectedStudentId}`)
+          api.get(`/api/credits/transcript/${selectedStudentId}`),
+          parentAPI.getCompletedQuests(selectedStudentId)
         ]);
 
         setDashboardData(dashboard.data);
@@ -106,6 +108,7 @@ const ParentDashboardPage = () => {
         setProgressData(progress.data);
         setInsightsData(insights.data);
         setCreditData(credits.data.transcript);
+        setCompletedQuests(completed.data.quests || []);
         setError(null);
       } catch (error) {
         console.error('Error loading dashboard:', error);
@@ -626,6 +629,55 @@ const ParentDashboardPage = () => {
                   </div>
                 </div>
               )}
+
+              {/* Completed Quests */}
+              <div className="bg-white rounded-lg border border-gray-200 p-6">
+                <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  Completed Quests
+                </h3>
+                {completedQuests.length > 0 ? (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {completedQuests.map((quest) => (
+                      <button
+                        key={quest.quest_id}
+                        onClick={() => navigate(`/parent/quest/${selectedStudentId}/${quest.quest_id}`)}
+                        className="border border-green-200 rounded-lg overflow-hidden hover:shadow-lg transition-shadow cursor-pointer text-left bg-green-50"
+                      >
+                        {quest.image_url && (
+                          <img src={quest.image_url} alt={quest.title} className="w-full h-32 object-cover" />
+                        )}
+                        <div className="p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h4 className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              {quest.title}
+                            </h4>
+                            <CheckCircleIcon className="w-6 h-6 text-green-600 flex-shrink-0" />
+                          </div>
+                          <div className="flex items-center justify-between text-sm mb-2">
+                            <span className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              {quest.progress.completed_tasks} / {quest.progress.total_tasks} tasks
+                            </span>
+                            <span className="text-green-600 font-semibold" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                              Completed
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            {new Date(quest.completed_at).toLocaleDateString('en-US', {
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-gray-500 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    No completed quests yet. They're just getting started on their learning journey!
+                  </p>
+                )}
+              </div>
 
               {/* Diploma Credit Progress */}
               {creditData?.subjects && (
