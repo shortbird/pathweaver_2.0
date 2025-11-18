@@ -68,9 +68,6 @@ export default function AuthCallback() {
             // Update React Query cache with user data
             queryClient.setQueryData(queryKeys.user.profile('current'), userResponse.data)
             console.log('[AuthCallback] User data cached, authentication complete')
-
-            // Invalidate auth queries to force AuthContext to re-check
-            await queryClient.invalidateQueries({ queryKey: queryKeys.user.profile('current') })
           }
         } catch (err) {
           console.error('[AuthCallback] Failed to fetch user data:', err)
@@ -80,10 +77,10 @@ export default function AuthCallback() {
         setStatus('success')
 
         // Use React Router navigate to preserve in-memory state
-        // Increased delay to allow React Query cache update to fully propagate to AuthContext
+        // Small delay allows React Query cache update to propagate
         setTimeout(() => {
           navigate('/dashboard', { replace: true })
-        }, 500)
+        }, 100)
       } catch (err) {
         console.error('Token exchange failed:', err)
         setError(err.response?.data?.error || 'Authentication failed')
