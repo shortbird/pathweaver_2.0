@@ -14,7 +14,16 @@ const HomePage = () => {
   // Redirect authenticated users to their appropriate dashboard
   // Wait for auth loading to complete to avoid race conditions with AuthCallback
   useEffect(() => {
+    const currentPath = window.location.pathname
+    console.log('[HomePage DEBUG] Current path:', currentPath)
     console.log('[HomePage DEBUG] Auth state:', { loading, isAuthenticated, userRole: user?.role })
+
+    // CRITICAL: Don't redirect if coming from /auth/callback - let AuthCallback handle navigation
+    if (currentPath === '/auth/callback') {
+      console.log('[HomePage DEBUG] Skipping redirect - on auth callback page')
+      return
+    }
+
     if (!loading && isAuthenticated && user) {
       console.log('[HomePage DEBUG] User is authenticated, redirecting...')
       if (user.role === 'parent') {
