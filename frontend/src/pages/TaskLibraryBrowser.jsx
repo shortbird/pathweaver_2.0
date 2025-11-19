@@ -10,9 +10,10 @@ export default function TaskLibraryBrowser() {
   const navigate = useNavigate();
   const [quest, setQuest] = useState(null);
   const [libraryTasks, setLibraryTasks] = useState([]);
+  const [selectedTasks, setSelectedTasks] = useState(new Set());
   const [addedTasks, setAddedTasks] = useState(new Set());
   const [loading, setLoading] = useState(true);
-  const [addingTaskId, setAddingTaskId] = useState(null);
+  const [addingAll, setAddingAll] = useState(false);
 
   useEffect(() => {
     fetchQuestAndLibrary();
@@ -36,21 +37,54 @@ export default function TaskLibraryBrowser() {
     }
   };
 
-  const handleAddTask = async (sampleTaskId) => {
-    setAddingTaskId(sampleTaskId);
-    try {
-      await api.post(`/api/quests/${questId}/task-library/select`, {
-        sample_task_id: sampleTaskId
-      });
+  const toggleTaskSelection = (taskId) => {
+    setSelectedTasks(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(taskId)) {
+        newSet.delete(taskId);
+      } else {
+        newSet.add(taskId);
+      }
+      return newSet;
+    });
+  };
 
-      // Mark as added
-      setAddedTasks(prev => new Set([...prev, sampleTaskId]));
-      toast.success('Task added to your quest!');
-    } catch (error) {
-      console.error('Error adding task:', error);
-      toast.error(error.response?.data?.error || 'Failed to add task');
-    } finally {
-      setAddingTaskId(null);
+  const handleAddSelectedTasks = async () => {
+    if (selectedTasks.size === 0) {
+      toast.error('Please select at least one task');
+      return;
+    }
+
+    setAddingAll(true);
+    let successCount = 0;
+    let failCount = 0;
+
+    for (const taskId of selectedTasks) {
+      try {
+        await api.post(`/api/quests/${questId}/task-library/select`, {
+          sample_task_id: taskId
+        });
+
+        // Mark as added
+        setAddedTasks(prev => new Set([...prev, taskId]));
+        successCount++;
+      } catch (error) {
+        console.error('Error adding task:', error);
+        failCount++;
+      }
+    }
+
+    // Clear selections
+    setSelectedTasks(new Set());
+    setAddingAll(false);
+
+    // Show result
+    if (successCount > 0 && failCount === 0) {
+      toast.success(`Added ${successCount} task${successCount > 1 ? 's' : ''} to your quest!`);
+    } else if (successCount > 0 && failCount > 0) {
+      toast.success(`Added ${successCount} task${successCount > 1 ? 's' : ''}. ${failCount} failed.`);
+    } else {
+      toast.error('Failed to add tasks');
     }
   };
 
@@ -91,12 +125,32 @@ export default function TaskLibraryBrowser() {
             Browse and add tasks to your quest: <span className="font-semibold">{quest?.title}</span>
           </p>
 
-          {/* Progress Indicator */}
-          <div className="flex items-center gap-3 p-4 bg-white rounded-lg shadow-sm">
-            <CheckCircle className="w-5 h-5 text-green-500" />
-            <span className="text-gray-700" style={{ fontFamily: 'Poppins' }}>
-              <span className="font-semibold">{addedTasks.size}</span> task{addedTasks.size !== 1 ? 's' : ''} added
-            </span>
+          {/* Progress Indicator & Selection Counter */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3 p-4 bg-white rounded-lg shadow-sm">
+              <CheckCircle className="w-5 h-5 text-green-500" />
+              <span className="text-gray-700" style={{ fontFamily: 'Poppins' }}>
+                <span className="font-semibold">{addedTasks.size}</span> task{addedTasks.size !== 1 ? 's' : ''} added
+              </span>
+            </div>
+
+            {selectedTasks.size > 0 && (
+              <button
+                onClick={handleAddSelectedTasks}
+                disabled={addingAll}
+                className="px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 shadow-md"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                {addingAll ? (
+                  <span className="flex items-center gap-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Adding...
+                  </span>
+                ) : (
+                  `Add ${selectedTasks.size} Selected Task${selectedTasks.size > 1 ? 's' : ''}`
+                )}
+              </button>
+            )}
           </div>
         </div>
 
@@ -124,18 +178,40 @@ export default function TaskLibraryBrowser() {
               {libraryTasks.map((task) => {
                 const pillarData = getPillarData(task.pillar);
                 const isAdded = addedTasks.has(task.id);
-                const isAdding = addingTaskId === task.id;
+                const isSelected = selectedTasks.has(task.id);
 
                 return (
                   <div
                     key={task.id}
-                    className="bg-white rounded-xl shadow-sm border-2 border-gray-200 p-6 hover:shadow-md transition-all"
+                    onClick={() => !isAdded && toggleTaskSelection(task.id)}
+                    className={`bg-white rounded-xl shadow-sm border-2 p-6 hover:shadow-md transition-all cursor-pointer ${
+                      isSelected ? 'ring-2 ring-optio-purple' : ''
+                    }`}
                     style={{
                       borderLeftColor: pillarData.color,
                       borderLeftWidth: '4px',
-                      backgroundColor: isAdded ? '#f0fdf4' : 'white'
+                      backgroundColor: isAdded ? '#f0fdf4' : isSelected ? '#faf5ff' : 'white',
+                      borderColor: isSelected ? '#6D469B' : '#e5e7eb'
                     }}
                   >
+                    {/* Checkbox and Added Badge */}
+                    <div className="flex items-center justify-between mb-3">
+                      {isAdded ? (
+                        <span className="flex items-center gap-1 text-green-600 font-semibold text-sm" style={{ fontFamily: 'Poppins' }}>
+                          <CheckCircle className="w-4 h-4" />
+                          Already Added
+                        </span>
+                      ) : (
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleTaskSelection(task.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="w-5 h-5 text-optio-purple rounded focus:ring-optio-purple cursor-pointer"
+                        />
+                      )}
+                    </div>
+
                     {/* Task Title */}
                     <h3 className="text-xl font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins' }}>
                       {task.title}
@@ -167,39 +243,10 @@ export default function TaskLibraryBrowser() {
 
                     {/* Usage Count */}
                     {task.usage_count > 0 && (
-                      <p className="text-xs text-gray-500 mb-4" style={{ fontFamily: 'Poppins' }}>
+                      <p className="text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>
                         {task.usage_count} {task.usage_count === 1 ? 'student has' : 'students have'} used this
                       </p>
                     )}
-
-                    {/* Add Button */}
-                    <button
-                      onClick={() => handleAddTask(task.id)}
-                      disabled={isAdded || isAdding}
-                      className={`w-full py-2 rounded-lg font-semibold transition-all ${
-                        isAdded
-                          ? 'bg-green-500 text-white cursor-not-allowed'
-                          : 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:opacity-90'
-                      }`}
-                      style={{ fontFamily: 'Poppins' }}
-                    >
-                      {isAdding ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                          Adding...
-                        </span>
-                      ) : isAdded ? (
-                        <span className="flex items-center justify-center gap-2">
-                          <CheckCircle className="w-4 h-4" />
-                          Added
-                        </span>
-                      ) : (
-                        <span className="flex items-center justify-center gap-2">
-                          <Plus className="w-4 h-4" />
-                          Add to My Quest
-                        </span>
-                      )}
-                    </button>
                   </div>
                 );
               })}

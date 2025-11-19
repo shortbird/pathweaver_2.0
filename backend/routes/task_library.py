@@ -112,7 +112,7 @@ def select_library_task(user_id, quest_id):
                 'error': 'Task does not belong to this quest'
             }), 400
 
-        # Check if user is enrolled in quest
+        # Get user's enrollment (user must be enrolled to access library)
         user_quest_response = supabase.table('user_quests') \
             .select('id') \
             .eq('user_id', user_id) \
@@ -121,22 +121,12 @@ def select_library_task(user_id, quest_id):
             .execute()
 
         if not user_quest_response.data or len(user_quest_response.data) == 0:
-            # Enroll user in quest first
-            enrollment = supabase.table('user_quests').insert({
-                'user_id': user_id,
-                'quest_id': quest_id,
-                'is_active': True
-            }).execute()
+            return jsonify({
+                'success': False,
+                'error': 'You must enroll in this quest first'
+            }), 400
 
-            if not enrollment.data:
-                return jsonify({
-                    'success': False,
-                    'error': 'Failed to enroll in quest'
-                }), 500
-
-            user_quest_id = enrollment.data[0]['id']
-        else:
-            user_quest_id = user_quest_response.data[0]['id']
+        user_quest_id = user_quest_response.data[0]['id']
 
         # Check if task already exists for this user
         existing_task = supabase.table('user_quest_tasks') \
