@@ -1,5 +1,4 @@
 import React from 'react';
-import api from '../services/api';
 
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -28,32 +27,8 @@ class ErrorBoundary extends React.Component {
       errorCount: prevState.errorCount + 1
     }));
 
-    // Track error event to backend for debugging
-    this.trackError(error, errorInfo);
+    // Note: Error tracking removed - backend middleware handles all activity tracking automatically
   }
-
-  trackError = async (error, errorInfo) => {
-    try {
-      await api.post('/api/analytics/activity/track', {
-        event_type: 'javascript_error',
-        event_category: 'error',
-        event_data: {
-          error_message: error.toString(),
-          error_stack: error.stack,
-          component_stack: errorInfo.componentStack,
-          component_name: this.props.componentName || 'Unknown',
-          page_path: window.location.pathname,
-          user_agent: navigator.userAgent
-        },
-        page_url: window.location.href
-      });
-    } catch (err) {
-      // Silent fail - don't crash error handler
-      if (process.env.NODE_ENV === 'development') {
-        console.error('Error tracking failed:', err);
-      }
-    }
-  };
 
   handleReset = () => {
     this.setState({

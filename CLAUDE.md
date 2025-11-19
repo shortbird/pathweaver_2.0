@@ -11,13 +11,6 @@
 - Follow core_philosophy.md for all updates - "The Process Is The Goal"
 - Never use emojis
 
-**SUBSCRIPTION TIERS:**
-- Tiers are stored in the `subscription_tiers` database table and fetched dynamically via `/api/tiers`
-- View current tier information and pricing at `/subscription` page (https://optio-dev-frontend.onrender.com/subscription)
-- Tier data includes: display_name, tier_key, price_monthly, description, features[], limitations[], badge_text, badge_color, sort_order
-- All tier information is managed through the admin panel, NOT hardcoded in code
-- DO NOT hardcode tier names or prices - always fetch from database
-
 **DEVELOPMENT WORKFLOW:**
 - **Current Branch**: `develop` - All development happens here
 - **Development**: Push to `develop` branch for immediate live testing on dev environment
@@ -31,30 +24,6 @@
   3. Optionally run manual tests via GitHub Actions (see Testing Infrastructure below)
   4. When stable, merge `develop` → `main` for production
   5. Never commit directly to `main` - always go through `develop` first
-
-**Testing Infrastructure (Optional - Manual Trigger Only):**
-- **Strategy**: GitHub Actions with manual trigger + dedicated test_schema in Supabase
-- **Cost**: $0 (uses separate schema in existing database, not a new project)
-- **Coverage**: 40% minimum (current), targeting 60% over time
-- **Critical Paths Covered**: Auth, Quest Completion, XP, Parent Dashboard, Badges
-- **Key Point**: Tests are OPTIONAL - develop auto-deploys regardless of test status
-- **How to Run**:
-  1. Go to GitHub Actions → "Run Backend Tests (Manual)"
-  2. Click "Run workflow" button
-  3. Set coverage threshold (default 40%)
-  4. Wait ~2 minutes for results
-  5. Download coverage report from artifacts
-- **Test Database**: Uses `test_schema` in existing Supabase database (complete isolation)
-- **Documentation**: See `backend/docs/TESTING.md` for comprehensive guide
-- **Workflow File**: `.github/workflows/run-tests.yml`
-- **Test Structure**:
-  ```
-  backend/tests/
-  ├── unit/              # Fast, mocked tests
-  ├── integration/       # Real database tests (test_schema)
-  ├── services/          # Service layer tests
-  └── repositories/      # Repository pattern tests
-  ```
 
 **CORE PHILOSOPHY:**
 - **Foundation**: "The Process Is The Goal" - learning is about who you become through the journey
@@ -274,12 +243,7 @@ frontend/src/
 **users**
 - id (UUID, PK, references auth.users)
 - display_name, first_name, last_name, email
-- role (student/parent/advisor/admin/observer) ← **UPDATED: observer role added**
-- ~~subscription_tier~~ ← **REMOVED**
-- ~~subscription_status~~ ← **REMOVED**
-- ~~subscription_end_date~~ ← **REMOVED**
-- ~~stripe_customer_id~~ ← **REMOVED**
-- ~~stripe_subscription_id~~ ← **REMOVED**
+- role (student/parent/advisor/admin/observer)
 - portfolio_slug, bio, avatar_url
 - level, total_xp, achievements_count, streak_days
 - tos_accepted_at, privacy_policy_accepted_at
@@ -378,14 +342,6 @@ frontend/src/
 - file_url (Supabase storage)
 - created_at
 
-**promo_codes** (Promotional codes)
-- id (UUID, PK)
-- code (unique)
-- discount_type, discount_value
-- valid_from, valid_until
-- max_uses, current_uses
-- is_active
-
 ### AI Tutor System Tables
 
 **tutor_conversations** (Chat conversations)
@@ -471,13 +427,6 @@ frontend/src/
 - created_at (timestamptz) - Event timestamp
 - Indexes: 6 indexes including GIN for JSONB queries, BRIN for time-series data
 - RLS: Admins can view all (users cannot view own logs)
-
-**Removed Tables (January 2025 Simplification):**
-- ~~user_sessions~~ - Never populated (0 records)
-- ~~page_view_analytics~~ - No aggregation job existed (0 records)
-- ~~learning_journey_events~~ - Never used (0 records)
-- ~~error_events~~ - Never implemented (0 records)
-- ~~activity_log~~ - Legacy duplicate system (migrated to user_activity_events)
 
 **Event Taxonomy (40+ Event Types):**
 - **Authentication**: login_success, login_failed, logout, registration_success, registration_failed
@@ -584,15 +533,6 @@ frontend/src/
   - GET /api/admin/analytics/user/:userId/activity - Individual user activity logs (NEW)
     - Query params: start_date, end_date, event_type, limit
     - Returns: Chronological list of events with page URLs, navigation flow, time on page
-
-**Removed Endpoints (January 2025 Simplification):**
-- ~~POST /api/analytics/activity/track~~ - Middleware handles tracking automatically
-- ~~GET /api/analytics/engagement/:userId~~ - Unused engagement metrics
-- ~~GET /api/analytics/at-risk-students~~ - Dropout prediction removed
-- ~~GET /api/analytics/page-views~~ - Aggregation table didn't exist
-- ~~GET /api/analytics/journey/:userId~~ - Learning journey table empty
-- ~~GET /api/analytics/errors~~ - Error tracking table empty
-- ~~GET /api/admin/analytics/health~~ - Health score feature removed
 
 ### Additional Features
 - POST /api/uploads - File upload handling

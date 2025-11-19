@@ -51,6 +51,7 @@ const QuestDetail = () => {
   const [taskDetailToShow, setTaskDetailToShow] = useState(null);
   const [showPersonalizationWizard, setShowPersonalizationWizard] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState(new Set());
+  const [droppingTaskId, setDroppingTaskId] = useState(null);
 
   // Handle error display
   if (error) {
