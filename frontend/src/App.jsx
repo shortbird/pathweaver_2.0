@@ -41,6 +41,7 @@ const OptioAcademyHandbook = lazy(() => import('./pages/OptioAcademyHandbook'))
 // Quest Pages
 const QuestBadgeHub = lazy(() => import('./pages/QuestBadgeHub'))
 const QuestDetail = lazy(() => import('./pages/QuestDetail'))
+const TaskLibraryBrowser = lazy(() => import('./pages/TaskLibraryBrowser'))
 // Badge Pages
 const BadgeDetail = lazy(() => import('./pages/BadgeDetail'))
 const BadgeProgressPage = lazy(() => import('./pages/BadgeProgressPage'))
@@ -215,6 +216,7 @@ function App() {
                 {/* Quest Routes */}
                 <Route path="quests" element={<QuestBadgeHub />} />
                 <Route path="quests/:id" element={<QuestDetail />} />
+                <Route path="quests/:questId/library" element={<TaskLibraryBrowser />} />
                 {/* Badge Routes */}
                 <Route path="badges" element={<QuestBadgeHub />} />
                 <Route path="badges/:badgeId" element={<BadgeDetail />} />

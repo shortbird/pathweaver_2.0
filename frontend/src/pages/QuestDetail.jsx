@@ -12,7 +12,6 @@ import TaskDetailModal from '../components/quest/TaskDetailModal';
 import TutorialTaskInstructionsModal from '../components/quest/TutorialTaskInstructionsModal';
 import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
 import SampleTaskCard from '../components/quest/SampleTaskCard';
-import TaskLibraryView from '../components/quest-library/TaskLibraryView';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
 import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus, ArrowLeft, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -52,67 +51,6 @@ const QuestDetail = () => {
   const [taskDetailToShow, setTaskDetailToShow] = useState(null);
   const [showPersonalizationWizard, setShowPersonalizationWizard] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState(new Set());
-
-  // Task library state (for Optio quests)
-  const [libraryCount, setLibraryCount] = useState(null);
-  const [loadingLibraryCount, setLoadingLibraryCount] = useState(false);
-  const [libraryTasks, setLibraryTasks] = useState([]);
-  const [loadingLibraryTasks, setLoadingLibraryTasks] = useState(false);
-  const [addingTaskId, setAddingTaskId] = useState(null);
-  const [droppingTaskId, setDroppingTaskId] = useState(null);
-
-  // Fetch library count for Optio quests
-  useEffect(() => {
-    const fetchLibraryCount = async () => {
-      // Only fetch for Optio quests (not course quests)
-      if (!quest || quest.quest_type !== 'optio') return;
-
-      setLoadingLibraryCount(true);
-      try {
-        const response = await api.get(`/api/quests/${id}/task-library/count`);
-        setLibraryCount(response.data.count || 0);
-      } catch (err) {
-        console.error('Failed to fetch library count:', err);
-        setLibraryCount(0); // Default to 0 on error
-      } finally {
-        setLoadingLibraryCount(false);
-      }
-    };
-
-    fetchLibraryCount();
-  }, [quest, id]);
-
-  // Reusable function to refetch library tasks
-  const refetchLibraryTasks = async () => {
-    // Only fetch if user is enrolled in an Optio quest
-    if (!quest || !quest.user_enrollment || quest.quest_type !== 'optio') {
-      setLibraryTasks([]);
-      return;
-    }
-
-    setLoadingLibraryTasks(true);
-    try {
-      const response = await api.get(`/api/quests/${id}/task-library`);
-      setLibraryTasks(response.data.tasks || []);
-    } catch (err) {
-      console.error('Failed to fetch library tasks:', err);
-      setLibraryTasks([]);
-    } finally {
-      setLoadingLibraryTasks(false);
-    }
-  };
-
-  // Fetch library tasks for enrolled Optio quests
-  useEffect(() => {
-    console.log('[LIBRARY] useEffect triggered:', {
-      hasQuest: !!quest,
-      hasEnrollment: !!quest?.user_enrollment,
-      quest_type: quest?.quest_type,
-      isOptio: quest?.quest_type === 'optio',
-      questId: quest?.id
-    });
-    refetchLibraryTasks();
-  }, [quest, id]);
 
   // Handle error display
   if (error) {
@@ -165,16 +103,10 @@ const QuestDetail = () => {
           // Course quest - tasks are already added, just show success
           toast.success('Enrolled! Your course tasks are ready.');
         } else {
-          // Optio quest - check library count to decide flow
-          if (libraryCount === 0) {
-            // No library tasks available - show wizard immediately
-            setTimeout(() => {
-              setShowPersonalizationWizard(true);
-            }, 100);
-          } else {
-            // Library has tasks - let user browse first, don't auto-show wizard
-            toast.success('Enrolled! Browse the task library below or generate custom tasks.');
-          }
+          // Optio quest - always show personalization wizard
+          setTimeout(() => {
+            setShowPersonalizationWizard(true);
+          }, 100);
         }
       },
       onError: (error) => {
@@ -920,44 +852,22 @@ const QuestDetail = () => {
 
           {/* Enrollment flow for users without tasks */}
           {quest.quest_tasks && quest.quest_tasks.length === 0 && quest.user_enrollment && !showPersonalizationWizard ? (
-            loadingLibraryCount ? (
-              <div className="text-center py-12">
-                <div className="animate-pulse">
-                  <div className="h-8 bg-gray-300 rounded w-1/2 mx-auto mb-4"></div>
-                  <div className="h-4 bg-gray-300 rounded w-1/3 mx-auto"></div>
-                </div>
-              </div>
-            ) : libraryCount === 0 ? (
-              // No library tasks available - show generate CTA
-              <div className="text-center py-12 bg-white rounded-xl shadow-md">
-                <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-                <p className="text-lg text-gray-600 mb-2" style={{ fontFamily: 'Poppins' }}>
-                  This quest has no pre-generated tasks yet.
-                </p>
-                <p className="text-sm text-gray-500 mb-6" style={{ fontFamily: 'Poppins' }}>
-                  Be the first to create personalized tasks for this quest!
-                </p>
-                <button
-                  onClick={() => setShowPersonalizationWizard(true)}
-                  className="px-6 py-3 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90"
-                  style={{ fontFamily: 'Poppins' }}
-                >
-                  Generate Personalized Tasks
-                </button>
-              </div>
-            ) : (
-              // Library has tasks - show TaskLibraryView
-              <div className="mb-8">
-                <TaskLibraryView
-                  questId={id}
-                  onTaskAdded={() => {
-                    refetchQuest();
-                    toast.success('Task added to your quest!');
-                  }}
-                  onGenerateCustom={() => setShowPersonalizationWizard(true)}
-                />
-              </div>
-            )
+            <div className="text-center py-12 bg-white rounded-xl shadow-md">
+              <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+              <p className="text-lg text-gray-600 mb-2" style={{ fontFamily: 'Poppins' }}>
+                Ready to personalize this quest?
+              </p>
+              <p className="text-sm text-gray-500 mb-6" style={{ fontFamily: 'Poppins' }}>
+                Create custom tasks, write your own, or browse the task library
+              </p>
+              <button
+                onClick={() => setShowPersonalizationWizard(true)}
+                className="px-6 py-3 bg-gradient-primary text-white rounded-lg font-semibold hover:opacity-90"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                Start Personalizing
+              </button>
+            </div>
           ) : !quest.user_enrollment ? (
             <>
               {/* Show sample tasks for Optio quests OR preset tasks for Course quests */}

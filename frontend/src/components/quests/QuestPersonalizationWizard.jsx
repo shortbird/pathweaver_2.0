@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X, Check, Flag } from 'lucide-react';
+import { X, Check, Flag, BookOpen } from 'lucide-react';
 import api from '../../services/api';
 import { getPillarData } from '../../utils/pillarMappings';
 import ManualTaskCreator from './ManualTaskCreator';
@@ -317,6 +317,34 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             </button>
           </div>
 
+          {/* OR Divider */}
+          <div className="flex items-center gap-4 max-w-3xl mx-auto mb-6">
+            <div className="flex-1 h-px bg-gray-300"></div>
+            <span className="text-gray-500 font-semibold" style={{ fontFamily: 'Poppins' }}>OR</span>
+            <div className="flex-1 h-px bg-gray-300"></div>
+          </div>
+
+          {/* Add from Task Library Button */}
+          <div className="max-w-md mx-auto mb-6">
+            <button
+              onClick={() => navigate(`/quests/${questId}/library`)}
+              disabled={loading}
+              className="w-full p-6 border-2 border-gray-300 rounded-xl hover:border-blue-500 hover:shadow-xl transition-all text-left disabled:opacity-50 group"
+            >
+              <div className="flex items-center gap-4">
+                <BookOpen className="w-10 h-10 text-blue-500 group-hover:scale-110 transition-transform" />
+                <div>
+                  <h3 className="text-xl font-bold mb-1 group-hover:text-blue-600 transition-colors" style={{ fontFamily: 'Poppins' }}>
+                    Add from Task Library
+                  </h3>
+                  <p className="text-gray-600 text-sm" style={{ fontFamily: 'Poppins' }}>
+                    Browse tasks created by other students and add them to your quest
+                  </p>
+                </div>
+              </div>
+            </button>
+          </div>
+
           {loading && (
             <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins' }}>
               Starting...
@@ -450,7 +478,17 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
               </span>
             </div>
 
-            <div className="mb-6 pr-20 sm:pr-24">
+            {/* Flag Icon - Top Left Corner */}
+            <button
+              onClick={() => setShowFlagModal(true)}
+              disabled={loading}
+              className="absolute top-3 left-3 sm:top-6 sm:left-6 p-2 hover:bg-yellow-50 rounded-lg transition-all disabled:opacity-50 group"
+              title="Flag this task as inappropriate"
+            >
+              <Flag className="w-5 h-5 text-gray-400 group-hover:text-yellow-500 transition-colors" />
+            </button>
+
+            <div className="mb-6 pr-20 sm:pr-24 pl-10 sm:pl-12">
               <h3 className="text-xl sm:text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
                 {currentTask.title}
               </h3>
@@ -459,7 +497,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
               </p>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-4 pl-10 sm:pl-12">
               {/* Pillar Badge */}
               <div className="flex items-center gap-2 px-4 py-2 bg-purple-100 text-purple-800 rounded-full">
                 <span className="font-semibold" style={{ fontFamily: 'Poppins' }}>
@@ -469,29 +507,17 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-4 mb-6">
+          {/* Action Buttons - 2 Column Layout */}
+          <div className="grid grid-cols-2 gap-4 mb-6">
             {/* Skip Button */}
             <button
               onClick={handleSkipTask}
               disabled={loading}
-              className="flex flex-col items-center justify-center p-3 sm:p-6 border-2 border-red-300 bg-red-50 rounded-xl sm:rounded-2xl hover:bg-red-100 hover:border-red-400 transition-all disabled:opacity-50"
+              className="flex flex-col items-center justify-center p-6 border-2 border-red-300 bg-red-50 rounded-xl hover:bg-red-100 hover:border-red-400 transition-all disabled:opacity-50"
             >
-              <X className="w-8 h-8 sm:w-12 sm:h-12 text-red-600 mb-1 sm:mb-2" />
-              <span className="font-bold text-xs sm:text-lg text-red-700" style={{ fontFamily: 'Poppins' }}>
+              <X className="w-12 h-12 text-red-600 mb-2" />
+              <span className="font-bold text-lg text-red-700" style={{ fontFamily: 'Poppins' }}>
                 Skip
-              </span>
-            </button>
-
-            {/* Flag Button */}
-            <button
-              onClick={() => setShowFlagModal(true)}
-              disabled={loading}
-              className="flex flex-col items-center justify-center p-3 sm:p-6 border-2 border-yellow-300 bg-yellow-50 rounded-xl sm:rounded-2xl hover:bg-yellow-100 hover:border-yellow-400 transition-all disabled:opacity-50"
-            >
-              <Flag className="w-8 h-8 sm:w-12 sm:h-12 text-yellow-600 mb-1 sm:mb-2" />
-              <span className="font-bold text-xs sm:text-lg text-yellow-700" style={{ fontFamily: 'Poppins' }}>
-                Flag
               </span>
             </button>
 
@@ -499,10 +525,10 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
             <button
               onClick={handleAcceptTask}
               disabled={loading}
-              className="flex flex-col items-center justify-center p-3 sm:p-6 border-2 border-green-300 bg-green-50 rounded-xl sm:rounded-2xl hover:bg-green-100 hover:border-green-400 transition-all disabled:opacity-50"
+              className="flex flex-col items-center justify-center p-6 border-2 border-green-300 bg-green-50 rounded-xl hover:bg-green-100 hover:border-green-400 transition-all disabled:opacity-50"
             >
-              <Check className="w-8 h-8 sm:w-12 sm:h-12 text-green-600 mb-1 sm:mb-2" />
-              <span className="font-bold text-xs sm:text-lg text-green-700" style={{ fontFamily: 'Poppins' }}>
+              <Check className="w-12 h-12 text-green-600 mb-2" />
+              <span className="font-bold text-lg text-green-700" style={{ fontFamily: 'Poppins' }}>
                 {loading ? 'Adding...' : 'Add'}
               </span>
             </button>
