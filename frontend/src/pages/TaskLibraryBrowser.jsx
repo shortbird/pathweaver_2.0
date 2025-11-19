@@ -184,67 +184,77 @@ export default function TaskLibraryBrowser() {
                   <div
                     key={task.id}
                     onClick={() => !isAdded && toggleTaskSelection(task.id)}
-                    className={`bg-white rounded-xl shadow-sm border-2 p-6 hover:shadow-md transition-all cursor-pointer ${
+                    className={`relative rounded-xl overflow-hidden transition-all hover:shadow-lg cursor-pointer border-2 ${
                       isSelected ? 'ring-2 ring-optio-purple' : ''
                     }`}
                     style={{
-                      backgroundColor: isAdded ? '#f0fdf4' : isSelected ? '#faf5ff' : 'white',
-                      borderColor: isSelected ? '#6D469B' : '#e5e7eb'
+                      background: isAdded
+                        ? '#f0fdf4'
+                        : isSelected
+                          ? `linear-gradient(135deg, ${pillarData.color}20 0%, ${pillarData.color}10 100%)`
+                          : `linear-gradient(135deg, ${pillarData.color}15 0%, ${pillarData.color}05 100%)`,
+                      borderColor: isSelected ? '#6D469B' : isAdded ? '#10b981' : '#e5e7eb'
                     }}
                   >
-                    {/* Checkbox and Added Badge */}
-                    <div className="flex items-center justify-between mb-3">
-                      {isAdded ? (
-                        <span className="flex items-center gap-1 text-green-600 font-semibold text-sm" style={{ fontFamily: 'Poppins' }}>
-                          <CheckCircle className="w-4 h-4" />
-                          Already Added
-                        </span>
-                      ) : (
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleTaskSelection(task.id)}
-                          onClick={(e) => e.stopPropagation()}
-                          className="w-5 h-5 text-optio-purple rounded focus:ring-optio-purple cursor-pointer"
-                        />
+                    {/* Card Content */}
+                    <div className="p-4">
+                      {/* Checkbox and Added Badge */}
+                      <div className="flex items-center justify-between mb-3">
+                        {isAdded ? (
+                          <span className="flex items-center gap-1 text-green-600 font-semibold text-sm" style={{ fontFamily: 'Poppins' }}>
+                            <CheckCircle className="w-4 h-4" />
+                            Already Added
+                          </span>
+                        ) : (
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleTaskSelection(task.id)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="w-5 h-5 text-optio-purple rounded focus:ring-optio-purple cursor-pointer"
+                          />
+                        )}
+                      </div>
+
+                      {/* Task Title */}
+                      <h3 className="text-lg font-bold text-gray-900 mb-2 leading-tight" style={{ fontFamily: 'Poppins' }}>
+                        {task.title}
+                      </h3>
+
+                      {/* Task Description */}
+                      {task.description && (
+                        <p className="text-sm text-gray-700 mb-3 line-clamp-3" style={{ fontFamily: 'Poppins' }}>
+                          {task.description}
+                        </p>
+                      )}
+
+                      {/* Pillar Badge + XP Badge Row */}
+                      <div className="flex items-center gap-2 mb-2">
+                        <div
+                          className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold text-white"
+                          style={{ backgroundColor: pillarData.color }}
+                        >
+                          <span>{pillarData.icon}</span>
+                          <span style={{ fontFamily: 'Poppins' }}>{pillarData.name}</span>
+                        </div>
+                        <div
+                          className="px-3 py-1 rounded-full text-sm font-bold"
+                          style={{
+                            backgroundColor: `${pillarData.color}20`,
+                            color: pillarData.color
+                          }}
+                        >
+                          {task.xp_value} XP
+                        </div>
+                      </div>
+
+                      {/* Usage Count */}
+                      {task.usage_count > 0 && (
+                        <p className="text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>
+                          {task.usage_count} {task.usage_count === 1 ? 'student has' : 'students have'} used this
+                        </p>
                       )}
                     </div>
-
-                    {/* Task Title */}
-                    <h3 className="text-xl font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins' }}>
-                      {task.title}
-                    </h3>
-
-                    {/* Task Description */}
-                    <p className="text-gray-600 mb-4 text-sm" style={{ fontFamily: 'Poppins' }}>
-                      {task.description}
-                    </p>
-
-                    {/* Pillar and XP Badges */}
-                    <div className="flex items-center gap-2 mb-4">
-                      <span
-                        className="px-3 py-1 rounded-full text-xs font-semibold text-white"
-                        style={{
-                          backgroundColor: pillarData.color,
-                          fontFamily: 'Poppins'
-                        }}
-                      >
-                        {pillarData.icon} {pillarData.name}
-                      </span>
-                      <span
-                        className="px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-700"
-                        style={{ fontFamily: 'Poppins' }}
-                      >
-                        {task.xp_value} XP
-                      </span>
-                    </div>
-
-                    {/* Usage Count */}
-                    {task.usage_count > 0 && (
-                      <p className="text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>
-                        {task.usage_count} {task.usage_count === 1 ? 'student has' : 'students have'} used this
-                      </p>
-                    )}
                   </div>
                 );
               })}

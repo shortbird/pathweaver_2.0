@@ -29,32 +29,8 @@ const SampleTaskCard = ({ task, onAdd, disabled = false }) => {
         background: `linear-gradient(135deg, ${pillarData.color}15 0%, ${pillarData.color}05 100%)`
       }}
     >
-      {/* AI Generated Badge */}
-      {task.ai_generated && (
-        <div className="absolute top-2 right-2 z-10">
-          <div
-            className="flex items-center gap-1 px-2 py-1 rounded-full text-xs font-semibold text-white"
-            style={{ backgroundColor: pillarData.color }}
-          >
-            <Sparkles className="w-3 h-3" />
-            AI
-          </div>
-        </div>
-      )}
-
       {/* Card Content */}
       <div className="p-4">
-        {/* Pillar Badge */}
-        <div className="mb-3">
-          <div
-            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold text-white"
-            style={{ backgroundColor: pillarData.color }}
-          >
-            <span>{pillarData.icon}</span>
-            <span style={{ fontFamily: 'Poppins' }}>{pillarData.name}</span>
-          </div>
-        </div>
-
         {/* Task Title */}
         <h3
           className="text-lg font-bold text-gray-900 mb-2 leading-tight"
@@ -73,8 +49,15 @@ const SampleTaskCard = ({ task, onAdd, disabled = false }) => {
           </p>
         )}
 
-        {/* XP Badge */}
-        <div className="flex items-center justify-between mb-3">
+        {/* Pillar Badge + XP Badge Row */}
+        <div className="flex items-center gap-2 mb-3">
+          <div
+            className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold text-white"
+            style={{ backgroundColor: pillarData.color }}
+          >
+            <span>{pillarData.icon}</span>
+            <span style={{ fontFamily: 'Poppins' }}>{pillarData.name}</span>
+          </div>
           <div
             className="px-3 py-1 rounded-full text-sm font-bold"
             style={{
