@@ -188,8 +188,6 @@ export default function TaskLibraryBrowser() {
                       isSelected ? 'ring-2 ring-optio-purple' : ''
                     }`}
                     style={{
-                      borderLeftColor: pillarData.color,
-                      borderLeftWidth: '4px',
                       backgroundColor: isAdded ? '#f0fdf4' : isSelected ? '#faf5ff' : 'white',
                       borderColor: isSelected ? '#6D469B' : '#e5e7eb'
                     }}
