@@ -555,7 +555,7 @@ const QuestDetail = () => {
                 <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
                   Active Tasks
                 </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {[...quest.quest_tasks]
                     .sort((a, b) => {
                       // Sort incomplete tasks first, completed tasks last
@@ -568,14 +568,14 @@ const QuestDetail = () => {
                     return (
                       <div
                         key={task.id}
-                        className="relative aspect-square rounded-xl overflow-hidden cursor-pointer group transition-all hover:shadow-lg"
+                        className="relative rounded-xl overflow-hidden transition-all hover:shadow-lg border-2 border-gray-100 hover:border-gray-200"
                         style={{
                           background: task.is_completed
-                            ? pillarData.color
-                            : `linear-gradient(to right, #ffffff 0%, ${pillarData.color}30 100%)`
+                            ? `linear-gradient(135deg, ${pillarData.color}30 0%, ${pillarData.color}20 100%)`
+                            : `linear-gradient(135deg, ${pillarData.color}15 0%, ${pillarData.color}05 100%)`
                         }}
                       >
-                        {/* Task Content */}
+                        {/* Card Content */}
                         <div
                           onClick={() => {
                             // Allow opening modal for tutorial tasks to show instructions
@@ -587,115 +587,119 @@ const QuestDetail = () => {
                               setShowTaskDetailModal(true);
                             }
                           }}
-                          className="absolute inset-0 p-3 flex flex-col justify-between cursor-pointer"
+                          className="p-4 cursor-pointer"
                         >
-                          {/* Top Section - Pillar Name Pill */}
-                          <div>
-                            <div
-                              className="inline-block px-2 py-0.5 rounded-full text-xs font-semibold"
-                              style={{
-                                backgroundColor: task.is_completed ? 'rgba(255,255,255,0.3)' : pillarData.color,
-                                color: 'white',
-                                fontFamily: 'Poppins'
-                              }}
-                            >
-                              {pillarData.name}
+                          {/* Completed Badge (top right if completed) */}
+                          {task.is_completed && (
+                            <div className="absolute top-3 right-3">
+                              <div className="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold" style={{ fontFamily: 'Poppins' }}>
+                                COMPLETED
+                              </div>
                             </div>
-                          </div>
+                          )}
 
-                          {/* Middle Section - Task Title */}
-                          <div className="flex-1 flex items-center justify-center px-2">
-                            <h3
-                              className="text-base sm:text-lg md:text-xl lg:text-2xl font-bold text-center leading-tight uppercase"
-                              style={{
-                                fontFamily: 'Poppins',
-                                color: task.is_completed ? 'white' : '#333',
-                                textDecoration: task.is_completed ? 'line-through' : 'none'
-                              }}
-                            >
-                              {task.title}
-                            </h3>
-                          </div>
+                          {/* Task Title */}
+                          <h3
+                            className="text-lg font-bold text-gray-900 mb-2 leading-tight pr-24"
+                            style={{ fontFamily: 'Poppins' }}
+                          >
+                            {task.title}
+                          </h3>
 
-                          {/* Bottom Section - XP Pill */}
-                          <div className="flex justify-center">
+                          {/* Task Description */}
+                          {task.description && (
+                            <p className="text-sm text-gray-700 mb-3 line-clamp-2" style={{ fontFamily: 'Poppins' }}>
+                              {task.description}
+                            </p>
+                          )}
+
+                          {/* Pillar Badge + XP Badge Row */}
+                          <div className="flex items-center gap-2 mb-3">
                             <div
-                              className="px-2 py-0.5 rounded-full text-xs font-bold"
+                              className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold text-white"
+                              style={{ backgroundColor: pillarData.color }}
+                            >
+                              <span>{pillarData.icon}</span>
+                              <span style={{ fontFamily: 'Poppins' }}>{pillarData.name}</span>
+                            </div>
+                            <div
+                              className="px-3 py-1 rounded-full text-sm font-bold"
                               style={{
-                                backgroundColor: task.is_completed ? 'rgba(255,255,255,0.3)' : pillarData.color,
-                                color: 'white',
-                                fontFamily: 'Poppins'
+                                backgroundColor: `${pillarData.color}20`,
+                                color: pillarData.color
                               }}
                             >
                               {task.xp_amount} XP
                             </div>
                           </div>
+                          {/* Action Buttons */}
+                          <div className="px-4 pb-4">
+                            {/* Continue Button for Incomplete Tasks (hide for auto-complete tasks) */}
+                            {!task.is_completed && quest.user_enrollment && !task.auto_complete && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedTask(task);
+                                  setShowTaskModal(true);
+                                }}
+                                className="w-full py-2.5 rounded-full font-bold text-sm uppercase tracking-wide text-white transition-all hover:shadow-md"
+                                style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
+                              >
+                                Continue
+                              </button>
+                            )}
+
+                            {/* View Instructions button for incomplete tutorial tasks */}
+                            {!task.is_completed && quest.user_enrollment && task.auto_complete && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedTask(task);
+                                  setShowTaskModal(true);
+                                }}
+                                className="w-full py-2.5 rounded-full font-bold text-sm uppercase tracking-wide text-white transition-all hover:shadow-md"
+                                style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
+                              >
+                                View Instructions
+                              </button>
+                            )}
+
+                            {/* Edit Evidence Button for Completed Tasks (hide for tutorial tasks) */}
+                            {task.is_completed && !task.auto_complete && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedTask(task);
+                                  setShowTaskModal(true);
+                                }}
+                                className="w-full py-2.5 bg-white text-gray-800 border-2 border-gray-300 rounded-full font-bold text-sm uppercase tracking-wide transition-all hover:border-gray-400"
+                                style={{ fontFamily: 'Poppins' }}
+                              >
+                                Edit Evidence
+                              </button>
+                            )}
+
+                            {/* Completed badge for auto-verified tasks */}
+                            {task.is_completed && task.auto_complete && (
+                              <div
+                                className="w-full py-2.5 bg-green-100 text-green-700 border-2 border-green-300 rounded-full font-bold text-sm uppercase tracking-wide text-center"
+                                style={{ fontFamily: 'Poppins' }}
+                              >
+                                ✅ Completed!
+                              </div>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Continue Button for Incomplete Tasks (hide for auto-complete tasks) */}
-                        {!task.is_completed && quest.user_enrollment && !task.auto_complete && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedTask(task);
-                              setShowTaskModal(true);
-                            }}
-                            className="absolute bottom-2 left-2 right-2 py-1.5 rounded-full font-bold text-xs uppercase tracking-wide text-white transition-all hover:shadow-lg"
-                            style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
-                          >
-                            Continue
-                          </button>
-                        )}
-
-                        {/* View Instructions button for incomplete tutorial tasks */}
-                        {!task.is_completed && quest.user_enrollment && task.auto_complete && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedTask(task);
-                              setShowTaskModal(true);
-                            }}
-                            className="absolute bottom-2 left-2 right-2 py-1.5 rounded-full font-bold text-xs uppercase tracking-wide text-white transition-all hover:shadow-lg"
-                            style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
-                          >
-                            View Instructions
-                          </button>
-                        )}
-
-                        {/* Edit Evidence Button for Completed Tasks (hide for tutorial tasks) */}
-                        {task.is_completed && !task.auto_complete && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setSelectedTask(task);
-                              setShowTaskModal(true);
-                            }}
-                            className="absolute bottom-2 left-2 right-2 py-1.5 bg-white/90 text-gray-800 rounded-full font-bold text-xs uppercase tracking-wide transition-all hover:bg-white"
-                            style={{ fontFamily: 'Poppins' }}
-                          >
-                            Edit Evidence
-                          </button>
-                        )}
-
-                        {/* Completed badge for auto-verified tasks */}
-                        {task.is_completed && task.auto_complete && (
-                          <div
-                            className="absolute bottom-2 left-2 right-2 py-1.5 bg-white/90 text-gray-800 rounded-full font-bold text-xs uppercase tracking-wide text-center"
-                            style={{ fontFamily: 'Poppins' }}
-                          >
-                            ✅ Completed!
-                          </div>
-                        )}
-
-                        {/* Drop Task Button - top right corner (hide for tutorial tasks) */}
-                        {quest.user_enrollment && !isQuestCompleted && !task.auto_complete && (
+                        {/* Drop Task Button - top left corner (hide for tutorial tasks and completed tasks) */}
+                        {quest.user_enrollment && !isQuestCompleted && !task.auto_complete && !task.is_completed && (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               handleDropTask(task.id);
                             }}
                             disabled={droppingTaskId === task.id}
-                            className="absolute top-2 right-2 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all disabled:opacity-50"
+                            className="absolute top-3 left-3 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all disabled:opacity-50"
                             title="Remove from active tasks"
                           >
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

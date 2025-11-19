@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ArrowLeft, Plus, CheckCircle, BookOpen } from 'lucide-react';
+import { ArrowLeft, Plus, CheckCircle, BookOpen, Eye, X } from 'lucide-react';
 import api from '../services/api';
 import { getPillarData } from '../utils/pillarMappings';
 import toast from 'react-hot-toast';
@@ -14,6 +14,7 @@ export default function TaskLibraryBrowser() {
   const [addedTasks, setAddedTasks] = useState(new Set());
   const [loading, setLoading] = useState(true);
   const [addingAll, setAddingAll] = useState(false);
+  const [detailsModalTask, setDetailsModalTask] = useState(null);
 
   useEffect(() => {
     fetchQuestAndLibrary();
@@ -248,12 +249,27 @@ export default function TaskLibraryBrowser() {
                         </div>
                       </div>
 
-                      {/* Usage Count */}
-                      {task.usage_count > 0 && (
-                        <p className="text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>
-                          {task.usage_count} {task.usage_count === 1 ? 'student has' : 'students have'} used this
-                        </p>
-                      )}
+                      {/* Usage Count and View Details Button */}
+                      <div className="flex items-center justify-between mt-3">
+                        {task.usage_count > 0 ? (
+                          <p className="text-xs text-gray-500" style={{ fontFamily: 'Poppins' }}>
+                            {task.usage_count} {task.usage_count === 1 ? 'student has' : 'students have'} used this
+                          </p>
+                        ) : (
+                          <div></div>
+                        )}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDetailsModalTask(task);
+                          }}
+                          className="flex items-center gap-1 text-sm text-gray-600 hover:text-optio-purple transition-colors"
+                          style={{ fontFamily: 'Poppins' }}
+                        >
+                          <Eye className="w-4 h-4" />
+                          Details
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -273,6 +289,116 @@ export default function TaskLibraryBrowser() {
           </>
         )}
       </div>
+
+      {/* Task Details Modal */}
+      {detailsModalTask && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex items-center justify-between">
+              <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+                Task Details
+              </h2>
+              <button
+                onClick={() => setDetailsModalTask(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-6 h-6 text-gray-500" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6">
+              {(() => {
+                const pillarData = getPillarData(detailsModalTask.pillar);
+                return (
+                  <>
+                    {/* Task Title */}
+                    <h3 className="text-2xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins' }}>
+                      {detailsModalTask.title}
+                    </h3>
+
+                    {/* Pillar and XP Badges */}
+                    <div className="flex items-center gap-2 mb-6">
+                      <div
+                        className="inline-flex items-center gap-1 px-4 py-2 rounded-full text-sm font-semibold text-white"
+                        style={{ backgroundColor: pillarData.color }}
+                      >
+                        <span>{pillarData.icon}</span>
+                        <span style={{ fontFamily: 'Poppins' }}>{pillarData.name}</span>
+                      </div>
+                      <div
+                        className="px-4 py-2 rounded-full text-sm font-bold"
+                        style={{
+                          backgroundColor: `${pillarData.color}20`,
+                          color: pillarData.color
+                        }}
+                      >
+                        {detailsModalTask.xp_value} XP
+                      </div>
+                    </div>
+
+                    {/* Task Description */}
+                    <div className="mb-6">
+                      <h4 className="text-lg font-semibold text-gray-900 mb-2" style={{ fontFamily: 'Poppins' }}>
+                        Description
+                      </h4>
+                      <p className="text-gray-700 leading-relaxed whitespace-pre-wrap" style={{ fontFamily: 'Poppins' }}>
+                        {detailsModalTask.description}
+                      </p>
+                    </div>
+
+                    {/* Usage Stats */}
+                    {detailsModalTask.usage_count > 0 && (
+                      <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                        <p className="text-sm text-gray-600" style={{ fontFamily: 'Poppins' }}>
+                          <span className="font-semibold">{detailsModalTask.usage_count}</span>{' '}
+                          {detailsModalTask.usage_count === 1 ? 'student has' : 'students have'} completed this task
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Action Buttons */}
+                    <div className="flex gap-3">
+                      {!addedTasks.has(detailsModalTask.id) && (
+                        <button
+                          onClick={async () => {
+                            try {
+                              await api.post(`/api/quests/${questId}/task-library/select`, {
+                                sample_task_id: detailsModalTask.id
+                              });
+                              setAddedTasks(prev => new Set([...prev, detailsModalTask.id]));
+                              toast.success('Task added to your quest!');
+                              setDetailsModalTask(null);
+                            } catch (error) {
+                              console.error('Error adding task:', error);
+                              toast.error(error.response?.data?.error || 'Failed to add task');
+                            }
+                          }}
+                          className="flex-1 py-3 rounded-lg font-semibold text-white hover:opacity-90 transition-opacity"
+                          style={{
+                            backgroundColor: pillarData.color,
+                            fontFamily: 'Poppins'
+                          }}
+                        >
+                          Add to My Quest
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setDetailsModalTask(null)}
+                        className="flex-1 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                        style={{ fontFamily: 'Poppins' }}
+                      >
+                        Close
+                      </button>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
