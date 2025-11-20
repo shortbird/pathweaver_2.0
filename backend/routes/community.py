@@ -167,8 +167,17 @@ def send_friend_request(user_id):
 
     # Use authenticated client for user-scoped operations (RLS)
     from database import get_authenticated_supabase_client
+
+    # Debug: Check if we have a JWT token in cookies
+    jwt_token = request.cookies.get('access_token')
+    logger.info(f"[FRIEND_REQUEST DEBUG] JWT token present: {bool(jwt_token)}")
+    if jwt_token:
+        logger.info(f"[FRIEND_REQUEST DEBUG] Token preview: {jwt_token[:50]}...")
+        logger.info(f"[FRIEND_REQUEST DEBUG] Token has dots (JWT): {'.' in jwt_token}")
+
     supabase = get_authenticated_supabase_client()
-    
+    logger.info(f"[FRIEND_REQUEST DEBUG] Created auth client for user_id: {user_id}")
+
     try:
         if addressee_email:
             # Get the user ID from auth.users table by email
@@ -278,10 +287,14 @@ def send_friend_request(user_id):
             'addressee_id': addressee['data']['id'],
             'status': 'pending'
         }
-        
-        logger.info(f"[FRIEND_REQUEST] Creating friendship: {friendship}")
-        
+
+        logger.info(f"[FRIEND_REQUEST DEBUG] About to insert friendship: {friendship}")
+        logger.info(f"[FRIEND_REQUEST DEBUG] requester_id type: {type(user_id)}, value: {user_id}")
+        logger.info(f"[FRIEND_REQUEST DEBUG] Attempting INSERT with authenticated client...")
+
         response = supabase.table('friendships').insert(friendship).execute()
+
+        logger.info(f"[FRIEND_REQUEST DEBUG] INSERT succeeded! Response: {response.data}")
         
         if not response.data:
             logger.error(f"[FRIEND_REQUEST] Failed to create friendship")

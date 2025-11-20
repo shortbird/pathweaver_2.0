@@ -106,12 +106,17 @@ def get_user_client(token: Optional[str] = None) -> Client:
 
             # First, try to get token from httpOnly cookie (primary auth method)
             token = request.cookies.get('access_token')
+            _get_logger().info(f"[GET_USER_CLIENT] JWT from cookie: {bool(token)}")
+            if token:
+                _get_logger().info(f"[GET_USER_CLIENT] Token preview: {token[:50]}...")
+                _get_logger().info(f"[GET_USER_CLIENT] Token has 3 parts: {len(token.split('.')) == 3}")
 
             # Fallback to Authorization header if cookie not present
             if not token:
                 auth_header = request.headers.get('Authorization', '')
                 if auth_header.startswith('Bearer '):
                     token = auth_header.replace('Bearer ', '')
+                    _get_logger().info(f"[GET_USER_CLIENT] JWT from header: {bool(token)}")
         except (RuntimeError, AttributeError) as e:
             # Handle cases where request context is invalid or request is a dict
             _get_logger().warning(f"WARNING: Cannot access request context: {e}")
@@ -153,6 +158,7 @@ def get_user_client(token: Optional[str] = None) -> Client:
         try:
             # Create client with user's JWT token in Authorization header
             # This allows RLS policies to work with auth.uid()
+            _get_logger().info(f"[GET_USER_CLIENT] Creating client with JWT Authorization header")
             client = create_client(
                 Config.SUPABASE_URL,
                 Config.SUPABASE_ANON_KEY,
@@ -162,6 +168,7 @@ def get_user_client(token: Optional[str] = None) -> Client:
                     }
                 }
             )
+            _get_logger().info(f"[GET_USER_CLIENT] Client created successfully with auth token")
             # Cache in Flask g context for this request
             setattr(g, cache_key, client)
             return client
