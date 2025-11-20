@@ -119,11 +119,15 @@ const ConnectionsPage = () => {
     cancelFriendRequestMutation.mutate(friendshipId)
   }
 
-  const handleRequestObserver = (observerData) => {
-    // TODO: Connect to backend API endpoint
-    console.log('Observer request:', observerData)
-    toast.success('Observer request submitted for admin review')
-    setShowAddObserverModal(false)
+  const handleRequestObserver = async (observerData) => {
+    try {
+      const response = await api.post('/api/observer-requests', observerData)
+      toast.success('Observer request submitted for admin review')
+      setShowAddObserverModal(false)
+    } catch (error) {
+      console.error('Error submitting observer request:', error)
+      toast.error(error.response?.data?.error || 'Failed to submit observer request')
+    }
   }
 
   // Loading state

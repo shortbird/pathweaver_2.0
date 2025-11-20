@@ -17,6 +17,7 @@ from routes.settings import settings_bp
 from routes.promo import promo_bp
 from routes.services import services_bp
 from routes.admin.services import admin_services_bp
+from routes.observer_requests import observer_requests_bp
 
 # Import routes
 from routes import quests, tasks, admin_core, evidence_documents, tutorial, analytics as analytics_routes
@@ -108,6 +109,7 @@ app.register_blueprint(settings_bp, url_prefix='/api')  # /api/settings
 app.register_blueprint(promo_bp, url_prefix='/api/promo')  # /api/promo
 app.register_blueprint(services_bp)  # /api/services (blueprint has url_prefix in route definitions)
 app.register_blueprint(admin_services_bp)  # /api/admin/services (blueprint has url_prefix in route definitions)
+app.register_blueprint(observer_requests_bp)  # /api/observer-requests (blueprint has url_prefix in route definitions)
 
 # Register Personalized Quest System blueprints FIRST (before main quests.bp)
 # This ensures specific personalization routes take precedence over generic quest routes
