@@ -167,7 +167,7 @@ def send_friend_request(user_id):
 
     # Use authenticated client for user-scoped operations (RLS)
     from database import get_authenticated_supabase_client
-    supabase = get_authenticated_supabase_client(user_id)
+    supabase = get_authenticated_supabase_client()
     
     try:
         if addressee_email:
