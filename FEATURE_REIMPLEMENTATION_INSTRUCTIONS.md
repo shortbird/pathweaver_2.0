@@ -1,27 +1,3 @@
-## 2. Curriculum Source Link Button for Course Quests
-
-**Objective**: Allow admins to add external curriculum links to course quests, and display a "Visit Course" button on the quest detail page for students.
-
-**Backend Requirements**:
-- Accept a `material_link` field in the course quest creation and update endpoints
-- Store this in the existing `material_link` column in the quests table
-- This field is optional and only relevant for course-type quests
-
-**Frontend - Admin Panel (Course Quest Form)**:
-- Add a text input field for `material_link` below the description field
-- Include a placeholder showing an example URL (e.g., Khan Academy link)
-- Add helper text explaining this is for linking to external curriculum resources
-
-**Frontend - Quest Detail Page**:
-- Add a "Visit Course" button below the quest description
-- Only show this button for course quests that have a material_link populated
-- Style it with the Optio brand gradient (purple to pink)
-- Include an external link icon
-- Make it responsive (full width on mobile, auto width on desktop)
-- Open the link in a new tab with security attributes
-
----
-
 ## 3. Connections Page Restructure - Observers System
 
 **Objective**: Remove the parent invitation system from the connections page and add an observers section that is admin-managed only.

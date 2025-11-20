@@ -15,7 +15,6 @@ import {
 import ConnectionsHeader from '../components/connections/ConnectionsHeader'
 import QuickActions from '../components/connections/QuickActions'
 import NetworkSection from '../components/connections/NetworkSection'
-import InviteParentModal from '../components/connections/Modals/InviteParentModal'
 import AddLearningPartnerModal from '../components/connections/Modals/AddLearningPartnerModal'
 
 const ConnectionsPage = () => {
@@ -23,11 +22,8 @@ const ConnectionsPage = () => {
   const { user } = useAuth()
 
   // State
-  const [showInviteParentModal, setShowInviteParentModal] = useState(false)
   const [showAddPartnerModal, setShowAddPartnerModal] = useState(false)
   const [returnToQuest, setReturnToQuest] = useState(null)
-  const [parentRequests, setParentRequests] = useState([])
-  const [sendingParentInvite, setSendingParentInvite] = useState(false)
 
   // React Query hooks
   const {
@@ -64,22 +60,6 @@ const ConnectionsPage = () => {
     }
   }, [])
 
-  // Load parent requests
-  useEffect(() => {
-    const loadParentRequests = async () => {
-      try {
-        const response = await api.get('/api/parents/pending-approvals')
-        setParentRequests(response.data.pending_approvals || [])
-      } catch (error) {
-        console.error('Error loading parent requests:', error)
-      }
-    }
-
-    if (user?.id) {
-      loadParentRequests()
-    }
-  }, [user])
-
   // Helper function to format time ago
   const formatTimeAgo = (timestamp) => {
     if (!timestamp) return ''
@@ -104,12 +84,6 @@ const ConnectionsPage = () => {
     timeAgo: formatTimeAgo(req.created_at),
   }))
 
-  const formattedParentRequests = parentRequests.map((req) => ({
-    ...req,
-    parent_name: `${req.parent_first_name || ''} ${req.parent_last_name || ''}`.trim(),
-    timeAgo: formatTimeAgo(req.requested_at),
-  }))
-
   // Handlers
   const handleBackToQuest = () => {
     sessionStorage.removeItem('returnToQuest')
@@ -128,21 +102,6 @@ const ConnectionsPage = () => {
     })
   }
 
-  const handleSendParentInvite = async (email, message) => {
-    try {
-      setSendingParentInvite(true)
-      await api.post('/api/parents/invite', { email, message })
-      toast.success('Parent invitation sent!')
-      setShowInviteParentModal(false)
-    } catch (error) {
-      console.error('Error sending parent invite:', error)
-      const errorMessage = error.response?.data?.error || 'Failed to send parent invitation'
-      toast.error(errorMessage)
-    } finally {
-      setSendingParentInvite(false)
-    }
-  }
-
   const handleAcceptRequest = (friendshipId) => {
     acceptFriendRequestMutation.mutate(friendshipId, {
       onSuccess: () => {
@@ -159,34 +118,6 @@ const ConnectionsPage = () => {
     cancelFriendRequestMutation.mutate(friendshipId)
   }
 
-  // Parent request handlers
-  const handleAcceptParentRequest = async (linkId) => {
-    try {
-      await api.post(`/api/parents/approve-link/${linkId}`, {})
-      toast.success('Parent access approved! They can now view your progress.')
-      // Reload parent requests
-      const response = await api.get('/api/parents/pending-approvals')
-      setParentRequests(response.data.pending_approvals || [])
-    } catch (error) {
-      console.error('Error approving parent:', error)
-      const message = error.response?.data?.error || 'Failed to approve parent'
-      toast.error(message)
-    }
-  }
-
-  const handleDeclineParentRequest = async (linkId) => {
-    try {
-      await api.delete(`/api/parents/decline-link/${linkId}`)
-      toast.success('Parent request declined')
-      // Reload parent requests
-      const response = await api.get('/api/parents/pending-approvals')
-      setParentRequests(response.data.pending_approvals || [])
-    } catch (error) {
-      console.error('Error declining parent:', error)
-      toast.error('Failed to decline parent request')
-    }
-  }
-
   // Loading state
   if (loading) {
     return (
@@ -201,19 +132,12 @@ const ConnectionsPage = () => {
       <ConnectionsHeader returnToQuest={returnToQuest} onBackToQuest={handleBackToQuest} />
 
       <QuickActions
-        onInviteParent={() => setShowInviteParentModal(true)}
         onConnectPartner={() => setShowAddPartnerModal(true)}
       />
 
       <NetworkSection
-        // Family/Parent props
-        familyConnections={friends.filter(f => f.role === 'parent' || f.parent_name)} // Basic filtering - can improve later
-        pendingParentRequests={formattedParentRequests}
-        onAcceptParentRequest={handleAcceptParentRequest}
-        onDeclineParentRequest={handleDeclineParentRequest}
-        onInviteParent={() => setShowInviteParentModal(true)}
         // Learning Partner props
-        learningPartners={friends.filter(f => !f.role || f.role !== 'parent')} // Basic filtering
+        learningPartners={friends}
         pendingPartnerRequests={formattedPendingRequests}
         sentPartnerRequests={formattedSentRequests}
         onAcceptPartnerRequest={handleAcceptRequest}
@@ -223,13 +147,6 @@ const ConnectionsPage = () => {
       />
 
       {/* Modals */}
-      <InviteParentModal
-        isOpen={showInviteParentModal}
-        onClose={() => setShowInviteParentModal(false)}
-        onSendInvite={handleSendParentInvite}
-        isLoading={sendingParentInvite}
-      />
-
       <AddLearningPartnerModal
         isOpen={showAddPartnerModal}
         onClose={() => setShowAddPartnerModal(false)}

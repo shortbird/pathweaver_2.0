@@ -1,18 +1,10 @@
-import React from 'react'
-import { EnvelopeIcon, UserGroupIcon, UsersIcon } from '@heroicons/react/24/outline'
-import FamilyConnectionCard from './FamilyConnectionCard'
+import React, { useState } from 'react'
+import { EnvelopeIcon, EyeIcon, UsersIcon, InformationCircleIcon } from '@heroicons/react/24/outline'
+import ObserverConnectionCard from './ObserverConnectionCard'
 import PartnerConnectionCard from './PartnerConnectionCard'
-import ParentRequest from './Invitations/ParentRequest'
 import ConnectionRequest from './Invitations/ConnectionRequest'
 
 const NetworkSection = ({
-  // Family/Parent data
-  familyConnections = [],
-  pendingParentRequests = [],
-  onAcceptParentRequest,
-  onDeclineParentRequest,
-  onInviteParent,
-
   // Learning Partner data
   learningPartners = [],
   pendingPartnerRequests = [],
@@ -22,7 +14,11 @@ const NetworkSection = ({
   onCancelPartnerRequest,
   onConnectPartner,
 }) => {
-  const familyCount = familyConnections.length
+  const [showObserverTooltip, setShowObserverTooltip] = useState(false)
+
+  // Observers are admin-managed only (empty for now)
+  const observers = []
+  const observersCount = observers.length
   const partnersCount = learningPartners.length
   const totalPendingPartnerRequests = pendingPartnerRequests.length + sentPartnerRequests.length
 
@@ -36,72 +32,62 @@ const NetworkSection = ({
       </h2>
 
       <div className="grid lg:grid-cols-2 gap-8">
-        {/* Left Column: Family Connections */}
+        {/* Left Column: Observers */}
         <div className="space-y-6">
           <div className="flex items-center justify-between mb-4">
             <h3
               className="text-xl font-semibold text-gray-900"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
-              Family & Parents ({familyCount})
+              Observers ({observersCount})
             </h3>
           </div>
 
-          {/* Pending Parent Requests - INLINE */}
-          {pendingParentRequests.length > 0 && (
-            <div className="bg-blue-50 border-2 border-blue-200 rounded-xl p-4 mb-4">
-              <h4
-                className="font-semibold text-blue-900 mb-3 flex items-center gap-2"
-                style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-              >
-                <EnvelopeIcon className="w-5 h-5" />
-                Pending Parent Access Requests ({pendingParentRequests.length})
-              </h4>
-              <div className="space-y-3">
-                {pendingParentRequests.map((request) => (
-                  <ParentRequest
-                    key={request.link_id}
-                    request={request}
-                    onAccept={onAcceptParentRequest}
-                    onDecline={onDeclineParentRequest}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Active Family Connections */}
-          {familyCount === 0 && pendingParentRequests.length === 0 ? (
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-8 border-2 border-purple-100 text-center">
-              <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                <UserGroupIcon className="w-8 h-8 text-white" />
+          {/* Observers Empty State */}
+          {observersCount === 0 ? (
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-xl p-8 border-2 border-blue-200 text-center">
+              <div className="w-16 h-16 bg-gradient-to-r from-blue-500 to-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <EyeIcon className="w-8 h-8 text-white" />
               </div>
               <h4
                 className="text-lg font-bold text-gray-900 mb-2"
                 style={{ fontFamily: 'Poppins', fontWeight: 700 }}
               >
-                No family members connected yet
+                No observers yet
               </h4>
               <p
                 className="text-gray-600 mb-6 leading-relaxed"
                 style={{ fontFamily: 'Poppins', fontWeight: 500 }}
               >
-                Invite your parents or guardians to view your progress and celebrate your wins.
+                Observers support your learning journey. They're added by your advisors to help guide and celebrate your progress.
               </p>
-              <button
-                onClick={onInviteParent}
-                className="bg-gradient-primary text-white px-6 py-3 rounded-full font-semibold shadow-md hover:shadow-lg transition-all"
-                style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-              >
-                Invite a Parent
-              </button>
+              <div className="relative inline-block">
+                <button
+                  disabled
+                  onMouseEnter={() => setShowObserverTooltip(true)}
+                  onMouseLeave={() => setShowObserverTooltip(false)}
+                  className="bg-gray-300 text-gray-500 px-6 py-3 rounded-full font-semibold cursor-not-allowed flex items-center gap-2 mx-auto"
+                  style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+                >
+                  <EyeIcon className="w-5 h-5" />
+                  Add Observer
+                </button>
+                {/* Tooltip */}
+                {showObserverTooltip && (
+                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap z-10 flex items-center gap-2">
+                    <InformationCircleIcon className="w-4 h-4" />
+                    Observers are added by advisors
+                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-gray-900"></div>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <div className="space-y-3">
-              {familyConnections.map((connection) => (
-                <FamilyConnectionCard
-                  key={connection.link_id || connection.id}
-                  connection={connection}
+              {observers.map((observer) => (
+                <ObserverConnectionCard
+                  key={observer.id}
+                  connection={observer}
                 />
               ))}
             </div>
