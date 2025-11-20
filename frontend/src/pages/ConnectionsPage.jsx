@@ -13,7 +13,6 @@ import {
 
 // Import new components
 import ConnectionsHeader from '../components/connections/ConnectionsHeader'
-import QuickActions from '../components/connections/QuickActions'
 import NetworkSection from '../components/connections/NetworkSection'
 import AddLearningPartnerModal from '../components/connections/Modals/AddLearningPartnerModal'
 
@@ -130,10 +129,6 @@ const ConnectionsPage = () => {
   return (
     <div className="min-h-screen bg-white">
       <ConnectionsHeader returnToQuest={returnToQuest} onBackToQuest={handleBackToQuest} />
-
-      <QuickActions
-        onConnectPartner={() => setShowAddPartnerModal(true)}
-      />
 
       <NetworkSection
         // Learning Partner props
