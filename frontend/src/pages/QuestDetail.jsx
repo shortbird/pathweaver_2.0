@@ -131,40 +131,22 @@ const QuestDetail = () => {
       return;
     }
 
-    console.log('[DROP TASK] Starting drop for task ID:', taskId);
     setDroppingTaskId(taskId);
 
     try {
-      console.log('[DROP TASK] Calling DELETE /api/tasks/' + taskId);
-      const response = await api.delete(`/api/tasks/${taskId}`);
-      console.log('[DROP TASK] Delete response:', response.data);
+      await api.delete(`/api/tasks/${taskId}`);
 
       // Invalidate React Query cache to force refetch
-      console.log('[DROP TASK] Invalidating query cache');
       queryClient.invalidateQueries(queryKeys.quests.detail(id));
 
-      // Refetch quest data and library tasks
-      console.log('[DROP TASK] Refetching quest data');
-      const refetchResult = await refetchQuest();
-      console.log('[DROP TASK] Refetch result:', refetchResult?.data?.quest_tasks?.length, 'tasks');
-      console.log('[DROP TASK] Full refetch data:', {
-        hasData: !!refetchResult?.data,
-        questId: refetchResult?.data?.id,
-        taskCount: refetchResult?.data?.quest_tasks?.length,
-        taskIds: refetchResult?.data?.quest_tasks?.map(t => t.id.substring(0, 8)),
-        droppedTaskStillPresent: refetchResult?.data?.quest_tasks?.some(t => t.id === taskId)
-      });
-
-      console.log('[DROP TASK] Refetching library tasks');
-      await refetchLibraryTasks();
-      console.log('[DROP TASK] Library refetch complete');
+      // Refetch quest data
+      await refetchQuest();
 
       toast.success('Task removed from your quest');
     } catch (err) {
-      console.error('[DROP TASK] Error:', err);
+      console.error('Error removing task:', err);
       toast.error(err.response?.data?.error || 'Failed to remove task');
     } finally {
-      console.log('[DROP TASK] Clearing dropping state');
       setDroppingTaskId(null);
     }
   };
