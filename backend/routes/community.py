@@ -149,10 +149,20 @@ def get_friends(user_id):
 @bp.route('/friends/request', methods=['POST'])
 @require_auth
 def send_friend_request(user_id):
-    data = request.json
+    # Get JSON data (can only be read once!)
+    data = request.get_json(force=True, silent=True)
+
+    # Debug logging - use the data variable, not request.json again
+    logger.info(f"[FRIEND_REQUEST] Received request - data: {data}, content_type: {request.content_type}")
+
+    if data is None:
+        logger.error(f"[FRIEND_REQUEST] Failed to parse JSON body")
+        return jsonify({'error': 'Invalid JSON in request body'}), 400
+
     addressee_email = data.get('email')
-    
+
     if not addressee_email:
+        logger.error(f"[FRIEND_REQUEST] Email field missing or empty - data keys: {list(data.keys()) if data else 'None'}")
         return jsonify({'error': 'Email required'}), 400
     
     supabase = get_supabase_client()
