@@ -53,7 +53,8 @@ class SessionManager:
     def generate_access_token(self, user_id: str) -> str:
         """Generate a JWT access token"""
         payload = {
-            'user_id': user_id,
+            'sub': user_id,  # CRITICAL: Supabase RLS expects 'sub' claim for auth.uid()
+            'user_id': user_id,  # Keep for backward compatibility
             'type': 'access',
             'version': self.token_version,  # Add version for rotation tracking
             'exp': datetime.now(timezone.utc) + self.access_token_expiry,
@@ -64,7 +65,8 @@ class SessionManager:
     def generate_refresh_token(self, user_id: str) -> str:
         """Generate a JWT refresh token"""
         payload = {
-            'user_id': user_id,
+            'sub': user_id,  # CRITICAL: Supabase RLS expects 'sub' claim for auth.uid()
+            'user_id': user_id,  # Keep for backward compatibility
             'type': 'refresh',
             'version': self.token_version,  # Add version for rotation tracking
             'exp': datetime.now(timezone.utc) + self.refresh_token_expiry,
@@ -75,7 +77,8 @@ class SessionManager:
     def generate_masquerade_token(self, admin_id: str, target_user_id: str) -> str:
         """Generate a JWT masquerade token (admin viewing as another user)"""
         payload = {
-            'user_id': admin_id,
+            'sub': target_user_id,  # CRITICAL: Supabase RLS expects 'sub' for masqueraded user
+            'user_id': admin_id,  # Keep admin ID for audit trail
             'masquerade_as': target_user_id,
             'type': 'masquerade',
             'version': self.token_version,  # Add version for rotation tracking
