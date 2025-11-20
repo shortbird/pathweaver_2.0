@@ -1,5 +1,5 @@
-import React, { useState } from 'react'
-import { EnvelopeIcon, EyeIcon, UsersIcon, InformationCircleIcon } from '@heroicons/react/24/outline'
+import React from 'react'
+import { EnvelopeIcon, EyeIcon, UsersIcon } from '@heroicons/react/24/outline'
 import ObserverConnectionCard from './ObserverConnectionCard'
 import PartnerConnectionCard from './PartnerConnectionCard'
 import ConnectionRequest from './Invitations/ConnectionRequest'
@@ -13,9 +13,9 @@ const NetworkSection = ({
   onDeclinePartnerRequest,
   onCancelPartnerRequest,
   onConnectPartner,
+  // Observer data
+  onRequestObserver,
 }) => {
-  const [showObserverTooltip, setShowObserverTooltip] = useState(false)
-
   // Observers are admin-managed only (empty for now)
   const observers = []
   const observersCount = observers.length
@@ -24,24 +24,10 @@ const NetworkSection = ({
 
   return (
     <section className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16">
-      <h2
-        className="text-3xl font-bold text-gray-900 mb-8"
-        style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-      >
-        Your Network
-      </h2>
 
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Left Column: Observers */}
         <div className="space-y-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3
-              className="text-xl font-semibold text-gray-900"
-              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-            >
-              Observers ({observersCount})
-            </h3>
-          </div>
 
           {/* Observers Empty State */}
           {observersCount === 0 ? (
@@ -61,26 +47,14 @@ const NetworkSection = ({
               >
                 Observers support your learning journey. They're added by your advisors to help guide and celebrate your progress.
               </p>
-              <div className="relative inline-block">
-                <button
-                  disabled
-                  onMouseEnter={() => setShowObserverTooltip(true)}
-                  onMouseLeave={() => setShowObserverTooltip(false)}
-                  className="bg-gray-300 text-gray-500 px-6 py-3 rounded-full font-semibold cursor-not-allowed flex items-center gap-2 mx-auto"
-                  style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-                >
-                  <EyeIcon className="w-5 h-5" />
-                  Add Observer
-                </button>
-                {/* Tooltip */}
-                {showObserverTooltip && (
-                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-4 py-2 bg-gray-900 text-white text-sm rounded-lg whitespace-nowrap z-10 flex items-center gap-2">
-                    <InformationCircleIcon className="w-4 h-4" />
-                    Observers are added by advisors
-                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-8 border-r-8 border-t-8 border-transparent border-t-gray-900"></div>
-                  </div>
-                )}
-              </div>
+              <button
+                onClick={onRequestObserver}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-full font-semibold shadow-md hover:shadow-lg transition-all flex items-center gap-2 mx-auto"
+                style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+              >
+                <EyeIcon className="w-5 h-5" />
+                Request Observer
+              </button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -96,14 +70,6 @@ const NetworkSection = ({
 
         {/* Right Column: Learning Partners */}
         <div className="space-y-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3
-              className="text-xl font-semibold text-gray-900"
-              style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-            >
-              Learning Partners ({partnersCount})
-            </h3>
-          </div>
 
           {/* Pending Partner Requests - INLINE */}
           {totalPendingPartnerRequests > 0 && (

@@ -15,6 +15,7 @@ import {
 import ConnectionsHeader from '../components/connections/ConnectionsHeader'
 import NetworkSection from '../components/connections/NetworkSection'
 import AddLearningPartnerModal from '../components/connections/Modals/AddLearningPartnerModal'
+import AddObserverModal from '../components/connections/Modals/AddObserverModal'
 
 const ConnectionsPage = () => {
   const navigate = useNavigate()
@@ -22,6 +23,7 @@ const ConnectionsPage = () => {
 
   // State
   const [showAddPartnerModal, setShowAddPartnerModal] = useState(false)
+  const [showAddObserverModal, setShowAddObserverModal] = useState(false)
   const [returnToQuest, setReturnToQuest] = useState(null)
 
   // React Query hooks
@@ -117,6 +119,13 @@ const ConnectionsPage = () => {
     cancelFriendRequestMutation.mutate(friendshipId)
   }
 
+  const handleRequestObserver = (observerData) => {
+    // TODO: Connect to backend API endpoint
+    console.log('Observer request:', observerData)
+    toast.success('Observer request submitted for admin review')
+    setShowAddObserverModal(false)
+  }
+
   // Loading state
   if (loading) {
     return (
@@ -139,6 +148,8 @@ const ConnectionsPage = () => {
         onDeclinePartnerRequest={handleDeclineRequest}
         onCancelPartnerRequest={handleCancelRequest}
         onConnectPartner={() => setShowAddPartnerModal(true)}
+        // Observer props
+        onRequestObserver={() => setShowAddObserverModal(true)}
       />
 
       {/* Modals */}
@@ -147,6 +158,13 @@ const ConnectionsPage = () => {
         onClose={() => setShowAddPartnerModal(false)}
         onSendRequest={handleSendPartnerRequest}
         isLoading={sendFriendRequestMutation.isPending}
+      />
+
+      <AddObserverModal
+        isOpen={showAddObserverModal}
+        onClose={() => setShowAddObserverModal(false)}
+        onSendRequest={handleRequestObserver}
+        isLoading={false}
       />
     </div>
   )
