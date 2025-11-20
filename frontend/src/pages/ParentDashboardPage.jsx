@@ -119,7 +119,7 @@ const ParentDashboardPage = () => {
     };
 
     loadDashboardData();
-  }, [selectedStudentId, children.length]);
+  }, [selectedStudentId, children.length, user]);
 
   // Load conversations when Communications tab is active
   useEffect(() => {
@@ -141,7 +141,7 @@ const ParentDashboardPage = () => {
     };
 
     loadConversations();
-  }, [activeTab, selectedStudentId]);
+  }, [activeTab, selectedStudentId, user]);
 
   // Load conversation messages when a conversation is selected
   useEffect(() => {
@@ -164,7 +164,7 @@ const ParentDashboardPage = () => {
     };
 
     loadMessages();
-  }, [selectedConversationId]);
+  }, [selectedConversationId, user]);
 
   // Load task details when a task is selected
   useEffect(() => {
@@ -187,7 +187,7 @@ const ParentDashboardPage = () => {
     };
 
     loadTaskDetails();
-  }, [selectedTask, selectedStudentId]);
+  }, [selectedTask, selectedStudentId, user]);
 
   // Load recent completions when Insights tab is active
   useEffect(() => {
@@ -209,7 +209,7 @@ const ParentDashboardPage = () => {
     };
 
     loadCompletions();
-  }, [activeTab, selectedStudentId]);
+  }, [activeTab, selectedStudentId, user]);
 
   // Allow parent and admin roles to access the dashboard
   if (!user || (user.role !== 'parent' && user.role !== 'admin')) {
