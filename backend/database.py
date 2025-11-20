@@ -1,5 +1,4 @@
 from supabase import create_client, Client
-from supabase.lib.client_options import ClientOptions
 from app_config import Config
 from flask import request, g
 from typing import Optional
@@ -147,19 +146,17 @@ def get_user_client(token: Optional[str] = None) -> Client:
             return client
 
         try:
-            # Create client with user's JWT token in Authorization header
-            # This allows RLS policies to work with auth.uid()
-            # Use ClientOptions object for proper header configuration
-            options = ClientOptions(
-                headers={
-                    "Authorization": f"Bearer {token}"
-                }
-            )
+            # Create client with user's JWT token for RLS enforcement
+            # IMPORTANT: ClientOptions headers don't work for auth context in supabase-py
+            # We must use postgrest.auth() to set the token for RLS policies
             client = create_client(
                 Config.SUPABASE_URL,
-                Config.SUPABASE_ANON_KEY,
-                options=options
+                Config.SUPABASE_ANON_KEY
             )
+            # Set auth token on postgrest client for RLS to work with auth.uid()
+            # This is the correct way to enable RLS in supabase-py
+            client.postgrest.auth(token)
+
             # Cache in Flask g context for this request
             setattr(g, cache_key, client)
             return client
