@@ -164,8 +164,10 @@ def send_friend_request(user_id):
     if not addressee_email:
         logger.error(f"[FRIEND_REQUEST] Email field missing or empty - data keys: {list(data.keys()) if data else 'None'}")
         return jsonify({'error': 'Email required'}), 400
-    
-    supabase = get_supabase_client()
+
+    # Use authenticated client for user-scoped operations (RLS)
+    from database import get_authenticated_supabase_client
+    supabase = get_authenticated_supabase_client(user_id)
     
     try:
         if addressee_email:
