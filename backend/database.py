@@ -1,4 +1,5 @@
 from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions
 from app_config import Config
 from flask import request, g
 from typing import Optional
@@ -148,20 +149,22 @@ def get_user_client(token: Optional[str] = None) -> Client:
         try:
             # Create client with user's JWT token in Authorization header
             # This allows RLS policies to work with auth.uid()
+            # Use ClientOptions object for proper header configuration
+            options = ClientOptions(
+                headers={
+                    "Authorization": f"Bearer {token}"
+                }
+            )
             client = create_client(
                 Config.SUPABASE_URL,
                 Config.SUPABASE_ANON_KEY,
-                options={
-                    "headers": {
-                        "Authorization": f"Bearer {token}"
-                    }
-                }
+                options=options
             )
             # Cache in Flask g context for this request
             setattr(g, cache_key, client)
             return client
         except AttributeError as e:
-            # This can occur if options dict is mishandled by supabase-py library
+            # This can occur if options object is mishandled by supabase-py library
             _get_logger().error(f"ERROR: AttributeError creating client (supabase-py version issue?): {e}")
             _get_logger().error(f"Token format: {len(token.split('.'))} parts, first 10 chars: {token[:10]}")
             # Return anonymous client if token setup fails
