@@ -45,6 +45,12 @@ const ConnectionsPage = () => {
   const pendingRequests = friendsData?.pending_requests || []
   const sentRequests = friendsData?.sent_requests || []
 
+  // Debug logging
+  console.log('[CONNECTIONS PAGE] friendsData:', friendsData)
+  console.log('[CONNECTIONS PAGE] friends:', friends)
+  console.log('[CONNECTIONS PAGE] pendingRequests:', pendingRequests)
+  console.log('[CONNECTIONS PAGE] sentRequests:', sentRequests)
+
   // Loading state
   const loading = loadingFriends
 
