@@ -373,7 +373,8 @@ const QuestDetail = () => {
           <div className="flex items-center justify-between mb-6">
             <button
               onClick={() => navigate(-1)}
-              className="flex items-center gap-2 px-4 py-2 bg-gradient-primary text-white rounded-full hover:shadow-lg transition-all font-semibold"
+              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+              style={{ fontFamily: 'Poppins' }}
             >
               <ArrowLeft className="w-4 h-4" />
               BACK
@@ -743,9 +744,9 @@ const QuestDetail = () => {
                       return (
                         <div
                           key={task.id}
-                          className="relative rounded-xl overflow-hidden transition-all hover:shadow-lg border-2 border-green-200"
+                          className="relative rounded-xl overflow-hidden transition-all hover:shadow-lg border-2 border-gray-100 hover:border-gray-200"
                           style={{
-                            background: `linear-gradient(135deg, ${pillarData.color}30 0%, ${pillarData.color}20 100%)`
+                            background: `linear-gradient(135deg, ${pillarData.color}15 0%, ${pillarData.color}05 100%)`
                           }}
                         >
                           {/* Card Content */}
