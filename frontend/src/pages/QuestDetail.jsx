@@ -551,18 +551,15 @@ const QuestDetail = () => {
           {quest.quest_tasks && quest.quest_tasks.length > 0 ? (
             <>
               {/* Active Tasks Section */}
-              <div className="mb-8">
-                <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
-                  Active Tasks
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {[...quest.quest_tasks]
-                    .sort((a, b) => {
-                      // Sort incomplete tasks first, completed tasks last
-                      if (a.is_completed === b.is_completed) return 0;
-                      return a.is_completed ? 1 : -1;
-                    })
-                    .map((task) => {
+              {quest.quest_tasks.filter(task => !task.is_completed).length > 0 && (
+                <div className="mb-8">
+                  <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+                    Active Tasks
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {quest.quest_tasks
+                      .filter(task => !task.is_completed)
+                      .map((task) => {
                     const pillarData = getPillarData(task.pillar);
 
                     return (
@@ -616,11 +613,10 @@ const QuestDetail = () => {
                           {/* Pillar Badge + XP Badge Row */}
                           <div className="flex items-center gap-2 mb-3">
                             <div
-                              className="inline-flex items-center justify-center gap-1 px-3 py-1 rounded-full text-sm font-semibold text-white"
-                              style={{ backgroundColor: pillarData.color }}
+                              className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold text-white"
+                              style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
                             >
-                              <span className="flex items-center">{pillarData.icon}</span>
-                              <span className="flex items-center" style={{ fontFamily: 'Poppins' }}>{pillarData.name}</span>
+                              {pillarData.name}
                             </div>
                             <div
                               className="px-3 py-1 rounded-full text-sm font-bold"
@@ -730,6 +726,115 @@ const QuestDetail = () => {
                   )}
                 </div>
               </div>
+              )}
+
+              {/* Completed Tasks Section */}
+              {quest.quest_tasks.filter(task => task.is_completed).length > 0 && (
+                <div className="mb-8">
+                  <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
+                    Completed Tasks
+                  </h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {quest.quest_tasks
+                      .filter(task => task.is_completed)
+                      .map((task) => {
+                      const pillarData = getPillarData(task.pillar);
+
+                      return (
+                        <div
+                          key={task.id}
+                          className="relative rounded-xl overflow-hidden transition-all hover:shadow-lg border-2 border-green-200"
+                          style={{
+                            background: `linear-gradient(135deg, ${pillarData.color}30 0%, ${pillarData.color}20 100%)`
+                          }}
+                        >
+                          {/* Card Content */}
+                          <div
+                            onClick={() => {
+                              if (quest.user_enrollment) {
+                                setSelectedTask(task);
+                                setShowTaskModal(true);
+                              } else {
+                                setTaskDetailToShow(task);
+                                setShowTaskDetailModal(true);
+                              }
+                            }}
+                            className="p-4 cursor-pointer"
+                          >
+                            {/* Completed Badge (top right) */}
+                            <div className="absolute top-3 right-3">
+                              <div className="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold" style={{ fontFamily: 'Poppins' }}>
+                                COMPLETED
+                              </div>
+                            </div>
+
+                            {/* Task Title */}
+                            <h3
+                              className="text-lg font-bold text-gray-900 mb-2 leading-tight pr-24"
+                              style={{ fontFamily: 'Poppins' }}
+                            >
+                              {task.title}
+                            </h3>
+
+                            {/* Task Description */}
+                            {task.description && (
+                              <p className="text-sm text-gray-700 mb-3 line-clamp-2" style={{ fontFamily: 'Poppins' }}>
+                                {task.description}
+                              </p>
+                            )}
+
+                            {/* Pillar Badge + XP Badge Row */}
+                            <div className="flex items-center gap-2 mb-3">
+                              <div
+                                className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold text-white"
+                                style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
+                              >
+                                {pillarData.name}
+                              </div>
+                              <div
+                                className="px-3 py-1 rounded-full text-sm font-bold"
+                                style={{
+                                  backgroundColor: `${pillarData.color}20`,
+                                  color: pillarData.color
+                                }}
+                              >
+                                {task.xp_amount} XP
+                              </div>
+                            </div>
+                            {/* Action Buttons */}
+                            <div className="px-4 pb-4">
+                              {/* Edit Evidence Button for Completed Tasks (hide for tutorial tasks) */}
+                              {!task.auto_complete && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSelectedTask(task);
+                                    setShowTaskModal(true);
+                                  }}
+                                  className="w-full py-2.5 bg-white text-gray-800 border-2 border-gray-300 rounded-full font-bold text-sm uppercase tracking-wide transition-all hover:border-gray-400"
+                                  style={{ fontFamily: 'Poppins' }}
+                                >
+                                  Edit Evidence
+                                </button>
+                              )}
+
+                              {/* Completed badge for auto-verified tasks */}
+                              {task.auto_complete && (
+                                <div
+                                  className="w-full py-2.5 bg-green-100 text-green-700 border-2 border-green-300 rounded-full font-bold text-sm uppercase tracking-wide text-center"
+                                  style={{ fontFamily: 'Poppins' }}
+                                >
+                                  ✅ Completed!
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
             </>
           ) : null}

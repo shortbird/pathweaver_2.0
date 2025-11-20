@@ -52,11 +52,10 @@ const SampleTaskCard = ({ task, onAdd, disabled = false }) => {
         {/* Pillar Badge + XP Badge Row */}
         <div className="flex items-center gap-2 mb-3">
           <div
-            className="inline-flex items-center justify-center gap-1 px-3 py-1 rounded-full text-sm font-semibold text-white"
-            style={{ backgroundColor: pillarData.color }}
+            className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold text-white"
+            style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
           >
-            <span className="flex items-center">{pillarData.icon}</span>
-            <span className="flex items-center" style={{ fontFamily: 'Poppins' }}>{pillarData.name}</span>
+            {pillarData.name}
           </div>
           <div
             className="px-3 py-1 rounded-full text-sm font-bold"
