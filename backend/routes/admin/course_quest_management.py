@@ -90,6 +90,7 @@ def create_course_quest(user_id):
             'big_idea': data.get('description', '').strip(),
             'quest_type': 'course',  # Important: mark as course quest
             'is_active': is_active,
+            'material_link': data.get('material_link', '').strip() if data.get('material_link') else None,
             'lms_platform': data.get('lms_platform'),
             'lms_course_id': data.get('lms_course_id'),
             'lms_assignment_id': data.get('lms_assignment_id'),
@@ -271,6 +272,8 @@ def update_course_tasks(user_id, quest_id):
         if 'description' in data:
             quest_update_data['description'] = data['description'].strip()
             quest_update_data['big_idea'] = data['description'].strip()  # Keep big_idea in sync
+        if 'material_link' in data:
+            quest_update_data['material_link'] = data['material_link'].strip() if data['material_link'] else None
         if 'lms_platform' in data:
             quest_update_data['lms_platform'] = data.get('lms_platform')
         if 'lms_course_id' in data:

@@ -401,6 +401,20 @@ const QuestDetail = () => {
             <p className="text-lg text-gray-700 leading-relaxed mb-6" style={{ fontFamily: 'Poppins' }}>
               {quest.big_idea || quest.description}
             </p>
+
+            {/* Visit Course Button - Only show for course quests with material_link */}
+            {quest.quest_type === 'course' && quest.material_link && (
+              <a
+                href={quest.material_link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full hover:shadow-lg hover:scale-105 transition-all duration-300 font-semibold text-base w-full sm:w-auto justify-center"
+                style={{ fontFamily: 'Poppins' }}
+              >
+                <ExternalLink className="w-5 h-5" />
+                VISIT COURSE
+              </a>
+            )}
           </div>
 
           {/* Quest Metadata */}

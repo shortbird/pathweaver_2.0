@@ -107,6 +107,7 @@ def create_quest_v3_clean(user_id):
             'quest_type': 'optio',  # Optio quest (self-directed, personalized)
             'header_image_url': image_url,
             'image_url': image_url,  # Add to new image_url column
+            'material_link': data.get('material_link', '').strip() if data.get('material_link') else None,
             'created_by': user_id,  # Track who created the quest
             'created_at': datetime.utcnow().isoformat()
         }
@@ -179,6 +180,9 @@ def update_quest(user_id, quest_id):
 
         if 'header_image_url' in data:
             update_data['header_image_url'] = data['header_image_url']
+
+        if 'material_link' in data:
+            update_data['material_link'] = data['material_link'].strip() if data['material_link'] else None
 
         # Only admins can change is_active (publish/unpublish quests)
         if 'is_active' in data:

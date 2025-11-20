@@ -12,6 +12,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
   const [formData, setFormData] = useState({
     title: quest?.title || '',
     description: quest?.description || '',
+    material_link: quest?.material_link || '',
     lms_platform: quest?.lms_platform || '',
     lms_course_id: quest?.lms_course_id || '',
     lms_assignment_id: quest?.lms_assignment_id || '',
@@ -97,6 +98,7 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
       const submitData = {
         title: formData.title.trim(),
         description: formData.description.trim(),
+        material_link: formData.material_link.trim() || null,
         lms_platform: formData.lms_platform || null,
         lms_course_id: formData.lms_course_id || null,
         lms_assignment_id: formData.lms_assignment_id || null,
@@ -255,6 +257,22 @@ const CourseQuestForm = ({ mode = 'create', quest = null, onClose, onSuccess }) 
                 rows={3}
                 placeholder="Course description..."
               />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2 text-gray-600">
+                Curriculum Source Link
+              </label>
+              <input
+                type="url"
+                value={formData.material_link}
+                onChange={(e) => setFormData({ ...formData, material_link: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                placeholder="e.g., https://www.khanacademy.org/math/algebra"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Optional: Link to external curriculum resources (Khan Academy, etc.)
+              </p>
             </div>
 
             <div className="grid grid-cols-3 gap-4">
