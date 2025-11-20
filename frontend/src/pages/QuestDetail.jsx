@@ -616,11 +616,11 @@ const QuestDetail = () => {
                           {/* Pillar Badge + XP Badge Row */}
                           <div className="flex items-center gap-2 mb-3">
                             <div
-                              className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-semibold text-white"
+                              className="inline-flex items-center justify-center gap-1 px-3 py-1 rounded-full text-sm font-semibold text-white"
                               style={{ backgroundColor: pillarData.color }}
                             >
-                              <span>{pillarData.icon}</span>
-                              <span style={{ fontFamily: 'Poppins' }}>{pillarData.name}</span>
+                              <span className="flex items-center">{pillarData.icon}</span>
+                              <span className="flex items-center" style={{ fontFamily: 'Poppins' }}>{pillarData.name}</span>
                             </div>
                             <div
                               className="px-3 py-1 rounded-full text-sm font-bold"
@@ -691,7 +691,7 @@ const QuestDetail = () => {
                           </div>
                         </div>
 
-                        {/* Drop Task Button - top left corner (hide for tutorial tasks and completed tasks) */}
+                        {/* Drop Task Button - top right corner (hide for tutorial tasks and completed tasks) */}
                         {quest.user_enrollment && !isQuestCompleted && !task.auto_complete && !task.is_completed && (
                           <button
                             onClick={(e) => {
@@ -699,7 +699,7 @@ const QuestDetail = () => {
                               handleDropTask(task.id);
                             }}
                             disabled={droppingTaskId === task.id}
-                            className="absolute top-3 left-3 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all disabled:opacity-50"
+                            className="absolute top-3 right-3 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all disabled:opacity-50 z-10"
                             title="Remove from active tasks"
                           >
                             <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -715,11 +715,16 @@ const QuestDetail = () => {
                   {quest.user_enrollment && !isQuestCompleted && (
                     <div
                       onClick={() => setShowPersonalizationWizard(true)}
-                      className="aspect-square rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-lg border-4 border-black bg-white flex flex-col items-center justify-center gap-2 text-black group hover:bg-gray-50"
+                      className="relative rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-lg border-2 border-dashed border-gray-400 bg-white hover:border-optio-purple hover:bg-purple-50 group"
                     >
-                      <Plus className="w-10 h-10 transition-transform group-hover:scale-110" />
-                      <div className="text-xs font-bold uppercase tracking-wide text-center px-2" style={{ fontFamily: 'Poppins' }}>
-                        Add Task
+                      <div className="p-4 flex flex-col items-center justify-center h-full min-h-[200px]">
+                        <Plus className="w-12 h-12 text-gray-400 group-hover:text-optio-purple transition-all group-hover:scale-110 mb-3" />
+                        <div className="text-lg font-bold text-gray-700 group-hover:text-optio-purple transition-colors" style={{ fontFamily: 'Poppins' }}>
+                          Add Task
+                        </div>
+                        <p className="text-sm text-gray-500 text-center mt-2" style={{ fontFamily: 'Poppins' }}>
+                          Generate with AI, write your own, or browse the library
+                        </p>
                       </div>
                     </div>
                   )}
