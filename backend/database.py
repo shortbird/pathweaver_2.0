@@ -94,22 +94,27 @@ def get_user_client(token: Optional[str] = None) -> Client:
     if not Config.SUPABASE_URL or not Config.SUPABASE_ANON_KEY:
         raise ValueError("Missing Supabase configuration. Check SUPABASE_URL and SUPABASE_ANON_KEY environment variables.")
 
-    # Get token from parameter or request headers
+    # Get token from parameter, cookies, or request headers
     if not token:
         try:
-            # Ensure we're in a valid request context before accessing request.headers
+            # Ensure we're in a valid request context
             if not request or not hasattr(request, 'headers'):
                 _get_logger().warning("WARNING: get_user_client called outside request context or with invalid request object")
                 client = get_supabase_client()
                 setattr(g, f'_user_client_anon', client)
                 return client
 
-            auth_header = request.headers.get('Authorization', '')
-            if auth_header.startswith('Bearer '):
-                token = auth_header.replace('Bearer ', '')
+            # First, try to get token from httpOnly cookie (primary auth method)
+            token = request.cookies.get('access_token')
+
+            # Fallback to Authorization header if cookie not present
+            if not token:
+                auth_header = request.headers.get('Authorization', '')
+                if auth_header.startswith('Bearer '):
+                    token = auth_header.replace('Bearer ', '')
         except (RuntimeError, AttributeError) as e:
             # Handle cases where request context is invalid or request is a dict
-            _get_logger().warning(f"WARNING: Cannot access request headers: {e}")
+            _get_logger().warning(f"WARNING: Cannot access request context: {e}")
             client = get_supabase_client()
             setattr(g, f'_user_client_anon', client)
             return client
