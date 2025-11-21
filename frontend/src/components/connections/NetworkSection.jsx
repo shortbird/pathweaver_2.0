@@ -14,10 +14,9 @@ const NetworkSection = ({
   onCancelPartnerRequest,
   onConnectPartner,
   // Observer data
+  observers = [],
   onRequestObserver,
 }) => {
-  // Observers are admin-managed only (empty for now)
-  const observers = []
   const observersCount = observers.length
   const partnersCount = learningPartners.length
   const totalPendingPartnerRequests = pendingPartnerRequests.length + sentPartnerRequests.length
@@ -28,6 +27,24 @@ const NetworkSection = ({
       <div className="grid lg:grid-cols-2 gap-8">
         {/* Left Column: Observers */}
         <div className="space-y-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3
+              className="text-xl font-bold text-gray-900"
+              style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+            >
+              Observers
+            </h3>
+            {observersCount > 0 && (
+              <button
+                onClick={onRequestObserver}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1"
+                style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+              >
+                <EyeIcon className="w-4 h-4" />
+                Request Observer
+              </button>
+            )}
+          </div>
 
           {/* Observers Empty State */}
           {observersCount === 0 ? (
@@ -70,6 +87,24 @@ const NetworkSection = ({
 
         {/* Right Column: Learning Partners */}
         <div className="space-y-6">
+          <div className="flex items-center justify-between mb-4">
+            <h3
+              className="text-xl font-bold text-gray-900"
+              style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+            >
+              Learning Partners
+            </h3>
+            {partnersCount > 0 && (
+              <button
+                onClick={onConnectPartner}
+                className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+                style={{ fontFamily: 'Poppins', fontWeight: 500 }}
+              >
+                <UsersIcon className="w-4 h-4" />
+                Add Partner
+              </button>
+            )}
+          </div>
 
           {/* Pending Partner Requests - INLINE */}
           {totalPendingPartnerRequests > 0 && (

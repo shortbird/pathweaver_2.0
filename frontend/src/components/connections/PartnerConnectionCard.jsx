@@ -44,8 +44,14 @@ const PartnerConnectionCard = ({ partner }) => {
     },
   }
 
-  const initial = getInitial(partner.display_name || partner.name)
-  const displayName = partner.display_name || partner.name || 'Unknown'
+  // Build display name from backend data structure
+  // Backend returns: { id, first_name, last_name, display_name, avatar_url, bio, portfolio_slug, role }
+  const firstName = partner.first_name || ''
+  const lastName = partner.last_name || ''
+  const fullName = `${firstName} ${lastName}`.trim()
+  const displayName = partner.display_name || fullName || 'Unknown User'
+
+  const initial = getInitial(displayName)
   const currentPillar = partner.current_pillar || partner.pillar_primary || 'stem'
   const pillarData = pillarConfig[currentPillar.toLowerCase()] || pillarConfig.stem
   const PillarIcon = pillarData.icon

@@ -159,6 +159,7 @@ const ConnectionsPage = () => {
         onCancelPartnerRequest={handleCancelRequest}
         onConnectPartner={() => setShowAddPartnerModal(true)}
         // Observer props
+        observers={[]} // TODO: Fetch observers when API is ready
         onRequestObserver={() => setShowAddObserverModal(true)}
       />
 
