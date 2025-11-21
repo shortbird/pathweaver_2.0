@@ -360,69 +360,25 @@ def accept_friend_request(user_id, friendship_id):
         # Update friendship status using admin client to bypass RLS
         logger.info(f"[ACCEPT_FRIEND] Updating friendship {friendship_id} to accepted status")
 
-        # Ensure friendship_id is an integer (Supabase expects correct type)
-        try:
-            friendship_id_int = int(friendship_id)
-        except ValueError:
-            logger.info(f"[ACCEPT_FRIEND] Invalid friendship ID: {friendship_id}")
-            return jsonify({'error': 'Invalid friendship ID'}), 400
+        # Use direct table update (simpler than RPC, no trigger issues with admin client)
+        update_result = supabase.table('friendships')\
+            .update({'status': 'accepted'})\
+            .eq('id', friendship_id)\
+            .execute()
 
-        # Use a database function to bypass any triggers that might be causing issues
-        try:
-            # First, try using an RPC call to a custom database function
-            response = admin_supabase.rpc('update_friendship_status', {
-                'friendship_id': friendship_id_int,
-                'new_status': 'accepted'
-            }).execute()
+        logger.info(f"[ACCEPT_FRIEND] Update result: {update_result}")
 
-            logger.info(f"[ACCEPT_FRIEND] RPC Update response: {response}")
+        # Fetch the updated record to return to client
+        updated_friendship = supabase.table('friendships')\
+            .select('*')\
+            .eq('id', friendship_id)\
+            .execute()
 
-        except Exception as rpc_error:
-            logger.error(f"[ACCEPT_FRIEND] RPC failed: {str(rpc_error)}, trying direct SQL")
-
-            # Fallback: Use raw SQL via PostgREST
-            try:
-                # Execute a raw SQL update using the PostgREST interface
-                import requests
-                import os
-
-                supabase_url = os.getenv('SUPABASE_URL')
-                supabase_key = os.getenv('SUPABASE_SERVICE_KEY')
-
-                headers = {
-                    'apikey': supabase_key,
-                    'Authorization': f'Bearer {supabase_key}',
-                    'Content-Type': 'application/json',
-                    'Prefer': 'return=representation'
-                }
-
-                # Use PostgREST to execute the update
-                update_url = f"{supabase_url}/rest/v1/friendships?id=eq.{friendship_id_int}"
-                update_data = {'status': 'accepted'}
-
-                response_raw = requests.patch(update_url, json=update_data, headers=headers)
-
-                if response_raw.status_code == 200:
-                    response_data = response_raw.json()
-                    # Create a mock response object that matches Supabase format
-                    response = type('MockResponse', (), {
-                        'data': response_data if response_data else [{'id': friendship_id_int, 'status': 'accepted'}],
-                        'error': None
-                    })()
-                    logger.info(f"[ACCEPT_FRIEND] Direct SQL Update successful: {response.data}")
-                else:
-                    logger.error(f"[ACCEPT_FRIEND] Direct SQL failed: {response_raw.status_code} - {response_raw.text}")
-                    raise Exception(f"HTTP {response_raw.status_code}: {response_raw.text}")
-
-            except Exception as sql_error:
-                logger.error(f"[ACCEPT_FRIEND] All update methods failed: {str(sql_error)}")
-                raise sql_error
-
-        logger.info(f"[ACCEPT_FRIEND] Update response: {response}")
-
-        if not response.data:
-            logger.info(f"[ACCEPT_FRIEND] No data returned from update operation")
+        if not updated_friendship.data:
+            logger.error(f"[ACCEPT_FRIEND] Failed to fetch updated friendship after update")
             return jsonify({'error': 'Failed to update friendship status'}), 500
+
+        response = updated_friendship
 
         # Log activity (non-critical - don't fail if this fails)
         try:
