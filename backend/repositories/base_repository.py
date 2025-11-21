@@ -81,14 +81,14 @@ class BaseRepository:
                 # CRITICAL: We need the SUPABASE access token for RLS, not our custom JWT
                 from flask import request
 
-                # Try to get Supabase token from Authorization header first
+                # Try to get JWT token from Authorization header first
                 auth_header = request.headers.get('Authorization', '')
                 token = None
                 if auth_header.startswith('Bearer '):
                     token = auth_header.replace('Bearer ', '')
                 else:
-                    # Fallback to Supabase access token cookie (set during login)
-                    token = request.cookies.get('supabase_access_token')
+                    # Fallback to JWT access token cookie (httpOnly cookie with 'sub' claim for RLS)
+                    token = request.cookies.get('access_token')
 
                 # Debug logging to help diagnose RLS issues
                 if not token:
