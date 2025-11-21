@@ -296,7 +296,7 @@ const TaskRow = ({ item, isSelected, onToggle, onReschedule, showCompleted }) =>
         {/* Pillar, XP, Status - Tertiary */}
         <div className="flex items-center gap-2">
           <span className={`px-2 py-0.5 rounded text-xs font-medium ${pillarColors.bg} ${pillarColors.text}`}>
-            {item.pillar}
+            {pillarColors.display}
           </span>
           {item.xp_value && (
             <span className="text-xs font-medium text-gray-600">{item.xp_value} XP</span>

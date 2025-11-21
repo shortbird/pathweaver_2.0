@@ -8,11 +8,11 @@ const WhatDoIDoNext = ({ userId, selectedPillar, onPillarChange }) => {
   const [isExpanded, setIsExpanded] = useState(false)
 
   const pillars = [
-    'STEM & Logic',
-    'Life & Wellness',
-    'Language & Communication',
-    'Society & Culture',
-    'Arts & Creativity'
+    { key: 'stem', display: 'STEM' },
+    { key: 'wellness', display: 'Wellness' },
+    { key: 'communication', display: 'Communication' },
+    { key: 'civics', display: 'Civics' },
+    { key: 'art', display: 'Art' }
   ]
 
   if (isLoading) {
@@ -83,18 +83,18 @@ const WhatDoIDoNext = ({ userId, selectedPillar, onPillarChange }) => {
                 All Pillars
               </button>
               {pillars.map(pillar => {
-                const colors = getPillarColor(pillar)
+                const colors = getPillarColor(pillar.key)
                 return (
                   <button
-                    key={pillar}
-                    onClick={() => onPillarChange(pillar)}
+                    key={pillar.key}
+                    onClick={() => onPillarChange(pillar.key)}
                     className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
-                      selectedPillar === pillar
+                      selectedPillar === pillar.key
                         ? `${colors.bg} ${colors.text} ring-2 ${colors.border}`
                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                     }`}
                   >
-                    {pillar}
+                    {pillar.display}
                   </button>
                 )
               })}
@@ -182,7 +182,7 @@ const TaskCard = ({ item }) => {
         {/* Pillar and XP - Secondary */}
         <div className="flex items-center gap-2">
           <span className={`px-2 py-0.5 rounded text-xs font-medium ${pillarColors.bg} ${pillarColors.text}`}>
-            {item.pillar}
+            {pillarColors.display}
           </span>
           {item.xp_value && (
             <span className="text-xs font-medium text-gray-500">{item.xp_value} XP</span>

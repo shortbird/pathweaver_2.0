@@ -113,7 +113,7 @@ const UnscheduledItem = ({ item, onQuickSchedule, onCustomSchedule }) => {
         {/* Pillar and XP - Tertiary */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${pillarColors.bg} ${pillarColors.text}`}>
-            {item.pillar}
+            {pillarColors.display}
           </span>
           {item.xp_value && (
             <span className="text-xs text-gray-600 font-medium">{item.xp_value} XP</span>

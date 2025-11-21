@@ -199,31 +199,36 @@ export const getPillarColor = (pillar) => {
       bg: 'bg-blue-100',
       text: 'text-blue-800',
       border: 'border-blue-300',
-      hex: '#4BA3C3'
+      hex: '#4BA3C3',
+      display: 'STEM'
     },
     wellness: {
       bg: 'bg-red-100',
       text: 'text-red-800',
       border: 'border-red-300',
-      hex: '#B3393F'
+      hex: '#B3393F',
+      display: 'Wellness'
     },
     communication: {
       bg: 'bg-green-100',
       text: 'text-green-800',
       border: 'border-green-300',
-      hex: '#58A55C'
+      hex: '#58A55C',
+      display: 'Communication'
     },
     civics: {
       bg: 'bg-orange-100',
       text: 'text-orange-800',
       border: 'border-orange-300',
-      hex: '#BE6B27'
+      hex: '#BE6B27',
+      display: 'Civics'
     },
     art: {
       bg: 'bg-purple-100',
       text: 'text-purple-800',
       border: 'border-purple-300',
-      hex: '#59189C'
+      hex: '#59189C',
+      display: 'Art'
     },
     // Legacy mappings (old multi-word format)
     'STEM & Logic': {

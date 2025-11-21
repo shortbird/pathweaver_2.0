@@ -90,7 +90,7 @@ const EventDetailModal = ({ event, onClose }) => {
               <div>
                 <span className="text-xs text-gray-600 block mb-1">Pillar</span>
                 <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium ${pillarColors.bg} ${pillarColors.text}`}>
-                  {props.pillar}
+                  {pillarColors.display}
                 </span>
               </div>
 
