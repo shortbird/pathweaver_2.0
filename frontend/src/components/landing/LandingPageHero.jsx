@@ -3,6 +3,7 @@ import { ArrowRight } from 'lucide-react'
 
 const LandingPageHero = ({
   title,
+  gradientTitle = '',
   rotatingWords = [],
   staticSubtitle = '',
   ctaText,
@@ -12,6 +13,7 @@ const LandingPageHero = ({
   backgroundPosition = 'center',
   secondaryCta = null,
   removeOverlay = false,
+  textAlign = 'center',
 }) => {
   const [currentWordIndex, setCurrentWordIndex] = useState(0)
 
@@ -36,7 +38,7 @@ const LandingPageHero = ({
 
   return (
     <div
-      className="relative py-20 px-4 text-center overflow-hidden"
+      className={`relative py-20 px-4 overflow-hidden ${textAlign === 'center' ? 'text-center' : 'text-left'}`}
       style={{
         background: backgroundImage ? 'transparent' : backgroundGradient,
         minHeight: '500px'
@@ -73,14 +75,31 @@ const LandingPageHero = ({
         </div>
       )}
 
-      <div className="relative max-w-6xl mx-auto">
+      <div className={`relative max-w-6xl ${textAlign === 'center' ? 'mx-auto' : 'ml-8 md:ml-16 lg:ml-24'}`}>
         {/* Main Title */}
         <h1
-          className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white mb-6 leading-tight"
+          className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white mb-2 leading-tight"
           style={{ fontFamily: 'Poppins', fontWeight: 700 }}
         >
           {title}
         </h1>
+
+        {/* Gradient Title (if provided) */}
+        {gradientTitle && (
+          <h1
+            className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl mb-6 leading-tight"
+            style={{
+              fontFamily: 'Poppins',
+              fontWeight: 700,
+              background: 'linear-gradient(180deg, #E7ABF3 0%, #BE84C9 100%)',
+              WebkitBackgroundClip: 'text',
+              backgroundClip: 'text',
+              WebkitTextFillColor: 'transparent',
+            }}
+          >
+            {gradientTitle}
+          </h1>
+        )}
 
         {/* Rotating Words or Static Subtitle */}
         {rotatingWords.length > 0 ? (

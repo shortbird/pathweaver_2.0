@@ -124,12 +124,14 @@ const HomeschoolPortfolioPage = () => {
   return (
     <div className="min-h-screen bg-white">
       <LandingPageHero
-        title="TRACK ALL YOUR LEARNING IN ONE BEAUTIFUL PORTFOLIO"
+        title="TRACK ALL YOUR LEARNING IN"
+        gradientTitle="ONE BEAUTIFUL PORTFOLIO"
         staticSubtitle="The complete homeschool documentation system that grows with your student"
         ctaText="GET YOUR FIRST CREDIT FREE"
         onCtaClick={scrollToForm}
         backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/ParentsHero.jpg"
         removeOverlay={true}
+        textAlign="left"
         secondaryCta={{
           text: "TRY IT OUT",
           onClick: scrollToForm
@@ -139,7 +141,7 @@ const HomeschoolPortfolioPage = () => {
       <LandingPageForm
         campaignSource="homeschool-portfolio"
         fields={formFields}
-        submitText="Start Building Our Portfolio"
+        submitText="Start Building Your Portfolio"
         successMessage="Welcome to Optio!"
         successSubtitle="Check your email to set up your family's learning portfolio and start documenting your homeschool journey."
       />
