@@ -134,7 +134,7 @@ const LandingPageHero = ({
           </div>
         ) : staticSubtitle ? (
           <p
-            className="text-xl sm:text-2xl md:text-3xl text-white/95 mb-8 max-w-4xl mx-auto leading-relaxed"
+            className={`text-xl sm:text-2xl md:text-3xl text-white/95 mb-8 max-w-4xl leading-relaxed ${textAlign === 'center' ? 'mx-auto' : ''}`}
             style={{ fontFamily: 'Poppins', fontWeight: 600 }}
           >
             {staticSubtitle}
@@ -142,7 +142,7 @@ const LandingPageHero = ({
         ) : null}
 
         {/* CTA Buttons */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center items-center mt-8">
+        <div className={`flex flex-col sm:flex-row gap-4 mt-8 ${textAlign === 'center' ? 'justify-center items-center' : 'justify-start items-start'}`}>
           <button
             onClick={onCtaClick}
             className="bg-white text-optio-pink hover:bg-gray-100 text-lg px-8 py-4 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center"

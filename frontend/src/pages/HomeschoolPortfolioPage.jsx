@@ -10,6 +10,10 @@ const HomeschoolPortfolioPage = () => {
     document.getElementById('signup-form')?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  const goToDemo = () => {
+    window.location.href = '/demo'
+  }
+
   const features = [
     {
       icon: <Layout className="w-8 h-8 text-white" />,
@@ -132,6 +136,10 @@ const HomeschoolPortfolioPage = () => {
         backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/ParentsHero.jpg"
         removeOverlay={true}
         textAlign="left"
+        secondaryCta={{
+          text: "TRY IT OUT",
+          onClick: goToDemo
+        }}
       />
 
       <LandingPageForm
