@@ -469,8 +469,8 @@ def enroll_in_quest(user_id: str, quest_id: str):
     Creates a user_quests record to track progress.
     """
     try:
-        # Use repository pattern with user context for RLS
-        quest_repo = QuestRepository(user_id=user_id)
+        # Use admin client for reading quest data (public info, no RLS restrictions)
+        quest_repo = QuestRepository()
 
         # Check if quest exists and is active using repository
         quest = quest_repo.find_by_id(quest_id)
