@@ -23,7 +23,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
     refetchOnMount: false // Don't refetch on component remount if data exists
   })
 
-  // Fetch friends (learning partners) for students
+  // Fetch friends (learning partners) - available to all users
   const { data: friendsData, error: friendsError, isLoading: friendsLoading } = useQuery({
     queryKey: ['friends', user?.id],
     queryFn: async () => {
@@ -32,7 +32,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
       console.log('[ConversationList] Friends API response:', response)
       return response.data
     },
-    enabled: user?.role === 'student',
+    enabled: !!user?.id,
     staleTime: 2 * 60 * 1000, // Cache for 2 minutes
     gcTime: 5 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -41,7 +41,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
     }
   })
 
-  // Fetch observers for students
+  // Fetch observers - available to all users
   const { data: observersData, error: observersError, isLoading: observersLoading } = useQuery({
     queryKey: ['observers', user?.id],
     queryFn: async () => {
@@ -50,7 +50,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
       console.log('[ConversationList] Observers API response:', response)
       return response.data
     },
-    enabled: user?.role === 'student',
+    enabled: !!user?.id,
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
@@ -284,8 +284,8 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
           </div>
         )}
 
-        {/* Learning Partners Section (Students Only) */}
-        {user?.role === 'student' && learningPartners.length > 0 && (
+        {/* Learning Partners Section (All Users) */}
+        {learningPartners.length > 0 && (
           <div>
             <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
               <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center">
@@ -314,8 +314,8 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
           </div>
         )}
 
-        {/* Observers Section (Students Only) */}
-        {user?.role === 'student' && observers.length > 0 && (
+        {/* Observers Section (All Users) */}
+        {observers.length > 0 && (
           <div>
             <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
               <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center">
