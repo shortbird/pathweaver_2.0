@@ -293,7 +293,7 @@ const AdminConnections = () => {
             <div>
               <p className="text-sm opacity-90" style={{ fontFamily: 'Poppins, sans-serif' }}>Advisor-Student</p>
               <p className="text-3xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>{advisors.length}</p>
-              <p className="text-sm opacity-90" style={{ fontFamily: 'Poppins, sans-serif' }}>Active Advisors</p>
+              <p className="text-sm opacity-90" style={{ fontFamily: 'Poppins, sans-serif' }}>Advisors & Admins</p>
             </div>
           </div>
         </div>
@@ -314,14 +314,14 @@ const AdminConnections = () => {
       <section className="bg-white rounded-lg shadow p-6">
         <div className="mb-6">
           <h3 className="text-xl font-bold mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>Advisor-Student Connections</h3>
-          <p className="text-gray-600 text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>Assign students to advisors for check-ins and support</p>
+          <p className="text-gray-600 text-sm" style={{ fontFamily: 'Poppins, sans-serif' }}>Assign students to advisors and admins for check-ins and support</p>
         </div>
 
         {advisors.length === 0 ? (
           <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg">
             <Users className="w-16 h-16 mx-auto mb-4 text-gray-300" />
-            <p style={{ fontFamily: 'Poppins, sans-serif' }}>No advisors found</p>
-            <p className="text-sm mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>Create users with the "advisor" role first</p>
+            <p style={{ fontFamily: 'Poppins, sans-serif' }}>No advisors or admins found</p>
+            <p className="text-sm mt-1" style={{ fontFamily: 'Poppins, sans-serif' }}>Create users with the "advisor" or "admin" role first</p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -333,9 +333,18 @@ const AdminConnections = () => {
                   className="w-full p-4 text-left flex justify-between items-center bg-gray-50 hover:bg-gray-100 transition-colors"
                 >
                   <div className="flex-1">
-                    <p className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                      {advisor.display_name || `${advisor.first_name} ${advisor.last_name}`}
-                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="font-semibold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        {advisor.display_name || `${advisor.first_name} ${advisor.last_name}`}
+                      </p>
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
+                        advisor.role === 'admin'
+                          ? 'bg-purple-100 text-purple-800'
+                          : 'bg-blue-100 text-blue-800'
+                      }`} style={{ fontFamily: 'Poppins, sans-serif' }}>
+                        {advisor.role === 'admin' ? 'Admin' : 'Advisor'}
+                      </span>
+                    </div>
                     <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>{advisor.email}</p>
                   </div>
                   <div className="flex items-center gap-4">

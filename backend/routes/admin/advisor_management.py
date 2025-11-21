@@ -21,18 +21,18 @@ bp = Blueprint('admin_advisor_management', __name__, url_prefix='/api/admin')
 @bp.route('/advisors', methods=['GET'])
 @require_admin
 def get_all_advisors(user_id):
-    """Get list of all advisors with their assigned student counts"""
+    """Get list of all advisors and admins with their assigned student counts"""
     supabase = get_supabase_admin_client()
 
     try:
-        # Get all users with advisor role
+        # Get all users with advisor or admin role
         advisors = supabase.table('users')\
-            .select('id, display_name, first_name, last_name, email, created_at')\
-            .eq('role', 'advisor')\
+            .select('id, display_name, first_name, last_name, email, role, created_at')\
+            .in_('role', ['advisor', 'admin'])\
             .order('display_name')\
             .execute()
 
-        # For each advisor, get count of assigned students
+        # For each advisor/admin, get count of assigned students
         advisor_list = []
         for advisor in advisors.data:
             # Count active assignments
@@ -68,7 +68,7 @@ def get_advisor_students(user_id, advisor_id):
     supabase = get_supabase_admin_client()
 
     try:
-        # Verify advisor exists and has advisor role
+        # Verify advisor exists and has advisor or admin role
         advisor = supabase.table('users')\
             .select('id, display_name, role')\
             .eq('id', advisor_id)\
@@ -78,8 +78,8 @@ def get_advisor_students(user_id, advisor_id):
         if not advisor.data:
             return jsonify({'success': False, 'error': 'Advisor not found'}), 404
 
-        if advisor.data.get('role') != 'advisor':
-            return jsonify({'success': False, 'error': 'User is not an advisor'}), 400
+        if advisor.data.get('role') not in ['advisor', 'admin']:
+            return jsonify({'success': False, 'error': 'User is not an advisor or admin'}), 400
 
         # Get assigned students with assignment details
         assignments = supabase.table('advisor_student_assignments')\
@@ -140,7 +140,7 @@ def assign_student_to_advisor(user_id, advisor_id):
 
         student_id = data['student_id']
 
-        # Verify advisor exists and has advisor role
+        # Verify advisor exists and has advisor or admin role
         advisor = supabase.table('users')\
             .select('id, role')\
             .eq('id', advisor_id)\
@@ -150,8 +150,8 @@ def assign_student_to_advisor(user_id, advisor_id):
         if not advisor.data:
             return jsonify({'success': False, 'error': 'Advisor not found'}), 404
 
-        if advisor.data.get('role') != 'advisor':
-            return jsonify({'success': False, 'error': 'User is not an advisor'}), 400
+        if advisor.data.get('role') not in ['advisor', 'admin']:
+            return jsonify({'success': False, 'error': 'User is not an advisor or admin'}), 400
 
         # Verify student exists and has student role
         student = supabase.table('users')\

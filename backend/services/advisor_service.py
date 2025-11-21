@@ -25,77 +25,44 @@ class AdvisorService(BaseService):
     def get_advisor_students(self, advisor_id: str) -> List[Dict[str, Any]]:
         """
         Get all students assigned to this advisor
-        If advisor is admin, returns ALL students in the system
+        Both advisors and admins only see students explicitly assigned to them
 
         Args:
-            advisor_id: UUID of the advisor
+            advisor_id: UUID of the advisor or admin
 
         Returns:
             List of student records with progress data
         """
         try:
-            # Check if user is admin
-            advisor_check = self.supabase.table('users')\
-                .select('role')\
-                .eq('id', advisor_id)\
-                .execute()
-
-            is_admin = advisor_check.data and len(advisor_check.data) > 0 and advisor_check.data[0]['role'] == 'admin'
-
             students = []
 
-            if is_admin:
-                # Admin sees ALL students (without badge data to avoid timeout)
-                response = self.supabase.table('users')\
-                    .select('id, display_name, first_name, last_name, email, level, avatar_url, last_active')\
-                    .eq('role', 'student')\
-                    .execute()
+            # Both advisors and admins see only assigned students
+            response = self.supabase.table('advisor_student_assignments')\
+                .select('student_id, users!advisor_student_assignments_student_id_fkey(id, display_name, first_name, last_name, email, level, avatar_url, last_active)')\
+                .eq('advisor_id', advisor_id)\
+                .eq('is_active', True)\
+                .execute()
 
-                if response.data:
-                    # Collect student IDs for bulk queries
-                    student_ids = [s['id'] for s in response.data]
-
-                    # Bulk fetch XP totals
-                    xp_totals = self._get_bulk_student_xp_totals(student_ids)
-
-                    for student in response.data:
+            # Flatten the nested user data and collect student IDs for bulk queries
+            student_ids = []
+            if response.data:
+                for assignment in response.data:
+                    if assignment.get('users'):
+                        student = assignment['users']
                         # Provide fallback for display_name
                         if not student.get('display_name'):
                             student['display_name'] = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip()
-                        # Calculate total_xp from user_skill_xp table
-                        student['total_xp'] = xp_totals.get(student['id'], 0)
-                        # Set quest counts to 0 for now - can be loaded on-demand
-                        student['quest_count'] = 0
-                        student['active_badges'] = []
+                        student_ids.append(student['id'])
                         students.append(student)
-            else:
-                # Regular advisor sees only assigned students
-                response = self.supabase.table('advisor_student_assignments')\
-                    .select('student_id, users!advisor_student_assignments_student_id_fkey(id, display_name, first_name, last_name, email, level, avatar_url, last_active)')\
-                    .eq('advisor_id', advisor_id)\
-                    .eq('is_active', True)\
-                    .execute()
 
-                # Flatten the nested user data and collect student IDs for bulk queries
-                student_ids = []
-                if response.data:
-                    for assignment in response.data:
-                        if assignment.get('users'):
-                            student = assignment['users']
-                            # Provide fallback for display_name
-                            if not student.get('display_name'):
-                                student['display_name'] = f"{student.get('first_name', '')} {student.get('last_name', '')}".strip()
-                            student_ids.append(student['id'])
-                            students.append(student)
-
-                # Bulk fetch quest counts and XP totals for all students (prevents N+1 queries)
-                if student_ids:
-                    quest_counts = self._get_bulk_student_quest_counts(student_ids)
-                    xp_totals = self._get_bulk_student_xp_totals(student_ids)
-                    for student in students:
-                        student['quest_count'] = quest_counts.get(student['id'], 0)
-                        student['total_xp'] = xp_totals.get(student['id'], 0)
-                        student['active_badges'] = []  # Can be loaded on-demand if needed
+            # Bulk fetch quest counts and XP totals for all students (prevents N+1 queries)
+            if student_ids:
+                quest_counts = self._get_bulk_student_quest_counts(student_ids)
+                xp_totals = self._get_bulk_student_xp_totals(student_ids)
+                for student in students:
+                    student['quest_count'] = quest_counts.get(student['id'], 0)
+                    student['total_xp'] = xp_totals.get(student['id'], 0)
+                    student['active_badges'] = []  # Can be loaded on-demand if needed
 
             # Sort by display name (handle null values)
             students.sort(key=lambda x: x.get('display_name') or '')
