@@ -10,8 +10,16 @@ export const useFriends = (userId, options = {}) => {
   return useQuery({
     queryKey: queryKeys.social.friends(userId),
     queryFn: async () => {
-      const response = await friendsAPI.getFriends()
-      return response.data
+      try {
+        console.log('[USE_FRIENDS] Fetching friends for userId:', userId)
+        const response = await friendsAPI.getFriends()
+        console.log('[USE_FRIENDS] API response:', response)
+        return response.data
+      } catch (error) {
+        console.error('[USE_FRIENDS] Error fetching friends:', error)
+        console.error('[USE_FRIENDS] Error response:', error.response)
+        throw error
+      }
     },
     enabled: !!userId,
     ...options,
