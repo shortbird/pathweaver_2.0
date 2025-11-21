@@ -127,15 +127,11 @@ const HomeschoolPortfolioPage = () => {
         title="TRACK ALL YOUR LEARNING IN"
         gradientTitle="ONE BEAUTIFUL PORTFOLIO"
         staticSubtitle="The complete homeschool documentation system that grows with your student"
-        ctaText="GET YOUR FIRST CREDIT FREE"
+        ctaText="CREATE YOUR FREE ACCOUNT"
         onCtaClick={scrollToForm}
         backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/ParentsHero.jpg"
         removeOverlay={true}
         textAlign="left"
-        secondaryCta={{
-          text: "TRY IT OUT",
-          onClick: scrollToForm
-        }}
       />
 
       <LandingPageForm
