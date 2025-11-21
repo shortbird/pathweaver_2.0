@@ -244,7 +244,7 @@ export const friendsAPI = {
   sendFriendRequest: (email) => api.post('/api/community/friends/request', { email }),
 
   // Accept incoming friend request
-  acceptFriendRequest: (friendshipId) => api.post(`/api/community/friends/accept/${friendshipId}`),
+  acceptFriendRequest: (friendshipId) => api.post(`/api/community/friends/accept/${friendshipId}`, {}),
 
   // Decline incoming friend request
   declineFriendRequest: (friendshipId) => api.delete(`/api/community/friends/decline/${friendshipId}`),

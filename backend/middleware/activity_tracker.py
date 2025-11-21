@@ -56,6 +56,11 @@ class ActivityTracker:
         if self._should_skip_tracking():
             return response
 
+        # CRITICAL: If before_request didn't run (e.g., CSRF error), skip tracking
+        # g.session_id is only set in before_request, so check for it first
+        if not hasattr(g, 'session_id'):
+            return response
+
         # Set session cookie if not already set
         if not request.cookies.get('session_id'):
             response.set_cookie(
