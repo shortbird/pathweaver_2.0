@@ -29,7 +29,10 @@ def get_friends(user_id):
         logger.info(f"[GET_FRIENDS] Fetching friends for user: {user_id}")
 
         # Use FriendshipRepository instead of direct database access
-        friendship_repo = FriendshipRepository(user_id)
+        # IMPORTANT: Use admin client (None) because we use Flask JWTs, not Supabase JWTs
+        # Supabase RLS requires Supabase-issued JWTs, which we don't have
+        # Authorization is handled at application layer via @require_auth decorator
+        friendship_repo = FriendshipRepository(None)  # None = uses admin client
         # IMPORTANT: Use admin client for UserRepository to fetch OTHER users' profiles
         # RLS would prevent user-scoped client from seeing other users' basic info
         user_repo = UserRepository(None)  # None = uses admin client
