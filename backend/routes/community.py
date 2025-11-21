@@ -331,11 +331,11 @@ def send_friend_request(user_id):
 @bp.route('/friends/accept/<friendship_id>', methods=['POST'])
 @require_auth
 def accept_friend_request(user_id, friendship_id):
-    from database import get_user_client, get_supabase_admin_client
-    # Use user client for user-specific friendship operations
-    supabase = get_user_client(user_id)
-    # Admin client only for RPC call to bypass triggers (database function requires service role)
-    admin_supabase = get_supabase_admin_client()
+    from database import get_supabase_admin_client
+    # IMPORTANT: Use admin client because we use Flask JWTs, not Supabase JWTs
+    # Authorization is handled at application layer via @require_auth decorator
+    supabase = get_supabase_admin_client()
+    admin_supabase = supabase  # Keep for backwards compatibility with code below
 
     try:
         logger.info(f"[ACCEPT_FRIEND] User {user_id} attempting to accept friendship {friendship_id}")
@@ -453,7 +453,10 @@ def accept_friend_request(user_id, friendship_id):
 @bp.route('/friends/decline/<friendship_id>', methods=['DELETE'])
 @require_auth
 def decline_friend_request(user_id, friendship_id):
-    supabase = get_supabase_client()
+    from database import get_supabase_admin_client
+    # IMPORTANT: Use admin client because we use Flask JWTs, not Supabase JWTs
+    # Authorization is handled at application layer via @require_auth decorator
+    supabase = get_supabase_admin_client()
 
     try:
         friendship_result = supabase.table('friendships').select('*').eq('id', friendship_id).execute()
@@ -475,7 +478,10 @@ def decline_friend_request(user_id, friendship_id):
 @bp.route('/friends/cancel/<friendship_id>', methods=['DELETE'])
 @require_auth
 def cancel_friend_request(user_id, friendship_id):
-    supabase = get_supabase_client()
+    from database import get_supabase_admin_client
+    # IMPORTANT: Use admin client because we use Flask JWTs, not Supabase JWTs
+    # Authorization is handled at application layer via @require_auth decorator
+    supabase = get_supabase_admin_client()
 
     try:
         logger.info(f"[CANCEL_FRIEND] User {user_id} attempting to cancel friendship {friendship_id}")
