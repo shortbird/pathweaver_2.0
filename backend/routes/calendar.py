@@ -104,7 +104,7 @@ def get_calendar_items(user_id):
     INCLUDES tasks from completed quests for progress tracking persistence.
     """
     try:
-        supabase = get_user_client()
+        supabase = get_supabase_admin_client()
         today = date.today()
 
         # Get user quests (include both active AND completed for calendar persistence)
@@ -258,7 +258,7 @@ def update_deadline(user_id=None):
         if not user_id or not quest_id:
             return jsonify({'error': 'user_id and quest_id are required'}), 400
 
-        supabase = get_user_client()
+        supabase = get_supabase_admin_client()
 
         # Upsert deadline
         deadline_data = {
@@ -309,7 +309,7 @@ def bulk_update_deadlines(user_id=None):
         if not user_id or not items:
             return jsonify({'error': 'user_id and items are required'}), 400
 
-        supabase = get_user_client()
+        supabase = get_supabase_admin_client()
 
         # Prepare bulk upsert data
         deadline_records = []
@@ -506,7 +506,7 @@ def get_preferences(user_id):
     Get user's calendar view preferences.
     """
     try:
-        supabase = get_user_client()
+        supabase = get_supabase_admin_client()
 
         response = supabase.table('calendar_view_preferences')\
             .select('*')\
@@ -536,7 +536,7 @@ def update_preferences(user_id):
     """
     try:
         data = request.get_json()
-        supabase = get_user_client()
+        supabase = get_supabase_admin_client()
 
         preference_data = {
             'user_id': user_id,
