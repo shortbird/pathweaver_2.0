@@ -131,7 +131,7 @@ const HomeschoolPortfolioPage = () => {
         title="TRACK ALL YOUR LEARNING IN"
         gradientTitle="ONE BEAUTIFUL PORTFOLIO"
         staticSubtitle="The complete homeschool documentation system that grows with your student"
-        ctaText="CREATE YOUR FREE ACCOUNT"
+        ctaText="CREATE FREE ACCOUNT"
         onCtaClick={scrollToForm}
         backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/ParentsHero.jpg"
         mobileBackgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/Mobile_ParentsHero.jpg"

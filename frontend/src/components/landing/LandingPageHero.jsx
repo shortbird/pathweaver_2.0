@@ -39,7 +39,7 @@ const LandingPageHero = ({
 
   return (
     <div
-      className={`relative py-20 px-4 overflow-hidden ${textAlign === 'center' ? 'text-center' : 'text-left'}`}
+      className={`relative py-8 md:py-20 px-4 overflow-hidden ${textAlign === 'center' ? 'text-center' : 'text-center md:text-left'}`}
       style={{
         background: backgroundImage ? 'transparent' : backgroundGradient,
         minHeight: '500px'
@@ -86,7 +86,7 @@ const LandingPageHero = ({
         </div>
       )}
 
-      <div className={`relative max-w-6xl ${textAlign === 'center' ? 'mx-auto' : 'mx-4 md:ml-8 md:mr-auto lg:ml-24'}`}>
+      <div className={`relative max-w-6xl ${textAlign === 'center' ? 'mx-auto' : 'mx-auto md:ml-8 md:mr-auto lg:ml-24'}`}>
         {/* Main Title */}
         <h1
           className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white mb-2 leading-tight"
@@ -145,7 +145,7 @@ const LandingPageHero = ({
           </div>
         ) : staticSubtitle ? (
           <p
-            className={`text-xl sm:text-2xl md:text-3xl text-white/95 mb-8 max-w-4xl leading-relaxed ${textAlign === 'center' ? 'mx-auto' : ''}`}
+            className={`text-xl sm:text-2xl md:text-3xl text-white/95 mb-8 max-w-4xl leading-relaxed mx-auto md:mx-0`}
             style={{ fontFamily: 'Poppins', fontWeight: 600 }}
           >
             {staticSubtitle}
@@ -153,7 +153,7 @@ const LandingPageHero = ({
         ) : null}
 
         {/* CTA Buttons */}
-        <div className={`flex flex-col sm:flex-row gap-4 mt-8 ${textAlign === 'center' ? 'justify-center items-center' : 'justify-start items-start'}`}>
+        <div className={`flex flex-col sm:flex-row gap-4 mt-8 ${textAlign === 'center' ? 'justify-center items-center' : 'justify-center md:justify-start items-center md:items-start'}`}>
           <button
             onClick={onCtaClick}
             className="bg-white text-optio-pink hover:bg-gray-100 text-lg px-8 py-4 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center"
