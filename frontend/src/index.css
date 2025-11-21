@@ -155,3 +155,19 @@
   -webkit-text-fill-color: transparent;
   animation: text-shimmer 3s ease-in-out infinite;
 }
+
+/* FullCalendar icon font override - prevent CSP violations */
+.fc-icon {
+  font-family: inherit !important;
+}
+
+/* Use text-based chevrons instead of icon fonts */
+.fc-icon-chevron-left::before {
+  content: '‹' !important;
+  font-size: 2em;
+}
+
+.fc-icon-chevron-right::before {
+  content: '›' !important;
+  font-size: 2em;
+}

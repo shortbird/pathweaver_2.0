@@ -4,8 +4,6 @@ import '@fontsource/poppins/400.css'
 import '@fontsource/poppins/500.css'
 import '@fontsource/poppins/600.css'
 import '@fontsource/poppins/700.css'
-import '@fullcalendar/core/main.css'
-import '@fullcalendar/daygrid/main.css'
 import App from './App'
 import './index.css'
 
