@@ -52,6 +52,17 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
   const learningPartners = friendsData?.friends || []
   const observers = observersData?.observers || []
 
+  // Debug logging
+  React.useEffect(() => {
+    if (user?.role === 'student') {
+      console.log('[ConversationList] User role:', user.role)
+      console.log('[ConversationList] Friends data:', friendsData)
+      console.log('[ConversationList] Learning partners:', learningPartners)
+      console.log('[ConversationList] Observers data:', observersData)
+      console.log('[ConversationList] Observers:', observers)
+    }
+  }, [user, friendsData, observersData, learningPartners, observers])
+
   const formatTime = (timestamp) => {
     if (!timestamp) return ''
     const date = new Date(timestamp)
