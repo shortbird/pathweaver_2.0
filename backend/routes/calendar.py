@@ -343,7 +343,7 @@ def get_next_up(user_id):
     Accepts client_date query parameter to handle timezone differences.
     """
     try:
-        supabase = get_user_client()
+        supabase = get_supabase_admin_client()
 
         # Accept client's local date to avoid timezone issues
         client_date_str = request.args.get('client_date')
