@@ -124,11 +124,16 @@ const HomeschoolPortfolioPage = () => {
   return (
     <div className="min-h-screen bg-white">
       <LandingPageHero
-        title="Track All Your Learning in One Beautiful Portfolio"
+        title="TRACK ALL YOUR LEARNING IN ONE BEAUTIFUL PORTFOLIO"
         staticSubtitle="The complete homeschool documentation system that grows with your student"
-        ctaText="Create Free Account"
+        ctaText="GET YOUR FIRST CREDIT FREE"
         onCtaClick={scrollToForm}
-        backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/homeschool-portfolio-hero.jpg"
+        backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/ParentsHero.jpg"
+        removeOverlay={true}
+        secondaryCta={{
+          text: "TRY IT OUT",
+          onClick: scrollToForm
+        }}
       />
 
       <LandingPageForm

@@ -11,6 +11,7 @@ const LandingPageHero = ({
   backgroundImage = null,
   backgroundPosition = 'center',
   secondaryCta = null,
+  removeOverlay = false,
 }) => {
   const [currentWordIndex, setCurrentWordIndex] = useState(0)
 
@@ -41,7 +42,7 @@ const LandingPageHero = ({
         minHeight: '500px'
       }}
     >
-      {/* Background Image with Overlay */}
+      {/* Background Image with Optional Overlay */}
       {backgroundImage && (
         <>
           <div
@@ -53,12 +54,14 @@ const LandingPageHero = ({
             }}
           />
           {/* Gradient overlay for text readability - uses Optio brand gradient with opacity */}
-          <div
-            className="absolute inset-0"
-            style={{
-              background: 'linear-gradient(135deg, rgba(109, 70, 155, 0.8) 0%, rgba(239, 89, 123, 0.8) 100%)'
-            }}
-          />
+          {!removeOverlay && (
+            <div
+              className="absolute inset-0"
+              style={{
+                background: 'linear-gradient(135deg, rgba(109, 70, 155, 0.8) 0%, rgba(239, 89, 123, 0.8) 100%)'
+              }}
+            />
+          )}
         </>
       )}
 
