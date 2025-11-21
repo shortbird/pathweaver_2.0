@@ -24,29 +24,39 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
   })
 
   // Fetch friends (learning partners) for students
-  const { data: friendsData } = useQuery({
+  const { data: friendsData, error: friendsError, isLoading: friendsLoading } = useQuery({
     queryKey: ['friends', user?.id],
     queryFn: async () => {
+      console.log('[ConversationList] Fetching friends...')
       const response = await friendsAPI.getFriends()
+      console.log('[ConversationList] Friends API response:', response)
       return response.data
     },
     enabled: user?.role === 'student',
     staleTime: 2 * 60 * 1000, // Cache for 2 minutes
     gcTime: 5 * 60 * 1000,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: false,
+    onError: (error) => {
+      console.error('[ConversationList] Friends API error:', error)
+    }
   })
 
   // Fetch observers for students
-  const { data: observersData } = useQuery({
+  const { data: observersData, error: observersError, isLoading: observersLoading } = useQuery({
     queryKey: ['observers', user?.id],
     queryFn: async () => {
+      console.log('[ConversationList] Fetching observers...')
       const response = await observerAPI.getMyObservers()
+      console.log('[ConversationList] Observers API response:', response)
       return response.data
     },
     enabled: user?.role === 'student',
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
     gcTime: 10 * 60 * 1000,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: false,
+    onError: (error) => {
+      console.error('[ConversationList] Observers API error:', error)
+    }
   })
 
   const learningPartners = friendsData?.friends || []
@@ -54,14 +64,19 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
 
   // Debug logging
   React.useEffect(() => {
-    if (user?.role === 'student') {
-      console.log('[ConversationList] User role:', user.role)
-      console.log('[ConversationList] Friends data:', friendsData)
-      console.log('[ConversationList] Learning partners:', learningPartners)
-      console.log('[ConversationList] Observers data:', observersData)
-      console.log('[ConversationList] Observers:', observers)
-    }
-  }, [user, friendsData, observersData, learningPartners, observers])
+    console.log('[ConversationList] User:', user)
+    console.log('[ConversationList] User role:', user?.role)
+    console.log('[ConversationList] Friends loading:', friendsLoading)
+    console.log('[ConversationList] Friends error:', friendsError)
+    console.log('[ConversationList] Friends data:', friendsData)
+    console.log('[ConversationList] Learning partners:', learningPartners)
+    console.log('[ConversationList] Learning partners length:', learningPartners.length)
+    console.log('[ConversationList] Observers loading:', observersLoading)
+    console.log('[ConversationList] Observers error:', observersError)
+    console.log('[ConversationList] Observers data:', observersData)
+    console.log('[ConversationList] Observers:', observers)
+    console.log('[ConversationList] Observers length:', observers.length)
+  }, [user, friendsData, observersData, learningPartners, observers, friendsLoading, friendsError, observersLoading, observersError])
 
   const formatTime = (timestamp) => {
     if (!timestamp) return ''
