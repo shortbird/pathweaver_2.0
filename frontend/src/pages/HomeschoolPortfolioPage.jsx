@@ -134,6 +134,7 @@ const HomeschoolPortfolioPage = () => {
         ctaText="CREATE YOUR FREE ACCOUNT"
         onCtaClick={scrollToForm}
         backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/ParentsHero.jpg"
+        mobileBackgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/Mobile_ParentsHero.jpg"
         removeOverlay={true}
         textAlign="left"
         secondaryCta={{

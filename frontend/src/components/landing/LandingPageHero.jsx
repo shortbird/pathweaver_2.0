@@ -10,6 +10,7 @@ const LandingPageHero = ({
   onCtaClick,
   backgroundGradient = 'linear-gradient(135deg, #6D469B 0%, #8058AC 50%, #EF597B 100%)',
   backgroundImage = null,
+  mobileBackgroundImage = null,
   backgroundPosition = 'center',
   secondaryCta = null,
   removeOverlay = false,
@@ -47,11 +48,21 @@ const LandingPageHero = ({
       {/* Background Image with Optional Overlay */}
       {backgroundImage && (
         <>
+          {/* Desktop background */}
           <div
-            className="absolute inset-0 bg-cover"
+            className="hidden md:block absolute inset-0 bg-cover"
             style={{
               backgroundImage: `url(${backgroundImage})`,
               backgroundPosition: backgroundPosition,
+              backgroundSize: 'cover'
+            }}
+          />
+          {/* Mobile background */}
+          <div
+            className="md:hidden absolute inset-0 bg-cover"
+            style={{
+              backgroundImage: `url(${mobileBackgroundImage || backgroundImage})`,
+              backgroundPosition: 'top center',
               backgroundSize: 'cover'
             }}
           />
@@ -75,7 +86,7 @@ const LandingPageHero = ({
         </div>
       )}
 
-      <div className={`relative max-w-6xl ${textAlign === 'center' ? 'mx-auto' : 'ml-8 md:ml-16 lg:ml-24'}`}>
+      <div className={`relative max-w-6xl ${textAlign === 'center' ? 'mx-auto' : 'mx-4 md:ml-8 md:mr-auto lg:ml-24'}`}>
         {/* Main Title */}
         <h1
           className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white mb-2 leading-tight"
