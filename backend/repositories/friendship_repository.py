@@ -29,23 +29,35 @@ class FriendshipRepository(BaseRepository):
             List of friendships
         """
         try:
+            logger.info(f"[FRIENDSHIP_REPO] Finding friendships for user: {user_id}, status filter: {status}")
+            logger.info(f"[FRIENDSHIP_REPO] Using client type: {type(self.client).__name__}")
+
             # Don't use nested select - just get the friendship records
             # User data will be fetched separately in the route handler
             query = self.client.table(self.table_name).select('*')
 
             # User is either requester or addressee
             if status:
-                query = query.or_(f'requester_id.eq.{user_id},addressee_id.eq.{user_id}')\
-                    .eq('status', status)
+                or_filter = f'requester_id.eq.{user_id},addressee_id.eq.{user_id}'
+                logger.info(f"[FRIENDSHIP_REPO] Using OR filter: {or_filter}, status: {status}")
+                query = query.or_(or_filter).eq('status', status)
             else:
-                query = query.or_(f'requester_id.eq.{user_id},addressee_id.eq.{user_id}')
+                or_filter = f'requester_id.eq.{user_id},addressee_id.eq.{user_id}'
+                logger.info(f"[FRIENDSHIP_REPO] Using OR filter: {or_filter}")
+                query = query.or_(or_filter)
 
             query = query.order('created_at', desc=True)
 
+            logger.info(f"[FRIENDSHIP_REPO] Executing query...")
             result = query.execute()
+            logger.info(f"[FRIENDSHIP_REPO] Query result: {len(result.data) if result.data else 0} friendships found")
+            if result.data:
+                logger.info(f"[FRIENDSHIP_REPO] Sample result: {result.data[0]}")
             return result.data or []
         except Exception as e:
-            logger.error(f"Error fetching friendships for user {user_id}: {e}")
+            logger.error(f"[FRIENDSHIP_REPO] Error fetching friendships for user {user_id}: {e}")
+            import traceback
+            logger.error(f"[FRIENDSHIP_REPO] Traceback: {traceback.format_exc()}")
             return []
 
     def find_accepted_connections(self, user_id: str) -> List[Dict[str, Any]]:
