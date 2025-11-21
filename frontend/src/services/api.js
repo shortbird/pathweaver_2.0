@@ -256,6 +256,22 @@ export const friendsAPI = {
 // Collaboration API removed in Phase 3 refactoring (January 2025)
 // Team-up feature has been removed from the platform
 
+// Observer API methods (extended family portfolio access)
+export const observerAPI = {
+  // Get list of linked observers for current student
+  getMyObservers: () => api.get('/api/observers/my-observers'),
+
+  // Send invitation to observer
+  sendInvitation: (observerEmail, observerName, relationship) =>
+    api.post('/api/observers/invite', { observer_email: observerEmail, observer_name: observerName, relationship }),
+
+  // Get my sent invitations
+  getMyInvitations: () => api.get('/api/observers/my-invitations'),
+
+  // Cancel pending invitation
+  cancelInvitation: (invitationId) => api.delete(`/api/observers/invitations/${invitationId}/cancel`)
+}
+
 // LMS Integration API methods
 export const lmsAPI = {
   // Get list of supported LMS platforms

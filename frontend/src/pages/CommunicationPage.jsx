@@ -8,8 +8,6 @@ import api from '../services/api'
 const CommunicationPage = () => {
   const { user } = useAuth()
   const [selectedConversation, setSelectedConversation] = useState(null)
-  const [mostRecentTutorConversationId, setMostRecentTutorConversationId] = useState(null)
-  const [isLoadingTutorHistory, setIsLoadingTutorHistory] = useState(true)
 
   // React Query hook for conversations
   const {
@@ -19,45 +17,10 @@ const CommunicationPage = () => {
     enabled: !!user?.id
   })
 
-  // Fetch most recent tutor conversation on mount
+  // Auto-select OptioBot on initial load with empty chat (always start fresh)
   useEffect(() => {
-    const fetchMostRecentTutorConversation = async () => {
-      if (!user?.id) {
-        console.log('CommunicationPage: No user ID, skipping tutor conversation fetch')
-        setIsLoadingTutorHistory(false)
-        return
-      }
-
-      try {
-        console.log('CommunicationPage: Fetching most recent tutor conversation for user:', user.id)
-        setIsLoadingTutorHistory(true)
-        const response = await api.get('/api/tutor/conversations?limit=1')
-        const data = response.data?.data || response.data
-
-        console.log('CommunicationPage: Tutor conversations response:', data)
-
-        if (data.conversations && data.conversations.length > 0) {
-          console.log('CommunicationPage: Found most recent conversation:', data.conversations[0].id)
-          setMostRecentTutorConversationId(data.conversations[0].id)
-        } else {
-          console.log('CommunicationPage: No tutor conversations found, starting with blank chat')
-        }
-      } catch (error) {
-        console.error('CommunicationPage: Failed to fetch tutor conversation history:', error)
-        console.error('CommunicationPage: Error response:', error.response)
-        // Don't fail silently - user can still start a new conversation
-      } finally {
-        setIsLoadingTutorHistory(false)
-      }
-    }
-
-    fetchMostRecentTutorConversation()
-  }, [user?.id])
-
-  // Auto-select OptioBot on initial load with most recent conversation
-  useEffect(() => {
-    if (!selectedConversation && !isLoadingTutorHistory) {
-      // Select OptioBot by default, resuming most recent conversation if available
+    if (!selectedConversation && user?.id) {
+      // Select OptioBot by default with a fresh, empty chat
       setSelectedConversation({
         id: 'optiobot',
         type: 'bot',
@@ -67,13 +30,18 @@ const CommunicationPage = () => {
           first_name: 'OptioBot',
           role: 'bot'
         },
-        tutorConversationId: mostRecentTutorConversationId, // Resume most recent conversation
+        tutorConversationId: null, // Always start with empty chat
         last_message_at: new Date().toISOString(),
         last_message_preview: 'Your AI Learning Companion',
         unread_count: 0
       })
     }
-  }, [selectedConversation, isLoadingTutorHistory, mostRecentTutorConversationId])
+  }, [selectedConversation, user?.id])
+
+  // Scroll to top when page loads
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
 
   const handleSelectConversation = (conversation) => {
     setSelectedConversation(conversation)
@@ -104,8 +72,6 @@ const CommunicationPage = () => {
                     ...prev,
                     tutorConversationId: convId
                   }))
-                  // Also update most recent conversation ID for future page loads
-                  setMostRecentTutorConversationId(convId)
                 }
               }}
             />

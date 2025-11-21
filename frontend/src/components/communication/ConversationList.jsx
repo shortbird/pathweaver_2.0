@@ -1,8 +1,8 @@
 import React from 'react'
-import { Bot, User, Pin, Search, Users } from 'lucide-react'
+import { Bot, User, Pin, Search, Users, Eye } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useQuery } from '@tanstack/react-query'
-import { parentAPI } from '../../services/api'
+import { parentAPI, friendsAPI, observerAPI } from '../../services/api'
 
 const ConversationList = ({ conversations, selectedConversation, onSelectConversation, isLoading }) => {
   const { user } = useAuth()
@@ -22,6 +22,35 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
     refetchOnWindowFocus: false, // Don't refetch when window regains focus
     refetchOnMount: false // Don't refetch on component remount if data exists
   })
+
+  // Fetch friends (learning partners) for students
+  const { data: friendsData } = useQuery({
+    queryKey: ['friends', user?.id],
+    queryFn: async () => {
+      const response = await friendsAPI.getFriends()
+      return response.data
+    },
+    enabled: user?.role === 'student',
+    staleTime: 2 * 60 * 1000, // Cache for 2 minutes
+    gcTime: 5 * 60 * 1000,
+    refetchOnWindowFocus: false
+  })
+
+  // Fetch observers for students
+  const { data: observersData } = useQuery({
+    queryKey: ['observers', user?.id],
+    queryFn: async () => {
+      const response = await observerAPI.getMyObservers()
+      return response.data
+    },
+    enabled: user?.role === 'student',
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false
+  })
+
+  const learningPartners = friendsData?.friends || []
+  const observers = observersData?.observers || []
 
   const formatTime = (timestamp) => {
     if (!timestamp) return ''
@@ -226,6 +255,67 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
             {pinnedConversations.map(convo => (
               <ConversationItem key={convo.id} conversation={convo} />
             ))}
+          </div>
+        )}
+
+        {/* Learning Partners Section (Students Only) */}
+        {user?.role === 'student' && learningPartners.length > 0 && (
+          <div>
+            <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center">
+                <Users className="w-3 h-3 mr-1" />
+                Learning Partners
+              </h4>
+            </div>
+            {learningPartners.map(friend => {
+              const partnerConvo = {
+                id: `friend-${friend.id}`,
+                type: 'friend',
+                other_user: {
+                  id: friend.id,
+                  display_name: friend.display_name || `${friend.first_name} ${friend.last_name}`,
+                  first_name: friend.first_name,
+                  last_name: friend.last_name,
+                  avatar_url: friend.avatar_url,
+                  role: friend.role
+                },
+                last_message_at: null,
+                last_message_preview: 'Start a conversation',
+                unread_count: 0
+              }
+              return <ConversationItem key={partnerConvo.id} conversation={partnerConvo} />
+            })}
+          </div>
+        )}
+
+        {/* Observers Section (Students Only) */}
+        {user?.role === 'student' && observers.length > 0 && (
+          <div>
+            <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center">
+                <Eye className="w-3 h-3 mr-1" />
+                Observers
+              </h4>
+            </div>
+            {observers.map(observerLink => {
+              const observer = observerLink.observer || {}
+              const observerConvo = {
+                id: `observer-${observer.id}`,
+                type: 'observer',
+                other_user: {
+                  id: observer.id,
+                  display_name: `${observer.first_name} ${observer.last_name}`,
+                  first_name: observer.first_name,
+                  last_name: observer.last_name,
+                  avatar_url: observer.avatar_url,
+                  role: 'observer'
+                },
+                last_message_at: null,
+                last_message_preview: 'Send a message',
+                unread_count: 0
+              }
+              return <ConversationItem key={observerConvo.id} conversation={observerConvo} />
+            })}
           </div>
         )}
 
