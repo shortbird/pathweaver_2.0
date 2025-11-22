@@ -209,6 +209,66 @@ def check_can_message(user_id: str, target_user_id: str):
         )
 
 
+@bp.route('/contacts', methods=['GET'])
+@require_auth
+def get_contacts(user_id: str):
+    """
+    Get all messaging contacts for the user (advisors, students, etc.)
+    This includes:
+    - For students: their advisor
+    - For advisors/admins: their assigned students
+    """
+    try:
+        from database import get_supabase_admin_client
+        supabase = get_supabase_admin_client()
+
+        # Get user role
+        user = supabase.table('users').select('role, advisor_id').eq('id', user_id).single().execute()
+        if not user.data:
+            return error_response('User not found', status_code=404, error_code='not_found')
+
+        contacts = []
+        user_role = user.data.get('role')
+
+        # For students: add their advisor as a contact
+        if user_role == 'student' and user.data.get('advisor_id'):
+            advisor = supabase.table('users').select(
+                'id, display_name, first_name, last_name, avatar_url, role'
+            ).eq('id', user.data['advisor_id']).single().execute()
+
+            if advisor.data:
+                contacts.append({
+                    **advisor.data,
+                    'relationship': 'advisor'
+                })
+
+        # For advisors/admins: add all their assigned students
+        if user_role in ['advisor', 'admin']:
+            students = supabase.table('users').select(
+                'id, display_name, first_name, last_name, avatar_url, role'
+            ).eq('advisor_id', user_id).execute()
+
+            if students.data:
+                for student in students.data:
+                    contacts.append({
+                        **student,
+                        'relationship': 'student'
+                    })
+
+        return success_response({
+            'contacts': contacts,
+            'total': len(contacts)
+        })
+
+    except Exception as e:
+        logger.error(f"Error getting contacts: {str(e)}")
+        return error_response(
+            f"Failed to get contacts: {str(e)}",
+            status_code=500,
+            error_code="internal_error"
+        )
+
+
 # Error handlers
 @bp.errorhandler(ValidationError)
 def handle_validation_error(error):

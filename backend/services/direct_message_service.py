@@ -43,6 +43,24 @@ class DirectMessageService(BaseService):
             supabase = self._get_client()
             print(f"[can_message_user] Checking permission: {user_id} -> {target_id}", file=sys.stderr, flush=True)
 
+            # Get both users' roles to check for advisor-student relationships
+            user1 = supabase.table('users').select('role, advisor_id').eq('id', user_id).single().execute()
+            user2 = supabase.table('users').select('role, advisor_id').eq('id', target_id).single().execute()
+
+            print(f"[can_message_user] User1 role: {user1.data.get('role')}, User2 role: {user2.data.get('role')}", file=sys.stderr, flush=True)
+
+            # Check if one is an advisor and the other is their student (or vice versa)
+            if user1.data and user2.data:
+                # Case 1: user1 is advisor, user2 is their student
+                if user1.data.get('role') in ['advisor', 'admin'] and user2.data.get('advisor_id') == user_id:
+                    print(f"[can_message_user] ALLOWED: User1 is advisor for User2", file=sys.stderr, flush=True)
+                    return True
+
+                # Case 2: user2 is advisor, user1 is their student
+                if user2.data.get('role') in ['advisor', 'admin'] and user1.data.get('advisor_id') == target_id:
+                    print(f"[can_message_user] ALLOWED: User2 is advisor for User1", file=sys.stderr, flush=True)
+                    return True
+
             # Check if they are friends (accepted status) - check both directions
             friendship1 = supabase.table('friendships').select('status').eq(
                 'requester_id', user_id
@@ -75,11 +93,29 @@ class DirectMessageService(BaseService):
                 print(f"[can_message_user] ALLOWED: Parent-student link exists", file=sys.stderr, flush=True)
                 return True
 
+            # Check for observer-student link (bidirectional)
+            observer_link1 = supabase.table('observer_student_links').select('id').eq(
+                'observer_id', user_id
+            ).eq('student_id', target_id).execute()
+
+            observer_link2 = supabase.table('observer_student_links').select('id').eq(
+                'observer_id', target_id
+            ).eq('student_id', user_id).execute()
+
+            print(f"[can_message_user] Observer link check: ol1={observer_link1.data}, ol2={observer_link2.data}", file=sys.stderr, flush=True)
+
+            if (observer_link1.data and len(observer_link1.data) > 0) or \
+               (observer_link2.data and len(observer_link2.data) > 0):
+                print(f"[can_message_user] ALLOWED: Observer-student link exists", file=sys.stderr, flush=True)
+                return True
+
             print(f"[can_message_user] DENIED: No valid relationship found", file=sys.stderr, flush=True)
             return False
 
         except Exception as e:
             print(f"[can_message_user] ERROR: {str(e)}", file=sys.stderr, flush=True)
+            import traceback
+            traceback.print_exc()
             return False
 
     # ==================== Conversation Management ====================

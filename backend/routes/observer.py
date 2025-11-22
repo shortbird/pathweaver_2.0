@@ -161,14 +161,13 @@ def cancel_observer_invitation(invitation_id):
 
 @bp.route('/api/observers/my-observers', methods=['GET'])
 @require_auth
-def get_my_observers():
+def get_my_observers(user_id: str):
     """
     Student views linked observers
 
     Returns:
         200: List of linked observers with relationship details
     """
-    user_id = request.user_id
 
     try:
         supabase = get_user_client(user_id)

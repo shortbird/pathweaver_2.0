@@ -1,8 +1,9 @@
 import React from 'react'
-import { Bot, User, Pin, Search, Users, Eye } from 'lucide-react'
+import { Bot, User, Pin, Search, Users, Eye, GraduationCap } from 'lucide-react'
 import { useAuth } from '../../contexts/AuthContext'
 import { useQuery } from '@tanstack/react-query'
 import { parentAPI, friendsAPI, observerAPI } from '../../services/api'
+import { useMessagingContacts } from '../../hooks/api/useDirectMessages'
 
 const ConversationList = ({ conversations, selectedConversation, onSelectConversation, isLoading }) => {
   const { user } = useAuth()
@@ -59,8 +60,14 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
     }
   })
 
+  // Fetch messaging contacts (advisors/students) - available to all users
+  const { data: contactsData, isLoading: contactsLoading } = useMessagingContacts(user?.id, {
+    enabled: !!user?.id
+  })
+
   const learningPartners = friendsData?.friends || []
   const observers = observersData?.observers || []
+  const messagingContacts = contactsData?.contacts || []
 
   // Debug logging
   React.useEffect(() => {
@@ -124,7 +131,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
     } else {
       // Create placeholder for advisor even if no messages yet
       pinnedConversations.push({
-        id: `advisor-${user.advisor_id}`,
+        id: user.advisor_id, // Use user ID directly - backend handles creating conversation
         type: 'advisor',
         other_user: {
           id: user.advisor_id,
@@ -295,7 +302,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
             </div>
             {learningPartners.map(friend => {
               const partnerConvo = {
-                id: `friend-${friend.id}`,
+                id: friend.id, // Use user ID directly - backend handles creating conversation
                 type: 'friend',
                 other_user: {
                   id: friend.id,
@@ -309,7 +316,37 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
                 last_message_preview: 'Start a conversation',
                 unread_count: 0
               }
-              return <ConversationItem key={partnerConvo.id} conversation={partnerConvo} />
+              return <ConversationItem key={`friend-${friend.id}`} conversation={partnerConvo} />
+            })}
+          </div>
+        )}
+
+        {/* Advisor/Student Contacts Section */}
+        {messagingContacts.length > 0 && (
+          <div>
+            <div className="px-4 py-2 bg-gray-50 border-b border-gray-200">
+              <h4 className="text-xs font-semibold text-gray-600 uppercase tracking-wide flex items-center">
+                <GraduationCap className="w-3 h-3 mr-1" />
+                {user?.role === 'student' ? 'Advisor' : 'Students'}
+              </h4>
+            </div>
+            {messagingContacts.map(contact => {
+              const contactConvo = {
+                id: contact.id, // Use user ID directly - backend handles creating conversation
+                type: contact.relationship, // 'advisor' or 'student'
+                other_user: {
+                  id: contact.id,
+                  display_name: contact.display_name || `${contact.first_name} ${contact.last_name}`,
+                  first_name: contact.first_name,
+                  last_name: contact.last_name,
+                  avatar_url: contact.avatar_url,
+                  role: contact.role
+                },
+                last_message_at: null,
+                last_message_preview: 'Start a conversation',
+                unread_count: 0
+              }
+              return <ConversationItem key={`contact-${contact.id}`} conversation={contactConvo} />
             })}
           </div>
         )}
@@ -326,7 +363,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
             {observers.map(observerLink => {
               const observer = observerLink.observer || {}
               const observerConvo = {
-                id: `observer-${observer.id}`,
+                id: observer.id, // Use user ID directly - backend handles creating conversation
                 type: 'observer',
                 other_user: {
                   id: observer.id,
@@ -340,7 +377,7 @@ const ConversationList = ({ conversations, selectedConversation, onSelectConvers
                 last_message_preview: 'Send a message',
                 unread_count: 0
               }
-              return <ConversationItem key={observerConvo.id} conversation={observerConvo} />
+              return <ConversationItem key={`observer-${observer.id}`} conversation={observerConvo} />
             })}
           </div>
         )}

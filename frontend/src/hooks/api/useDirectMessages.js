@@ -152,3 +152,18 @@ export const useCanMessage = (targetUserId, options = {}) => {
     ...options
   })
 }
+
+// Get messaging contacts (advisors, students)
+export const useMessagingContacts = (userId, options = {}) => {
+  return useQuery({
+    queryKey: ['messaging-contacts', userId],
+    queryFn: async () => {
+      const response = await api.get('/api/messages/contacts')
+      return response.data.data || response.data
+    },
+    enabled: !!userId,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    refetchOnWindowFocus: false,
+    ...options
+  })
+}
