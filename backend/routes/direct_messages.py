@@ -215,7 +215,7 @@ def get_contacts(user_id: str):
     """
     Get all messaging contacts for the user (advisors, students, etc.)
     This includes:
-    - For students: their advisor
+    - For students: their advisor(s)
     - For advisors/admins: their assigned students
     """
     try:
@@ -223,37 +223,54 @@ def get_contacts(user_id: str):
         supabase = get_supabase_admin_client()
 
         # Get user role
-        user = supabase.table('users').select('role, advisor_id').eq('id', user_id).single().execute()
+        user = supabase.table('users').select('role').eq('id', user_id).single().execute()
         if not user.data:
             return error_response('User not found', status_code=404, error_code='not_found')
 
         contacts = []
         user_role = user.data.get('role')
 
-        # For students: add their advisor as a contact
-        if user_role == 'student' and user.data.get('advisor_id'):
-            advisor = supabase.table('users').select(
-                'id, display_name, first_name, last_name, avatar_url, role'
-            ).eq('id', user.data['advisor_id']).single().execute()
+        # For students: add their advisor(s) as contacts
+        if user_role == 'student':
+            # Get advisor assignments for this student
+            assignments = supabase.table('advisor_student_assignments').select(
+                'advisor_id'
+            ).eq('student_id', user_id).eq('is_active', True).execute()
 
-            if advisor.data:
-                contacts.append({
-                    **advisor.data,
-                    'relationship': 'advisor'
-                })
+            if assignments.data:
+                advisor_ids = [a['advisor_id'] for a in assignments.data]
+                # Fetch advisor details
+                advisors = supabase.table('users').select(
+                    'id, display_name, first_name, last_name, avatar_url, role'
+                ).in_('id', advisor_ids).execute()
+
+                if advisors.data:
+                    for advisor in advisors.data:
+                        contacts.append({
+                            **advisor,
+                            'relationship': 'advisor'
+                        })
 
         # For advisors/admins: add all their assigned students
         if user_role in ['advisor', 'admin']:
-            students = supabase.table('users').select(
-                'id, display_name, first_name, last_name, avatar_url, role'
-            ).eq('advisor_id', user_id).execute()
+            # Get student assignments for this advisor
+            assignments = supabase.table('advisor_student_assignments').select(
+                'student_id'
+            ).eq('advisor_id', user_id).eq('is_active', True).execute()
 
-            if students.data:
-                for student in students.data:
-                    contacts.append({
-                        **student,
-                        'relationship': 'student'
-                    })
+            if assignments.data:
+                student_ids = [a['student_id'] for a in assignments.data]
+                # Fetch student details
+                students = supabase.table('users').select(
+                    'id, display_name, first_name, last_name, avatar_url, role'
+                ).in_('id', student_ids).execute()
+
+                if students.data:
+                    for student in students.data:
+                        contacts.append({
+                            **student,
+                            'relationship': 'student'
+                        })
 
         return success_response({
             'contacts': contacts,

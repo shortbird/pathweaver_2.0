@@ -43,23 +43,23 @@ class DirectMessageService(BaseService):
             supabase = self._get_client()
             print(f"[can_message_user] Checking permission: {user_id} -> {target_id}", file=sys.stderr, flush=True)
 
-            # Get both users' roles to check for advisor-student relationships
-            user1 = supabase.table('users').select('role, advisor_id').eq('id', user_id).single().execute()
-            user2 = supabase.table('users').select('role, advisor_id').eq('id', target_id).single().execute()
+            # Check for advisor-student relationship via advisor_student_assignments table
+            # Check if user_id is advisor for target_id
+            advisor_assignment1 = supabase.table('advisor_student_assignments').select('id').eq(
+                'advisor_id', user_id
+            ).eq('student_id', target_id).eq('is_active', True).execute()
 
-            print(f"[can_message_user] User1 role: {user1.data.get('role')}, User2 role: {user2.data.get('role')}", file=sys.stderr, flush=True)
+            # Check if target_id is advisor for user_id
+            advisor_assignment2 = supabase.table('advisor_student_assignments').select('id').eq(
+                'advisor_id', target_id
+            ).eq('student_id', user_id).eq('is_active', True).execute()
 
-            # Check if one is an advisor and the other is their student (or vice versa)
-            if user1.data and user2.data:
-                # Case 1: user1 is advisor, user2 is their student
-                if user1.data.get('role') in ['advisor', 'admin'] and user2.data.get('advisor_id') == user_id:
-                    print(f"[can_message_user] ALLOWED: User1 is advisor for User2", file=sys.stderr, flush=True)
-                    return True
+            print(f"[can_message_user] Advisor assignment check: a1={advisor_assignment1.data}, a2={advisor_assignment2.data}", file=sys.stderr, flush=True)
 
-                # Case 2: user2 is advisor, user1 is their student
-                if user2.data.get('role') in ['advisor', 'admin'] and user1.data.get('advisor_id') == target_id:
-                    print(f"[can_message_user] ALLOWED: User2 is advisor for User1", file=sys.stderr, flush=True)
-                    return True
+            if (advisor_assignment1.data and len(advisor_assignment1.data) > 0) or \
+               (advisor_assignment2.data and len(advisor_assignment2.data) > 0):
+                print(f"[can_message_user] ALLOWED: Advisor-student assignment exists", file=sys.stderr, flush=True)
+                return True
 
             # Check if they are friends (accepted status) - check both directions
             friendship1 = supabase.table('friendships').select('status').eq(
