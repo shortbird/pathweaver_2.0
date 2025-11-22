@@ -75,7 +75,7 @@ const HomePage = () => {
           backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/ParentsHero.jpg"
           mobileBackgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/Mobile_ParentsHero.jpg"
           removeOverlay={true}
-          textAlign="center"
+          textAlign="left"
           secondaryCta={{
             text: "TRY IT OUT",
             onClick: goToDemo
