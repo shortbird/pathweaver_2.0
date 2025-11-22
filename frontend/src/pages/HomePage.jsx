@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import { Play, X, BookOpen, Users, CheckCircle, Heart } from 'lucide-react'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
+import LandingPageHero from '../components/landing/LandingPageHero'
 // import { useSubscriptionTiers, formatPrice } from '../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
 
 const HomePage = () => {
@@ -10,6 +11,14 @@ const HomePage = () => {
   const navigate = useNavigate()
   // const { data: tiers, isLoading: tiersLoading } = useSubscriptionTiers() // REMOVED - Phase 3 refactoring (January 2025)
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
+
+  const scrollToRegister = () => {
+    navigate('/register')
+  }
+
+  const goToDemo = () => {
+    navigate('/demo')
+  }
 
   // Redirect authenticated users to their appropriate dashboard
   // Wait for auth loading to complete to avoid race conditions with AuthCallback
@@ -56,47 +65,23 @@ const HomePage = () => {
         Skip to main content
       </a>
 
-      {/* Hero Section - Simplified */}
-      <div
-        className="bg-gradient-primary text-white relative overflow-hidden"
-        role="banner"
-        aria-label="Hero section introducing Optio learning platform"
-      >
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-32 relative">
-          <div className="text-center">
-            <h1 className="text-5xl sm:text-6xl md:text-7xl lg:text-8xl font-bold leading-tight mb-8 drop-shadow-lg" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-              Raise doers, not dependents.
-            </h1>
-            <p className="text-xl sm:text-2xl md:text-3xl text-white/95 max-w-4xl mx-auto leading-relaxed mb-10" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-              Transform your child's learning into a professional portfolio.
-            </p>
-
-            {/* CTAs */}
-            {!isAuthenticated && (
-              <div className="flex flex-col gap-4 justify-center items-center max-w-sm mx-auto sm:max-w-none sm:flex-row">
-                <Link
-                  to="/register"
-                  className="bg-white text-optio-purple hover:bg-gray-100 text-lg px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center group w-full sm:w-auto justify-center min-h-[52px] touch-manipulation"
-                  style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-                >
-                  <BookOpen className="mr-2 w-5 h-5 group-hover:scale-110 transition-transform flex-shrink-0" aria-hidden="true" />
-                  Create Free Account
-                </Link>
-
-                <Link
-                  to="/demo"
-                  className="bg-white/10 backdrop-blur-sm border-2 border-white text-white hover:bg-white hover:text-optio-purple px-8 py-4 rounded-lg font-semibold inline-flex items-center transition-all w-full sm:w-auto justify-center shadow-md min-h-[52px] touch-manipulation"
-                  style={{ fontFamily: 'Poppins', fontWeight: 600 }}
-                >
-                  <Play className="mr-2 w-5 h-5" aria-hidden="true" />
-                  Try 2-Min Demo
-                </Link>
-              </div>
-            )}
-          </div>
-        </div>
-      </div>
+      {/* Hero Section */}
+      {!isAuthenticated && (
+        <LandingPageHero
+          title="Raise doers, not dependents"
+          staticSubtitle="Your toolkit for personalized learning"
+          ctaText="CREATE FREE ACCOUNT"
+          onCtaClick={scrollToRegister}
+          backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/ParentsHero.jpg"
+          mobileBackgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/Mobile_ParentsHero.jpg"
+          removeOverlay={true}
+          textAlign="center"
+          secondaryCta={{
+            text: "TRY IT OUT",
+            onClick: goToDemo
+          }}
+        />
+      )}
 
       {/* What Optio Provides Section - Platform Features Grid */}
       <div className="py-16 bg-white">
