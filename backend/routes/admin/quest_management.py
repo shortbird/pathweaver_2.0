@@ -458,7 +458,8 @@ def get_admin_quests(user_id):
         user_role = user.data[0].get('role') if user.data else 'advisor'
 
         # Build query based on role
-        query = supabase.table('quests').select('*', count='exact')
+        # Join with users table to get creator information
+        query = supabase.table('quests').select('*, creator:created_by(id, display_name, first_name, last_name, email)', count='exact')
 
         # Advisors see only their own quests
         if user_role == 'advisor':
@@ -472,9 +473,20 @@ def get_admin_quests(user_id):
             .range(offset, offset + per_page - 1)\
             .execute()
 
+        # Process quest data to flatten creator info
+        processed_quests = []
+        for quest in quests.data:
+            # Flatten creator data for easier frontend access
+            if quest.get('creator'):
+                creator = quest['creator']
+                quest['creator_name'] = creator.get('display_name') or f"{creator.get('first_name', '')} {creator.get('last_name', '')}".strip() or creator.get('email', 'Unknown User')
+            else:
+                quest['creator_name'] = None
+            processed_quests.append(quest)
+
         return jsonify({
             'success': True,
-            'quests': quests.data,
+            'quests': processed_quests,
             'total': quests.count,
             'page': page,
             'per_page': per_page,

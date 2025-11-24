@@ -368,10 +368,10 @@ const AdminQuests = () => {
                     </div>
 
                     {/* Created by info */}
-                    {quest.created_by && (
+                    {quest.creator_name && (
                       <div className="mb-4 p-3 bg-purple-50 rounded-lg">
-                        <span className="text-xs text-gray-600">Created by user</span>
-                        <p className="text-xs font-mono text-gray-500 truncate">{quest.created_by}</p>
+                        <span className="text-xs text-gray-600">Created by</span>
+                        <p className="text-sm font-medium text-gray-700">{quest.creator_name}</p>
                       </div>
                     )}
 

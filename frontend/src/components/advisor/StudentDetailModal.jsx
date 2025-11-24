@@ -85,11 +85,9 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
       );
 
       if (response.data.success) {
-        // Reload quests to get updated data
+        // Just reload quests data locally without triggering parent refresh
         await loadStudentQuests();
-        if (onTasksUpdated) {
-          onTasksUpdated();
-        }
+        // Don't call onTasksUpdated() here - it causes full page refresh and modal close
       } else {
         throw new Error(response.data.error || 'Failed to reorder tasks');
       }
