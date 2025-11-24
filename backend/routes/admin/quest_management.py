@@ -77,7 +77,7 @@ def create_quest_v3_clean(user_id):
         if not data.get('title'):
             return jsonify({'success': False, 'error': 'Title is required'}), 400
 
-        # Get user role to determine default is_active value
+        # Get user role to determine default is_active and is_public values
         user = supabase.table('users').select('role').eq('id', user_id).execute()
         user_role = user.data[0].get('role') if user.data else 'advisor'
 
@@ -89,13 +89,15 @@ def create_quest_v3_clean(user_id):
             image_url = search_quest_image(data['title'].strip(), quest_desc)
             print(f"Auto-fetched image for quest '{data['title']}': {image_url}")
 
-        # Determine is_active value based on role
-        # Admins can set is_active=True (publish immediately)
-        # Advisors always create drafts (is_active=False)
+        # Determine is_active and is_public values based on role
+        # Admins can set is_active=True and is_public=True (publish immediately)
+        # Advisors always create drafts (is_active=False, is_public=False)
         if user_role == 'admin':
             is_active = data.get('is_active', False)
+            is_public = data.get('is_public', False)
         else:
             is_active = False  # Advisors always create unpublished drafts
+            is_public = False  # Advisors create private quests by default
 
         # Create quest record
         quest_data = {
@@ -104,6 +106,7 @@ def create_quest_v3_clean(user_id):
             'description': data.get('big_idea', '').strip() or data.get('description', '').strip(),
             'is_v3': True,
             'is_active': is_active,
+            'is_public': is_public,  # NEW: Control public visibility
             'quest_type': 'optio',  # Optio quest (self-directed, personalized)
             'header_image_url': image_url,
             'image_url': image_url,  # Add to new image_url column
@@ -189,6 +192,12 @@ def update_quest(user_id, quest_id):
             if user_role == 'admin':
                 update_data['is_active'] = data['is_active']
             # Silently ignore is_active changes from advisors
+
+        # Only admins can change is_public (make quests available in public quest library)
+        if 'is_public' in data:
+            if user_role == 'admin':
+                update_data['is_public'] = data['is_public']
+            # Silently ignore is_public changes from advisors
 
         if update_data:
             update_data['updated_at'] = datetime.utcnow().isoformat()
@@ -379,19 +388,7 @@ def delete_quest(user_id, quest_id):
             if quest.data.get('is_active'):
                 return jsonify({'success': False, 'error': 'Cannot delete published quests'}), 403
 
-        # Step 1: Clear quest_submissions references (NO ACTION constraint)
-        submissions = supabase.table('quest_submissions')\
-            .select('id', count='exact')\
-            .eq('approved_quest_id', quest_id)\
-            .execute()
-
-        if submissions.count and submissions.count > 0:
-            supabase.table('quest_submissions')\
-                .update({'approved_quest_id': None})\
-                .eq('approved_quest_id', quest_id)\
-                .execute()
-
-        # Step 2: Delete quest_task_completions (blocks user_quest_tasks deletion)
+        # Step 1: Delete quest_task_completions (blocks user_quest_tasks deletion)
         # This has NO ACTION constraint on user_quest_task_id
         supabase.table('quest_task_completions')\
             .delete()\

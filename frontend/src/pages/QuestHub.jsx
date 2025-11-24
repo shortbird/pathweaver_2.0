@@ -8,7 +8,7 @@ import QuestCardSimple from '../components/quest/QuestCardSimple';
 import QuestListItem from '../components/quest/improved/QuestListItem';
 import QuestFilters from '../components/quest/improved/QuestFilters';
 // import TeamUpModal from '../components/quest/TeamUpModal'; // REMOVED - Phase 3 refactoring (January 2025)
-import QuestSuggestionModal from '../components/QuestSuggestionModal';
+import CreateQuestModal from '../components/CreateQuestModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
 import Button from '../components/ui/Button';
 
@@ -44,7 +44,7 @@ const QuestHub = () => {
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   // const [showTeamUpModal, setShowTeamUpModal] = useState(false); // REMOVED - Phase 3 refactoring
   // const [selectedQuestForTeamUp, setSelectedQuestForTeamUp] = useState(null); // REMOVED - Phase 3 refactoring
-  const [showQuestSuggestionModal, setShowQuestSuggestionModal] = useState(false);
+  const [showCreateQuestModal, setShowCreateQuestModal] = useState(false);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
   const [totalResults, setTotalResults] = useState(0);
@@ -236,16 +236,19 @@ const QuestHub = () => {
   // const handleTeamUp = useCallback((quest) => { ... }, [user]);
   // const handleInviteSent = useCallback((result) => { ... }, []);
 
-  const handleQuestSuggestion = useCallback(() => {
+  const handleCreateQuest = useCallback(() => {
     if (!user) {
       window.location.href = '/login';
       return;
     }
-    setShowQuestSuggestionModal(true);
+    setShowCreateQuestModal(true);
   }, [user]);
 
-  const handleQuestSuggestionSuccess = useCallback(() => {
-    // Optionally refresh quests or show additional feedback
+  const handleCreateQuestSuccess = useCallback(() => {
+    // Refresh quests list to show the newly created quest
+    setPage(1);
+    setQuests([]);
+    setHasLoadedOnce(false);
   }, []);
 
   // All features are now free for all users (Phase 2 refactoring - January 2025)
@@ -285,17 +288,17 @@ const QuestHub = () => {
             </p>
           </div>
           
-          {/* Quest Suggestion Button - Only show for non-free tiers */}
+          {/* Create Quest Button - Available to all authenticated users */}
           {canSuggestQuests && (
             <div className="flex-shrink-0">
               <button
-                onClick={handleQuestSuggestion}
+                onClick={handleCreateQuest}
                 className="bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center gap-2 shadow-lg"
               >
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                 </svg>
-                Suggest a Quest
+                Create Your Own Quest
               </button>
             </div>
           )}
@@ -415,11 +418,12 @@ const QuestHub = () => {
 
         {/* Team Up Modal - REMOVED Phase 3 refactoring (January 2025) */}
 
-        {/* Quest Suggestion Modal */}
-        {showQuestSuggestionModal && (
-          <QuestSuggestionModal
-            onClose={() => setShowQuestSuggestionModal(false)}
-            onSuccess={handleQuestSuggestionSuccess}
+        {/* Create Quest Modal */}
+        {showCreateQuestModal && (
+          <CreateQuestModal
+            isOpen={showCreateQuestModal}
+            onClose={() => setShowCreateQuestModal(false)}
+            onSuccess={handleCreateQuestSuccess}
           />
         )}
       </div>

@@ -7,6 +7,7 @@ import CourseQuestForm from '../components/admin/CourseQuestForm';
 import CheckinAnalytics from '../components/advisor/CheckinAnalytics';
 import CheckinHistoryModal from '../components/advisor/CheckinHistoryModal';
 import AdvisorNotesModal from '../components/advisor/AdvisorNotesModal';
+import StudentDetailModal from '../components/advisor/StudentDetailModal';
 import toast from 'react-hot-toast';
 
 // Helper function to get student display name with fallback
@@ -131,6 +132,8 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
   const [checkinHistoryStudent, setCheckinHistoryStudent] = useState(null);
   const [showAdvisorNotes, setShowAdvisorNotes] = useState(false);
   const [notesStudent, setNotesStudent] = useState(null);
+  const [showStudentDetail, setShowStudentDetail] = useState(false);
+  const [detailStudent, setDetailStudent] = useState(null);
 
   const handleCheckin = (studentId) => {
     navigate(`/advisor/checkin/${studentId}`);
@@ -144,6 +147,11 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
   const handleViewNotes = (student) => {
     setNotesStudent(student);
     setShowAdvisorNotes(true);
+  };
+
+  const handleManageTasks = (student) => {
+    setDetailStudent(student);
+    setShowStudentDetail(true);
   };
 
   return (
@@ -234,25 +242,33 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
                         <span className="text-gray-400 italic">Never</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
-                      <button
-                        onClick={() => handleCheckin(student.id)}
-                        className="text-white bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-1 rounded-lg hover:opacity-90 font-medium"
-                      >
-                        Check-in
-                      </button>
-                      <button
-                        onClick={() => handleViewHistory(student)}
-                        className="text-optio-purple hover:text-optio-purple-dark font-medium"
-                      >
-                        History
-                      </button>
-                      <button
-                        onClick={() => handleViewNotes(student)}
-                        className="text-optio-purple hover:text-optio-purple-dark font-medium"
-                      >
-                        Advisor Notes
-                      </button>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          onClick={() => handleCheckin(student.id)}
+                          className="text-white bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-1 rounded-lg hover:opacity-90 font-medium"
+                        >
+                          Check-in
+                        </button>
+                        <button
+                          onClick={() => handleManageTasks(student)}
+                          className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-lg font-medium"
+                        >
+                          Manage Tasks
+                        </button>
+                        <button
+                          onClick={() => handleViewHistory(student)}
+                          className="text-optio-purple hover:text-optio-purple-dark font-medium"
+                        >
+                          History
+                        </button>
+                        <button
+                          onClick={() => handleViewNotes(student)}
+                          className="text-optio-purple hover:text-optio-purple-dark font-medium"
+                        >
+                          Advisor Notes
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -271,6 +287,18 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
             setShowCheckinHistory(false);
             setCheckinHistoryStudent(null);
           }}
+        />
+      )}
+
+      {/* Student Detail Modal */}
+      {showStudentDetail && detailStudent && (
+        <StudentDetailModal
+          student={detailStudent}
+          onClose={() => {
+            setShowStudentDetail(false);
+            setDetailStudent(null);
+          }}
+          onTasksUpdated={onRefresh}
         />
       )}
 

@@ -134,6 +134,19 @@ const AdminQuests = () => {
     }
   }
 
+  const handleTogglePublic = async (questId, currentStatus) => {
+    try {
+      const newStatus = !currentStatus
+      await api.put(`/api/admin/quests/${questId}`, {
+        is_public: newStatus
+      })
+      toast.success(`Quest ${newStatus ? 'made public' : 'made private'} successfully`)
+      fetchQuests()
+    } catch (error) {
+      toast.error('Failed to update quest visibility')
+    }
+  }
+
   // Filter quests based on active filter
   const filteredQuests = quests.filter(quest => {
     if (activeFilter === 'all') return true
@@ -309,7 +322,7 @@ const AdminQuests = () => {
                     </p>
 
                     {/* Active Toggle - Disabled for advisors */}
-                    <div className="flex items-center justify-between mb-4 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-3 p-3 bg-gray-50 rounded-lg">
                       <span className="text-sm font-medium text-gray-700">
                         Active
                         {isAdvisor && <span className="text-xs text-gray-500 ml-1">(Admin only)</span>}
@@ -330,6 +343,37 @@ const AdminQuests = () => {
                         />
                       </button>
                     </div>
+
+                    {/* Public Toggle - Admin only */}
+                    <div className="flex items-center justify-between mb-4 p-3 bg-blue-50 rounded-lg">
+                      <span className="text-sm font-medium text-gray-700">
+                        Public
+                        {isAdvisor && <span className="text-xs text-gray-500 ml-1">(Admin only)</span>}
+                      </span>
+                      <button
+                        onClick={() => isAdmin && handleTogglePublic(quest.id, quest.is_public)}
+                        disabled={isAdvisor}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                          isAdvisor
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+                        } ${quest.is_public ? 'bg-blue-500' : 'bg-gray-300'}`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            quest.is_public ? 'translate-x-6' : 'translate-x-1'
+                          }`}
+                        />
+                      </button>
+                    </div>
+
+                    {/* Created by info */}
+                    {quest.created_by && (
+                      <div className="mb-4 p-3 bg-purple-50 rounded-lg">
+                        <span className="text-xs text-gray-600">Created by user</span>
+                        <p className="text-xs font-mono text-gray-500 truncate">{quest.created_by}</p>
+                      </div>
+                    )}
 
                     {/* Admin Action Buttons */}
                     <div className="grid grid-cols-2 gap-2">

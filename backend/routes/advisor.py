@@ -355,3 +355,40 @@ def get_advisor_dashboard(user_id):
             'success': False,
             'error': 'Failed to fetch dashboard data'
         }), 500
+
+# ==================== Task Management ====================
+
+@advisor_bp.route('/students/<student_id>/quests-with-tasks', methods=['GET'])
+@require_role('advisor', 'admin')
+def get_student_quests_with_tasks(user_id, student_id):
+    """Get all active quests for a student with their tasks - for task management interface"""
+    try:
+        advisor_service = AdvisorService(user_id=user_id)
+
+        # Get quests with tasks
+        quests = advisor_service.get_student_active_quests_with_tasks(
+            student_id=student_id,
+            advisor_id=user_id
+        )
+
+        return jsonify({
+            'success': True,
+            'quests': quests,
+            'count': len(quests)
+        }), 200
+
+    except ValueError as e:
+        # Permission error
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 403
+
+    except Exception as e:
+        print(f"Error fetching student quests with tasks: {str(e)}", file=sys.stderr, flush=True)
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': 'Failed to fetch student quests'
+        }), 500

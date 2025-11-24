@@ -94,9 +94,19 @@ def list_quests():
         # Build main quest query
         # Note: In V3 personalized system, quests don't have quest_tasks
         # Users get personalized tasks when they enroll
+        # Filter: Show public quests OR quests created by the current user
         query = supabase.table('quests')\
             .select('*', count='exact')\
             .eq('is_active', True)
+
+        # Apply visibility filter: public quests OR user's private quests
+        if user_id:
+            # Authenticated user: show public quests + their own private quests
+            # Use Supabase's .or_() method for complex conditions
+            query = query.or_(f'is_public.eq.true,created_by.eq.{user_id}')
+        else:
+            # Anonymous user: only show public quests
+            query = query.eq('is_public', True)
 
         # Apply quest ID filter if we have filters applied
         if filtered_quest_ids is not None:
@@ -1012,6 +1022,74 @@ def end_quest(user_id: str, quest_id: str):
             'error': str(e)
         }), 500
 
+@bp.route('/create', methods=['POST'])
+@require_auth
+def create_user_quest(user_id: str):
+    """
+    Allow ANY authenticated user to create their own quest.
+    User-created quests are private by default (visible only to creator).
+    Admins can later toggle is_public to make them available in the public quest library.
+    """
+    try:
+        from services.image_service import search_quest_image
+
+        supabase = get_supabase_admin_client()
+        data = request.json
+
+        # Validate required fields
+        if not data.get('title'):
+            return jsonify({'success': False, 'error': 'Title is required'}), 400
+
+        if not data.get('description') and not data.get('big_idea'):
+            return jsonify({'success': False, 'error': 'Description is required'}), 400
+
+        # Auto-fetch image if not provided
+        image_url = data.get('header_image_url')
+        if not image_url:
+            # Try to fetch image based on quest title and description
+            quest_desc = data.get('big_idea', '').strip() or data.get('description', '').strip()
+            image_url = search_quest_image(data['title'].strip(), quest_desc)
+            logger.info(f"Auto-fetched image for quest '{data['title']}': {image_url}")
+
+        # Create quest record (private by default, inactive until admin approves)
+        quest_data = {
+            'title': data['title'].strip(),
+            'big_idea': data.get('big_idea', '').strip() or data.get('description', '').strip(),
+            'description': data.get('big_idea', '').strip() or data.get('description', '').strip(),
+            'is_v3': True,
+            'is_active': True,  # Active so user can use it immediately
+            'is_public': False,  # Private by default - only visible to creator
+            'quest_type': 'optio',  # User-created Optio quest
+            'header_image_url': image_url,
+            'image_url': image_url,
+            'material_link': data.get('material_link', '').strip() if data.get('material_link') else None,
+            'created_by': user_id,  # Track who created the quest
+            'created_at': datetime.utcnow().isoformat()
+        }
+
+        # Insert quest
+        quest_result = supabase.table('quests').insert(quest_data).execute()
+
+        if not quest_result.data:
+            return jsonify({'success': False, 'error': 'Failed to create quest'}), 500
+
+        quest_id = quest_result.data[0]['id']
+        logger.info(f"User {user_id[:8]} created private quest {quest_id}: {quest_data['title']}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Quest created successfully! It\'s now available in your quest library.',
+            'quest_id': quest_id,
+            'quest': quest_result.data[0]
+        })
+
+    except Exception as e:
+        logger.error(f"Error creating user quest: {str(e)}")
+        return jsonify({
+            'success': False,
+            'error': f'Failed to create quest: {str(e)}'
+        }), 500
+
 @bp.route('/sources', methods=['GET'])
 def get_quest_sources():
     """
@@ -1020,19 +1098,19 @@ def get_quest_sources():
     """
     try:
         supabase = get_supabase_admin_client()
-        
+
         # Get all sources with their header images (only public data)
         response = supabase.table('quest_sources')\
             .select('id, name, header_image_url')\
             .execute()
-        
+
         sources = response.data if response.data else []
-        
+
         return jsonify({
             'sources': sources,
             'total': len(sources)
         }), 200
-        
+
     except Exception as e:
         logger.error(f"Error fetching public quest sources: {str(e)}")
         return jsonify({'error': 'Failed to fetch quest sources'}), 500

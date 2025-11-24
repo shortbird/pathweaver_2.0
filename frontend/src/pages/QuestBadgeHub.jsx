@@ -14,7 +14,7 @@ import QuestBadgeInfoModal from '../components/hub/QuestBadgeInfoModal';
 // Import existing quest components
 import QuestCardSimple from '../components/quest/QuestCardSimple';
 // import TeamUpModal from '../components/quest/TeamUpModal'; // REMOVED - Phase 3 refactoring (January 2025)
-import QuestSuggestionModal from '../components/QuestSuggestionModal';
+import CreateQuestModal from '../components/CreateQuestModal';
 import { SkeletonCard } from '../components/ui/Skeleton';
 
 /**
@@ -66,7 +66,7 @@ const QuestBadgeHub = () => {
   // Modal state
   // const [showTeamUpModal, setShowTeamUpModal] = useState(false); // REMOVED - Phase 3 refactoring (January 2025)
   // const [selectedQuestForTeamUp, setSelectedQuestForTeamUp] = useState(null); // REMOVED - Phase 3 refactoring (January 2025)
-  const [showQuestSuggestionModal, setShowQuestSuggestionModal] = useState(false);
+  const [showCreateQuestModal, setShowCreateQuestModal] = useState(false);
   const [showInfoModal, setShowInfoModal] = useState(false);
 
   // Memory leak prevention
@@ -268,16 +268,21 @@ const QuestBadgeHub = () => {
   // Team-up handler removed - Phase 3 refactoring (January 2025)
   // const handleTeamUp = useCallback((quest) => { ... }, [user]);
 
-  const handleQuestSuggestion = useCallback(() => {
+  const handleCreateQuest = useCallback(() => {
     if (!user) {
       window.location.href = '/login';
       return;
     }
-    setShowQuestSuggestionModal(true);
+    setShowCreateQuestModal(true);
   }, [user]);
 
+  const handleCreateQuestSuccess = useCallback((newQuest) => {
+    // Refresh quests list to show the newly created quest
+    fetchQuests(1);
+  }, []);
+
   // All features are now free for all users (Phase 2 refactoring - January 2025)
-  const canSuggestQuests = !!user;
+  const canCreateQuests = !!user;
 
   // Render helpers
   const renderBadgesView = () => {
@@ -490,17 +495,17 @@ const QuestBadgeHub = () => {
                 />
               </div>
 
-              {/* Quest suggestion button for eligible users - now in header row */}
-              {activeTab === 'quests' && canSuggestQuests && (
+              {/* Create Quest button for authenticated users - now in header row */}
+              {activeTab === 'quests' && canCreateQuests && (
                 <button
-                  onClick={handleQuestSuggestion}
+                  onClick={handleCreateQuest}
                   className="bg-gradient-primary text-white px-6 py-3 rounded-lg font-semibold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 shadow-lg whitespace-nowrap"
                   style={{ fontFamily: 'Poppins, sans-serif' }}
                 >
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
                   </svg>
-                  Suggest a Quest
+                  Create Your Own Quest
                 </button>
               )}
             </div>
@@ -525,10 +530,11 @@ const QuestBadgeHub = () => {
       {/* Modals */}
       {/* Team-up modal removed - Phase 3 refactoring (January 2025) */}
 
-      {showQuestSuggestionModal && (
-        <QuestSuggestionModal
-          onClose={() => setShowQuestSuggestionModal(false)}
-          onSuccess={() => {}}
+      {showCreateQuestModal && (
+        <CreateQuestModal
+          isOpen={showCreateQuestModal}
+          onClose={() => setShowCreateQuestModal(false)}
+          onSuccess={handleCreateQuestSuccess}
         />
       )}
 

@@ -519,3 +519,132 @@ class AdvisorService(BaseService):
         except Exception as e:
             print(f"Error generating progress report: {str(e)}", file=sys.stderr, flush=True)
             raise
+
+    # ==================== Task Management ====================
+
+    def get_student_active_quests_with_tasks(self, student_id: str, advisor_id: str) -> List[Dict[str, Any]]:
+        """
+        Get all active quests for a student with their tasks
+        Used for task management interface in advisor dashboard
+
+        Args:
+            student_id: UUID of the student
+            advisor_id: UUID of the advisor
+
+        Returns:
+            List of active quests with tasks
+        """
+        try:
+            # Verify advisor has permission for this student
+            assignment = self.supabase.table('advisor_student_assignments')\
+                .select('id')\
+                .eq('advisor_id', advisor_id)\
+                .eq('student_id', student_id)\
+                .eq('is_active', True)\
+                .execute()
+
+            if not assignment.data:
+                raise ValueError("You do not have permission to view this student's quests")
+
+            # Get active quests for this student
+            user_quests = self.supabase.table('user_quests')\
+                .select('id, quest_id, started_at, completed_at, quests(id, title, description, image_url)')\
+                .eq('user_id', student_id)\
+                .eq('is_active', True)\
+                .execute()
+
+            if not user_quests.data:
+                return []
+
+            # Get user_quest_ids
+            user_quest_ids = [uq['id'] for uq in user_quests.data]
+
+            # Get all tasks for these quests
+            tasks = self.supabase.table('user_quest_tasks')\
+                .select('*')\
+                .in_('user_quest_id', user_quest_ids)\
+                .order('order_index')\
+                .execute()
+
+            # Get completion status for all tasks
+            task_ids = [task['id'] for task in tasks.data] if tasks.data else []
+            completions_map = {}
+            if task_ids:
+                completions = self.supabase.table('quest_task_completions')\
+                    .select('task_id, completed_at')\
+                    .in_('task_id', task_ids)\
+                    .execute()
+
+                if completions.data:
+                    completions_map = {c['task_id']: c for c in completions.data}
+
+            # Group tasks by user_quest_id
+            tasks_by_quest = {}
+            if tasks.data:
+                for task in tasks.data:
+                    user_quest_id = task['user_quest_id']
+                    if user_quest_id not in tasks_by_quest:
+                        tasks_by_quest[user_quest_id] = []
+
+                    # Add completion info
+                    completion = completions_map.get(task['id'])
+                    task['completed'] = completion is not None
+                    task['completed_at'] = completion['completed_at'] if completion else None
+
+                    tasks_by_quest[user_quest_id].append(task)
+
+            # Attach tasks to quests
+            result = []
+            for user_quest in user_quests.data:
+                quest_info = user_quest['quests']
+                quest_tasks = tasks_by_quest.get(user_quest['id'], [])
+
+                # Calculate completion percentage
+                total_tasks = len(quest_tasks)
+                completed_tasks = len([t for t in quest_tasks if t['completed']])
+                completion_percentage = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+
+                result.append({
+                    'user_quest_id': user_quest['id'],
+                    'quest_id': quest_info['id'],
+                    'quest_title': quest_info['title'],
+                    'quest_description': quest_info['description'],
+                    'quest_image_url': quest_info.get('image_url'),
+                    'started_at': user_quest['started_at'],
+                    'completed_at': user_quest['completed_at'],
+                    'tasks': quest_tasks,
+                    'total_tasks': total_tasks,
+                    'completed_tasks': completed_tasks,
+                    'completion_percentage': round(completion_percentage, 1)
+                })
+
+            return result
+
+        except Exception as e:
+            print(f"Error getting student active quests with tasks: {str(e)}", file=sys.stderr, flush=True)
+            raise
+
+    def verify_advisor_student_relationship(self, advisor_id: str, student_id: str) -> bool:
+        """
+        Verify that an advisor has permission to manage a student's tasks
+
+        Args:
+            advisor_id: UUID of the advisor
+            student_id: UUID of the student
+
+        Returns:
+            True if relationship exists and is active, False otherwise
+        """
+        try:
+            result = self.supabase.table('advisor_student_assignments')\
+                .select('id')\
+                .eq('advisor_id', advisor_id)\
+                .eq('student_id', student_id)\
+                .eq('is_active', True)\
+                .execute()
+
+            return len(result.data) > 0
+
+        except Exception as e:
+            print(f"Error verifying advisor-student relationship: {str(e)}", file=sys.stderr, flush=True)
+            return False
