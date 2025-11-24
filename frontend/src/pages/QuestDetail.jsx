@@ -12,6 +12,8 @@ import TaskDetailModal from '../components/quest/TaskDetailModal';
 import TutorialTaskInstructionsModal from '../components/quest/TutorialTaskInstructionsModal';
 import QuestPersonalizationWizard from '../components/quests/QuestPersonalizationWizard';
 import SampleTaskCard from '../components/quest/SampleTaskCard';
+import TaskTimeline from '../components/quest/TaskTimeline';
+import TaskWorkspace from '../components/quest/TaskWorkspace';
 import { getQuestHeaderImageSync } from '../utils/questSourceConfig';
 import { MapPin, Calendar, ExternalLink, Clock, Award, Users, CheckCircle, Circle, Target, BookOpen, Lock, UserPlus, ArrowLeft, Plus } from 'lucide-react';
 import toast from 'react-hot-toast';
@@ -52,6 +54,8 @@ const QuestDetail = () => {
   const [showPersonalizationWizard, setShowPersonalizationWizard] = useState(false);
   const [expandedTasks, setExpandedTasks] = useState(new Set());
   const [droppingTaskId, setDroppingTaskId] = useState(null);
+  const [displayMode, setDisplayMode] = useState('flexible'); // 'timeline' or 'flexible'
+  const [showMobileDrawer, setShowMobileDrawer] = useState(false);
 
   // Handle error display
   if (error) {
@@ -201,6 +205,64 @@ const QuestDetail = () => {
 
     // Also trigger a background refetch to sync with server
     refetchQuest();
+  };
+
+  const handleTaskReorder = async (oldIndex, newIndex) => {
+    if (!quest?.quest_tasks) return;
+
+    // Optimistically reorder tasks in UI
+    const reorderedTasks = Array.from(quest.quest_tasks);
+    const [movedTask] = reorderedTasks.splice(oldIndex, 1);
+    reorderedTasks.splice(newIndex, 0, movedTask);
+
+    // Update order_index for all tasks
+    const updatedTasks = reorderedTasks.map((task, index) => ({
+      ...task,
+      order_index: index
+    }));
+
+    // Optimistically update cache
+    queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
+      if (!oldData) return oldData;
+      return {
+        ...oldData,
+        quest_tasks: updatedTasks
+      };
+    });
+
+    // Persist to backend
+    try {
+      await api.put(`/api/quests/${id}/tasks/reorder`, {
+        task_ids: updatedTasks.map(t => t.id)
+      });
+    } catch (err) {
+      console.error('Error reordering tasks:', err);
+      toast.error('Failed to save task order');
+      // Revert on error
+      refetchQuest();
+    }
+  };
+
+  const handleDisplayModeChange = async (newMode) => {
+    setDisplayMode(newMode);
+
+    // Persist to backend
+    try {
+      await api.put(`/api/quests/${id}/display-mode`, {
+        display_mode: newMode
+      });
+    } catch (err) {
+      console.error('Error updating display mode:', err);
+      // Silently fail - not critical
+    }
+  };
+
+  const handleTaskSelect = (task) => {
+    setSelectedTask(task);
+    // Close mobile drawer when task is selected
+    if (window.innerWidth < 768) {
+      setShowMobileDrawer(false);
+    }
   };
 
   // Collaboration functions removed in Phase 3 refactoring (January 2025)
@@ -543,13 +605,54 @@ const QuestDetail = () => {
         </div>
       )}
 
-        {/* Task Cards Grid */}
-        <div className="mb-8">
-          {quest.quest_tasks && quest.quest_tasks.length > 0 ? (
+        {/* Two-Column Task Display */}
+        {quest.user_enrollment && quest.quest_tasks && quest.quest_tasks.length > 0 ? (
+          <div className="flex gap-6 h-[calc(100vh-400px)] min-h-[600px]">
+            {/* Left Column: Task Timeline (22%) */}
+            <div className="w-[22%] bg-white rounded-xl shadow-md overflow-hidden hidden md:block">
+              <TaskTimeline
+                tasks={quest.quest_tasks}
+                selectedTaskId={selectedTask?.id}
+                onTaskSelect={handleTaskSelect}
+                onTaskReorder={handleTaskReorder}
+                onAddTask={() => setShowPersonalizationWizard(true)}
+                displayMode={displayMode}
+                onDisplayModeChange={handleDisplayModeChange}
+              />
+            </div>
+
+            {/* Right Column: Task Workspace (78%) */}
+            <div className="flex-1 bg-white rounded-xl shadow-md overflow-hidden">
+              <TaskWorkspace
+                task={selectedTask}
+                questId={quest.id}
+                onTaskComplete={handleTaskCompletion}
+                onClose={() => setSelectedTask(null)}
+              />
+            </div>
+
+            {/* Mobile: Show task timeline as drawer */}
+            {showMobileDrawer && (
+              <div className="fixed inset-0 z-50 md:hidden">
+                <div className="absolute inset-0 bg-black bg-opacity-50" onClick={() => setShowMobileDrawer(false)} />
+                <div className="absolute left-0 top-0 bottom-0 w-80 bg-white shadow-xl">
+                  <TaskTimeline
+                    tasks={quest.quest_tasks}
+                    selectedTaskId={selectedTask?.id}
+                    onTaskSelect={handleTaskSelect}
+                    onTaskReorder={handleTaskReorder}
+                    onAddTask={() => setShowPersonalizationWizard(true)}
+                    displayMode={displayMode}
+                    onDisplayModeChange={handleDisplayModeChange}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        ) : quest.quest_tasks && quest.quest_tasks.length > 0 && !quest.user_enrollment ? (
             <>
-              {/* Active Tasks Section */}
-              {quest.quest_tasks.filter(task => !task.is_completed).length > 0 && (
-                <div className="mb-8">
+              {/* Show sample tasks preview for non-enrolled users */}
+              <div className="mb-8">
                   <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
                     Active Tasks
                   </h2>

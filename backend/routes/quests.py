@@ -1114,3 +1114,93 @@ def get_quest_sources():
     except Exception as e:
         logger.error(f"Error fetching public quest sources: {str(e)}")
         return jsonify({'error': 'Failed to fetch quest sources'}), 500
+
+@bp.route('/<quest_id>/tasks/reorder', methods=['PUT'])
+@require_auth
+def reorder_quest_tasks(quest_id):
+    """
+    Reorder tasks for a quest.
+    Body: { task_ids: [id1, id2, id3...] }
+    """
+    try:
+        from flask import g
+        user_id = g.user_id
+
+        data = request.get_json()
+        task_ids = data.get('task_ids', [])
+
+        if not task_ids:
+            return jsonify({'error': 'task_ids is required'}), 400
+
+        supabase = get_user_client()
+
+        # Verify user is enrolled in this quest
+        enrollment = supabase.table('user_quests')\
+            .select('*')\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .maybe_single()\
+            .execute()
+
+        if not enrollment.data:
+            return jsonify({'error': 'Quest not found or not enrolled'}), 404
+
+        # Update order_index for each task
+        for index, task_id in enumerate(task_ids):
+            supabase.table('user_quest_tasks')\
+                .update({'order_index': index})\
+                .eq('id', task_id)\
+                .eq('user_id', user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+
+        logger.info(f"User {user_id[:8]} reordered tasks for quest {quest_id}")
+
+        return jsonify({
+            'success': True,
+            'message': 'Task order updated successfully'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error reordering tasks for quest {quest_id}: {str(e)}")
+        return jsonify({'error': 'Failed to reorder tasks'}), 500
+
+@bp.route('/<quest_id>/display-mode', methods=['PUT'])
+@require_auth
+def update_display_mode(quest_id):
+    """
+    Update the display mode for a quest (timeline or flexible).
+    Body: { display_mode: 'timeline' | 'flexible' }
+    """
+    try:
+        from flask import g
+        user_id = g.user_id
+
+        data = request.get_json()
+        display_mode = data.get('display_mode')
+
+        if display_mode not in ['timeline', 'flexible']:
+            return jsonify({'error': 'display_mode must be "timeline" or "flexible"'}), 400
+
+        supabase = get_user_client()
+
+        # Update user_quests table with display mode preference
+        result = supabase.table('user_quests')\
+            .update({'task_display_mode': display_mode})\
+            .eq('user_id', user_id)\
+            .eq('quest_id', quest_id)\
+            .execute()
+
+        if not result.data:
+            return jsonify({'error': 'Quest not found or not enrolled'}), 404
+
+        logger.info(f"User {user_id[:8]} set display mode to '{display_mode}' for quest {quest_id}")
+
+        return jsonify({
+            'success': True,
+            'display_mode': display_mode
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error updating display mode for quest {quest_id}: {str(e)}")
+        return jsonify({'error': 'Failed to update display mode'}), 500
