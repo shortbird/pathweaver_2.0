@@ -1132,7 +1132,8 @@ def reorder_quest_tasks(quest_id):
         if not task_ids:
             return jsonify({'error': 'task_ids is required'}), 400
 
-        supabase = get_user_client()
+        # Use admin client to bypass RLS for updates
+        supabase = get_supabase_admin_client()
 
         # Verify user is enrolled in this quest
         enrollment = supabase.table('user_quests')\
@@ -1147,14 +1148,16 @@ def reorder_quest_tasks(quest_id):
 
         # Update order_index for each task
         for index, task_id in enumerate(task_ids):
-            supabase.table('user_quest_tasks')\
+            result = supabase.table('user_quest_tasks')\
                 .update({'order_index': index})\
                 .eq('id', task_id)\
                 .eq('user_id', user_id)\
                 .eq('quest_id', quest_id)\
                 .execute()
 
-        logger.info(f"User {user_id[:8]} reordered tasks for quest {quest_id}")
+            logger.debug(f"Updated task {task_id} to order_index {index}: {result.data}")
+
+        logger.info(f"User {user_id[:8]} reordered {len(task_ids)} tasks for quest {quest_id}")
 
         return jsonify({
             'success': True,
@@ -1162,8 +1165,8 @@ def reorder_quest_tasks(quest_id):
         }), 200
 
     except Exception as e:
-        logger.error(f"Error reordering tasks for quest {quest_id}: {str(e)}")
-        return jsonify({'error': 'Failed to reorder tasks'}), 500
+        logger.error(f"Error reordering tasks for quest {quest_id}: {str(e)}", exc_info=True)
+        return jsonify({'error': f'Failed to reorder tasks: {str(e)}'}), 500
 
 @bp.route('/<quest_id>/display-mode', methods=['PUT'])
 @require_auth
