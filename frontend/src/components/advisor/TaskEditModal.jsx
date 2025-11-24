@@ -14,8 +14,7 @@ export default function TaskEditModal({ task, onClose, onSave }) {
     title: '',
     description: '',
     pillar: 'stem',
-    xp_value: 100,
-    is_required: true
+    xp_value: 100
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -26,8 +25,7 @@ export default function TaskEditModal({ task, onClose, onSave }) {
         title: task.title || '',
         description: task.description || '',
         pillar: task.pillar || 'stem',
-        xp_value: task.xp_value || 100,
-        is_required: task.is_required !== undefined ? task.is_required : true
+        xp_value: task.xp_value || 100
       });
     }
   }, [task]);
@@ -159,20 +157,6 @@ export default function TaskEditModal({ task, onClose, onSave }) {
             <p className="mt-1 text-xs text-gray-500">
               XP awarded when student completes this task
             </p>
-          </div>
-
-          {/* Required Checkbox */}
-          <div className="flex items-center">
-            <input
-              type="checkbox"
-              id="is_required"
-              checked={formData.is_required}
-              onChange={(e) => setFormData({ ...formData, is_required: e.target.checked })}
-              className="w-4 h-4 text-optio-purple border-gray-300 rounded focus:ring-optio-purple"
-            />
-            <label htmlFor="is_required" className="ml-2 text-sm text-gray-700">
-              Required task (must be completed to finish quest)
-            </label>
           </div>
 
           {/* Task Status Warning */}

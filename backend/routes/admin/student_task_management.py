@@ -512,10 +512,6 @@ def update_student_task(user_id, target_user_id, quest_id, task_id):
                 }), 400
             update_data['xp_value'] = int(xp_value)
 
-        # Update is_required if provided
-        if 'is_required' in data:
-            update_data['is_required'] = bool(data['is_required'])
-
         if not update_data:
             return jsonify({
                 'success': False,
@@ -620,4 +616,78 @@ def delete_student_task(user_id, target_user_id, quest_id, task_id):
         return jsonify({
             'success': False,
             'error': f'Failed to delete task: {str(e)}'
+        }), 500
+
+@bp.route('/<target_user_id>/quests/<quest_id>/tasks/reorder', methods=['POST'])
+@require_role('advisor', 'admin')
+def reorder_student_tasks(user_id, target_user_id, quest_id):
+    """
+    Reorder tasks for a specific student's quest.
+    Advisors can only reorder tasks for their assigned students.
+    Admins can reorder any student's tasks.
+    """
+    supabase = get_supabase_admin_client()
+
+    try:
+        # Check authorization for advisors
+        user = supabase.table('users').select('role').eq('id', user_id).single().execute()
+        if not user.data:
+            return jsonify({'success': False, 'error': 'User not found'}), 404
+
+        user_role = user.data['role']
+        if user_role == 'advisor' and not is_advisor_for_student(user_id, target_user_id):
+            return jsonify({
+                'success': False,
+                'error': 'You do not have permission to reorder this student\'s tasks'
+            }), 403
+
+        data = request.json
+        task_order = data.get('task_order', [])
+
+        if not task_order:
+            return jsonify({
+                'success': False,
+                'error': 'No task order provided'
+            }), 400
+
+        # Update order_index for each task
+        for item in task_order:
+            task_id = item.get('task_id')
+            order_index = item.get('order_index')
+
+            if task_id is None or order_index is None:
+                continue
+
+            # Verify task belongs to this student's quest before updating
+            task_check = supabase.table('user_quest_tasks')\
+                .select('id')\
+                .eq('id', task_id)\
+                .eq('user_id', target_user_id)\
+                .eq('quest_id', quest_id)\
+                .execute()
+
+            if not task_check.data:
+                continue  # Skip invalid tasks
+
+            # Update order_index
+            supabase.table('user_quest_tasks')\
+                .update({
+                    'order_index': order_index,
+                    'updated_at': datetime.utcnow().isoformat()
+                })\
+                .eq('id', task_id)\
+                .execute()
+
+        return jsonify({
+            'success': True,
+            'message': 'Tasks reordered successfully'
+        })
+
+    except Exception as e:
+        logger.error(f"Error reordering student tasks: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'error': f'Failed to reorder tasks: {str(e)}'
         }), 500

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Edit2, Trash2, CheckCircle, Circle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Edit2, Trash2, CheckCircle, Circle, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
 import TaskEditModal from './TaskEditModal';
 
 const PILLAR_COLORS = {
@@ -18,10 +18,12 @@ const PILLAR_LABELS = {
   art: 'Art'
 };
 
-export default function StudentTasksPanel({ quest, onTaskUpdate, onTaskDelete }) {
+export default function StudentTasksPanel({ quest, onTaskUpdate, onTaskDelete, onTaskReorder }) {
   const [expandedQuest, setExpandedQuest] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
   const [deletingTask, setDeletingTask] = useState(null);
+  const [draggedTask, setDraggedTask] = useState(null);
+  const [dragOverTask, setDragOverTask] = useState(null);
 
   const handleToggleQuest = (questId) => {
     setExpandedQuest(expandedQuest === questId ? null : questId);
@@ -57,6 +59,62 @@ export default function StudentTasksPanel({ quest, onTaskUpdate, onTaskDelete })
     } catch (err) {
       throw err;
     }
+  };
+
+  const handleDragStart = (e, task) => {
+    if (task.completed) return; // Don't allow dragging completed tasks
+    setDraggedTask(task);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+
+  const handleDragOver = (e, task) => {
+    e.preventDefault();
+    if (task.completed || !draggedTask || draggedTask.id === task.id) return;
+    setDragOverTask(task);
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragLeave = () => {
+    setDragOverTask(null);
+  };
+
+  const handleDrop = async (e, dropTask) => {
+    e.preventDefault();
+    if (!draggedTask || draggedTask.id === dropTask.id || dropTask.completed) {
+      setDraggedTask(null);
+      setDragOverTask(null);
+      return;
+    }
+
+    // Calculate new order
+    const tasks = [...quest.tasks];
+    const dragIndex = tasks.findIndex(t => t.id === draggedTask.id);
+    const dropIndex = tasks.findIndex(t => t.id === dropTask.id);
+
+    // Reorder tasks
+    tasks.splice(dragIndex, 1);
+    tasks.splice(dropIndex, 0, draggedTask);
+
+    // Update order_index for all tasks
+    const reorderedTasks = tasks.map((task, index) => ({
+      task_id: task.id,
+      order_index: index
+    }));
+
+    try {
+      await onTaskReorder(quest.quest_id, reorderedTasks);
+    } catch (err) {
+      console.error('Failed to reorder tasks:', err);
+      alert(err.message || 'Failed to reorder tasks');
+    } finally {
+      setDraggedTask(null);
+      setDragOverTask(null);
+    }
+  };
+
+  const handleDragEnd = () => {
+    setDraggedTask(null);
+    setDragOverTask(null);
   };
 
   const isExpanded = expandedQuest === quest.quest_id;
@@ -97,10 +155,27 @@ export default function StudentTasksPanel({ quest, onTaskUpdate, onTaskDelete })
             quest.tasks.map((task) => (
               <div
                 key={task.id}
-                className={`p-4 ${task.completed ? 'bg-gray-50' : 'bg-white'}`}
+                draggable={!task.completed}
+                onDragStart={(e) => handleDragStart(e, task)}
+                onDragOver={(e) => handleDragOver(e, task)}
+                onDragLeave={handleDragLeave}
+                onDrop={(e) => handleDrop(e, task)}
+                onDragEnd={handleDragEnd}
+                className={`
+                  p-4 transition-all
+                  ${task.completed ? 'bg-gray-50' : 'bg-white'}
+                  ${draggedTask?.id === task.id ? 'opacity-50' : ''}
+                  ${dragOverTask?.id === task.id ? 'border-t-4 border-optio-purple' : ''}
+                  ${!task.completed ? 'cursor-move' : ''}
+                `}
               >
                 <div className="flex items-start justify-between">
                   <div className="flex items-start space-x-3 flex-1">
+                    {/* Drag Handle */}
+                    {!task.completed && (
+                      <GripVertical className="w-5 h-5 text-gray-400 flex-shrink-0 mt-1 cursor-grab active:cursor-grabbing" />
+                    )}
+
                     {/* Completion Status Icon */}
                     {task.completed ? (
                       <CheckCircle className="w-5 h-5 text-green-500 flex-shrink-0 mt-1" />
@@ -114,11 +189,6 @@ export default function StudentTasksPanel({ quest, onTaskUpdate, onTaskDelete })
                         <h4 className={`font-semibold ${task.completed ? 'text-gray-600' : 'text-gray-900'}`}>
                           {task.title}
                         </h4>
-                        {task.is_required && (
-                          <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full">
-                            Required
-                          </span>
-                        )}
                       </div>
 
                       {task.description && (

@@ -77,6 +77,28 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
     }
   };
 
+  const handleTaskReorder = async (questId, taskOrder) => {
+    try {
+      const response = await api.post(
+        `/api/admin/users/${student.id}/quests/${questId}/tasks/reorder`,
+        { task_order: taskOrder }
+      );
+
+      if (response.data.success) {
+        // Reload quests to get updated data
+        await loadStudentQuests();
+        if (onTasksUpdated) {
+          onTasksUpdated();
+        }
+      } else {
+        throw new Error(response.data.error || 'Failed to reorder tasks');
+      }
+    } catch (err) {
+      console.error('Failed to reorder tasks:', err);
+      throw new Error(err.response?.data?.error || 'Failed to reorder tasks');
+    }
+  };
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
@@ -236,6 +258,7 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
                       quest={quest}
                       onTaskUpdate={handleTaskUpdate}
                       onTaskDelete={handleTaskDelete}
+                      onTaskReorder={handleTaskReorder}
                     />
                   ))}
                 </div>
