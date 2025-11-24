@@ -57,6 +57,13 @@ const QuestDetail = () => {
   const [displayMode, setDisplayMode] = useState('flexible'); // 'timeline' or 'flexible'
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
 
+  // Auto-select first task when quest loads
+  useEffect(() => {
+    if (quest?.quest_tasks?.length > 0 && !selectedTask && quest.user_enrollment) {
+      setSelectedTask(quest.quest_tasks[0]);
+    }
+  }, [quest?.quest_tasks, quest?.user_enrollment]);
+
   // Handle error display
   if (error) {
     const errorMsg = error.response?.status === 404
@@ -607,9 +614,19 @@ const QuestDetail = () => {
 
         {/* Two-Column Task Display */}
         {quest.user_enrollment && quest.quest_tasks && quest.quest_tasks.length > 0 ? (
-          <div className="flex gap-6 h-[calc(100vh-400px)] min-h-[600px]">
+          <div className="flex flex-col md:flex-row gap-6 h-[calc(100vh-400px)] min-h-[600px]">
+            {/* Mobile: Hamburger Menu Button */}
+            <button
+              onClick={() => setShowMobileDrawer(true)}
+              className="md:hidden fixed bottom-6 left-6 z-40 w-14 h-14 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+
             {/* Left Column: Task Timeline (22%) */}
-            <div className="w-[22%] bg-white rounded-xl shadow-md overflow-hidden hidden md:block">
+            <div className="w-full md:w-[22%] bg-white rounded-xl shadow-md overflow-hidden hidden md:block">
               <TaskTimeline
                 tasks={quest.quest_tasks}
                 selectedTaskId={selectedTask?.id}
@@ -649,303 +666,15 @@ const QuestDetail = () => {
               </div>
             )}
           </div>
-        ) : quest.quest_tasks && quest.quest_tasks.length > 0 && !quest.user_enrollment ? (
-            <>
-              {/* Show sample tasks preview for non-enrolled users */}
-              <div className="mb-8">
-                  <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
-                    Active Tasks
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {quest.quest_tasks
-                      .filter(task => !task.is_completed)
-                      .map((task) => {
-                    const pillarData = getPillarData(task.pillar);
+        ) : null}
 
-                    return (
-                      <div
-                        key={task.id}
-                        className="relative rounded-xl overflow-hidden transition-all hover:shadow-lg border-2 border-gray-100 hover:border-gray-200"
-                        style={{
-                          background: task.is_completed
-                            ? `linear-gradient(135deg, ${pillarData.color}30 0%, ${pillarData.color}20 100%)`
-                            : `linear-gradient(135deg, ${pillarData.color}15 0%, ${pillarData.color}05 100%)`
-                        }}
-                      >
-                        {/* Card Content */}
-                        <div
-                          onClick={() => {
-                            // Allow opening modal for tutorial tasks to show instructions
-                            if (quest.user_enrollment) {
-                              setSelectedTask(task);
-                              setShowTaskModal(true);
-                            } else {
-                              setTaskDetailToShow(task);
-                              setShowTaskDetailModal(true);
-                            }
-                          }}
-                          className="p-4 cursor-pointer"
-                        >
-                          {/* Completed Badge (top right if completed) */}
-                          {task.is_completed && (
-                            <div className="absolute top-3 right-3">
-                              <div className="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold" style={{ fontFamily: 'Poppins' }}>
-                                COMPLETED
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Task Title */}
-                          <h3
-                            className="text-lg font-bold text-gray-900 mb-2 leading-tight pr-24"
-                            style={{ fontFamily: 'Poppins' }}
-                          >
-                            {task.title}
-                          </h3>
-
-                          {/* Task Description */}
-                          {task.description && (
-                            <p className="text-sm text-gray-700 mb-3 line-clamp-2" style={{ fontFamily: 'Poppins' }}>
-                              {task.description}
-                            </p>
-                          )}
-
-                          {/* Pillar Badge + XP Badge Row */}
-                          <div className="flex items-center gap-2 mb-3">
-                            <div
-                              className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold text-white"
-                              style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
-                            >
-                              {pillarData.name}
-                            </div>
-                            <div
-                              className="px-3 py-1 rounded-full text-sm font-bold"
-                              style={{
-                                backgroundColor: `${pillarData.color}20`,
-                                color: pillarData.color
-                              }}
-                            >
-                              {task.xp_amount} XP
-                            </div>
-                          </div>
-                          {/* Action Buttons */}
-                          <div className="px-4 pb-4">
-                            {/* Continue Button for Incomplete Tasks (hide for auto-complete tasks) */}
-                            {!task.is_completed && quest.user_enrollment && !task.auto_complete && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedTask(task);
-                                  setShowTaskModal(true);
-                                }}
-                                className="w-full py-2.5 rounded-full font-bold text-sm uppercase tracking-wide text-white transition-all hover:shadow-md"
-                                style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
-                              >
-                                Continue
-                              </button>
-                            )}
-
-                            {/* View Instructions button for incomplete tutorial tasks */}
-                            {!task.is_completed && quest.user_enrollment && task.auto_complete && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedTask(task);
-                                  setShowTaskModal(true);
-                                }}
-                                className="w-full py-2.5 rounded-full font-bold text-sm uppercase tracking-wide text-white transition-all hover:shadow-md"
-                                style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
-                              >
-                                View Instructions
-                              </button>
-                            )}
-
-                            {/* Edit Evidence Button for Completed Tasks (hide for tutorial tasks) */}
-                            {task.is_completed && !task.auto_complete && (
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSelectedTask(task);
-                                  setShowTaskModal(true);
-                                }}
-                                className="w-full py-2.5 bg-white text-gray-800 border-2 border-gray-300 rounded-full font-bold text-sm uppercase tracking-wide transition-all hover:border-gray-400"
-                                style={{ fontFamily: 'Poppins' }}
-                              >
-                                Edit Evidence
-                              </button>
-                            )}
-
-                            {/* Completed badge for auto-verified tasks */}
-                            {task.is_completed && task.auto_complete && (
-                              <div
-                                className="w-full py-2.5 bg-green-100 text-green-700 border-2 border-green-300 rounded-full font-bold text-sm uppercase tracking-wide text-center"
-                                style={{ fontFamily: 'Poppins' }}
-                              >
-                                ✅ Completed!
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Drop Task Button - top right corner (hide for tutorial tasks and completed tasks) */}
-                        {quest.user_enrollment && !isQuestCompleted && !task.auto_complete && !task.is_completed && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleDropTask(task.id);
-                            }}
-                            disabled={droppingTaskId === task.id}
-                            className="absolute top-3 right-3 p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-all disabled:opacity-50 z-10"
-                            title="Remove from active tasks"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {/* Add Task Card - only show if enrolled and not completed */}
-                  {quest.user_enrollment && !isQuestCompleted && (
-                    <div
-                      onClick={() => setShowPersonalizationWizard(true)}
-                      className="relative rounded-xl overflow-hidden cursor-pointer transition-all hover:shadow-lg border-2 border-dashed border-gray-400 bg-white hover:border-optio-purple hover:bg-purple-50 group"
-                    >
-                      <div className="p-4 flex flex-col items-center justify-center h-full min-h-[200px]">
-                        <Plus className="w-12 h-12 text-gray-400 group-hover:text-optio-purple transition-all group-hover:scale-110 mb-3" />
-                        <div className="text-lg font-bold text-gray-700 group-hover:text-optio-purple transition-colors" style={{ fontFamily: 'Poppins' }}>
-                          Add Task
-                        </div>
-                        <p className="text-sm text-gray-500 text-center mt-2" style={{ fontFamily: 'Poppins' }}>
-                          Generate with AI, write your own, or browse the library
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-              )}
-
-              {/* Completed Tasks Section */}
-              {quest.quest_tasks.filter(task => task.is_completed).length > 0 && (
-                <div className="mb-8">
-                  <h2 className="text-2xl font-bold mb-4" style={{ fontFamily: 'Poppins' }}>
-                    Completed Tasks
-                  </h2>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {quest.quest_tasks
-                      .filter(task => task.is_completed)
-                      .map((task) => {
-                      const pillarData = getPillarData(task.pillar);
-
-                      return (
-                        <div
-                          key={task.id}
-                          className="relative rounded-xl overflow-hidden transition-all hover:shadow-lg border-2 border-gray-100 hover:border-gray-200"
-                          style={{
-                            background: `linear-gradient(135deg, ${pillarData.color}15 0%, ${pillarData.color}05 100%)`
-                          }}
-                        >
-                          {/* Card Content */}
-                          <div
-                            onClick={() => {
-                              if (quest.user_enrollment) {
-                                setSelectedTask(task);
-                                setShowTaskModal(true);
-                              } else {
-                                setTaskDetailToShow(task);
-                                setShowTaskDetailModal(true);
-                              }
-                            }}
-                            className="p-4 cursor-pointer"
-                          >
-                            {/* Completed Badge (top right) */}
-                            <div className="absolute top-3 right-3">
-                              <div className="px-3 py-1 bg-green-500 text-white rounded-full text-xs font-bold" style={{ fontFamily: 'Poppins' }}>
-                                COMPLETED
-                              </div>
-                            </div>
-
-                            {/* Task Title */}
-                            <h3
-                              className="text-lg font-bold text-gray-900 mb-2 leading-tight pr-24"
-                              style={{ fontFamily: 'Poppins' }}
-                            >
-                              {task.title}
-                            </h3>
-
-                            {/* Task Description */}
-                            {task.description && (
-                              <p className="text-sm text-gray-700 mb-3 line-clamp-2" style={{ fontFamily: 'Poppins' }}>
-                                {task.description}
-                              </p>
-                            )}
-
-                            {/* Pillar Badge + XP Badge Row */}
-                            <div className="flex items-center gap-2 mb-3">
-                              <div
-                                className="inline-flex items-center justify-center px-3 py-1 rounded-full text-sm font-semibold text-white"
-                                style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
-                              >
-                                {pillarData.name}
-                              </div>
-                              <div
-                                className="px-3 py-1 rounded-full text-sm font-bold"
-                                style={{
-                                  backgroundColor: `${pillarData.color}20`,
-                                  color: pillarData.color
-                                }}
-                              >
-                                {task.xp_amount} XP
-                              </div>
-                            </div>
-                            {/* Action Buttons */}
-                            <div className="px-4 pb-4">
-                              {/* Edit Evidence Button for Completed Tasks (hide for tutorial tasks) */}
-                              {!task.auto_complete && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSelectedTask(task);
-                                    setShowTaskModal(true);
-                                  }}
-                                  className="w-full py-2.5 bg-white text-gray-800 border-2 border-gray-300 rounded-full font-bold text-sm uppercase tracking-wide transition-all hover:border-gray-400"
-                                  style={{ fontFamily: 'Poppins' }}
-                                >
-                                  Edit Evidence
-                                </button>
-                              )}
-
-                              {/* Completed badge for auto-verified tasks */}
-                              {task.auto_complete && (
-                                <div
-                                  className="w-full py-2.5 bg-green-100 text-green-700 border-2 border-green-300 rounded-full font-bold text-sm uppercase tracking-wide text-center"
-                                  style={{ fontFamily: 'Poppins' }}
-                                >
-                                  ✅ Completed!
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-            </>
-          ) : null}
-
-          {/* Enrollment flow for users without tasks */}
-          {quest.quest_tasks && quest.quest_tasks.length === 0 && quest.user_enrollment && !showPersonalizationWizard ? (
-            <div className="text-center py-12 bg-white rounded-xl shadow-md">
-              <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-lg text-gray-600 mb-2" style={{ fontFamily: 'Poppins' }}>
-                Ready to personalize this quest?
-              </p>
+        {/* Enrollment flow for users without tasks */}
+        {quest.quest_tasks && quest.quest_tasks.length === 0 && quest.user_enrollment && !showPersonalizationWizard ? (
+          <div className="text-center py-12 bg-white rounded-xl shadow-md">
+            <BookOpen className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+            <p className="text-lg text-gray-600 mb-2" style={{ fontFamily: 'Poppins' }}>
+              Ready to personalize this quest?
+            </p>
               <p className="text-sm text-gray-500 mb-6" style={{ fontFamily: 'Poppins' }}>
                 Create custom tasks, write your own, or browse the task library
               </p>
@@ -1060,7 +789,6 @@ const QuestDetail = () => {
               )}
             </>
           ) : null}
-        </div>
 
 
       </div>

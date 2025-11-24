@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Award, Type, Image, Video, Link2, FileText, AlertCircle, CheckCircle } from 'lucide-react';
+import { Award, Type, Image, Video, Link2, FileText, AlertCircle, CheckCircle, BookOpen } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import { getPillarData } from '../../utils/pillarMappings';
