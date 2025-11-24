@@ -79,16 +79,38 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
 
   const handleTaskReorder = async (questId, taskOrder) => {
     try {
+      // Optimistically update local state without refetching
+      setQuests(prevQuests => {
+        return prevQuests.map(quest => {
+          if (quest.quest_id === questId) {
+            // Create a map of new order
+            const orderMap = {};
+            taskOrder.forEach(item => {
+              orderMap[item.task_id] = item.order_index;
+            });
+
+            // Reorder tasks based on new order_index
+            const reorderedTasks = [...quest.tasks].sort((a, b) => {
+              const orderA = orderMap[a.id] !== undefined ? orderMap[a.id] : a.order_index;
+              const orderB = orderMap[b.id] !== undefined ? orderMap[b.id] : b.order_index;
+              return orderA - orderB;
+            });
+
+            return { ...quest, tasks: reorderedTasks };
+          }
+          return quest;
+        });
+      });
+
+      // Send to backend in background
       const response = await api.post(
         `/api/admin/users/${student.id}/quests/${questId}/tasks/reorder`,
         { task_order: taskOrder }
       );
 
-      if (response.data.success) {
-        // Just reload quests data locally without triggering parent refresh
+      if (!response.data.success) {
+        // If backend fails, reload to get correct state
         await loadStudentQuests();
-        // Don't call onTasksUpdated() here - it causes full page refresh and modal close
-      } else {
         throw new Error(response.data.error || 'Failed to reorder tasks');
       }
     } catch (err) {
