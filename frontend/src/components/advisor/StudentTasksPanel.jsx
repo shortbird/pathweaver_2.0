@@ -101,14 +101,16 @@ export default function StudentTasksPanel({ quest, onTaskUpdate, onTaskDelete, o
       order_index: index
     }));
 
+    // Clear drag state immediately for better UX
+    setDraggedTask(null);
+    setDragOverTask(null);
+
     try {
+      // API call happens in background, UI already updated
       await onTaskReorder(quest.quest_id, reorderedTasks);
     } catch (err) {
       console.error('Failed to reorder tasks:', err);
       alert(err.message || 'Failed to reorder tasks');
-    } finally {
-      setDraggedTask(null);
-      setDragOverTask(null);
     }
   };
 
