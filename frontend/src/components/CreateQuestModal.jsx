@@ -96,8 +96,7 @@ const CreateQuestModal = ({ isOpen, onClose, onSuccess }) => {
           {/* Info box */}
           <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
             <p className="text-sm text-gray-700">
-              Create a quest that's meaningful to <strong>you</strong>. Your quest will be private (visible only to you)
-              until you complete it. You can start working on it right away!
+              Create your own quest and start working right away!
             </p>
           </div>
 
