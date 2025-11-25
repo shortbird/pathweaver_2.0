@@ -118,10 +118,14 @@ const LandingPageHero = ({
             <div className="absolute inset-0 flex items-center justify-start">
               <h2
                 key={currentWordIndex}
-                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl text-white animate-[slideUp_0.6s_ease-out]"
+                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl animate-[slideUp_0.6s_ease-out]"
                 style={{
                   fontFamily: 'Poppins',
                   fontWeight: 700,
+                  background: 'linear-gradient(180deg, #E7ABF3 0%, #BE84C9 100%)',
+                  WebkitBackgroundClip: 'text',
+                  backgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
                 }}
               >
                 {rotatingWords[currentWordIndex]}
