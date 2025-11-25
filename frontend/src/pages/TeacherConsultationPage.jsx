@@ -131,7 +131,7 @@ const TeacherConsultationPage = () => {
       <LandingPageHero
         title="TRANSFORM YOUR CHILD'S LEARNING"
         staticSubtitle="INTO A PROFESSIONAL PORTFOLIO."
-        ctaText="GET YOUR FIRST CREDIT FREE"
+        ctaText="BOOK A FREE 30-MINUTE CONSULTATION"
         onCtaClick={scrollToForm}
         backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/HomepageHero.jpg"
         mobileBackgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/Mobile_HomepageHero.jpg"

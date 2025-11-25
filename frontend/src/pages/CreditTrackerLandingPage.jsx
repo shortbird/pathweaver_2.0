@@ -7,20 +7,22 @@ import FAQSection from '../components/landing/FAQSection'
 
 const CreditTrackerLandingPage = () => {
   const rotatingCurricula = [
-    'Khan Academy',
-    'Coursera',
-    'Brilliant',
-    'Duolingo',
-    'YouTube Learning',
-    'Codecademy',
-    'edX',
-    'Udemy',
-    'FreeCodeCamp',
-    'MIT OpenCourseWare',
+    'DUOLINGO',
+    'KHAN ACADEMY',
+    'YOUTUBE TUTORIALS',
+    'REAL-WORLD EXPERIENCE',
+    'COURSERA',
+    'BRILLIANT',
+    'CODECADEMY',
+    'UDEMY',
   ]
 
   const scrollToForm = () => {
     document.getElementById('signup-form')?.scrollIntoView({ behavior: 'smooth' })
+  }
+
+  const goToDemo = () => {
+    window.location.href = '/demo'
   }
 
   const features = [
@@ -133,9 +135,16 @@ const CreditTrackerLandingPage = () => {
       <LandingPageHero
         title="GET HIGH SCHOOL CREDIT FOR"
         rotatingWords={rotatingCurricula}
-        ctaText="Get Your First Credit Free"
+        ctaText="GET YOUR FIRST CREDIT FREE"
         onCtaClick={scrollToForm}
-        backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/credit-tracker-hero.jpg"
+        backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/StudentHero.jpg"
+        mobileBackgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/Mobile_StudentsHero.jpg"
+        removeOverlay={true}
+        textAlign="center"
+        secondaryCta={{
+          text: "TRY THE DEMO",
+          onClick: goToDemo
+        }}
       />
 
       <LandingPageForm
