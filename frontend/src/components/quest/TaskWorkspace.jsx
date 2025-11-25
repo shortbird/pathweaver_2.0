@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Award, Type, Image, Video, Link2, FileText, AlertCircle, CheckCircle, BookOpen } from 'lucide-react';
+import { Award, Type, Image, Video, Link2, FileText, AlertCircle, CheckCircle, BookOpen, ChevronDown, Plus } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
 import { getPillarData } from '../../utils/pillarMappings';
@@ -7,6 +7,8 @@ import { getPillarData } from '../../utils/pillarMappings';
 const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
   const [error, setError] = useState('');
   const [isCompleting, setIsCompleting] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const [showBlockMenu, setShowBlockMenu] = useState(false);
   const editorRef = useRef(null);
 
   if (!task) {
@@ -97,6 +99,7 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
     if (editorRef.current && editorRef.current.addBlock) {
       editorRef.current.addBlock(type);
     }
+    setShowBlockMenu(false); // Close menu after selection
   };
 
   const blockTypes = {
@@ -109,56 +112,64 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
 
   return (
     <div className="h-full flex flex-col bg-white">
-      {/* Header Section */}
-      <div className="px-6 py-6 border-b border-gray-200">
-        {/* Task Title */}
-        <h2 className="text-3xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins' }}>
-          {task.title}
-        </h2>
-
-        {/* Pillar Badge + XP Badge */}
-        <div className="flex items-center gap-3 mb-4">
-          <div
-            className="px-4 py-1.5 rounded-full text-sm font-semibold uppercase tracking-wide text-white"
-            style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
-          >
-            {pillarData.name}
-          </div>
-          <div
-            className="px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2"
-            style={{
-              backgroundColor: `${pillarData.color}20`,
-              color: pillarData.color,
-              fontFamily: 'Poppins'
-            }}
-          >
-            <Award className="w-4 h-4" />
-            {task.xp_amount} XP
+      {/* Compact Header Section */}
+      <div className="px-6 py-4 border-b border-gray-200">
+        {/* Title + Badges on Same Line */}
+        <div className="flex items-start justify-between mb-3">
+          <h2 className="text-2xl font-bold text-gray-900 flex-1 mr-4" style={{ fontFamily: 'Poppins' }}>
+            {task.title}
+          </h2>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div
+              className="px-3 py-1 rounded-full text-xs font-semibold uppercase tracking-wide text-white"
+              style={{ backgroundColor: pillarData.color, fontFamily: 'Poppins' }}
+            >
+              {pillarData.name}
+            </div>
+            <div
+              className="px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5"
+              style={{
+                backgroundColor: `${pillarData.color}20`,
+                color: pillarData.color,
+                fontFamily: 'Poppins'
+              }}
+            >
+              <Award className="w-3.5 h-3.5" />
+              {task.xp_amount} XP
+            </div>
           </div>
         </div>
 
-        {/* Pillar-colored accent line */}
-        <div className="h-1 rounded-full mb-4" style={{ backgroundColor: pillarData.color }} />
-
-        {/* Task Description */}
+        {/* Collapsible Task Description */}
         {task.description && (
-          <div className="text-gray-700 text-base leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-            {task.description.split('\n').map((line, idx) => {
-              const trimmedLine = line.trim();
-              if (trimmedLine.startsWith('•')) {
-                return (
-                  <div key={idx} className="flex items-start mb-2">
-                    <span className="mr-3 mt-1 text-lg font-bold" style={{ color: pillarData.color }}>•</span>
-                    <span className="text-gray-700" style={{ fontFamily: 'Poppins' }}>{trimmedLine.substring(1).trim()}</span>
-                  </div>
-                );
-              } else if (trimmedLine) {
-                return (
-                  <p key={idx} className="mb-2">{trimmedLine}</p>
-                );
-              }
-              return null;
-            })}
+          <div className="text-gray-700 text-sm leading-relaxed" style={{ fontFamily: 'Poppins' }}>
+            <div className={descriptionExpanded ? '' : 'line-clamp-3'}>
+              {task.description.split('\n').map((line, idx) => {
+                const trimmedLine = line.trim();
+                if (trimmedLine.startsWith('•')) {
+                  return (
+                    <div key={idx} className="flex items-start mb-1.5">
+                      <span className="mr-2 mt-0.5 text-base font-bold" style={{ color: pillarData.color }}>•</span>
+                      <span className="text-gray-700" style={{ fontFamily: 'Poppins' }}>{trimmedLine.substring(1).trim()}</span>
+                    </div>
+                  );
+                } else if (trimmedLine) {
+                  return (
+                    <p key={idx} className="mb-1.5">{trimmedLine}</p>
+                  );
+                }
+                return null;
+              })}
+            </div>
+            {task.description.length > 150 && (
+              <button
+                onClick={() => setDescriptionExpanded(!descriptionExpanded)}
+                className="text-xs font-semibold mt-1 hover:underline"
+                style={{ color: pillarData.color, fontFamily: 'Poppins' }}
+              >
+                {descriptionExpanded ? 'Show less' : 'Read more'}
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -175,11 +186,66 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
           </div>
         )}
 
-        {/* Evidence Section */}
+        {/* Evidence Section with Sticky Toolbar */}
         <div className="mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 mb-3" style={{ fontFamily: 'Poppins' }}>
-            Your Evidence
-          </h3>
+          {/* Header with Add Content Dropdown */}
+          <div className="flex items-center justify-between mb-3 sticky top-0 bg-white z-10 py-2 border-b border-gray-100">
+            <h3 className="text-base font-semibold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+              Your Evidence
+            </h3>
+
+            {/* Add Content Dropdown Button */}
+            <div className="relative">
+              <button
+                onClick={() => setShowBlockMenu(!showBlockMenu)}
+                className="px-4 py-2 rounded-lg border-2 transition-all duration-200 hover:shadow-md bg-white flex items-center gap-2 text-sm font-semibold"
+                style={{
+                  borderColor: pillarData.color,
+                  color: pillarData.color,
+                  fontFamily: 'Poppins'
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                Add Content
+                <ChevronDown className={`w-4 h-4 transition-transform ${showBlockMenu ? 'rotate-180' : ''}`} />
+              </button>
+
+              {/* Dropdown Menu */}
+              {showBlockMenu && (
+                <>
+                  {/* Backdrop to close menu */}
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setShowBlockMenu(false)}
+                  />
+
+                  {/* Menu */}
+                  <div
+                    className="absolute right-0 top-full mt-2 w-48 bg-white shadow-xl rounded-lg border-2 overflow-hidden z-20"
+                    style={{ borderColor: `${pillarData.color}40` }}
+                  >
+                    {Object.entries(blockTypes).map(([type, config]) => {
+                      const IconComponent = config.icon;
+                      return (
+                        <button
+                          key={type}
+                          onClick={() => handleAddBlock(type)}
+                          className="w-full px-4 py-3 hover:bg-gray-50 flex items-center gap-3 text-sm font-semibold text-left transition-colors"
+                          style={{
+                            color: pillarData.color,
+                            fontFamily: 'Poppins'
+                          }}
+                        >
+                          <IconComponent className="w-4 h-4" />
+                          {config.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
 
           <MultiFormatEvidenceEditor
             ref={editorRef}
@@ -192,55 +258,13 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
           />
         </div>
 
-        {/* Add Content Block Section */}
-        <div className="mb-6">
-          <span className="text-sm font-semibold text-gray-700 mb-2 block" style={{ fontFamily: 'Poppins' }}>
-            Add new content block
-          </span>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(blockTypes).map(([type, config]) => {
-              const IconComponent = config.icon;
-              return (
-                <button
-                  key={type}
-                  onClick={() => handleAddBlock(type)}
-                  className="px-4 py-2 rounded-lg border-2 transition-all duration-200 hover:shadow-md bg-white flex items-center gap-2 text-sm font-semibold"
-                  style={{
-                    borderColor: pillarData.color,
-                    color: pillarData.color,
-                    fontFamily: 'Poppins'
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = pillarData.color;
-                    e.currentTarget.style.color = 'white';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'white';
-                    e.currentTarget.style.color = pillarData.color;
-                  }}
-                >
-                  <IconComponent className="w-4 h-4" />
-                  <span>{config.label}</span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Public Evidence Notice */}
-        <div
-          className="border-2 rounded-xl p-4 mb-6"
-          style={{
-            backgroundColor: `${pillarData.color}10`,
-            borderColor: pillarData.color
-          }}
-        >
-          <h4 className="font-bold text-base mb-2 flex items-center gap-2" style={{ color: pillarData.color, fontFamily: 'Poppins' }}>
-            <AlertCircle className="w-5 h-5" />
-            Your Evidence Is Public
-          </h4>
-          <p className="text-gray-700 text-sm leading-relaxed" style={{ fontFamily: 'Poppins' }}>
-            This evidence will appear on your <strong>public portfolio</strong> for others to see. Make sure your content reflects well on you and showcases your best efforts.
+        {/* Public Evidence Notice - Subtle */}
+        <div className="border-l-4 rounded-r-lg pl-4 py-3 mb-6 bg-gray-50" style={{ borderColor: pillarData.color }}>
+          <p className="text-gray-600 text-xs leading-relaxed flex items-start gap-2" style={{ fontFamily: 'Poppins' }}>
+            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: pillarData.color }} />
+            <span>
+              This evidence will appear on your <strong>public portfolio</strong>. Make sure your content showcases your best work.
+            </span>
           </p>
         </div>
       </div>
