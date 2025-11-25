@@ -39,7 +39,7 @@ const LandingPageHero = ({
 
   return (
     <div
-      className={`relative py-8 md:py-20 px-4 overflow-hidden ${textAlign === 'center' ? 'text-center' : 'text-center md:text-left'}`}
+      className={`relative py-12 md:py-20 px-4 overflow-hidden flex items-center ${textAlign === 'center' ? 'text-center' : 'text-center md:text-left'}`}
       style={{
         background: backgroundImage ? 'transparent' : backgroundGradient,
         minHeight: '500px'
@@ -115,32 +115,17 @@ const LandingPageHero = ({
         {/* Rotating Words or Static Subtitle */}
         {rotatingWords.length > 0 ? (
           <div className="relative h-32 sm:h-40 md:h-44 lg:h-48 my-6">
-            <div className="absolute inset-0 flex items-center justify-center">
-              <div
-                className="px-8 py-4"
+            <div className="absolute inset-0 flex items-center justify-start">
+              <h2
+                key={currentWordIndex}
+                className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl text-white animate-[slideUp_0.6s_ease-out]"
                 style={{
-                  background: 'radial-gradient(ellipse, rgba(0, 0, 0, 0.25) 0%, rgba(0, 0, 0, 0.15) 50%, transparent 80%)',
-                  backdropFilter: 'blur(4px)'
+                  fontFamily: 'Poppins',
+                  fontWeight: 700,
                 }}
               >
-                <span
-                  key={currentWordIndex}
-                  className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl animate-fade-in"
-                  style={{
-                    fontFamily: 'Poppins',
-                    fontWeight: 700,
-                    background: getWordGradient(currentWordIndex),
-                    WebkitBackgroundClip: 'text',
-                    backgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                    textRendering: 'optimizeLegibility',
-                    WebkitFontSmoothing: 'antialiased',
-                    MozOsxFontSmoothing: 'grayscale'
-                  }}
-                >
-                  {rotatingWords[currentWordIndex]}
-                </span>
-              </div>
+                {rotatingWords[currentWordIndex]}
+              </h2>
             </div>
           </div>
         ) : staticSubtitle ? (
@@ -156,17 +141,17 @@ const LandingPageHero = ({
         <div className={`flex flex-col sm:flex-row gap-4 mt-8 ${textAlign === 'center' ? 'justify-center items-center' : 'justify-center md:justify-start items-center md:items-start'}`}>
           <button
             onClick={onCtaClick}
-            className="bg-white text-optio-pink hover:bg-gray-100 text-lg px-8 py-4 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center"
+            className="bg-white text-optio-pink hover:bg-gray-100 text-base md:text-lg px-6 py-3 md:px-8 md:py-4 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300 inline-flex items-center"
             style={{ fontFamily: 'Poppins', fontWeight: 700 }}
           >
             {ctaText}
-            <ArrowRight className="ml-2 w-5 h-5" />
+            <ArrowRight className="ml-2 w-4 h-4 md:w-5 md:h-5" />
           </button>
 
           {secondaryCta && (
             <button
               onClick={secondaryCta.onClick}
-              className="bg-transparent border-2 border-white text-white hover:bg-white/10 text-lg px-8 py-4 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
+              className="bg-transparent border-2 border-white text-white hover:bg-white/10 text-base md:text-lg px-6 py-3 md:px-8 md:py-4 rounded-lg shadow-lg hover:shadow-xl transform hover:scale-105 transition-all duration-300"
               style={{ fontFamily: 'Poppins', fontWeight: 600 }}
             >
               {secondaryCta.text}

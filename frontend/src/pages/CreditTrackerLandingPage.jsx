@@ -140,7 +140,7 @@ const CreditTrackerLandingPage = () => {
         backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/StudentHero.jpg"
         mobileBackgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/Mobile_StudentsHero.jpg"
         removeOverlay={true}
-        textAlign="center"
+        textAlign="left"
         secondaryCta={{
           text: "TRY THE DEMO",
           onClick: goToDemo

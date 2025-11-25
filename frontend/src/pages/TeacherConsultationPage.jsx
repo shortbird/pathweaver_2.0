@@ -129,9 +129,10 @@ const TeacherConsultationPage = () => {
   return (
     <div className="min-h-screen bg-white">
       <LandingPageHero
-        title="TRANSFORM YOUR CHILD'S LEARNING"
-        staticSubtitle="INTO A PROFESSIONAL PORTFOLIO."
-        ctaText="BOOK A FREE 30-MINUTE CONSULTATION"
+        title="TRANSFORM YOUR"
+        gradientTitle="CHILD'S LEARNING"
+        staticSubtitle="INTO A PROFESSIONAL PORTFOLIO"
+        ctaText="BOOK FREE CONSULTATION"
         onCtaClick={scrollToForm}
         backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/HomepageHero.jpg"
         mobileBackgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/Mobile_HomepageHero.jpg"
