@@ -102,6 +102,13 @@ const CreditTrackerLandingPage = () => {
 
   const formFields = [
     {
+      name: 'name',
+      type: 'text',
+      label: 'Your Name',
+      placeholder: 'Your full name',
+      required: true,
+    },
+    {
       name: 'email',
       type: 'email',
       label: 'Your Email',
