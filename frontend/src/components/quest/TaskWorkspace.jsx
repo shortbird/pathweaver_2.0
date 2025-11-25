@@ -188,11 +188,18 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
 
         {/* Evidence Section with Sticky Toolbar */}
         <div className="mb-6">
-          {/* Header with Add Content Dropdown */}
+          {/* Header with Save Status and Add Content Dropdown */}
           <div className="flex items-center justify-between mb-3 sticky top-0 bg-white z-10 py-2 border-b border-gray-100">
-            <h3 className="text-base font-semibold text-gray-900" style={{ fontFamily: 'Poppins' }}>
-              Your Evidence
-            </h3>
+            <div className="flex items-center gap-3">
+              <h3 className="text-lg font-semibold text-gray-900" style={{ fontFamily: 'Poppins' }}>
+                Your Evidence
+              </h3>
+
+              {/* Save Status from Editor - passed via ref callback */}
+              <div className="flex items-center gap-2 text-xs" id="evidence-save-status">
+                {/* This will be populated by the editor */}
+              </div>
+            </div>
 
             {/* Add Content Dropdown Button */}
             <div className="relative">
@@ -255,6 +262,7 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
             onComplete={handleComplete}
             onError={handleError}
             autoSaveEnabled={true}
+            hideHeader={true}
           />
         </div>
 
