@@ -10,6 +10,10 @@ const TeacherConsultationPage = () => {
     document.getElementById('signup-form')?.scrollIntoView({ behavior: 'smooth' })
   }
 
+  const goToDemo = () => {
+    window.location.href = '/demo'
+  }
+
   const features = [
     {
       icon: <UserCheck className="w-8 h-8 text-white" />,
@@ -125,12 +129,18 @@ const TeacherConsultationPage = () => {
   return (
     <div className="min-h-screen bg-white">
       <LandingPageHero
-        title="Partner With a Licensed Teacher to Customize Your Child's Education"
-        staticSubtitle="Expert guidance for creating a learning plan that fits your family"
-        ctaText="Book Free 30-Minute Consultation"
+        title="TRANSFORM YOUR CHILD'S LEARNING"
+        staticSubtitle="INTO A PROFESSIONAL PORTFOLIO."
+        ctaText="GET YOUR FIRST CREDIT FREE"
         onCtaClick={scrollToForm}
-        backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/teacher_hero.jpg"
-        backgroundPosition="center 25%"
+        backgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/HomepageHero.jpg"
+        mobileBackgroundImage="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/promo/Mobile_HomepageHero.jpg"
+        removeOverlay={true}
+        textAlign="center"
+        secondaryCta={{
+          text: "TRY THE DEMO",
+          onClick: goToDemo
+        }}
       />
 
       <LandingPageForm
