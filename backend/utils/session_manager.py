@@ -300,6 +300,16 @@ class SessionManager:
 
         return new_access_token, new_refresh_token, user_id
 
+    def get_access_token_string(self) -> Optional[str]:
+        """Get the raw access token string from Authorization header or cookie"""
+        # Prioritize Authorization header (works in all browsers including incognito)
+        auth_header = request.headers.get('Authorization', '')
+        if auth_header.startswith('Bearer '):
+            return auth_header.replace('Bearer ', '')
+
+        # Fallback to cookie (works in both same-origin and cross-origin with SameSite=None)
+        return request.cookies.get('access_token')
+
 # Global session manager instance
 session_manager = SessionManager()
 

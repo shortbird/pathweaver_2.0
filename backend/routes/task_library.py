@@ -88,7 +88,17 @@ def select_library_task(user_id, quest_id):
 
         # Get the library task details
         library_service = TaskLibraryService()
-        supabase = get_user_client(user_id)
+
+        # Get JWT token for RLS-enabled Supabase client
+        from utils.session_manager import session_manager
+        token = session_manager.get_access_token_string()
+        if not token:
+            return jsonify({
+                'success': False,
+                'error': 'Authentication token not found'
+            }), 401
+
+        supabase = get_user_client(token)
 
         # Fetch the sample task
         sample_task_response = supabase.table('quest_sample_tasks') \
