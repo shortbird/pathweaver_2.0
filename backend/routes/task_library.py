@@ -6,7 +6,6 @@ API endpoints for browsing and selecting tasks from the shared library.
 from flask import Blueprint, jsonify, request
 from utils.auth.decorators import require_auth
 from services.task_library_service import TaskLibraryService
-from database import get_user_client
 import logging
 
 task_library_bp = Blueprint('task_library', __name__)
@@ -89,16 +88,9 @@ def select_library_task(user_id, quest_id):
         # Get the library task details
         library_service = TaskLibraryService()
 
-        # Get JWT token for RLS-enabled Supabase client
-        from utils.session_manager import session_manager
-        token = session_manager.get_access_token_string()
-        if not token:
-            return jsonify({
-                'success': False,
-                'error': 'Authentication token not found'
-            }), 401
-
-        supabase = get_user_client(token)
+        # Use admin client since we already validated user via @require_auth decorator
+        from database import get_supabase_admin_client
+        supabase = get_supabase_admin_client()
 
         # Fetch the sample task
         sample_task_response = supabase.table('quest_sample_tasks') \
