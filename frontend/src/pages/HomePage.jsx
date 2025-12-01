@@ -495,35 +495,6 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Philosophy Section with Hero Image */}
-      <div
-        ref={(el) => (sectionRefs.current.philosophy = el)}
-        data-section="philosophy"
-        className={`relative py-32 bg-cover bg-center transition-all duration-1000 ${
-          isVisible('philosophy') ? 'opacity-100' : 'opacity-0'
-        }`}
-        style={{
-          backgroundImage: `url(${getImageUrl(images, 'philosophy_hero', '')})`,
-        }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/70"></div>
-        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-            The Process Is The Goal
-          </h2>
-          <p className="text-xl text-white/95 mb-8 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-            Learning is not about reaching a destination or impressing others. It's about who you become through the journey of discovery, creation, and growth.
-          </p>
-          <button
-            onClick={() => setPhilosophyModalOpen(true)}
-            className="inline-flex items-center bg-white text-optio-purple hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all"
-            style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-          >
-            Learn More About Our Philosophy
-          </button>
-        </div>
-      </div>
-
       {/* FAQ Section - Platform Focus */}
       <div className="py-16 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -634,6 +605,35 @@ const HomePage = () => {
               )}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Philosophy Section with Hero Image */}
+      <div
+        ref={(el) => (sectionRefs.current.philosophy = el)}
+        data-section="philosophy"
+        className={`relative py-32 bg-cover bg-center transition-all duration-1000 ${
+          isVisible('philosophy') ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{
+          backgroundImage: `url(${getImageUrl(images, 'philosophy_hero', '')})`,
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/70"></div>
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            The Process Is The Goal
+          </h2>
+          <p className="text-xl text-white/95 mb-8 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+            Learning is not about reaching a destination or impressing others. It's about who you become through the journey of discovery, creation, and growth.
+          </p>
+          <button
+            onClick={() => setPhilosophyModalOpen(true)}
+            className="inline-flex items-center bg-white text-optio-purple hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all"
+            style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+          >
+            Learn More About Our Philosophy
+          </button>
         </div>
       </div>
 
