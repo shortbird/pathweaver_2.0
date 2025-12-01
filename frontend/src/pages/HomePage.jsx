@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Play, X, BookOpen, Users, CheckCircle, Heart, Sparkles, Target, Zap, ArrowRight } from 'lucide-react'
+import { Play, X, BookOpen, Users, CheckCircle, Heart, Sparkles, Target, Zap, ArrowRight, ChevronDown } from 'lucide-react'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
 import LandingPageHero from '../components/landing/LandingPageHero'
 import { useHomepageImages, getImageUrl } from '../hooks/useHomepageImages'
@@ -11,6 +11,7 @@ const HomePage = () => {
   const navigate = useNavigate()
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
   const { images, loading: imagesLoading } = useHomepageImages()
+  const [openFaq, setOpenFaq] = useState(null)
 
   // Intersection Observer for scroll animations
   const [visibleSections, setVisibleSections] = useState(new Set())
@@ -415,18 +416,19 @@ const HomePage = () => {
                   </div>
                 </div>
               </div>
-
-              <div className="pt-4">
-                <Link
-                  to="/register"
-                  className="inline-flex items-center bg-gradient-primary text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
-                  style={{ fontFamily: 'Poppins', fontWeight: 700 }}
-                >
-                  Start Your Accredited Journey
-                  <ArrowRight className="ml-2 w-5 h-5" />
-                </Link>
-              </div>
             </div>
+          </div>
+
+          {/* Centered CTA Button */}
+          <div className="text-center mt-12">
+            <Link
+              to="/register"
+              className="inline-flex items-center bg-gradient-primary text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+              style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+            >
+              Start Your Accredited Journey
+              <ArrowRight className="ml-2 w-5 h-5" />
+            </Link>
           </div>
         </div>
       </div>
@@ -531,50 +533,105 @@ const HomePage = () => {
             </h2>
           </div>
 
-          <div className="space-y-6">
-            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                How does the automatic portfolio work?
-              </h3>
-              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                As your child completes quest tasks, their work (essays, projects, videos, photos) automatically flows into their portfolio. No manual uploading, no extra steps. You document once, and it instantly becomes part of their professional showcase ready to share with colleges and employers.
-              </p>
+          <div className="space-y-4">
+            {/* FAQ 1 */}
+            <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+              <button
+                onClick={() => setOpenFaq(openFaq === 0 ? null : 0)}
+                className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-100 transition-colors"
+              >
+                <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  How does the automatic portfolio work?
+                </h3>
+                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 0 ? 'rotate-180' : ''}`} />
+              </button>
+              {openFaq === 0 && (
+                <div className="px-6 pb-4">
+                  <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    As your child completes quest tasks, their work (essays, projects, videos, photos) automatically flows into their portfolio. No manual uploading, no extra steps. You document once, and it instantly becomes part of their professional showcase ready to share with colleges and employers.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                What are quests and how do we create them?
-              </h3>
-              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Quests are learning adventures aligned with your child's interests. You can create custom quests based on your family's goals, choose from Optio's library, or let your child propose ideas. Each quest has tasks that earn XP across five learning pillars: STEM, Wellness, Communication, Civics, and Art.
-              </p>
+            {/* FAQ 2 */}
+            <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+              <button
+                onClick={() => setOpenFaq(openFaq === 1 ? null : 1)}
+                className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-100 transition-colors"
+              >
+                <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  What are quests and how do we create them?
+                </h3>
+                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 1 ? 'rotate-180' : ''}`} />
+              </button>
+              {openFaq === 1 && (
+                <div className="px-6 pb-4">
+                  <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    Quests are learning adventures aligned with your child's interests. You can create custom quests based on your family's goals, choose from Optio's library, or let your child propose ideas. Each quest has tasks that earn XP across five learning pillars: STEM, Wellness, Communication, Civics, and Art.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                Can extended family members see my child's work?
-              </h3>
-              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Yes! You can invite grandparents, mentors, and other trusted adults as "observers." They get read-only access to cheer progress, leave encouragement, and stay connected to your child's learning journey, transforming learning into a shared family experience.
-              </p>
+            {/* FAQ 3 */}
+            <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+              <button
+                onClick={() => setOpenFaq(openFaq === 2 ? null : 2)}
+                className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-100 transition-colors"
+              >
+                <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  Can extended family members see my child's work?
+                </h3>
+                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 2 ? 'rotate-180' : ''}`} />
+              </button>
+              {openFaq === 2 && (
+                <div className="px-6 pb-4">
+                  <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    Yes! You can invite grandparents, mentors, and other trusted adults as "observers." They get read-only access to cheer progress, leave encouragement, and stay connected to your child's learning journey, transforming learning into a shared family experience.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                How do we use this if we're already homeschooling?
-              </h3>
-              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Optio complements any homeschool approach. Use it to document what you're already doing, add gamification to boost motivation, track progress across subjects, and build a portfolio that proves learning to colleges. It's a tool that fits YOUR family's existing rhythm.
-              </p>
+            {/* FAQ 4 */}
+            <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+              <button
+                onClick={() => setOpenFaq(openFaq === 3 ? null : 3)}
+                className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-100 transition-colors"
+              >
+                <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  How do we use this if we're already homeschooling?
+                </h3>
+                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 3 ? 'rotate-180' : ''}`} />
+              </button>
+              {openFaq === 3 && (
+                <div className="px-6 pb-4">
+                  <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    Optio complements any homeschool approach. Use it to document what you're already doing, add gamification to boost motivation, track progress across subjects, and build a portfolio that proves learning to colleges. It's a tool that fits YOUR family's existing rhythm.
+                  </p>
+                </div>
+              )}
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
-              <h3 className="text-lg font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                What happens to the work my child has already done?
-              </h3>
-              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                You can manually upload past work to their portfolio to give context and show growth over time. While current work flows in automatically, we make it easy to backfill evidence of previous learning so your child's full story is told.
-              </p>
+            {/* FAQ 5 */}
+            <div className="bg-gray-50 rounded-xl border border-gray-200 overflow-hidden">
+              <button
+                onClick={() => setOpenFaq(openFaq === 4 ? null : 4)}
+                className="w-full px-6 py-4 flex items-center justify-between text-left hover:bg-gray-100 transition-colors"
+              >
+                <h3 className="text-lg font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  What happens to the work my child has already done?
+                </h3>
+                <ChevronDown className={`w-5 h-5 text-gray-600 transition-transform ${openFaq === 4 ? 'rotate-180' : ''}`} />
+              </button>
+              {openFaq === 4 && (
+                <div className="px-6 pb-4">
+                  <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    You can manually upload past work to their portfolio to give context and show growth over time. While current work flows in automatically, we make it easy to backfill evidence of previous learning so your child's full story is told.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         </div>
