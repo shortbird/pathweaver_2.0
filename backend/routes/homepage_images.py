@@ -1,14 +1,30 @@
 """
 Homepage image management routes.
-Fetches optimized images from Pexels for homepage sections.
+Serves static Pexels image URLs for homepage sections.
 """
 from flask import Blueprint, jsonify, request
-from services.image_service import search_quest_image
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 bp = Blueprint('homepage_images', __name__)
+
+# Static Pexels URLs for homepage images (high resolution, CDN-hosted)
+# These URLs are stable and don't require API calls
+HOMEPAGE_IMAGE_URLS = {
+    'portfolio': 'https://images.pexels.com/photos/8472950/pexels-photo-8472950.jpeg?auto=compress&cs=tinysrgb&w=1920',
+    'journaling': 'https://images.pexels.com/photos/5190600/pexels-photo-5190600.jpeg?auto=compress&cs=tinysrgb&w=1920',
+    'badge_achievement': 'https://images.pexels.com/photos/7606222/pexels-photo-7606222.jpeg?auto=compress&cs=tinysrgb&w=1920',
+    'quest_library': 'https://images.pexels.com/photos/7869245/pexels-photo-7869245.jpeg?auto=compress&cs=tinysrgb&w=1920',
+    'ai_tutor': 'https://images.pexels.com/photos/8005651/pexels-photo-8005651.jpeg?auto=compress&cs=tinysrgb&w=1920',
+    'connections': 'https://images.pexels.com/photos/8034611/pexels-photo-8034611.jpeg?auto=compress&cs=tinysrgb&w=1920',
+    'choose_quest': 'https://images.pexels.com/photos/4473784/pexels-photo-4473784.jpeg?auto=compress&cs=tinysrgb&w=1920',
+    'complete_tasks': 'https://images.pexels.com/photos/6790763/pexels-photo-6790763.jpeg?auto=compress&cs=tinysrgb&w=1920',
+    'submit_evidence': 'https://images.pexels.com/photos/7221277/pexels-photo-7221277.jpeg?auto=compress&cs=tinysrgb&w=1920',
+    'earn_recognition': 'https://images.pexels.com/photos/1134188/pexels-photo-1134188.jpeg?auto=compress&cs=tinysrgb&w=1920',
+    'philosophy_hero': 'https://images.pexels.com/photos/3768121/pexels-photo-3768121.jpeg?auto=compress&cs=tinysrgb&w=1920',
+    'success_collage': 'https://images.pexels.com/photos/7692994/pexels-photo-7692994.jpeg?auto=compress&cs=tinysrgb&w=1920'
+}
 
 # Image specifications for all homepage sections
 IMAGE_SPECS = [
@@ -97,7 +113,7 @@ IMAGE_SPECS = [
 @bp.route('/api/homepage/images', methods=['GET'])
 def get_homepage_images():
     """
-    Fetch all homepage images from Pexels API.
+    Get all homepage images (static Pexels URLs).
 
     Query params:
         - section: Optional filter by section (features, process, philosophy, cta)
@@ -112,64 +128,37 @@ def get_homepage_images():
         keys_filter = request.args.get('keys', '').split(',') if request.args.get('keys') else None
 
         # Filter image specs based on query params
-        specs_to_fetch = IMAGE_SPECS
+        specs_to_return = IMAGE_SPECS
 
         if section_filter:
-            specs_to_fetch = [s for s in specs_to_fetch if s['section'] == section_filter]
+            specs_to_return = [s for s in specs_to_return if s['section'] == section_filter]
 
         if keys_filter:
-            specs_to_fetch = [s for s in specs_to_fetch if s['key'] in keys_filter]
+            specs_to_return = [s for s in specs_to_return if s['key'] in keys_filter]
 
         results = {}
-        errors = []
 
-        logger.info(f"Fetching {len(specs_to_fetch)} homepage images from Pexels")
+        logger.info(f"Serving {len(specs_to_return)} homepage image URLs")
 
-        for spec in specs_to_fetch:
-            try:
-                logger.info(f"Searching Pexels for '{spec['key']}' with query: '{spec['query']}'")
+        for spec in specs_to_return:
+            # Get static URL from dictionary
+            image_url = HOMEPAGE_IMAGE_URLS.get(spec['key'])
 
-                # Use existing image service to search Pexels
-                image_url = search_quest_image(
-                    quest_title=spec['query'],
-                    quest_description=None,
-                    pillar=None
-                )
-
-                if image_url:
-                    results[spec['key']] = {
-                        'url': image_url,
-                        'orientation': spec['orientation'],
-                        'section': spec['section'],
-                        'query': spec['query']
-                    }
-                    logger.info(f"✓ Found image for '{spec['key']}'")
-                else:
-                    errors.append({
-                        'key': spec['key'],
-                        'error': 'No image found',
-                        'query': spec['query']
-                    })
-                    logger.warning(f"✗ No image found for '{spec['key']}'")
-
-            except Exception as e:
-                error_msg = str(e)
-                errors.append({
-                    'key': spec['key'],
-                    'error': error_msg,
+            if image_url:
+                results[spec['key']] = {
+                    'url': image_url,
+                    'orientation': spec['orientation'],
+                    'section': spec['section'],
                     'query': spec['query']
-                })
-                logger.error(f"Error fetching image for '{spec['key']}': {error_msg}")
+                }
 
         response_data = {
             'success': True,
             'images': results,
-            'total_requested': len(specs_to_fetch),
+            'total_requested': len(specs_to_return),
             'total_found': len(results),
-            'errors': errors if errors else None
+            'errors': None
         }
-
-        logger.info(f"Homepage images fetch complete: {len(results)}/{len(specs_to_fetch)} successful")
 
         return jsonify(response_data), 200
 
