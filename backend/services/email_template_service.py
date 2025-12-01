@@ -500,10 +500,12 @@ class EmailTemplateService(BaseService):
         if not isinstance(template_data, dict):
             raise ValueError("template_data must be a dictionary")
 
-        # Check for required fields (following email_copy.yaml structure)
-        # At minimum should have either 'paragraphs' or 'greeting'
-        if not any(key in template_data for key in ['paragraphs', 'greeting', 'body_p1']):
-            raise ValueError("template_data must contain at least one content field (paragraphs, greeting, or body_p1)")
+        # Check for required fields
+        # YAML templates use: paragraphs, greeting, or body_p1
+        # Custom templates use: body_html
+        required_fields = ['paragraphs', 'greeting', 'body_p1', 'body_html']
+        if not any(key in template_data for key in required_fields):
+            raise ValueError("template_data must contain at least one content field (paragraphs, greeting, body_p1, or body_html)")
 
         # Validate CTA structure if present
         if 'cta' in template_data:
