@@ -128,8 +128,12 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
         '\n\n|||BUTTON_START|||$2|||BUTTON_TEXT|||$1|||BUTTON_END|||\n\n'
       )
 
+      console.log('Processed markdown (with placeholders):', processedMarkdown.substring(0, 500))
+
       // Convert markdown to HTML
       let htmlBody = marked.parse(processedMarkdown)
+
+      console.log('After marked.parse():', htmlBody.substring(0, 800))
 
       // Convert button placeholders to styled buttons (handle possible <p> tag wrapping)
       htmlBody = htmlBody.replace(
@@ -150,6 +154,8 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
         'font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(109, 70, 155, 0.25);">$2</a>' +
         '</div>'
       )
+
+      console.log('After button replacement:', htmlBody.substring(0, 800))
 
       // Substitute variables in the HTML using sample data
       let substitutedHtml = htmlBody
@@ -310,7 +316,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       }
 
       if (template) {
-        await crmAPI.updateTemplate(template.template_key, saveData)
+        await crmAPI.updateTemplate(template.template_key || template.key, saveData)
         toast.success('Template updated!')
       } else {
         await crmAPI.createTemplate(saveData)
@@ -563,7 +569,7 @@ Questions? Just reply to this email."
             )}
 
             {/* Preview iframe */}
-            <div className="flex-1 overflow-auto p-4">
+            <div className="flex-1 overflow-hidden p-4">
               {previewLoading && (
                 <div className="flex items-center justify-center h-full">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
@@ -571,14 +577,12 @@ Questions? Just reply to this email."
               )}
 
               {!previewLoading && previewHtml && (
-                <div className="w-full overflow-x-hidden">
-                  <iframe
-                    title="Email Preview"
-                    srcDoc={previewHtml}
-                    className="w-full h-[600px] border-0 bg-white rounded-lg shadow-sm"
-                    sandbox="allow-same-origin"
-                  />
-                </div>
+                <iframe
+                  title="Email Preview"
+                  srcDoc={previewHtml}
+                  className="w-full h-full border-0 bg-white rounded-lg shadow-sm"
+                  sandbox="allow-same-origin"
+                />
               )}
 
               {!previewLoading && !formData.markdown_body && (
