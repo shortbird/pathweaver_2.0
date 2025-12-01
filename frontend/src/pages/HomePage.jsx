@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Play, X, BookOpen, Users, CheckCircle, Heart, Sparkles, Target, Zap } from 'lucide-react'
+import { Play, X, BookOpen, Users, CheckCircle, Heart, Sparkles, Target, Zap, ArrowRight } from 'lucide-react'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
 import LandingPageHero from '../components/landing/LandingPageHero'
 import { useHomepageImages, getImageUrl } from '../hooks/useHomepageImages'
