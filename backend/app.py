@@ -207,13 +207,6 @@ try:
 except Exception as e:
     logger.warning(f"Warning: Observer role routes not available: {e}")
 
-# Register Advisor Masquerade blueprint (January 2025)
-try:
-    from routes.advisor_masquerade import advisor_masquerade_bp
-    app.register_blueprint(advisor_masquerade_bp)  # /api/advisor/masquerade/*
-    logger.info("Advisor masquerade routes registered successfully")
-except Exception as e:
-    logger.warning(f"Warning: Advisor masquerade routes not available: {e}")
 
 # Register Badge System blueprints
 try:
