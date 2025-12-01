@@ -476,10 +476,14 @@ Here are your next steps:
               )}
 
               {!previewLoading && previewHtml && (
-                <div
-                  className="bg-white rounded-lg shadow-sm"
-                  dangerouslySetInnerHTML={{ __html: previewHtml }}
-                />
+                <div className="w-full overflow-x-hidden">
+                  <iframe
+                    title="Email Preview"
+                    srcDoc={previewHtml}
+                    className="w-full h-[600px] border-0 bg-white rounded-lg shadow-sm"
+                    sandbox="allow-same-origin"
+                  />
+                </div>
               )}
 
               {!previewLoading && !formData.markdown_body && (
