@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { crmAPI } from '../../../services/crmAPI'
 import toast from 'react-hot-toast'
+import { marked } from 'marked'
 
 const TemplateEditor = ({ template, onClose, onSave }) => {
   const [formData, setFormData] = useState({
@@ -8,70 +9,151 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
     name: '',
     subject: '',
     description: '',
-    body_html: '',
-    body_text: '',
+    markdown_body: '',
     variables: []
   })
-  const [previewHtml, setPreviewHtml] = useState('')
   const [sampleData, setSampleData] = useState({})
+  const [previewHtml, setPreviewHtml] = useState('')
   const [loading, setLoading] = useState(false)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const debounceTimer = useRef(null)
   const isReadOnly = template?.source === 'yaml'
+
+  // Configure marked for email-safe HTML
+  marked.setOptions({
+    breaks: true,
+    gfm: true,
+    headerIds: false,
+    mangle: false
+  })
 
   useEffect(() => {
     if (template) {
-      // Handle both template_data structure and flat structure
       const templateData = template.template_data || {}
+
+      // Convert existing content to markdown
+      let markdownBody = ''
+
+      // First check if markdown_source exists (best option - original markdown)
+      if (templateData.markdown_source) {
+        markdownBody = templateData.markdown_source
+      }
+      // Then try HTML to markdown conversion
+      else if (templateData.body_html) {
+        // Simple HTML to markdown conversion for existing templates
+        markdownBody = templateData.body_html
+          .replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n')
+          .replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n')
+          .replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n')
+          .replace(/<p[^>]*>(.*?)<\/p>/gi, '$1\n\n')
+          .replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**')
+          .replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*')
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<[^>]+>/g, '') // Remove remaining tags
+          .trim()
+      }
+      // Finally fallback to paragraphs (YAML format)
+      else if (templateData.paragraphs) {
+        markdownBody = templateData.paragraphs.join('\n\n')
+      }
+
       setFormData({
         template_key: template.template_key,
         name: template.name,
         subject: template.subject,
         description: template.description || '',
-        body_html: templateData.body_html || template.body_html || '',
-        body_text: templateData.body_text || template.body_text || '',
+        markdown_body: markdownBody,
         variables: templateData.variables || template.variables || []
       })
-      // Initialize sample data with empty values
+
+      // Initialize sample data
       const initialSampleData = {}
       const vars = templateData.variables || template.variables || []
       vars.forEach(v => {
         initialSampleData[v] = ''
       })
       setSampleData(initialSampleData)
+
+      // Generate initial preview
+      if (markdownBody) {
+        generatePreview(markdownBody, template.subject, initialSampleData)
+      }
     }
   }, [template])
 
-  const handlePreview = async () => {
+  // Debounced preview generation
+  useEffect(() => {
+    if (formData.markdown_body && formData.template_key) {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current)
+      }
+
+      debounceTimer.current = setTimeout(() => {
+        generatePreview(formData.markdown_body, formData.subject, sampleData)
+      }, 500) // 500ms debounce
+
+      return () => {
+        if (debounceTimer.current) {
+          clearTimeout(debounceTimer.current)
+        }
+      }
+    }
+  }, [formData.markdown_body, formData.subject, sampleData, formData.template_key])
+
+  const generatePreview = async (markdownBody, subject, variables) => {
     try {
-      setLoading(true)
-      const response = await crmAPI.previewTemplate(formData.template_key, sampleData)
-      // Handle different response structures
-      setPreviewHtml(response.data.preview?.html || response.data.preview || response.data.html)
+      setPreviewLoading(true)
+
+      // Convert markdown to HTML
+      const htmlBody = marked.parse(markdownBody)
+
+      // Create temporary template for preview
+      const previewTemplate = {
+        template_key: formData.template_key || 'preview',
+        name: formData.name || 'Preview',
+        subject: subject || 'Preview Subject',
+        template_data: {
+          body_html: htmlBody,
+          variables: formData.variables
+        }
+      }
+
+      // Request preview from backend
+      const response = await crmAPI.previewTemplate(
+        previewTemplate.template_key,
+        variables
+      )
+
+      setPreviewHtml(response.data.preview?.html || response.data.html || '')
     } catch (error) {
-      toast.error('Failed to generate preview')
-      console.error(error)
+      console.error('Preview generation error:', error)
+      // Don't show error toast for preview failures - just show empty
+      setPreviewHtml('')
     } finally {
-      setLoading(false)
+      setPreviewLoading(false)
     }
   }
 
   const handleSave = async () => {
-    if (!formData.template_key || !formData.name || !formData.subject || !formData.body_html) {
-      toast.error('Please fill in all required fields (key, name, subject, HTML body)')
+    if (!formData.template_key || !formData.name || !formData.subject || !formData.markdown_body) {
+      toast.error('Please fill in all required fields (key, name, subject, body)')
       return
     }
 
     try {
       setLoading(true)
 
-      // Prepare data in format backend expects
+      // Convert markdown to HTML for storage
+      const htmlBody = marked.parse(formData.markdown_body)
+
       const saveData = {
         template_key: formData.template_key,
         name: formData.name,
         subject: formData.subject,
         description: formData.description,
         template_data: {
-          body_html: formData.body_html,
-          body_text: formData.body_text,
+          body_html: htmlBody,
+          markdown_source: formData.markdown_body, // Store original markdown
           variables: formData.variables
         }
       }
@@ -114,8 +196,26 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
     })
   }
 
+  const insertVariable = (varName) => {
+    const textarea = document.getElementById('markdown-editor')
+    const cursorPos = textarea.selectionStart
+    const textBefore = formData.markdown_body.substring(0, cursorPos)
+    const textAfter = formData.markdown_body.substring(cursorPos)
+
+    const newText = textBefore + `{${varName}}` + textAfter
+    setFormData(prev => ({ ...prev, markdown_body: newText }))
+
+    // Set cursor position after inserted variable
+    setTimeout(() => {
+      textarea.focus()
+      textarea.selectionStart = cursorPos + varName.length + 2
+      textarea.selectionEnd = cursorPos + varName.length + 2
+    }, 0)
+  }
+
   return (
-    <div className="bg-white rounded-lg shadow-lg">
+    <div className="bg-white rounded-lg shadow-lg h-[90vh] flex flex-col">
+      {/* Header */}
       <div className="flex justify-between items-center p-6 border-b">
         <div>
           <h2 className="text-2xl font-bold">
@@ -134,50 +234,52 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
         </button>
       </div>
 
-      <div className="grid grid-cols-2 gap-6 p-6">
-        {/* Left: Editor */}
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Template Key <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.template_key}
-              onChange={(e) => setFormData(prev => ({ ...prev, template_key: e.target.value }))}
-              disabled={isReadOnly || template}
-              placeholder="e.g., welcome_email"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
-            />
-            <p className="text-xs text-gray-500 mt-1">Unique identifier (cannot be changed after creation)</p>
-          </div>
+      {/* Content - Flex container */}
+      <div className="flex-1 overflow-hidden flex flex-col">
+        {/* Top: Metadata fields */}
+        <div className="p-6 border-b bg-gray-50 space-y-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Template Key <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.template_key}
+                onChange={(e) => setFormData(prev => ({ ...prev, template_key: e.target.value }))}
+                disabled={isReadOnly || template}
+                placeholder="e.g., welcome_email"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
+              />
+            </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Template Name <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.name}
-              onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-              disabled={isReadOnly}
-              placeholder="e.g., Welcome Email"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
-            />
-          </div>
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Template Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.name}
+                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                disabled={isReadOnly}
+                placeholder="e.g., Welcome Email"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
+              />
+            </div>
 
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              Subject Line <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={formData.subject}
-              onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
-              disabled={isReadOnly}
-              placeholder="e.g., Welcome to Optio!"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
-            />
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">
+                Subject Line <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                value={formData.subject}
+                onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
+                disabled={isReadOnly}
+                placeholder="e.g., Welcome to Optio!"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
+              />
+            </div>
           </div>
 
           <div>
@@ -191,126 +293,150 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
             />
           </div>
-
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <label className="block text-sm font-semibold text-gray-700">Variables</label>
-              {!isReadOnly && (
-                <button
-                  onClick={addVariable}
-                  className="text-sm text-optio-purple hover:text-optio-purple-dark font-semibold"
-                >
-                  + Add Variable
-                </button>
-              )}
-            </div>
-            {formData.variables.length === 0 ? (
-              <p className="text-sm text-gray-500 italic">No variables defined. Use {'{variable_name}'} syntax in your template.</p>
-            ) : (
-              <div className="space-y-2">
-                {formData.variables.map(v => (
-                  <div key={v} className="flex items-center gap-2">
-                    <span className="px-3 py-2 bg-gray-100 rounded font-mono text-sm flex-1">
-                      {`{${v}}`}
-                    </span>
-                    {!isReadOnly && (
-                      <button
-                        onClick={() => removeVariable(v)}
-                        className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
-                      >
-                        Remove
-                      </button>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">
-              HTML Body <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              value={formData.body_html}
-              onChange={(e) => setFormData(prev => ({ ...prev, body_html: e.target.value }))}
-              disabled={isReadOnly}
-              placeholder="<h1>Welcome!</h1><p>Thanks for joining {user_name}!</p>"
-              rows={12}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple font-mono text-sm disabled:bg-gray-100"
-            />
-            <p className="text-xs text-gray-500 mt-1">Use {'{variable_name}'} for dynamic content</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Plain Text Body</label>
-            <textarea
-              value={formData.body_text}
-              onChange={(e) => setFormData(prev => ({ ...prev, body_text: e.target.value }))}
-              disabled={isReadOnly}
-              placeholder="Welcome! Thanks for joining {user_name}!"
-              rows={6}
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple font-mono text-sm disabled:bg-gray-100"
-            />
-            <p className="text-xs text-gray-500 mt-1">Fallback for email clients that don't support HTML</p>
-          </div>
         </div>
 
-        {/* Right: Preview */}
-        <div className="space-y-4">
-          <div>
-            <h3 className="text-lg font-bold mb-3">Preview</h3>
+        {/* Main: Two-column layout */}
+        <div className="flex-1 overflow-hidden grid grid-cols-2 divide-x">
+          {/* Left: Markdown Editor */}
+          <div className="flex flex-col overflow-hidden">
+            <div className="p-4 border-b bg-gray-50">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-bold">Markdown Editor</h3>
+                <div className="flex gap-2">
+                  {!isReadOnly && (
+                    <button
+                      onClick={addVariable}
+                      className="text-sm px-3 py-1 bg-optio-purple text-white rounded hover:bg-optio-purple-dark"
+                    >
+                      + Add Variable
+                    </button>
+                  )}
+                </div>
+              </div>
 
-            {formData.variables.length > 0 ? (
-              <div className="space-y-2 mb-4">
-                <p className="text-sm font-semibold text-gray-700 mb-2">Sample Data</p>
+              {/* Variables chips */}
+              {formData.variables.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {formData.variables.map(v => (
+                    <div key={v} className="flex items-center gap-1">
+                      <button
+                        onClick={() => insertVariable(v)}
+                        disabled={isReadOnly}
+                        className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-mono hover:bg-purple-200 disabled:opacity-50"
+                      >
+                        {`{${v}}`}
+                      </button>
+                      {!isReadOnly && (
+                        <button
+                          onClick={() => removeVariable(v)}
+                          className="text-red-500 hover:text-red-700 text-xs"
+                        >
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Markdown cheatsheet */}
+              <div className="text-xs text-gray-600 space-y-1">
+                <p className="font-semibold">Markdown Quick Reference:</p>
+                <div className="grid grid-cols-2 gap-x-4">
+                  <p>**bold** → <strong>bold</strong></p>
+                  <p>*italic* → <em>italic</em></p>
+                  <p># Heading 1</p>
+                  <p>## Heading 2</p>
+                  <p>- List item</p>
+                  <p>[Link](url)</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-hidden p-4">
+              <textarea
+                id="markdown-editor"
+                value={formData.markdown_body}
+                onChange={(e) => setFormData(prev => ({ ...prev, markdown_body: e.target.value }))}
+                disabled={isReadOnly}
+                placeholder="Write your email content in markdown...
+
+Example:
+# Welcome to Optio, {user_name}!
+
+We're excited to have you join our learning community.
+
+## Getting Started
+
+Here are your next steps:
+- Complete your profile
+- Explore available quests
+- Start your first learning journey
+
+**Ready to begin?** Click the button below to view your dashboard."
+                className="w-full h-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-optio-purple font-mono text-sm resize-none disabled:bg-gray-100"
+              />
+            </div>
+          </div>
+
+          {/* Right: Live Preview */}
+          <div className="flex flex-col overflow-hidden bg-gray-50">
+            <div className="p-4 border-b bg-gradient-to-r from-optio-purple to-optio-pink">
+              <h3 className="text-lg font-bold text-white">Live Preview</h3>
+              <p className="text-xs text-white opacity-90">Updates automatically as you type</p>
+            </div>
+
+            {/* Sample data inputs */}
+            {formData.variables.length > 0 && (
+              <div className="p-4 border-b bg-white space-y-2">
+                <p className="text-sm font-semibold text-gray-700 mb-2">Test with Sample Data:</p>
                 {formData.variables.map(v => (
-                  <div key={v}>
-                    <label className="block text-xs font-semibold text-gray-600 mb-1">{v}</label>
+                  <div key={v} className="flex items-center gap-2">
+                    <label className="text-xs font-semibold text-gray-600 w-32">{v}:</label>
                     <input
                       type="text"
                       value={sampleData[v] || ''}
                       onChange={(e) => setSampleData(prev => ({ ...prev, [v]: e.target.value }))}
                       placeholder={`Sample ${v}...`}
-                      className="w-full px-3 py-2 border rounded text-sm"
+                      className="flex-1 px-3 py-1 border rounded text-sm"
                     />
                   </div>
                 ))}
               </div>
-            ) : (
-              <p className="text-sm text-gray-500 italic mb-4">No variables to configure. Add variables to test dynamic content.</p>
             )}
 
-            <button
-              onClick={handlePreview}
-              disabled={loading || !formData.template_key || !formData.body_html}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 mb-4"
-            >
-              {loading ? 'Generating...' : 'Generate Preview'}
-            </button>
-
-            {previewHtml && (
-              <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
-                <div className="bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2 border-b">
-                  <p className="text-xs font-semibold text-white">Email Preview</p>
+            {/* Preview iframe */}
+            <div className="flex-1 overflow-auto p-4">
+              {previewLoading && (
+                <div className="flex items-center justify-center h-full">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
                 </div>
+              )}
+
+              {!previewLoading && previewHtml && (
                 <div
-                  className="p-4 overflow-auto max-h-[600px] bg-gray-50"
+                  className="bg-white rounded-lg shadow-sm"
                   dangerouslySetInnerHTML={{ __html: previewHtml }}
                 />
-              </div>
-            )}
+              )}
 
-            {!previewHtml && formData.body_html && (
-              <div className="border rounded-lg overflow-hidden bg-gray-50 p-4 text-center text-gray-500 text-sm">
-                Click "Generate Preview" to see rendered email
-              </div>
-            )}
+              {!previewLoading && !previewHtml && formData.markdown_body && (
+                <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                  Enter a template key to see preview...
+                </div>
+              )}
+
+              {!previewLoading && !formData.markdown_body && (
+                <div className="flex items-center justify-center h-full text-gray-500 text-sm">
+                  Start typing in the editor to see a live preview...
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Footer actions */}
+      {/* Footer */}
       <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
         <button
           onClick={onClose}

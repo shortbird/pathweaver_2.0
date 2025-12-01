@@ -37,17 +37,24 @@ class EmailTemplateService(BaseService):
 
         Returns:
             Template dictionary with structure matching email_copy.yaml format
+            Includes markdown_source if available for editing
         """
         try:
             # Try database first
             db_template = self.crm_repo.get_template_by_key(template_key)
             if db_template:
                 logger.info(f"Loaded template '{template_key}' from database")
+                template_data = db_template['template_data']
+
+                # Add markdown_source to data if it exists (for frontend editor)
+                if isinstance(template_data, dict) and 'markdown_source' in template_data:
+                    template_data['markdown_source'] = template_data['markdown_source']
+
                 return {
                     'key': db_template['template_key'],
                     'name': db_template['name'],
                     'subject': db_template['subject'],
-                    'data': db_template['template_data'],
+                    'data': template_data,
                     'is_system': db_template.get('is_system', False),
                     'source': 'database'
                 }
