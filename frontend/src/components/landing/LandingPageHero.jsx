@@ -39,7 +39,7 @@ const LandingPageHero = ({
 
   return (
     <div
-      className={`relative py-12 md:py-20 px-4 overflow-hidden flex items-center ${textAlign === 'center' ? 'text-center' : 'text-center md:text-left'}`}
+      className={`relative py-6 md:py-20 px-4 overflow-hidden flex items-center ${textAlign === 'center' ? 'text-center' : 'text-center md:text-left'}`}
       style={{
         background: backgroundImage ? 'transparent' : backgroundGradient,
         minHeight: '500px'
