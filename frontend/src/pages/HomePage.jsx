@@ -132,7 +132,7 @@ const HomePage = () => {
                 </h3>
               </div>
               <p className="text-lg text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Every project, essay, and creation automatically captured. No manual uploads, no friction—just learning that builds itself into proof. Your child's work flows seamlessly into a professional showcase ready to share with colleges and employers.
+                Every project, essay, and creation automatically captured. No manual uploads, no friction, just learning that builds itself into proof. Your child's work flows seamlessly into a professional showcase ready to share with colleges and employers.
               </p>
               <div className="flex items-center space-x-2 text-optio-purple font-semibold">
                 <Sparkles className="w-5 h-5" />
@@ -163,7 +163,7 @@ const HomePage = () => {
               </p>
               <div className="bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 rounded-lg p-4 border-l-4 border-optio-purple">
                 <p className="text-sm text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                  <strong style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Plus 24/7 AI Tutor:</strong> Gemini-powered support provides instant help, answers questions, and keeps momentum going—even when parents are busy.
+                  <strong style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Plus 24/7 AI Tutor:</strong> Gemini-powered support provides instant help, answers questions, and keeps momentum going, even when parents are busy.
                 </p>
               </div>
             </div>
@@ -306,7 +306,7 @@ const HomePage = () => {
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Document As You Go</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Work automatically flows into the portfolio as students complete tasks. No extra uploads, no friction—just learning.
+                Work automatically flows into the portfolio as students complete tasks. No extra uploads, no friction, just learning.
               </p>
             </div>
 
@@ -372,10 +372,10 @@ const HomePage = () => {
             {/* Right: Content */}
             <div className="space-y-6">
               <h2 className="text-3xl sm:text-4xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                Accredited Learning That Counts
+                Personalized Learning. Official Credit.
               </h2>
               <p className="text-lg text-gray-600 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Every quest completed on Optio is more than just a learning experience—it's officially recognized education that contributes to academic credentials.
+                Finally, you can personalize your learning approach and still earn official academic credit. Optio is the first platform to combine truly customized education with accredited high school credentials at scale.
               </p>
 
               <div className="space-y-4">
@@ -537,7 +537,7 @@ const HomePage = () => {
                 How does the automatic portfolio work?
               </h3>
               <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                As your child completes quest tasks, their work—essays, projects, videos, photos—automatically flows into their portfolio. No manual uploading, no extra steps. You document once, and it instantly becomes part of their professional showcase ready to share with colleges and employers.
+                As your child completes quest tasks, their work (essays, projects, videos, photos) automatically flows into their portfolio. No manual uploading, no extra steps. You document once, and it instantly becomes part of their professional showcase ready to share with colleges and employers.
               </p>
             </div>
 
@@ -555,7 +555,7 @@ const HomePage = () => {
                 Can extended family members see my child's work?
               </h3>
               <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Yes! You can invite grandparents, mentors, and other trusted adults as "observers." They get read-only access to cheer progress, leave encouragement, and stay connected to your child's learning journey—transforming learning into a shared family experience.
+                Yes! You can invite grandparents, mentors, and other trusted adults as "observers." They get read-only access to cheer progress, leave encouragement, and stay connected to your child's learning journey, transforming learning into a shared family experience.
               </p>
             </div>
 
