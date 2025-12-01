@@ -619,31 +619,8 @@ def login():
             if isinstance(user_response_data, list):
                 user_response_data = user_response_data[0] if user_response_data else None
 
-            # Send welcome email on first login (when welcome_email_sent is False/NULL)
-            # This happens after user verifies their email and logs in for the first time
-            try:
-                welcome_sent = user_response_data.get('welcome_email_sent') if user_response_data else True
-                is_first_login = user_response_data and not welcome_sent
-
-                if is_first_login:
-                    from services.email_service import EmailService
-                    email_service = EmailService()
-                    email_service.send_welcome_email(
-                        user_email=auth_response.user.email,
-                        user_name=user_response_data.get('first_name', 'there')
-                    )
-                    logger.info(f"[LOGIN] Sent welcome email to {auth_response.user.email[:3]}*** on first login")
-
-                    # Mark welcome email as sent
-                    try:
-                        admin_client.table('users').update({
-                            'welcome_email_sent': True
-                        }).eq('id', auth_response.user.id).execute()
-                    except Exception as update_error:
-                        logger.error(f"Warning: Failed to update welcome_email_sent flag: {update_error}")
-            except Exception as welcome_error:
-                # Don't fail login if welcome email fails
-                logger.error(f"Warning: Failed to send welcome email on first login: {welcome_error}")
+            # Welcome email temporarily disabled - requires SMTP configuration
+            # TODO: Re-enable once SendGrid credentials are added to environment variables
 
             # Reset login attempts after successful login
             reset_login_attempts(email)
@@ -1080,9 +1057,11 @@ def forgot_password():
         logger.error(f"[FORGOT_PASSWORD] Exception type: {type(e).__name__}")
         import traceback
         logger.error(f"[FORGOT_PASSWORD] Traceback: {traceback.format_exc()}")
-        # Return generic success message to avoid revealing system errors
+        # Always return success message (don't reveal if email exists or not)
+        logger.info("[FORGOT_PASSWORD] === Returning success response ===")
         return jsonify({
-            'message': 'Password reset request processed. If an account exists, an email will be sent.'
+            'message': 'If an account exists with this email, you will receive password reset instructions shortly.',
+            'note': 'Please check your spam folder if you don\'t see the email within a few minutes.'
         }), 200
 
 @bp.route('/reset-password', methods=['POST'])
