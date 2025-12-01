@@ -122,12 +122,18 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
     try {
       setPreviewLoading(true)
 
-      // Convert markdown to HTML
-      let htmlBody = marked.parse(markdownBody)
+      // Convert button syntax BEFORE markdown parsing: [Text](url){.button}
+      let processedMarkdown = markdownBody.replace(
+        /\[([^\]]+)\]\(([^)]+)\)\{\.button\}/g,
+        '|||BUTTON_START|||$2|||BUTTON_TEXT|||$1|||BUTTON_END|||'
+      )
 
-      // Convert button syntax: [Text](url){.button} to styled button
+      // Convert markdown to HTML
+      let htmlBody = marked.parse(processedMarkdown)
+
+      // Convert button placeholders to styled buttons
       htmlBody = htmlBody.replace(
-        /<a href="([^"]+)">([^<]+)<\/a>\{\.button\}/g,
+        /\|\|\|BUTTON_START\|\|\|([^|]+)\|\|\|BUTTON_TEXT\|\|\|([^|]+)\|\|\|BUTTON_END\|\|\|/g,
         '<div style="text-align: center; margin: 30px 0;">' +
         '<a href="$1" style="display: inline-block; background: linear-gradient(135deg, #6D469B 0%, #EF597B 100%); ' +
         'color: white !important; text-decoration: none; padding: 16px 48px; border-radius: 8px; ' +
@@ -218,11 +224,31 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
   }
 
   const handleSave = async () => {
+    // Debug logging for validation
+    console.log('Validation check:', {
+      template_key: formData.template_key,
+      name: formData.name,
+      subject: formData.subject,
+      markdown_body: formData.markdown_body,
+      markdown_body_length: formData.markdown_body?.length
+    })
+
     // Trim values for validation
     const trimmedKey = (formData.template_key || '').trim()
     const trimmedName = (formData.name || '').trim()
     const trimmedSubject = (formData.subject || '').trim()
     const trimmedBody = (formData.markdown_body || '').trim()
+
+    console.log('Trimmed values:', {
+      trimmedKey,
+      trimmedName,
+      trimmedSubject,
+      trimmedBody: trimmedBody.substring(0, 50) + '...',
+      hasKey: !!trimmedKey,
+      hasName: !!trimmedName,
+      hasSubject: !!trimmedSubject,
+      hasBody: !!trimmedBody
+    })
 
     if (!trimmedKey || !trimmedName || !trimmedSubject || !trimmedBody) {
       toast.error('Please fill in all required fields (key, name, subject, body)')
@@ -232,12 +258,18 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
     try {
       setLoading(true)
 
-      // Convert markdown to HTML for storage with button support
-      let htmlBody = marked.parse(formData.markdown_body)
+      // Convert button syntax BEFORE markdown parsing: [Text](url){.button}
+      let processedMarkdown = formData.markdown_body.replace(
+        /\[([^\]]+)\]\(([^)]+)\)\{\.button\}/g,
+        '|||BUTTON_START|||$2|||BUTTON_TEXT|||$1|||BUTTON_END|||'
+      )
 
-      // Convert button syntax: [Text](url){.button} to styled button
+      // Convert markdown to HTML for storage with button support
+      let htmlBody = marked.parse(processedMarkdown)
+
+      // Convert button placeholders to styled buttons
       htmlBody = htmlBody.replace(
-        /<a href="([^"]+)">([^<]+)<\/a>\{\.button\}/g,
+        /\|\|\|BUTTON_START\|\|\|([^|]+)\|\|\|BUTTON_TEXT\|\|\|([^|]+)\|\|\|BUTTON_END\|\|\|/g,
         '<div style="text-align: center; margin: 30px 0;">' +
         '<a href="$1" style="display: inline-block; background: linear-gradient(135deg, #6D469B 0%, #EF597B 100%); ' +
         'color: white !important; text-decoration: none; padding: 16px 48px; border-radius: 8px; ' +
