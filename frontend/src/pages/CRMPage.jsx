@@ -31,9 +31,10 @@ const CRMPage = () => {
   const fetchSequences = async () => {
     try {
       const response = await crmAPI.getSequences()
-      setSequences(response.data)
+      setSequences(response.data.sequences || [])
     } catch (error) {
       console.error('Failed to load sequences:', error)
+      setSequences([])
     }
   }
 

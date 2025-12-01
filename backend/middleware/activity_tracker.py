@@ -363,10 +363,20 @@ class ActivityTracker:
             event_data: Additional event metadata
         """
         try:
+            # Only process triggers if we're in a request context
+            from flask import has_request_context
+            if not has_request_context():
+                logger.debug(f"Skipping automation trigger for '{event_type}' - no request context")
+                return
+
             # Lazy import to avoid circular dependency
             from services.campaign_automation_service import CampaignAutomationService
 
-            automation_service = CampaignAutomationService()
+            # Use lazy initialization - service created within request context
+            def get_automation_service():
+                return CampaignAutomationService()
+
+            automation_service = get_automation_service()
 
             # Process trigger (service handles all safety checks)
             automation_service.process_event_trigger(
