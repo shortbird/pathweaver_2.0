@@ -43,7 +43,7 @@ def get_automation_service():
 
 @crm_bp.route('/campaigns', methods=['GET'])
 @require_admin
-def get_campaigns():
+def get_campaigns(user_id):
     """
     Get all campaigns with optional filtering.
 
@@ -78,7 +78,7 @@ def get_campaigns():
 
 @crm_bp.route('/campaigns/<campaign_id>', methods=['GET'])
 @require_admin
-def get_campaign(campaign_id):
+def get_campaign(user_id, campaign_id):
     """Get campaign by ID"""
     try:
         campaign = get_crm_repo().get_campaign_by_id(campaign_id)
@@ -95,7 +95,7 @@ def get_campaign(campaign_id):
 
 @crm_bp.route('/campaigns', methods=['POST'])
 @require_admin
-def create_campaign():
+def create_campaign(user_id):
     """
     Create new campaign.
 
@@ -150,7 +150,7 @@ def create_campaign():
 
 @crm_bp.route('/campaigns/<campaign_id>', methods=['PUT'])
 @require_admin
-def update_campaign(campaign_id):
+def update_campaign(user_id, campaign_id):
     """Update campaign by ID"""
     try:
         data = request.get_json()
@@ -169,7 +169,7 @@ def update_campaign(campaign_id):
 
 @crm_bp.route('/campaigns/<campaign_id>', methods=['DELETE'])
 @require_admin
-def delete_campaign(campaign_id):
+def delete_campaign(user_id, campaign_id):
     """Delete campaign by ID"""
     try:
         get_crm_repo().delete_campaign(campaign_id)
@@ -183,7 +183,7 @@ def delete_campaign(campaign_id):
 
 @crm_bp.route('/campaigns/<campaign_id>/send', methods=['POST'])
 @require_admin
-def send_campaign(campaign_id):
+def send_campaign(user_id, campaign_id):
     """
     Send campaign immediately.
 
@@ -210,7 +210,7 @@ def send_campaign(campaign_id):
 
 @crm_bp.route('/campaigns/<campaign_id>/preview', methods=['POST'])
 @require_admin
-def preview_campaign(campaign_id):
+def preview_campaign(user_id, campaign_id):
     """Preview campaign recipients without sending"""
     try:
         preview = get_crm_service().preview_campaign_recipients(campaign_id=campaign_id)
@@ -226,7 +226,7 @@ def preview_campaign(campaign_id):
 
 @crm_bp.route('/campaigns/<campaign_id>/history', methods=['GET'])
 @require_admin
-def get_campaign_history(campaign_id):
+def get_campaign_history(user_id, campaign_id):
     """Get send history for a campaign"""
     try:
         limit = int(request.args.get('limit', 100))
@@ -248,7 +248,7 @@ def get_campaign_history(campaign_id):
 
 @crm_bp.route('/segments', methods=['GET'])
 @require_admin
-def get_segments():
+def get_segments(user_id):
     """Get all saved segments"""
     try:
         from flask import g
@@ -268,7 +268,7 @@ def get_segments():
 
 @crm_bp.route('/segments', methods=['POST'])
 @require_admin
-def create_segment():
+def create_segment(user_id):
     """
     Create new saved segment.
 
@@ -309,7 +309,7 @@ def create_segment():
 
 @crm_bp.route('/segments/<segment_id>', methods=['PUT'])
 @require_admin
-def update_segment(segment_id):
+def update_segment(user_id, segment_id):
     """Update segment by ID"""
     try:
         data = request.get_json()
@@ -328,7 +328,7 @@ def update_segment(segment_id):
 
 @crm_bp.route('/segments/<segment_id>', methods=['DELETE'])
 @require_admin
-def delete_segment(segment_id):
+def delete_segment(user_id, segment_id):
     """Delete segment by ID"""
     try:
         get_crm_repo().delete_segment(segment_id)
@@ -342,7 +342,7 @@ def delete_segment(segment_id):
 
 @crm_bp.route('/segments/preview', methods=['POST'])
 @require_admin
-def preview_segment():
+def preview_segment(user_id):
     """
     Preview users matching segment rules.
 
@@ -372,7 +372,7 @@ def preview_segment():
 
 @crm_bp.route('/templates', methods=['GET'])
 @require_admin
-def get_templates():
+def get_templates(user_id):
     """
     Get all templates (system + custom).
 
@@ -402,7 +402,7 @@ def get_templates():
 
 @crm_bp.route('/templates/<template_key>', methods=['GET'])
 @require_admin
-def get_template(template_key):
+def get_template(user_id, template_key):
     """Get template by key"""
     try:
         template = get_template_service().get_template(template_key)
@@ -419,7 +419,7 @@ def get_template(template_key):
 
 @crm_bp.route('/templates', methods=['POST'])
 @require_admin
-def create_template():
+def create_template(user_id):
     """
     Create custom template.
 
@@ -465,7 +465,7 @@ def create_template():
 
 @crm_bp.route('/templates/<template_key>', methods=['PUT'])
 @require_admin
-def update_template(template_key):
+def update_template(user_id, template_key):
     """Update custom template (cannot update system templates)"""
     try:
         data = request.get_json()
@@ -486,7 +486,7 @@ def update_template(template_key):
 
 @crm_bp.route('/templates/<template_key>', methods=['DELETE'])
 @require_admin
-def delete_template(template_key):
+def delete_template(user_id, template_key):
     """Delete custom template (cannot delete system templates)"""
     try:
         get_template_service().delete_template(template_key)
@@ -502,7 +502,7 @@ def delete_template(template_key):
 
 @crm_bp.route('/templates/<template_key>/preview', methods=['POST'])
 @require_admin
-def preview_template(template_key):
+def preview_template(user_id, template_key):
     """
     Render template preview with sample data.
 
@@ -526,7 +526,7 @@ def preview_template(template_key):
 
 @crm_bp.route('/templates/sync', methods=['POST'])
 @require_admin
-def sync_templates():
+def sync_templates(user_id):
     """
     Sync templates from email_copy.yaml to database.
 
@@ -555,7 +555,7 @@ def sync_templates():
 
 @crm_bp.route('/sequences', methods=['GET'])
 @require_admin
-def get_sequences():
+def get_sequences(user_id):
     """
     Get all automation sequences.
 
@@ -583,7 +583,7 @@ def get_sequences():
 
 @crm_bp.route('/sequences/<sequence_id>', methods=['GET'])
 @require_admin
-def get_sequence(sequence_id):
+def get_sequence(user_id, sequence_id):
     """Get sequence by ID"""
     try:
         sequence = get_crm_repo().get_sequence_by_id(sequence_id)
@@ -600,7 +600,7 @@ def get_sequence(sequence_id):
 
 @crm_bp.route('/sequences', methods=['POST'])
 @require_admin
-def create_sequence():
+def create_sequence(user_id):
     """
     Create new automation sequence (inactive by default).
 
@@ -648,7 +648,7 @@ def create_sequence():
 
 @crm_bp.route('/sequences/<sequence_id>', methods=['PUT'])
 @require_admin
-def update_sequence(sequence_id):
+def update_sequence(user_id, sequence_id):
     """Update sequence by ID"""
     try:
         data = request.get_json()
@@ -671,7 +671,7 @@ def update_sequence(sequence_id):
 
 @crm_bp.route('/sequences/<sequence_id>/activate', methods=['POST'])
 @require_admin
-def activate_sequence(sequence_id):
+def activate_sequence(user_id, sequence_id):
     """
     ACTIVATE a sequence - starts sending automated emails.
 
@@ -695,7 +695,7 @@ def activate_sequence(sequence_id):
 
 @crm_bp.route('/sequences/<sequence_id>/pause', methods=['POST'])
 @require_admin
-def pause_sequence(sequence_id):
+def pause_sequence(user_id, sequence_id):
     """Pause a sequence - stops all automated emails"""
     try:
         sequence = get_crm_repo().pause_sequence(sequence_id)
@@ -712,7 +712,7 @@ def pause_sequence(sequence_id):
 
 @crm_bp.route('/sequences/<sequence_id>', methods=['DELETE'])
 @require_admin
-def delete_sequence(sequence_id):
+def delete_sequence(user_id, sequence_id):
     """Delete sequence by ID"""
     try:
         get_crm_repo().delete_sequence(sequence_id)
@@ -728,7 +728,7 @@ def delete_sequence(sequence_id):
 
 @crm_bp.route('/analytics/overview', methods=['GET'])
 @require_admin
-def get_analytics_overview():
+def get_analytics_overview(user_id):
     """Get CRM overview analytics"""
     try:
         campaigns = get_crm_repo().get_campaigns()
@@ -756,7 +756,7 @@ def get_analytics_overview():
 
 @crm_bp.route('/analytics/campaigns/<campaign_id>', methods=['GET'])
 @require_admin
-def get_campaign_analytics(campaign_id):
+def get_campaign_analytics(user_id, campaign_id):
     """Get detailed analytics for a campaign"""
     try:
         campaign = get_crm_repo().get_campaign_by_id(campaign_id)
