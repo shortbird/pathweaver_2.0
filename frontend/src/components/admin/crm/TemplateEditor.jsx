@@ -18,7 +18,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [showVariableModal, setShowVariableModal] = useState(false)
   const debounceTimer = useRef(null)
-  const isReadOnly = template?.source === 'yaml'
+  const isReadOnly = template?.source === 'yaml' || template?.is_system
 
   // Available variables organized by category
   const availableVariables = {
@@ -122,40 +122,22 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
     try {
       setPreviewLoading(true)
 
-      // Convert button syntax BEFORE markdown parsing: [Text](url){.button}
+      // Convert button syntax to HTML BEFORE markdown parsing
+      // Use a unique token that won't be interpreted as markdown
       let processedMarkdown = markdownBody.replace(
         /\[([^\]]+)\]\(([^)]+)\)\{\.button\}/g,
-        '\n\n|||BUTTON_START|||$2|||BUTTON_TEXT|||$1|||BUTTON_END|||\n\n'
+        (match, text, url) => {
+          // Generate button HTML directly, escape it so marked doesn't touch it
+          return `\n\n<div style="text-align: center; margin: 30px 0;"><a href="${url}" style="display: inline-block; background: linear-gradient(135deg, #6D469B 0%, #EF597B 100%); color: white !important; text-decoration: none; padding: 16px 48px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(109, 70, 155, 0.25);">${text}</a></div>\n\n`
+        }
       )
 
-      console.log('Processed markdown (with placeholders):', processedMarkdown.substring(0, 500))
+      console.log('Processed markdown (with button HTML):', processedMarkdown.substring(0, 500))
 
-      // Convert markdown to HTML
+      // Convert markdown to HTML (button HTML will be preserved)
       let htmlBody = marked.parse(processedMarkdown)
 
       console.log('After marked.parse():', htmlBody.substring(0, 800))
-
-      // Convert button placeholders to styled buttons (handle possible <p> tag wrapping)
-      htmlBody = htmlBody.replace(
-        /<p>\|\|\|BUTTON_START\|\|\|([^|]+)\|\|\|BUTTON_TEXT\|\|\|([^|]+)\|\|\|BUTTON_END\|\|\|<\/p>/g,
-        '<div style="text-align: center; margin: 30px 0;">' +
-        '<a href="$1" style="display: inline-block; background: linear-gradient(135deg, #6D469B 0%, #EF597B 100%); ' +
-        'color: white !important; text-decoration: none; padding: 16px 48px; border-radius: 8px; ' +
-        'font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(109, 70, 155, 0.25);">$2</a>' +
-        '</div>'
-      )
-
-      // Also handle case without <p> tags
-      htmlBody = htmlBody.replace(
-        /\|\|\|BUTTON_START\|\|\|([^|]+)\|\|\|BUTTON_TEXT\|\|\|([^|]+)\|\|\|BUTTON_END\|\|\|/g,
-        '<div style="text-align: center; margin: 30px 0;">' +
-        '<a href="$1" style="display: inline-block; background: linear-gradient(135deg, #6D469B 0%, #EF597B 100%); ' +
-        'color: white !important; text-decoration: none; padding: 16px 48px; border-radius: 8px; ' +
-        'font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(109, 70, 155, 0.25);">$2</a>' +
-        '</div>'
-      )
-
-      console.log('After button replacement:', htmlBody.substring(0, 800))
 
       // Substitute variables in the HTML using sample data
       let substitutedHtml = htmlBody
@@ -274,34 +256,17 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
     try {
       setLoading(true)
 
-      // Convert button syntax BEFORE markdown parsing: [Text](url){.button}
+      // Convert button syntax to HTML BEFORE markdown parsing
       let processedMarkdown = formData.markdown_body.replace(
         /\[([^\]]+)\]\(([^)]+)\)\{\.button\}/g,
-        '\n\n|||BUTTON_START|||$2|||BUTTON_TEXT|||$1|||BUTTON_END|||\n\n'
+        (match, text, url) => {
+          // Generate button HTML directly
+          return `\n\n<div style="text-align: center; margin: 30px 0;"><a href="${url}" style="display: inline-block; background: linear-gradient(135deg, #6D469B 0%, #EF597B 100%); color: white !important; text-decoration: none; padding: 16px 48px; border-radius: 8px; font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(109, 70, 155, 0.25);">${text}</a></div>\n\n`
+        }
       )
 
-      // Convert markdown to HTML for storage with button support
+      // Convert markdown to HTML for storage
       let htmlBody = marked.parse(processedMarkdown)
-
-      // Convert button placeholders to styled buttons (handle possible <p> tag wrapping)
-      htmlBody = htmlBody.replace(
-        /<p>\|\|\|BUTTON_START\|\|\|([^|]+)\|\|\|BUTTON_TEXT\|\|\|([^|]+)\|\|\|BUTTON_END\|\|\|<\/p>/g,
-        '<div style="text-align: center; margin: 30px 0;">' +
-        '<a href="$1" style="display: inline-block; background: linear-gradient(135deg, #6D469B 0%, #EF597B 100%); ' +
-        'color: white !important; text-decoration: none; padding: 16px 48px; border-radius: 8px; ' +
-        'font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(109, 70, 155, 0.25);">$2</a>' +
-        '</div>'
-      )
-
-      // Also handle case without <p> tags
-      htmlBody = htmlBody.replace(
-        /\|\|\|BUTTON_START\|\|\|([^|]+)\|\|\|BUTTON_TEXT\|\|\|([^|]+)\|\|\|BUTTON_END\|\|\|/g,
-        '<div style="text-align: center; margin: 30px 0;">' +
-        '<a href="$1" style="display: inline-block; background: linear-gradient(135deg, #6D469B 0%, #EF597B 100%); ' +
-        'color: white !important; text-decoration: none; padding: 16px 48px; border-radius: 8px; ' +
-        'font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(109, 70, 155, 0.25);">$2</a>' +
-        '</div>'
-      )
 
       const saveData = {
         template_key: formData.template_key,

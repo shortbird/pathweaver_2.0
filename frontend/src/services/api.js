@@ -492,4 +492,13 @@ export const helperEvidenceAPI = {
   getStudentTasks: (studentId) => api.get(`/api/evidence/helper/student-tasks/${studentId}`),
 }
 
+// Advisor Masquerade API
+export const advisorMasqueradeAPI = {
+  // Start masquerade session as a student
+  startMasquerade: (studentId, reason = '') => api.post(`/api/advisor/masquerade/${studentId}`, { reason }),
+
+  // Exit masquerade session
+  exitMasquerade: () => api.post('/api/advisor/masquerade/exit', {}),
+}
+
 export default api

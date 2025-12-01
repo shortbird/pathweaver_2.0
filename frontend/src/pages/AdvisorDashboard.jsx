@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
-import api from '../services/api';
+import api, { advisorMasqueradeAPI } from '../services/api';
 import UnifiedQuestForm from '../components/admin/UnifiedQuestForm';
 import CourseQuestForm from '../components/admin/CourseQuestForm';
 import CheckinAnalytics from '../components/advisor/CheckinAnalytics';
@@ -128,12 +128,14 @@ export default function AdvisorDashboard() {
 function OverviewTab({ dashboardData, students, onRefresh }) {
   const stats = dashboardData?.stats || {};
   const navigate = useNavigate();
+  const { setUser } = useAuth();
   const [showCheckinHistory, setShowCheckinHistory] = useState(false);
   const [checkinHistoryStudent, setCheckinHistoryStudent] = useState(null);
   const [showAdvisorNotes, setShowAdvisorNotes] = useState(false);
   const [notesStudent, setNotesStudent] = useState(null);
   const [showStudentDetail, setShowStudentDetail] = useState(false);
   const [detailStudent, setDetailStudent] = useState(null);
+  const [masqueradingStudentId, setMasqueradingStudentId] = useState(null);
 
   const handleCheckin = (studentId) => {
     navigate(`/advisor/checkin/${studentId}`);
@@ -152,6 +154,29 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
   const handleManageTasks = (student) => {
     setDetailStudent(student);
     setShowStudentDetail(true);
+  };
+
+  const handleMasqueradeAsStudent = async (student) => {
+    try {
+      setMasqueradingStudentId(student.id);
+
+      const response = await advisorMasqueradeAPI.startMasquerade(
+        student.id,
+        `Advisor assisting ${getStudentName(student)}`
+      );
+
+      // Update auth context with masqueraded user
+      setUser(response.data.target_user);
+
+      toast.success(`Now viewing as ${getStudentName(student)}`);
+
+      // Redirect to student dashboard
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Error starting masquerade:', error);
+      toast.error(error.response?.data?.error || 'Failed to start masquerade session');
+      setMasqueradingStudentId(null);
+    }
   };
 
   return (
@@ -255,6 +280,14 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
                           className="text-white bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded-lg font-medium"
                         >
                           Manage Tasks
+                        </button>
+                        <button
+                          onClick={() => handleMasqueradeAsStudent(student)}
+                          disabled={masqueradingStudentId === student.id}
+                          className="text-white bg-green-600 hover:bg-green-700 px-3 py-1 rounded-lg font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="View platform as this student"
+                        >
+                          {masqueradingStudentId === student.id ? 'Loading...' : 'View As Student'}
                         </button>
                         <button
                           onClick={() => handleViewHistory(student)}
