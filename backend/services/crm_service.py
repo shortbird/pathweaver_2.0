@@ -526,17 +526,31 @@ class CRMService(BaseService):
                     'url': cta_url_template.render(**variables)
                 }
 
-            # Process highlight box (if exists)
-            if 'highlight' in template_data:
-                highlight = template_data['highlight']
+            # Process highlight box (if exists) - check both 'highlight' and 'highlight_box'
+            highlight_data = template_data.get('highlight') or template_data.get('highlight_box')
+            if highlight_data:
                 render_context['highlight'] = {
-                    'title': highlight.get('title', ''),
-                    'content': Template(highlight.get('content', '')).render(**variables)
+                    'title': highlight_data.get('title', ''),
+                    'content': Template(highlight_data.get('content', '')).render(**variables)
                 }
 
             # Process signature (if exists)
             if 'signature' in template_data:
-                render_context['signature'] = template_data['signature']
+                sig = template_data['signature']
+                # If signature is a string, it's a reference to signatures section in YAML
+                if isinstance(sig, str):
+                    # Load signature from YAML
+                    from services.email_copy_loader import email_copy_loader
+                    sig_data = email_copy_loader.get_signature(sig)
+                    if sig_data:
+                        # Format signature for template
+                        render_context['signature'] = {
+                            'line1': 'Best regards,',
+                            'line2': sig_data.get('name', 'The Optio Team')
+                        }
+                else:
+                    # Signature is already a dict
+                    render_context['signature'] = sig
 
             # Render with generic wrapper
             rendered_html = generic_template.render(**render_context)
