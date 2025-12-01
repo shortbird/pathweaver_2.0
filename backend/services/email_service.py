@@ -139,12 +139,12 @@ class EmailService(BaseService):
         bcc: Optional[List[str]] = None
     ) -> bool:
         """
-        Send an email using Jinja2 templates
+        Send an email using the CRM template system (database overrides + YAML fallback)
 
         Args:
             to_email: Recipient email address
-            subject: Email subject
-            template_name: Name of the template (without extension)
+            subject: Email subject (can be overridden by template)
+            template_name: Name of the template (e.g., 'welcome', 'password_reset')
             context: Dictionary of variables to pass to the template
             cc: List of CC recipients (optional)
             bcc: List of BCC recipients (optional)
@@ -153,29 +153,23 @@ class EmailService(BaseService):
             True if email sent successfully, False otherwise
         """
         try:
-            # Load email copy from YAML
-            email_copy = self.copy_loader.get_email_copy(template_name)
+            # Use CRM service to render template (handles database overrides + YAML fallback)
+            from services.crm_service import CRMService
+            crm_service = CRMService()
 
-            # Process YAML strings to substitute {variable_name} with actual values
-            processed_copy = self._process_copy_strings(email_copy, context)
+            # Render email using CRM template system
+            rendered = crm_service.render_email_template(
+                template_key=template_name,
+                variables=context
+            )
 
-            # Merge processed copy data with context
-            merged_context = {**processed_copy, **context}
-
-            # Load HTML template
-            html_template = self.jinja_env.get_template(f'email/{template_name}.html')
-            html_body = html_template.render(**merged_context)
-
-            # Load TXT template if available
-            text_body = None
-            try:
-                text_template = self.jinja_env.get_template(f'email/{template_name}.txt')
-                text_body = text_template.render(**merged_context)
-            except TemplateNotFound:
-                logger.warning(f"Text template not found for {template_name}, sending HTML only")
+            # Use rendered subject and body
+            html_body = rendered['html_body']
+            text_body = rendered['text_body']
+            final_subject = rendered['subject']
 
             # Send email
-            return self.send_email(to_email, subject, html_body, text_body, cc, bcc)
+            return self.send_email(to_email, final_subject, html_body, text_body, cc, bcc)
 
         except TemplateNotFound as e:
             logger.error(f"Template not found: {template_name} - {str(e)}")
@@ -185,22 +179,32 @@ class EmailService(BaseService):
             return False
 
     def send_welcome_email(self, user_email: str, user_name: str) -> bool:
-        """Send a welcome email to new users"""
+        """
+        Send a welcome email to new users.
+        Uses CRM template system (database override or YAML default).
+        """
         return self.send_templated_email(
             to_email=user_email,
-            subject="Welcome to Optio!",
+            subject="Welcome to Optio!",  # Can be overridden by template
             template_name='welcome',
-            context={'user_name': user_name}
+            context={
+                'user_name': user_name,
+                'first_name': user_name  # For compatibility
+            }
         )
 
     def send_confirmation_email(self, user_email: str, user_name: str, confirmation_link: str) -> bool:
-        """Send signup confirmation email to new users"""
+        """
+        Send signup confirmation email to new users.
+        Uses CRM template system (database override or YAML default).
+        """
         return self.send_templated_email(
             to_email=user_email,
-            subject="Confirm your Optio account",
+            subject="Confirm your Optio account",  # Can be overridden by template
             template_name='email_confirmation',
             context={
                 'user_name': user_name,
+                'first_name': user_name,  # For compatibility
                 'confirmation_link': confirmation_link
             }
         )
@@ -353,7 +357,8 @@ class EmailService(BaseService):
         expiry_hours: int = 24
     ) -> bool:
         """
-        Send password reset email with secure reset link
+        Send password reset email with secure reset link.
+        Uses CRM template system (database override or YAML default).
 
         Args:
             user_email: Recipient email address
@@ -366,10 +371,11 @@ class EmailService(BaseService):
         """
         return self.send_templated_email(
             to_email=user_email,
-            subject="Reset Your Optio Password",
+            subject="Reset Your Optio Password",  # Can be overridden by template
             template_name='password_reset',
             context={
                 'user_name': user_name,
+                'first_name': user_name,  # For compatibility
                 'reset_link': reset_link,
                 'expiry_hours': expiry_hours
             }
