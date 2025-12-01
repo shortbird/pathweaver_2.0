@@ -228,21 +228,26 @@ class EmailTemplateService(BaseService):
             if 'template_data' in updates:
                 self._validate_template_data(updates['template_data'])
 
-            # Check if override already exists
+            # Check if template exists in database
             existing = self.crm_repo.get_template_by_key(template_key)
 
-            if existing and existing.get('is_override'):
-                # Update existing override
+            if existing:
+                # Template exists in database - update it and mark as override
+                if not existing.get('is_override'):
+                    # First edit of a system template - mark as override
+                    updates['is_override'] = True
+                    logger.info(f"Converting system template '{template_key}' to override")
+
                 updated = self.crm_repo.update_template(template_key, updates)
-                logger.info(f"Updated override template '{template_key}'")
+                logger.info(f"Updated template '{template_key}' (override={updated.get('is_override', False)})")
                 return updated
 
-            # Check if YAML template exists
+            # Template doesn't exist in database - check if it exists in YAML
             yaml_template = self.copy_loader.get_email_copy(template_key)
 
             if yaml_template:
-                # Create override for YAML template
-                logger.info(f"Creating override for YAML template '{template_key}'")
+                # Create new override record for YAML-only template
+                logger.info(f"Creating override for YAML-only template '{template_key}'")
 
                 override_data = {
                     'template_key': template_key,
