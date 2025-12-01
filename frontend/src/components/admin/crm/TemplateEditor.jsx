@@ -43,7 +43,10 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
 
   useEffect(() => {
     if (template) {
-      const templateData = template.template_data || {}
+      // Backend returns 'data' not 'template_data'
+      const templateData = template.data || template.template_data || {}
+
+      console.log('Template loaded:', { template, templateData })
 
       // Convert existing content to markdown
       let markdownBody = ''
@@ -51,6 +54,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       // First check if markdown_source exists (best option - original markdown)
       if (templateData.markdown_source) {
         markdownBody = templateData.markdown_source
+        console.log('Loaded from markdown_source:', markdownBody.substring(0, 100))
       }
       // Then try HTML to markdown conversion
       else if (templateData.body_html) {
@@ -65,10 +69,12 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
           .replace(/<br\s*\/?>/gi, '\n')
           .replace(/<[^>]+>/g, '') // Remove remaining tags
           .trim()
+        console.log('Converted from body_html to markdown:', markdownBody.substring(0, 100))
       }
       // Finally fallback to paragraphs (YAML format)
       else if (templateData.paragraphs) {
         markdownBody = templateData.paragraphs.join('\n\n')
+        console.log('Loaded from paragraphs:', markdownBody.substring(0, 100))
       }
 
       setFormData({
