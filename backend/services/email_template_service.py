@@ -50,10 +50,11 @@ class EmailTemplateService(BaseService):
             yaml_copy = self.copy_loader.get_email_copy(template_key)
             has_yaml_default = yaml_copy is not None
 
-            # Try database first for overrides
+            # Try database first (check for any database record)
             db_template = self.crm_repo.get_template_by_key(template_key)
-            if db_template and db_template.get('is_override'):
-                logger.info(f"Loaded OVERRIDE template '{template_key}' from database")
+            if db_template:
+                is_override = db_template.get('is_override', False)
+                logger.info(f"Loaded template '{template_key}' from database (override={is_override})")
                 template_data = db_template['template_data']
 
                 # Add markdown_source to data if it exists (for frontend editor)
@@ -66,12 +67,12 @@ class EmailTemplateService(BaseService):
                     'subject': db_template['subject'],
                     'data': template_data,
                     'is_system': db_template.get('is_system', False),
-                    'is_override': True,
+                    'is_override': is_override,
                     'has_yaml_default': has_yaml_default,
-                    'source': 'database_override'
+                    'source': 'database_override' if is_override else 'database'
                 }
 
-            # Fallback to YAML default
+            # Fallback to YAML default (only if not in database)
             if yaml_copy:
                 logger.info(f"Loaded YAML default template '{template_key}'")
                 return {
