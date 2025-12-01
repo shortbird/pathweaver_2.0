@@ -39,7 +39,7 @@ const CampaignCreator = ({ campaign, onClose, onSave }) => {
   const fetchTemplates = async () => {
     try {
       const response = await crmAPI.getTemplates(true)
-      setTemplates(response.data)
+      setTemplates(response.data.templates || [])
     } catch (error) {
       console.error('Failed to load templates:', error)
     }
@@ -48,7 +48,7 @@ const CampaignCreator = ({ campaign, onClose, onSave }) => {
   const fetchSegments = async () => {
     try {
       const response = await crmAPI.getSegments()
-      setSegments(response.data)
+      setSegments(response.data.segments || [])
     } catch (error) {
       console.error('Failed to load segments:', error)
     }
@@ -57,7 +57,7 @@ const CampaignCreator = ({ campaign, onClose, onSave }) => {
   const previewSegment = async () => {
     try {
       const response = await crmAPI.previewSegment(formData.filter_rules)
-      setPreviewCount(response.data.count)
+      setPreviewCount(response.data.total_users || 0)
     } catch (error) {
       console.error('Failed to preview segment:', error)
       setPreviewCount(0)

@@ -25,7 +25,7 @@ const SequenceBuilder = ({ onUpdate }) => {
     try {
       setLoading(true)
       const response = await crmAPI.getSequences()
-      setSequences(response.data)
+      setSequences(response.data.sequences || [])
     } catch (error) {
       toast.error('Failed to load sequences')
       console.error(error)
@@ -37,7 +37,7 @@ const SequenceBuilder = ({ onUpdate }) => {
   const fetchTemplates = async () => {
     try {
       const response = await crmAPI.getTemplates(true)
-      setTemplates(response.data)
+      setTemplates(response.data.templates || [])
     } catch (error) {
       console.error('Failed to load templates:', error)
     }

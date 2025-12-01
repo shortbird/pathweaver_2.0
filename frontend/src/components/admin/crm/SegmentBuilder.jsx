@@ -32,7 +32,7 @@ const SegmentBuilder = () => {
     try {
       setLoading(true)
       const response = await crmAPI.getSegments()
-      setSegments(response.data)
+      setSegments(response.data.segments || [])
     } catch (error) {
       toast.error('Failed to load segments')
       console.error(error)
@@ -45,7 +45,7 @@ const SegmentBuilder = () => {
     try {
       setPreviewLoading(true)
       const response = await crmAPI.previewSegment(formData.filter_rules)
-      setPreviewCount(response.data.count)
+      setPreviewCount(response.data.total_users || 0)
     } catch (error) {
       console.error('Failed to preview segment:', error)
       setPreviewCount(0)

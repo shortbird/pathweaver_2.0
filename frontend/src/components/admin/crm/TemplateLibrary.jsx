@@ -19,7 +19,7 @@ const TemplateLibrary = () => {
     try {
       setLoading(true)
       const response = await crmAPI.getTemplates(true)
-      setTemplates(response.data)
+      setTemplates(response.data.templates || [])
     } catch (error) {
       toast.error('Failed to load templates')
       console.error(error)
