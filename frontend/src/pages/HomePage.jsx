@@ -1,16 +1,39 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
-import { Play, X, BookOpen, Users, CheckCircle, Heart } from 'lucide-react'
+import { Play, X, BookOpen, Users, CheckCircle, Heart, Sparkles, Target, Zap } from 'lucide-react'
 import { PhilosophySection } from '../components/ui/PhilosophyCard'
 import LandingPageHero from '../components/landing/LandingPageHero'
-// import { useSubscriptionTiers, formatPrice } from '../hooks/useSubscriptionTiers' // REMOVED - Phase 3 refactoring (January 2025)
+import { useHomepageImages, getImageUrl } from '../hooks/useHomepageImages'
 
 const HomePage = () => {
   const { isAuthenticated, user, loading } = useAuth()
   const navigate = useNavigate()
-  // const { data: tiers, isLoading: tiersLoading } = useSubscriptionTiers() // REMOVED - Phase 3 refactoring (January 2025)
   const [philosophyModalOpen, setPhilosophyModalOpen] = useState(false)
+  const { images, loading: imagesLoading } = useHomepageImages()
+
+  // Intersection Observer for scroll animations
+  const [visibleSections, setVisibleSections] = useState(new Set())
+  const sectionRefs = useRef({})
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setVisibleSections((prev) => new Set([...prev, entry.target.dataset.section]))
+          }
+        })
+      },
+      { threshold: 0.1, rootMargin: '50px' }
+    )
+
+    Object.values(sectionRefs.current).forEach((ref) => {
+      if (ref) observer.observe(ref)
+    })
+
+    return () => observer.disconnect()
+  }, [])
 
   const scrollToRegister = () => {
     navigate('/register')
@@ -21,38 +44,25 @@ const HomePage = () => {
   }
 
   // Redirect authenticated users to their appropriate dashboard
-  // Wait for auth loading to complete to avoid race conditions with AuthCallback
   useEffect(() => {
     const currentPath = window.location.pathname
     const searchParams = new URLSearchParams(window.location.search)
     const hasAuthCode = searchParams.has('code')
 
-    console.log('[SPARK SSO] HomePage useEffect triggered')
-    console.log('[SPARK SSO] Current path:', currentPath)
-    console.log('[SPARK SSO] Has auth code param:', hasAuthCode)
-    console.log('[SPARK SSO] Auth state:', { loading, isAuthenticated, userRole: user?.role })
-
-    // CRITICAL: Don't redirect if SSO flow is in progress
-    // Check both path AND URL params to catch all SSO scenarios
     if (currentPath === '/auth/callback' || hasAuthCode) {
-      console.log('[SPARK SSO] SSO flow detected - skipping all redirect logic')
-      console.log('[SPARK SSO] Reason:', currentPath === '/auth/callback' ? 'on auth/callback path' : 'auth code param present')
       return
     }
 
     if (!loading && isAuthenticated && user) {
-      console.log('[SPARK SSO] User is authenticated, redirecting to dashboard...')
       if (user.role === 'parent') {
-        console.log('[SPARK SSO] Redirecting parent to /parent/dashboard')
         navigate('/parent/dashboard')
       } else if (user.role === 'student' || user.role === 'advisor' || user.role === 'admin') {
-        console.log('[SPARK SSO] Redirecting user to /dashboard')
         navigate('/dashboard')
       }
-    } else {
-      console.log('[SPARK SSO] Not redirecting:', { loading, isAuthenticated, hasUser: !!user })
     }
   }, [isAuthenticated, user, navigate, loading])
+
+  const isVisible = (section) => visibleSections.has(section)
 
   return (
     <div className="min-h-screen">
@@ -83,10 +93,10 @@ const HomePage = () => {
         />
       )}
 
-      {/* What Optio Provides Section - Platform Features Grid */}
-      <div className="py-16 bg-white">
+      {/* What Optio Provides Section - Alternating Image/Text Layout */}
+      <div className="py-16 bg-white" id="main-content">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
+          <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
               What Optio Provides
             </h2>
@@ -95,93 +105,124 @@ const HomePage = () => {
             </p>
           </div>
 
-          {/* 6-Feature Grid */}
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {/* Automatic Portfolio Building */}
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100 hover:border-purple-300 transition-all">
-              <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
-                <BookOpen className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                Automatic Portfolio Building
-              </h3>
-              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Every project, essay, and creation automatically captured. No manual uploads, no friction—just learning that builds itself into proof.
-              </p>
+          {/* Feature 1: Portfolio + XP System (Image Left) */}
+          <div
+            ref={(el) => (sectionRefs.current.feature1 = el)}
+            data-section="feature1"
+            className={`grid md:grid-cols-2 gap-8 items-center mb-16 transition-all duration-700 ${
+              isVisible('feature1') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            <div className="relative overflow-hidden rounded-2xl shadow-2xl group">
+              <img
+                src={getImageUrl(images, 'portfolio', '')}
+                alt="Student reviewing portfolio"
+                className="w-full h-[400px] object-cover transition-transform duration-500 group-hover:scale-105"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
             </div>
-
-            {/* Gamified Learning Journey */}
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100 hover:border-purple-300 transition-all">
-              <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
-                <CheckCircle className="w-6 h-6 text-white" />
+            <div className="space-y-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center">
+                  <BookOpen className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  Automatic Portfolio Building
+                </h3>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                Gamified Learning Journey
-              </h3>
-              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Quests, XP, and badges transform progress into play. Visual skill tracking across five learning pillars keeps motivation high.
+              <p className="text-lg text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                Every project, essay, and creation automatically captured. No manual uploads, no friction—just learning that builds itself into proof. Your child's work flows seamlessly into a professional showcase ready to share with colleges and employers.
               </p>
+              <div className="flex items-center space-x-2 text-optio-purple font-semibold">
+                <Sparkles className="w-5 h-5" />
+                <span style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Zero extra work required</span>
+              </div>
             </div>
+          </div>
 
-            {/* Parent Dashboard */}
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100 hover:border-purple-300 transition-all">
-              <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
-                <Heart className="w-6 h-6 text-white" />
+          {/* Feature 2: Gamified Learning + AI Tutor (Image Right) */}
+          <div
+            ref={(el) => (sectionRefs.current.feature2 = el)}
+            data-section="feature2"
+            className={`grid md:grid-cols-2 gap-8 items-center mb-16 transition-all duration-700 ${
+              isVisible('feature2') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            <div className="space-y-6 md:order-1 order-2">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center">
+                  <Target className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  Gamified Learning Journey
+                </h3>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                Parent Dashboard
-              </h3>
-              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                See your child's learning rhythm and weekly wins without micromanaging. Celebrate flow state, offer support when needed.
+              <p className="text-lg text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                Quests, XP, and badges transform progress into play. Visual skill tracking across five learning pillars keeps motivation high. Students see their growth in real-time, celebrating every step of their journey.
               </p>
+              <div className="bg-gradient-to-r from-optio-purple/10 to-optio-pink/10 rounded-lg p-4 border-l-4 border-optio-purple">
+                <p className="text-sm text-gray-700" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                  <strong style={{ fontFamily: 'Poppins', fontWeight: 600 }}>Plus 24/7 AI Tutor:</strong> Gemini-powered support provides instant help, answers questions, and keeps momentum going—even when parents are busy.
+                </p>
+              </div>
             </div>
-
-            {/* Family Engagement */}
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100 hover:border-purple-300 transition-all">
-              <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
-                <Users className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                Family Engagement
-              </h3>
-              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Observer roles let grandparents, mentors, and extended family cheer progress, leave encouragement, and stay connected to your child's journey.
-              </p>
+            <div className="relative overflow-hidden rounded-2xl shadow-2xl group md:order-2 order-1">
+              <img
+                src={getImageUrl(images, 'ai_tutor', '')}
+                alt="Student with AI tutor"
+                className="w-full h-[400px] object-cover transition-transform duration-500 group-hover:scale-105"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
             </div>
+          </div>
 
-            {/* AI Learning Support */}
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100 hover:border-purple-300 transition-all">
-              <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
-                <BookOpen className="w-6 h-6 text-white" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                AI Learning Support
-              </h3>
-              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                24/7 Gemini-powered tutor provides instant help, answers questions, and keeps momentum going—even when parents are busy.
-              </p>
+          {/* Feature 3: Parent Dashboard + Community (Image Left) */}
+          <div
+            ref={(el) => (sectionRefs.current.feature3 = el)}
+            data-section="feature3"
+            className={`grid md:grid-cols-2 gap-8 items-center transition-all duration-700 ${
+              isVisible('feature3') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            <div className="relative overflow-hidden rounded-2xl shadow-2xl group">
+              <img
+                src={getImageUrl(images, 'connections', '')}
+                alt="Community connections"
+                className="w-full h-[400px] object-cover transition-transform duration-500 group-hover:scale-105"
+                loading="lazy"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
             </div>
-
-            {/* Professional Showcase Pages */}
-            <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-6 border-2 border-purple-100 hover:border-purple-300 transition-all">
-              <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center mb-4">
-                <CheckCircle className="w-6 h-6 text-white" />
+            <div className="space-y-6">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center">
+                  <Heart className="w-6 h-6 text-white" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                  Parent Dashboard & Family Engagement
+                </h3>
               </div>
-              <h3 className="text-xl font-bold text-gray-900 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
-                Professional Showcase Pages
-              </h3>
-              <p className="text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
-                Custom portfolio URLs ready to share with colleges, employers, and scholarship applications. Make learning instantly visible and credible.
+              <p className="text-lg text-gray-700 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                See your child's learning rhythm and weekly wins without micromanaging. Celebrate flow state, offer support when needed. Observer roles let grandparents, mentors, and extended family stay connected to your child's journey.
               </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="text-center p-4 bg-green-50 rounded-lg">
+                  <div className="text-3xl font-bold text-green-600" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>100%</div>
+                  <div className="text-sm text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Visibility</div>
+                </div>
+                <div className="text-center p-4 bg-purple-50 rounded-lg">
+                  <div className="text-3xl font-bold text-optio-purple" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>0%</div>
+                  <div className="text-sm text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>Micromanaging</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* REMOVED - Pricing section removed in Phase 3 refactoring (January 2025) */}
-      {/* All features now free for all users */}
-
-      {/* How It Works Section */}
+      {/* How It Works Section - With Process Images */}
       <div className="py-16 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -195,9 +236,23 @@ const HomePage = () => {
 
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
             {/* Step 1 */}
-            <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>1</span>
+            <div
+              ref={(el) => (sectionRefs.current.step1 = el)}
+              data-section="step1"
+              className={`text-center transition-all duration-700 delay-0 ${
+                isVisible('step1') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`}
+            >
+              <div className="relative mb-4 overflow-hidden rounded-xl shadow-lg group">
+                <img
+                  src={getImageUrl(images, 'choose_quest', '')}
+                  alt="Choose your quest"
+                  className="w-full h-48 object-cover transition-transform duration-500 group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div className="absolute top-4 left-4 w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-lg">
+                  <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>1</span>
+                </div>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Create Your Account</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
@@ -206,9 +261,23 @@ const HomePage = () => {
             </div>
 
             {/* Step 2 */}
-            <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>2</span>
+            <div
+              ref={(el) => (sectionRefs.current.step2 = el)}
+              data-section="step2"
+              className={`text-center transition-all duration-700 delay-100 ${
+                isVisible('step2') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`}
+            >
+              <div className="relative mb-4 overflow-hidden rounded-xl shadow-lg group">
+                <img
+                  src={getImageUrl(images, 'complete_tasks', '')}
+                  alt="Complete tasks"
+                  className="w-full h-48 object-cover transition-transform duration-500 group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div className="absolute top-4 left-4 w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-lg">
+                  <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>2</span>
+                </div>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Build Your Quests</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
@@ -217,9 +286,23 @@ const HomePage = () => {
             </div>
 
             {/* Step 3 */}
-            <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>3</span>
+            <div
+              ref={(el) => (sectionRefs.current.step3 = el)}
+              data-section="step3"
+              className={`text-center transition-all duration-700 delay-200 ${
+                isVisible('step3') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`}
+            >
+              <div className="relative mb-4 overflow-hidden rounded-xl shadow-lg group">
+                <img
+                  src={getImageUrl(images, 'submit_evidence', '')}
+                  alt="Submit evidence"
+                  className="w-full h-48 object-cover transition-transform duration-500 group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div className="absolute top-4 left-4 w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-lg">
+                  <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>3</span>
+                </div>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Document As You Go</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
@@ -228,9 +311,23 @@ const HomePage = () => {
             </div>
 
             {/* Step 4 */}
-            <div className="text-center">
-              <div className="w-16 h-16 bg-gradient-primary rounded-full flex items-center justify-center mx-auto mb-4">
-                <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>4</span>
+            <div
+              ref={(el) => (sectionRefs.current.step4 = el)}
+              data-section="step4"
+              className={`text-center transition-all duration-700 delay-300 ${
+                isVisible('step4') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+              }`}
+            >
+              <div className="relative mb-4 overflow-hidden rounded-xl shadow-lg group">
+                <img
+                  src={getImageUrl(images, 'earn_recognition', '')}
+                  alt="Earn recognition"
+                  className="w-full h-48 object-cover transition-transform duration-500 group-hover:scale-105"
+                  loading="lazy"
+                />
+                <div className="absolute top-4 left-4 w-12 h-12 bg-gradient-primary rounded-full flex items-center justify-center shadow-lg">
+                  <span className="text-2xl font-bold text-white" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>4</span>
+                </div>
               </div>
               <h3 className="text-lg font-bold text-gray-900 mb-2" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>Track & Celebrate</h3>
               <p className="text-gray-600 leading-relaxed text-sm" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
@@ -314,8 +411,34 @@ const HomePage = () => {
         </div>
       </div>
 
-      {/* Our Philosophy Section */}
-      <PhilosophySection onPhilosophyModalOpen={() => setPhilosophyModalOpen(true)} />
+      {/* Philosophy Section with Hero Image */}
+      <div
+        ref={(el) => (sectionRefs.current.philosophy = el)}
+        data-section="philosophy"
+        className={`relative py-32 bg-cover bg-center transition-all duration-1000 ${
+          isVisible('philosophy') ? 'opacity-100' : 'opacity-0'
+        }`}
+        style={{
+          backgroundImage: `url(${getImageUrl(images, 'philosophy_hero', '')})`,
+        }}
+      >
+        <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-black/70"></div>
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+            The Process Is The Goal
+          </h2>
+          <p className="text-xl text-white/95 mb-8 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+            Learning is not about reaching a destination or impressing others. It's about who you become through the journey of discovery, creation, and growth.
+          </p>
+          <button
+            onClick={() => setPhilosophyModalOpen(true)}
+            className="inline-flex items-center bg-white text-optio-purple hover:bg-gray-100 px-8 py-4 rounded-lg font-bold text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all"
+            style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+          >
+            Learn More About Our Philosophy
+          </button>
+        </div>
+      </div>
 
       {/* FAQ Section - Platform Focus */}
       <div className="py-16 bg-white">
