@@ -68,7 +68,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       }
 
       setFormData({
-        template_key: template.template_key,
+        template_key: template.template_key || template.key, // Support both property names
         name: template.name,
         subject: template.subject,
         description: template.description || '',
@@ -125,13 +125,23 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       // Convert button syntax BEFORE markdown parsing: [Text](url){.button}
       let processedMarkdown = markdownBody.replace(
         /\[([^\]]+)\]\(([^)]+)\)\{\.button\}/g,
-        '|||BUTTON_START|||$2|||BUTTON_TEXT|||$1|||BUTTON_END|||'
+        '\n\n|||BUTTON_START|||$2|||BUTTON_TEXT|||$1|||BUTTON_END|||\n\n'
       )
 
       // Convert markdown to HTML
       let htmlBody = marked.parse(processedMarkdown)
 
-      // Convert button placeholders to styled buttons
+      // Convert button placeholders to styled buttons (handle possible <p> tag wrapping)
+      htmlBody = htmlBody.replace(
+        /<p>\|\|\|BUTTON_START\|\|\|([^|]+)\|\|\|BUTTON_TEXT\|\|\|([^|]+)\|\|\|BUTTON_END\|\|\|<\/p>/g,
+        '<div style="text-align: center; margin: 30px 0;">' +
+        '<a href="$1" style="display: inline-block; background: linear-gradient(135deg, #6D469B 0%, #EF597B 100%); ' +
+        'color: white !important; text-decoration: none; padding: 16px 48px; border-radius: 8px; ' +
+        'font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(109, 70, 155, 0.25);">$2</a>' +
+        '</div>'
+      )
+
+      // Also handle case without <p> tags
       htmlBody = htmlBody.replace(
         /\|\|\|BUTTON_START\|\|\|([^|]+)\|\|\|BUTTON_TEXT\|\|\|([^|]+)\|\|\|BUTTON_END\|\|\|/g,
         '<div style="text-align: center; margin: 30px 0;">' +
@@ -261,13 +271,23 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       // Convert button syntax BEFORE markdown parsing: [Text](url){.button}
       let processedMarkdown = formData.markdown_body.replace(
         /\[([^\]]+)\]\(([^)]+)\)\{\.button\}/g,
-        '|||BUTTON_START|||$2|||BUTTON_TEXT|||$1|||BUTTON_END|||'
+        '\n\n|||BUTTON_START|||$2|||BUTTON_TEXT|||$1|||BUTTON_END|||\n\n'
       )
 
       // Convert markdown to HTML for storage with button support
       let htmlBody = marked.parse(processedMarkdown)
 
-      // Convert button placeholders to styled buttons
+      // Convert button placeholders to styled buttons (handle possible <p> tag wrapping)
+      htmlBody = htmlBody.replace(
+        /<p>\|\|\|BUTTON_START\|\|\|([^|]+)\|\|\|BUTTON_TEXT\|\|\|([^|]+)\|\|\|BUTTON_END\|\|\|<\/p>/g,
+        '<div style="text-align: center; margin: 30px 0;">' +
+        '<a href="$1" style="display: inline-block; background: linear-gradient(135deg, #6D469B 0%, #EF597B 100%); ' +
+        'color: white !important; text-decoration: none; padding: 16px 48px; border-radius: 8px; ' +
+        'font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(109, 70, 155, 0.25);">$2</a>' +
+        '</div>'
+      )
+
+      // Also handle case without <p> tags
       htmlBody = htmlBody.replace(
         /\|\|\|BUTTON_START\|\|\|([^|]+)\|\|\|BUTTON_TEXT\|\|\|([^|]+)\|\|\|BUTTON_END\|\|\|/g,
         '<div style="text-align: center; margin: 30px 0;">' +
