@@ -86,10 +86,10 @@ const LandingPageHero = ({
         </div>
       )}
 
-      <div className={`relative max-w-6xl ${textAlign === 'center' ? 'mx-auto' : 'mx-auto md:ml-8 md:mr-auto lg:ml-24'}`}>
+      <div className={`relative max-w-6xl ${textAlign === 'center' ? 'mx-auto' : 'mx-auto md:ml-8 md:mr-auto lg:ml-24'} -mt-8`}>
         {/* Main Title */}
         <h1
-          className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-white mb-2 leading-tight"
+          className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl text-white mb-2 leading-tight"
           style={{ fontFamily: 'Poppins', fontWeight: 700 }}
         >
           {title}
