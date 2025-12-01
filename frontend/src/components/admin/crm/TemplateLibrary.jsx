@@ -171,9 +171,16 @@ const TemplateLibrary = () => {
 
               <div className="flex border-t bg-gray-50">
                 <button
-                  onClick={() => {
-                    setEditingTemplate(template)
-                    setShowEditor(true)
+                  onClick={async () => {
+                    try {
+                      // Fetch full template with data before editing
+                      const response = await crmAPI.getTemplate(template.key)
+                      setEditingTemplate(response.data.template)
+                      setShowEditor(true)
+                    } catch (error) {
+                      toast.error('Failed to load template details')
+                      console.error(error)
+                    }
                   }}
                   className="flex-1 py-2 text-sm text-optio-purple hover:bg-gray-100 font-semibold"
                 >
