@@ -483,4 +483,13 @@ export const checkinAPI = {
   getAdminAnalytics: () => api.get('/api/admin/checkins/analytics'),
 }
 
+// Helper Evidence API (Advisors/Parents uploading evidence for students)
+export const helperEvidenceAPI = {
+  // Upload evidence block for a student (advisor or parent)
+  uploadForStudent: (data) => api.post('/api/evidence/helper/upload-for-student', data),
+
+  // Get student's active tasks (for evidence upload)
+  getStudentTasks: (studentId) => api.get(`/api/evidence/helper/student-tasks/${studentId}`),
+}
+
 export default api

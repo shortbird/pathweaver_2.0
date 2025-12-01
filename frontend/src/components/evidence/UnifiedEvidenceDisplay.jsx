@@ -139,52 +139,72 @@ const UnifiedEvidenceDisplay = ({
             const isExpanded = expandedBlocks.has(block.id);
             const key = block.id || `block-${index}`;
 
+            // Uploader badge component (shown for non-student uploads)
+            const uploaderBadge = block.uploaded_by_role && block.uploaded_by_role !== 'student' && block.uploaded_by_name && (
+              <div className="mb-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                <svg className="w-3.5 h-3.5 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                </svg>
+                Added by {block.uploaded_by_name} ({block.uploaded_by_role === 'advisor' ? 'Advisor' : 'Parent'})
+              </div>
+            );
+
             switch (block.block_type) {
               case 'text':
                 return (
-                  <TextBlock
-                    key={key}
-                    block={block}
-                    isExpanded={isExpanded}
-                    onToggle={() => toggleBlock(block.id)}
-                    displayMode={displayMode}
-                  />
+                  <div key={key}>
+                    {uploaderBadge}
+                    <TextBlock
+                      block={block}
+                      isExpanded={isExpanded}
+                      onToggle={() => toggleBlock(block.id)}
+                      displayMode={displayMode}
+                    />
+                  </div>
                 );
 
               case 'image':
                 return (
-                  <ImageBlock
-                    key={key}
-                    block={block}
-                    displayMode={displayMode}
-                  />
+                  <div key={key}>
+                    {uploaderBadge}
+                    <ImageBlock
+                      block={block}
+                      displayMode={displayMode}
+                    />
+                  </div>
                 );
 
               case 'link':
                 return (
-                  <LinkBlock
-                    key={key}
-                    block={block}
-                    displayMode={displayMode}
-                  />
+                  <div key={key}>
+                    {uploaderBadge}
+                    <LinkBlock
+                      block={block}
+                      displayMode={displayMode}
+                    />
+                  </div>
                 );
 
               case 'video':
                 return (
-                  <VideoBlock
-                    key={key}
-                    block={block}
-                    displayMode={displayMode}
-                  />
+                  <div key={key}>
+                    {uploaderBadge}
+                    <VideoBlock
+                      block={block}
+                      displayMode={displayMode}
+                    />
+                  </div>
                 );
 
               case 'document':
                 return (
-                  <DocumentBlock
-                    key={key}
-                    block={block}
-                    displayMode={displayMode}
-                  />
+                  <div key={key}>
+                    {uploaderBadge}
+                    <DocumentBlock
+                      block={block}
+                      displayMode={displayMode}
+                    />
+                  </div>
                 );
 
               default:

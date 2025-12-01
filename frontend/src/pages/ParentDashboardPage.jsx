@@ -14,9 +14,11 @@ import {
   UserGroupIcon,
   LightBulbIcon,
   XMarkIcon,
-  ChevronRightIcon
+  ChevronRightIcon,
+  PlusIcon
 } from '@heroicons/react/24/outline';
 import UnifiedEvidenceDisplay from '../components/evidence/UnifiedEvidenceDisplay';
+import AddEvidenceModal from '../components/advisor/AddEvidenceModal';
 
 const ParentDashboardPage = () => {
   const { user } = useAuth();
@@ -45,6 +47,7 @@ const ParentDashboardPage = () => {
   const [loadingCompletions, setLoadingCompletions] = useState(false);
   const [selectedCompletion, setSelectedCompletion] = useState(null);
   const [completedQuests, setCompletedQuests] = useState([]);
+  const [showAddEvidenceModal, setShowAddEvidenceModal] = useState(false);
 
   // Pillar display names mapping
   const pillarDisplayNames = {
@@ -559,9 +562,19 @@ const ParentDashboardPage = () => {
             <div className="space-y-6">
               {/* Active Quests */}
               <div className="bg-white rounded-lg border border-gray-200 p-6">
-                <h3 className="text-xl font-bold text-gray-900 mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
-                  Active Quests
-                </h3>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    Active Quests
+                  </h3>
+                  <button
+                    onClick={() => setShowAddEvidenceModal(true)}
+                    className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity flex items-center space-x-2"
+                    style={{ fontFamily: 'Poppins, sans-serif' }}
+                  >
+                    <PlusIcon className="w-5 h-5" />
+                    <span>Add Evidence</span>
+                  </button>
+                </div>
                 {dashboardData?.active_quests?.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {dashboardData.active_quests.map((quest) => (
@@ -1175,6 +1188,16 @@ const ParentDashboardPage = () => {
           )}
 
         </>
+      )}
+
+      {/* Add Evidence Modal */}
+      {showAddEvidenceModal && selectedStudentId && (
+        <AddEvidenceModal
+          isOpen={showAddEvidenceModal}
+          onClose={() => setShowAddEvidenceModal(false)}
+          studentId={selectedStudentId}
+          studentName={children.find(c => c.student_id === selectedStudentId)?.student_name || 'Student'}
+        />
       )}
     </div>
   );

@@ -276,6 +276,8 @@ export default function StudentDetailModal({ student, onClose, onTasksUpdated })
                     <StudentTasksPanel
                       key={quest.quest_id}
                       quest={quest}
+                      studentId={student.id}
+                      studentName={student.display_name}
                       onTaskUpdate={handleTaskUpdate}
                       onTaskDelete={handleTaskDelete}
                       onTaskReorder={handleTaskReorder}

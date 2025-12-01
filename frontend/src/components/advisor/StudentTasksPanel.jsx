@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Edit2, Trash2, CheckCircle, Circle, ChevronDown, ChevronUp, GripVertical } from 'lucide-react';
+import { Edit2, Trash2, CheckCircle, Circle, ChevronDown, ChevronUp, GripVertical, Plus } from 'lucide-react';
 import TaskEditModal from './TaskEditModal';
+import AddEvidenceModal from './AddEvidenceModal';
 
 const PILLAR_COLORS = {
   stem: 'bg-blue-500',
@@ -18,12 +19,13 @@ const PILLAR_LABELS = {
   art: 'Art'
 };
 
-export default function StudentTasksPanel({ quest, onTaskUpdate, onTaskDelete, onTaskReorder }) {
+export default function StudentTasksPanel({ quest, studentId, studentName, onTaskUpdate, onTaskDelete, onTaskReorder }) {
   const [expandedQuest, setExpandedQuest] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
   const [deletingTask, setDeletingTask] = useState(null);
   const [draggedTask, setDraggedTask] = useState(null);
   const [dragOverTask, setDragOverTask] = useState(null);
+  const [showAddEvidenceModal, setShowAddEvidenceModal] = useState(false);
 
   const handleToggleQuest = (questId) => {
     setExpandedQuest(expandedQuest === questId ? null : questId);
@@ -124,31 +126,41 @@ export default function StudentTasksPanel({ quest, onTaskUpdate, onTaskDelete, o
   return (
     <div className="border border-gray-200 rounded-lg overflow-hidden">
       {/* Quest Header */}
-      <button
-        onClick={() => handleToggleQuest(quest.quest_id)}
-        className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
-      >
-        <div className="flex items-center space-x-4">
-          {quest.quest_image_url && (
-            <img
-              src={quest.quest_image_url}
-              alt={quest.quest_title}
-              className="w-12 h-12 rounded-md object-cover"
-            />
-          )}
-          <div className="text-left">
-            <h3 className="text-lg font-semibold text-gray-900">{quest.quest_title}</h3>
-            <p className="text-sm text-gray-600">
-              {quest.completed_tasks} / {quest.total_tasks} tasks completed ({quest.completion_percentage}%)
-            </p>
+      <div className="flex items-center justify-between p-4 bg-gray-50">
+        <button
+          onClick={() => handleToggleQuest(quest.quest_id)}
+          className="flex-1 flex items-center justify-between hover:bg-gray-100 transition-colors -m-4 p-4"
+        >
+          <div className="flex items-center space-x-4">
+            {quest.quest_image_url && (
+              <img
+                src={quest.quest_image_url}
+                alt={quest.quest_title}
+                className="w-12 h-12 rounded-md object-cover"
+              />
+            )}
+            <div className="text-left">
+              <h3 className="text-lg font-semibold text-gray-900">{quest.quest_title}</h3>
+              <p className="text-sm text-gray-600">
+                {quest.completed_tasks} / {quest.total_tasks} tasks completed ({quest.completion_percentage}%)
+              </p>
+            </div>
           </div>
-        </div>
-        {isExpanded ? (
-          <ChevronUp className="w-5 h-5 text-gray-500" />
-        ) : (
-          <ChevronDown className="w-5 h-5 text-gray-500" />
-        )}
-      </button>
+          {isExpanded ? (
+            <ChevronUp className="w-5 h-5 text-gray-500" />
+          ) : (
+            <ChevronDown className="w-5 h-5 text-gray-500" />
+          )}
+        </button>
+        <button
+          onClick={() => setShowAddEvidenceModal(true)}
+          className="ml-3 px-3 py-2 text-sm font-medium text-white bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg hover:opacity-90 transition-opacity flex items-center space-x-1"
+          title="Add evidence for student"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Add Evidence</span>
+        </button>
+      </div>
 
       {/* Task List */}
       {isExpanded && (
@@ -252,6 +264,16 @@ export default function StudentTasksPanel({ quest, onTaskUpdate, onTaskDelete, o
           task={editingTask}
           onClose={() => setEditingTask(null)}
           onSave={handleSaveTask}
+        />
+      )}
+
+      {/* Add Evidence Modal */}
+      {showAddEvidenceModal && (
+        <AddEvidenceModal
+          isOpen={showAddEvidenceModal}
+          onClose={() => setShowAddEvidenceModal(false)}
+          studentId={studentId}
+          studentName={studentName}
         />
       )}
     </div>

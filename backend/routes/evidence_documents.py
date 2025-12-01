@@ -76,12 +76,25 @@ def get_evidence_document(user_id: str, task_id: str):
 
         document = document_response.data[0]
 
-        # Get all content blocks for this document (including is_private field)
+        # Get all content blocks for this document (including is_private field and uploader info)
         blocks_response = supabase.table('evidence_document_blocks')\
-            .select('id, document_id, block_type, content, order_index, is_private, created_at')\
+            .select('id, document_id, block_type, content, order_index, is_private, created_at, uploaded_by_user_id, uploaded_by_role')\
             .eq('document_id', document['id'])\
             .order('order_index')\
             .execute()
+
+        # Get uploader names for blocks
+        uploader_ids = [b['uploaded_by_user_id'] for b in blocks_response.data if b.get('uploaded_by_user_id')]
+        uploader_names = {}
+        if uploader_ids:
+            uploaders = supabase.table('users').select('id, first_name, last_name').in_('id', list(set(uploader_ids))).execute()
+            for u in uploaders.data:
+                uploader_names[u['id']] = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
+
+        # Add uploader names to blocks
+        for block in blocks_response.data:
+            if block.get('uploaded_by_user_id'):
+                block['uploaded_by_name'] = uploader_names.get(block['uploaded_by_user_id'], 'Unknown')
 
         return jsonify({
             'success': True,
@@ -637,11 +650,13 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
             is_temporary_id = not block_id or str(block_id).startswith(('legacy-', 'temp-', 'new-'))
 
             if block_id and not is_temporary_id and block_id in existing_block_ids:
-                # Update existing block
+                # Update existing block (preserve uploader info - don't overwrite)
                 block_data['id'] = block_id
                 blocks_to_update.append(block_data)
             else:
-                # Create new block (includes temporary IDs and actual new blocks)
+                # Create new block - preserve uploader info if present, otherwise default to student
+                block_data['uploaded_by_user_id'] = block.get('uploaded_by_user_id')
+                block_data['uploaded_by_role'] = block.get('uploaded_by_role', 'student')
                 blocks_to_insert.append(block_data)
 
         # Batch insert new blocks

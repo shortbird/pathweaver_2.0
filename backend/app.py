@@ -132,6 +132,10 @@ except Exception as e:
 app.register_blueprint(quests.bp)  # /api/quests (blueprint has url_prefix='/api/quests')
 app.register_blueprint(tasks.bp)      # /api/tasks (blueprint has url_prefix='/api/tasks')
 app.register_blueprint(evidence_documents.bp)  # /api/evidence (blueprint has url_prefix='/api/evidence')
+
+# Register helper evidence routes (advisors/parents uploading for students)
+from routes import helper_evidence
+app.register_blueprint(helper_evidence.bp)  # /api/evidence/helper (blueprint has url_prefix='/api/evidence/helper')
 app.register_blueprint(tutorial.tutorial_bp, url_prefix='/api/tutorial')  # /api/tutorial
 app.register_blueprint(admin_core.bp)   # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(user_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
