@@ -7,6 +7,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
     template_key: '',
     name: '',
     subject: '',
+    description: '',
     body_html: '',
     body_text: '',
     variables: []
@@ -18,17 +19,21 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
 
   useEffect(() => {
     if (template) {
+      // Handle both template_data structure and flat structure
+      const templateData = template.template_data || {}
       setFormData({
         template_key: template.template_key,
         name: template.name,
         subject: template.subject,
-        body_html: template.body_html || '',
-        body_text: template.body_text || '',
-        variables: template.variables || []
+        description: template.description || '',
+        body_html: templateData.body_html || template.body_html || '',
+        body_text: templateData.body_text || template.body_text || '',
+        variables: templateData.variables || template.variables || []
       })
       // Initialize sample data with empty values
       const initialSampleData = {}
-      template.variables?.forEach(v => {
+      const vars = templateData.variables || template.variables || []
+      vars.forEach(v => {
         initialSampleData[v] = ''
       })
       setSampleData(initialSampleData)
@@ -39,7 +44,8 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
     try {
       setLoading(true)
       const response = await crmAPI.previewTemplate(formData.template_key, sampleData)
-      setPreviewHtml(response.data.html)
+      // Handle different response structures
+      setPreviewHtml(response.data.preview?.html || response.data.preview || response.data.html)
     } catch (error) {
       toast.error('Failed to generate preview')
       console.error(error)
@@ -49,18 +55,32 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
   }
 
   const handleSave = async () => {
-    if (!formData.template_key || !formData.name || !formData.subject) {
-      toast.error('Please fill in all required fields')
+    if (!formData.template_key || !formData.name || !formData.subject || !formData.body_html) {
+      toast.error('Please fill in all required fields (key, name, subject, HTML body)')
       return
     }
 
     try {
       setLoading(true)
+
+      // Prepare data in format backend expects
+      const saveData = {
+        template_key: formData.template_key,
+        name: formData.name,
+        subject: formData.subject,
+        description: formData.description,
+        template_data: {
+          body_html: formData.body_html,
+          body_text: formData.body_text,
+          variables: formData.variables
+        }
+      }
+
       if (template) {
-        await crmAPI.updateTemplate(template.template_key, formData)
+        await crmAPI.updateTemplate(template.template_key, saveData)
         toast.success('Template updated!')
       } else {
-        await crmAPI.createTemplate(formData)
+        await crmAPI.createTemplate(saveData)
         toast.success('Template created!')
       }
       onSave()
@@ -118,7 +138,9 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
         {/* Left: Editor */}
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Template Key</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Template Key <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               value={formData.template_key}
@@ -127,10 +149,13 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
               placeholder="e.g., welcome_email"
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
             />
+            <p className="text-xs text-gray-500 mt-1">Unique identifier (cannot be changed after creation)</p>
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Template Name</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Template Name <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               value={formData.name}
@@ -142,13 +167,27 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">Subject Line</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Subject Line <span className="text-red-500">*</span>
+            </label>
             <input
               type="text"
               value={formData.subject}
               onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
               disabled={isReadOnly}
               placeholder="e.g., Welcome to Optio!"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">Description (Optional)</label>
+            <input
+              type="text"
+              value={formData.description}
+              onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
+              disabled={isReadOnly}
+              placeholder="Brief description of this template"
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
             />
           </div>
@@ -165,35 +204,42 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
                 </button>
               )}
             </div>
-            <div className="space-y-2">
-              {formData.variables.map(v => (
-                <div key={v} className="flex items-center gap-2">
-                  <span className="px-3 py-2 bg-gray-100 rounded font-mono text-sm flex-1">
-                    {`{${v}}`}
-                  </span>
-                  {!isReadOnly && (
-                    <button
-                      onClick={() => removeVariable(v)}
-                      className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
-                    >
-                      Remove
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
+            {formData.variables.length === 0 ? (
+              <p className="text-sm text-gray-500 italic">No variables defined. Use {'{variable_name}'} syntax in your template.</p>
+            ) : (
+              <div className="space-y-2">
+                {formData.variables.map(v => (
+                  <div key={v} className="flex items-center gap-2">
+                    <span className="px-3 py-2 bg-gray-100 rounded font-mono text-sm flex-1">
+                      {`{${v}}`}
+                    </span>
+                    {!isReadOnly && (
+                      <button
+                        onClick={() => removeVariable(v)}
+                        className="px-3 py-2 bg-red-500 text-white rounded hover:bg-red-600 text-sm"
+                      >
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-2">HTML Body</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              HTML Body <span className="text-red-500">*</span>
+            </label>
             <textarea
               value={formData.body_html}
               onChange={(e) => setFormData(prev => ({ ...prev, body_html: e.target.value }))}
               disabled={isReadOnly}
               placeholder="<h1>Welcome!</h1><p>Thanks for joining {user_name}!</p>"
-              rows={10}
+              rows={12}
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple font-mono text-sm disabled:bg-gray-100"
             />
+            <p className="text-xs text-gray-500 mt-1">Use {'{variable_name}'} for dynamic content</p>
           </div>
 
           <div>
@@ -206,6 +252,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
               rows={6}
               className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple font-mono text-sm disabled:bg-gray-100"
             />
+            <p className="text-xs text-gray-500 mt-1">Fallback for email clients that don't support HTML</p>
           </div>
         </div>
 
@@ -213,38 +260,50 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
         <div className="space-y-4">
           <div>
             <h3 className="text-lg font-bold mb-3">Preview</h3>
-            <div className="space-y-2 mb-4">
-              {formData.variables.map(v => (
-                <div key={v}>
-                  <label className="block text-xs font-semibold text-gray-600 mb-1">{v}</label>
-                  <input
-                    type="text"
-                    value={sampleData[v] || ''}
-                    onChange={(e) => setSampleData(prev => ({ ...prev, [v]: e.target.value }))}
-                    placeholder={`Sample ${v}...`}
-                    className="w-full px-3 py-1 border rounded text-sm"
-                  />
-                </div>
-              ))}
-            </div>
+
+            {formData.variables.length > 0 ? (
+              <div className="space-y-2 mb-4">
+                <p className="text-sm font-semibold text-gray-700 mb-2">Sample Data</p>
+                {formData.variables.map(v => (
+                  <div key={v}>
+                    <label className="block text-xs font-semibold text-gray-600 mb-1">{v}</label>
+                    <input
+                      type="text"
+                      value={sampleData[v] || ''}
+                      onChange={(e) => setSampleData(prev => ({ ...prev, [v]: e.target.value }))}
+                      placeholder={`Sample ${v}...`}
+                      className="w-full px-3 py-2 border rounded text-sm"
+                    />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-gray-500 italic mb-4">No variables to configure. Add variables to test dynamic content.</p>
+            )}
 
             <button
               onClick={handlePreview}
-              disabled={loading || !formData.template_key}
+              disabled={loading || !formData.template_key || !formData.body_html}
               className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 mb-4"
             >
               {loading ? 'Generating...' : 'Generate Preview'}
             </button>
 
             {previewHtml && (
-              <div className="border rounded-lg overflow-hidden bg-white">
-                <div className="bg-gray-100 px-4 py-2 border-b">
-                  <p className="text-xs font-semibold text-gray-600">Email Preview</p>
+              <div className="border rounded-lg overflow-hidden bg-white shadow-sm">
+                <div className="bg-gradient-to-r from-optio-purple to-optio-pink px-4 py-2 border-b">
+                  <p className="text-xs font-semibold text-white">Email Preview</p>
                 </div>
                 <div
-                  className="p-4 overflow-auto max-h-96"
+                  className="p-4 overflow-auto max-h-[600px] bg-gray-50"
                   dangerouslySetInnerHTML={{ __html: previewHtml }}
                 />
+              </div>
+            )}
+
+            {!previewHtml && formData.body_html && (
+              <div className="border rounded-lg overflow-hidden bg-gray-50 p-4 text-center text-gray-500 text-sm">
+                Click "Generate Preview" to see rendered email
               </div>
             )}
           </div>
@@ -255,7 +314,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
         <button
           onClick={onClose}
-          className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-white"
+          className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-white font-semibold"
         >
           {isReadOnly ? 'Close' : 'Cancel'}
         </button>
@@ -263,7 +322,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
           <button
             onClick={handleSave}
             disabled={loading}
-            className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50"
+            className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:opacity-90 disabled:opacity-50 font-semibold"
           >
             {loading ? 'Saving...' : 'Save Template'}
           </button>
