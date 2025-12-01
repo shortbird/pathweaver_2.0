@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
 import api, { advisorMasqueradeAPI } from '../services/api';
+import { queryKeys } from '../utils/queryKeys';
 import UnifiedQuestForm from '../components/admin/UnifiedQuestForm';
 import CourseQuestForm from '../components/admin/CourseQuestForm';
 import CheckinAnalytics from '../components/advisor/CheckinAnalytics';
@@ -128,7 +130,7 @@ export default function AdvisorDashboard() {
 function OverviewTab({ dashboardData, students, onRefresh }) {
   const stats = dashboardData?.stats || {};
   const navigate = useNavigate();
-  const { setUser } = useAuth();
+  const queryClient = useQueryClient();
   const [showCheckinHistory, setShowCheckinHistory] = useState(false);
   const [checkinHistoryStudent, setCheckinHistoryStudent] = useState(null);
   const [showAdvisorNotes, setShowAdvisorNotes] = useState(false);
@@ -165,8 +167,9 @@ function OverviewTab({ dashboardData, students, onRefresh }) {
         `Advisor assisting ${getStudentName(student)}`
       );
 
-      // Update auth context with masqueraded user
-      setUser(response.data.target_user);
+      // Update React Query cache with masqueraded user data
+      // The masquerade_token is automatically stored in httpOnly cookies by the backend
+      queryClient.setQueryData(queryKeys.user.profile('current'), response.data.target_user);
 
       toast.success(`Now viewing as ${getStudentName(student)}`);
 
