@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { XMarkIcon, PlusIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { helperEvidenceAPI } from '../../services/api';
+import { evidenceDocumentService } from '../../services/evidenceDocumentService';
 import toast from 'react-hot-toast';
 
 const BLOCK_TYPES = [
@@ -20,6 +21,9 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
   const [loading, setLoading] = useState(false);
   const [loadingTasks, setLoadingTasks] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [pendingFile, setPendingFile] = useState(null); // File to upload after block creation
+  const [uploadMode, setUploadMode] = useState('url'); // 'url' or 'file' for image/document types
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     if (isOpen && studentId) {
@@ -49,6 +53,35 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
     setSelectedTask(task);
   };
 
+  const handleFileSelect = (file, type) => {
+    // Validate file size (10MB limit)
+    const MAX_FILE_SIZE = 10 * 1024 * 1024;
+    if (file.size > MAX_FILE_SIZE) {
+      const fileSizeMB = (file.size / (1024 * 1024)).toFixed(1);
+      toast.error(`File is too large (${fileSizeMB}MB). Maximum size is 10MB.`);
+      return;
+    }
+
+    // Validate file type
+    if (type === 'image' && !file.type.startsWith('image/')) {
+      toast.error('Please select an image file');
+      return;
+    }
+    if (type === 'document' && !['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'].includes(file.type)) {
+      toast.error('Please select a PDF or Word document');
+      return;
+    }
+
+    // Create preview URL
+    const previewUrl = URL.createObjectURL(file);
+    setPendingFile(file);
+    setContent({
+      url: previewUrl,
+      filename: file.name,
+      ...(type === 'image' ? { alt: file.name } : { title: file.name })
+    });
+  };
+
   const handleSubmit = async () => {
     if (!selectedTask) {
       toast.error('Please select a task');
@@ -68,8 +101,29 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
         content: content
       };
 
-      await helperEvidenceAPI.uploadForStudent(data);
-      toast.success(`Evidence added for ${studentName}!`);
+      const response = await helperEvidenceAPI.uploadForStudent(data);
+
+      // If we have a pending file, upload it now
+      if (pendingFile && response.data?.block_id) {
+        try {
+          const uploadResponse = await evidenceDocumentService.uploadBlockFile(
+            response.data.block_id,
+            pendingFile
+          );
+
+          if (uploadResponse.success) {
+            toast.success(`Evidence added for ${studentName} with file upload!`);
+          } else {
+            toast.success(`Evidence added for ${studentName}, but file upload failed. Student can re-upload.`);
+          }
+        } catch (uploadError) {
+          console.error('File upload error:', uploadError);
+          toast.success(`Evidence added for ${studentName}, but file upload failed. Student can re-upload.`);
+        }
+      } else {
+        toast.success(`Evidence added for ${studentName}!`);
+      }
+
       handleClose();
     } catch (error) {
       console.error('Error uploading evidence:', error);
@@ -92,14 +146,14 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
           toast.error('Please enter a URL');
           return false;
         }
-        if (!content.url.startsWith('http://') && !content.url.startsWith('https://')) {
+        if (!content.url.startsWith('http://') && !content.url.startsWith('https://') && !content.url.startsWith('blob:')) {
           toast.error('URL must start with http:// or https://');
           return false;
         }
         break;
       case 'image':
         if (!content.url?.trim()) {
-          toast.error('Please enter an image URL');
+          toast.error(uploadMode === 'file' ? 'Please select an image file' : 'Please enter an image URL');
           return false;
         }
         break;
@@ -111,7 +165,7 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
         break;
       case 'document':
         if (!content.url?.trim()) {
-          toast.error('Please enter a document URL');
+          toast.error(uploadMode === 'file' ? 'Please select a document file' : 'Please enter a document URL');
           return false;
         }
         break;
@@ -122,10 +176,16 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
   };
 
   const handleClose = () => {
+    // Clean up blob URLs
+    if (content.url?.startsWith('blob:')) {
+      URL.revokeObjectURL(content.url);
+    }
     setSelectedQuest(null);
     setSelectedTask(null);
     setBlockType('text');
     setContent({});
+    setPendingFile(null);
+    setUploadMode('url');
     onClose();
   };
 
@@ -165,16 +225,99 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
       case 'image':
         return (
           <div className="space-y-3">
-            <input
-              type="url"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-              placeholder="Image URL (e.g., from Google Drive, Imgur)"
-              value={content.url || ''}
-              onChange={(e) => setContent({ url: e.target.value })}
-            />
-            <p className="text-sm text-gray-600">
-              Tip: Upload to Google Drive, set sharing to "Anyone with the link", then paste the link here
-            </p>
+            {/* Toggle between file upload and URL */}
+            <div className="flex gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadMode('file');
+                  setContent({});
+                  setPendingFile(null);
+                }}
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  uploadMode === 'file'
+                    ? 'bg-optio-purple text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                📤 Upload File
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadMode('url');
+                  setContent({});
+                  setPendingFile(null);
+                }}
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  uploadMode === 'url'
+                    ? 'bg-optio-purple text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                🔗 Enter URL
+              </button>
+            </div>
+
+            {uploadMode === 'file' ? (
+              <div>
+                {content.url ? (
+                  <div className="relative group">
+                    <img
+                      src={content.url}
+                      alt={content.alt || ''}
+                      className="w-full max-h-64 object-contain rounded-lg border-2 border-gray-200"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (content.url?.startsWith('blob:')) {
+                          URL.revokeObjectURL(content.url);
+                        }
+                        setContent({});
+                        setPendingFile(null);
+                      }}
+                      className="absolute top-2 right-2 p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <XMarkIcon className="w-4 h-4" />
+                    </button>
+                    <p className="mt-2 text-sm text-gray-600">{content.filename}</p>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-optio-purple transition-colors"
+                  >
+                    <div className="text-4xl mb-2">📸</div>
+                    <p className="text-sm font-medium text-gray-900">Click to upload image</p>
+                    <p className="text-xs text-gray-500 mt-1">PNG, JPG, GIF up to 10MB</p>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileSelect(file, 'image');
+                  }}
+                />
+              </div>
+            ) : (
+              <div>
+                <input
+                  type="url"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                  placeholder="https://example.com/image.jpg"
+                  value={content.url || ''}
+                  onChange={(e) => setContent({ url: e.target.value, alt: '' })}
+                />
+                <p className="text-sm text-gray-600 mt-2">
+                  Tip: Upload to Google Drive, set sharing to "Anyone with the link", then paste link here
+                </p>
+              </div>
+            )}
           </div>
         );
 
@@ -194,16 +337,102 @@ export default function AddEvidenceModal({ isOpen, onClose, studentId, studentNa
       case 'document':
         return (
           <div className="space-y-3">
-            <input
-              type="url"
-              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
-              placeholder="Document URL (Google Drive, Dropbox, etc.)"
-              value={content.url || ''}
-              onChange={(e) => setContent({ url: e.target.value })}
-            />
-            <p className="text-sm text-gray-600">
-              Tip: Upload to Google Drive or Dropbox, set sharing to "Anyone with the link"
-            </p>
+            {/* Toggle between file upload and URL */}
+            <div className="flex gap-2 mb-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadMode('file');
+                  setContent({});
+                  setPendingFile(null);
+                }}
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  uploadMode === 'file'
+                    ? 'bg-optio-purple text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                📤 Upload File
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setUploadMode('url');
+                  setContent({});
+                  setPendingFile(null);
+                }}
+                className={`flex-1 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                  uploadMode === 'url'
+                    ? 'bg-optio-purple text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                🔗 Enter URL
+              </button>
+            </div>
+
+            {uploadMode === 'file' ? (
+              <div>
+                {content.url ? (
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
+                    <div className="flex items-center gap-3">
+                      <div className="text-3xl">📄</div>
+                      <div>
+                        <p className="text-sm font-medium text-gray-900">{content.filename}</p>
+                        <p className="text-xs text-gray-500">
+                          {pendingFile ? `${(pendingFile.size / 1024).toFixed(1)} KB` : ''}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (content.url?.startsWith('blob:')) {
+                          URL.revokeObjectURL(content.url);
+                        }
+                        setContent({});
+                        setPendingFile(null);
+                      }}
+                      className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <XMarkIcon className="w-5 h-5" />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-optio-purple transition-colors"
+                  >
+                    <div className="text-4xl mb-2">📄</div>
+                    <p className="text-sm font-medium text-gray-900">Click to upload document</p>
+                    <p className="text-xs text-gray-500 mt-1">PDF, DOC, DOCX up to 10MB</p>
+                  </div>
+                )}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,.doc,.docx"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFileSelect(file, 'document');
+                  }}
+                />
+              </div>
+            ) : (
+              <div>
+                <input
+                  type="url"
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
+                  placeholder="https://drive.google.com/..."
+                  value={content.url || ''}
+                  onChange={(e) => setContent({ url: e.target.value, title: '' })}
+                />
+                <p className="text-sm text-gray-600 mt-2">
+                  Tip: Upload to Google Drive or Dropbox, set sharing to "Anyone with the link"
+                </p>
+              </div>
+            )}
           </div>
         );
     }
