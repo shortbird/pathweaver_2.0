@@ -1,5 +1,7 @@
 """
 Advisor masquerade routes - Allow advisors to view platform as their assigned students
+
+Advisor-student relationships are stored in the advisor_student_assignments table.
 """
 from flask import Blueprint, jsonify, request
 from database import get_supabase_admin_client
@@ -52,7 +54,7 @@ def start_advisor_masquerade(advisor_id, target_student_id):
 
         # For advisors (not admins), verify they have access to this student
         if advisor_role == 'advisor':
-            relationship = supabase.table('advisor_students').select('id').eq(
+            relationship = supabase.table('advisor_student_assignments').select('id').eq(
                 'advisor_id', advisor_id
             ).eq('student_id', target_student_id).execute()
 
