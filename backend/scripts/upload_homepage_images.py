@@ -40,9 +40,9 @@ HOMEPAGE_IMAGES = {
         'description': 'Group of children using laptop'
     },
     'ai_tutor': {
-        'pexels_id': '8005651',
+        'pexels_id': '8083816',
         'name': 'ai_tutor.jpg',
-        'description': 'Young woman using laptop'
+        'description': 'Boys sitting on tree trunk'
     },
     'connections': {
         'pexels_id': '8034611',

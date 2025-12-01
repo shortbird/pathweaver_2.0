@@ -16,7 +16,7 @@ HOMEPAGE_IMAGE_URLS = {
     'journaling': 'https://images.pexels.com/photos/5190600/pexels-photo-5190600.jpeg?auto=compress&cs=tinysrgb&w=1920',
     'badge_achievement': 'https://images.pexels.com/photos/7606222/pexels-photo-7606222.jpeg?auto=compress&cs=tinysrgb&w=1920',
     'quest_library': 'https://images.pexels.com/photos/7869245/pexels-photo-7869245.jpeg?auto=compress&cs=tinysrgb&w=1920',
-    'ai_tutor': 'https://images.pexels.com/photos/8005651/pexels-photo-8005651.jpeg?auto=compress&cs=tinysrgb&w=1920',
+    'ai_tutor': 'https://images.pexels.com/photos/8083816/pexels-photo-8083816.jpeg?auto=compress&cs=tinysrgb&w=1920',
     'connections': 'https://images.pexels.com/photos/8034611/pexels-photo-8034611.jpeg?auto=compress&cs=tinysrgb&w=1920',
     'choose_quest': 'https://images.pexels.com/photos/4473784/pexels-photo-4473784.jpeg?auto=compress&cs=tinysrgb&w=1920',
     'complete_tasks': 'https://images.pexels.com/photos/6790763/pexels-photo-6790763.jpeg?auto=compress&cs=tinysrgb&w=1920',
