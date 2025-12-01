@@ -111,6 +111,10 @@ app.register_blueprint(services_bp)  # /api/services (blueprint has url_prefix i
 app.register_blueprint(admin_services_bp)  # /api/admin/services (blueprint has url_prefix in route definitions)
 app.register_blueprint(observer_requests_bp)  # /api/observer-requests (blueprint has url_prefix in route definitions)
 
+# Register homepage images route (January 2025 - Homepage redesign)
+from routes.homepage_images import bp as homepage_images_bp
+app.register_blueprint(homepage_images_bp)  # /api/homepage (blueprint has url_prefix in route definitions)
+
 # Register Personalized Quest System blueprints FIRST (before main quests.bp)
 # This ensures specific personalization routes take precedence over generic quest routes
 try:
