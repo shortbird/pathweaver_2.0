@@ -123,7 +123,17 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       setPreviewLoading(true)
 
       // Convert markdown to HTML
-      const htmlBody = marked.parse(markdownBody)
+      let htmlBody = marked.parse(markdownBody)
+
+      // Convert button syntax: [Text](url){.button} to styled button
+      htmlBody = htmlBody.replace(
+        /<a href="([^"]+)">([^<]+)<\/a>\{\.button\}/g,
+        '<div style="text-align: center; margin: 30px 0;">' +
+        '<a href="$1" style="display: inline-block; background: linear-gradient(135deg, #6D469B 0%, #EF597B 100%); ' +
+        'color: white !important; text-decoration: none; padding: 16px 48px; border-radius: 8px; ' +
+        'font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(109, 70, 155, 0.25);">$2</a>' +
+        '</div>'
+      )
 
       // Substitute variables in the HTML using sample data
       let substitutedHtml = htmlBody
@@ -157,7 +167,18 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
             li { margin: 8px 0; color: #3B383C; line-height: 1.8; }
             code { background: #f8f7ff; padding: 2px 6px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 14px; }
             pre { background: #f8f7ff; padding: 16px; border-radius: 8px; overflow-x: auto; }
-            blockquote { border-left: 4px solid #6D469B; padding-left: 16px; margin: 20px 0; color: #605C61; font-style: italic; }
+            blockquote {
+              background: linear-gradient(135deg, #F8F7FF 0%, #FFF5F9 100%);
+              border-left: 4px solid #6D469B;
+              border-radius: 8px;
+              padding: 20px 24px;
+              margin: 24px 0;
+              color: #3B383C;
+              font-style: italic;
+              font-size: 16px;
+              line-height: 1.8;
+              box-shadow: 0 2px 8px rgba(109, 70, 155, 0.08);
+            }
             .footer { background: #f8f7ff; padding: 30px; text-align: center; border-top: 1px solid #e5e5e5; }
             .footer-text { font-size: 12px; color: #999; line-height: 1.6; margin: 8px 0; }
           </style>
@@ -197,7 +218,13 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
   }
 
   const handleSave = async () => {
-    if (!formData.template_key || !formData.name || !formData.subject || !formData.markdown_body) {
+    // Trim values for validation
+    const trimmedKey = (formData.template_key || '').trim()
+    const trimmedName = (formData.name || '').trim()
+    const trimmedSubject = (formData.subject || '').trim()
+    const trimmedBody = (formData.markdown_body || '').trim()
+
+    if (!trimmedKey || !trimmedName || !trimmedSubject || !trimmedBody) {
       toast.error('Please fill in all required fields (key, name, subject, body)')
       return
     }
@@ -205,8 +232,18 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
     try {
       setLoading(true)
 
-      // Convert markdown to HTML for storage
-      const htmlBody = marked.parse(formData.markdown_body)
+      // Convert markdown to HTML for storage with button support
+      let htmlBody = marked.parse(formData.markdown_body)
+
+      // Convert button syntax: [Text](url){.button} to styled button
+      htmlBody = htmlBody.replace(
+        /<a href="([^"]+)">([^<]+)<\/a>\{\.button\}/g,
+        '<div style="text-align: center; margin: 30px 0;">' +
+        '<a href="$1" style="display: inline-block; background: linear-gradient(135deg, #6D469B 0%, #EF597B 100%); ' +
+        'color: white !important; text-decoration: none; padding: 16px 48px; border-radius: 8px; ' +
+        'font-size: 16px; font-weight: 600; box-shadow: 0 4px 6px rgba(109, 70, 155, 0.25);">$2</a>' +
+        '</div>'
+      )
 
       const saveData = {
         template_key: formData.template_key,
@@ -404,13 +441,15 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
               {/* Markdown cheatsheet */}
               <div className="text-xs text-gray-600 space-y-1">
                 <p className="font-semibold">Markdown Quick Reference:</p>
-                <div className="grid grid-cols-2 gap-x-4">
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1">
                   <p>**bold** → <strong>bold</strong></p>
                   <p>*italic* → <em>italic</em></p>
                   <p># Heading 1</p>
                   <p>## Heading 2</p>
                   <p>- List item</p>
                   <p>[Link](url)</p>
+                  <p className="col-span-2 text-optio-purple font-semibold">[Button Text](url){'{.button}'} → Styled button</p>
+                  <p className="col-span-2 text-optio-purple font-semibold">&gt; Quote text → Styled quote box</p>
                 </div>
               </div>
             </div>
@@ -435,7 +474,11 @@ Here are your next steps:
 - Explore available quests
 - Start your first learning journey
 
-**Ready to begin?** Click the button below to view your dashboard."
+[View My Dashboard]({dashboard_url}){.button}
+
+> Remember: The process is the goal. Every step you take is valuable learning!
+
+Questions? Just reply to this email."
                 className="w-full h-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-optio-purple font-mono text-sm resize-none disabled:bg-gray-100"
               />
             </div>
