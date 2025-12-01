@@ -445,7 +445,7 @@ class CRMService(BaseService):
             template_key = template['key']
             html_filename = f"email/{template_key}.html"
 
-            # Check if HTML template exists, otherwise generate from YAML
+            # Try specific template first, then fall back to generic CRM wrapper
             try:
                 html_template = self.email_service.jinja_env.get_template(html_filename)
                 template_data = template['data']
@@ -454,9 +454,9 @@ class CRMService(BaseService):
                 render_context = {**template_data, **variables}
                 rendered_html = html_template.render(**render_context)
             except Exception as e:
-                logger.warning(f"HTML template {html_filename} not found, generating basic HTML: {e}")
-                # Fallback: generate simple HTML from template data
-                rendered_html = self._generate_basic_html(template['data'], variables)
+                logger.info(f"Specific template {html_filename} not found, using generic CRM wrapper: {e}")
+                # Use generic CRM wrapper template with professional styling
+                rendered_html = self._render_with_generic_wrapper(template['data'], variables, rendered_subject)
 
             # Generate plain text version
             text_body = self._html_to_text(rendered_html)
@@ -471,20 +471,101 @@ class CRMService(BaseService):
             logger.error(f"Error rendering email template: {e}")
             raise
 
-    def _generate_basic_html(self, template_data: Dict[str, Any], variables: Dict[str, Any]) -> str:
-        """Generate basic HTML email from template data"""
-        html_parts = ['<html><body style="font-family: Arial, sans-serif;">']
+    def _render_with_generic_wrapper(
+        self,
+        template_data: Dict[str, Any],
+        variables: Dict[str, Any],
+        subject: str
+    ) -> str:
+        """
+        Render email using generic CRM wrapper template with professional styling.
+
+        Args:
+            template_data: Template data dictionary (YAML-like structure)
+            variables: Variable values for substitution
+            subject: Rendered email subject
+
+        Returns:
+            Rendered HTML using base.html template with full styling
+        """
+        try:
+            # Load the generic CRM wrapper template
+            generic_template = self.email_service.jinja_env.get_template('email/crm_generic.html')
+
+            # Prepare render context
+            render_context = {
+                'email_subject': subject,
+                **variables
+            }
+
+            # Process greeting
+            if 'greeting' in template_data:
+                greeting_template = Template(template_data['greeting'])
+                render_context['greeting'] = greeting_template.render(**variables)
+
+            # Process body_html (custom templates) or paragraphs (YAML templates)
+            if 'body_html' in template_data:
+                # Custom template - render body_html with variables
+                body_template = Template(template_data['body_html'])
+                render_context['body_html'] = body_template.render(**variables)
+            elif 'paragraphs' in template_data:
+                # YAML template - render paragraphs as HTML
+                rendered_paragraphs = []
+                for para in template_data['paragraphs']:
+                    para_template = Template(para)
+                    rendered_paragraphs.append(f'<p class="text">{para_template.render(**variables)}</p>')
+                render_context['body_html'] = ''.join(rendered_paragraphs)
+
+            # Process CTA button
+            if 'cta' in template_data:
+                cta = template_data['cta']
+                cta_text_template = Template(cta.get('text', 'Click here'))
+                cta_url_template = Template(cta.get('url', '#'))
+                render_context['cta'] = {
+                    'text': cta_text_template.render(**variables),
+                    'url': cta_url_template.render(**variables)
+                }
+
+            # Process highlight box (if exists)
+            if 'highlight' in template_data:
+                highlight = template_data['highlight']
+                render_context['highlight'] = {
+                    'title': highlight.get('title', ''),
+                    'content': Template(highlight.get('content', '')).render(**variables)
+                }
+
+            # Process signature (if exists)
+            if 'signature' in template_data:
+                render_context['signature'] = template_data['signature']
+
+            # Render with generic wrapper
+            rendered_html = generic_template.render(**render_context)
+
+            logger.info("Successfully rendered email with generic CRM wrapper template")
+            return rendered_html
+
+        except Exception as e:
+            logger.error(f"Error rendering with generic wrapper: {e}")
+            # Last resort fallback to very basic HTML
+            return self._generate_basic_html_fallback(template_data, variables)
+
+    def _generate_basic_html_fallback(self, template_data: Dict[str, Any], variables: Dict[str, Any]) -> str:
+        """Emergency fallback - generate very basic HTML if wrapper template fails"""
+        html_parts = ['<html><body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">']
 
         # Greeting
         if 'greeting' in template_data:
             greeting_template = Template(template_data['greeting'])
-            html_parts.append(f'<h2>{greeting_template.render(**variables)}</h2>')
+            html_parts.append(f'<h2 style="color: #6D469B;">{greeting_template.render(**variables)}</h2>')
 
-        # Paragraphs
-        if 'paragraphs' in template_data:
+        # Paragraphs or body_html
+        if 'body_html' in template_data:
+            body_template = Template(template_data['body_html'])
+            html_parts.append(body_template.render(**variables))
+        elif 'paragraphs' in template_data:
             for para in template_data['paragraphs']:
                 para_template = Template(para)
-                html_parts.append(f'<p>{para_template.render(**variables)}</p>')
+                html_parts.append(f'<p style="line-height: 1.6; color: #333;">{para_template.render(**variables)}</p>')
 
         # CTA button
         if 'cta' in template_data:
@@ -492,12 +573,14 @@ class CRMService(BaseService):
             cta_text_template = Template(cta.get('text', 'Click here'))
             cta_url_template = Template(cta.get('url', '#'))
             html_parts.append(
-                f'<p><a href="{cta_url_template.render(**variables)}" '
+                f'<div style="text-align: center; margin: 30px 0;">'
+                f'<a href="{cta_url_template.render(**variables)}" '
                 f'style="background: linear-gradient(to right, #6D469B, #EF597B); '
-                f'color: white; padding: 12px 24px; text-decoration: none; border-radius: 8px; display: inline-block;">'
-                f'{cta_text_template.render(**variables)}</a></p>'
+                f'color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; display: inline-block; font-weight: 600;">'
+                f'{cta_text_template.render(**variables)}</a></div>'
             )
 
+        html_parts.append('<p style="margin-top: 30px; color: #666;">Best regards,<br>The Optio Team</p>')
         html_parts.append('</body></html>')
         return ''.join(html_parts)
 

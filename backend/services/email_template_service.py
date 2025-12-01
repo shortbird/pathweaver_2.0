@@ -238,7 +238,7 @@ class EmailTemplateService(BaseService):
             sample_data: Sample variable values (e.g., {'user_name': 'John Doe'})
 
         Returns:
-            Dictionary with rendered 'subject' and 'preview_text'
+            Dictionary with rendered 'subject', 'html' (full HTML), and 'preview_text'
         """
         try:
             template = self.get_template(template_key)
@@ -256,7 +256,10 @@ class EmailTemplateService(BaseService):
                 'xp_earned': 500,
                 'confirmation_link': 'https://www.optioeducation.com/confirm/abc123',
                 'reset_link': 'https://www.optioeducation.com/reset/abc123',
-                'expiry_hours': 24
+                'expiry_hours': 24,
+                'dashboard_url': 'https://www.optioeducation.com/dashboard',
+                'quests_url': 'https://www.optioeducation.com/quests',
+                'profile_url': 'https://www.optioeducation.com/profile'
             }
 
             # Merge with provided sample data
@@ -267,7 +270,18 @@ class EmailTemplateService(BaseService):
             subject_template = Template(template['subject'])
             rendered_subject = subject_template.render(**default_data)
 
-            # Render first paragraph as preview
+            # Import CRMService for rendering (circular import avoided by importing here)
+            from services.crm_service import CRMService
+            crm_service = CRMService()
+
+            # Render full HTML using the same logic as actual email sending
+            rendered_html = crm_service._render_with_generic_wrapper(
+                template_data=template['data'],
+                variables=default_data,
+                subject=rendered_subject
+            )
+
+            # Generate preview text from template data
             template_data = template['data']
             preview_parts = []
 
@@ -279,11 +293,19 @@ class EmailTemplateService(BaseService):
                 first_para = template_data['paragraphs'][0]
                 para_template = Template(first_para)
                 preview_parts.append(para_template.render(**default_data))
+            elif template_data.get('body_html'):
+                # For custom templates, show first 200 chars of rendered HTML (stripped)
+                import re
+                body_template = Template(template_data['body_html'])
+                rendered_body = body_template.render(**default_data)
+                text_only = re.sub(r'<[^>]+>', ' ', rendered_body)
+                preview_parts.append(text_only[:200])
 
             preview_text = ' '.join(preview_parts)
 
             return {
                 'subject': rendered_subject,
+                'html': rendered_html,  # Full rendered HTML for preview
                 'preview_text': preview_text,
                 'variables_used': list(default_data.keys())
             }
@@ -292,6 +314,7 @@ class EmailTemplateService(BaseService):
             logger.error(f"Template rendering error for '{template_key}': {e}")
             return {
                 'subject': '[Error rendering subject]',
+                'html': f'<div style="color: red;">Template error: {str(e)}</div>',
                 'preview_text': f'Template error: {str(e)}',
                 'variables_used': []
             }
