@@ -18,7 +18,11 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [showVariableModal, setShowVariableModal] = useState(false)
   const debounceTimer = useRef(null)
-  const isReadOnly = template?.source === 'yaml' || template?.is_system
+
+  // With override system, all templates are now editable
+  const isOverride = template?.is_override || false
+  const hasYamlDefault = template?.has_yaml_default || template?.source === 'yaml'
+  const canRevert = isOverride && hasYamlDefault
 
   // Available variables organized by category
   const availableVariables = {
@@ -295,6 +299,25 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
     }
   }
 
+  const handleRevert = async () => {
+    if (!canRevert) return
+
+    if (!confirm(`Are you sure you want to revert "${template.name}" to its default version? All customizations will be lost.`)) {
+      return
+    }
+
+    try {
+      setLoading(true)
+      await crmAPI.revertTemplate(template.template_key || template.key)
+      toast.success('Template reverted to default!')
+      onSave()
+    } catch (error) {
+      toast.error(error.response?.data?.error || 'Failed to revert template')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const addVariable = (varName) => {
     if (varName && !formData.variables.includes(varName)) {
       setFormData(prev => ({
@@ -340,12 +363,29 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       {/* Header */}
       <div className="flex justify-between items-center p-6 border-b">
         <div>
-          <h2 className="text-2xl font-bold">
-            {isReadOnly ? 'View Template' : template ? 'Edit Template' : 'Create Template'}
-          </h2>
-          {isReadOnly && (
-            <p className="text-sm text-yellow-600 mt-1">
-              System templates are read-only. Edit email_copy.yaml to modify.
+          <div className="flex items-center gap-3">
+            <h2 className="text-2xl font-bold">
+              {template ? 'Edit Template' : 'Create Template'}
+            </h2>
+            {isOverride && (
+              <span className="px-3 py-1 bg-orange-100 text-orange-700 text-xs font-semibold rounded-full">
+                CUSTOMIZED
+              </span>
+            )}
+            {hasYamlDefault && !isOverride && (
+              <span className="px-3 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-full">
+                DEFAULT
+              </span>
+            )}
+          </div>
+          {isOverride && (
+            <p className="text-sm text-orange-600 mt-1">
+              This template overrides the system default. Click "Revert to Default" to restore the original.
+            </p>
+          )}
+          {hasYamlDefault && !isOverride && (
+            <p className="text-sm text-blue-600 mt-1">
+              Changes will create a custom version that overrides the default.
             </p>
           )}
         </div>
@@ -561,14 +601,31 @@ Questions? Just reply to this email."
       </div>
 
       {/* Footer */}
-      <div className="flex justify-end gap-3 p-6 border-t bg-gray-50">
-        <button
-          onClick={onClose}
-          className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-white font-semibold"
-        >
-          {isReadOnly ? 'Close' : 'Cancel'}
-        </button>
-        {!isReadOnly && (
+      <div className="flex justify-between items-center gap-3 p-6 border-t bg-gray-50">
+        {/* Left side - Revert button (if applicable) */}
+        <div>
+          {canRevert && (
+            <button
+              onClick={handleRevert}
+              disabled={loading}
+              className="px-4 py-2 border-2 border-orange-500 text-orange-600 rounded-lg hover:bg-orange-50 disabled:opacity-50 font-semibold flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+              </svg>
+              Revert to Default
+            </button>
+          )}
+        </div>
+
+        {/* Right side - Close/Cancel and Save buttons */}
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-white font-semibold"
+          >
+            Cancel
+          </button>
           <button
             onClick={handleSave}
             disabled={loading}
@@ -576,7 +633,7 @@ Questions? Just reply to this email."
           >
             {loading ? 'Saving...' : 'Save Template'}
           </button>
-        )}
+        </div>
       </div>
 
       {/* Variable Selector Modal */}

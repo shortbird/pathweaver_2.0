@@ -32,7 +32,7 @@ def verify_advisor_access(advisor_user_id, student_user_id):
         raise AuthorizationError("Only advisors can access this endpoint")
 
     # Verify advisor-student link
-    link_response = supabase.table('advisor_students').select('id').eq(
+    link_response = supabase.table('advisor_student_assignments').select('id').eq(
         'advisor_id', advisor_user_id
     ).eq('student_id', student_user_id).execute()
 

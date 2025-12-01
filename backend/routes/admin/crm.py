@@ -466,11 +466,22 @@ def create_template(user_id):
 @crm_bp.route('/templates/<template_key>', methods=['PUT'])
 @require_admin
 def update_template(user_id, template_key):
-    """Update custom template (cannot update system templates)"""
+    """
+    Update template or create override for YAML templates.
+
+    Now supports editing system templates by creating database overrides.
+    """
     try:
         data = request.get_json()
 
-        template = get_template_service().update_template(template_key, data)
+        from flask import g
+        created_by = g.get('current_user_id')
+
+        template = get_template_service().update_template(
+            template_key,
+            data,
+            created_by=created_by
+        )
 
         return jsonify({
             'message': 'Template updated successfully',
@@ -481,6 +492,28 @@ def update_template(user_id, template_key):
         return jsonify({'error': str(e)}), 400
     except Exception as e:
         logger.error(f"Error updating template: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
+@crm_bp.route('/templates/<template_key>/revert', methods=['POST'])
+@require_admin
+def revert_template(user_id, template_key):
+    """
+    Revert template to YAML default by deleting override.
+
+    Only works for templates that have a YAML default.
+    """
+    try:
+        get_template_service().revert_to_default(template_key)
+
+        return jsonify({
+            'message': f"Template '{template_key}' reverted to default successfully"
+        }), 200
+
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error reverting template: {e}")
         return jsonify({'error': str(e)}), 500
 
 

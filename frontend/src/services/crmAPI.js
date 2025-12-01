@@ -22,6 +22,7 @@ export const crmAPI = {
   getTemplate: (key) => api.get(`/api/admin/crm/templates/${key}`),
   createTemplate: (data) => api.post('/api/admin/crm/templates', data),
   updateTemplate: (key, data) => api.put(`/api/admin/crm/templates/${key}`, data),
+  revertTemplate: (key) => api.post(`/api/admin/crm/templates/${key}/revert`, {}),
   deleteTemplate: (key) => api.delete(`/api/admin/crm/templates/${key}`),
   previewTemplate: (key, sampleData) => api.post(`/api/admin/crm/templates/${key}/preview`, { sample_data: sampleData }),
   syncTemplates: (keys) => api.post('/api/admin/crm/templates/sync', { template_keys: keys }),

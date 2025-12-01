@@ -30,7 +30,12 @@ class EmailTemplateService(BaseService):
 
     def get_template(self, template_key: str) -> Optional[Dict[str, Any]]:
         """
-        Get template by key from database or YAML fallback.
+        Get template by key with override support.
+
+        Override logic:
+        1. Check database for override (is_override = true) - takes precedence
+        2. Fall back to YAML default if no override exists
+        3. If neither exists, return None
 
         Args:
             template_key: Template identifier (e.g., 'welcome', 'onboarding_day_1')
@@ -38,12 +43,17 @@ class EmailTemplateService(BaseService):
         Returns:
             Template dictionary with structure matching email_copy.yaml format
             Includes markdown_source if available for editing
+            Includes is_override and has_yaml_default flags for UI
         """
         try:
-            # Try database first
+            # Check if YAML default exists
+            yaml_copy = self.copy_loader.get_email_copy(template_key)
+            has_yaml_default = yaml_copy is not None
+
+            # Try database first for overrides
             db_template = self.crm_repo.get_template_by_key(template_key)
-            if db_template:
-                logger.info(f"Loaded template '{template_key}' from database")
+            if db_template and db_template.get('is_override'):
+                logger.info(f"Loaded OVERRIDE template '{template_key}' from database")
                 template_data = db_template['template_data']
 
                 # Add markdown_source to data if it exists (for frontend editor)
@@ -56,19 +66,22 @@ class EmailTemplateService(BaseService):
                     'subject': db_template['subject'],
                     'data': template_data,
                     'is_system': db_template.get('is_system', False),
-                    'source': 'database'
+                    'is_override': True,
+                    'has_yaml_default': has_yaml_default,
+                    'source': 'database_override'
                 }
 
-            # Fallback to YAML
-            yaml_copy = self.copy_loader.get_email_copy(template_key)
+            # Fallback to YAML default
             if yaml_copy:
-                logger.info(f"Loaded template '{template_key}' from YAML")
+                logger.info(f"Loaded YAML default template '{template_key}'")
                 return {
                     'key': template_key,
                     'name': template_key.replace('_', ' ').title(),
                     'subject': yaml_copy.get('subject', ''),
                     'data': yaml_copy,
                     'is_system': True,
+                    'is_override': False,
+                    'has_yaml_default': True,
                     'source': 'yaml'
                 }
 
@@ -81,43 +94,53 @@ class EmailTemplateService(BaseService):
 
     def list_templates(self, include_yaml: bool = True) -> List[Dict[str, Any]]:
         """
-        List all available templates from database and optionally YAML.
+        List all available templates with override indication.
+
+        Shows:
+        - Database overrides (is_override = true)
+        - YAML defaults (not overridden)
+        - Indicates which templates are customized vs default
 
         Args:
             include_yaml: If True, include templates from email_copy.yaml
 
         Returns:
-            List of template dictionaries with metadata
+            List of template dictionaries with metadata including is_override flag
         """
         templates = []
 
         try:
-            # Get database templates
+            # Get database templates (overrides only)
             db_templates = self.crm_repo.get_templates()
+            override_keys = set()
+
             for tpl in db_templates:
-                templates.append({
-                    'key': tpl['template_key'],
-                    'name': tpl['name'],
-                    'subject': tpl['subject'],
-                    'description': tpl.get('description', ''),
-                    'is_system': tpl.get('is_system', False),
-                    'source': 'database',
-                    'created_at': tpl.get('created_at')
-                })
+                if tpl.get('is_override'):
+                    override_keys.add(tpl['template_key'])
+                    templates.append({
+                        'key': tpl['template_key'],
+                        'name': tpl['name'],
+                        'subject': tpl['subject'],
+                        'description': tpl.get('description', ''),
+                        'is_system': tpl.get('is_system', False),
+                        'is_override': True,
+                        'source': 'database_override',
+                        'created_at': tpl.get('created_at')
+                    })
 
             # Get YAML templates if requested
             if include_yaml:
                 yaml_emails = self.copy_loader.copy_data.get('emails', {})
-                db_keys = {tpl['key'] for tpl in templates}
 
                 for key, data in yaml_emails.items():
-                    if key not in db_keys:  # Don't duplicate if already in DB
+                    if key not in override_keys:  # Show YAML default if not overridden
                         templates.append({
                             'key': key,
                             'name': key.replace('_', ' ').title(),
                             'subject': data.get('subject', ''),
                             'description': f"System template from email_copy.yaml",
                             'is_system': True,
+                            'is_override': False,
                             'source': 'yaml',
                             'created_at': None
                         })
@@ -182,34 +205,101 @@ class EmailTemplateService(BaseService):
     def update_template(
         self,
         template_key: str,
-        updates: Dict[str, Any]
+        updates: Dict[str, Any],
+        created_by: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Update an existing template.
+        Update template or create override for YAML templates.
+
+        If template exists in database with is_override=true, update it.
+        If template only exists in YAML, create a new override record.
+        This allows editing "system" templates by creating overrides.
 
         Args:
             template_key: Template identifier
             updates: Dictionary of fields to update
+            created_by: UUID of user creating override (required for new overrides)
 
         Returns:
-            Updated template dictionary
+            Updated/created template dictionary
         """
         try:
-            # Don't allow updating system templates
-            existing = self.crm_repo.get_template_by_key(template_key)
-            if existing and existing.get('is_system'):
-                raise ValueError("Cannot update system templates")
-
             # Validate template_data if being updated
             if 'template_data' in updates:
                 self._validate_template_data(updates['template_data'])
 
-            updated = self.crm_repo.update_template(template_key, updates)
-            logger.info(f"Updated template '{template_key}'")
-            return updated
+            # Check if override already exists
+            existing = self.crm_repo.get_template_by_key(template_key)
+
+            if existing and existing.get('is_override'):
+                # Update existing override
+                updated = self.crm_repo.update_template(template_key, updates)
+                logger.info(f"Updated override template '{template_key}'")
+                return updated
+
+            # Check if YAML template exists
+            yaml_template = self.copy_loader.get_email_copy(template_key)
+
+            if yaml_template:
+                # Create override for YAML template
+                logger.info(f"Creating override for YAML template '{template_key}'")
+
+                override_data = {
+                    'template_key': template_key,
+                    'name': updates.get('name', template_key.replace('_', ' ').title()),
+                    'subject': updates.get('subject', yaml_template.get('subject', '')),
+                    'description': updates.get('description', f"Override of {template_key}"),
+                    'template_data': updates.get('template_data', yaml_template),
+                    'is_system': True,  # Maintain that this was originally a system template
+                    'is_override': True,  # Mark as override
+                    'created_by': created_by
+                }
+
+                created = self.crm_repo.create_template(override_data)
+                logger.info(f"Created override for template '{template_key}'")
+                return created
+
+            # Template doesn't exist anywhere
+            raise ValueError(f"Template '{template_key}' not found")
 
         except Exception as e:
             logger.error(f"Error updating template '{template_key}': {e}")
+            raise
+
+    def revert_to_default(self, template_key: str) -> bool:
+        """
+        Revert a template to its YAML default by deleting the override.
+
+        This removes the database override record, causing the template
+        to fall back to its YAML default.
+
+        Args:
+            template_key: Template identifier
+
+        Returns:
+            True if reverted successfully
+
+        Raises:
+            ValueError: If template has no YAML default to revert to
+        """
+        try:
+            # Check if YAML default exists
+            yaml_template = self.copy_loader.get_email_copy(template_key)
+            if not yaml_template:
+                raise ValueError(f"Template '{template_key}' has no YAML default to revert to")
+
+            # Check if override exists
+            existing = self.crm_repo.get_template_by_key(template_key)
+            if not existing or not existing.get('is_override'):
+                raise ValueError(f"Template '{template_key}' is not overridden (already using default)")
+
+            # Delete the override
+            self.crm_repo.delete_template(template_key)
+            logger.info(f"Reverted template '{template_key}' to YAML default")
+            return True
+
+        except Exception as e:
+            logger.error(f"Error reverting template '{template_key}': {e}")
             raise
 
     def delete_template(self, template_key: str) -> bool:
