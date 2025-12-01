@@ -11,6 +11,7 @@ import SiteSettings from '../components/admin/SiteSettings'
 import FlaggedTasksPanel from '../components/admin/FlaggedTasksPanel'
 import UserActivityLogPage from './admin/UserActivityLogPage'
 import SparkLogsPanel from '../components/admin/SparkLogsPanel'
+import CRMPage from './CRMPage'
 
 const AdminPage = () => {
   const location = useLocation()
@@ -79,6 +80,12 @@ const AdminPage = () => {
             >
               LMS Logs
             </Link>
+            <Link
+              to="/admin/crm"
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'crm' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            >
+              CRM
+            </Link>
           </>
         )}
 
@@ -104,6 +111,7 @@ const AdminPage = () => {
         <Route path="flagged-tasks" element={<FlaggedTasksPanel />} />
         <Route path="user/:userId/activity" element={<UserActivityLogPage />} />
         <Route path="lms-logs" element={<SparkLogsPanel />} />
+        <Route path="crm" element={<CRMPage />} />
       </Routes>
     </div>
   )

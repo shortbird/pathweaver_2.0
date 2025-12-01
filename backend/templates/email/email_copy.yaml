@@ -263,3 +263,65 @@ emails:
       content: "Our team typically responds within 24-48 hours. We'll reach out to discuss how we can best support your learning journey and answer any questions you have."
     closing_paragraph: "If you have additional questions or need immediate assistance, feel free to reply to this email."
     signature: "support"
+
+  # Onboarding Sequence Templates (CRM System - January 2025)
+  onboarding_day_1_reminder:
+    subject: "Quick reminder: Confirm your Optio account"
+    title: "Don't forget to confirm your email!"
+    greeting: "Hi {user_name},"
+    paragraphs:
+      - "You're almost ready to start your learning journey! Just one quick step..."
+      - "Click the button below to confirm your email and unlock full access to Optio."
+    cta:
+      text: "Confirm Email Address"
+      url: "{confirmation_link}"
+    closing_paragraph: "Once confirmed, you'll have access to hundreds of learning quests across five skill pillars."
+    signature: "support"
+
+  onboarding_day_3_first_quest:
+    subject: "Ready to start your first quest?"
+    title: "Your First Quest Awaits!"
+    greeting: "Hi {user_name},"
+    paragraphs:
+      - "You've created your Optio account—awesome! Now it's time to dive in."
+      - "We've curated some beginner-friendly quests just for you. Pick one that sparks your curiosity!"
+    cta:
+      text: "Browse Quests"
+      url: "https://www.optioeducation.com/quests"
+    highlight_box:
+      title: "The Process Is The Goal"
+      content: "Every quest you start is progress. Don't worry about perfection—focus on learning and growing through the journey."
+    closing_paragraph: "Start with something that interests you, and let your curiosity guide the way."
+    signature: "support"
+
+  onboarding_day_5_ai_tutor:
+    subject: "Have you met your AI tutor?"
+    title: "Your AI Tutor Is Ready to Help"
+    greeting: "Hi {user_name},"
+    paragraphs:
+      - "Did you know you have a personal AI tutor available 24/7?"
+      - "Whether you're stuck on a task or just curious about a topic, your tutor is here to help you learn."
+    cta:
+      text: "Chat with Your Tutor"
+      url: "https://www.optioeducation.com/tutor"
+    highlight_box:
+      title: "Learning Support, Anytime"
+      content: "Your AI tutor can help explain concepts, suggest resources, give feedback on your work, and answer questions as you progress through quests."
+    closing_paragraph: "Don't hesitate to ask questions—curiosity is the foundation of all learning."
+    signature: "support"
+
+  onboarding_day_7_community:
+    subject: "Connect with other learners"
+    title: "Learning Is Better Together"
+    greeting: "Hi {user_name},"
+    paragraphs:
+      - "You're not learning alone! Optio has a community of motivated learners like you."
+      - "Connect with others, share your progress, and celebrate each other's wins."
+    cta:
+      text: "Find Learning Partners"
+      url: "https://www.optioeducation.com/connections"
+    highlight_box:
+      title: "Why Connect?"
+      content: "Learning partners can collaborate on quests, share evidence, offer feedback, and keep you motivated through your journey."
+    closing_paragraph: "Build connections that support your learning and celebrate your growth together."
+    signature: "support"
