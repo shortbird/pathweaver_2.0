@@ -349,6 +349,88 @@ const HomePage = () => {
         </div>
       </div>
 
+      {/* Accreditation Section */}
+      <div className="py-20 bg-white">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div
+            ref={(el) => (sectionRefs.current.accreditation = el)}
+            data-section="accreditation"
+            className={`grid md:grid-cols-2 gap-12 items-center transition-all duration-700 ${
+              isVisible('accreditation') ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'
+            }`}
+          >
+            {/* Left: Image */}
+            <div className="relative overflow-hidden rounded-2xl shadow-2xl group">
+              <img
+                src={getImageUrl(images, 'accreditation', '')}
+                alt="Student holding diploma"
+                className="w-full h-[500px] object-cover transition-transform duration-500 group-hover:scale-105"
+                loading="lazy"
+              />
+            </div>
+
+            {/* Right: Content */}
+            <div className="space-y-6">
+              <h2 className="text-3xl sm:text-4xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                Accredited Learning That Counts
+              </h2>
+              <p className="text-lg text-gray-600 leading-relaxed" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                Every quest completed on Optio is more than just a learning experience—it's officially recognized education that contributes to academic credentials.
+              </p>
+
+              <div className="space-y-4">
+                <div className="flex items-start">
+                  <CheckCircle className="w-6 h-6 text-optio-purple flex-shrink-0 mt-1 mr-4" />
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-lg mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                      Earn an official high school diploma
+                    </h3>
+                    <p className="text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                      All completed work is officially accredited and counts toward graduation requirements.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <CheckCircle className="w-6 h-6 text-optio-purple flex-shrink-0 mt-1 mr-4" />
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-lg mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                      College admissions ready
+                    </h3>
+                    <p className="text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                      Official transcripts meet all college and university admission requirements.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start">
+                  <CheckCircle className="w-6 h-6 text-optio-purple flex-shrink-0 mt-1 mr-4" />
+                  <div>
+                    <h3 className="font-bold text-gray-900 text-lg mb-1" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                      Portfolio meets transcript
+                    </h3>
+                    <p className="text-gray-600" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                      Combine your rich portfolio of evidence with an official academic transcript for a complete picture of achievement.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4">
+                <Link
+                  to="/register"
+                  className="inline-flex items-center bg-gradient-primary text-white px-8 py-4 rounded-lg font-bold shadow-lg hover:shadow-xl transform hover:scale-105 transition-all"
+                  style={{ fontFamily: 'Poppins', fontWeight: 700 }}
+                >
+                  Start Your Accredited Journey
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Main CTA Section - Platform Launch */}
       <div className="py-16 bg-gradient-primary text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">

@@ -23,7 +23,8 @@ HOMEPAGE_IMAGE_URLS = {
     'submit_evidence': 'https://images.pexels.com/photos/7221277/pexels-photo-7221277.jpeg?auto=compress&cs=tinysrgb&w=1920',
     'earn_recognition': 'https://images.pexels.com/photos/1134188/pexels-photo-1134188.jpeg?auto=compress&cs=tinysrgb&w=1920',
     'philosophy_hero': 'https://images.pexels.com/photos/3768121/pexels-photo-3768121.jpeg?auto=compress&cs=tinysrgb&w=1920',
-    'success_collage': 'https://images.pexels.com/photos/7692994/pexels-photo-7692994.jpeg?auto=compress&cs=tinysrgb&w=1920'
+    'success_collage': 'https://images.pexels.com/photos/7692994/pexels-photo-7692994.jpeg?auto=compress&cs=tinysrgb&w=1920',
+    'accreditation': 'https://images.pexels.com/photos/8106690/pexels-photo-8106690.jpeg?auto=compress&cs=tinysrgb&w=1920'
 }
 
 # Image specifications for all homepage sections
@@ -98,6 +99,14 @@ IMAGE_SPECS = [
         "query": "teenager reading book deeply focused natural light candid authentic",
         "orientation": "landscape",
         "section": "philosophy"
+    },
+
+    # Accreditation Section (1 image)
+    {
+        "key": "accreditation",
+        "query": "woman holding diploma graduation certificate proud achievement",
+        "orientation": "portrait",
+        "section": "accreditation"
     },
 
     # Final CTA Section (1 image)
