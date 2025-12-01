@@ -409,7 +409,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
                 type="text"
                 value={formData.template_key}
                 onChange={(e) => setFormData(prev => ({ ...prev, template_key: e.target.value }))}
-                disabled={isReadOnly || template}
+                disabled={template !== null}
                 placeholder="e.g., welcome_email"
                 className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
               />
