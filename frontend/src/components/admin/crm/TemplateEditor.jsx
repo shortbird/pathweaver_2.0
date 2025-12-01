@@ -423,9 +423,8 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                disabled={isReadOnly}
                 placeholder="e.g., Welcome Email"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple"
               />
             </div>
 
@@ -437,9 +436,8 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
                 type="text"
                 value={formData.subject}
                 onChange={(e) => setFormData(prev => ({ ...prev, subject: e.target.value }))}
-                disabled={isReadOnly}
                 placeholder="e.g., Welcome to Optio!"
-                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
+                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple"
               />
             </div>
           </div>
@@ -450,9 +448,8 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
               type="text"
               value={formData.description}
               onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-              disabled={isReadOnly}
               placeholder="Brief description of this template"
-              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple disabled:bg-gray-100"
+              className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-optio-purple"
             />
           </div>
         </div>
@@ -465,14 +462,12 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-lg font-bold">Markdown Editor</h3>
                 <div className="flex gap-2">
-                  {!isReadOnly && (
-                    <button
-                      onClick={() => setShowVariableModal(true)}
-                      className="text-sm px-3 py-1 bg-optio-purple text-white rounded hover:bg-optio-purple-dark"
-                    >
-                      + Add Variable
-                    </button>
-                  )}
+                  <button
+                    onClick={() => setShowVariableModal(true)}
+                    className="text-sm px-3 py-1 bg-optio-purple text-white rounded hover:bg-optio-purple-dark"
+                  >
+                    + Add Variable
+                  </button>
                 </div>
               </div>
 
@@ -483,19 +478,16 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
                     <div key={v} className="flex items-center gap-1">
                       <button
                         onClick={() => insertVariable(v)}
-                        disabled={isReadOnly}
-                        className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-mono hover:bg-purple-200 disabled:opacity-50"
+                        className="px-2 py-1 bg-purple-100 text-purple-800 rounded text-xs font-mono hover:bg-purple-200"
                       >
                         {`{${v}}`}
                       </button>
-                      {!isReadOnly && (
-                        <button
-                          onClick={() => removeVariable(v)}
-                          className="text-red-500 hover:text-red-700 text-xs"
-                        >
-                          ×
-                        </button>
-                      )}
+                      <button
+                        onClick={() => removeVariable(v)}
+                        className="text-red-500 hover:text-red-700 text-xs"
+                      >
+                        ×
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -522,7 +514,6 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
                 id="markdown-editor"
                 value={formData.markdown_body}
                 onChange={(e) => setFormData(prev => ({ ...prev, markdown_body: e.target.value }))}
-                disabled={isReadOnly}
                 placeholder="Write your email content in markdown...
 
 Example:
