@@ -55,10 +55,10 @@ def verify_parent_access(parent_user_id, student_user_id):
     if user_role not in ['parent', 'admin']:
         raise AuthorizationError("Only parents can access this endpoint")
 
-    # Verify active link
+    # Verify link exists (no status column - once linked, always linked)
     link_response = supabase.table('parent_student_links').select('id').eq(
         'parent_user_id', parent_user_id
-    ).eq('student_user_id', student_user_id).eq('status', 'active').execute()
+    ).eq('student_user_id', student_user_id).execute()
 
     if not link_response.data:
         raise AuthorizationError("You do not have access to this student's data")
