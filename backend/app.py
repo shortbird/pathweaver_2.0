@@ -139,7 +139,6 @@ app.register_blueprint(admin_core.bp)   # /api/admin (blueprint has url_prefix='
 app.register_blueprint(user_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(quest_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(badge_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
-app.register_blueprint(quest_ideas.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
 app.register_blueprint(analytics.bp)  # /api/admin/analytics (blueprint has url_prefix='/api/admin/analytics')
 app.register_blueprint(student_task_management.bp)  # /api/admin/users (blueprint has url_prefix='/api/admin/users')
 app.register_blueprint(sample_task_management.bp)  # /api/admin (blueprint has url_prefix='/api/admin')
