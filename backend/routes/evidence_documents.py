@@ -241,6 +241,8 @@ def save_evidence_document(user_id: str, task_id: str):
         quest_completed = False
 
         if status == 'completed':
+            logger.info(f"[EVIDENCE_DOC] Task completion requested: task_id={task_id[:8]}, user_id={user_id[:8]}, status=completed")
+
             # Check if this task was already completed (V3 system)
             existing_completion = admin_supabase.table('quest_task_completions')\
                 .select('id')\
@@ -248,15 +250,21 @@ def save_evidence_document(user_id: str, task_id: str):
                 .eq('task_id', task_id)\
                 .execute()
 
+            logger.info(f"[EVIDENCE_DOC] Existing completion check: found={len(existing_completion.data or [])} records")
+
             if not existing_completion.data:
                 # Award XP for task completion
                 task_data = task_check.data[0]
                 base_xp = task_data.get('xp_value', 0)
 
+                logger.info(f"[EVIDENCE_DOC] Creating new completion record: task_id={task_id[:8]}, base_xp={base_xp}")
+
                 # Calculate XP with collaboration bonus if applicable
                 final_xp, has_collaboration = xp_service.calculate_task_xp(
                     user_id, task_id, quest_id, base_xp
                 )
+
+                logger.info(f"[EVIDENCE_DOC] XP calculated: final_xp={final_xp}, has_collaboration={has_collaboration}")
 
                 # Create task completion record using V3 system
                 completion = admin_supabase.table('quest_task_completions')\
@@ -270,10 +278,16 @@ def save_evidence_document(user_id: str, task_id: str):
                     })\
                     .execute()
 
+                logger.info(f"[EVIDENCE_DOC] Completion record insert result: success={bool(completion.data)}, record_count={len(completion.data or [])}")
+                if completion.data:
+                    logger.info(f"[EVIDENCE_DOC] Completion record created with ID: {completion.data[0].get('id', 'unknown')[:8]}")
+
                 if completion.data:
                     # Award XP to user (this will be handled by existing XP service)
                     task_pillar = task_data.get('pillar', 'creativity')
                     xp_awarded = final_xp
+
+                    logger.info(f"[EVIDENCE_DOC] Awarding {final_xp} XP for pillar '{task_pillar}'")
 
                     xp_service.award_xp(
                         user_id,
@@ -284,6 +298,11 @@ def save_evidence_document(user_id: str, task_id: str):
 
                     # Check if quest is now completed
                     quest_completed = check_quest_completion(admin_supabase, user_id, quest_id)
+                    logger.info(f"[EVIDENCE_DOC] Quest completion check: quest_completed={quest_completed}")
+                else:
+                    logger.error(f"[EVIDENCE_DOC] FAILED to create completion record for task {task_id[:8]}")
+            else:
+                logger.info(f"[EVIDENCE_DOC] Task already completed, skipping XP award")
 
         # Get the saved blocks to return their IDs
         saved_blocks_response = admin_supabase.table('evidence_document_blocks')\
