@@ -14,13 +14,14 @@ from utils.logger import get_logger
 
 logger = get_logger(__name__)
 
-class QuestConceptMatcher:
+class QuestConceptMatcher(BaseService):
     """Handles concept extraction and similarity matching for quests"""
-    
+
     def __init__(self, user_id: Optional[str] = None):
         """Initialize the concept matcher with common word lists"""
         super().__init__(user_id)
-# Common words to filter out
+
+        # Common words to filter out
         self.common_words = {
             'the', 'and', 'for', 'with', 'this', 'that', 'your', 'will', 
             'can', 'how', 'what', 'when', 'where', 'why', 'are', 'was',

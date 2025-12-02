@@ -80,6 +80,53 @@ class BatchQuestGenerationService(BaseService):
             logger.error(f"Error fetching recent quest titles: {e}")
             return []
 
+    def _get_diverse_title_sample(self, sample_size: int = 100) -> List[str]:
+        """
+        Get a diverse sample of quest titles to avoid duplicates.
+        Uses stratified sampling to get variety across the entire library.
+        """
+        try:
+            # Get total count
+            count_response = self.supabase.table('quests')\
+                .select('id', count='exact')\
+                .eq('is_active', True)\
+                .execute()
+
+            total_quests = count_response.count
+
+            if total_quests <= sample_size:
+                # If we have fewer quests than sample size, get all
+                response = self.supabase.table('quests')\
+                    .select('title')\
+                    .eq('is_active', True)\
+                    .execute()
+                return [q['title'] for q in response.data] if response.data else []
+
+            # Use stratified sampling - get evenly spaced samples
+            step = max(1, total_quests // sample_size)
+            sampled_titles = []
+
+            for i in range(0, total_quests, step):
+                response = self.supabase.table('quests')\
+                    .select('title')\
+                    .eq('is_active', True)\
+                    .order('created_at', desc=False)\
+                    .range(i, i)\
+                    .execute()
+
+                if response.data:
+                    sampled_titles.append(response.data[0]['title'])
+
+                if len(sampled_titles) >= sample_size:
+                    break
+
+            logger.info(f"Sampled {len(sampled_titles)} diverse titles from {total_quests} total quests")
+            return sampled_titles[:sample_size]
+
+        except Exception as e:
+            logger.error(f"Error getting diverse title sample: {e}")
+            return []
+
     def _get_all_active_quests(self) -> List[Dict]:
         """Fetch all active quests for similarity checking."""
         try:
@@ -92,6 +139,85 @@ class BatchQuestGenerationService(BaseService):
         except Exception as e:
             logger.error(f"Error fetching active quests: {e}")
             return []
+
+    def _get_all_quests_including_pending(self) -> List[Dict]:
+        """
+        Fetch ALL quests that exist: active + review queue.
+        This prevents generating duplicates of quests awaiting approval.
+        """
+        all_quests = []
+
+        try:
+            # Get all active quests
+            active = self.supabase.table('quests')\
+                .select('id, title, big_idea, description')\
+                .eq('is_active', True)\
+                .execute()
+
+            all_quests.extend(active.data or [])
+
+            # Get quests in review queue (pending or pending_review status)
+            review_queue = self.supabase.table('ai_quest_review_queue')\
+                .select('id, quest_data')\
+                .in_('status', ['pending', 'pending_review'])\
+                .execute()
+
+            # Extract quest data from review queue
+            for item in (review_queue.data or []):
+                quest_data = item.get('quest_data', {})
+                if quest_data.get('title'):
+                    all_quests.append({
+                        'id': f"pending_{item['id']}",  # Temporary ID
+                        'title': quest_data.get('title'),
+                        'big_idea': quest_data.get('big_idea') or quest_data.get('description', '')
+                    })
+
+            logger.info(f"Loaded {len(all_quests)} total quests for duplicate checking "
+                       f"({len(active.data or [])} active + {len(review_queue.data or [])} pending)")
+
+            return all_quests
+
+        except Exception as e:
+            logger.error(f"Error fetching all quests: {e}")
+            return all_quests
+
+    def _check_concept_clustering(self, recent_generated: List[Dict], window_size: int = 10) -> Dict:
+        """
+        Check if recent generations are clustering around similar concepts.
+        Returns warning if we're generating too many similar quests.
+        """
+        if len(recent_generated) < window_size:
+            return {"clustering": False}
+
+        # Get last N quests
+        recent = recent_generated[-window_size:]
+
+        # Extract all concepts
+        all_concepts = []
+        for quest in recent:
+            concepts = self.concept_matcher.extract_concepts(quest)
+            all_concepts.extend(concepts.get('activities', []))
+            all_concepts.extend(concepts.get('topics', []))
+
+        # Check for repeated concepts
+        from collections import Counter
+        concept_counts = Counter(all_concepts)
+        most_common = concept_counts.most_common(5)
+
+        # If any concept appears in >50% of recent quests, we're clustering
+        clustering_threshold = window_size * 0.5
+        is_clustering = any(count > clustering_threshold for _, count in most_common)
+
+        if is_clustering:
+            clustered_concepts = [concept for concept, count in most_common
+                                 if count > clustering_threshold]
+            return {
+                "clustering": True,
+                "concepts": clustered_concepts,
+                "recommendation": f"Detected concept clustering: {', '.join(clustered_concepts)}"
+            }
+
+        return {"clustering": False}
 
     def generate_batch(
         self,
@@ -114,10 +240,10 @@ class BatchQuestGenerationService(BaseService):
         Returns:
             Dict with batch generation results and progress
         """
-        if count < 1 or count > 20:
+        if count < 1 or count > 200:
             return {
                 "success": False,
-                "error": "Batch size must be between 1 and 20"
+                "error": "Batch size must be between 1 and 200"
             }
 
         batch_id = batch_id or str(uuid.uuid4())  # Used only for response tracking
@@ -129,12 +255,19 @@ class BatchQuestGenerationService(BaseService):
             "failed": [],
             "submitted_to_review": 0,
             "similarity_metrics": [],
+            "clustering_warnings": [],
             "started_at": datetime.utcnow().isoformat()
         }
 
-        # Get existing quests for duplicate prevention
-        recent_titles = self._get_recent_quest_titles(limit=50)
-        all_active_quests = self._get_all_active_quests()
+        # ENHANCED DUPLICATE PREVENTION
+        # 1. Get ALL quests including review queue
+        all_existing_quests = self._get_all_quests_including_pending()
+
+        # 2. Get diverse title sample for AI prompts (100 titles across entire history)
+        avoid_titles = self._get_diverse_title_sample(sample_size=100)
+
+        # 3. Track batch-generated quests
+        batch_generated_quests = []
 
         # Get badge context if targeting a badge
         badge_context = None
@@ -143,19 +276,42 @@ class BatchQuestGenerationService(BaseService):
 
         for i in range(count):
             try:
-                # Generate quest based on parameters
+                # 4. Check for concept clustering every 10 quests
+                if i > 0 and i % 10 == 0:
+                    cluster_check = self._check_concept_clustering(batch_generated_quests)
+                    if cluster_check['clustering']:
+                        # Add clustered concepts to avoid list
+                        avoid_titles.extend(cluster_check['concepts'])
+                        results['clustering_warnings'].append({
+                            "at_quest": i,
+                            "clustered_concepts": cluster_check['concepts'],
+                            "recommendation": cluster_check['recommendation']
+                        })
+                        logger.warning(f"Quest {i}: {cluster_check['recommendation']}")
+
+                # Generate quest with full duplicate checking
                 quest_data = self._generate_single_quest(
                     target_pillar=target_pillar,
                     badge_context=badge_context,
                     difficulty_level=difficulty_level,
-                    avoid_titles=recent_titles,
-                    existing_quests=all_active_quests
+                    avoid_titles=avoid_titles,
+                    existing_quests=all_existing_quests + batch_generated_quests  # Check everything!
                 )
 
                 if quest_data.get('success'):
+                    quest = quest_data['quest']
+
+                    # Track for this batch
+                    batch_generated_quests.append(quest)
+
+                    # Add to avoid list (rolling window to keep manageable)
+                    avoid_titles.append(quest['title'])
+                    if len(avoid_titles) > 150:
+                        avoid_titles = avoid_titles[-150:]
+
                     # Submit to review queue
                     review_result = self.review_service.submit_for_review(
-                        quest_data=quest_data['quest'],
+                        quest_data=quest,
                         quality_score=quest_data.get('quality_score', 7.0),
                         ai_feedback=quest_data.get('ai_feedback', {}),
                         generation_source='batch',
@@ -165,7 +321,7 @@ class BatchQuestGenerationService(BaseService):
 
                     if review_result.get('success'):
                         results['generated'].append({
-                            "quest_title": quest_data['quest']['title'],
+                            "quest_title": quest['title'],
                             "review_queue_id": review_result['review_queue_id'],
                             "quality_score": quest_data.get('quality_score', 0)
                         })
@@ -173,14 +329,19 @@ class BatchQuestGenerationService(BaseService):
 
                         # Track similarity metrics if available
                         if quest_data.get('similarity_check'):
+                            similarity_score = quest_data['similarity_check'].get('score', 0)
+                            most_similar = quest_data['similarity_check'].get('most_similar', {})
+
                             results['similarity_metrics'].append({
-                                "quest_title": quest_data['quest']['title'],
-                                "similarity_score": quest_data['similarity_check'].get('score', 0),
-                                "most_similar_to": quest_data['similarity_check'].get('most_similar', {}).get('title')
+                                "quest_title": quest['title'],
+                                "similarity_score": similarity_score,
+                                "most_similar_to": most_similar.get('title') if most_similar else None
                             })
 
-                        # Add generated quest title to avoid list for next iterations
-                        recent_titles.append(quest_data['quest']['title'])
+                            # Log warning for high similarity
+                            if similarity_score > 0.6:
+                                logger.warning(f"Quest '{quest['title']}' has {similarity_score:.0%} similarity to '{most_similar.get('title')}'")
+
                     else:
                         results['failed'].append({
                             "error": "Failed to submit to review queue",
@@ -193,6 +354,7 @@ class BatchQuestGenerationService(BaseService):
                     })
 
             except Exception as e:
+                logger.error(f"Error generating quest {i+1}: {str(e)}")
                 results['failed'].append({
                     "error": str(e),
                     "quest_number": i + 1
