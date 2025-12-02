@@ -11,7 +11,6 @@ logger = get_logger(__name__)
 logger.info("Starting Optio Backend API - Session persistence test #2")
 
 from routes import auth, users, community, portfolio
-from routes.quest_ideas import quest_ideas_bp
 from routes import uploads
 from routes.settings import settings_bp
 from routes.promo import promo_bp
@@ -21,7 +20,7 @@ from routes.observer_requests import observer_requests_bp
 
 # Import routes
 from routes import quests, tasks, admin_core, evidence_documents, tutorial, analytics as analytics_routes
-from routes.admin import user_management, quest_management, quest_ideas, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections, masquerade, crm
+from routes.admin import user_management, quest_management, analytics, student_task_management, sample_task_management, course_quest_management, badge_management, task_flags, advisor_management, parent_connections, masquerade, crm
 from cors_config import configure_cors
 from middleware.security import security_middleware
 from middleware.error_handler import error_handler
@@ -103,7 +102,6 @@ app.register_blueprint(auth.bp, url_prefix='/api/auth')
 app.register_blueprint(users.bp, url_prefix='/api/users')
 app.register_blueprint(community.bp, url_prefix='/api/community')
 app.register_blueprint(portfolio.bp, url_prefix='/api/portfolio')
-app.register_blueprint(quest_ideas_bp)  # Has url_prefix='/api/quest-ideas' in blueprint
 app.register_blueprint(uploads.bp, url_prefix='/api/uploads')
 app.register_blueprint(settings_bp, url_prefix='/api')  # /api/settings
 app.register_blueprint(promo_bp, url_prefix='/api/promo')  # /api/promo
