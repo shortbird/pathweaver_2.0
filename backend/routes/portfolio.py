@@ -374,7 +374,7 @@ def get_user_portfolio(auth_user_id: str, user_id: str):
         }), 200  # Return 200 with default data instead of 500
 
 @bp.route('/diploma/<user_id>', methods=['GET'])
-@cross_origin()
+@cross_origin(supports_credentials=True)
 def get_public_diploma_by_user_id(user_id):
     """
     Public endpoint to view a student's diploma by user ID.
