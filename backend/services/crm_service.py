@@ -475,22 +475,10 @@ class CRMService(BaseService):
             subject_template = Template(subject)
             rendered_subject = subject_template.render(**variables)
 
-            # Get template HTML file name
-            template_key = template['key']
-            html_filename = f"email/{template_key}.html"
-
-            # Try specific template first, then fall back to generic CRM wrapper
-            try:
-                html_template = self.email_service.jinja_env.get_template(html_filename)
-                template_data = template['data']
-
-                # Merge template_data with variables for rendering
-                render_context = {**template_data, **variables}
-                rendered_html = html_template.render(**render_context)
-            except Exception as e:
-                logger.info(f"Specific template {html_filename} not found, using generic CRM wrapper: {e}")
-                # Use generic CRM wrapper template with professional styling
-                rendered_html = self._render_with_generic_wrapper(template['data'], variables, rendered_subject)
+            # ALWAYS use generic CRM wrapper for templates from database
+            # This ensures proper variable substitution in body_html field
+            logger.info(f"Rendering template '{template_key}' with generic CRM wrapper")
+            rendered_html = self._render_with_generic_wrapper(template['data'], variables, rendered_subject)
 
             # Generate plain text version
             text_body = self._html_to_text(rendered_html)
