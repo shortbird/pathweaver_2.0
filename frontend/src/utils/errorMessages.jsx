@@ -107,6 +107,10 @@ const errorMessages = {
     message: 'This diploma is private',
     suggestion: 'The owner has not made this diploma publicly visible.'
   },
+  'diploma/error': {
+    message: 'Error loading diploma',
+    suggestion: 'There was a problem loading this diploma. Please try again or contact support if the problem persists.'
+  },
   
   // Default error
   'default': {

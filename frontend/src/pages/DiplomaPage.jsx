@@ -251,8 +251,9 @@ const DiplomaPage = () => {
       }
     } catch (error) {
       console.error('Error fetching public diploma:', error);
+      console.error('Error response:', error.response);
       const errorInfo = formatErrorMessage(
-        error.response?.status === 404 ? 'diploma/not-found' : 'diploma/private'
+        error.response?.status === 404 ? 'diploma/not-found' : 'diploma/error'
       );
       setError(errorInfo);
     } finally {
