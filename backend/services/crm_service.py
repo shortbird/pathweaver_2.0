@@ -475,6 +475,9 @@ class CRMService(BaseService):
             subject_template = Template(subject)
             rendered_subject = subject_template.render(**variables)
 
+            # Get template key for logging
+            template_key = template['key']
+
             # ALWAYS use generic CRM wrapper for templates from database
             # This ensures proper variable substitution in body_html field
             logger.info(f"Rendering template '{template_key}' with generic CRM wrapper")
