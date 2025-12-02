@@ -136,8 +136,7 @@ def approve_quest(user_id, quest_review_id):
             'title': quest_data['title'],
             'description': quest_data.get('big_idea') or quest_data.get('description'),
             'quest_type': 'optio',  # AI-generated quests are Optio type
-            'is_active': True,
-            'source': quest_data.get('source', 'ai_generated')
+            'is_active': True
         }
 
         quest_response = supabase.table('quests')\
@@ -289,8 +288,7 @@ def bulk_approve_quests(user_id):
                     'title': quest_data['title'],
                     'description': quest_data.get('big_idea') or quest_data.get('description'),
                     'quest_type': 'optio',
-                    'is_active': True,
-                    'source': quest_data.get('source', 'ai_generated')
+                    'is_active': True
                 }
 
                 quest_response = supabase.table('quests')\
