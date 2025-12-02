@@ -634,6 +634,25 @@ def login():
             except Exception as update_error:
                 logger.error(f"Warning: Failed to update last_active timestamp: {update_error}")
 
+            # Trigger email_confirmed event for automation sequences (only once)
+            # This happens when user logs in with a confirmed email for the first time
+            if auth_response.user.email_confirmed_at and not user_response_data.get('welcome_email_sent'):
+                try:
+                    from services.campaign_automation_service import CampaignAutomationService
+                    automation_service = CampaignAutomationService()
+                    automation_service.process_event_trigger(
+                        event_type='email_confirmed',
+                        user_id=auth_response.user.id,
+                        metadata={'email': auth_response.user.email}
+                    )
+                    # Mark welcome email as sent to prevent duplicate sends
+                    admin_client.table('users').update({
+                        'welcome_email_sent': True
+                    }).eq('id', auth_response.user.id).execute()
+                    logger.info(f"Triggered email_confirmed event for user {auth_response.user.id}")
+                except Exception as automation_error:
+                    logger.error(f"Warning: Failed to process email_confirmed event: {automation_error}")
+
             # Create response with user data
 
             # Extract session data
