@@ -967,19 +967,29 @@ def forgot_password():
         logger.info(f"[FORGOT_PASSWORD] Looking up user in auth.users: {email}")
 
         try:
-            # Query auth.users directly using admin client - use efficient lookup by email
-            logger.info(f"[FORGOT_PASSWORD] Looking up user by email in auth.users: {email}")
+            # Use Supabase Admin API to list users and find by email
+            # Note: We can't query auth.users directly via PostgREST, must use Admin API
+            logger.info(f"[FORGOT_PASSWORD] Looking up user by email using Admin API: {email}")
 
-            # Supabase Python client doesn't have get_user_by_email, so we query auth.users table directly
-            auth_lookup = admin_client.table('auth.users').select('id, email').eq('email', email).execute()
+            # Use Admin API's list_users with pagination to find user by email
+            # This is more efficient than list_users() without params
+            try:
+                # Try to get user directly if we know the ID, otherwise search
+                # First check public.users table for the user_id (it references auth.users.id)
+                public_user = admin_client.table('users').select('id').eq('email', email).execute()
 
-            matching_user = None
-            if auth_lookup.data and len(auth_lookup.data) > 0:
-                # Found user in auth.users, now get full user object
-                user_id = auth_lookup.data[0]['id']
-                auth_user_obj = admin_client.auth.admin.get_user_by_id(user_id)
-                if auth_user_obj and auth_user_obj.user:
-                    matching_user = auth_user_obj.user
+                matching_user = None
+                if public_user.data and len(public_user.data) > 0:
+                    # Found in public.users, get full auth user object
+                    user_id = public_user.data[0]['id']
+                    logger.info(f"[FORGOT_PASSWORD] Found user_id in public.users: {user_id}")
+                    auth_user_obj = admin_client.auth.admin.get_user_by_id(user_id)
+                    if auth_user_obj and auth_user_obj.user:
+                        matching_user = auth_user_obj.user
+                        logger.info(f"[FORGOT_PASSWORD] Successfully retrieved auth user object")
+            except Exception as lookup_err:
+                logger.error(f"[FORGOT_PASSWORD] Error during user lookup: {str(lookup_err)}")
+                matching_user = None
 
             logger.info(f"[FORGOT_PASSWORD] Auth user lookup result: {'Found' if matching_user else 'Not found'}")
 
