@@ -93,8 +93,9 @@ const ProfilePage = () => {
 
   // Generate portfolio URL
   const getPortfolioUrl = () => {
-    const baseUrl = import.meta.env.VITE_API_URL?.replace(/\/api$/, '') || window.location.origin
-    return `${baseUrl}/public/diploma/${user?.id}`
+    // Always use the frontend URL, not the backend API URL
+    const frontendUrl = window.location.origin
+    return `${frontendUrl}/public/diploma/${user?.id}`
   }
 
   // Download QR code as SVG
