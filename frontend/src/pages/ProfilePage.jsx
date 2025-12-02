@@ -98,27 +98,71 @@ const ProfilePage = () => {
     return `${frontendUrl}/public/diploma/${user?.id}`
   }
 
-  // Download QR code as SVG
-  const downloadQRCode = () => {
-    const svg = qrCodeRef.current?.querySelector('svg')
-    if (!svg) {
+  // Download QR code as SVG with embedded logo
+  const downloadQRCode = async () => {
+    const qrSvg = qrCodeRef.current?.querySelector('svg')
+    if (!qrSvg) {
       toast.error('QR code not available')
       return
     }
 
-    const svgData = new XMLSerializer().serializeToString(svg)
-    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
-    const svgUrl = URL.createObjectURL(svgBlob)
+    try {
+      // Fetch the logo SVG
+      const logoResponse = await fetch('https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/Purple.svg')
+      const logoSvgText = await logoResponse.text()
 
-    const downloadLink = document.createElement('a')
-    downloadLink.href = svgUrl
-    downloadLink.download = `${profileData?.user?.first_name}-${profileData?.user?.last_name}-portfolio-qr.svg`
-    document.body.appendChild(downloadLink)
-    downloadLink.click()
-    document.body.removeChild(downloadLink)
-    URL.revokeObjectURL(svgUrl)
+      // Parse logo SVG
+      const parser = new DOMParser()
+      const logoDoc = parser.parseFromString(logoSvgText, 'image/svg+xml')
+      const logoSvg = logoDoc.querySelector('svg')
 
-    toast.success('QR code downloaded!')
+      // Clone the QR code SVG
+      const clonedSvg = qrSvg.cloneNode(true)
+
+      // Create a group for the logo with white circular background
+      const logoGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+      logoGroup.setAttribute('transform', 'translate(100, 100)') // Center of 200x200 QR code
+
+      // Add white circle background
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+      circle.setAttribute('cx', '0')
+      circle.setAttribute('cy', '0')
+      circle.setAttribute('r', '24') // 48px diameter circle
+      circle.setAttribute('fill', 'white')
+      logoGroup.appendChild(circle)
+
+      // Add logo in center (scaled to fit in 40px square)
+      const logoContainer = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+      logoContainer.setAttribute('transform', 'translate(-20, -20) scale(0.08)') // Adjust scale based on logo size
+
+      // Copy logo content
+      if (logoSvg) {
+        Array.from(logoSvg.children).forEach(child => {
+          logoContainer.appendChild(child.cloneNode(true))
+        })
+      }
+
+      logoGroup.appendChild(logoContainer)
+      clonedSvg.appendChild(logoGroup)
+
+      // Serialize and download
+      const svgData = new XMLSerializer().serializeToString(clonedSvg)
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+      const svgUrl = URL.createObjectURL(svgBlob)
+
+      const downloadLink = document.createElement('a')
+      downloadLink.href = svgUrl
+      downloadLink.download = `${profileData?.user?.first_name}-${profileData?.user?.last_name}-portfolio-qr.svg`
+      document.body.appendChild(downloadLink)
+      downloadLink.click()
+      document.body.removeChild(downloadLink)
+      URL.revokeObjectURL(svgUrl)
+
+      toast.success('QR code downloaded!')
+    } catch (error) {
+      console.error('Error downloading QR code:', error)
+      toast.error('Failed to download QR code')
+    }
   }
 
   // Copy portfolio link to clipboard
@@ -389,14 +433,26 @@ const ProfilePage = () => {
               {/* QR Code Display */}
               <div className="flex-shrink-0">
                 <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200" ref={qrCodeRef}>
-                  <QRCodeSVG
-                    value={getPortfolioUrl()}
-                    size={200}
-                    level="H"
-                    includeMargin={true}
-                    fgColor="#6D469B"
-                    bgColor="#FFFFFF"
-                  />
+                  <div className="relative inline-block">
+                    <QRCodeSVG
+                      value={getPortfolioUrl()}
+                      size={200}
+                      level="H"
+                      includeMargin={true}
+                      fgColor="#6D469B"
+                      bgColor="#FFFFFF"
+                    />
+                    {/* Logo overlay in center */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm p-1.5">
+                        <img
+                          src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/Purple.svg"
+                          alt="Optio Logo"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
 
