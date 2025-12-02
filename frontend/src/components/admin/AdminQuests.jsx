@@ -6,6 +6,7 @@ import UnifiedQuestForm from './UnifiedQuestForm'
 import CourseQuestForm from './CourseQuestForm'
 import QuestSuggestionsModal from './QuestSuggestionsModal'
 import BulkQuestGenerator from './BulkQuestGenerator'
+import AIQuestReviewModal from './AIQuestReviewModal'
 
 const AdminQuests = () => {
   const { user } = useAuth()
@@ -19,6 +20,7 @@ const AdminQuests = () => {
   const [activeFilter, setActiveFilter] = useState('all') // all, active, inactive
   const [showQuestSuggestionsModal, setShowQuestSuggestionsModal] = useState(false)
   const [showBulkGenerator, setShowBulkGenerator] = useState(false)
+  const [showAIReviewModal, setShowAIReviewModal] = useState(false)
 
   // Determine user role
   const isAdmin = user?.role === 'admin'
@@ -172,10 +174,19 @@ const AdminQuests = () => {
             Bulk Generate (200)
           </button>
           <button
-            onClick={() => setShowQuestSuggestionsModal(true)}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-semibold"
+            onClick={() => setShowAIReviewModal(true)}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-semibold flex items-center gap-2"
           >
-            Quest Suggestions
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Review AI Quests
+          </button>
+          <button
+            onClick={() => setShowQuestSuggestionsModal(true)}
+            className="bg-teal-600 text-white px-6 py-2 rounded-lg hover:bg-teal-700 font-semibold"
+          >
+            User Suggestions
           </button>
           <button
             onClick={() => setShowCourseQuestForm(true)}
@@ -446,6 +457,17 @@ const AdminQuests = () => {
           onSuccess={() => {
             fetchQuests()
             setShowBulkGenerator(false)
+          }}
+        />
+      )}
+
+      {/* AI Quest Review Modal */}
+      {showAIReviewModal && (
+        <AIQuestReviewModal
+          isOpen={showAIReviewModal}
+          onClose={() => setShowAIReviewModal(false)}
+          onApprove={() => {
+            fetchQuests()
           }}
         />
       )}

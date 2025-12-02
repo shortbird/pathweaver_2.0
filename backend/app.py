@@ -326,6 +326,14 @@ try:
 except Exception as e:
     logger.warning(f"Warning: Batch Quest Generation routes not available: {e}")
 
+# Register AI Quest Review blueprint (admin)
+try:
+    from routes.admin import ai_quest_review
+    app.register_blueprint(ai_quest_review.ai_quest_review_bp, url_prefix='/api/admin/ai-quest-review')  # /api/admin/ai-quest-review/*
+    logger.info("AI Quest Review routes registered successfully")
+except Exception as e:
+    logger.warning(f"Warning: AI Quest Review routes not available: {e}")
+
 # Register Batch Badge Generation blueprint (admin)
 try:
     from routes.admin import batch_badge_generation
