@@ -299,11 +299,16 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
             )}
           </button>
         ) : (
-          <div className="w-full py-3 bg-green-50 border-2 border-green-300 rounded-full flex items-center justify-center gap-2">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <span className="text-green-700 font-bold text-base" style={{ fontFamily: 'Poppins' }}>
-              Task Completed! +{task.xp_amount} XP Earned
-            </span>
+          <div className="space-y-2">
+            <div className="w-full py-3 bg-green-50 border-2 border-green-300 rounded-full flex items-center justify-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              <span className="text-green-700 font-bold text-base" style={{ fontFamily: 'Poppins' }}>
+                Task Completed! +{task.xp_amount} XP Earned
+              </span>
+            </div>
+            <p className="text-xs text-center text-gray-600" style={{ fontFamily: 'Poppins' }}>
+              You can still edit your evidence above. Changes save automatically.
+            </p>
           </div>
         )}
       </div>
