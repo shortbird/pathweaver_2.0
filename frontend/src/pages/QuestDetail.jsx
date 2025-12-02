@@ -32,8 +32,8 @@ const QuestDetail = () => {
     refetch: refetchQuest
   } = useQuestDetail(id, {
     enabled: !!id,
-    staleTime: 0,
-    cacheTime: 0,
+    staleTime: 30000, // Consider data fresh for 30 seconds after task completion
+    cacheTime: 300000, // Keep in cache for 5 minutes
   });
 
   // React Query mutations
@@ -210,8 +210,9 @@ const QuestDetail = () => {
     setShowTaskModal(false);
     setSelectedTask(null);
 
-    // Also trigger a background refetch to sync with server
-    refetchQuest();
+    // Invalidate query to mark it as stale (will refetch in background)
+    // The optimistic update above keeps UI responsive
+    queryClient.invalidateQueries(queryKeys.quests.detail(id));
   };
 
   const handleTaskReorder = async (oldIndex, newIndex) => {
