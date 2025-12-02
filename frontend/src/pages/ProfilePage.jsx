@@ -1,17 +1,21 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 import ParentInvitationSection from '../components/parent/ParentInvitationSection'
+import { QRCodeSVG } from 'qrcode.react'
 import {
   DocumentTextIcon,
   StarIcon,
   PencilIcon,
   ExclamationTriangleIcon,
   SparklesIcon,
-  RocketLaunchIcon
+  RocketLaunchIcon,
+  QrCodeIcon,
+  ArrowDownTrayIcon,
+  LinkIcon
 } from '@heroicons/react/24/outline'
 
 const ProfilePage = () => {
@@ -20,6 +24,7 @@ const ProfilePage = () => {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const { register, handleSubmit, formState: { errors }, reset } = useForm()
+  const qrCodeRef = useRef(null)
 
   useEffect(() => {
     fetchProfile()
@@ -83,6 +88,45 @@ const ProfilePage = () => {
       await fetchProfile() // Refresh to clear deletion status
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to cancel deletion')
+    }
+  }
+
+  // Generate portfolio URL
+  const getPortfolioUrl = () => {
+    const baseUrl = import.meta.env.VITE_API_URL?.replace(/\/api$/, '') || window.location.origin
+    return `${baseUrl}/public/diploma/${user?.id}`
+  }
+
+  // Download QR code as SVG
+  const downloadQRCode = () => {
+    const svg = qrCodeRef.current?.querySelector('svg')
+    if (!svg) {
+      toast.error('QR code not available')
+      return
+    }
+
+    const svgData = new XMLSerializer().serializeToString(svg)
+    const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+    const svgUrl = URL.createObjectURL(svgBlob)
+
+    const downloadLink = document.createElement('a')
+    downloadLink.href = svgUrl
+    downloadLink.download = `${profileData?.user?.first_name}-${profileData?.user?.last_name}-portfolio-qr.svg`
+    document.body.appendChild(downloadLink)
+    downloadLink.click()
+    document.body.removeChild(downloadLink)
+    URL.revokeObjectURL(svgUrl)
+
+    toast.success('QR code downloaded!')
+  }
+
+  // Copy portfolio link to clipboard
+  const copyPortfolioLink = async () => {
+    try {
+      await navigator.clipboard.writeText(getPortfolioUrl())
+      toast.success('Portfolio link copied!')
+    } catch (error) {
+      toast.error('Failed to copy link')
     }
   }
 
@@ -328,6 +372,73 @@ const ProfilePage = () => {
                   </div>
                 </div>
               </Link>
+            </div>
+          </div>
+
+          {/* Share Your Portfolio - QR Code Section */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <QrCodeIcon className="w-7 h-7 text-optio-purple" />
+              <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                Share Your Portfolio
+              </h2>
+            </div>
+
+            <div className="flex flex-col lg:flex-row gap-6 items-center lg:items-start">
+              {/* QR Code Display */}
+              <div className="flex-shrink-0">
+                <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200" ref={qrCodeRef}>
+                  <QRCodeSVG
+                    value={getPortfolioUrl()}
+                    size={200}
+                    level="H"
+                    includeMargin={true}
+                    fgColor="#6D469B"
+                    bgColor="#FFFFFF"
+                  />
+                </div>
+              </div>
+
+              {/* QR Code Info and Actions */}
+              <div className="flex-1 w-full space-y-4">
+                <div>
+                  <p className="text-base text-gray-700 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    Share your learning journey with colleges, employers, or anyone you want to inspire.
+                  </p>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 break-all">
+                    <p className="text-xs text-gray-600 mb-1 font-semibold" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
+                      Portfolio Link
+                    </p>
+                    <p className="text-sm text-gray-800 font-mono" style={{ fontFamily: 'monospace' }}>
+                      {getPortfolioUrl()}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    onClick={downloadQRCode}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-primary text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
+                    style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+                  >
+                    <ArrowDownTrayIcon className="w-5 h-5" />
+                    Download QR Code
+                  </button>
+                  <button
+                    onClick={copyPortfolioLink}
+                    className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-optio-purple text-optio-purple rounded-lg font-semibold hover:bg-purple-50 transition-all"
+                    style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+                  >
+                    <LinkIcon className="w-5 h-5" />
+                    Copy Link
+                  </button>
+                </div>
+
+                <p className="text-xs text-gray-500 italic" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                  Perfect for resumes, business cards, and college applications
+                </p>
+              </div>
             </div>
           </div>
 
