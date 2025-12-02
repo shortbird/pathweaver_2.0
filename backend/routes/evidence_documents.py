@@ -267,20 +267,30 @@ def save_evidence_document(user_id: str, task_id: str):
                 logger.info(f"[EVIDENCE_DOC] XP calculated: final_xp={final_xp}, has_collaboration={has_collaboration}")
 
                 # Create task completion record using V3 system
-                completion = admin_supabase.table('quest_task_completions')\
-                    .insert({
-                        'user_id': user_id,
-                        'quest_id': quest_id,
-                        'task_id': task_id,
-                        'user_quest_task_id': task_id,  # In V3, task_id IS the user_quest_task_id
-                        'evidence_text': f'Multi-format evidence document (Document ID: {document_id})',
-                        'completed_at': datetime.utcnow().isoformat()
-                    })\
-                    .execute()
+                try:
+                    completion = admin_supabase.table('quest_task_completions')\
+                        .insert({
+                            'user_id': user_id,
+                            'quest_id': quest_id,
+                            'task_id': task_id,
+                            'user_quest_task_id': task_id,  # In V3, task_id IS the user_quest_task_id
+                            'evidence_text': f'Multi-format evidence document (Document ID: {document_id})',
+                            'completed_at': datetime.utcnow().isoformat()
+                        })\
+                        .execute()
 
-                logger.info(f"[EVIDENCE_DOC] Completion record insert result: success={bool(completion.data)}, record_count={len(completion.data or [])}")
-                if completion.data:
-                    logger.info(f"[EVIDENCE_DOC] Completion record created with ID: {completion.data[0].get('id', 'unknown')[:8]}")
+                    logger.info(f"[EVIDENCE_DOC] Completion record insert result: success={bool(completion.data)}, record_count={len(completion.data or [])}")
+                    if completion.data:
+                        logger.info(f"[EVIDENCE_DOC] Completion record created with ID: {completion.data[0].get('id', 'unknown')[:8]}")
+                except Exception as insert_error:
+                    logger.error(f"[EVIDENCE_DOC] ERROR inserting completion record: {str(insert_error)}")
+                    # If insert fails (e.g., unique constraint violation), query existing record
+                    completion = admin_supabase.table('quest_task_completions')\
+                        .select('*')\
+                        .eq('user_id', user_id)\
+                        .eq('task_id', task_id)\
+                        .execute()
+                    logger.info(f"[EVIDENCE_DOC] Queried existing completion after insert error: found={bool(completion.data)}")
 
                 if completion.data:
                     # Award XP to user (this will be handled by existing XP service)

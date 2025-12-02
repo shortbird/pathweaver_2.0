@@ -176,7 +176,7 @@ const QuestDetail = () => {
 
   const handleTaskCompletion = async (completionData) => {
     // Task is already completed by MultiFormatEvidenceEditor
-    // Optimistically update the task completion status in cache
+    // Update the cache with confirmed completion status
     if (selectedTask) {
       queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
         if (!oldData) return oldData;
@@ -210,9 +210,8 @@ const QuestDetail = () => {
     setShowTaskModal(false);
     setSelectedTask(null);
 
-    // Invalidate query to mark it as stale (will refetch in background)
-    // The optimistic update above keeps UI responsive
-    queryClient.invalidateQueries(queryKeys.quests.detail(id));
+    // Do NOT refetch - the cache update above is sufficient and accurate
+    // Refetching causes race conditions with database commits
   };
 
   const handleTaskReorder = async (oldIndex, newIndex) => {
