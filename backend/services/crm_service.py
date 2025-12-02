@@ -345,6 +345,40 @@ class CRMService(BaseService):
             logger.error(f"Error validating template variables: {e}")
             return []
 
+    def render_email_template(
+        self,
+        template_key: str,
+        variables: Dict[str, Any],
+        subject_override: Optional[str] = None
+    ) -> Dict[str, str]:
+        """
+        Public method to render an email template with variables.
+        Used by EmailService for transactional emails (password reset, welcome, etc.)
+
+        Args:
+            template_key: Template identifier (e.g., 'password_reset', 'welcome')
+            variables: Dictionary of variable values for substitution
+            subject_override: Optional custom subject line
+
+        Returns:
+            Dictionary with 'subject', 'html_body', 'text_body'
+
+        Raises:
+            ValueError: If template not found
+        """
+        try:
+            # Load template using template service
+            template = self.template_service.get_template(template_key)
+            if not template:
+                raise ValueError(f"Template '{template_key}' not found")
+
+            # Render using private method
+            return self._render_email(template, subject_override, variables)
+
+        except Exception as e:
+            logger.error(f"Error rendering email template '{template_key}': {e}")
+            raise
+
     # ==================== HELPER METHODS ====================
 
     def _get_user_quest_completions(self, user_id: str) -> int:
