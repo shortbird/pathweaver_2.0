@@ -523,6 +523,9 @@ class CRMService(BaseService):
             Rendered HTML using base.html template with full styling
         """
         try:
+            logger.info(f"[RENDER_WRAPPER] Starting render with variables: {list(variables.keys())}")
+            logger.info(f"[RENDER_WRAPPER] Template data keys: {list(template_data.keys())}")
+
             # Load the generic CRM wrapper template
             generic_template = self.email_service.jinja_env.get_template('email/crm_generic.html')
 
@@ -531,23 +534,32 @@ class CRMService(BaseService):
                 'email_subject': subject,
                 **variables
             }
+            logger.info(f"[RENDER_WRAPPER] Initial render_context keys: {list(render_context.keys())}")
 
-            # Process greeting
-            if 'greeting' in template_data:
-                greeting_template = Template(template_data['greeting'])
+            # Process greeting or salutation (YAML templates use 'salutation')
+            greeting_value = template_data.get('greeting') or template_data.get('salutation')
+            if greeting_value:
+                logger.info(f"[RENDER_WRAPPER] Found greeting/salutation: {greeting_value}")
+                greeting_template = Template(greeting_value)
                 render_context['greeting'] = greeting_template.render(**variables)
+                logger.info(f"[RENDER_WRAPPER] Rendered greeting: {render_context['greeting']}")
 
             # Process body_html (custom templates) or paragraphs (YAML templates)
             if 'body_html' in template_data:
                 # Custom template - render body_html with variables
+                logger.info(f"[RENDER_WRAPPER] Rendering body_html")
                 body_template = Template(template_data['body_html'])
                 render_context['body_html'] = body_template.render(**variables)
             elif 'paragraphs' in template_data:
                 # YAML template - render paragraphs as HTML
+                logger.info(f"[RENDER_WRAPPER] Rendering {len(template_data['paragraphs'])} paragraphs")
                 rendered_paragraphs = []
-                for para in template_data['paragraphs']:
+                for i, para in enumerate(template_data['paragraphs']):
+                    logger.info(f"[RENDER_WRAPPER] Paragraph {i}: {para[:100]}...")
                     para_template = Template(para)
-                    rendered_paragraphs.append(f'<p class="text">{para_template.render(**variables)}</p>')
+                    rendered_para = para_template.render(**variables)
+                    logger.info(f"[RENDER_WRAPPER] Rendered paragraph {i}: {rendered_para[:100]}...")
+                    rendered_paragraphs.append(f'<p class="text">{rendered_para}</p>')
                 render_context['body_html'] = ''.join(rendered_paragraphs)
 
             # Process CTA button
