@@ -9,6 +9,9 @@ const BulkQuestGenerator = ({ onClose, onSuccess }) => {
   const [progress, setProgress] = useState(null)
   const [results, setResults] = useState(null)
 
+  // Estimate cost based on quest count
+  const estimatedCost = (questCount * 0.0001).toFixed(4) // $0.0001 per quest
+
   const handleStartGeneration = async () => {
     if (questCount < 1 || questCount > 200) {
       toast.error('Quest count must be between 1 and 200')
@@ -82,9 +85,10 @@ const BulkQuestGenerator = ({ onClose, onSuccess }) => {
                 disabled={isGenerating}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
               />
-              <p className="text-xs text-gray-500 mt-1">
-                Recommended: 200 quests (takes ~20-30 minutes)
-              </p>
+              <div className="flex justify-between text-xs text-gray-500 mt-1">
+                <span>Recommended: 200 quests (~20-30 minutes)</span>
+                <span className="font-semibold text-green-600">Est. cost: ${estimatedCost}</span>
+              </div>
             </div>
 
             <div>
@@ -143,6 +147,19 @@ const BulkQuestGenerator = ({ onClose, onSuccess }) => {
           {/* Results Summary */}
           {results && (
             <div className="space-y-4">
+              {/* Cost Display */}
+              {results.estimated_cost_usd && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
+                  <div className="text-sm text-green-800 mb-1">Total API Cost</div>
+                  <div className="text-2xl font-bold text-green-600">
+                    ${results.estimated_cost_usd.toFixed(4)}
+                  </div>
+                  <div className="text-xs text-green-700 mt-1">
+                    ~${(results.estimated_cost_usd / results.submitted_to_review).toFixed(6)} per quest
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-3 gap-4">
                 <div className="bg-green-50 border border-green-200 rounded-lg p-4 text-center">
                   <div className="text-3xl font-bold text-green-600">

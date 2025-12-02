@@ -20,6 +20,7 @@ from database import get_supabase_admin_client
 from services.quest_ai_service import QuestAIService
 from services.ai_quest_review_service import AIQuestReviewService
 from services.quest_concept_matcher import QuestConceptMatcher
+from services.cost_tracker import CostTracker
 
 from utils.logger import get_logger
 
@@ -36,6 +37,7 @@ class BatchQuestGenerationService(BaseService):
         self.quest_ai_service = QuestAIService()
         self.review_service = AIQuestReviewService()
         self.concept_matcher = QuestConceptMatcher()
+        self.cost_tracker = CostTracker()
 
         # Philosophy and pillars for context
         self.philosophy = """
@@ -248,6 +250,10 @@ class BatchQuestGenerationService(BaseService):
 
         batch_id = batch_id or str(uuid.uuid4())  # Used only for response tracking
 
+        # Estimate cost before starting
+        cost_estimate = self.cost_tracker.estimate_batch_cost(count)
+        logger.info(f"Starting batch generation of {count} quests. Estimated cost: ${cost_estimate['total_cost_usd']:.4f}")
+
         results = {
             "batch_id": batch_id,
             "total_requested": count,
@@ -256,7 +262,8 @@ class BatchQuestGenerationService(BaseService):
             "submitted_to_review": 0,
             "similarity_metrics": [],
             "clustering_warnings": [],
-            "started_at": datetime.utcnow().isoformat()
+            "started_at": datetime.utcnow().isoformat(),
+            "estimated_cost_usd": cost_estimate['total_cost_usd']
         }
 
         # ENHANCED DUPLICATE PREVENTION
@@ -332,15 +339,17 @@ class BatchQuestGenerationService(BaseService):
                             similarity_score = quest_data['similarity_check'].get('score', 0)
                             most_similar = quest_data['similarity_check'].get('most_similar', {})
 
-                            results['similarity_metrics'].append({
-                                "quest_title": quest['title'],
-                                "similarity_score": similarity_score,
-                                "most_similar_to": most_similar.get('title') if most_similar else None
-                            })
+                            # Only log if not comparing to itself (avoid false positives)
+                            if most_similar and most_similar.get('title') != quest['title']:
+                                results['similarity_metrics'].append({
+                                    "quest_title": quest['title'],
+                                    "similarity_score": similarity_score,
+                                    "most_similar_to": most_similar.get('title')
+                                })
 
-                            # Log warning for high similarity
-                            if similarity_score > 0.6:
-                                logger.warning(f"Quest '{quest['title']}' has {similarity_score:.0%} similarity to '{most_similar.get('title')}'")
+                                # Log warning for high similarity (excluding self-matches)
+                                if similarity_score > 0.6:
+                                    logger.warning(f"Quest '{quest['title']}' has {similarity_score:.0%} similarity to '{most_similar.get('title')}'")
 
                     else:
                         results['failed'].append({
