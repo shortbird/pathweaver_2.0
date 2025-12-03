@@ -52,7 +52,7 @@ const TranscriptPage = lazy(() => import('./pages/TranscriptPage'))
 // Other Pages
 const DiplomaPage = lazy(() => import('./pages/DiplomaPage'))
 const ProfilePage = lazy(() => import('./pages/ProfilePage'))
-const FriendsPage = lazy(() => import('./pages/FriendsPage'))
+// FriendsPage removed - redirects to ConnectionsPage (January 2025)
 const ConnectionsPage = lazy(() => import('./pages/ConnectionsPage'))
 const CommunicationPage = lazy(() => import('./pages/CommunicationPage'))
 const CalendarPage = lazy(() => import('./pages/CalendarPage'))

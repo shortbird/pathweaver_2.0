@@ -223,15 +223,9 @@ def complete_task(user_id: str, task_id: str):
         # Get base XP from task
         base_xp = task_data.get('xp_value', 100)
 
-        # Check for active collaboration on this task
-        # Use user client (RLS-enforced) to check user's own collaboration data
-        collaboration = supabase.table('task_collaborations')\
-            .select('*')\
-            .eq('task_id', task_id)\
-            .eq('status', 'active')\
-            .execute()
-
-        # Collaboration bonus removed in Phase 1 refactoring (January 2025)
+        # Task collaborations removed in Phase 1 refactoring (January 2025)
+        # Table task_collaborations no longer exists
+        # No collaboration bonus - all students earn base XP
         has_collaboration = False
         final_xp = base_xp
 
