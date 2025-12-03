@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { flushSync } from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
 
@@ -152,6 +153,7 @@ const MultiFormatEvidenceEditor = forwardRef(({
       autoSaverRef.current.autoSave(cleanedBlocks);
     } else if (documentStatus === 'completed') {
       console.log('[EVIDENCE] Skipping auto-save - task is completed');
+      setSaveStatus('saved'); // Mark as saved when auto-save is disabled due to completion
     }
   }, [blocks, isLoading, documentStatus]);
 
@@ -281,7 +283,6 @@ const MultiFormatEvidenceEditor = forwardRef(({
 
       if (completeResponse.success) {
         console.log('[EVIDENCE] Task completion successful - setting documentStatus to completed');
-        console.log('[EVIDENCE] BEFORE setState - documentStatus:', documentStatus);
 
         // CRITICAL: Disable auto-save permanently BEFORE setting status
         // This prevents any pending auto-save from overwriting the 'completed' status
@@ -293,10 +294,14 @@ const MultiFormatEvidenceEditor = forwardRef(({
           autoSaverRef.current.clearAutoSave();
         }
 
-        setDocumentStatus('completed');
-        setSaveStatus('saved');
-        console.log('[EVIDENCE] AFTER setState call - documentStatus:', documentStatus);
-        console.log('[EVIDENCE] NOTE: State may not have updated yet due to React batching');
+        // Use flushSync to force synchronous state updates
+        // This prevents race conditions with React Query cache updates and component re-renders
+        flushSync(() => {
+          setDocumentStatus('completed');
+          setSaveStatus('saved');
+        });
+        console.log('[EVIDENCE] State updated synchronously with flushSync - documentStatus:', documentStatus);
+
         if (onComplete) {
           onComplete({
             xp_awarded: completeResponse.xp_awarded || 0,
