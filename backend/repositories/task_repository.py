@@ -66,6 +66,36 @@ class TaskRepository(BaseRepository):
             logger.error(f"Error fetching tasks for user_quest {user_quest_id}: {e}")
             return []
 
+    def get_task_with_relations(self, task_id: str, user_id: str) -> Optional[Dict[str, Any]]:
+        """
+        Get task details with quest and user_quest relationships.
+
+        Args:
+            task_id: Task ID
+            user_id: User ID (for RLS)
+
+        Returns:
+            Task with quest and user_quest data, or None if not found
+
+        Raises:
+            NotFoundError: If task not found or not owned by user
+        """
+        try:
+            result = self.client.table(self.table_name)\
+                .select('*, quests(id, title), user_quests!user_quest_id(id, user_id)')\
+                .eq('id', task_id)\
+                .eq('user_id', user_id)\
+                .single()\
+                .execute()
+
+            if not result.data:
+                raise NotFoundError(f"Task {task_id} not found or not owned by user")
+
+            return result.data
+        except Exception as e:
+            logger.error(f"Error fetching task {task_id} with relations: {e}")
+            raise
+
     def create_task(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
         Create a new task.
@@ -209,6 +239,29 @@ class TaskCompletionRepository(BaseRepository):
         except Exception as e:
             logger.error(f"Error fetching completions for task {task_id}: {e}")
             return []
+
+    def check_existing_completion(self, user_id: str, task_id: str) -> bool:
+        """
+        Check if a task completion already exists for a user.
+
+        Args:
+            user_id: User ID
+            task_id: Task ID (user_quest_task_id)
+
+        Returns:
+            True if completion exists, False otherwise
+        """
+        try:
+            result = self.client.table(self.table_name)\
+                .select('id')\
+                .eq('user_id', user_id)\
+                .eq('user_quest_task_id', task_id)\
+                .execute()
+
+            return bool(result.data)
+        except Exception as e:
+            logger.error(f"Error checking existing completion for user {user_id}, task {task_id}: {e}")
+            return False
 
     def create_completion(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
