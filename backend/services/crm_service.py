@@ -30,7 +30,15 @@ class CRMService(BaseService):
         self.crm_repo = CRMRepository()
         self.email_service = EmailService()
         self.template_service = EmailTemplateService()
-        self.admin_client = get_supabase_admin_client()
+        # Lazy initialization - client will be created on first access
+        self._admin_client = None
+
+    @property
+    def admin_client(self):
+        """Get admin client with lazy initialization"""
+        if self._admin_client is None:
+            self._admin_client = get_supabase_admin_client()
+        return self._admin_client
 
     def segment_users(self, filter_rules: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
