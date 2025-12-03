@@ -353,45 +353,6 @@ const AdminDashboard = () => {
               <p className="text-sm text-gray-600">Create, edit, and organize learning quests</p>
             </button>
 
-            {/* Quest Suggestions */}
-            <button
-              onClick={() => window.location.href = '/admin/quest-suggestions'}
-              className={`group relative p-6 rounded-xl transition-all duration-200 text-left border ${
-                (overviewData?.pending_submissions || 0) > 0
-                  ? 'bg-gradient-to-br from-red-50 to-red-100 border-red-200 hover:from-red-100 hover:to-red-200'
-                  : 'bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200 hover:from-purple-100 hover:to-purple-200'
-              }`}
-            >
-              {(overviewData?.pending_submissions || 0) > 0 && (
-                <div className="absolute -top-2 -right-2 bg-red-500 text-white text-xs font-bold rounded-full w-8 h-8 flex items-center justify-center animate-pulse">
-                  {overviewData.pending_submissions}
-                </div>
-              )}
-              <div className="flex items-center justify-between mb-3">
-                <div className={`p-3 rounded-lg ${
-                  (overviewData?.pending_submissions || 0) > 0 ? 'bg-red-500' : 'bg-purple-500'
-                }`}>
-                  <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                  </svg>
-                </div>
-                <svg className={`w-5 h-5 transition-colors ${
-                  (overviewData?.pending_submissions || 0) > 0
-                    ? 'text-red-400 group-hover:text-red-600'
-                    : 'text-purple-400 group-hover:text-optio-purple'
-                }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-1">Quest Suggestions</h3>
-              <p className="text-sm text-gray-600">
-                {(overviewData?.pending_submissions || 0) > 0
-                  ? `${overviewData.pending_submissions} suggestions awaiting review`
-                  : 'All suggestions reviewed'
-                }
-              </p>
-            </button>
-
             {/* Flagged Tasks Review */}
             <button
               onClick={() => window.location.href = '/admin/flagged-tasks'}

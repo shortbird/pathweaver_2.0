@@ -26,16 +26,8 @@ const AdminOverview = () => {
       setStats(overviewRes.data.data)
       setRecentActivity(activityRes.data.data?.recent_events || [])
 
-      // Build needs attention items
+      // Build needs attention items (quest suggestions feature removed)
       const attention = []
-      if (overviewRes.data.data?.pending_submissions > 0) {
-        attention.push({
-          id: 1,
-          type: 'quest_suggestions',
-          title: `${overviewRes.data.data.pending_submissions} quest suggestions pending review`,
-          action: () => navigate('/admin/quests') // Will open modal from quest page
-        })
-      }
 
       setNeedsAttention(attention)
     } catch (error) {

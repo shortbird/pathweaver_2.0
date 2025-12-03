@@ -4,7 +4,6 @@ import api from '../../services/api'
 import toast from 'react-hot-toast'
 import UnifiedQuestForm from './UnifiedQuestForm'
 import CourseQuestForm from './CourseQuestForm'
-import QuestSuggestionsModal from './QuestSuggestionsModal'
 import BulkQuestGenerator from './BulkQuestGenerator'
 import AIQuestReviewModal from './AIQuestReviewModal'
 
@@ -18,7 +17,6 @@ const AdminQuests = () => {
   const [showCourseQuestForm, setShowCourseQuestForm] = useState(false)
   const [editingCourseQuest, setEditingCourseQuest] = useState(null)
   const [activeFilter, setActiveFilter] = useState('all') // all, active, inactive
-  const [showQuestSuggestionsModal, setShowQuestSuggestionsModal] = useState(false)
   const [showBulkGenerator, setShowBulkGenerator] = useState(false)
   const [showAIReviewModal, setShowAIReviewModal] = useState(false)
 
@@ -181,12 +179,6 @@ const AdminQuests = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
             Review AI Quests
-          </button>
-          <button
-            onClick={() => setShowQuestSuggestionsModal(true)}
-            className="bg-teal-600 text-white px-6 py-2 rounded-lg hover:bg-teal-700 font-semibold"
-          >
-            User Suggestions
           </button>
           <button
             onClick={() => setShowCourseQuestForm(true)}
@@ -443,12 +435,6 @@ const AdminQuests = () => {
           )}
         </div>
       )}
-
-      {/* Quest Suggestions Modal */}
-      <QuestSuggestionsModal
-        isOpen={showQuestSuggestionsModal}
-        onClose={() => setShowQuestSuggestionsModal(false)}
-      />
 
       {/* Bulk Quest Generator */}
       {showBulkGenerator && (

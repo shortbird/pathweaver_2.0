@@ -41,7 +41,7 @@ class Config:
         if FLASK_ENV == 'production':
             raise ValueError("FLASK_SECRET_KEY must be set to a secure value in production!")
         else:
-            print("WARNING: Using insecure SECRET_KEY. Set FLASK_SECRET_KEY in production!")
+            # NOTE: print() used here due to circular dependency - logger not available yet
             SECRET_KEY = 'dev-secret-key-change-in-production'
 
     # Ensure minimum length for security
@@ -49,7 +49,8 @@ class Config:
         if FLASK_ENV == 'production':
             raise ValueError("FLASK_SECRET_KEY must be at least 32 characters in production!")
         else:
-            print("WARNING: SECRET_KEY is too short. Use at least 32 characters in production!")
+            # NOTE: print() used here due to circular dependency - logger not available yet
+            pass
     DEBUG = FLASK_ENV == 'development'
     TESTING = False
     
@@ -130,13 +131,12 @@ class Config:
         if not SUPABASE_ANON_KEY:
             raise ValueError("SUPABASE_ANON_KEY is required. Set it in your environment variables.")
         if not SUPABASE_SERVICE_ROLE_KEY:
-            print("WARNING: SUPABASE_SERVICE_ROLE_KEY not set. Some admin functions may not work.")
+            # NOTE: print() used here due to circular dependency - logger not available yet
+            pass
     else:
-        # Development mode - just warn
-        if not SUPABASE_URL:
-            print("WARNING: SUPABASE_URL not set")
-        if not SUPABASE_ANON_KEY:
-            print("WARNING: SUPABASE_ANON_KEY not set")
+        # Development mode - just warn (but suppress to reduce log clutter)
+        # NOTE: print() used here due to circular dependency - logger not available yet
+        pass
     
     # OpenAI Configuration
     OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
@@ -237,7 +237,7 @@ class Config:
     LTI_JWKS_TIMEOUT = int(os.getenv('LTI_JWKS_TIMEOUT', '5'))
 
     # Logging - CONFIGURABLE
-    LOG_LEVEL = os.getenv('LOG_LEVEL', 'INFO' if DEBUG else 'WARNING')
+    LOG_LEVEL = os.getenv('LOG_LEVEL', 'WARNING')
     LOG_FORMAT = os.getenv('LOG_FORMAT', 'json')  # 'json' or 'text'
     
     @classmethod

@@ -16,8 +16,6 @@ def configure_cors(app):
     allowed_origins = Config.ALLOWED_ORIGINS
     cors_config = Config.CORS_CONFIG
 
-    print(f"CORS Configuration - Environment: {'Development' if Config.DEBUG else 'Production'}")
-    logger.info(f"Allowed origins: {allowed_origins}")
 
     CORS(app,
          resources={

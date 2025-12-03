@@ -309,8 +309,6 @@ class ActivityTracker:
 
             supabase.table('user_activity_events').insert(insert_data).execute()
 
-            logger.debug(f"Activity tracked: {event_type} for user {user_id or 'anonymous'}")
-
             # Process automation triggers (only for authenticated users)
             if user_id and event_type:
                 self._process_automation_triggers(event_type, user_id, event_data)
@@ -438,8 +436,6 @@ def track_custom_event(
             insert_data['user_id'] = user_id
 
         supabase.table('user_activity_events').insert(insert_data).execute()
-
-        logger.debug(f"Custom event tracked: {event_type}")
 
     except Exception as e:
         logger.error(f"Failed to track custom event {event_type}: {str(e)}", exc_info=True)
