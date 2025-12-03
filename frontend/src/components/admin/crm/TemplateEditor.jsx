@@ -134,6 +134,14 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       // Convert markdown to template_data structure
       const templateData = convertMarkdownToTemplateData()
 
+      console.log('🔍 Preview Debug:', {
+        templateKey,
+        subject,
+        templateData,
+        sampleData,
+        markdownLength: markdownContent.length
+      })
+
       // Call preview API
       const response = await crmAPI.previewTemplate(templateKey, {
         subject,
@@ -141,9 +149,16 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
         sample_data: sampleData
       })
 
+      console.log('✅ Preview Response:', {
+        hasHtml: !!response.data.html,
+        hasPreviewHtml: !!response.data.preview_html,
+        htmlLength: (response.data.html || response.data.preview_html || '').length
+      })
+
       setPreviewHtml(response.data.html || response.data.preview_html || '')
     } catch (error) {
-      console.error('Preview error:', error)
+      console.error('❌ Preview error:', error)
+      console.error('Error response:', error.response?.data)
       // Don't show error toast for auto-preview
       if (!autoPreview) {
         toast.error('Failed to generate preview')
