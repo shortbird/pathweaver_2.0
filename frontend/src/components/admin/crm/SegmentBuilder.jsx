@@ -32,10 +32,11 @@ const SegmentBuilder = () => {
     try {
       setLoading(true)
       const response = await crmAPI.getSegments()
-      setSegments(response.data)
+      setSegments(response.data.segments || [])
     } catch (error) {
       toast.error('Failed to load segments')
       console.error(error)
+      setSegments([])
     } finally {
       setLoading(false)
     }

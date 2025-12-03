@@ -20,9 +20,10 @@ const CRMPage = () => {
   const fetchOverview = async () => {
     try {
       const response = await crmAPI.getOverview()
-      setOverview(response.data)
+      setOverview(response.data.stats || {})
     } catch (error) {
       console.error('Failed to load CRM overview:', error)
+      setOverview({})
     } finally {
       setLoading(false)
     }

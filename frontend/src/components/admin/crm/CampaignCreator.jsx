@@ -39,18 +39,20 @@ const CampaignCreator = ({ campaign, onClose, onSave }) => {
   const fetchTemplates = async () => {
     try {
       const response = await crmAPI.getTemplates(true)
-      setTemplates(response.data)
+      setTemplates(response.data.templates || [])
     } catch (error) {
       console.error('Failed to load templates:', error)
+      setTemplates([])
     }
   }
 
   const fetchSegments = async () => {
     try {
       const response = await crmAPI.getSegments()
-      setSegments(response.data)
+      setSegments(response.data.segments || [])
     } catch (error) {
       console.error('Failed to load segments:', error)
+      setSegments([])
     }
   }
 

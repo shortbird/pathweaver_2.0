@@ -19,10 +19,11 @@ const CampaignList = () => {
       setLoading(true)
       const params = filterStatus !== 'all' ? { status: filterStatus } : {}
       const response = await crmAPI.getCampaigns(params)
-      setCampaigns(response.data)
+      setCampaigns(response.data.campaigns || [])
     } catch (error) {
       toast.error('Failed to load campaigns')
       console.error(error)
+      setCampaigns([])
     } finally {
       setLoading(false)
     }
