@@ -116,15 +116,9 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // ✅ INCOGNITO MODE FIX: Store app tokens in memory for Authorization headers
-      // These are custom JWT tokens (NOT Supabase tokens)
-      // Memory storage works in incognito mode where cookies may be blocked
-      if (response.data.app_access_token && response.data.app_refresh_token) {
-        this.setTokens(
-          response.data.app_access_token,
-          response.data.app_refresh_token
-        )
-      }
+      // ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY
+      // Tokens are set by backend in httpOnly cookies - NO token storage in frontend
+      // This prevents XSS token theft
 
       // Store user data for quick access (non-sensitive only - no tokens!)
       if (this.user) {
@@ -166,14 +160,9 @@ class AuthService {
       this.user = response.data.user
       this.isAuthenticated = true
 
-      // ✅ INCOGNITO MODE FIX: Store app tokens in memory for Authorization headers
-      // These are custom JWT tokens (NOT Supabase tokens)
-      if (response.data.app_access_token && response.data.app_refresh_token) {
-        this.setTokens(
-          response.data.app_access_token,
-          response.data.app_refresh_token
-        )
-      }
+      // ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY
+      // Tokens are set by backend in httpOnly cookies - NO token storage in frontend
+      // This prevents XSS token theft
 
       // Store user data for quick access (non-sensitive only - no tokens!)
       if (this.user) {
@@ -221,16 +210,13 @@ class AuthService {
    */
   async refreshSession() {
     try {
-      // Send refresh token in body for incognito mode compatibility
-      const response = await api.post('/api/auth/refresh', {
-        refresh_token: this.refreshToken
-      })
+      // ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY
+      // Refresh token sent automatically via httpOnly cookie
+      const response = await api.post('/api/auth/refresh', {})
 
       if (response.status === 200) {
-        // ✅ INCOGNITO MODE FIX: Update memory tokens after refresh
-        if (response.data.access_token && response.data.refresh_token) {
-          this.setTokens(response.data.access_token, response.data.refresh_token)
-        }
+        // Backend automatically rotates tokens in httpOnly cookies
+        // No token handling needed in frontend
 
         // Session refreshed successfully, check current user
         await this.checkAuthStatus()

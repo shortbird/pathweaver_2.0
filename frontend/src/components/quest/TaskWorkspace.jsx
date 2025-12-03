@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Award, Type, Image, Video, Link2, FileText, AlertCircle, CheckCircle, BookOpen, ChevronDown, Plus } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
@@ -10,6 +10,16 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [showBlockMenu, setShowBlockMenu] = useState(false);
   const editorRef = useRef(null);
+
+  // Debug: Log task prop changes
+  useEffect(() => {
+    console.log('[TASK_WORKSPACE] Task prop changed:', {
+      id: task?.id?.substring(0, 8),
+      title: task?.title,
+      is_completed: task?.is_completed,
+      timestamp: new Date().toISOString()
+    });
+  }, [task]);
 
   if (!task) {
     return (
@@ -24,6 +34,8 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
 
   const pillarData = getPillarData(task.pillar);
   const isTaskCompleted = task.is_completed || false;
+
+  console.log('[TASK_WORKSPACE] Render with isTaskCompleted:', isTaskCompleted);
 
   const handleMarkComplete = async () => {
     if (isCompleting) return;
@@ -299,11 +311,16 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
             )}
           </button>
         ) : (
-          <div className="w-full py-3 bg-green-50 border-2 border-green-300 rounded-full flex items-center justify-center gap-2">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <span className="text-green-700 font-bold text-base" style={{ fontFamily: 'Poppins' }}>
-              Task Completed! +{task.xp_amount} XP Earned
-            </span>
+          <div className="space-y-2">
+            <div className="w-full py-3 bg-green-50 border-2 border-green-300 rounded-full flex items-center justify-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              <span className="text-green-700 font-bold text-base" style={{ fontFamily: 'Poppins' }}>
+                Task Completed! +{task.xp_amount} XP Earned
+              </span>
+            </div>
+            <p className="text-xs text-center text-gray-600" style={{ fontFamily: 'Poppins' }}>
+              You can still edit your evidence above. Changes save automatically.
+            </p>
           </div>
         )}
       </div>

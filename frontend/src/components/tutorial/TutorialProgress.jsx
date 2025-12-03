@@ -29,7 +29,7 @@ const TutorialProgress = () => {
           </div>
           <button
             onClick={() => navigate('/dashboard')} // Will show full tutorial card
-            className="bg-white text-purple-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-purple-50 transition-colors"
+            className="bg-white text-optio-purple px-4 py-2 rounded-lg text-sm font-semibold hover:bg-purple-50 transition-colors"
           >
             Start
           </button>
@@ -54,7 +54,7 @@ const TutorialProgress = () => {
       {/* Progress Bar */}
       <div className="bg-gray-200 rounded-full h-2 overflow-hidden mb-2">
         <div
-          className="bg-gradient-to-r from-purple-600 to-pink-600 h-full transition-all duration-500"
+          className="bg-gradient-to-r from-optio-purple to-optio-pink h-full transition-all duration-500"
           style={{ width: `${progress.percentage}%` }}
         ></div>
       </div>
@@ -64,7 +64,7 @@ const TutorialProgress = () => {
         <span className="text-gray-600">
           {progress.completedCount} of {progress.totalCount} tasks
         </span>
-        <span className="font-semibold text-purple-600">
+        <span className="font-semibold text-optio-purple">
           {progress.percentage}%
         </span>
       </div>

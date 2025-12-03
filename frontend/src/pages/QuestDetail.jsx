@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
@@ -32,8 +33,8 @@ const QuestDetail = () => {
     refetch: refetchQuest
   } = useQuestDetail(id, {
     enabled: !!id,
-    staleTime: 0,
-    cacheTime: 0,
+    staleTime: 30000, // Consider data fresh for 30 seconds after task completion
+    cacheTime: 300000, // Keep in cache for 5 minutes
   });
 
   // React Query mutations
@@ -60,9 +61,34 @@ const QuestDetail = () => {
   // Auto-select first task when quest loads
   useEffect(() => {
     if (quest?.quest_tasks?.length > 0 && !selectedTask && quest.user_enrollment) {
+      console.log('[QUEST_DETAIL] Auto-selecting first task:', {
+        id: quest.quest_tasks[0]?.id?.substring(0, 8),
+        title: quest.quest_tasks[0]?.title,
+        is_completed: quest.quest_tasks[0]?.is_completed
+      });
       setSelectedTask(quest.quest_tasks[0]);
     }
   }, [quest?.quest_tasks, quest?.user_enrollment]);
+
+  // Debug: Log whenever quest data changes
+  useEffect(() => {
+    if (quest?.quest_tasks) {
+      console.log('[QUEST_DETAIL] Quest data updated, tasks:', quest.quest_tasks.map(t => ({
+        id: t.id.substring(0, 8),
+        title: t.title?.substring(0, 20),
+        is_completed: t.is_completed
+      })));
+    }
+  }, [quest]);
+
+  // Debug: Log whenever selectedTask changes
+  useEffect(() => {
+    console.log('[QUEST_DETAIL] selectedTask changed:', {
+      id: selectedTask?.id?.substring(0, 8),
+      title: selectedTask?.title,
+      is_completed: selectedTask?.is_completed
+    });
+  }, [selectedTask]);
 
   // Handle error display
   if (error) {
@@ -175,43 +201,88 @@ const QuestDetail = () => {
   };
 
   const handleTaskCompletion = async (completionData) => {
+    console.log('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER START ==========');
+    console.log('[QUEST_DETAIL] completionData:', completionData);
+    console.log('[QUEST_DETAIL] selectedTask BEFORE update:', {
+      id: selectedTask?.id?.substring(0, 8),
+      title: selectedTask?.title,
+      is_completed: selectedTask?.is_completed
+    });
+
     // Task is already completed by MultiFormatEvidenceEditor
-    // Optimistically update the task completion status in cache
+    // Update the cache with confirmed completion status
     if (selectedTask) {
-      queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
-        if (!oldData) return oldData;
+      console.log('[QUEST_DETAIL] About to call flushSync for state + cache update');
 
-        const updatedTasks = oldData.quest_tasks?.map(task =>
-          task.id === selectedTask.id
-            ? { ...task, is_completed: true }
-            : task
-        ) || [];
+      // Use flushSync to synchronously update both state and cache before any re-renders
+      // This prevents React Query from refetching and overwriting our optimistic updates
+      flushSync(() => {
+        console.log('[QUEST_DETAIL] Inside flushSync - updating selectedTask state');
+        // CRITICAL: Update selectedTask state FIRST to ensure TaskWorkspace sees the completed status
+        // This prevents the UI from showing incomplete state while React Query cache updates
+        setSelectedTask(prev => {
+          const updated = prev ? { ...prev, is_completed: true } : null;
+          console.log('[QUEST_DETAIL] selectedTask state updated to:', {
+            id: updated?.id?.substring(0, 8),
+            is_completed: updated?.is_completed
+          });
+          return updated;
+        });
 
-        // Recalculate completion status
-        const completedCount = updatedTasks.filter(task => task.is_completed).length;
-        const totalCount = updatedTasks.length;
-        const newProgressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
-        const isNewlyCompleted = newProgressPercentage === 100;
+        console.log('[QUEST_DETAIL] Inside flushSync - updating React Query cache');
+        queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
+          if (!oldData) {
+            console.log('[QUEST_DETAIL] No oldData in cache, returning null');
+            return oldData;
+          }
 
-        return {
-          ...oldData,
-          quest_tasks: updatedTasks,
-          progress: {
-            ...oldData.progress,
-            percentage: newProgressPercentage,
-            completed_tasks: completedCount,
-            total_tasks: totalCount
-          },
-          completed_enrollment: isNewlyCompleted ? true : oldData.completed_enrollment
-        };
+          console.log('[QUEST_DETAIL] Old cache data quest_tasks count:', oldData.quest_tasks?.length);
+          console.log('[QUEST_DETAIL] Updating task in cache:', selectedTask.id.substring(0, 8));
+
+          const updatedTasks = oldData.quest_tasks?.map(task => {
+            if (task.id === selectedTask.id) {
+              console.log('[QUEST_DETAIL] Found matching task, marking is_completed=true');
+              return { ...task, is_completed: true };
+            }
+            return task;
+          }) || [];
+
+          // Recalculate completion status
+          const completedCount = updatedTasks.filter(task => task.is_completed).length;
+          const totalCount = updatedTasks.length;
+          const newProgressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+          const isNewlyCompleted = newProgressPercentage === 100;
+
+          console.log('[QUEST_DETAIL] Cache update complete:', {
+            completedCount,
+            totalCount,
+            progressPercentage: newProgressPercentage
+          });
+
+          return {
+            ...oldData,
+            quest_tasks: updatedTasks,
+            progress: {
+              ...oldData.progress,
+              percentage: newProgressPercentage,
+              completed_tasks: completedCount,
+              total_tasks: totalCount
+            },
+            completed_enrollment: isNewlyCompleted ? true : oldData.completed_enrollment
+          };
+        });
       });
+
+      console.log('[QUEST_DETAIL] flushSync completed - all updates should be synchronous');
     }
 
+    console.log('[QUEST_DETAIL] Closing modal and clearing selectedTask');
     setShowTaskModal(false);
     setSelectedTask(null);
 
-    // Also trigger a background refetch to sync with server
-    refetchQuest();
+    console.log('[QUEST_DETAIL] ========== TASK COMPLETION HANDLER END ==========');
+    // Do NOT refetch - the cache update above is sufficient and accurate
+    // Refetching causes race conditions with database commits
   };
 
   const handleTaskReorder = async (oldIndex, newIndex) => {
@@ -435,7 +506,7 @@ const QuestDetail = () => {
             {user && completedTasks > 0 && (
               <button
                 onClick={() => navigate(`/diploma/${user.id}`)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-purple-600 border-2 border-purple-200 rounded-full hover:bg-white hover:border-purple-300 hover:shadow-lg transition-all font-semibold"
+                className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-optio-purple border-2 border-purple-200 rounded-full hover:bg-white hover:border-purple-300 hover:shadow-lg transition-all font-semibold"
                 style={{ fontFamily: 'Poppins' }}
               >
                 <BookOpen className="w-4 h-4" />
@@ -530,7 +601,7 @@ const QuestDetail = () => {
                 </div>
                 <div className="px-4 py-2 bg-purple-50 border-2 border-purple-200 rounded-lg text-center">
                   <div className="text-xl font-bold text-purple-700" style={{ fontFamily: 'Poppins' }}>{earnedXP}</div>
-                  <div className="text-xs text-purple-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>XP Earned</div>
+                  <div className="text-xs text-optio-purple font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>XP Earned</div>
                 </div>
                 <div className="px-4 py-2 bg-gray-100 border-2 border-gray-300 rounded-lg text-center">
                   <div className="text-xl font-bold text-gray-700" style={{ fontFamily: 'Poppins' }}>{completedTasks}/{totalTasks}</div>

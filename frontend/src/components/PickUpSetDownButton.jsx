@@ -70,14 +70,14 @@ const PickUpSetDownButton = ({
       return {
         text: timesPickedUp > 1 ? `Pick Up Again (${timesPickedUp}x)` : 'Pick Up Again',
         onClick: handlePickUp,
-        style: 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700',
+        style: 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:from-purple-700 hover:to-pink-700',
         icon: '↻'
       };
     } else {
       return {
         text: 'Pick Up',
         onClick: handlePickUp,
-        style: 'bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:from-purple-700 hover:to-pink-700',
+        style: 'bg-gradient-to-r from-optio-purple to-optio-pink text-white hover:from-purple-700 hover:to-pink-700',
         icon: '⤴️'
       };
     }

@@ -23,7 +23,7 @@ const SuggestionChip = ({ suggestion, onClick, disabled }) => {
       "
       aria-label={`Apply suggestion: ${suggestion}`}
     >
-      <span className="text-purple-600">+</span>
+      <span className="text-optio-purple">+</span>
       <span>{suggestion}</span>
     </button>
   );

@@ -426,12 +426,12 @@ const OptioAcademyHandbook = () => {
           </div>
 
           <div className="mt-8 pt-8 border-t border-gray-200 flex justify-between items-center">
-            <Link to="/register" className="text-primary hover:text-purple-600 font-medium">
+            <Link to="/register" className="text-primary hover:text-optio-purple font-medium">
               ← Back to Registration
             </Link>
             <Link
               to="/academy-agreement"
-              className="text-primary hover:text-purple-600 font-medium"
+              className="text-primary hover:text-optio-purple font-medium"
             >
               View Full Academy Agreement →
             </Link>

@@ -73,13 +73,13 @@ const AchievementCelebration = ({ latestAchievement, onDismiss }) => {
           {/* Achievement Stats */}
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="bg-purple-50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-purple-600">
+              <div className="text-2xl font-bold text-optio-purple">
                 +{latestAchievement.xpEarned || 0}
               </div>
               <div className="text-xs text-gray-600">XP Earned</div>
             </div>
             <div className="bg-pink-50 rounded-lg p-3 text-center">
-              <div className="text-2xl font-bold text-pink-600">
+              <div className="text-2xl font-bold text-optio-pink">
                 {latestAchievement.tasksCompleted || 0}
               </div>
               <div className="text-xs text-gray-600">Tasks Done</div>

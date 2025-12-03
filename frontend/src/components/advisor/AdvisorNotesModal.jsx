@@ -113,7 +113,7 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-3xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 flex justify-between items-center">
+        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 flex justify-between items-center">
           <div>
             <h2 className="text-2xl font-bold text-white flex items-center gap-2">
               <FileText size={28} />
@@ -148,7 +148,7 @@ const AdvisorNotesModal = ({ subjectId, subjectName, onClose }) => {
               <button
                 onClick={handleCreateNote}
                 disabled={!newNoteText.trim() || submitting}
-                className="px-4 py-2 bg-purple-600 text-white rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
+                className="px-4 py-2 bg-optio-purple text-white rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2 transition-colors"
               >
                 <Plus size={18} />
                 Add Note

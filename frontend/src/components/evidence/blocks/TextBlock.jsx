@@ -40,7 +40,7 @@ const TextBlock = ({ block, isExpanded, onToggle, displayMode }) => {
       {shouldTruncate && (
         <button
           onClick={onToggle}
-          className="mt-3 text-sm font-semibold text-purple-600 hover:text-purple-800 transition-colors"
+          className="mt-3 text-sm font-semibold text-optio-purple hover:text-purple-800 transition-colors"
           style={{ fontFamily: 'Poppins, sans-serif' }}
         >
           {isExpanded ? 'Show less' : 'Show more'}

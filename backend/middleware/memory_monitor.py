@@ -21,8 +21,8 @@ class MemoryMonitor:
 
     def __init__(self, app=None):
         self.app = app
-        self.high_memory_threshold = 400 * 1024 * 1024  # 400MB
-        self.critical_memory_threshold = 450 * 1024 * 1024  # 450MB
+        self.high_memory_threshold = 450 * 1024 * 1024  # 450MB
+        self.critical_memory_threshold = 480 * 1024 * 1024  # 480MB
         self.cleanup_count = 0
 
         if app:
@@ -77,7 +77,7 @@ class MemoryMonitor:
             request_time = (datetime.utcnow() - g.request_start_time).total_seconds()
 
             # Log memory usage for analysis
-            if memory_diff > 10 * 1024 * 1024:  # More than 10MB increase
+            if memory_diff > 50 * 1024 * 1024:  # More than 50MB increase
                 logger.warning(
                     f"Large memory increase: {memory_diff / 1024 / 1024:.1f}MB "
                     f"for {request.method} {request.path} "

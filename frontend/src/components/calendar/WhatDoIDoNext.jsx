@@ -53,7 +53,7 @@ const WhatDoIDoNext = ({ userId, selectedPillar, onPillarChange }) => {
         aria-controls="next-up-content"
       >
         <div className="flex items-center">
-          <RocketLaunchIcon className="w-6 h-6 text-purple-600 mr-3" />
+          <RocketLaunchIcon className="w-6 h-6 text-optio-purple mr-3" />
           <h2 className="text-xl font-bold text-gray-900" style={{ fontFamily: 'Poppins, sans-serif' }}>
             What Do I Do Next?
           </h2>
@@ -117,7 +117,7 @@ const WhatDoIDoNext = ({ userId, selectedPillar, onPillarChange }) => {
                       <TaskCard key={item.id} item={item} />
                     ))}
                     {nextUpData?.has_more_today && (
-                      <Link to="/calendar" className="text-sm text-purple-600 hover:text-purple-800 font-medium">
+                      <Link to="/calendar" className="text-sm text-optio-purple hover:text-purple-800 font-medium">
                         View all today's tasks →
                       </Link>
                     )}

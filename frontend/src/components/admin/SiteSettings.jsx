@@ -101,7 +101,7 @@ const SiteSettings = () => {
           onClick={() => setActiveTab('site')}
           className={`px-4 py-2 font-semibold transition-colors ${
             activeTab === 'site'
-              ? 'border-b-2 border-purple-600 text-purple-600'
+              ? 'border-b-2 border-optio-purple text-optio-purple'
               : 'text-gray-600 hover:text-gray-900'
           }`}
           style={{ fontFamily: 'Poppins, sans-serif' }}
@@ -112,7 +112,7 @@ const SiteSettings = () => {
           onClick={() => setActiveTab('services')}
           className={`px-4 py-2 font-semibold transition-colors ${
             activeTab === 'services'
-              ? 'border-b-2 border-purple-600 text-purple-600'
+              ? 'border-b-2 border-optio-purple text-optio-purple'
               : 'text-gray-600 hover:text-gray-900'
           }`}
           style={{ fontFamily: 'Poppins, sans-serif' }}

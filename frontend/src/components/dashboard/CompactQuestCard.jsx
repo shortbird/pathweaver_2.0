@@ -39,7 +39,7 @@ const CompactQuestCard = ({ quest }) => {
     >
       {/* Header with title and status */}
       <div className="flex items-start justify-between mb-3">
-        <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 flex-1 pr-2 group-hover:text-purple-600 transition-colors">
+        <h3 className="text-sm font-semibold text-gray-900 line-clamp-2 flex-1 pr-2 group-hover:text-optio-purple transition-colors">
           {questData.title || 'Untitled Quest'}
         </h3>
 

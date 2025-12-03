@@ -1,4 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, forwardRef, useImperativeHandle } from 'react';
+import { flushSync } from 'react-dom';
 import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
 import { evidenceDocumentService } from '../../services/evidenceDocumentService';
 
@@ -132,14 +133,29 @@ const MultiFormatEvidenceEditor = forwardRef(({
     });
   };
 
-  // Auto-save when blocks change
+  // Auto-save when blocks change (but NOT if task is completed)
   useEffect(() => {
-    if (!isLoading && autoSaverRef.current && blocks.length > 0) {
+    // Debug logging for auto-save behavior
+    console.log('[EVIDENCE] Auto-save check:', {
+      isLoading,
+      hasAutoSaver: !!autoSaverRef.current,
+      blocksLength: blocks.length,
+      documentStatus,
+      willAutoSave: !isLoading && autoSaverRef.current && blocks.length > 0 && documentStatus !== 'completed'
+    });
+
+    // Don't auto-save if task is already completed - this prevents
+    // overwriting the 'completed' status back to 'draft'
+    if (!isLoading && autoSaverRef.current && blocks.length > 0 && documentStatus !== 'completed') {
+      console.log('[EVIDENCE] Triggering auto-save with status: draft');
       setSaveStatus('unsaved');
       const cleanedBlocks = cleanBlocksForSave(blocks);
       autoSaverRef.current.autoSave(cleanedBlocks);
+    } else if (documentStatus === 'completed') {
+      console.log('[EVIDENCE] Skipping auto-save - task is completed');
+      setSaveStatus('saved'); // Mark as saved when auto-save is disabled due to completion
     }
-  }, [blocks, isLoading]);
+  }, [blocks, isLoading, documentStatus]);
 
   // Update parent container with save status when hideHeader is true
   useEffect(() => {
@@ -260,11 +276,32 @@ const MultiFormatEvidenceEditor = forwardRef(({
 
       // Save and complete the task (files are already uploaded)
       const cleanedBlocks = cleanBlocksForSave(blocks);
+      console.log('[EVIDENCE] Submitting task completion with status: completed');
+      console.log('[EVIDENCE] Current documentStatus before save:', documentStatus);
+
       const completeResponse = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, 'completed');
 
       if (completeResponse.success) {
-        setDocumentStatus('completed');
-        setSaveStatus('saved');
+        console.log('[EVIDENCE] Task completion successful - setting documentStatus to completed');
+
+        // CRITICAL: Disable auto-save permanently BEFORE setting status
+        // This prevents any pending auto-save from overwriting the 'completed' status
+        if (autoSaverRef.current && autoSaverRef.current.disableAutoSave) {
+          console.log('[EVIDENCE] Disabling auto-save permanently to prevent overwriting completion');
+          autoSaverRef.current.disableAutoSave();
+        } else if (autoSaverRef.current) {
+          console.log('[EVIDENCE] Clearing auto-save (disableAutoSave not available)');
+          autoSaverRef.current.clearAutoSave();
+        }
+
+        // Use flushSync to force synchronous state updates
+        // This prevents race conditions with React Query cache updates and component re-renders
+        flushSync(() => {
+          setDocumentStatus('completed');
+          setSaveStatus('saved');
+        });
+        console.log('[EVIDENCE] State updated synchronously with flushSync - documentStatus:', documentStatus);
+
         if (onComplete) {
           onComplete({
             xp_awarded: completeResponse.xp_awarded || 0,

@@ -100,7 +100,7 @@ const SkillsBreakdown = ({ skillsXP }) => {
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div>
             <h3 className="text-sm font-semibold text-gray-600 uppercase tracking-wider mb-1">Portfolio Value</h3>
-            <p className="text-3xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
+            <p className="text-3xl font-bold bg-gradient-to-r from-optio-purple to-optio-pink bg-clip-text text-transparent">
               {totalXP.toLocaleString()} XP
             </p>
             <p className="text-xs text-gray-600 mt-1">Across {Object.values(skillsXP).filter(xp => xp > 0).length} competencies</p>

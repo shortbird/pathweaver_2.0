@@ -76,12 +76,25 @@ def get_evidence_document(user_id: str, task_id: str):
 
         document = document_response.data[0]
 
-        # Get all content blocks for this document (including is_private field)
+        # Get all content blocks for this document (including is_private field and uploader info)
         blocks_response = supabase.table('evidence_document_blocks')\
-            .select('id, document_id, block_type, content, order_index, is_private, created_at')\
+            .select('id, document_id, block_type, content, order_index, is_private, created_at, uploaded_by_user_id, uploaded_by_role')\
             .eq('document_id', document['id'])\
             .order('order_index')\
             .execute()
+
+        # Get uploader names for blocks
+        uploader_ids = [b['uploaded_by_user_id'] for b in blocks_response.data if b.get('uploaded_by_user_id')]
+        uploader_names = {}
+        if uploader_ids:
+            uploaders = supabase.table('users').select('id, first_name, last_name').in_('id', list(set(uploader_ids))).execute()
+            for u in uploaders.data:
+                uploader_names[u['id']] = f"{u.get('first_name', '')} {u.get('last_name', '')}".strip()
+
+        # Add uploader names to blocks
+        for block in blocks_response.data:
+            if block.get('uploaded_by_user_id'):
+                block['uploaded_by_name'] = uploader_names.get(block['uploaded_by_user_id'], 'Unknown')
 
         return jsonify({
             'success': True,
@@ -114,6 +127,10 @@ def save_evidence_document(user_id: str, task_id: str):
         data = request.get_json()
         blocks = data.get('blocks', [])
         status = data.get('status', 'draft')  # 'draft' or 'completed'
+
+        logger.info(f"[EVIDENCE_DOC] === SAVE REQUEST START ===")
+        logger.info(f"[EVIDENCE_DOC] task_id={task_id[:8]}, user_id={user_id[:8]}, status='{status}', num_blocks={len(blocks)}")
+        logger.info(f"[EVIDENCE_DOC] Full status value: '{status}' (type: {type(status).__name__})")
 
         # Validate task exists and user is enrolled (V3 personalized task system)
         task_check = admin_supabase.table('user_quest_tasks')\
@@ -228,6 +245,8 @@ def save_evidence_document(user_id: str, task_id: str):
         quest_completed = False
 
         if status == 'completed':
+            logger.info(f"[EVIDENCE_DOC] Task completion requested: task_id={task_id[:8]}, user_id={user_id[:8]}, status=completed")
+
             # Check if this task was already completed (V3 system)
             existing_completion = admin_supabase.table('quest_task_completions')\
                 .select('id')\
@@ -235,32 +254,54 @@ def save_evidence_document(user_id: str, task_id: str):
                 .eq('task_id', task_id)\
                 .execute()
 
+            logger.info(f"[EVIDENCE_DOC] Existing completion check: found={len(existing_completion.data or [])} records")
+
             if not existing_completion.data:
                 # Award XP for task completion
                 task_data = task_check.data[0]
                 base_xp = task_data.get('xp_value', 0)
+
+                logger.info(f"[EVIDENCE_DOC] Creating new completion record: task_id={task_id[:8]}, base_xp={base_xp}")
 
                 # Calculate XP with collaboration bonus if applicable
                 final_xp, has_collaboration = xp_service.calculate_task_xp(
                     user_id, task_id, quest_id, base_xp
                 )
 
+                logger.info(f"[EVIDENCE_DOC] XP calculated: final_xp={final_xp}, has_collaboration={has_collaboration}")
+
                 # Create task completion record using V3 system
-                completion = admin_supabase.table('quest_task_completions')\
-                    .insert({
-                        'user_id': user_id,
-                        'quest_id': quest_id,
-                        'task_id': task_id,
-                        'user_quest_task_id': task_id,  # In V3, task_id IS the user_quest_task_id
-                        'evidence_text': f'Multi-format evidence document (Document ID: {document_id})',
-                        'completed_at': datetime.utcnow().isoformat()
-                    })\
-                    .execute()
+                try:
+                    completion = admin_supabase.table('quest_task_completions')\
+                        .insert({
+                            'user_id': user_id,
+                            'quest_id': quest_id,
+                            'task_id': task_id,
+                            'user_quest_task_id': task_id,  # In V3, task_id IS the user_quest_task_id
+                            'evidence_text': f'Multi-format evidence document (Document ID: {document_id})',
+                            'completed_at': datetime.utcnow().isoformat()
+                        })\
+                        .execute()
+
+                    logger.info(f"[EVIDENCE_DOC] Completion record insert result: success={bool(completion.data)}, record_count={len(completion.data or [])}")
+                    if completion.data:
+                        logger.info(f"[EVIDENCE_DOC] Completion record created with ID: {completion.data[0].get('id', 'unknown')[:8]}")
+                except Exception as insert_error:
+                    logger.error(f"[EVIDENCE_DOC] ERROR inserting completion record: {str(insert_error)}")
+                    # If insert fails (e.g., unique constraint violation), query existing record
+                    completion = admin_supabase.table('quest_task_completions')\
+                        .select('*')\
+                        .eq('user_id', user_id)\
+                        .eq('task_id', task_id)\
+                        .execute()
+                    logger.info(f"[EVIDENCE_DOC] Queried existing completion after insert error: found={bool(completion.data)}")
 
                 if completion.data:
                     # Award XP to user (this will be handled by existing XP service)
                     task_pillar = task_data.get('pillar', 'creativity')
                     xp_awarded = final_xp
+
+                    logger.info(f"[EVIDENCE_DOC] Awarding {final_xp} XP for pillar '{task_pillar}'")
 
                     xp_service.award_xp(
                         user_id,
@@ -271,6 +312,11 @@ def save_evidence_document(user_id: str, task_id: str):
 
                     # Check if quest is now completed
                     quest_completed = check_quest_completion(admin_supabase, user_id, quest_id)
+                    logger.info(f"[EVIDENCE_DOC] Quest completion check: quest_completed={quest_completed}")
+                else:
+                    logger.error(f"[EVIDENCE_DOC] FAILED to create completion record for task {task_id[:8]}")
+            else:
+                logger.info(f"[EVIDENCE_DOC] Task already completed, skipping XP award")
 
         # Get the saved blocks to return their IDs
         saved_blocks_response = admin_supabase.table('evidence_document_blocks')\
@@ -637,11 +683,13 @@ def update_document_blocks(supabase, document_id: str, blocks: List[Dict]):
             is_temporary_id = not block_id or str(block_id).startswith(('legacy-', 'temp-', 'new-'))
 
             if block_id and not is_temporary_id and block_id in existing_block_ids:
-                # Update existing block
+                # Update existing block (preserve uploader info - don't overwrite)
                 block_data['id'] = block_id
                 blocks_to_update.append(block_data)
             else:
-                # Create new block (includes temporary IDs and actual new blocks)
+                # Create new block - preserve uploader info if present, otherwise default to student
+                block_data['uploaded_by_user_id'] = block.get('uploaded_by_user_id')
+                block_data['uploaded_by_role'] = block.get('uploaded_by_role', 'student')
                 blocks_to_insert.append(block_data)
 
         # Batch insert new blocks

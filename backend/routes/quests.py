@@ -309,6 +309,13 @@ def get_quest_detail(user_id: str, quest_id: str):
 
             completed_task_ids = {t['user_quest_task_id'] for t in task_completions.data} if task_completions.data else set()
 
+            # DEBUG: Log completion data
+            logger.info(f"[QUEST_DETAIL] Task completions for user {user_id[:8]} on quest {quest_id[:8]}:")
+            logger.info(f"[QUEST_DETAIL] Found {len(task_completions.data or [])} completion records")
+            for comp in (task_completions.data or [])[:5]:  # Log first 5
+                logger.info(f"[QUEST_DETAIL]   Completion: user_quest_task_id={comp['user_quest_task_id'][:8]}, completed_at={comp.get('completed_at')}")
+            logger.info(f"[QUEST_DETAIL] Completed task IDs set: {[id[:8] for id in list(completed_task_ids)[:5]]}")
+
             # Create a mapping of task_id to completion data for easy lookup
             completion_data_map = {t['user_quest_task_id']: t for t in task_completions.data} if task_completions.data else {}
 
@@ -320,7 +327,10 @@ def get_quest_detail(user_id: str, quest_id: str):
             # Mark tasks as completed and map field names for frontend compatibility
             quest_tasks = user_tasks.data or []
             for task in quest_tasks:
-                task['is_completed'] = task['id'] in completed_task_ids
+                task_is_completed = task['id'] in completed_task_ids
+                task['is_completed'] = task_is_completed
+                # DEBUG: Log each task's completion status
+                logger.info(f"[QUEST_DETAIL] Task '{task.get('title')[:30]}': id={task['id'][:8]}, is_completed={task_is_completed}, in_completed_set={task['id'] in completed_task_ids}")
 
                 # Add evidence data if task is completed
                 if task['id'] in completion_data_map:
@@ -1076,6 +1086,24 @@ def create_user_quest(user_id: str):
         quest_id = quest_result.data[0]['id']
         logger.info(f"User {user_id[:8]} created private quest {quest_id}: {quest_data['title']}")
 
+        # Auto-enroll the user in their own quest
+        try:
+            enrollment_data = {
+                'user_id': user_id,
+                'quest_id': quest_id,
+                'started_at': datetime.utcnow().isoformat(),
+                'is_active': True
+            }
+            enrollment_result = supabase.table('user_quests').insert(enrollment_data).execute()
+
+            if enrollment_result.data:
+                logger.info(f"Auto-enrolled user {user_id[:8]} in their own quest {quest_id[:8]}")
+            else:
+                logger.warning(f"Failed to auto-enroll user {user_id[:8]} in quest {quest_id[:8]}")
+        except Exception as enrollment_error:
+            # Log but don't fail the quest creation if enrollment fails
+            logger.error(f"Failed to auto-enroll user in their own quest: {enrollment_error}")
+
         return jsonify({
             'success': True,
             'message': 'Quest created successfully! It\'s now available in your quest library.',
@@ -1117,15 +1145,12 @@ def get_quest_sources():
 
 @bp.route('/<quest_id>/tasks/reorder', methods=['PUT'])
 @require_auth
-def reorder_quest_tasks(quest_id):
+def reorder_quest_tasks(user_id: str, quest_id: str):
     """
     Reorder tasks for a quest.
     Body: { task_ids: [id1, id2, id3...] }
     """
     try:
-        from flask import g
-        user_id = g.user_id
-
         data = request.get_json()
         task_ids = data.get('task_ids', [])
 

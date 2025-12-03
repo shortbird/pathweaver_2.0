@@ -277,15 +277,9 @@ def export_user_data(current_user):
             logger.error(f"Error fetching friendships: {str(e)}")
             export_data['friendships'] = []
 
-        # Get quest collaborations
-        try:
-            collabs_response = supabase.table('quest_collaborations').select('*').or_(
-                f'requester_id.eq.{user_id},partner_id.eq.{user_id}'
-            ).execute()
-            export_data['collaborations'] = collabs_response.data if collabs_response.data else []
-        except Exception as e:
-            logger.error(f"Error fetching collaborations: {str(e)}")
-            export_data['collaborations'] = []
+        # Quest collaborations removed in Phase 1 refactoring (January 2025)
+        # Table quest_collaborations no longer exists
+        export_data['collaborations'] = []
 
         # Get tutor conversations (if exists)
         try:
@@ -300,19 +294,12 @@ def export_user_data(current_user):
         except:
             pass  # Table might not exist
 
-        # Get quest submissions
-        try:
-            submissions_response = supabase.table('quest_submissions').select('*').eq('user_id', user_id).execute()
-            export_data['quest_submissions'] = submissions_response.data if submissions_response.data else []
-        except:
-            pass
+        # Quest submissions feature removed - users can create their own quests directly
+        export_data['quest_submissions'] = []
 
-        # Get quest ratings
-        try:
-            ratings_response = supabase.table('quest_ratings').select('*').eq('user_id', user_id).execute()
-            export_data['quest_ratings'] = ratings_response.data if ratings_response.data else []
-        except:
-            pass
+        # Quest ratings removed in Phase 1 refactoring (January 2025)
+        # Table quest_ratings no longer exists
+        export_data['quest_ratings'] = []
 
         return jsonify(export_data), 200
 

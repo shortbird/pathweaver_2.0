@@ -106,7 +106,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <Loader className="animate-spin text-purple-600" size={32} />
+              <Loader className="animate-spin text-optio-purple" size={32} />
             </div>
           ) : (
             <div className="space-y-6">
@@ -146,7 +146,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
                               )}
                             </div>
                           </div>
-                          <ChevronRight className="text-purple-600 group-hover:translate-x-1 transition-transform" size={20} />
+                          <ChevronRight className="text-optio-purple group-hover:translate-x-1 transition-transform" size={20} />
                         </div>
                       </div>
                     ))}
@@ -179,7 +179,7 @@ const QuestSelectionModal = ({ student, onClose }) => {
                               Student will be auto-enrolled when you add tasks
                             </p>
                           </div>
-                          <ChevronRight className="text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all" size={20} />
+                          <ChevronRight className="text-gray-400 group-hover:text-optio-purple group-hover:translate-x-1 transition-all" size={20} />
                         </div>
                       </div>
                     ))}

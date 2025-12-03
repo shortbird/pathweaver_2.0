@@ -21,7 +21,7 @@ export const renderMarkdown = (text) => {
       const bulletContent = line.trim().substring(1).trim();
       return (
         <div key={lineIndex} className="flex items-start space-x-2 my-1">
-          <span className="text-purple-600 font-bold flex-shrink-0">•</span>
+          <span className="text-optio-purple font-bold flex-shrink-0">•</span>
           <span>{renderInlineMarkdown(bulletContent)}</span>
         </div>
       );

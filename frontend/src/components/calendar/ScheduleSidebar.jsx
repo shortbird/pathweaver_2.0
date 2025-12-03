@@ -163,7 +163,7 @@ const UnscheduledItem = ({ item, onQuickSchedule, onCustomSchedule }) => {
             <button
               onClick={handleCustomSubmit}
               disabled={!customDate}
-              className="flex-1 px-2 py-1 bg-purple-600 text-white rounded text-xs font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-2 py-1 bg-optio-purple text-white rounded text-xs font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Schedule
             </button>

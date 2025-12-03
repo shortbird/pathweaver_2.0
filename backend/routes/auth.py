@@ -619,31 +619,8 @@ def login():
             if isinstance(user_response_data, list):
                 user_response_data = user_response_data[0] if user_response_data else None
 
-            # Send welcome email on first login (when welcome_email_sent is False/NULL)
-            # This happens after user verifies their email and logs in for the first time
-            try:
-                welcome_sent = user_response_data.get('welcome_email_sent') if user_response_data else True
-                is_first_login = user_response_data and not welcome_sent
-
-                if is_first_login:
-                    from services.email_service import EmailService
-                    email_service = EmailService()
-                    email_service.send_welcome_email(
-                        user_email=auth_response.user.email,
-                        user_name=user_response_data.get('first_name', 'there')
-                    )
-                    logger.info(f"[LOGIN] Sent welcome email to {auth_response.user.email[:3]}*** on first login")
-
-                    # Mark welcome email as sent
-                    try:
-                        admin_client.table('users').update({
-                            'welcome_email_sent': True
-                        }).eq('id', auth_response.user.id).execute()
-                    except Exception as update_error:
-                        logger.error(f"Warning: Failed to update welcome_email_sent flag: {update_error}")
-            except Exception as welcome_error:
-                # Don't fail login if welcome email fails
-                logger.error(f"Warning: Failed to send welcome email on first login: {welcome_error}")
+            # Welcome email temporarily disabled - requires SMTP configuration
+            # TODO: Re-enable once SendGrid credentials are added to environment variables
 
             # Reset login attempts after successful login
             reset_login_attempts(email)
@@ -657,58 +634,40 @@ def login():
             except Exception as update_error:
                 logger.error(f"Warning: Failed to update last_active timestamp: {update_error}")
 
+            # Trigger email_confirmed event for automation sequences (only once)
+            # This happens when user logs in with a confirmed email for the first time
+            if auth_response.user.email_confirmed_at and not user_response_data.get('welcome_email_sent'):
+                try:
+                    from services.campaign_automation_service import CampaignAutomationService
+                    automation_service = CampaignAutomationService()
+                    automation_service.process_event_trigger(
+                        event_type='email_confirmed',
+                        user_id=auth_response.user.id,
+                        metadata={'email': auth_response.user.email}
+                    )
+                    # Mark welcome email as sent to prevent duplicate sends
+                    admin_client.table('users').update({
+                        'welcome_email_sent': True
+                    }).eq('id', auth_response.user.id).execute()
+                    logger.info(f"Triggered email_confirmed event for user {auth_response.user.id}")
+                except Exception as automation_error:
+                    logger.error(f"Warning: Failed to process email_confirmed event: {automation_error}")
+
             # Create response with user data
 
-            # Extract session data
-            session_data = auth_response.session.model_dump() if auth_response.session else {}
-
-            # For incognito mode compatibility, we include tokens in response body
-            # Tokens are ALSO set in httpOnly cookies as a fallback
-            # Keep access_token and refresh_token for Authorization header usage
-
-            # ✅ INCOGNITO MODE FIX: Generate custom JWT tokens for Authorization headers
-            app_access_token = session_manager.generate_access_token(auth_response.user.id)
-            app_refresh_token = session_manager.generate_refresh_token(auth_response.user.id)
+            # ✅ SECURITY FIX (January 2025): httpOnly cookies ONLY - NO tokens in response body
+            # Tokens NEVER returned in response body (XSS prevention)
+            # All authentication handled via secure httpOnly cookies ONLY
 
             response_data = {
                 'user': user_response_data,
-                'session': session_data,
-                'app_access_token': app_access_token,
-                'app_refresh_token': app_refresh_token,
-                # ✅ DUAL AUTH STRATEGY: App tokens in response body for Authorization headers
-                # AND in httpOnly cookies for fallback
-                # This ensures compatibility with incognito mode (where cookies may be blocked)
+                # NO tokens in response - httpOnly cookies ONLY for security
             }
             response = make_response(jsonify(response_data), 200)
 
-            # Set httpOnly cookies for authentication (same-origin only)
-            # In cross-origin mode, session_manager skips cookie operations
+            # Set httpOnly cookies for authentication
+            # This is the ONLY place tokens exist - never in response body or localStorage
             session_manager.set_auth_cookies(response, auth_response.user.id)
-
-            # ✅ INCOGNITO FIX: Skip Supabase cookies in cross-origin mode (blocked anyway)
-            # Supabase tokens are in response body for frontend to use if needed
-            if not session_manager.is_cross_origin and auth_response.session:
-                if auth_response.session.access_token:
-                    response.set_cookie(
-                        'supabase_access_token',
-                        auth_response.session.access_token,
-                        max_age=3600,  # 1 hour (matches Supabase default)
-                        httponly=True,
-                        secure=session_manager.cookie_secure,
-                        samesite=session_manager.cookie_samesite,
-                        path='/'
-                    )
-
-                if auth_response.session.refresh_token:
-                    response.set_cookie(
-                        'supabase_refresh_token',
-                        auth_response.session.refresh_token,
-                        max_age=2592000,  # 30 days (matches Supabase default)
-                        httponly=True,
-                        secure=session_manager.cookie_secure,
-                        samesite=session_manager.cookie_samesite,
-                        path='/'
-                    )
 
             return response
         else:
@@ -990,14 +949,29 @@ def forgot_password():
         logger.info(f"[FORGOT_PASSWORD] Looking up user in auth.users: {email}")
 
         try:
-            # Query auth.users directly using admin client
-            auth_user = admin_client.auth.admin.list_users()
-            matching_user = None
+            # Use Supabase Admin API to list users and find by email
+            # Note: We can't query auth.users directly via PostgREST, must use Admin API
+            logger.info(f"[FORGOT_PASSWORD] Looking up user by email using Admin API: {email}")
 
-            for user in auth_user:
-                if user.email and user.email.lower() == email.lower():
-                    matching_user = user
-                    break
+            # Use Admin API's list_users with pagination to find user by email
+            # This is more efficient than list_users() without params
+            try:
+                # Try to get user directly if we know the ID, otherwise search
+                # First check public.users table for the user_id (it references auth.users.id)
+                public_user = admin_client.table('users').select('id').eq('email', email).execute()
+
+                matching_user = None
+                if public_user.data and len(public_user.data) > 0:
+                    # Found in public.users, get full auth user object
+                    user_id = public_user.data[0]['id']
+                    logger.info(f"[FORGOT_PASSWORD] Found user_id in public.users: {user_id}")
+                    auth_user_obj = admin_client.auth.admin.get_user_by_id(user_id)
+                    if auth_user_obj and auth_user_obj.user:
+                        matching_user = auth_user_obj.user
+                        logger.info(f"[FORGOT_PASSWORD] Successfully retrieved auth user object")
+            except Exception as lookup_err:
+                logger.error(f"[FORGOT_PASSWORD] Error during user lookup: {str(lookup_err)}")
+                matching_user = None
 
             logger.info(f"[FORGOT_PASSWORD] Auth user lookup result: {'Found' if matching_user else 'Not found'}")
 
@@ -1080,9 +1054,11 @@ def forgot_password():
         logger.error(f"[FORGOT_PASSWORD] Exception type: {type(e).__name__}")
         import traceback
         logger.error(f"[FORGOT_PASSWORD] Traceback: {traceback.format_exc()}")
-        # Return generic success message to avoid revealing system errors
+        # Always return success message (don't reveal if email exists or not)
+        logger.info("[FORGOT_PASSWORD] === Returning success response ===")
         return jsonify({
-            'message': 'Password reset request processed. If an account exists, an email will be sent.'
+            'message': 'If an account exists with this email, you will receive password reset instructions shortly.',
+            'note': 'Please check your spam folder if you don\'t see the email within a few minutes.'
         }), 200
 
 @bp.route('/reset-password', methods=['POST'])

@@ -36,7 +36,7 @@ export default function BadgeCarousel({ pillar, badges }) {
     'wellness': 'text-orange-600',  // Updated to match centralized config (wellness = orange)
     'communication': 'text-green-600',
     'civics': 'text-red-600',  // Updated to match centralized config (civics = red)
-    'art': 'text-purple-600'
+    'art': 'text-optio-purple'
   };
 
   const pillarDisplayName = getPillarDisplayName(pillar);

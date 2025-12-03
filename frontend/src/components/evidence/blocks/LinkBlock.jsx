@@ -36,7 +36,7 @@ const LinkBlock = ({ block, displayMode }) => {
             </p>
           )}
 
-          <p className="text-xs text-purple-600 font-semibold truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <p className="text-xs text-optio-purple font-semibold truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
             {url}
           </p>
         </div>

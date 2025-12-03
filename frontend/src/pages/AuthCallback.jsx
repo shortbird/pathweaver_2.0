@@ -152,7 +152,7 @@ export default function AuthCallback() {
       <div className="bg-white rounded-xl shadow-lg p-8 max-w-md w-full text-center">
         {status === 'processing' && (
           <>
-            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-optio-purple mx-auto mb-4"></div>
             <h2 className="text-xl font-bold text-gray-800" style={{ fontFamily: 'Poppins' }}>
               Completing Sign In...
             </h2>

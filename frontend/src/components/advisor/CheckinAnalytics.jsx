@@ -57,7 +57,7 @@ const CheckinAnalytics = () => {
   return (
     <div className="bg-white rounded-xl shadow-md overflow-hidden">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-4">
+      <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-4">
         <h3 className="text-xl font-bold text-white flex items-center gap-2">
           <TrendingUp size={24} />
           Check-in Overview

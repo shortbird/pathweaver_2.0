@@ -45,7 +45,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 text-white">
+        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white">
           <div className="flex items-start justify-between">
             <div>
               <h2 className="text-2xl font-bold mb-1">Check-in History</h2>
@@ -69,7 +69,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
         <div className="flex-1 overflow-y-auto p-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
             </div>
           ) : error ? (
             <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
@@ -104,7 +104,7 @@ const CheckinHistoryModal = ({ studentId, studentName, onClose }) => {
                         )}
                       </div>
                       <button
-                        className="ml-4 text-purple-600 font-semibold text-sm hover:text-purple-700"
+                        className="ml-4 text-optio-purple font-semibold text-sm hover:text-purple-700"
                       >
                         {expandedCheckinId === checkin.id ? 'Hide' : 'View Details'}
                       </button>

@@ -62,10 +62,10 @@ def start_batch_generation(user_id):
         difficulty_level = data.get('difficulty_level')
         batch_id = data.get('batch_id')
 
-        if count < 1 or count > 20:
+        if count < 1 or count > 200:
             return jsonify({
                 "success": False,
-                "error": "Batch size must be between 1 and 20"
+                "error": "Batch size must be between 1 and 200"
             }), 400
 
         # Validate pillar if provided
@@ -170,10 +170,10 @@ def generate_badge_aligned(user_id):
         badge_id = data.get('badge_id')
         count = data.get('count', 5)
 
-        if count < 1 or count > 20:
+        if count < 1 or count > 200:
             return jsonify({
                 "success": False,
-                "error": "Count must be between 1 and 20"
+                "error": "Count must be between 1 and 200"
             }), 400
 
         service = BatchQuestGenerationService()

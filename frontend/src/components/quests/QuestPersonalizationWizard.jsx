@@ -293,7 +293,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
               className="group p-8 border-2 border-gray-300 rounded-xl hover:border-purple-500 hover:shadow-xl transition-all text-left disabled:opacity-50"
             >
               <div className="text-5xl mb-4">✨</div>
-              <h3 className="text-2xl font-bold mb-2 group-hover:text-purple-600 transition-colors" style={{ fontFamily: 'Poppins' }}>
+              <h3 className="text-2xl font-bold mb-2 group-hover:text-optio-purple transition-colors" style={{ fontFamily: 'Poppins' }}>
                 AI Generate
               </h3>
               <p className="text-gray-600" style={{ fontFamily: 'Poppins' }}>
@@ -308,7 +308,7 @@ export default function QuestPersonalizationWizard({ questId, questTitle, onComp
               className="group p-8 border-2 border-gray-300 rounded-xl hover:border-pink-500 hover:shadow-xl transition-all text-left disabled:opacity-50"
             >
               <div className="text-5xl mb-4">✍️</div>
-              <h3 className="text-2xl font-bold mb-2 group-hover:text-pink-600 transition-colors" style={{ fontFamily: 'Poppins' }}>
+              <h3 className="text-2xl font-bold mb-2 group-hover:text-optio-pink transition-colors" style={{ fontFamily: 'Poppins' }}>
                 Write My Own
               </h3>
               <p className="text-gray-600" style={{ fontFamily: 'Poppins' }}>

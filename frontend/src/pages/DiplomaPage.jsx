@@ -98,7 +98,7 @@ const DiplomaPage = () => {
     'science': 'from-purple-500 to-violet-600',
     'social_studies': 'from-amber-500 to-orange-600',
     'financial_literacy': 'from-emerald-500 to-teal-600',
-    'health': 'from-rose-500 to-pink-600',
+    'health': 'from-rose-500 to-optio-pink',
     'pe': 'from-cyan-500 to-blue-600',
     'fine_arts': 'bg-gradient-primary',
     'cte': 'from-slate-500 to-gray-600',
@@ -251,8 +251,9 @@ const DiplomaPage = () => {
       }
     } catch (error) {
       console.error('Error fetching public diploma:', error);
+      console.error('Error response:', error.response);
       const errorInfo = formatErrorMessage(
-        error.response?.status === 404 ? 'diploma/not-found' : 'diploma/private'
+        error.response?.status === 404 ? 'diploma/not-found' : 'diploma/error'
       );
       setError(errorInfo);
     } finally {
@@ -892,7 +893,7 @@ const DiplomaPage = () => {
               {isOwner && (
                 <button
                   onClick={() => navigate('/quests')}
-                  className="px-6 py-3 bg-purple-600 text-white rounded-lg font-semibold"
+                  className="px-6 py-3 bg-optio-purple text-white rounded-lg font-semibold"
                 >
                   Start Your First Adventure
                 </button>

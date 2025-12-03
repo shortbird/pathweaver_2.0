@@ -275,7 +275,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <h5 className="font-semibold text-gray-900">{task.title}</h5>
-                  <span className="text-sm text-purple-600 font-bold">{task.xp_value || 100} XP</span>
+                  <span className="text-sm text-optio-purple font-bold">{task.xp_value || 100} XP</span>
                   <span className="text-xs text-gray-500 capitalize">({task.pillar || 'stem'})</span>
                 </div>
                 <p className="text-xs text-gray-600 mt-1 line-clamp-2">{task.description}</p>
@@ -389,7 +389,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
           <button
             onClick={handleAddTask}
             disabled={!currentTask.title || !currentTask.description || isAnalyzing}
-            className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+            className="w-full px-6 py-3 bg-optio-purple hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
           >
             Add This Task
           </button>
@@ -410,7 +410,7 @@ const ManualTaskCreator = ({ questId, sessionId, onTasksCreated, onCancel }) => 
         <button
           onClick={handleFinish}
           disabled={addedTasks.length === 0 || isSubmitting}
-          className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
+          className="flex-1 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink hover:from-purple-700 hover:to-pink-700 disabled:from-gray-300 disabled:to-gray-300 disabled:cursor-not-allowed text-white font-semibold rounded-lg transition-colors"
         >
           {isSubmitting ? 'Finishing...' : `Finish (${addedTasks.length} task${addedTasks.length !== 1 ? 's' : ''})`}
         </button>

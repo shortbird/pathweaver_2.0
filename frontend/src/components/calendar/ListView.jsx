@@ -117,7 +117,7 @@ const ListView = ({ data, userId, selectedPillar }) => {
             <button
               onClick={handleBulkReschedule}
               disabled={!bulkScheduleDate}
-              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 bg-optio-purple text-white rounded-lg text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Schedule Selected
             </button>
@@ -135,7 +135,7 @@ const ListView = ({ data, userId, selectedPillar }) => {
       <div className="p-4 border-b border-gray-200">
         <button
           onClick={selectAll}
-          className="text-sm text-purple-600 hover:text-purple-800 font-medium"
+          className="text-sm text-optio-purple hover:text-purple-800 font-medium"
         >
           Select All
         </button>
@@ -270,7 +270,7 @@ const TaskRow = ({ item, isSelected, onToggle, onReschedule, showCompleted }) =>
           type="checkbox"
           checked={isSelected}
           onChange={onToggle}
-          className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-500"
+          className="w-4 h-4 text-optio-purple border-gray-300 rounded focus:ring-purple-500"
           aria-label={`Select ${item.task_title}`}
         />
       )}
@@ -287,7 +287,7 @@ const TaskRow = ({ item, isSelected, onToggle, onReschedule, showCompleted }) =>
       {/* Content */}
       <div className="flex-1 min-w-0">
         {/* Task Title - Main (EMPHASIZED) */}
-        <Link to={`/quests/${item.quest_id}`} className="font-bold text-gray-900 hover:text-purple-600 truncate block text-base mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
+        <Link to={`/quests/${item.quest_id}`} className="font-bold text-gray-900 hover:text-optio-purple truncate block text-base mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
           {item.task_title}
         </Link>
         {/* Quest Title - Subheading (secondary) */}
@@ -325,7 +325,7 @@ const TaskRow = ({ item, isSelected, onToggle, onReschedule, showCompleted }) =>
             />
             <button
               onClick={handleSaveDate}
-              className="px-2 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700"
+              className="px-2 py-1 bg-optio-purple text-white rounded text-sm hover:bg-purple-700"
             >
               Save
             </button>

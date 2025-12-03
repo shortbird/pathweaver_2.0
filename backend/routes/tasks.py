@@ -16,6 +16,7 @@ from backend.repositories import (
     LMSRepository,
     AnalyticsRepository
 )
+from backend.repositories.base_repository import NotFoundError
 from utils.auth.decorators import require_auth
 from services.evidence_service import EvidenceService
 from services.xp_service import XPService
@@ -57,22 +58,21 @@ def complete_task(user_id: str, task_id: str):
         # Storage operations (line 165-172) and XP awards (line 257-288) require elevated privileges
         # All user-scoped database operations use user client with proper RLS enforcement
         admin_supabase = get_supabase_admin_client()
-        
-        # Get user-specific task details (personalized task)
-        task = supabase.table('user_quest_tasks')\
-            .select('*, quests(id, title), user_quests!user_quest_id(id, user_id)')\
-            .eq('id', task_id)\
-            .eq('user_id', user_id)\
-            .single()\
-            .execute()
 
-        if not task.data:
+        # Initialize repositories with user client for RLS
+        from backend.repositories.task_repository import TaskRepository, TaskCompletionRepository
+        task_repo = TaskRepository(client=supabase)
+        completion_repo = TaskCompletionRepository(client=supabase)
+
+        # Get user-specific task details using repository
+        try:
+            task_data = task_repo.get_task_with_relations(task_id, user_id)
+        except NotFoundError:
             return jsonify({
                 'success': False,
                 'error': 'Task not found or not owned by you'
             }), 404
 
-        task_data = task.data
         quest_id = task_data['quest_id']
         user_quest_id = task_data['user_quest_id']
 
@@ -90,14 +90,8 @@ def complete_task(user_id: str, task_id: str):
                 'error': 'This task is pending approval and cannot be completed yet'
             }), 403
 
-        # Check if task already completed
-        existing_completion = supabase.table('quest_task_completions')\
-            .select('id')\
-            .eq('user_id', user_id)\
-            .eq('user_quest_task_id', task_id)\
-            .execute()
-
-        if existing_completion.data:
+        # Check if task already completed using repository
+        if completion_repo.check_existing_completion(user_id, task_id):
             return jsonify({
                 'success': False,
                 'error': 'Task already completed'
@@ -223,21 +217,15 @@ def complete_task(user_id: str, task_id: str):
         # Get base XP from task
         base_xp = task_data.get('xp_value', 100)
 
-        # Check for active collaboration on this task
-        # Use user client (RLS-enforced) to check user's own collaboration data
-        collaboration = supabase.table('task_collaborations')\
-            .select('*')\
-            .eq('task_id', task_id)\
-            .eq('status', 'active')\
-            .execute()
-
-        # Collaboration bonus removed in Phase 1 refactoring (January 2025)
+        # Task collaborations removed in Phase 1 refactoring (January 2025)
+        # Table task_collaborations no longer exists
+        # No collaboration bonus - all students earn base XP
         has_collaboration = False
         final_xp = base_xp
 
-        # Create task completion record
-        completion = supabase.table('quest_task_completions')\
-            .insert({
+        # Create task completion record using repository
+        try:
+            completion_data = completion_repo.create_completion({
                 'user_id': user_id,
                 'quest_id': quest_id,
                 'task_id': task_id,
@@ -245,15 +233,12 @@ def complete_task(user_id: str, task_id: str):
                 'evidence_text': evidence_content if evidence_type == 'text' else None,
                 'evidence_url': evidence_content if evidence_type != 'text' else None,
                 'is_confidential': is_confidential,
-                'xp_awarded': final_xp,
-                'completed_at': datetime.utcnow().isoformat()
-            })\
-            .execute()
-
-        if not completion.data:
+                'xp_awarded': final_xp
+            })
+        except ValueError as e:
             return jsonify({
                 'success': False,
-                'error': 'Failed to save task completion'
+                'error': str(e)
             }), 500
 
         # Award XP to user
@@ -430,48 +415,42 @@ def drop_task(user_id: str, task_id: str):
     try:
         # Use admin client to ensure delete permissions
         # User authentication is already enforced by @require_auth decorator
-        supabase = get_supabase_admin_client()
+        admin_supabase = get_supabase_admin_client()
 
-        # Verify task belongs to user
-        task = supabase.table('user_quest_tasks')\
-            .select('id, quest_id, title')\
-            .eq('id', task_id)\
-            .eq('user_id', user_id)\
-            .single()\
-            .execute()
+        # Initialize repositories with admin client for delete permissions
+        from backend.repositories.task_repository import TaskRepository, TaskCompletionRepository
+        task_repo = TaskRepository(client=admin_supabase)
+        completion_repo = TaskCompletionRepository(client=admin_supabase)
 
-        if not task.data:
+        # Verify task belongs to user using repository
+        try:
+            task_data = task_repo.find_by_id(task_id)
+            if not task_data or task_data.get('user_id') != user_id:
+                logger.warning(f"Task {task_id} not found for user {user_id}")
+                return jsonify({
+                    'success': False,
+                    'error': 'Task not found or not owned by you'
+                }), 404
+        except NotFoundError:
             logger.warning(f"Task {task_id} not found for user {user_id}")
             return jsonify({
                 'success': False,
                 'error': 'Task not found or not owned by you'
             }), 404
 
-        task_data = task.data
-
-        # Check if task is already completed
-        completed = supabase.table('quest_task_completions')\
-            .select('id')\
-            .eq('user_quest_task_id', task_id)\
-            .eq('user_id', user_id)\
-            .execute()
-
-        if completed.data:
+        # Check if task is already completed using repository
+        if completion_repo.check_existing_completion(user_id, task_id):
             logger.warning(f"Cannot drop completed task {task_id} for user {user_id}")
             return jsonify({
                 'success': False,
                 'error': 'Cannot remove completed tasks'
             }), 400
 
-        # Delete the task from user's personalized task list
+        # Delete the task using repository
         logger.info(f"Deleting task {task_id} ({task_data['title']}) for user {user_id}")
-        delete_result = supabase.table('user_quest_tasks')\
-            .delete()\
-            .eq('id', task_id)\
-            .eq('user_id', user_id)\
-            .execute()
+        task_repo.delete_task(task_id)
 
-        logger.info(f"Delete result: {delete_result.data}, User {user_id} dropped task {task_id} ({task_data['title']}) from quest {task_data['quest_id']}")
+        logger.info(f"User {user_id} dropped task {task_id} ({task_data['title']}) from quest {task_data['quest_id']}")
 
         return jsonify({
             'success': True,

@@ -549,7 +549,7 @@ export default function BadgeQuestLinker() {
                   <div className="text-sm text-gray-600">Total Recommendations</div>
                 </div>
                 <div className="text-center p-4 bg-purple-50 rounded-lg">
-                  <div className="text-2xl font-bold text-purple-600">
+                  <div className="text-2xl font-bold text-optio-purple">
                     {Math.round(bulkAnalysisResults.total_recommendations / bulkAnalysisResults.badges_analyzed)}
                   </div>
                   <div className="text-sm text-gray-600">Avg per Badge</div>

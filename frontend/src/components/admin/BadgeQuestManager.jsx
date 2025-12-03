@@ -189,7 +189,7 @@ const BadgeQuestManager = ({ badge, onClose, onUpdate }) => {
 
             {loading ? (
               <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
               </div>
             ) : linkedQuests.length === 0 ? (
               <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-lg border border-gray-200">

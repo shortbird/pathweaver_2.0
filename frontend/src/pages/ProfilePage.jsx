@@ -1,17 +1,21 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useForm } from 'react-hook-form'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../contexts/AuthContext'
 import api from '../services/api'
 import toast from 'react-hot-toast'
 import ParentInvitationSection from '../components/parent/ParentInvitationSection'
+import { QRCodeSVG } from 'qrcode.react'
 import {
   DocumentTextIcon,
   StarIcon,
   PencilIcon,
   ExclamationTriangleIcon,
   SparklesIcon,
-  RocketLaunchIcon
+  RocketLaunchIcon,
+  QrCodeIcon,
+  ArrowDownTrayIcon,
+  LinkIcon
 } from '@heroicons/react/24/outline'
 
 const ProfilePage = () => {
@@ -20,6 +24,7 @@ const ProfilePage = () => {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const { register, handleSubmit, formState: { errors }, reset } = useForm()
+  const qrCodeRef = useRef(null)
 
   useEffect(() => {
     fetchProfile()
@@ -83,6 +88,90 @@ const ProfilePage = () => {
       await fetchProfile() // Refresh to clear deletion status
     } catch (error) {
       toast.error(error.response?.data?.error || 'Failed to cancel deletion')
+    }
+  }
+
+  // Generate portfolio URL
+  const getPortfolioUrl = () => {
+    // Always use the frontend URL, not the backend API URL
+    const frontendUrl = window.location.origin
+    return `${frontendUrl}/public/diploma/${user?.id}`
+  }
+
+  // Download QR code as SVG with embedded logo
+  const downloadQRCode = async () => {
+    const qrSvg = qrCodeRef.current?.querySelector('svg')
+    if (!qrSvg) {
+      toast.error('QR code not available')
+      return
+    }
+
+    try {
+      // Fetch the logo SVG
+      const logoResponse = await fetch('https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/Purple.svg')
+      const logoSvgText = await logoResponse.text()
+
+      // Parse logo SVG
+      const parser = new DOMParser()
+      const logoDoc = parser.parseFromString(logoSvgText, 'image/svg+xml')
+      const logoSvg = logoDoc.querySelector('svg')
+
+      // Clone the QR code SVG
+      const clonedSvg = qrSvg.cloneNode(true)
+
+      // Create a group for the logo with white circular background
+      const logoGroup = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+      logoGroup.setAttribute('transform', 'translate(100, 100)') // Center of 200x200 QR code
+
+      // Add white circle background
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle')
+      circle.setAttribute('cx', '0')
+      circle.setAttribute('cy', '0')
+      circle.setAttribute('r', '24') // 48px diameter circle
+      circle.setAttribute('fill', 'white')
+      logoGroup.appendChild(circle)
+
+      // Add logo in center (scaled to fit in 40px square)
+      const logoContainer = document.createElementNS('http://www.w3.org/2000/svg', 'g')
+      logoContainer.setAttribute('transform', 'translate(-20, -20) scale(0.08)') // Adjust scale based on logo size
+
+      // Copy logo content
+      if (logoSvg) {
+        Array.from(logoSvg.children).forEach(child => {
+          logoContainer.appendChild(child.cloneNode(true))
+        })
+      }
+
+      logoGroup.appendChild(logoContainer)
+      clonedSvg.appendChild(logoGroup)
+
+      // Serialize and download
+      const svgData = new XMLSerializer().serializeToString(clonedSvg)
+      const svgBlob = new Blob([svgData], { type: 'image/svg+xml;charset=utf-8' })
+      const svgUrl = URL.createObjectURL(svgBlob)
+
+      const downloadLink = document.createElement('a')
+      downloadLink.href = svgUrl
+      downloadLink.download = `${profileData?.user?.first_name}-${profileData?.user?.last_name}-portfolio-qr.svg`
+      document.body.appendChild(downloadLink)
+      downloadLink.click()
+      document.body.removeChild(downloadLink)
+      URL.revokeObjectURL(svgUrl)
+
+      toast.success('QR code downloaded!')
+    } catch (error) {
+      console.error('Error downloading QR code:', error)
+      toast.error('Failed to download QR code')
+    }
+  }
+
+  // Copy portfolio link to clipboard
+  const copyPortfolioLink = async () => {
+    try {
+      await navigator.clipboard.writeText(getPortfolioUrl())
+      toast.success('Portfolio link copied!')
+    } catch (error) {
+      toast.error('Failed to copy link')
     }
   }
 
@@ -328,6 +417,85 @@ const ProfilePage = () => {
                   </div>
                 </div>
               </Link>
+            </div>
+          </div>
+
+          {/* Share Your Portfolio - QR Code Section */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <QrCodeIcon className="w-7 h-7 text-optio-purple" />
+              <h2 className="text-2xl font-bold text-gray-900" style={{ fontFamily: 'Poppins', fontWeight: 700 }}>
+                Share Your Portfolio
+              </h2>
+            </div>
+
+            <div className="flex flex-col lg:flex-row gap-6 items-center lg:items-start">
+              {/* QR Code Display */}
+              <div className="flex-shrink-0">
+                <div className="p-4 bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl border-2 border-purple-200" ref={qrCodeRef}>
+                  <div className="relative inline-block">
+                    <QRCodeSVG
+                      value={getPortfolioUrl()}
+                      size={200}
+                      level="H"
+                      includeMargin={true}
+                      fgColor="#6D469B"
+                      bgColor="#FFFFFF"
+                    />
+                    {/* Logo overlay in center */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm p-1.5">
+                        <img
+                          src="https://vvfgxcykxjybtvpfzwyx.supabase.co/storage/v1/object/public/site-assets/logos/Purple.svg"
+                          alt="Optio Logo"
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* QR Code Info and Actions */}
+              <div className="flex-1 w-full space-y-4">
+                <div>
+                  <p className="text-base text-gray-700 mb-3" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                    Share your learning journey with colleges, employers, or anyone you want to inspire.
+                  </p>
+                  <div className="bg-gray-50 border border-gray-200 rounded-lg p-3 break-all">
+                    <p className="text-xs text-gray-600 mb-1 font-semibold" style={{ fontFamily: 'Poppins', fontWeight: 600 }}>
+                      Portfolio Link
+                    </p>
+                    <p className="text-sm text-gray-800 font-mono" style={{ fontFamily: 'monospace' }}>
+                      {getPortfolioUrl()}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <button
+                    onClick={downloadQRCode}
+                    className="flex items-center justify-center gap-2 px-4 py-3 bg-gradient-primary text-white rounded-lg font-semibold shadow-sm hover:shadow-md transition-all"
+                    style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+                  >
+                    <ArrowDownTrayIcon className="w-5 h-5" />
+                    Download QR Code
+                  </button>
+                  <button
+                    onClick={copyPortfolioLink}
+                    className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-optio-purple text-optio-purple rounded-lg font-semibold hover:bg-purple-50 transition-all"
+                    style={{ fontFamily: 'Poppins', fontWeight: 600 }}
+                  >
+                    <LinkIcon className="w-5 h-5" />
+                    Copy Link
+                  </button>
+                </div>
+
+                <p className="text-xs text-gray-500 italic" style={{ fontFamily: 'Poppins', fontWeight: 500 }}>
+                  Perfect for resumes, business cards, and college applications
+                </p>
+              </div>
             </div>
           </div>
 

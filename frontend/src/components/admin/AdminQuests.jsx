@@ -4,7 +4,8 @@ import api from '../../services/api'
 import toast from 'react-hot-toast'
 import UnifiedQuestForm from './UnifiedQuestForm'
 import CourseQuestForm from './CourseQuestForm'
-import QuestSuggestionsModal from './QuestSuggestionsModal'
+import BulkQuestGenerator from './BulkQuestGenerator'
+import AIQuestReviewModal from './AIQuestReviewModal'
 
 const AdminQuests = () => {
   const { user } = useAuth()
@@ -16,7 +17,8 @@ const AdminQuests = () => {
   const [showCourseQuestForm, setShowCourseQuestForm] = useState(false)
   const [editingCourseQuest, setEditingCourseQuest] = useState(null)
   const [activeFilter, setActiveFilter] = useState('all') // all, active, inactive
-  const [showQuestSuggestionsModal, setShowQuestSuggestionsModal] = useState(false)
+  const [showBulkGenerator, setShowBulkGenerator] = useState(false)
+  const [showAIReviewModal, setShowAIReviewModal] = useState(false)
 
   // Determine user role
   const isAdmin = user?.role === 'admin'
@@ -161,14 +163,26 @@ const AdminQuests = () => {
         <h2 className="text-2xl font-bold">Manage Quests</h2>
         <div className="flex gap-3">
           <button
-            onClick={() => setShowQuestSuggestionsModal(true)}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-semibold"
+            onClick={() => setShowBulkGenerator(true)}
+            className="bg-gradient-to-r from-optio-purple to-optio-pink text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
           >
-            Quest Suggestions
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Bulk Generate (200)
+          </button>
+          <button
+            onClick={() => setShowAIReviewModal(true)}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 font-semibold flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            Review AI Quests
           </button>
           <button
             onClick={() => setShowCourseQuestForm(true)}
-            className="bg-purple-600 text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
+            className="bg-optio-purple text-white px-6 py-2 rounded-lg hover:opacity-90 font-semibold"
           >
             Create Course Quest
           </button>
@@ -406,7 +420,7 @@ const AdminQuests = () => {
                       </button>
                       <button
                         onClick={() => handleRefreshImage(quest.id)}
-                        className="px-4 py-2 text-sm bg-purple-50 text-purple-600 rounded-lg hover:bg-purple-100 transition-colors font-medium flex items-center justify-center gap-2"
+                        className="px-4 py-2 text-sm bg-purple-50 text-optio-purple rounded-lg hover:bg-purple-100 transition-colors font-medium flex items-center justify-center gap-2"
                       >
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -422,11 +436,27 @@ const AdminQuests = () => {
         </div>
       )}
 
-      {/* Quest Suggestions Modal */}
-      <QuestSuggestionsModal
-        isOpen={showQuestSuggestionsModal}
-        onClose={() => setShowQuestSuggestionsModal(false)}
-      />
+      {/* Bulk Quest Generator */}
+      {showBulkGenerator && (
+        <BulkQuestGenerator
+          onClose={() => setShowBulkGenerator(false)}
+          onSuccess={() => {
+            fetchQuests()
+            setShowBulkGenerator(false)
+          }}
+        />
+      )}
+
+      {/* AI Quest Review Modal */}
+      {showAIReviewModal && (
+        <AIQuestReviewModal
+          isOpen={showAIReviewModal}
+          onClose={() => setShowAIReviewModal(false)}
+          onApprove={() => {
+            fetchQuests()
+          }}
+        />
+      )}
     </div>
   )
 }

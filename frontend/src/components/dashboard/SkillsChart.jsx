@@ -35,7 +35,7 @@ const SkillsChart = ({ skillData }) => {
         <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
           <p className="font-semibold text-gray-900">{label}</p>
           <p className="text-sm text-gray-600">
-            XP: <span className="font-bold text-purple-600">{payload[0].value}</span>
+            XP: <span className="font-bold text-optio-purple">{payload[0].value}</span>
           </p>
           <div className="mt-1 text-xs text-gray-500">
             {payload[0].value > 100 ? '🌟 Well developed!' : 'Keep practicing!'}

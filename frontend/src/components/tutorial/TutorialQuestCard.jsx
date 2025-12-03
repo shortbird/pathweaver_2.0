@@ -22,9 +22,9 @@ const PILLAR_ICONS = {
 const PILLAR_COLORS = {
   stem: 'text-blue-600',
   wellness: 'text-green-600',
-  communication: 'text-purple-600',
+  communication: 'text-optio-purple',
   civics: 'text-orange-600',
-  art: 'text-pink-600'
+  art: 'text-optio-pink'
 };
 
 const TutorialQuestCard = () => {
@@ -119,10 +119,10 @@ const TutorialQuestCard = () => {
   return (
     <div className="bg-white rounded-lg shadow-md mb-6 overflow-hidden border-2 border-purple-200">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 text-white">
+      <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 text-white">
         <div className="flex items-center justify-between mb-2">
           <h2 className="text-2xl font-bold">Explore the Optio Platform</h2>
-          <span className="bg-white text-purple-600 px-3 py-1 rounded-full text-sm font-semibold">
+          <span className="bg-white text-optio-purple px-3 py-1 rounded-full text-sm font-semibold">
             Tutorial
           </span>
         </div>
@@ -199,7 +199,7 @@ const TutorialQuestCard = () => {
                     <span className={`text-xl mr-2 ${PILLAR_COLORS[task.pillar]}`}>
                       {PILLAR_ICONS[task.pillar]}
                     </span>
-                    <span className="text-sm font-semibold text-purple-600">
+                    <span className="text-sm font-semibold text-optio-purple">
                       {task.xp_value} XP
                     </span>
                   </div>

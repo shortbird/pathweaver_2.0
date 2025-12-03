@@ -79,7 +79,7 @@ const VideoBlock = ({ block, displayMode }) => {
             </h4>
           )}
 
-          <p className="text-xs text-pink-600 font-semibold truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
+          <p className="text-xs text-optio-pink font-semibold truncate" style={{ fontFamily: 'Poppins, sans-serif' }}>
             {url}
           </p>
         </div>

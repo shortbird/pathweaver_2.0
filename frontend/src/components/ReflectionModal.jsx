@@ -74,7 +74,7 @@ const ReflectionModal = ({ isOpen, onClose, questId, questTitle, onConfirm }) =>
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 p-6 rounded-t-2xl">
+        <div className="bg-gradient-to-r from-optio-purple to-optio-pink p-6 rounded-t-2xl">
           <h2 className="text-2xl font-bold text-white">Setting Down: {questTitle}</h2>
           <p className="text-purple-100 mt-2">
             Take a moment to reflect on what you discovered (optional)
@@ -85,7 +85,7 @@ const ReflectionModal = ({ isOpen, onClose, questId, questTitle, onConfirm }) =>
         <div className="p-6 space-y-6">
           {loadingPrompts ? (
             <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-purple-600 border-t-transparent"></div>
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-optio-purple border-t-transparent"></div>
               <p className="mt-2 text-gray-600">Loading reflection prompts...</p>
             </div>
           ) : (
@@ -103,7 +103,7 @@ const ReflectionModal = ({ isOpen, onClose, questId, questTitle, onConfirm }) =>
                       className={`
                         w-full text-left p-4 rounded-lg border-2 transition-all
                         ${selectedPromptId === prompt.id
-                          ? 'border-purple-600 bg-purple-50'
+                          ? 'border-optio-purple bg-purple-50'
                           : 'border-gray-200 hover:border-purple-300 bg-white'
                         }
                       `}
@@ -112,7 +112,7 @@ const ReflectionModal = ({ isOpen, onClose, questId, questTitle, onConfirm }) =>
                         <div className={`
                           flex-shrink-0 w-5 h-5 rounded-full border-2 mt-0.5
                           ${selectedPromptId === prompt.id
-                            ? 'border-purple-600 bg-purple-600'
+                            ? 'border-optio-purple bg-optio-purple'
                             : 'border-gray-300'
                           }
                         `}>
@@ -144,7 +144,7 @@ const ReflectionModal = ({ isOpen, onClose, questId, questTitle, onConfirm }) =>
                     value={reflectionText}
                     onChange={(e) => setReflectionText(e.target.value)}
                     placeholder={`${selectedPrompt.prompt_text}\n\nShare your thoughts here...`}
-                    className="w-full h-32 p-4 border-2 border-gray-300 rounded-lg focus:border-purple-600 focus:ring focus:ring-purple-200 resize-none"
+                    className="w-full h-32 p-4 border-2 border-gray-300 rounded-lg focus:border-optio-purple focus:ring focus:ring-purple-200 resize-none"
                   />
                   <p className="text-xs text-gray-500 mt-1">
                     {reflectionText.length} characters
@@ -177,7 +177,7 @@ const ReflectionModal = ({ isOpen, onClose, questId, questTitle, onConfirm }) =>
             <button
               onClick={() => handleSetDown(false)}
               disabled={isLoading || !reflectionText.trim()}
-              className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-700 hover:to-pink-700 font-semibold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-2 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg hover:from-purple-700 hover:to-pink-700 font-semibold transition-all shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isLoading ? 'Setting Down...' : 'Set Down with Reflection'}
             </button>

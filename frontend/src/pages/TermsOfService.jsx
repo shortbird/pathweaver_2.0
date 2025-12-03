@@ -38,7 +38,7 @@ const TermsOfService = () => {
               <p className="mb-4">
                 Optio is available as both a digital-only platform and as part of our in-person program,
                 Optio Academy. In-person participants must also agree to the{' '}
-                <Link to="/academy-agreement" className="text-primary hover:text-purple-600 underline">
+                <Link to="/academy-agreement" className="text-primary hover:text-optio-purple underline">
                   Optio Academy Agreement
                 </Link>.
               </p>
@@ -214,7 +214,7 @@ const TermsOfService = () => {
               <h2 className="text-2xl font-semibold mb-4">11. Privacy</h2>
               <p className="mb-4">
                 Your use of the Service is also governed by our{' '}
-                <Link to="/privacy" className="text-primary hover:text-purple-600 underline">
+                <Link to="/privacy" className="text-primary hover:text-optio-purple underline">
                   Privacy Policy
                 </Link>
                 , which is incorporated into these Terms by reference. We are committed to protecting
@@ -260,7 +260,7 @@ const TermsOfService = () => {
               <p className="mb-4">
                 For Optio Academy in-person participants, additional liability limitations and assumptions
                 of risk are outlined in the{' '}
-                <Link to="/academy-agreement" className="text-primary hover:text-purple-600 underline">
+                <Link to="/academy-agreement" className="text-primary hover:text-optio-purple underline">
                   Optio Academy Agreement
                 </Link>.
               </p>
@@ -373,7 +373,7 @@ const TermsOfService = () => {
           </div>
 
           <div className="mt-8 pt-8 border-t border-gray-200">
-            <Link to="/register" className="text-primary hover:text-purple-600 font-medium">
+            <Link to="/register" className="text-primary hover:text-optio-purple font-medium">
               ← Back to Registration
             </Link>
           </div>

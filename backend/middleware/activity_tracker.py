@@ -309,7 +309,9 @@ class ActivityTracker:
 
             supabase.table('user_activity_events').insert(insert_data).execute()
 
-            logger.debug(f"Activity tracked: {event_type} for user {user_id or 'anonymous'}")
+            # Process automation triggers (only for authenticated users)
+            if user_id and event_type:
+                self._process_automation_triggers(event_type, user_id, event_data)
 
             # Process automation triggers (only for authenticated users)
             if user_id and event_type:
@@ -363,10 +365,20 @@ class ActivityTracker:
             event_data: Additional event metadata
         """
         try:
+            # Only process triggers if we're in a request context
+            from flask import has_request_context
+            if not has_request_context():
+                logger.debug(f"Skipping automation trigger for '{event_type}' - no request context")
+                return
+
             # Lazy import to avoid circular dependency
             from services.campaign_automation_service import CampaignAutomationService
 
-            automation_service = CampaignAutomationService()
+            # Use lazy initialization - service created within request context
+            def get_automation_service():
+                return CampaignAutomationService()
+
+            automation_service = get_automation_service()
 
             # Process trigger (service handles all safety checks)
             automation_service.process_event_trigger(
@@ -428,8 +440,6 @@ def track_custom_event(
             insert_data['user_id'] = user_id
 
         supabase.table('user_activity_events').insert(insert_data).execute()
-
-        logger.debug(f"Custom event tracked: {event_type}")
 
     except Exception as e:
         logger.error(f"Failed to track custom event {event_type}: {str(e)}", exc_info=True)

@@ -272,7 +272,7 @@ const AdminConnections = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
       </div>
     )
   }
@@ -348,7 +348,7 @@ const AdminConnections = () => {
                     <p className="text-sm text-gray-500" style={{ fontFamily: 'Poppins, sans-serif' }}>{advisor.email}</p>
                   </div>
                   <div className="flex items-center gap-4">
-                    <span className="text-sm font-medium text-purple-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                    <span className="text-sm font-medium text-optio-purple" style={{ fontFamily: 'Poppins, sans-serif' }}>
                       {advisor.assigned_students_count || 0} students
                     </span>
                     {expandedAdvisorId === advisor.id ? (
@@ -430,7 +430,7 @@ const AdminConnections = () => {
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-4 py-2 border border-gray-300 rounded-lg font-medium focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+            className="px-4 py-2 border border-gray-300 rounded-lg font-medium focus:ring-2 focus:ring-optio-purple focus:border-transparent"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             <option value="pending">Pending Requests</option>
@@ -444,7 +444,7 @@ const AdminConnections = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Search by name or email..."
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
               style={{ fontFamily: 'Poppins, sans-serif' }}
             />
           </div>
@@ -703,7 +703,7 @@ const AdminConnections = () => {
                 value={adminNotes}
                 onChange={(e) => setAdminNotes(e.target.value)}
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
                 style={{ fontFamily: 'Poppins, sans-serif' }}
                 placeholder="Add any notes about this approval..."
               />
@@ -739,7 +739,7 @@ const AdminConnections = () => {
                 onChange={(e) => setAdminNotes(e.target.value)}
                 rows={3}
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
                 style={{ fontFamily: 'Poppins, sans-serif' }}
                 placeholder="Explain why this request is being rejected..."
               />

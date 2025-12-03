@@ -32,7 +32,7 @@ worker_rlimit_as = int(os.getenv('GUNICORN_WORKER_MEMORY_LIMIT', str(400 * 1024 
 
 # Logging - CONFIGURABLE
 loglevel = os.getenv('GUNICORN_LOG_LEVEL', 'info')
-accesslog = os.getenv('GUNICORN_ACCESS_LOG', '-')  # '-' = stdout
+accesslog = None  # Disable access logs (redundant with Flask logging)
 errorlog = os.getenv('GUNICORN_ERROR_LOG', '-')
 access_log_format = '%(h)s %(l)s %(u)s %(t)s "%(r)s" %(s)s %(b)s "%(f)s" "%(a)s" %(D)s'
 

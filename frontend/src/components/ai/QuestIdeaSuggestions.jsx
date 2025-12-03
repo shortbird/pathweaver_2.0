@@ -158,7 +158,7 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
       {loading && suggestions === null && (
         <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
           <div className="flex items-center space-x-3">
-            <Loader2 className="h-5 w-5 text-purple-600 animate-spin" />
+            <Loader2 className="h-5 w-5 text-optio-purple animate-spin" />
             <span className="text-purple-800 font-medium">Analyzing your quest idea...</span>
           </div>
         </div>
@@ -205,7 +205,7 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
             className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
           >
             <div className="flex items-center space-x-2">
-              <TrendingUp className="h-5 w-5 text-purple-600" />
+              <TrendingUp className="h-5 w-5 text-optio-purple" />
               <h4 className="font-medium text-gray-900">Suggested Improvements</h4>
             </div>
             {expandedSections.improvements ? (
@@ -226,7 +226,7 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
                   {onApplySuggestion && (
                     <button
                       onClick={() => onApplySuggestion('title', suggestions.improvements.title)}
-                      className="mt-2 text-xs text-purple-600 hover:text-purple-700 font-medium"
+                      className="mt-2 text-xs text-optio-purple hover:text-purple-700 font-medium"
                     >
                       Apply this suggestion
                     </button>
@@ -243,7 +243,7 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
                   {onApplySuggestion && (
                     <button
                       onClick={() => onApplySuggestion('description', suggestions.improvements.description)}
-                      className="mt-2 text-xs text-purple-600 hover:text-purple-700 font-medium"
+                      className="mt-2 text-xs text-optio-purple hover:text-purple-700 font-medium"
                     >
                       Apply this suggestion
                     </button>
@@ -269,7 +269,7 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
             className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
           >
             <div className="flex items-center space-x-2">
-              <Sparkles className="h-5 w-5 text-purple-600" />
+              <Sparkles className="h-5 w-5 text-optio-purple" />
               <h4 className="font-medium text-gray-900">Learning Pillar Recommendations</h4>
             </div>
             {expandedSections.pillars ? (
@@ -404,7 +404,7 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
                   </span>
                 </div>
                 <p className="text-xs text-gray-600 mb-2">{quest.why_similar}</p>
-                <p className="text-xs text-purple-600">{quest.inspiration_points}</p>
+                <p className="text-xs text-optio-purple">{quest.inspiration_points}</p>
               </div>
             ))}
           </div>
@@ -431,12 +431,12 @@ const QuestIdeaSuggestions = ({ title, description, onApplySuggestion }) => {
                   </span>
                 </div>
                 <p className="text-sm text-purple-700 mb-2">{task.description}</p>
-                <div className="flex items-center justify-between text-xs text-purple-600">
+                <div className="flex items-center justify-between text-xs text-optio-purple">
                   <span>Pillar: {task.pillar}</span>
                   <span>Time: {task.estimated_time}</span>
                 </div>
                 {task.evidence_suggestion && (
-                  <p className="text-xs text-purple-600 mt-2">
+                  <p className="text-xs text-optio-purple mt-2">
                     <strong>Evidence:</strong> {task.evidence_suggestion}
                   </p>
                 )}

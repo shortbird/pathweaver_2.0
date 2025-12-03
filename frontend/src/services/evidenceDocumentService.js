@@ -93,11 +93,17 @@ export const evidenceDocumentService = {
   createAutoSaver(taskId, onSaveSuccess, onSaveError) {
     let saveTimeout = null;
     let lastSaveTime = 0;
+    let isDisabled = false;
     const SAVE_DEBOUNCE_DELAY = 3000; // 3 seconds
     const MIN_SAVE_INTERVAL = 5000; // Minimum 5 seconds between saves
 
     return {
       autoSave: (blocks) => {
+        if (isDisabled) {
+          console.log('[AUTO-SAVE] Skipping - auto-save is disabled');
+          return;
+        }
+
         const now = Date.now();
 
         // Clear existing timeout
@@ -112,7 +118,13 @@ export const evidenceDocumentService = {
           : SAVE_DEBOUNCE_DELAY;
 
         saveTimeout = setTimeout(async () => {
+          if (isDisabled) {
+            console.log('[AUTO-SAVE] Skipping - auto-save was disabled while timeout pending');
+            return;
+          }
+
           try {
+            console.log('[AUTO-SAVE] Executing auto-save with status: draft');
             const result = await this.saveDocument(taskId, blocks, 'draft');
             lastSaveTime = Date.now();
             if (onSaveSuccess) {
@@ -127,6 +139,15 @@ export const evidenceDocumentService = {
       },
 
       clearAutoSave: () => {
+        if (saveTimeout) {
+          clearTimeout(saveTimeout);
+          saveTimeout = null;
+        }
+      },
+
+      disableAutoSave: () => {
+        console.log('[AUTO-SAVE] Disabling auto-save permanently');
+        isDisabled = true;
         if (saveTimeout) {
           clearTimeout(saveTimeout);
           saveTimeout = null;
