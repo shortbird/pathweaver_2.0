@@ -35,7 +35,16 @@
         {% if highlight.title %}
         <h3>{{ highlight.title }}</h3>
         {% endif %}
+        {% if highlight.content %}
         <p>{{ highlight.content }}</p>
+        {% endif %}
+        {% if highlight.bullet_points %}
+        <ul style="margin: 14px 0 0 0; padding-left: 20px;">
+            {% for bullet in highlight.bullet_points %}
+            <li class="list-item">{{ bullet|safe }}</li>
+            {% endfor %}
+        </ul>
+        {% endif %}
     </div>
     {% endif %}
 

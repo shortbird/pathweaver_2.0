@@ -271,6 +271,14 @@ class EmailService(BaseService):
                     para_template = Template(para)
                     rendered_para = para_template.render(**variables)
                     rendered_paragraphs.append(f'<p class="text">{rendered_para}</p>')
+
+                # Also render closing_paragraphs if they exist
+                if 'closing_paragraphs' in template_data:
+                    for para in template_data['closing_paragraphs']:
+                        para_template = Template(para)
+                        rendered_para = para_template.render(**variables)
+                        rendered_paragraphs.append(f'<p class="text">{rendered_para}</p>')
+
                 render_context['body_html'] = ''.join(rendered_paragraphs)
 
             # Process CTA button
@@ -286,10 +294,18 @@ class EmailService(BaseService):
             # Process highlight box (if exists)
             highlight_data = template_data.get('highlight') or template_data.get('highlight_box')
             if highlight_data:
-                render_context['highlight'] = {
+                highlight_context = {
                     'title': highlight_data.get('title', ''),
-                    'content': Template(highlight_data.get('content', '')).render(**variables)
+                    'content': Template(highlight_data.get('content', '')).render(**variables) if highlight_data.get('content') else ''
                 }
+                # Render bullet points if they exist
+                if 'bullet_points' in highlight_data and highlight_data['bullet_points']:
+                    rendered_bullets = []
+                    for bullet in highlight_data['bullet_points']:
+                        bullet_template = Template(bullet)
+                        rendered_bullets.append(bullet_template.render(**variables))
+                    highlight_context['bullet_points'] = rendered_bullets
+                render_context['highlight'] = highlight_context
 
             # Process signature (if exists)
             if 'signature' in template_data:
