@@ -151,11 +151,10 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
 
       console.log('✅ Preview Response:', {
         hasHtml: !!response.data.html,
-        hasPreviewHtml: !!response.data.preview_html,
-        htmlLength: (response.data.html || response.data.preview_html || '').length
+        htmlLength: (response.data.html || '').length
       })
 
-      setPreviewHtml(response.data.html || response.data.preview_html || '')
+      setPreviewHtml(response.data.html || '')
     } catch (error) {
       console.error('❌ Preview error:', error)
       console.error('Error response:', error.response?.data)

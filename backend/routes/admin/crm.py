@@ -573,14 +573,27 @@ def preview_template(user_id, template_key):
 
             return jsonify({
                 'html': rendered['html_body'],
-                'preview_html': rendered['html_body'],
                 'subject': rendered['subject'],
                 'text_body': rendered.get('text_body')
             }), 200
         else:
-            # Use existing template
-            preview = get_template_service().render_preview(template_key, sample_data)
-            return jsonify({'preview': preview, 'html': preview.get('preview_text')}), 200
+            # Use existing template - render full HTML just like sent emails
+            template = get_template_service().get_template(template_key)
+            if not template:
+                return jsonify({'error': 'Template not found'}), 404
+
+            # Render with CRM service for consistent output
+            rendered = crm_service._render_email(
+                template=template,
+                subject_override=subject_override,
+                variables=sample_data
+            )
+
+            return jsonify({
+                'html': rendered['html_body'],
+                'subject': rendered['subject'],
+                'text_body': rendered.get('text_body')
+            }), 200
 
     except Exception as e:
         logger.error(f"Error previewing template: {e}")
