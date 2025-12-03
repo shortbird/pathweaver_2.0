@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { flushSync } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../contexts/AuthContext';
@@ -178,36 +179,40 @@ const QuestDetail = () => {
     // Task is already completed by MultiFormatEvidenceEditor
     // Update the cache with confirmed completion status
     if (selectedTask) {
-      // CRITICAL: Update selectedTask state FIRST to ensure TaskWorkspace sees the completed status
-      // This prevents the UI from showing incomplete state while React Query cache updates
-      setSelectedTask(prev => prev ? { ...prev, is_completed: true } : null);
+      // Use flushSync to synchronously update both state and cache before any re-renders
+      // This prevents React Query from refetching and overwriting our optimistic updates
+      flushSync(() => {
+        // CRITICAL: Update selectedTask state FIRST to ensure TaskWorkspace sees the completed status
+        // This prevents the UI from showing incomplete state while React Query cache updates
+        setSelectedTask(prev => prev ? { ...prev, is_completed: true } : null);
 
-      queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
-        if (!oldData) return oldData;
+        queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
+          if (!oldData) return oldData;
 
-        const updatedTasks = oldData.quest_tasks?.map(task =>
-          task.id === selectedTask.id
-            ? { ...task, is_completed: true }
-            : task
-        ) || [];
+          const updatedTasks = oldData.quest_tasks?.map(task =>
+            task.id === selectedTask.id
+              ? { ...task, is_completed: true }
+              : task
+          ) || [];
 
-        // Recalculate completion status
-        const completedCount = updatedTasks.filter(task => task.is_completed).length;
-        const totalCount = updatedTasks.length;
-        const newProgressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
-        const isNewlyCompleted = newProgressPercentage === 100;
+          // Recalculate completion status
+          const completedCount = updatedTasks.filter(task => task.is_completed).length;
+          const totalCount = updatedTasks.length;
+          const newProgressPercentage = totalCount > 0 ? (completedCount / totalCount) * 100 : 0;
+          const isNewlyCompleted = newProgressPercentage === 100;
 
-        return {
-          ...oldData,
-          quest_tasks: updatedTasks,
-          progress: {
-            ...oldData.progress,
-            percentage: newProgressPercentage,
-            completed_tasks: completedCount,
-            total_tasks: totalCount
-          },
-          completed_enrollment: isNewlyCompleted ? true : oldData.completed_enrollment
-        };
+          return {
+            ...oldData,
+            quest_tasks: updatedTasks,
+            progress: {
+              ...oldData.progress,
+              percentage: newProgressPercentage,
+              completed_tasks: completedCount,
+              total_tasks: totalCount
+            },
+            completed_enrollment: isNewlyCompleted ? true : oldData.completed_enrollment
+          };
+        });
       });
     }
 
