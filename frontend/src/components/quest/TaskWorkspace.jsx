@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Award, Type, Image, Video, Link2, FileText, AlertCircle, CheckCircle, BookOpen, ChevronDown, Plus } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import MultiFormatEvidenceEditor from '../evidence/MultiFormatEvidenceEditor';
@@ -10,6 +10,16 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
   const [descriptionExpanded, setDescriptionExpanded] = useState(false);
   const [showBlockMenu, setShowBlockMenu] = useState(false);
   const editorRef = useRef(null);
+
+  // Debug: Log task prop changes
+  useEffect(() => {
+    console.log('[TASK_WORKSPACE] Task prop changed:', {
+      id: task?.id?.substring(0, 8),
+      title: task?.title,
+      is_completed: task?.is_completed,
+      timestamp: new Date().toISOString()
+    });
+  }, [task]);
 
   if (!task) {
     return (
@@ -24,6 +34,8 @@ const TaskWorkspace = ({ task, questId, onTaskComplete, onClose }) => {
 
   const pillarData = getPillarData(task.pillar);
   const isTaskCompleted = task.is_completed || false;
+
+  console.log('[TASK_WORKSPACE] Render with isTaskCompleted:', isTaskCompleted);
 
   const handleMarkComplete = async () => {
     if (isCompleting) return;
