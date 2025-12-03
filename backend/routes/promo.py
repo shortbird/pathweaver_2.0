@@ -14,7 +14,6 @@ from backend.repositories import (
     AnalyticsRepository
 )
 from services.email_service import email_service
-from services.campaign_automation_service import CampaignAutomationService
 from utils.auth.decorators import require_admin
 
 from utils.logger import get_logger
@@ -23,9 +22,6 @@ logger = get_logger(__name__)
 
 logger = logging.getLogger(__name__)
 promo_bp = Blueprint('promo', __name__)
-
-# Initialize automation service
-automation_service = CampaignAutomationService()
 
 @promo_bp.route('/signup', methods=['POST'])
 def promo_signup():
@@ -198,6 +194,9 @@ def credit_tracker_signup():
 
             # Start CRM sequence for credit tracker
             try:
+                from services.campaign_automation_service import CampaignAutomationService
+                automation_service = CampaignAutomationService()
+
                 automation_service.start_sequence_by_email(
                     sequence_name='promo_credit_tracker',
                     email=email,
@@ -262,6 +261,9 @@ def homeschool_portfolio_signup():
 
             # Start CRM sequence for homeschool portfolio
             try:
+                from services.campaign_automation_service import CampaignAutomationService
+                automation_service = CampaignAutomationService()
+
                 automation_service.start_sequence_by_email(
                     sequence_name='promo_homeschool_portfolio',
                     email=email,
@@ -333,6 +335,9 @@ def teacher_consultation_signup():
 
             # Start CRM sequence for teacher consultation
             try:
+                from services.campaign_automation_service import CampaignAutomationService
+                automation_service = CampaignAutomationService()
+
                 automation_service.start_sequence_by_email(
                     sequence_name='promo_teacher_consultation',
                     email=email,
