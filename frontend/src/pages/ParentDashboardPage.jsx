@@ -263,27 +263,27 @@ const ParentDashboardPage = () => {
             </h3>
             <ol className="space-y-3 text-gray-700 font-medium mb-4" style={{ fontFamily: 'Poppins, sans-serif' }}>
               <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
+                <span className="flex-shrink-0 w-6 h-6 bg-optio-purple text-white rounded-full flex items-center justify-center text-sm font-bold">1</span>
                 <span>Your student logs in to their Optio account at <strong>optioeducation.com</strong></span>
               </li>
               <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
+                <span className="flex-shrink-0 w-6 h-6 bg-optio-purple text-white rounded-full flex items-center justify-center text-sm font-bold">2</span>
                 <span>They click on <strong>Connections</strong> in the navigation menu</span>
               </li>
               <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
+                <span className="flex-shrink-0 w-6 h-6 bg-optio-purple text-white rounded-full flex items-center justify-center text-sm font-bold">3</span>
                 <span>In the <strong>Invitations</strong> tab, they'll find a section called "Invite Your Parent"</span>
               </li>
               <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">4</span>
+                <span className="flex-shrink-0 w-6 h-6 bg-optio-purple text-white rounded-full flex items-center justify-center text-sm font-bold">4</span>
                 <span>They enter your email address (the one you used to create this parent account) and send the invitation</span>
               </li>
               <li className="flex items-start gap-3">
-                <span className="flex-shrink-0 w-6 h-6 bg-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold">5</span>
+                <span className="flex-shrink-0 w-6 h-6 bg-optio-purple text-white rounded-full flex items-center justify-center text-sm font-bold">5</span>
                 <span>You'll see their invitation here, ready to approve</span>
               </li>
             </ol>
-            <div className="bg-white rounded-lg p-4 border-l-4 border-purple-600">
+            <div className="bg-white rounded-lg p-4 border-l-4 border-optio-purple">
               <p className="text-sm text-gray-700 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
                 <strong>Note:</strong> The student must approve the connection from their end. This ensures they're in control of who can view their learning journey.
               </p>
@@ -308,7 +308,7 @@ const ParentDashboardPage = () => {
   if (loading && children.length === 0) {
     return (
       <div className="flex justify-center items-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
       </div>
     );
   }
@@ -358,7 +358,7 @@ const ParentDashboardPage = () => {
             <select
               value={selectedStudentId || ''}
               onChange={(e) => setSelectedStudentId(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg font-medium focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+              className="px-4 py-2 border border-gray-300 rounded-lg font-medium focus:ring-2 focus:ring-optio-purple focus:border-transparent"
               style={{ fontFamily: 'Poppins, sans-serif' }}
             >
               {children.map((child) => (
@@ -527,7 +527,7 @@ const ParentDashboardPage = () => {
 
       {loading ? (
         <div className="flex justify-center items-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
         </div>
       ) : (
         <>
@@ -545,7 +545,7 @@ const ParentDashboardPage = () => {
                   onClick={() => setActiveTab(tab.id)}
                   className={`pb-4 px-2 font-semibold transition-colors flex items-center gap-2 ${
                     activeTab === tab.id
-                      ? 'border-b-2 border-purple-600 text-purple-600'
+                      ? 'border-b-2 border-optio-purple text-optio-purple'
                       : 'text-gray-500 hover:text-gray-700'
                   }`}
                   style={{ fontFamily: 'Poppins, sans-serif' }}
@@ -594,7 +594,7 @@ const ParentDashboardPage = () => {
                             <span className="text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
                               {quest.progress.completed_tasks} / {quest.progress.total_tasks} tasks
                             </span>
-                            <span className="text-purple-600 font-semibold" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                            <span className="text-optio-purple font-semibold" style={{ fontFamily: 'Poppins, sans-serif' }}>
                               {quest.progress.percentage}%
                             </span>
                           </div>
@@ -634,7 +634,7 @@ const ParentDashboardPage = () => {
                           <h4 className="font-semibold text-gray-900 text-sm mb-1" style={{ fontFamily: 'Poppins, sans-serif' }}>
                             {pillar}
                           </h4>
-                          <p className="text-2xl font-bold text-purple-600" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                          <p className="text-2xl font-bold text-optio-purple" style={{ fontFamily: 'Poppins, sans-serif' }}>
                             {xp} XP
                           </p>
                         </div>
@@ -799,7 +799,7 @@ const ParentDashboardPage = () => {
                 <div className="p-6 overflow-y-auto max-h-[calc(85vh-80px)]">
                   {loadingTaskDetails ? (
                     <div className="flex items-center justify-center py-12">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
                     </div>
                   ) : taskDetails ? (
                     <div className="space-y-6">
@@ -924,7 +924,7 @@ const ParentDashboardPage = () => {
                 </h3>
                 {loadingCompletions ? (
                   <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
                     <span className="ml-3 text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
                       Loading completions...
                     </span>
@@ -1000,7 +1000,7 @@ const ParentDashboardPage = () => {
 
               {loadingConversations ? (
                 <div className="flex items-center justify-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
                   <span className="ml-3 text-gray-600 font-medium" style={{ fontFamily: 'Poppins, sans-serif' }}>
                     Loading conversations...
                   </span>
@@ -1060,7 +1060,7 @@ const ParentDashboardPage = () => {
                     <div className="p-6 overflow-y-auto max-h-[60vh]">
                       {loadingMessages ? (
                         <div className="flex items-center justify-center py-8">
-                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
                         </div>
                       ) : conversationMessages.length === 0 ? (
                         <p className="text-gray-500 text-center py-8" style={{ fontFamily: 'Poppins, sans-serif' }}>

@@ -14,7 +14,7 @@ const StatsCard = ({ stats }) => {
       icon: ChartBarIcon,
       label: 'Total XP',
       value: stats?.total_xp || 0,
-      color: 'bg-purple-50 text-purple-600',
+      color: 'bg-purple-50 text-optio-purple',
       bgColor: 'bg-purple-100'
     },
     {
@@ -43,7 +43,7 @@ const StatsCard = ({ stats }) => {
       icon: CalendarDaysIcon,
       label: 'Best Task Streak',
       value: stats?.task_streak_best || 0,
-      color: 'bg-pink-50 text-pink-600',
+      color: 'bg-pink-50 text-optio-pink',
       bgColor: 'bg-pink-100',
       suffix: stats?.task_streak_best === 1 ? ' day' : ' days'
     },

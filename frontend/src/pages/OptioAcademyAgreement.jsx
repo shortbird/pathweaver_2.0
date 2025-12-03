@@ -68,7 +68,7 @@ const OptioAcademyAgreement = () => {
               </p>
               <p className="mb-4">
                 This Agreement incorporates the{' '}
-                <Link to="/academy-handbook" className="text-primary hover:text-purple-600 underline">
+                <Link to="/academy-handbook" className="text-primary hover:text-optio-purple underline">
                   Optio Academy Participant Handbook
                 </Link>{' '}
                 ("Handbook") by reference. The Parent and Participant agree they have received, read, and
@@ -399,7 +399,7 @@ const OptioAcademyAgreement = () => {
               </ul>
               <p className="mb-4">
                 Detailed behavioral expectations are outlined in the{' '}
-                <Link to="/academy-handbook" className="text-primary hover:text-purple-600 underline">
+                <Link to="/academy-handbook" className="text-primary hover:text-optio-purple underline">
                   Academy Handbook
                 </Link>.
               </p>
@@ -474,13 +474,13 @@ const OptioAcademyAgreement = () => {
               <h2 className="text-2xl font-semibold mb-4">14. Entire Agreement and Severability</h2>
               <p className="mb-4">
                 This written Agreement, together with the{' '}
-                <Link to="/academy-handbook" className="text-primary hover:text-purple-600 underline">
+                <Link to="/academy-handbook" className="text-primary hover:text-optio-purple underline">
                   Academy Handbook
                 </Link>,{' '}
-                <Link to="/terms" className="text-primary hover:text-purple-600 underline">
+                <Link to="/terms" className="text-primary hover:text-optio-purple underline">
                   Terms of Service
                 </Link>, and{' '}
-                <Link to="/privacy" className="text-primary hover:text-purple-600 underline">
+                <Link to="/privacy" className="text-primary hover:text-optio-purple underline">
                   Privacy Policy
                 </Link>, constitutes the entire agreement between the Parties on the subject matter hereof.
                 All prior verbal promises of whatsoever kind or nature are merged herein.
@@ -534,11 +534,11 @@ const OptioAcademyAgreement = () => {
                 <strong>Note:</strong> This Agreement must be signed electronically or in person before
                 participating in Optio Academy. Digital platform users who do not attend the in-person
                 program are not required to sign this Agreement but must agree to the{' '}
-                <Link to="/terms" className="text-primary hover:text-purple-600 underline">
+                <Link to="/terms" className="text-primary hover:text-optio-purple underline">
                   Terms of Service
                 </Link>{' '}
                 and{' '}
-                <Link to="/privacy" className="text-primary hover:text-purple-600 underline">
+                <Link to="/privacy" className="text-primary hover:text-optio-purple underline">
                   Privacy Policy
                 </Link>.
               </p>
@@ -546,7 +546,7 @@ const OptioAcademyAgreement = () => {
           </div>
 
           <div className="mt-8 pt-8 border-t border-gray-200">
-            <Link to="/register" className="text-primary hover:text-purple-600 font-medium">
+            <Link to="/register" className="text-primary hover:text-optio-purple font-medium">
               ← Back to Registration
             </Link>
           </div>

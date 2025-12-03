@@ -165,7 +165,7 @@ const DashboardPage = () => {
           <h2 className="text-xl font-bold text-gray-900 font-['Poppins']">Current Quests</h2>
           <Link
             to="/quests"
-            className="text-sm text-purple-600 hover:text-purple-800 font-medium transition-colors"
+            className="text-sm text-optio-purple hover:text-purple-800 font-medium transition-colors"
           >
             Browse All Quests →
           </Link>
@@ -219,7 +219,7 @@ const DashboardPage = () => {
 
                   {/* Quest Info */}
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-lg font-semibold text-gray-800 group-hover:text-purple-600 transition-colors truncate" style={{ fontFamily: 'Poppins' }}>
+                    <h3 className="text-lg font-semibold text-gray-800 group-hover:text-optio-purple transition-colors truncate" style={{ fontFamily: 'Poppins' }}>
                       {quest.title}
                     </h3>
                     <p className="text-sm text-gray-600">

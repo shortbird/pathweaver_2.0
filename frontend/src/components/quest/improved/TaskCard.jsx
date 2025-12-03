@@ -118,7 +118,7 @@ const TaskCard = ({ task, index, isCompleted, isEnrolled, onComplete, hasCollabo
               
               {/* Collaboration Bonus Indicator */}
               {hasCollaboration && task.is_collaboration_eligible && !isCompleted && (
-                <div className="absolute -top-2 -right-2 bg-purple-600 text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-md animate-pulse">
+                <div className="absolute -top-2 -right-2 bg-optio-purple text-white text-xs font-bold px-2 py-0.5 rounded-full shadow-md animate-pulse">
                   ×2
                 </div>
               )}
@@ -126,7 +126,7 @@ const TaskCard = ({ task, index, isCompleted, isEnrolled, onComplete, hasCollabo
 
             {/* Show effective XP if collaboration active */}
             {hasCollaboration && task.is_collaboration_eligible && !isCompleted && (
-              <div className="text-sm font-medium text-purple-600">
+              <div className="text-sm font-medium text-optio-purple">
                 = {effectiveXP} XP total!
               </div>
             )}

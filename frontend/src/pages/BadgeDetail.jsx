@@ -215,7 +215,7 @@ export default function BadgeDetail() {
         {isActive && userProgress && (
           <div className="bg-white rounded-xl shadow-lg p-8 mb-8 border border-gray-100">
             <div className="flex items-center gap-3 mb-6">
-              <Target className="w-6 h-6 text-purple-600" />
+              <Target className="w-6 h-6 text-optio-purple" />
               <h2 className="text-2xl font-bold">Your Progress</h2>
             </div>
 
@@ -345,7 +345,7 @@ function QuestListItem({ quest, index, isCompleted, onClick }) {
       {/* Quest Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1 flex-wrap">
-          <h3 className="font-semibold text-lg text-gray-900 group-hover:text-purple-600 transition-colors">
+          <h3 className="font-semibold text-lg text-gray-900 group-hover:text-optio-purple transition-colors">
             {quest.title}
           </h3>
           {isCompleted && (
@@ -366,7 +366,7 @@ function QuestListItem({ quest, index, isCompleted, onClick }) {
       </div>
 
       {/* Arrow Icon */}
-      <div className="flex-shrink-0 ml-4 text-gray-400 group-hover:text-purple-600 group-hover:translate-x-1 transition-all">
+      <div className="flex-shrink-0 ml-4 text-gray-400 group-hover:text-optio-purple group-hover:translate-x-1 transition-all">
         <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
         </svg>

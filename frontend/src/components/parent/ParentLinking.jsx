@@ -80,7 +80,7 @@ const ParentLinking = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
       </div>
     );
   }
@@ -88,7 +88,7 @@ const ParentLinking = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-pink-500 rounded-lg p-6 text-white">
+      <div className="bg-gradient-to-r from-optio-purple to-pink-500 rounded-lg p-6 text-white">
         <div className="flex items-center gap-3 mb-2">
           <UserGroupIcon className="w-8 h-8" />
           <h2 className="text-2xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>
@@ -129,14 +129,14 @@ const ParentLinking = () => {
             value={parentEmail}
             onChange={(e) => setParentEmail(e.target.value)}
             placeholder="parent@example.com"
-            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent font-medium"
+            className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent font-medium"
             style={{ fontFamily: 'Poppins, sans-serif' }}
             disabled={sending}
           />
           <button
             type="submit"
             disabled={sending}
-            className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-6 py-2 bg-gradient-to-r from-optio-purple to-pink-500 text-white rounded-lg font-semibold hover:shadow-lg transition-shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             {sending ? (

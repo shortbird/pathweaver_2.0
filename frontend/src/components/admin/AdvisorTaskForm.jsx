@@ -228,7 +228,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
             <div className="flex-1 overflow-y-auto p-4">
               {loadingTemplates ? (
                 <div className="flex items-center justify-center py-12">
-                  <Loader className="animate-spin text-purple-600" size={32} />
+                  <Loader className="animate-spin text-optio-purple" size={32} />
                 </div>
               ) : templates.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
@@ -251,7 +251,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                         <div className="mt-1">
                           <div className={`w-5 h-5 border-2 rounded flex items-center justify-center ${
                             selectedTemplates.has(template.id)
-                              ? 'border-purple-600 bg-purple-600'
+                              ? 'border-optio-purple bg-optio-purple'
                               : 'border-gray-300'
                           }`}>
                             {selectedTemplates.has(template.id) && (
@@ -284,7 +284,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                             e.stopPropagation()
                             setPreviewTask(template)
                           }}
-                          className="text-purple-600 hover:text-purple-800 p-1"
+                          className="text-optio-purple hover:text-purple-800 p-1"
                           title="Preview task details"
                         >
                           <Eye size={18} />
@@ -301,7 +301,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                 <button
                   onClick={handleAddSelectedTemplates}
                   disabled={loading}
-                  className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50"
+                  className="w-full bg-optio-purple text-white py-2 rounded-lg hover:bg-purple-700 disabled:opacity-50"
                 >
                   Add {selectedTemplates.size} Selected Template{selectedTemplates.size > 1 ? 's' : ''}
                 </button>
@@ -492,7 +492,7 @@ const AdvisorTaskForm = ({ student, questId, userQuestId, onClose, onSuccess }) 
                     toggleTemplateSelection(previewTask.id)
                     setPreviewTask(null)
                   }}
-                  className="w-full bg-purple-600 text-white py-2 rounded-lg hover:bg-purple-700"
+                  className="w-full bg-optio-purple text-white py-2 rounded-lg hover:bg-purple-700"
                 >
                   {selectedTemplates.has(previewTask.id) ? 'Unselect This Task' : 'Select This Task'}
                 </button>

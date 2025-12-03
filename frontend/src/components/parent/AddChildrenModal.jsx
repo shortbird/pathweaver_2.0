@@ -91,7 +91,7 @@ const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-purple-600 to-pink-500">
+        <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-gradient-to-r from-optio-purple to-pink-500">
           <h2 className="text-xl font-semibold text-white font-['Poppins']">
             Add Your Children
           </h2>
@@ -187,7 +187,7 @@ const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
               type="button"
               onClick={addChildRow}
               disabled={isSubmitting}
-              className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-purple-500 hover:text-purple-600 transition-colors flex items-center justify-center gap-2 font-['Poppins'] font-medium disabled:opacity-50"
+              className="w-full py-3 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 hover:border-purple-500 hover:text-optio-purple transition-colors flex items-center justify-center gap-2 font-['Poppins'] font-medium disabled:opacity-50"
             >
               <Plus className="w-5 h-5" />
               Add Another Child
@@ -208,7 +208,7 @@ const AddChildrenModal = ({ isOpen, onClose, onSuccess }) => {
           <button
             onClick={handleSubmit}
             disabled={isSubmitting}
-            className="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-500 text-white rounded-lg hover:from-purple-700 hover:to-pink-600 transition-all font-['Poppins'] font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="px-6 py-2 bg-gradient-to-r from-optio-purple to-pink-500 text-white rounded-lg hover:from-purple-700 hover:to-optio-pink transition-all font-['Poppins'] font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isSubmitting ? (
               <>

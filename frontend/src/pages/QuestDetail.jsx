@@ -435,7 +435,7 @@ const QuestDetail = () => {
             {user && completedTasks > 0 && (
               <button
                 onClick={() => navigate(`/diploma/${user.id}`)}
-                className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-purple-600 border-2 border-purple-200 rounded-full hover:bg-white hover:border-purple-300 hover:shadow-lg transition-all font-semibold"
+                className="flex items-center gap-2 px-4 py-2 bg-white/90 backdrop-blur-sm text-optio-purple border-2 border-purple-200 rounded-full hover:bg-white hover:border-purple-300 hover:shadow-lg transition-all font-semibold"
                 style={{ fontFamily: 'Poppins' }}
               >
                 <BookOpen className="w-4 h-4" />
@@ -530,7 +530,7 @@ const QuestDetail = () => {
                 </div>
                 <div className="px-4 py-2 bg-purple-50 border-2 border-purple-200 rounded-lg text-center">
                   <div className="text-xl font-bold text-purple-700" style={{ fontFamily: 'Poppins' }}>{earnedXP}</div>
-                  <div className="text-xs text-purple-600 font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>XP Earned</div>
+                  <div className="text-xs text-optio-purple font-medium uppercase tracking-wide" style={{ fontFamily: 'Poppins' }}>XP Earned</div>
                 </div>
                 <div className="px-4 py-2 bg-gray-100 border-2 border-gray-300 rounded-lg text-center">
                   <div className="text-xl font-bold text-gray-700" style={{ fontFamily: 'Poppins' }}>{completedTasks}/{totalTasks}</div>

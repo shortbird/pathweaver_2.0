@@ -97,7 +97,7 @@ const NetworkSection = ({
             {partnersCount > 0 && (
               <button
                 onClick={onConnectPartner}
-                className="text-sm text-purple-600 hover:text-purple-700 font-medium flex items-center gap-1"
+                className="text-sm text-optio-purple hover:text-purple-700 font-medium flex items-center gap-1"
                 style={{ fontFamily: 'Poppins', fontWeight: 500 }}
               >
                 <UsersIcon className="w-4 h-4" />

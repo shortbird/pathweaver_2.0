@@ -81,7 +81,7 @@ const AdminServices = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-12 h-12 border-4 border-optio-purple border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Loading services...</p>
         </div>
       </div>
@@ -98,7 +98,7 @@ const AdminServices = () => {
         </div>
         <button
           onClick={handleCreate}
-          className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
+          className="bg-gradient-to-r from-optio-purple to-optio-pink text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity flex items-center gap-2"
         >
           <Plus className="w-5 h-5" />
           Add Service
@@ -180,7 +180,7 @@ const AdminServices = () => {
                         </button>
                         <button
                           onClick={() => handleEdit(service)}
-                          className="text-purple-600 hover:text-purple-900"
+                          className="text-optio-purple hover:text-purple-900"
                           title="Edit"
                         >
                           <Edit2 className="w-4 h-4" />

@@ -106,7 +106,7 @@ const AdvisorCheckinPage = () => {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple mx-auto mb-4"></div>
           <p className="text-gray-600 font-medium">Loading check-in form...</p>
         </div>
       </div>
@@ -117,7 +117,7 @@ const AdvisorCheckinPage = () => {
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-t-2xl p-6 text-white">
+        <div className="bg-gradient-to-r from-optio-purple to-optio-pink rounded-t-2xl p-6 text-white">
           <h1 className="text-3xl font-bold mb-2">Advisor Check-in</h1>
           <p className="text-purple-100 font-medium">Document your conversation and celebrate growth</p>
           {lastCheckin && (
@@ -304,7 +304,7 @@ const AdvisorCheckinPage = () => {
             </button>
             <button
               type="submit"
-              className="flex-1 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-optio-purple to-optio-pink text-white rounded-lg font-semibold hover:from-purple-700 hover:to-pink-700 transition-all shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
               disabled={saving}
             >
               {saving ? 'Saving...' : 'Save Check-in'}

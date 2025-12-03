@@ -560,7 +560,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 className={`w-full py-2 rounded-lg font-medium ${
                   formData.role === (user.role || 'student')
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-purple-600 text-white hover:bg-purple-700'
+                    : 'bg-optio-purple text-white hover:bg-purple-700'
                 } disabled:bg-gray-400`}
               >
                 {loading ? 'Updating...' : 'Update Role'}
@@ -582,7 +582,7 @@ const UserDetailsModal = ({ user, onClose, onSave }) => {
                 </svg>
                 <div>
                   <p className="font-semibold">View Chat Logs</p>
-                  <p className="text-sm text-purple-600">View AI tutor conversation history</p>
+                  <p className="text-sm text-optio-purple">View AI tutor conversation history</p>
                 </div>
               </button>
 

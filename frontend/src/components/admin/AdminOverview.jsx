@@ -84,7 +84,7 @@ const AdminOverview = () => {
           title="Badges Created"
           value={stats?.total_badges || 0}
           icon={<Award className="w-8 h-8" />}
-          gradient="from-pink-500 to-pink-600"
+          gradient="from-pink-500 to-optio-pink"
         />
         <StatCard
           title="Pending Reviews"
@@ -141,7 +141,7 @@ const AdminOverview = () => {
           )}
           <button
             onClick={() => navigate('/admin/analytics')}
-            className="mt-4 text-purple-600 hover:text-purple-700 font-medium text-sm"
+            className="mt-4 text-optio-purple hover:text-purple-700 font-medium text-sm"
             style={{ fontFamily: 'Poppins, sans-serif' }}
           >
             View Full Analytics →
@@ -181,7 +181,7 @@ const AdminOverview = () => {
                       {item.title}
                     </p>
                   </div>
-                  <button className="text-purple-600 hover:text-purple-700 font-medium text-sm whitespace-nowrap" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  <button className="text-optio-purple hover:text-purple-700 font-medium text-sm whitespace-nowrap" style={{ fontFamily: 'Poppins, sans-serif' }}>
                     Review →
                   </button>
                 </div>
@@ -237,7 +237,7 @@ const ActivityItem = ({ event }) => {
       case 'user_signup':
         return <UserPlus className="w-5 h-5 text-blue-600" />
       case 'badge_earned':
-        return <Award className="w-5 h-5 text-purple-600" />
+        return <Award className="w-5 h-5 text-optio-purple" />
       default:
         return <AlertCircle className="w-5 h-5 text-gray-600" />
     }

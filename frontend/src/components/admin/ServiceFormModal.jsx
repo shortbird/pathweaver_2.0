@@ -133,7 +133,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
               required
             />
           </div>
@@ -149,7 +149,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
               value={formData.description}
               onChange={handleChange}
               rows={3}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent resize-none"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent resize-none"
               required
             />
           </div>
@@ -165,7 +165,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
               name="category"
               value={formData.category}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
               placeholder="e.g., Educational Consultations"
               required
             />
@@ -185,7 +185,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
                 onChange={handleChange}
                 min="0"
                 step="0.01"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
                 placeholder="19.00"
                 required
               />
@@ -202,7 +202,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
                 name="price_display"
                 value={formData.price_display}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
                 placeholder="e.g., $49/session (first FREE)"
                 required
               />
@@ -220,7 +220,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
               name="price_type"
               value={formData.price_type}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
               required
             >
               <option value="one-time">One-time Payment</option>
@@ -242,7 +242,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
               name="sort_order"
               value={formData.sort_order}
               onChange={handleChange}
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
               placeholder="0"
             />
             <p className="text-xs text-gray-500 mt-1">Lower numbers appear first</p>
@@ -281,7 +281,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
                     }
                   }}
                   placeholder="Add a feature..."
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-optio-purple focus:border-transparent"
                 />
                 <button
                   type="button"
@@ -302,7 +302,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
               name="is_active"
               checked={formData.is_active}
               onChange={handleChange}
-              className="w-4 h-4 text-purple-600 border-gray-300 rounded focus:ring-purple-600"
+              className="w-4 h-4 text-optio-purple border-gray-300 rounded focus:ring-optio-purple"
             />
             <label htmlFor="is_active" className="text-sm font-medium text-gray-700">
               Active (visible to public)
@@ -328,7 +328,7 @@ const ServiceFormModal = ({ service, isCreating, onClose }) => {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 text-white py-3 px-6 rounded-xl hover:opacity-90 transition-opacity font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+              className="flex-1 bg-gradient-to-r from-optio-purple to-optio-pink text-white py-3 px-6 rounded-xl hover:opacity-90 transition-opacity font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {isSubmitting ? 'Saving...' : (isCreating ? 'Create Service' : 'Save Changes')}
             </button>

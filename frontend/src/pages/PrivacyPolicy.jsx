@@ -478,7 +478,7 @@ const PrivacyPolicy = () => {
           </div>
 
           <div className="mt-8 pt-8 border-t border-gray-200">
-            <Link to="/register" className="text-primary hover:text-purple-600 font-medium">
+            <Link to="/register" className="text-primary hover:text-optio-purple font-medium">
               ← Back to Registration
             </Link>
           </div>

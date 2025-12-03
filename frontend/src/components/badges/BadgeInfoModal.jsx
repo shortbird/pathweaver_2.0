@@ -36,7 +36,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
           {/* Requirements Section */}
           <div>
             <h3 className="text-lg font-bold mb-3 flex items-center gap-2">
-              <Trophy className="w-5 h-5 text-purple-600" />
+              <Trophy className="w-5 h-5 text-optio-purple" />
               Badge Requirements
             </h3>
             <div className="bg-purple-50 border-2 border-purple-200 rounded-xl p-4">
@@ -45,7 +45,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
               </p>
               <div className="space-y-3">
                 <div className="flex items-start gap-3">
-                  <div className="bg-purple-600 text-white rounded-full p-1 mt-0.5">
+                  <div className="bg-optio-purple text-white rounded-full p-1 mt-0.5">
                     <CheckCircle className="w-4 h-4" />
                   </div>
                   <div>
@@ -56,7 +56,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
                   </div>
                 </div>
                 <div className="flex items-start gap-3">
-                  <div className="bg-purple-600 text-white rounded-full p-1 mt-0.5">
+                  <div className="bg-optio-purple text-white rounded-full p-1 mt-0.5">
                     <CheckCircle className="w-4 h-4" />
                   </div>
                   <div>
@@ -113,7 +113,7 @@ export default function BadgeInfoModal({ isOpen, onClose, badge }) {
                       <Trophy className="w-4 h-4 text-yellow-500" />
                     </p>
                     <p className="text-sm text-gray-700">
-                      When you earn this badge, you'll receive a <strong className="text-purple-600">500 XP bonus</strong> in the {badge.pillar_primary} pillar. This is <em>in addition to</em> all the XP you earned from completing tasks!
+                      When you earn this badge, you'll receive a <strong className="text-optio-purple">500 XP bonus</strong> in the {badge.pillar_primary} pillar. This is <em>in addition to</em> all the XP you earned from completing tasks!
                     </p>
                   </div>
                 </div>

@@ -127,7 +127,7 @@ const RecentCompletions = ({ recentItems }) => {
                       <div className={`font-bold ${
                         isTask
                           ? 'text-lg text-emerald-600'
-                          : 'text-xl text-purple-600'
+                          : 'text-xl text-optio-purple'
                       }`}>
                         +{item.xp || item.xp_awarded || 0} XP
                       </div>
@@ -149,7 +149,7 @@ const RecentCompletions = ({ recentItems }) => {
         <div className="mt-6 text-center">
           <Link
             to="/diploma"
-            className="text-sm text-purple-600 hover:text-purple-800 font-medium transition-colors"
+            className="text-sm text-optio-purple hover:text-purple-800 font-medium transition-colors"
           >
             view all completions on diploma →
           </Link>

@@ -211,13 +211,13 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
                     className="w-full bg-purple-50 border border-purple-200 rounded-lg p-4 hover:bg-purple-100 transition-colors text-left flex items-center justify-between"
                   >
                     <div className="flex items-center space-x-3">
-                      <Sparkles className="h-5 w-5 text-purple-600" />
+                      <Sparkles className="h-5 w-5 text-optio-purple" />
                       <div>
                         <span className="font-medium text-purple-900">Get AI Suggestions</span>
                         <p className="text-sm text-purple-700">Improve your quest idea with AI feedback</p>
                       </div>
                     </div>
-                    <span className="text-purple-600">
+                    <span className="text-optio-purple">
                       {showAISuggestions ? '−' : '+'}
                     </span>
                   </button>
@@ -241,7 +241,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
                     id="ai-enhancement"
                     checked={formData.use_ai_enhancement}
                     onChange={(e) => handleInputChange('use_ai_enhancement', e.target.checked)}
-                    className="mt-1 h-4 w-4 text-purple-600 focus:ring-purple-500 border-purple-300 rounded"
+                    className="mt-1 h-4 w-4 text-optio-purple focus:ring-purple-500 border-purple-300 rounded"
                   />
                   <div className="flex-1">
                     <label htmlFor="ai-enhancement" className="font-medium text-purple-900 cursor-pointer">
@@ -300,7 +300,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
                     </div>
                   </div>
                   <div>
-                    <h4 className="text-sm font-medium text-purple-600 mb-2">AI Enhanced</h4>
+                    <h4 className="text-sm font-medium text-optio-purple mb-2">AI Enhanced</h4>
                     <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 text-sm text-purple-700">
                       {aiSuggestions.enhanced_description}
                     </div>
@@ -392,7 +392,7 @@ const QuestIdeaSubmission = ({ isOpen, onClose, onSubmissionSuccess }) => {
               {submissionResult.ai_suggestions && (
                 <div className="bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6 text-left">
                   <div className="flex items-center space-x-2 mb-2">
-                    <Sparkles className="h-5 w-5 text-purple-600" />
+                    <Sparkles className="h-5 w-5 text-optio-purple" />
                     <span className="font-medium text-purple-900">AI Enhancement Included</span>
                   </div>
                   <p className="text-sm text-purple-700">

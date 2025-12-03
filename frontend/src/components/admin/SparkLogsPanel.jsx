@@ -213,7 +213,7 @@ const SparkLogsPanel = () => {
       {/* Loading State */}
       {loading && (
         <div className="bg-white rounded-lg shadow p-8 text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple mx-auto mb-4"></div>
           <p className="text-gray-600">Loading Spark logs...</p>
         </div>
       )}
@@ -269,7 +269,7 @@ const SparkLogsPanel = () => {
                       {/* Event Data (Collapsible) */}
                       {Object.keys(log.event_data).length > 0 && (
                         <details className="mt-2">
-                          <summary className="cursor-pointer text-sm text-purple-600 hover:text-purple-700 font-medium">
+                          <summary className="cursor-pointer text-sm text-optio-purple hover:text-purple-700 font-medium">
                             View Event Data
                           </summary>
                           <pre className="mt-2 p-3 bg-gray-50 rounded text-xs overflow-x-auto">

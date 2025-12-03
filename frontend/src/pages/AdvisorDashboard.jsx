@@ -410,13 +410,13 @@ function StudentsTab({ students, onRefresh }) {
                   <td className="px-6 py-4 whitespace-nowrap text-sm space-x-2">
                     <button
                       onClick={() => handleCheckin(student.id)}
-                      className="text-white bg-gradient-to-r from-purple-600 to-pink-600 px-3 py-1 rounded-lg hover:from-purple-700 hover:to-pink-700 font-medium"
+                      className="text-white bg-gradient-to-r from-optio-purple to-optio-pink px-3 py-1 rounded-lg hover:from-purple-700 hover:to-pink-700 font-medium"
                     >
                       Check-in
                     </button>
                     <button
                       onClick={() => handleViewHistory(student)}
-                      className="text-purple-600 hover:text-purple-700 font-medium"
+                      className="text-optio-purple hover:text-purple-700 font-medium"
                     >
                       History
                     </button>

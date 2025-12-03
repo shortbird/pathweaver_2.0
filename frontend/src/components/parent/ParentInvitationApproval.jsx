@@ -82,7 +82,7 @@ const ParentInvitationApproval = () => {
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-optio-purple"></div>
       </div>
     );
   }
@@ -118,7 +118,7 @@ const ParentInvitationApproval = () => {
       {/* Important Notice */}
       <div className="bg-purple-50 border border-purple-200 rounded-lg p-6 mb-8">
         <div className="flex items-start gap-3">
-          <ExclamationTriangleIcon className="w-6 h-6 text-purple-600 flex-shrink-0" />
+          <ExclamationTriangleIcon className="w-6 h-6 text-optio-purple flex-shrink-0" />
           <div>
             <h3 className="font-semibold text-purple-900 mb-2" style={{ fontFamily: 'Poppins, sans-serif' }}>
               What you'll have access to:
@@ -144,7 +144,7 @@ const ParentInvitationApproval = () => {
             <div className="flex items-start justify-between gap-6">
               <div className="flex-1">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-12 h-12 bg-gradient-to-r from-purple-600 to-pink-500 rounded-full flex items-center justify-center text-white text-xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>
+                  <div className="w-12 h-12 bg-gradient-to-r from-optio-purple to-pink-500 rounded-full flex items-center justify-center text-white text-xl font-bold" style={{ fontFamily: 'Poppins, sans-serif' }}>
                     {invitation.student_first_name?.[0]}{invitation.student_last_name?.[0]}
                   </div>
                   <div>

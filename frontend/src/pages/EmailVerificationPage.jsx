@@ -61,7 +61,7 @@ const EmailVerificationPage = () => {
         <div className="text-center">
           {/* Email Icon */}
           <div className="mx-auto flex items-center justify-center h-20 w-20 rounded-full bg-purple-100 mb-4">
-            <svg className="h-12 w-12 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="h-12 w-12 text-optio-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
                 d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
             </svg>
@@ -123,7 +123,7 @@ const EmailVerificationPage = () => {
                 className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md 
                   ${resent 
                     ? 'bg-green-100 text-green-800 cursor-not-allowed' 
-                    : 'text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500'
+                    : 'text-white bg-optio-purple hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
               >
                 {resending ? (
@@ -153,7 +153,7 @@ const EmailVerificationPage = () => {
             <div className="pt-6 border-t border-gray-200">
               <p className="text-sm text-gray-600">
                 Already verified your email?{' '}
-                <Link to="/login" className="font-medium text-purple-600 hover:text-purple-500">
+                <Link to="/login" className="font-medium text-optio-purple hover:text-purple-500">
                   Go to Login
                 </Link>
               </p>

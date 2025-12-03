@@ -96,7 +96,7 @@ const ServiceInquiries = () => {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
-          <div className="w-12 h-12 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-12 h-12 border-4 border-optio-purple border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
           <p className="text-gray-600">Loading inquiries...</p>
         </div>
       </div>
@@ -139,7 +139,7 @@ const ServiceInquiries = () => {
             onClick={() => setStatusFilter(status)}
             className={`pb-2 px-4 capitalize ${
               statusFilter === status
-                ? 'border-b-2 border-purple-600 font-bold text-gray-900'
+                ? 'border-b-2 border-optio-purple font-bold text-gray-900'
                 : 'text-gray-600 hover:text-gray-900'
             }`}
           >
@@ -207,7 +207,7 @@ const ServiceInquiries = () => {
                   <div className="flex items-center gap-2 text-sm">
                     <Mail className="w-4 h-4 text-gray-400" />
                     <span className="text-gray-700">{inquiry.name}</span>
-                    <a href={`mailto:${inquiry.email}`} className="text-purple-600 hover:underline">
+                    <a href={`mailto:${inquiry.email}`} className="text-optio-purple hover:underline">
                       {inquiry.email}
                     </a>
                   </div>

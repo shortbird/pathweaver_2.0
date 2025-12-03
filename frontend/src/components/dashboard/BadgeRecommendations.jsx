@@ -48,7 +48,7 @@ export default function BadgeRecommendations({ userId }) {
           <h2 className="text-xl font-bold text-gray-900">Recommended Learning Paths</h2>
         </div>
         <div className="flex items-center justify-center py-8">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-optio-purple"></div>
         </div>
       </div>
     );
@@ -69,7 +69,7 @@ export default function BadgeRecommendations({ userId }) {
           </p>
           <button
             onClick={handleViewAll}
-            className="text-purple-600 hover:text-purple-700 font-medium"
+            className="text-optio-purple hover:text-purple-700 font-medium"
           >
             Browse All Badges →
           </button>
@@ -89,7 +89,7 @@ export default function BadgeRecommendations({ userId }) {
         </div>
         <button
           onClick={handleViewAll}
-          className="text-sm text-purple-600 hover:text-purple-800 font-medium transition-colors"
+          className="text-sm text-optio-purple hover:text-purple-800 font-medium transition-colors"
         >
           View All Badges →
         </button>
@@ -149,7 +149,7 @@ function BadgeRecommendationCard({ badge, onClick }) {
       {/* Badge Content */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
-          <h3 className="font-semibold text-gray-900 group-hover:text-purple-600 transition-colors truncate">
+          <h3 className="font-semibold text-gray-900 group-hover:text-optio-purple transition-colors truncate">
             {badge.name}
           </h3>
           <span className="flex-shrink-0 inline-flex items-center gap-1 text-xs bg-gradient-primary text-white px-2 py-1 rounded-full">

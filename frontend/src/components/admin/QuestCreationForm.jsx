@@ -516,7 +516,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                     <button
                       type="button"
                       onClick={() => setShowNewSourceForm(true)}
-                      className="px-3 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700"
+                      className="px-3 py-2 bg-optio-purple text-white rounded-lg hover:bg-purple-700"
                     >
                       <Plus size={20} />
                     </button>
@@ -632,7 +632,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                                 }
                                 updateTask(index, 'school_subjects', newSubjects)
                               }}
-                              className="mt-0.5 h-4 w-4 text-purple-600 focus:ring-purple-500 border-gray-300 rounded"
+                              className="mt-0.5 h-4 w-4 text-optio-purple focus:ring-purple-500 border-gray-300 rounded"
                             />
                             <div className="flex-1">
                               <div className="font-medium text-gray-900">{subject.name}</div>
@@ -792,7 +792,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                               <button
                                 type="button"
                                 onClick={() => removeMaterial(index, mIndex)}
-                                className="ml-2 text-purple-600 hover:text-purple-800 transition-colors"
+                                className="ml-2 text-optio-purple hover:text-purple-800 transition-colors"
                               >
                                 <X size={14} />
                               </button>
@@ -804,7 +804,7 @@ const QuestCreationForm = ({ onClose, onSuccess }) => {
                         <button
                           type="button"
                           onClick={() => addMaterial(index)}
-                          className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-all text-sm"
+                          className="px-4 py-2 bg-optio-purple text-white rounded-lg hover:bg-purple-700 transition-all text-sm"
                         >
                           <Plus size={16} className="inline mr-1" /> Add Material
                         </button>

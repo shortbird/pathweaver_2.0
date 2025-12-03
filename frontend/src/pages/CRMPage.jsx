@@ -90,7 +90,7 @@ const CRMPage = () => {
             </div>
             <div className="bg-white p-4 rounded-lg shadow">
               <p className="text-sm text-gray-600">Active Templates</p>
-              <p className="text-2xl font-bold text-purple-600">{overview.total_templates || 0}</p>
+              <p className="text-2xl font-bold text-optio-purple">{overview.total_templates || 0}</p>
             </div>
           </div>
         )}

@@ -213,7 +213,7 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
             >
               <div className="flex items-start gap-3">
                 <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                  <svg className="w-4 h-4 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-4 h-4 text-optio-purple" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5z" clipRule="evenodd" />
                   </svg>
                 </div>
@@ -221,7 +221,7 @@ const EvidenceContentGrid = ({ blocks = [], onImageClick, onExpandToggle, expand
                   <h4 className="font-medium text-gray-900 text-sm mb-1 truncate">
                     {block.content.title || hostname}
                   </h4>
-                  <p className="text-purple-600 text-xs font-medium">{hostname}</p>
+                  <p className="text-optio-purple text-xs font-medium">{hostname}</p>
                   {block.content.description && (
                     <p className="text-gray-600 text-xs mt-1 line-clamp-2">{block.content.description}</p>
                   )}

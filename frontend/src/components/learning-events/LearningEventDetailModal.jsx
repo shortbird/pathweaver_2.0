@@ -89,7 +89,7 @@ const LearningEventDetailModal = ({ event, isOpen, onClose }) => {
                 href={content.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-purple-600 hover:text-purple-700 underline break-all"
+                className="text-optio-purple hover:text-purple-700 underline break-all"
               >
                 {content.url}
               </a>

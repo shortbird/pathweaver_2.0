@@ -34,55 +34,55 @@ const AdminPage = () => {
           <>
             <Link
               to="/admin"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Overview
             </Link>
             <Link
               to="/admin/quests"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quests' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'quests' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Quests
             </Link>
             <Link
               to="/admin/analytics"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'analytics' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'analytics' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Analytics
             </Link>
             <Link
               to="/admin/badges"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'badges' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'badges' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Badges
             </Link>
             <Link
               to="/admin/users"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'users' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'users' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Users
             </Link>
             <Link
               to="/admin/connections"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'connections' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'connections' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Connections
             </Link>
             <Link
               to="/admin/settings"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'settings' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'settings' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               Settings
             </Link>
             <Link
               to="/admin/lms-logs"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'lms-logs' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'lms-logs' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               LMS Logs
             </Link>
             <Link
               to="/admin/crm"
-              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'crm' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+              className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'crm' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
             >
               CRM
             </Link>
@@ -93,7 +93,7 @@ const AdminPage = () => {
         {isAdvisor && !isAdmin && (
           <Link
             to="/admin/quests"
-            className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' || currentPath === 'quests' ? 'border-b-2 border-purple-600 font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
+            className={`pb-2 px-1 whitespace-nowrap ${currentPath === 'admin' || currentPath === 'quests' ? 'border-b-2 border-optio-purple font-bold text-gray-900' : 'text-gray-600 hover:text-gray-900'}`}
           >
             Quests
           </Link>

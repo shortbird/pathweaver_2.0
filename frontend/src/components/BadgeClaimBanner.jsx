@@ -46,7 +46,7 @@ const BadgeClaimBanner = () => {
 
   return (
     <div className="fixed top-20 left-1/2 transform -translate-x-1/2 z-40 w-full max-w-2xl px-4 animate-slide-down">
-      <div className="bg-gradient-to-r from-purple-600 to-pink-600 rounded-lg shadow-2xl p-4">
+      <div className="bg-gradient-to-r from-optio-purple to-optio-pink rounded-lg shadow-2xl p-4">
         <div className="flex items-start gap-4">
           {/* Icon */}
           <div className="flex-shrink-0">

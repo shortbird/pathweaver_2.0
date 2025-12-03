@@ -378,7 +378,7 @@ const AdminDashboard = () => {
                 <svg className={`w-5 h-5 transition-colors ${
                   (overviewData?.pending_submissions || 0) > 0
                     ? 'text-red-400 group-hover:text-red-600'
-                    : 'text-purple-400 group-hover:text-purple-600'
+                    : 'text-purple-400 group-hover:text-optio-purple'
                 }`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>

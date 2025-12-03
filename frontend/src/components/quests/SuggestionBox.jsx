@@ -21,7 +21,7 @@ const SuggestionBox = ({
     return (
       <div className="mt-4 p-4 bg-purple-50 border border-purple-200 rounded-lg">
         <div className="flex items-center gap-2">
-          <div className="animate-spin h-5 w-5 border-2 border-purple-600 border-t-transparent rounded-full" />
+          <div className="animate-spin h-5 w-5 border-2 border-optio-purple border-t-transparent rounded-full" />
           <span className="text-purple-900 font-medium">Getting suggestions...</span>
         </div>
       </div>
@@ -48,7 +48,7 @@ const SuggestionBox = ({
           </span>
         </div>
         <svg
-          className={`w-5 h-5 text-purple-600 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+          className={`w-5 h-5 text-optio-purple transition-transform ${isExpanded ? 'rotate-180' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
