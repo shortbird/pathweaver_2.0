@@ -132,14 +132,16 @@ const MultiFormatEvidenceEditor = forwardRef(({
     });
   };
 
-  // Auto-save when blocks change
+  // Auto-save when blocks change (but NOT if task is completed)
   useEffect(() => {
-    if (!isLoading && autoSaverRef.current && blocks.length > 0) {
+    // Don't auto-save if task is already completed - this prevents
+    // overwriting the 'completed' status back to 'draft'
+    if (!isLoading && autoSaverRef.current && blocks.length > 0 && documentStatus !== 'completed') {
       setSaveStatus('unsaved');
       const cleanedBlocks = cleanBlocksForSave(blocks);
       autoSaverRef.current.autoSave(cleanedBlocks);
     }
-  }, [blocks, isLoading]);
+  }, [blocks, isLoading, documentStatus]);
 
   // Update parent container with save status when hideHeader is true
   useEffect(() => {
