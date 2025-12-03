@@ -294,12 +294,8 @@ def export_user_data(current_user):
         except:
             pass  # Table might not exist
 
-        # Get quest submissions
-        try:
-            submissions_response = supabase.table('quest_submissions').select('*').eq('user_id', user_id).execute()
-            export_data['quest_submissions'] = submissions_response.data if submissions_response.data else []
-        except:
-            pass
+        # Quest submissions feature removed - users can create their own quests directly
+        export_data['quest_submissions'] = []
 
         # Quest ratings removed in Phase 1 refactoring (January 2025)
         # Table quest_ratings no longer exists

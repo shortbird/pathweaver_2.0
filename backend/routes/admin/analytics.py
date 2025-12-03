@@ -153,14 +153,8 @@ def get_overview_metrics(user_id):
             print(f"Error getting XP week data: {e}", file=sys.stderr, flush=True)
             total_xp_week = 0
 
-        # Get pending quest submissions
-        try:
-            pending_submissions = supabase.table('quest_submissions').select('id', count='exact')\
-                .eq('status', 'pending').execute()
-            pending_count = pending_submissions.count or 0
-        except Exception as e:
-            print(f"Error getting pending submissions: {e}", file=sys.stderr, flush=True)
-            pending_count = 0
+        # Quest submissions feature removed - users can create their own quests directly
+        pending_count = 0
 
         # Get flagged tasks count
         try:
@@ -266,21 +260,7 @@ def get_recent_activity(user_id):
             print(f"Error getting recent users: {e}", file=sys.stderr, flush=True)
             recent_users = type('obj', (object,), {'data': []})()
 
-        # Get recent quest submissions
-        try:
-            recent_submissions = supabase.table('quest_submissions')\
-                .select('user_id, title, submitted_at')\
-                .order('submitted_at', desc=True)\
-                .limit(5).execute()
-
-            # Collect user IDs
-            if recent_submissions.data:
-                for submission in recent_submissions.data:
-                    if submission.get('user_id'):
-                        user_ids_needed.add(submission['user_id'])
-        except Exception as e:
-            print(f"Error getting recent submissions: {e}", file=sys.stderr, flush=True)
-            recent_submissions = type('obj', (object,), {'data': []})()
+        # Quest submissions feature removed - users can create their own quests directly
 
         # Fetch all user names in one query
         user_names = {}
@@ -333,18 +313,6 @@ def get_recent_activity(user_id):
                 'timestamp': user['created_at'],
                 'user_name': user_name,
                 'description': f"joined Optio"
-            })
-
-        # Add quest submissions
-        for submission in recent_submissions.data or []:
-            user_id = submission.get('user_id')
-            user_name = user_names.get(user_id, 'Student')
-
-            activities.append({
-                'type': 'quest_submission',
-                'timestamp': submission.get('submitted_at', now.isoformat()),
-                'user_name': user_name,
-                'description': f"submitted custom quest: '{submission['title']}'"
             })
 
         # Sort by timestamp
@@ -532,13 +500,7 @@ def get_system_health(user_id):
             .is_('completed_at', 'null')\
             .lt('started_at', stalled_threshold.isoformat()).execute()
 
-        # Check quest submission backlog (remove date filter since created_at doesn't exist)
-        try:
-            old_submissions = supabase.table('quest_submissions').select('id', count='exact')\
-                .eq('status', 'pending').execute()
-        except Exception as e:
-            print(f"Error getting old submissions: {e}", file=sys.stderr, flush=True)
-            old_submissions = type('obj', (object,), {'count': 0})()
+        # Quest submissions feature removed - users can create their own quests directly
 
         # Calculate platform health score (0-100)
         health_score = 100
@@ -548,8 +510,6 @@ def get_system_health(user_id):
             health_score -= 20
         if (stalled_quests.count or 0) > 20:
             health_score -= 15
-        if (old_submissions.count or 0) > 10:
-            health_score -= 25
 
         # Create alerts
         alerts = []
@@ -568,20 +528,13 @@ def get_system_health(user_id):
                 'action': 'Review quest difficulty or provide support'
             })
 
-        if (old_submissions.count or 0) > 10:
-            alerts.append({
-                'type': 'urgent',
-                'message': f'{old_submissions.count} quest submissions pending review for 7+ days',
-                'action': 'Review pending submissions immediately'
-            })
-
         result_data = {
             'health_score': health_score,
             'alerts': alerts,
             'metrics': {
                 'inactive_users': inactive_users.count or 0,
                 'stalled_quests': stalled_quests.count or 0,
-                'old_submissions': old_submissions.count or 0
+                'old_submissions': 0  # Quest submissions feature removed
             },
             'last_checked': now.isoformat()
         }
