@@ -83,9 +83,9 @@ emails:
     subject: "Welcome to Optio! Let's Chat About Your Teen's Future"
     title: "Welcome to Optio! Let's Chat About Your Teen's Future"
     greeting: "Welcome to Optio!"
-    salutation: "Hi {parent_name},"
+    salutation: "Hi {{ parent_name }},"
     paragraphs:
-      - "Thank you for your interest in helping your teen{teen_age_text} build real-world skills and create an impressive portfolio.{activity_text}"
+      - "Thank you for your interest in helping your teen{{ teen_age_text }} build real-world skills and create an impressive portfolio.{{ activity_text }}"
       - "We created Optio because we believe teens learn best when given the freedom to pursue their interests. Our platform helps students earn real high school credit for the learning experiences they have in their daily lives while building portfolios that showcase their excellent work."
     highlight_box:
       title: "Want to learn more?"

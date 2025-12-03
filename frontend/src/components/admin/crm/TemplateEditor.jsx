@@ -14,7 +14,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
   const [previewHtml, setPreviewHtml] = useState('')
   const [sampleData, setSampleData] = useState({})
   const [loading, setLoading] = useState(false)
-  const isReadOnly = template?.source === 'yaml'
+  const isReadOnly = false  // Allow editing all templates (creates override for system templates)
 
   useEffect(() => {
     if (template) {

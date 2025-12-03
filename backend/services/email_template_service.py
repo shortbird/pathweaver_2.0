@@ -175,25 +175,49 @@ class EmailTemplateService(BaseService):
     def update_template(
         self,
         template_key: str,
-        updates: Dict[str, Any]
+        updates: Dict[str, Any],
+        created_by: Optional[str] = None
     ) -> Dict[str, Any]:
         """
-        Update an existing template.
+        Update an existing template or create override for system templates.
 
         Args:
             template_key: Template identifier
             updates: Dictionary of fields to update
+            created_by: UUID of user creating override (for system templates)
 
         Returns:
             Updated template dictionary
         """
         try:
-            # Don't allow updating system templates
             existing = self.crm_repo.get_template_by_key(template_key)
-            if existing and existing.get('is_system'):
-                raise ValueError("Cannot update system templates")
 
-            # Validate template_data if being updated
+            # If system template, create override instead of updating
+            if existing and existing.get('is_system'):
+                logger.info(f"Creating override for system template '{template_key}'")
+
+                # Validate template_data if being updated
+                if 'template_data' in updates:
+                    self._validate_template_data(updates['template_data'])
+
+                # Mark existing as not override, create new override
+                override_data = {
+                    'template_key': template_key,
+                    'name': updates.get('name', existing['name']),
+                    'subject': updates.get('subject', existing['subject']),
+                    'description': updates.get('description', existing.get('description', '')),
+                    'template_data': updates.get('template_data', existing['template_data']),
+                    'is_system': False,  # Override is not a system template
+                    'is_override': True,  # Mark as override
+                    'created_by': created_by
+                }
+
+                # Update existing template to mark it as overridden
+                self.crm_repo.update_template(template_key, override_data)
+                logger.info(f"Created override for system template '{template_key}'")
+                return self.crm_repo.get_template_by_key(template_key)
+
+            # For non-system templates, update normally
             if 'template_data' in updates:
                 self._validate_template_data(updates['template_data'])
 
