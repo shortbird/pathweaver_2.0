@@ -444,36 +444,13 @@ class CRMService(BaseService):
             Dictionary with 'subject', 'html_body', 'text_body'
         """
         try:
-            # Render subject
-            subject = subject_override or template['subject']
-            subject_template = Template(subject)
-            rendered_subject = subject_template.render(**variables)
-
-            # Get template HTML file name
-            template_key = template['key']
-            html_filename = f"email/{template_key}.html"
-
-            # Check if HTML template exists, otherwise generate from YAML
-            try:
-                html_template = self.email_service.jinja_env.get_template(html_filename)
-                template_data = template['data']
-
-                # Merge template_data with variables for rendering
-                render_context = {**template_data, **variables}
-                rendered_html = html_template.render(**render_context)
-            except Exception as e:
-                logger.warning(f"HTML template {html_filename} not found, generating basic HTML: {e}")
-                # Fallback: generate simple HTML from template data
-                rendered_html = self._generate_basic_html(template['data'], variables)
-
-            # Generate plain text version
-            text_body = self._html_to_text(rendered_html)
-
-            return {
-                'subject': rendered_subject,
-                'html_body': rendered_html,
-                'text_body': text_body
-            }
+            # Use EmailService's _render_email_template for consistent rendering
+            # This ensures preview matches actual sent emails
+            return self.email_service._render_email_template(
+                template=template,
+                subject_override=subject_override,
+                variables=variables
+            )
 
         except Exception as e:
             logger.error(f"Error rendering email template: {e}")
