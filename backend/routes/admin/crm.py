@@ -552,11 +552,11 @@ def preview_template(user_id, template_key):
         subject_override = data.get('subject')
         template_data_override = data.get('template_data')
 
+        # Get CRM service for rendering
+        crm_service = get_crm_service()
+
         # If template_data override provided, render directly
         if template_data_override:
-            from services.crm_service import CRMService
-            crm_service = CRMService()
-
             # Create temporary template structure
             temp_template = {
                 'key': template_key,
