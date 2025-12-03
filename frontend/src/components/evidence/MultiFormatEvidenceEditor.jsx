@@ -134,12 +134,24 @@ const MultiFormatEvidenceEditor = forwardRef(({
 
   // Auto-save when blocks change (but NOT if task is completed)
   useEffect(() => {
+    // Debug logging for auto-save behavior
+    console.log('[EVIDENCE] Auto-save check:', {
+      isLoading,
+      hasAutoSaver: !!autoSaverRef.current,
+      blocksLength: blocks.length,
+      documentStatus,
+      willAutoSave: !isLoading && autoSaverRef.current && blocks.length > 0 && documentStatus !== 'completed'
+    });
+
     // Don't auto-save if task is already completed - this prevents
     // overwriting the 'completed' status back to 'draft'
     if (!isLoading && autoSaverRef.current && blocks.length > 0 && documentStatus !== 'completed') {
+      console.log('[EVIDENCE] Triggering auto-save with status: draft');
       setSaveStatus('unsaved');
       const cleanedBlocks = cleanBlocksForSave(blocks);
       autoSaverRef.current.autoSave(cleanedBlocks);
+    } else if (documentStatus === 'completed') {
+      console.log('[EVIDENCE] Skipping auto-save - task is completed');
     }
   }, [blocks, isLoading, documentStatus]);
 
@@ -262,11 +274,25 @@ const MultiFormatEvidenceEditor = forwardRef(({
 
       // Save and complete the task (files are already uploaded)
       const cleanedBlocks = cleanBlocksForSave(blocks);
+      console.log('[EVIDENCE] Submitting task completion with status: completed');
+      console.log('[EVIDENCE] Current documentStatus before save:', documentStatus);
+
       const completeResponse = await evidenceDocumentService.saveDocument(taskId, cleanedBlocks, 'completed');
 
       if (completeResponse.success) {
+        console.log('[EVIDENCE] Task completion successful - setting documentStatus to completed');
+        console.log('[EVIDENCE] BEFORE setState - documentStatus:', documentStatus);
+
+        // CRITICAL: Clear auto-save BEFORE setting status to prevent race condition
+        if (autoSaverRef.current) {
+          console.log('[EVIDENCE] Clearing auto-save to prevent overwriting completion');
+          autoSaverRef.current.clearAutoSave();
+        }
+
         setDocumentStatus('completed');
         setSaveStatus('saved');
+        console.log('[EVIDENCE] AFTER setState call - documentStatus:', documentStatus);
+        console.log('[EVIDENCE] NOTE: State may not have updated yet due to React batching');
         if (onComplete) {
           onComplete({
             xp_awarded: completeResponse.xp_awarded || 0,
