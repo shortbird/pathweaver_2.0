@@ -21,18 +21,29 @@ logger = logging.getLogger(__name__)
 
 crm_bp = Blueprint('crm', __name__, url_prefix='/api/admin/crm')
 
-# Initialize services
-crm_repo = CRMRepository()
-crm_service = CRMService()
-template_service = EmailTemplateService()
-automation_service = CampaignAutomationService()
+# Lazy initialization - services will be created on first use within app context
+def get_crm_repo():
+    """Get CRM repository instance (lazy initialization)"""
+    return CRMRepository()
+
+def get_crm_service():
+    """Get CRM service instance (lazy initialization)"""
+    return CRMService()
+
+def get_template_service():
+    """Get template service instance (lazy initialization)"""
+    return EmailTemplateService()
+
+def get_automation_service():
+    """Get automation service instance (lazy initialization)"""
+    return CampaignAutomationService()
 
 
 # ==================== CAMPAIGNS ====================
 
 @crm_bp.route('/campaigns', methods=['GET'])
 @require_admin
-def get_campaigns():
+def get_campaigns(user_id):
     """
     Get all campaigns with optional filtering.
 
@@ -48,7 +59,7 @@ def get_campaigns():
         limit = int(request.args.get('limit', 100))
         offset = int(request.args.get('offset', 0))
 
-        campaigns = crm_repo.get_campaigns(
+        campaigns = get_crm_repo().get_campaigns(
             status=status,
             campaign_type=campaign_type,
             limit=limit,
@@ -67,10 +78,10 @@ def get_campaigns():
 
 @crm_bp.route('/campaigns/<campaign_id>', methods=['GET'])
 @require_admin
-def get_campaign(campaign_id):
+def get_campaign(user_id, campaign_id):
     """Get campaign by ID"""
     try:
-        campaign = crm_repo.get_campaign_by_id(campaign_id)
+        campaign = get_crm_repo().get_campaign_by_id(campaign_id)
 
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
@@ -84,7 +95,7 @@ def get_campaign(campaign_id):
 
 @crm_bp.route('/campaigns', methods=['POST'])
 @require_admin
-def create_campaign():
+def create_campaign(user_id):
     """
     Create new campaign.
 
@@ -125,7 +136,7 @@ def create_campaign():
             'created_by': created_by
         }
 
-        campaign = crm_repo.create_campaign(campaign_data)
+        campaign = get_crm_repo().create_campaign(campaign_data)
 
         return jsonify({
             'message': 'Campaign created successfully',
@@ -139,12 +150,12 @@ def create_campaign():
 
 @crm_bp.route('/campaigns/<campaign_id>', methods=['PUT'])
 @require_admin
-def update_campaign(campaign_id):
+def update_campaign(user_id, campaign_id):
     """Update campaign by ID"""
     try:
         data = request.get_json()
 
-        campaign = crm_repo.update_campaign(campaign_id, data)
+        campaign = get_crm_repo().update_campaign(campaign_id, data)
 
         return jsonify({
             'message': 'Campaign updated successfully',
@@ -158,10 +169,10 @@ def update_campaign(campaign_id):
 
 @crm_bp.route('/campaigns/<campaign_id>', methods=['DELETE'])
 @require_admin
-def delete_campaign(campaign_id):
+def delete_campaign(user_id, campaign_id):
     """Delete campaign by ID"""
     try:
-        crm_repo.delete_campaign(campaign_id)
+        get_crm_repo().delete_campaign(campaign_id)
 
         return jsonify({'message': 'Campaign deleted successfully'}), 200
 
@@ -172,7 +183,7 @@ def delete_campaign(campaign_id):
 
 @crm_bp.route('/campaigns/<campaign_id>/send', methods=['POST'])
 @require_admin
-def send_campaign(campaign_id):
+def send_campaign(user_id, campaign_id):
     """
     Send campaign immediately.
 
@@ -182,7 +193,7 @@ def send_campaign(campaign_id):
     try:
         dry_run = request.args.get('dry_run', 'false').lower() == 'true'
 
-        results = crm_service.send_campaign(
+        results = get_crm_service().send_campaign(
             campaign_id=campaign_id,
             dry_run=dry_run
         )
@@ -199,10 +210,10 @@ def send_campaign(campaign_id):
 
 @crm_bp.route('/campaigns/<campaign_id>/preview', methods=['POST'])
 @require_admin
-def preview_campaign(campaign_id):
+def preview_campaign(user_id, campaign_id):
     """Preview campaign recipients without sending"""
     try:
-        preview = crm_service.preview_campaign_recipients(campaign_id=campaign_id)
+        preview = get_crm_service().preview_campaign_recipients(campaign_id=campaign_id)
 
         return jsonify({
             'preview': preview
@@ -215,13 +226,13 @@ def preview_campaign(campaign_id):
 
 @crm_bp.route('/campaigns/<campaign_id>/history', methods=['GET'])
 @require_admin
-def get_campaign_history(campaign_id):
+def get_campaign_history(user_id, campaign_id):
     """Get send history for a campaign"""
     try:
         limit = int(request.args.get('limit', 100))
 
-        sends = crm_repo.get_campaign_sends(campaign_id=campaign_id, limit=limit)
-        stats = crm_repo.get_campaign_stats(campaign_id)
+        sends = get_crm_repo().get_campaign_sends(campaign_id=campaign_id, limit=limit)
+        stats = get_crm_repo().get_campaign_stats(campaign_id)
 
         return jsonify({
             'sends': sends,
@@ -237,13 +248,13 @@ def get_campaign_history(campaign_id):
 
 @crm_bp.route('/segments', methods=['GET'])
 @require_admin
-def get_segments():
+def get_segments(user_id):
     """Get all saved segments"""
     try:
         from flask import g
         created_by = request.args.get('created_by') or g.get('current_user_id')
 
-        segments = crm_repo.get_segments(created_by=created_by)
+        segments = get_crm_repo().get_segments(created_by=created_by)
 
         return jsonify({
             'segments': segments,
@@ -257,7 +268,7 @@ def get_segments():
 
 @crm_bp.route('/segments', methods=['POST'])
 @require_admin
-def create_segment():
+def create_segment(user_id):
     """
     Create new saved segment.
 
@@ -284,7 +295,7 @@ def create_segment():
             'created_by': created_by
         }
 
-        segment = crm_repo.create_segment(segment_data)
+        segment = get_crm_repo().create_segment(segment_data)
 
         return jsonify({
             'message': 'Segment created successfully',
@@ -298,12 +309,12 @@ def create_segment():
 
 @crm_bp.route('/segments/<segment_id>', methods=['PUT'])
 @require_admin
-def update_segment(segment_id):
+def update_segment(user_id, segment_id):
     """Update segment by ID"""
     try:
         data = request.get_json()
 
-        segment = crm_repo.update_segment(segment_id, data)
+        segment = get_crm_repo().update_segment(segment_id, data)
 
         return jsonify({
             'message': 'Segment updated successfully',
@@ -317,10 +328,10 @@ def update_segment(segment_id):
 
 @crm_bp.route('/segments/<segment_id>', methods=['DELETE'])
 @require_admin
-def delete_segment(segment_id):
+def delete_segment(user_id, segment_id):
     """Delete segment by ID"""
     try:
-        crm_repo.delete_segment(segment_id)
+        get_crm_repo().delete_segment(segment_id)
 
         return jsonify({'message': 'Segment deleted successfully'}), 200
 
@@ -331,7 +342,7 @@ def delete_segment(segment_id):
 
 @crm_bp.route('/segments/preview', methods=['POST'])
 @require_admin
-def preview_segment():
+def preview_segment(user_id):
     """
     Preview users matching segment rules.
 
@@ -344,7 +355,7 @@ def preview_segment():
         data = request.get_json()
         filter_rules = data.get('filter_rules', {})
 
-        users = crm_service.segment_users(filter_rules)
+        users = get_crm_service().segment_users(filter_rules)
 
         return jsonify({
             'total_users': len(users),
@@ -361,7 +372,7 @@ def preview_segment():
 
 @crm_bp.route('/templates', methods=['GET'])
 @require_admin
-def get_templates():
+def get_templates(user_id):
     """
     Get all templates (system + custom).
 
@@ -375,9 +386,9 @@ def get_templates():
 
         if is_system_param is not None:
             is_system = is_system_param.lower() == 'true'
-            templates = crm_repo.get_templates(is_system=is_system)
+            templates = get_crm_repo().get_templates(is_system=is_system)
         else:
-            templates = template_service.list_templates(include_yaml=include_yaml)
+            templates = get_template_service().list_templates(include_yaml=include_yaml)
 
         return jsonify({
             'templates': templates,
@@ -391,10 +402,10 @@ def get_templates():
 
 @crm_bp.route('/templates/<template_key>', methods=['GET'])
 @require_admin
-def get_template(template_key):
+def get_template(user_id, template_key):
     """Get template by key"""
     try:
-        template = template_service.get_template(template_key)
+        template = get_template_service().get_template(template_key)
 
         if not template:
             return jsonify({'error': 'Template not found'}), 404
@@ -408,7 +419,7 @@ def get_template(template_key):
 
 @crm_bp.route('/templates', methods=['POST'])
 @require_admin
-def create_template():
+def create_template(user_id):
     """
     Create custom template.
 
@@ -431,7 +442,7 @@ def create_template():
         from flask import g
         created_by = g.get('current_user_id')
 
-        template = template_service.create_template(
+        template = get_template_service().create_template(
             template_key=data['template_key'],
             name=data['name'],
             subject=data['subject'],
@@ -454,12 +465,23 @@ def create_template():
 
 @crm_bp.route('/templates/<template_key>', methods=['PUT'])
 @require_admin
-def update_template(template_key):
-    """Update custom template (cannot update system templates)"""
+def update_template(user_id, template_key):
+    """
+    Update template or create override for YAML templates.
+
+    Now supports editing system templates by creating database overrides.
+    """
     try:
         data = request.get_json()
 
-        template = template_service.update_template(template_key, data)
+        from flask import g
+        created_by = g.get('current_user_id')
+
+        template = get_template_service().update_template(
+            template_key,
+            data,
+            created_by=created_by
+        )
 
         return jsonify({
             'message': 'Template updated successfully',
@@ -473,12 +495,34 @@ def update_template(template_key):
         return jsonify({'error': str(e)}), 500
 
 
+@crm_bp.route('/templates/<template_key>/revert', methods=['POST'])
+@require_admin
+def revert_template(user_id, template_key):
+    """
+    Revert template to YAML default by deleting override.
+
+    Only works for templates that have a YAML default.
+    """
+    try:
+        get_template_service().revert_to_default(template_key)
+
+        return jsonify({
+            'message': f"Template '{template_key}' reverted to default successfully"
+        }), 200
+
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        logger.error(f"Error reverting template: {e}")
+        return jsonify({'error': str(e)}), 500
+
+
 @crm_bp.route('/templates/<template_key>', methods=['DELETE'])
 @require_admin
-def delete_template(template_key):
+def delete_template(user_id, template_key):
     """Delete custom template (cannot delete system templates)"""
     try:
-        template_service.delete_template(template_key)
+        get_template_service().delete_template(template_key)
 
         return jsonify({'message': 'Template deleted successfully'}), 200
 
@@ -491,7 +535,7 @@ def delete_template(template_key):
 
 @crm_bp.route('/templates/<template_key>/preview', methods=['POST'])
 @require_admin
-def preview_template(template_key):
+def preview_template(user_id, template_key):
     """
     Render template preview with sample data.
 
@@ -504,7 +548,7 @@ def preview_template(template_key):
         data = request.get_json() or {}
         sample_data = data.get('sample_data')
 
-        preview = template_service.render_preview(template_key, sample_data)
+        preview = get_template_service().render_preview(template_key, sample_data)
 
         return jsonify({'preview': preview}), 200
 
@@ -515,7 +559,7 @@ def preview_template(template_key):
 
 @crm_bp.route('/templates/sync', methods=['POST'])
 @require_admin
-def sync_templates():
+def sync_templates(user_id):
     """
     Sync templates from email_copy.yaml to database.
 
@@ -528,7 +572,7 @@ def sync_templates():
         data = request.get_json() or {}
         template_keys = data.get('template_keys')
 
-        results = template_service.sync_yaml_to_database(template_keys)
+        results = get_template_service().sync_yaml_to_database(template_keys)
 
         return jsonify({
             'message': 'Template sync complete',
@@ -544,7 +588,7 @@ def sync_templates():
 
 @crm_bp.route('/sequences', methods=['GET'])
 @require_admin
-def get_sequences():
+def get_sequences(user_id):
     """
     Get all automation sequences.
 
@@ -556,9 +600,9 @@ def get_sequences():
 
         if is_active_param is not None:
             is_active = is_active_param.lower() == 'true'
-            sequences = crm_repo.get_sequences(is_active=is_active)
+            sequences = get_crm_repo().get_sequences(is_active=is_active)
         else:
-            sequences = crm_repo.get_sequences()
+            sequences = get_crm_repo().get_sequences()
 
         return jsonify({
             'sequences': sequences,
@@ -572,10 +616,10 @@ def get_sequences():
 
 @crm_bp.route('/sequences/<sequence_id>', methods=['GET'])
 @require_admin
-def get_sequence(sequence_id):
+def get_sequence(user_id, sequence_id):
     """Get sequence by ID"""
     try:
-        sequence = crm_repo.get_sequence_by_id(sequence_id)
+        sequence = get_crm_repo().get_sequence_by_id(sequence_id)
 
         if not sequence:
             return jsonify({'error': 'Sequence not found'}), 404
@@ -589,7 +633,7 @@ def get_sequence(sequence_id):
 
 @crm_bp.route('/sequences', methods=['POST'])
 @require_admin
-def create_sequence():
+def create_sequence(user_id):
     """
     Create new automation sequence (inactive by default).
 
@@ -623,7 +667,7 @@ def create_sequence():
             'created_by': created_by
         }
 
-        sequence = crm_repo.create_sequence(sequence_data)
+        sequence = get_crm_repo().create_sequence(sequence_data)
 
         return jsonify({
             'message': 'Sequence created successfully (INACTIVE - must be manually activated)',
@@ -637,7 +681,7 @@ def create_sequence():
 
 @crm_bp.route('/sequences/<sequence_id>', methods=['PUT'])
 @require_admin
-def update_sequence(sequence_id):
+def update_sequence(user_id, sequence_id):
     """Update sequence by ID"""
     try:
         data = request.get_json()
@@ -646,7 +690,7 @@ def update_sequence(sequence_id):
         if 'is_active' in data:
             return jsonify({'error': 'Use /activate or /pause endpoints to change active status'}), 400
 
-        sequence = crm_repo.update_sequence(sequence_id, data)
+        sequence = get_crm_repo().update_sequence(sequence_id, data)
 
         return jsonify({
             'message': 'Sequence updated successfully',
@@ -660,14 +704,14 @@ def update_sequence(sequence_id):
 
 @crm_bp.route('/sequences/<sequence_id>/activate', methods=['POST'])
 @require_admin
-def activate_sequence(sequence_id):
+def activate_sequence(user_id, sequence_id):
     """
     ACTIVATE a sequence - starts sending automated emails.
 
     WARNING: This will start sending emails automatically based on triggers.
     """
     try:
-        sequence = crm_repo.activate_sequence(sequence_id)
+        sequence = get_crm_repo().activate_sequence(sequence_id)
 
         logger.warning(f"SEQUENCE ACTIVATED: {sequence['name']} (ID: {sequence_id}) - emails will now be sent automatically")
 
@@ -684,10 +728,10 @@ def activate_sequence(sequence_id):
 
 @crm_bp.route('/sequences/<sequence_id>/pause', methods=['POST'])
 @require_admin
-def pause_sequence(sequence_id):
+def pause_sequence(user_id, sequence_id):
     """Pause a sequence - stops all automated emails"""
     try:
-        sequence = crm_repo.pause_sequence(sequence_id)
+        sequence = get_crm_repo().pause_sequence(sequence_id)
 
         return jsonify({
             'message': f"Sequence '{sequence['name']}' paused - no more automated emails will be sent",
@@ -701,10 +745,10 @@ def pause_sequence(sequence_id):
 
 @crm_bp.route('/sequences/<sequence_id>', methods=['DELETE'])
 @require_admin
-def delete_sequence(sequence_id):
+def delete_sequence(user_id, sequence_id):
     """Delete sequence by ID"""
     try:
-        crm_repo.delete_sequence(sequence_id)
+        get_crm_repo().delete_sequence(sequence_id)
 
         return jsonify({'message': 'Sequence deleted successfully'}), 200
 
@@ -717,14 +761,14 @@ def delete_sequence(sequence_id):
 
 @crm_bp.route('/analytics/overview', methods=['GET'])
 @require_admin
-def get_analytics_overview():
+def get_analytics_overview(user_id):
     """Get CRM overview analytics"""
     try:
-        campaigns = crm_repo.get_campaigns()
-        sequences = crm_repo.get_sequences()
+        campaigns = get_crm_repo().get_campaigns()
+        sequences = get_crm_repo().get_sequences()
 
         # Get total sends
-        all_sends = crm_repo.get_campaign_sends(limit=10000)
+        all_sends = get_crm_repo().get_campaign_sends(limit=10000)
 
         stats = {
             'total_campaigns': len(campaigns),
@@ -745,15 +789,15 @@ def get_analytics_overview():
 
 @crm_bp.route('/analytics/campaigns/<campaign_id>', methods=['GET'])
 @require_admin
-def get_campaign_analytics(campaign_id):
+def get_campaign_analytics(user_id, campaign_id):
     """Get detailed analytics for a campaign"""
     try:
-        campaign = crm_repo.get_campaign_by_id(campaign_id)
+        campaign = get_crm_repo().get_campaign_by_id(campaign_id)
         if not campaign:
             return jsonify({'error': 'Campaign not found'}), 404
 
-        stats = crm_repo.get_campaign_stats(campaign_id)
-        sends = crm_repo.get_campaign_sends(campaign_id=campaign_id, limit=100)
+        stats = get_crm_repo().get_campaign_stats(campaign_id)
+        sends = get_crm_repo().get_campaign_sends(campaign_id=campaign_id, limit=100)
 
         return jsonify({
             'campaign': campaign,
