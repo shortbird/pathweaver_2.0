@@ -1145,15 +1145,12 @@ def get_quest_sources():
 
 @bp.route('/<quest_id>/tasks/reorder', methods=['PUT'])
 @require_auth
-def reorder_quest_tasks(quest_id):
+def reorder_quest_tasks(user_id: str, quest_id: str):
     """
     Reorder tasks for a quest.
     Body: { task_ids: [id1, id2, id3...] }
     """
     try:
-        from flask import g
-        user_id = g.user_id
-
         data = request.get_json()
         task_ids = data.get('task_ids', [])
 

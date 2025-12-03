@@ -178,6 +178,10 @@ const QuestDetail = () => {
     // Task is already completed by MultiFormatEvidenceEditor
     // Update the cache with confirmed completion status
     if (selectedTask) {
+      // CRITICAL: Update selectedTask state FIRST to ensure TaskWorkspace sees the completed status
+      // This prevents the UI from showing incomplete state while React Query cache updates
+      setSelectedTask(prev => prev ? { ...prev, is_completed: true } : null);
+
       queryClient.setQueryData(queryKeys.quests.detail(id), (oldData) => {
         if (!oldData) return oldData;
 
