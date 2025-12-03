@@ -33,11 +33,14 @@ class CRMRepository(BaseRepository):
         """Initialize CRM repository with admin client (required for CRM operations)"""
         # CRM operations always use admin client (no user_id needed)
         super().__init__(user_id=None)
-        self._admin_client = get_supabase_admin_client()
+        # Lazy initialization - client will be created on first access
+        self._admin_client = None
 
     @property
     def client(self):
-        """Always return admin client for CRM operations"""
+        """Always return admin client for CRM operations (lazy initialization)"""
+        if self._admin_client is None:
+            self._admin_client = get_supabase_admin_client()
         return self._admin_client
 
     # ==================== CAMPAIGNS ====================
