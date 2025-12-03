@@ -18,6 +18,39 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
   const [autoPreview, setAutoPreview] = useState(true)
   const textareaRef = useRef(null)
 
+  // Get sample value for common variables
+  const getSampleValue = useCallback((varName) => {
+    const samples = {
+      parent_name: 'Sarah Johnson',
+      user_name: 'Alex Smith',
+      teen_age_text: ' (age 15)',
+      activity_text: " We're excited to hear about your interest in homeschooling.",
+      email: 'parent@example.com',
+      current_curriculum: 'Time4Learning',
+      phone: '(555) 123-4567',
+      goals: 'Prepare for college while maintaining flexibility'
+    }
+    return samples[varName] || `[${varName}]`
+  }, [])
+
+  // Extract variables from text ({{ variable_name }})
+  const extractVariables = useCallback((text) => {
+    const regex = /\{\{\s*(\w+)\s*\}\}/g
+    const matches = [...text.matchAll(regex)]
+    const uniqueVars = [...new Set(matches.map(m => m[1]))]
+    setVariables(uniqueVars)
+
+    // Initialize sample data for preview - preserve existing values if user has edited them
+    setSampleData(prevData => {
+      const newData = {}
+      uniqueVars.forEach(v => {
+        // Keep user's custom value if it exists, otherwise use default sample
+        newData[v] = prevData[v] || getSampleValue(v)
+      })
+      return newData
+    })
+  }, [getSampleValue])
+
   // Convert template_data to markdown on load
   useEffect(() => {
     if (template) {
@@ -79,39 +112,6 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       extractVariables(markdown + ' ' + (template.subject || ''))
     }
   }, [template, extractVariables])
-
-  // Get sample value for common variables
-  const getSampleValue = useCallback((varName) => {
-    const samples = {
-      parent_name: 'Sarah Johnson',
-      user_name: 'Alex Smith',
-      teen_age_text: ' (age 15)',
-      activity_text: " We're excited to hear about your interest in homeschooling.",
-      email: 'parent@example.com',
-      current_curriculum: 'Time4Learning',
-      phone: '(555) 123-4567',
-      goals: 'Prepare for college while maintaining flexibility'
-    }
-    return samples[varName] || `[${varName}]`
-  }, [])
-
-  // Extract variables from text ({{ variable_name }})
-  const extractVariables = useCallback((text) => {
-    const regex = /\{\{\s*(\w+)\s*\}\}/g
-    const matches = [...text.matchAll(regex)]
-    const uniqueVars = [...new Set(matches.map(m => m[1]))]
-    setVariables(uniqueVars)
-
-    // Initialize sample data for preview - preserve existing values if user has edited them
-    setSampleData(prevData => {
-      const newData = {}
-      uniqueVars.forEach(v => {
-        // Keep user's custom value if it exists, otherwise use default sample
-        newData[v] = prevData[v] || getSampleValue(v)
-      })
-      return newData
-    })
-  }, [getSampleValue])
 
   // Auto-update variables when markdown or subject changes
   useEffect(() => {
