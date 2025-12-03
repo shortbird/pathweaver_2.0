@@ -552,6 +552,10 @@ def preview_template(user_id, template_key):
         subject_override = data.get('subject')
         template_data_override = data.get('template_data')
 
+        logger.info(f"📧 Template preview request for '{template_key}'")
+        logger.info(f"📊 Sample data received: {sample_data}")
+        logger.info(f"📝 Has template_data override: {bool(template_data_override)}")
+
         # Get CRM service for rendering
         crm_service = get_crm_service()
 

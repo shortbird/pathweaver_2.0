@@ -143,8 +143,11 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
         subject,
         templateData,
         sampleData,
+        sampleDataKeys: Object.keys(sampleData),
+        sampleDataValues: Object.values(sampleData),
         markdownLength: markdownContent.length
       })
+      console.log('📊 Full Sample Data:', JSON.stringify(sampleData, null, 2))
 
       // Call preview API
       const response = await crmAPI.previewTemplate(templateKey, {
