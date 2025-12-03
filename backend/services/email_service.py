@@ -256,8 +256,11 @@ class EmailService(BaseService):
             # Process greeting or salutation (YAML templates use 'salutation')
             greeting_value = template_data.get('greeting') or template_data.get('salutation')
             if greeting_value:
+                logger.info(f"🎯 Rendering greeting: '{greeting_value}' with variables: {variables}")
                 greeting_template = Template(greeting_value)
-                render_context['greeting'] = greeting_template.render(**variables)
+                rendered_greeting = greeting_template.render(**variables)
+                logger.info(f"✅ Rendered greeting: '{rendered_greeting}'")
+                render_context['greeting'] = rendered_greeting
 
             # Process body_html (custom templates) or paragraphs (YAML templates)
             if 'body_html' in template_data:
