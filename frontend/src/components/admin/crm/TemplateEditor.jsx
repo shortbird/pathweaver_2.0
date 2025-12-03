@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { crmAPI } from '../../../services/crmAPI'
 import toast from 'react-hot-toast'
 import ReactMarkdown from 'react-markdown'
@@ -16,6 +16,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
   const [previewHtml, setPreviewHtml] = useState('')
   const [loading, setLoading] = useState(false)
   const [autoPreview, setAutoPreview] = useState(true)
+  const textareaRef = useRef(null)
 
   // Convert template_data to markdown on load
   useEffect(() => {
@@ -156,6 +157,7 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
     const lines = markdownContent.split('\n')
     const templateData = {
       paragraphs: [],
+      closing_paragraphs: [],
       cta: {},
       signature
     }
@@ -178,11 +180,11 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
           currentSection = 'highlight'
           highlightBox = { bullet_points: [] }
         } else if (currentSection === 'highlight') {
-          // End highlight box
+          // End highlight box, switch to closing paragraphs
           if (highlightBox) {
             templateData.highlight_box = highlightBox
           }
-          currentSection = 'paragraphs'
+          currentSection = 'closing'
           highlightBox = null
         }
         return
@@ -210,7 +212,11 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
       // Regular paragraphs
       if (trimmed === '') {
         if (currentParagraph) {
-          templateData.paragraphs.push(currentParagraph.trim())
+          if (currentSection === 'closing') {
+            templateData.closing_paragraphs.push(currentParagraph.trim())
+          } else {
+            templateData.paragraphs.push(currentParagraph.trim())
+          }
           currentParagraph = ''
         }
       } else {
@@ -224,7 +230,11 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
 
     // Add last paragraph
     if (currentParagraph) {
-      templateData.paragraphs.push(currentParagraph.trim())
+      if (currentSection === 'closing') {
+        templateData.closing_paragraphs.push(currentParagraph.trim())
+      } else {
+        templateData.paragraphs.push(currentParagraph.trim())
+      }
     }
 
     // Add salutation (first paragraph if it looks like a greeting)
@@ -283,7 +293,26 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
 
   const insertVariable = (varName) => {
     const variable = `{{ ${varName} }}`
-    setMarkdownContent(prev => prev + variable)
+    const textarea = textareaRef.current
+
+    if (textarea) {
+      const start = textarea.selectionStart
+      const end = textarea.selectionEnd
+      const text = markdownContent
+      const before = text.substring(0, start)
+      const after = text.substring(end)
+
+      setMarkdownContent(before + variable + after)
+
+      // Set cursor position after inserted variable
+      setTimeout(() => {
+        textarea.focus()
+        textarea.setSelectionRange(start + variable.length, start + variable.length)
+      }, 0)
+    } else {
+      // Fallback: append to end
+      setMarkdownContent(prev => prev + variable)
+    }
   }
 
   return (
@@ -352,9 +381,37 @@ const TemplateEditor = ({ template, onClose, onSave }) => {
                 <label className="block text-sm font-semibold text-gray-700">Email Body (Markdown)</label>
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-500">Variables detected: {variables.length}</span>
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        insertVariable(e.target.value)
+                        e.target.value = ''
+                      }
+                    }}
+                    className="text-xs px-2 py-1 border rounded bg-white hover:bg-gray-50"
+                  >
+                    <option value="">+ Insert Variable</option>
+                    <option value="parent_name">parent_name</option>
+                    <option value="user_name">user_name</option>
+                    <option value="teen_age_text">teen_age_text</option>
+                    <option value="activity_text">activity_text</option>
+                    <option value="email">email</option>
+                    <option value="current_curriculum">current_curriculum</option>
+                    <option value="phone">phone</option>
+                    <option value="goals">goals</option>
+                    <option value="first_name">first_name</option>
+                    <option value="last_name">last_name</option>
+                    <option value="total_xp">total_xp</option>
+                    <option value="quest_title">quest_title</option>
+                    <option value="xp_earned">xp_earned</option>
+                    <option value="confirmation_link">confirmation_link</option>
+                    <option value="reset_link">reset_link</option>
+                    <option value="expiry_hours">expiry_hours</option>
+                  </select>
                 </div>
               </div>
               <textarea
+                ref={textareaRef}
                 value={markdownContent}
                 onChange={(e) => setMarkdownContent(e.target.value)}
                 placeholder="Hi {{ parent_name }},
@@ -475,25 +532,9 @@ Looking forward to connecting!"
 
             {/* Email preview */}
             <div className="bg-white rounded-lg shadow-lg border overflow-hidden">
-              {/* Email header bar */}
-              <div className="bg-gray-800 text-white px-4 py-2 text-sm flex items-center gap-2">
-                <div className="flex gap-1">
-                  <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                  <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                  <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                </div>
-                <span className="font-semibold ml-2">Inbox Preview</span>
-              </div>
-
-              {/* Subject line preview */}
-              <div className="bg-gray-100 border-b px-4 py-3">
-                <p className="text-xs text-gray-500 mb-1">Subject:</p>
-                <p className="font-semibold text-gray-900">{subject || '[No subject]'}</p>
-              </div>
-
-              {/* Email body */}
+              {/* Email body - exact recipient view */}
               <div
-                className="p-6 min-h-96 overflow-auto"
+                className="min-h-96 overflow-auto"
                 dangerouslySetInnerHTML={{ __html: previewHtml || '<p class="text-gray-400 text-center py-12">Preview will appear here...</p>' }}
               />
             </div>
